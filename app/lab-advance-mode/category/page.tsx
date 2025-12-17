@@ -1,0 +1,537 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { Search, Plus, Settings2, Link as LinkIcon, Edit, Copy, Trash2, MoreVertical, ArrowUpDown } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useTranslation } from "react-i18next"
+import { useToast } from "@/hooks/use-toast"
+import { AddCategoryModal } from "@/components/advance-mode"
+import { useAdvanceCategories, useUpdateCategoryStatus, useCreateAdvanceCategory, useDeleteAdvanceCategory, useDuplicateAdvanceCategory, useUpdateAdvanceCategory, useAdvanceCategory } from "@/lib/api/advance-mode-query"
+import { LoadingDots } from "@/components/ui/loading-dots"
+import { useQueryClient } from "@tanstack/react-query"
+
+export default function CategoryPage() {
+  const { t } = useTranslation()
+  const { toast } = useToast()
+  const queryClient = useQueryClient()
+  const [searchQuery, setSearchQuery] = useState("")
+  const [entriesPerPage, setEntriesPerPage] = useState("10")
+  const [currentPage, setCurrentPage] = useState(1)
+  const [sortBy, setSortBy] = useState<'asc' | 'desc'>('asc')
+  const [orderBy, setOrderBy] = useState('name')
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  const [customerId, setCustomerId] = useState<number | undefined>(undefined)
+
+  // Get role and customer_id from localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const role = localStorage.getItem('role')
+      if (role === 'lab_admin') {
+        const customerIdStr = localStorage.getItem('customerId')
+        if (customerIdStr) {
+          setCustomerId(parseInt(customerIdStr, 10))
+        }
+      }
+    }
+  }, [])
+
+  // Fetch categories from API
+  const { data, isLoading, isError, error } = useAdvanceCategories({
+    page: currentPage,
+    per_page: parseInt(entriesPerPage),
+    q: searchQuery || undefined,
+    order_by: orderBy,
+    sort_by: sortBy,
+    customer_id: customerId,
+  })
+
+  const updateStatusMutation = useUpdateCategoryStatus()
+  const createCategoryMutation = useCreateAdvanceCategory()
+  const deleteCategoryMutation = useDeleteAdvanceCategory()
+  const duplicateCategoryMutation = useDuplicateAdvanceCategory()
+  const updateCategoryMutation = useUpdateAdvanceCategory()
+  const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null)
+
+  const handleStatusToggle = async (id: number, currentStatus: 'Active' | 'Inactive') => {
+    const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active'
+    updateStatusMutation.mutate(
+      { 
+        id, 
+        status: newStatus,
+        ...(customerId !== undefined && { customer_id: customerId })
+      },
+      {
+        onSuccess: () => {
+          toast({
+            title: "Success",
+            description: `Category status updated to ${newStatus}`,
+          })
+        },
+        onError: () => {
+          toast({
+            title: "Error",
+            description: "Failed to update category status",
+            variant: "destructive",
+          })
+        },
+      }
+    )
+  }
+
+  const handleSort = (field: string) => {
+    if (orderBy === field) {
+      setSortBy(sortBy === 'asc' ? 'desc' : 'asc')
+    } else {
+      setOrderBy(field)
+      setSortBy('asc')
+    }
+  }
+
+  const handleCreateCategory = async (data: {
+    name: string
+    code: string
+    image?: string
+    status: string
+  }) => {
+    if (editingCategoryId) {
+      // Update existing category
+      updateCategoryMutation.mutate(
+        {
+          id: editingCategoryId,
+          name: data.name,
+          code: data.code,
+          image: data.image,
+        },
+        {
+          onSuccess: async () => {
+            // Fetch the latest category data after update
+            try {
+              const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
+              const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+              
+              // Ensure proper URL formatting
+              const baseUrl = API_BASE_URL.endsWith('/') ? API_BASE_URL.slice(0, -1) : API_BASE_URL
+              const url = `${baseUrl}/library/advance/categories/${editingCategoryId}`
+              const response = await fetch(url, {
+                headers: {
+                  'Content-Type': 'application/json',
+                  ...(token && { Authorization: `Bearer ${token}` }),
+                },
+              })
+
+              if (response.ok) {
+                const result = await response.json()
+                // Invalidate and refetch the category query to update the UI
+                await queryClient.invalidateQueries({ queryKey: ['advanceCategory', editingCategoryId] })
+                await queryClient.invalidateQueries({ queryKey: ['advanceCategories'] })
+              }
+            } catch (error) {
+              console.error('Failed to fetch latest category data:', error)
+            }
+
+            toast({
+              title: "Success",
+              description: "Category updated successfully",
+            })
+            setIsAddModalOpen(false)
+            setEditingCategoryId(null)
+          },
+          onError: (err: any) => {
+            toast({
+              title: "Error",
+              description: err?.message || "Failed to update category",
+              variant: "destructive",
+            })
+          },
+        }
+      )
+    } else {
+      // Create new category
+      createCategoryMutation.mutate(data, {
+        onSuccess: () => {
+          toast({
+            title: "Success",
+            description: "Category created successfully",
+          })
+          setIsAddModalOpen(false)
+        },
+        onError: (err: any) => {
+          toast({
+            title: "Error",
+            description: err?.message || "Failed to create category",
+            variant: "destructive",
+          })
+        },
+      })
+    }
+  }
+
+  const handleEdit = (id: number) => {
+    setEditingCategoryId(id)
+    setIsAddModalOpen(true)
+  }
+
+  const handleDelete = async (id: number) => {
+    if (!confirm(t("advanceMode.category.confirmDelete", "Are you sure you want to delete this category?"))) {
+      return
+    }
+
+    deleteCategoryMutation.mutate(id, {
+      onSuccess: () => {
+        toast({
+          title: "Success",
+          description: "Category deleted successfully",
+        })
+      },
+      onError: () => {
+        toast({
+          title: "Error",
+          description: "Failed to delete category",
+          variant: "destructive",
+        })
+      },
+    })
+  }
+
+  const handleCopy = async (id: number) => {
+    duplicateCategoryMutation.mutate(id, {
+      onSuccess: () => {
+        toast({
+          title: "Success",
+          description: "Category duplicated successfully",
+        })
+      },
+      onError: () => {
+        toast({
+          title: "Error",
+          description: "Failed to duplicate category",
+          variant: "destructive",
+        })
+      },
+    })
+  }
+
+  const categoryData = data?.data || []
+  const totalPages = data?.last_page || 1
+  const totalEntries = data?.total || 0
+
+  // Get the category being edited
+  const editingCategory = editingCategoryId 
+    ? categoryData.find((cat) => cat.id === editingCategoryId)
+    : null
+
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+      {/* Page Title */}
+      <div className="px-6 py-4 border-b border-gray-200 bg-gray-50/50">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-[#1162a8] rounded-lg">
+            <Settings2 className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl font-semibold text-gray-900">
+              {t("advanceMode.category.title", "Category")}
+            </h1>
+            <p className="text-sm text-gray-500">
+              {t("advanceMode.category.description", "Manage categories for advance mode")}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Header Section */}
+      <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
+        {/* Actions Row */}
+        <div className="flex flex-col sm:flex-row gap-3 sm:justify-between sm:items-center">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-gray-700">{t("Show")}</span>
+            <Select value={entriesPerPage} onValueChange={(value) => {
+              setEntriesPerPage(value)
+              setCurrentPage(1)
+            }}>
+              <SelectTrigger className="w-20 h-9 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10</SelectItem>
+                <SelectItem value="25">25</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+                <SelectItem value="100">100</SelectItem>
+              </SelectContent>
+            </Select>
+            <span className="text-sm text-gray-700">{t("entries")}</span>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3 items-center">
+            <Button
+              onClick={() => setIsAddModalOpen(true)}
+              className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              {t("advanceMode.category.addCategory", "Add Category")}
+            </Button>
+            <Button
+              className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
+            >
+              <LinkIcon className="h-4 w-4 mr-2" />
+              {t("advanceMode.category.linkProduct", "Link Product")}
+            </Button>
+
+            <div className="relative w-full sm:w-auto">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                type="search"
+                placeholder={t("advanceMode.category.searchCategory", "Search Category")}
+                className="pl-10 h-10 w-full sm:w-64 text-sm border-gray-300 focus:border-[#1162a8] focus:ring-[#1162a8]"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value)
+                  setCurrentPage(1)
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Table Section */}
+      <div className="relative">
+        {isLoading && (
+          <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
+            <LoadingDots size="lg" />
+          </div>
+        )}
+
+        {isError && (
+          <div className="p-8 text-center">
+            <p className="text-red-600 text-sm">
+              {t("advanceMode.category.error", "Failed to load categories. Please try again.")}
+            </p>
+          </div>
+        )}
+
+        {!isLoading && !isError && categoryData.length === 0 && (
+          <div className="p-8 text-center">
+            <p className="text-gray-500 text-sm">
+              {t("advanceMode.category.noData", "No categories found.")}
+            </p>
+          </div>
+        )}
+
+        {!isLoading && !isError && categoryData.length > 0 && (
+          <div className="overflow-x-auto">
+            <Table className="w-full text-xs">
+              <TableHeader>
+                <TableRow className="bg-gray-50/80 hover:bg-gray-50">
+                  <TableHead className="w-10 pl-4 py-2">
+                    <Checkbox className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8] h-4 w-4" />
+                  </TableHead>
+                  <TableHead
+                    className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors"
+                    onClick={() => handleSort('name')}
+                  >
+                    <div className="flex items-center gap-1">
+                      {t("Field Name")}
+                      <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors"
+                    onClick={() => handleSort('code')}
+                  >
+                    <div className="flex items-center gap-1">
+                      {t("Code")}
+                      <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />
+                    </div>
+                  </TableHead>
+                  <TableHead className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors">
+                    <div className="flex items-center gap-1">
+                      {t("Options")}
+                      <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />
+                    </div>
+                  </TableHead>
+                  <TableHead className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors">
+                    <div className="flex items-center gap-1">
+                      {t("Linked Category / Products")}
+                      <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors"
+                    onClick={() => handleSort('status')}
+                  >
+                    <div className="flex items-center gap-1">
+                      {t("Status")}
+                      <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />
+                    </div>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {categoryData.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="py-8 text-center">
+                      <p className="text-gray-500 text-sm">
+                        {t("advanceMode.category.noData", "No categories found.")}
+                      </p>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  categoryData.map((item, index) => (
+                    <TableRow key={item.id} className={`border-b border-gray-100 hover:bg-gray-50/50 transition-colors ${index === 0 ? "bg-blue-50/30" : ""}`}>
+                      <TableCell className="pl-4 py-2">
+                        <Checkbox className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8] h-4 w-4" />
+                      </TableCell>
+                      <TableCell className="py-2 px-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-medium">{item.name}</span>
+                          {item.is_custom === 'No' && (
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
+                              <path d="M13.3332 8.66664C13.3332 12 10.9998 13.6666 8.2265 14.6333C8.08128 14.6825 7.92353 14.6802 7.77984 14.6266C4.99984 13.6666 2.6665 12 2.6665 8.66664V3.99997C2.6665 3.82316 2.73674 3.65359 2.86177 3.52857C2.98679 3.40355 3.15636 3.33331 3.33317 3.33331C4.6665 3.33331 6.33317 2.53331 7.49317 1.51997C7.63441 1.39931 7.81407 1.33301 7.99984 1.33301C8.1856 1.33301 8.36527 1.39931 8.5065 1.51997C9.67317 2.53997 11.3332 3.33331 12.6665 3.33331C12.8433 3.33331 13.0129 3.40355 13.1379 3.52857C13.2629 3.65359 13.3332 3.82316 13.3332 3.99997V8.66664Z" stroke="#34C759" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                              <path d="M6 8.00033L7.33333 9.33366L10 6.66699" stroke="#34C759" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-2 px-2">
+                        <code className="bg-gray-100 px-1.5 py-0.5 rounded text-[10px] font-mono text-gray-800 inline-block">
+                          {item.code}
+                        </code>
+                      </TableCell>
+                      <TableCell className="py-2 px-2">
+                        <span className="text-xs">{item.subcategories?.length || 0} subcategories</span>
+                      </TableCell>
+                      <TableCell className="py-2 px-2">
+                        <div className="flex items-center gap-2">
+                          {item.products && item.products.length > 0 ? (
+                            <>
+                              {item.products.slice(0, 2).map((product: any, idx: number) => (
+                                <span key={idx} className="text-xs bg-gray-100 px-2 py-1 rounded">
+                                  {product.name}
+                                </span>
+                              ))}
+                              {item.products.length > 2 && (
+                                <Button variant="ghost" className="h-5 px-1.5 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50">
+                                  +{item.products.length - 2}
+                                </Button>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-xs text-gray-400">No products linked</span>
+                          )}
+                          <LinkIcon className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-2 px-2">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className={`w-10 h-5 rounded-full ${item.status === "Active" ? "bg-blue-600" : "bg-gray-300"} relative cursor-pointer`}
+                            onClick={() => handleStatusToggle(item.id, item.status)}
+                          >
+                            <div className={`w-4 h-4 rounded-full bg-white absolute top-0.5 transition-all ${item.status === "Active" ? "right-0.5" : "left-0.5"}`}></div>
+                          </div>
+                          <span className="text-xs">{item.status}</span>
+                          <div className="flex items-center gap-1 ml-2">
+                            <button
+                              className="text-gray-400 hover:text-[#1162a8] transition-colors p-0.5"
+                              onClick={() => handleEdit(item.id)}
+                            >
+                              <Edit className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              className="text-gray-400 hover:text-[#1162a8] transition-colors p-0.5"
+                              onClick={() => handleCopy(item.id)}
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              className="text-gray-400 hover:text-red-600 transition-colors p-0.5"
+                              onClick={() => handleDelete(item.id)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                            <button className="text-gray-400 hover:text-gray-600 transition-colors p-0.5">
+                              <MoreVertical className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
+
+      {/* Pagination */}
+      {!isLoading && !isError && categoryData.length > 0 && (
+        <div className="px-4 sm:px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-4 border-t border-gray-200">
+          <div className="text-sm text-gray-600">
+            {t("Showing")} {((currentPage - 1) * parseInt(entriesPerPage)) + 1} {t("to")} {Math.min(currentPage * parseInt(entriesPerPage), totalEntries)} {t("of")} {totalEntries} {t("entries")}
+          </div>
+          <div className="flex items-center space-x-1">
+            <button
+              className="h-8 w-8 rounded-full flex items-center justify-center text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+            >
+              «
+            </button>
+            {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+              let pageNum
+              if (totalPages <= 5) {
+                pageNum = i + 1
+              } else if (currentPage <= 3) {
+                pageNum = i + 1
+              } else if (currentPage >= totalPages - 2) {
+                pageNum = totalPages - 4 + i
+              } else {
+                pageNum = currentPage - 2 + i
+              }
+
+              return (
+                <button
+                  key={i}
+                  className={`h-8 w-8 rounded-full flex items-center justify-center text-xs ${
+                    currentPage === pageNum
+                      ? "bg-[#1162a8] text-white"
+                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  }`}
+                  onClick={() => setCurrentPage(pageNum)}
+                >
+                  {pageNum}
+                </button>
+              )
+            })}
+            <button
+              className="h-8 w-8 rounded-full flex items-center justify-center text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+            >
+              »
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Add Category Modal */}
+      <AddCategoryModal
+        isOpen={isAddModalOpen}
+        onClose={() => {
+          setIsAddModalOpen(false)
+          setEditingCategoryId(null)
+        }}
+        onSave={handleCreateCategory}
+        isLoading={createCategoryMutation.isPending || updateCategoryMutation.isPending}
+        category={editingCategory || null}
+        isEditing={!!editingCategoryId}
+      />
+    </div>
+  )
+}
