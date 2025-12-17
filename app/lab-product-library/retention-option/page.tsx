@@ -15,6 +15,8 @@ import { useTranslation } from "react-i18next"
 import { CreateRetentionOptionModal } from "@/components/product-management/create-retention-option-modal"
 import { LinkRetentionTypeModal } from "@/components/product-management/link-retention-type-modal"
 import { LinkProductsModal } from "@/components/product-management/link-products-modal"
+import { getRetentionOptions, updateRetentionOptionStatus } from "@/services/retention-options-api"
+import { useToast } from "@/hooks/use-toast"
 
 type SortField = "name" | "code" | "status"
 type SortDirection = "asc" | "desc"
@@ -40,9 +42,65 @@ export default function RetentionOptionPage() {
 
   const isLabAdmin = user?.role === "lab_admin"
 
+  const getCustomerId = () => {
+    if (typeof window === "undefined") return null
+    const storedCustomerId = localStorage.getItem("customerId")
+    if (storedCustomerId) {
+      return parseInt(storedCustomerId, 10)
+    }
+    if (user?.customers && user.customers.length > 0) {
+      return user.customers[0].id
+    }
+    if (user?.customer_id) {
+      return user.customer_id
+    }
+    if (user?.customer?.id) {
+      return user.customer.id
+    }
+    return null
+  }
+
+  const fetchRetentionOptions = async () => {
+    setLoading(true)
+    try {
+      const customerId = getCustomerId()
+      
+      // Only pass customer_id if user is lab_admin
+      const response = await getRetentionOptions({
+        q: searchTerm || undefined,
+        per_page: Number(entriesPerPage),
+        page: currentPage,
+        order_by: sortField,
+        sort_by: sortDirection,
+        // Pass customer_id only for lab_admin role
+        ...(isLabAdmin && customerId ? { customer_id: customerId } : {}),
+      })
+
+      if (response.status && response.data) {
+        setRetentionOptions(response.data.data || [])
+        setPagination(response.data.pagination || {
+          total: 0,
+          per_page: Number(entriesPerPage),
+          last_page: 1,
+          current_page: 1,
+        })
+      }
+    } catch (error) {
+      console.error("Failed to fetch retention options:", error)
+      setRetentionOptions([])
+      setPagination({
+        total: 0,
+        per_page: Number(entriesPerPage),
+        last_page: 1,
+        current_page: 1,
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
-    // TODO: Fetch retention options from API
-    // fetchRetentionOptions(currentPage, Number(entriesPerPage), searchTerm)
+    fetchRetentionOptions()
   }, [currentPage, entriesPerPage, searchTerm, sortField, sortDirection, currentLanguage])
 
   const handleSort = (field: SortField) => {
@@ -78,9 +136,27 @@ export default function RetentionOptionPage() {
     setCurrentPage(1)
   }
 
+  const { toast } = useToast()
+
   const handleStatusToggle = async (id: number, currentStatus: 'Active' | 'Inactive') => {
-    // TODO: Implement status toggle API call
-    console.log('Toggle status for retention option:', id, currentStatus)
+    try {
+      const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active'
+      await updateRetentionOptionStatus(id, newStatus)
+      
+      toast({
+        title: "Success",
+        description: `Retention option status updated to ${newStatus}`,
+      })
+      
+      // Refresh the list
+      fetchRetentionOptions()
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update retention option status",
+        variant: "destructive",
+      })
+    }
   }
 
   function handleEdit(option: any): void {
@@ -391,6 +467,12 @@ export default function RetentionOptionPage() {
           }}
           option={editOption}
           isCopying={isCopying}
+          onSuccess={() => {
+            // Refresh the list after successful create/update
+            fetchRetentionOptions()
+            // Reset to first page to see the new/updated item
+            setCurrentPage(1)
+          }}
         />
         <LinkRetentionTypeModal
           isOpen={showLinkRetentionTypeModal}

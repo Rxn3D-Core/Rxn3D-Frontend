@@ -199,12 +199,6 @@ export const labAdminMenu: MenuItem[] = [
     path: "/lab-profile",
   },
   {
-    id: "product-management",
-    title: "Product Management",
-    icon: <Box className="h-5 w-5" />,
-    path: "/lab-product-library/products",
-  },
-  {
     id: "lab-management",
     title: "Lab Management",
     icon: <FlaskConical className="h-5 w-5" />,
@@ -225,6 +219,12 @@ export const labAdminMenu: MenuItem[] = [
         path: "/lab-administrator/all-connections",
       },
     ],
+  },
+  {
+    id: "product-management",
+    title: "Product Management",
+    icon: <Box className="h-5 w-5" />,
+    path: "/lab-product-library/products",
   },
   {
     id: "advance-mode",

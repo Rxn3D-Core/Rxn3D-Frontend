@@ -14,6 +14,7 @@ import { LoadingDots } from "@/components/ui/loading-dots"
 import { useRetention } from "@/contexts/product-retention-context"
 import { useLanguage } from "@/contexts/language-context"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
+import { useToast } from "@/hooks/use-toast"
 type SortField = "name" | "code" | "sequence"
 type SortDirection = "asc" | "desc"
 import { useTranslation } from "react-i18next"
@@ -95,9 +96,27 @@ export default function RetentionPage() {
     setCurrentPage(1)
   }
 
+  const { updateRetention } = useRetention()
+  const { toast } = useToast()
+
   const handleStatusToggle = async (id: number, currentStatus: 'Active' | 'Inactive') => {
-    // TODO: Implement status toggle API call
-    console.log('Toggle status for retention:', id, currentStatus)
+    try {
+      const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active'
+      const success = await updateRetention(id, { status: newStatus })
+      
+      if (success) {
+        toast({
+          title: "Success",
+          description: `Retention status updated to ${newStatus}`,
+        })
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update retention status",
+        variant: "destructive",
+      })
+    }
   }
 
   function handleEdit(retention: any): void {

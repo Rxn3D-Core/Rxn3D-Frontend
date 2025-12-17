@@ -339,9 +339,9 @@ const PatientInfoSection = ({
   }, [])
 
   const getGenderDisplay = (gender?: string) => {
-    if (gender === "male") return "M"
-    if (gender === "female") return "F"
-    return "M / F"
+    if (gender === "male") return "Male"
+    if (gender === "female") return "Female"
+    return "Select Gender"
   }
 
   // Always use editable inputs

@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
+import { useQuery } from "@tanstack/react-query"
+import { useDebounce } from "@/lib/performance-utils"
 import { Search, Pencil, Eye, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Loader2, Trash2, Plus, Paperclip, Zap, Maximize2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -144,6 +146,7 @@ export default function CaseDesignCenterPage() {
   const [patientData, setPatientData] = useState<PatientData | null>(null)
   const [createdBy, setCreatedBy] = useState<string>("")
   const [searchQuery, setSearchQuery] = useState<string>("")
+  const [productSearchQuery, setProductSearchQuery] = useState<string>("")
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null)
   const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null)
@@ -463,6 +466,43 @@ export default function CaseDesignCenterPage() {
     return () => window.removeEventListener('resize', handleResize)
   }, [showSubcategories, showProducts, subcategoriesByCategory, products])
 
+  // Debounce product search query
+  const debouncedProductSearchQuery = useDebounce(productSearchQuery, 500)
+
+  // Product search with React Query
+  const labId = selectedLab?.id || selectedLab?.customer_id
+  const searchTerm = debouncedProductSearchQuery.trim()
+  const shouldSearch = !showSubcategories && !showProducts && !showProductDetails && !!searchTerm && !!labId
+
+  const {
+    data: productSearchResults = [],
+    isLoading: isSearchingProducts,
+  } = useQuery<Product[]>({
+    queryKey: ['productSearch', labId, searchTerm],
+    queryFn: async () => {
+      if (!labId || !searchTerm) return []
+      
+      const params: Record<string, any> = {
+        per_page: 50,
+        page: 1,
+        q: searchTerm,
+      }
+
+      const results = await fetchLabProducts(labId, params)
+      return Array.isArray(results) ? results : []
+    },
+    enabled: shouldSearch,
+    staleTime: 2 * 60 * 1000, // 2 minutes
+    gcTime: 5 * 60 * 1000, // 5 minutes
+  })
+
+  // Clear search query when navigating away from categories view
+  useEffect(() => {
+    if (showSubcategories || showProducts || showProductDetails) {
+      setProductSearchQuery("")
+    }
+  }, [showSubcategories, showProducts, showProductDetails])
+
   // Scroll handlers
   const scrollSubcategories = (direction: 'left' | 'right') => {
     if (subcategoriesScrollRef.current) {
@@ -551,7 +591,7 @@ export default function CaseDesignCenterPage() {
       }
 
       if (searchQuery.trim()) {
-        params.search = searchQuery.trim()
+        params.q = searchQuery.trim()
       }
 
       await fetchLabProducts(labId, params)
@@ -1469,15 +1509,7 @@ export default function CaseDesignCenterPage() {
       {/* Case Design Center Label */}
       <div className="bg-[#fdfdfd] h-[37px] grid grid-cols-3 items-center px-5">
         <div className="flex items-center">
-          {showProductDetails && selectedProduct ? (
-            <Button
-              onClick={handleBackToProducts}
-              variant="ghost"
-              className="text-[#1162a8] hover:text-[#0d4d87] hover:bg-[#dfeefb]"
-            >
-              ← Back to Products
-            </Button>
-          ) : showProducts && !showProductDetails ? (
+          {showProducts && !showProductDetails ? (
             <Button
               onClick={handleBackToSubcategories}
               variant="ghost"
@@ -1505,117 +1537,105 @@ export default function CaseDesignCenterPage() {
       <div className="bg-[#fdfdfd] min-h-full">
         <div className="container mx-auto px-5 py-5">
           {/* Search and Category Selection */}
-          <div className="flex flex-col gap-5 items-center mb-8">
+          <div className="flex flex-col items-center">
             {/* Search and Labels Row */}
-            <div className="flex items-center justify-between w-full max-w-[1400px] gap-4">
-              <div className="w-[250px] flex items-center justify-center gap-3">
-                <p className="text-base font-bold text-black text-center" style={{ fontWeight: 700, letterSpacing: "0.01em" }}>MAXILLARY</p>
-                {/* Only show Add Product button when in tooth selection step */}
-                {showProductDetails && selectedProduct && (
-                  <div
-                    style={{
-                      position: "relative",
-                      width: "96.22px",
-                      height: "22px",
-                      flex: "none",
-                      order: 1,
-                      flexGrow: 0,
-                    }}
-                  >
-                    {/* Background Rectangle */}
+            <div className="flex items-center w-full max-w-[1400px] gap-4">
+              {/* Two Column Layout for Labels */}
+              <div className="grid grid-cols-2 flex-1 gap-4">
+                {/* MAXILLARY Column */}
+                <div className="flex items-center justify-center gap-3">
+                  <p className="text-base font-bold text-black text-center" style={{ fontWeight: 700, letterSpacing: "0.01em" }}>MAXILLARY</p>
+                  {/* Only show Add Product button when in tooth selection step */}
+                  {showProductDetails && selectedProduct && (
                     <div
                       style={{
-                        position: "absolute",
-                        width: "96.22px",
-                        height: "18.53px",
-                        left: "0px",
-                        top: "1.74px",
-                        background: "#1162A8",
-                        boxShadow: "1px 1px 3.5px rgba(0, 0, 0, 0.25)",
-                        borderRadius: "6px",
-                        zIndex: 1,
-                      }}
-                    />
-                    {/* Add icon (+) */}
-                    <span
-                      style={{
-                        position: "absolute",
-                        width: "13px",
-                        height: "13px",
-                        left: "9.18px", // 143.07 - 133.89
-                        top: "4.5px",
-                        zIndex: 2,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center"
-                      }}
-                    >
-                      <svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg">
-<path d="M6.5 4.875V8.125M8.125 6.5H4.875M11.375 6.5C11.375 7.14019 11.2489 7.77412 11.0039 8.36558C10.7589 8.95704 10.3998 9.49446 9.94715 9.94715C9.49446 10.3998 8.95704 10.7589 8.36558 11.0039C7.77412 11.2489 7.14019 11.375 6.5 11.375C5.85981 11.375 5.22588 11.2489 4.63442 11.0039C4.04296 10.7589 3.50554 10.3998 3.05285 9.94715C2.60017 9.49446 2.24108 8.95704 1.99609 8.36558C1.7511 7.77412 1.625 7.14019 1.625 6.5C1.625 5.20707 2.13861 3.96709 3.05285 3.05285C3.96709 2.13861 5.20707 1.625 6.5 1.625C7.79293 1.625 9.03291 2.13861 9.94715 3.05285C10.8614 3.96709 11.375 5.20707 11.375 6.5Z" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-</svg>
-
-                    </span>
-                    {/* Add Product Label */}
-                    <button
-                      type="button"
-                      onClick={() => handleAddProduct("maxillary")}
-                      style={{
-                        all: "unset",
-                        cursor: "pointer",
-                        position: "absolute",
+                        position: "relative",
                         width: "96.22px",
                         height: "22px",
-                        left: "0px",
-                        top: "0px",
-                        zIndex: 3,
+                        flex: "none",
+                        order: 1,
+                        flexGrow: 0,
                       }}
                     >
+                      {/* Background Rectangle */}
+                      <div
+                        style={{
+                          position: "absolute",
+                          width: "96.22px",
+                          height: "18.53px",
+                          left: "0px",
+                          top: "1.74px",
+                          background: "#1162A8",
+                          boxShadow: "1px 1px 3.5px rgba(0, 0, 0, 0.25)",
+                          borderRadius: "6px",
+                          zIndex: 1,
+                        }}
+                      />
+                      {/* Add icon (+) */}
                       <span
                         style={{
                           position: "absolute",
-                          width: "59px",
-                          height: "22px",
-                          left: "26.08px", // 159.97 - 133.89
-                          top: "0px",
-                          fontFamily: "Verdana",
-                          fontStyle: "normal",
-                          fontWeight: 400,
-                          fontSize: "10px",
-                          lineHeight: "22px",
-                          textAlign: "center",
-                          letterSpacing: "-0.02em",
-                          color: "#FFFFFF",
-                          userSelect: "none",
+                          width: "13px",
+                          height: "13px",
+                          left: "9.18px", // 143.07 - 133.89
+                          top: "4.5px",
+                          zIndex: 2,
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center"
                         }}
                       >
-                        Add Product
+                        <svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M6.5 4.875V8.125M8.125 6.5H4.875M11.375 6.5C11.375 7.14019 11.2489 7.77412 11.0039 8.36558C10.7589 8.95704 10.3998 9.49446 9.94715 9.94715C9.49446 10.3998 8.95704 10.7589 8.36558 11.0039C7.77412 11.2489 7.14019 11.375 6.5 11.375C5.85981 11.375 5.22588 11.2489 4.63442 11.0039C4.04296 10.7589 3.50554 10.3998 3.05285 9.94715C2.60017 9.49446 2.24108 8.95704 1.99609 8.36558C1.7511 7.77412 1.625 7.14019 1.625 6.5C1.625 5.20707 2.13861 3.96709 3.05285 3.05285C3.96709 2.13861 5.20707 1.625 6.5 1.625C7.79293 1.625 9.03291 2.13861 9.94715 3.05285C10.8614 3.96709 11.375 5.20707 11.375 6.5Z" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+</svg>
+
                       </span>
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Search Bar - Hide if a product is already selected */}
-              {!selectedProduct && (
-                <div className="flex-1 max-w-[373px]">
-                  <div className="relative">
-                    <Input
-                      type="text"
-                      placeholder="Search Product"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="h-[34px] pl-3 pr-10 border-[#b4b0b0] rounded"
-                    />
-                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-3 w-3 text-[#b4b0b0]" />
-                  </div>
+                      {/* Add Product Label */}
+                      <button
+                        type="button"
+                        onClick={() => handleAddProduct("maxillary")}
+                        style={{
+                          all: "unset",
+                          cursor: "pointer",
+                          position: "absolute",
+                          width: "96.22px",
+                          height: "22px",
+                          left: "0px",
+                          top: "0px",
+                          zIndex: 3,
+                        }}
+                      >
+                        <span
+                          style={{
+                            position: "absolute",
+                            width: "59px",
+                            height: "22px",
+                            left: "26.08px", // 159.97 - 133.89
+                            top: "0px",
+                            fontFamily: "Verdana",
+                            fontStyle: "normal",
+                            fontWeight: 400,
+                            fontSize: "10px",
+                            lineHeight: "22px",
+                            textAlign: "center",
+                            letterSpacing: "-0.02em",
+                            color: "#FFFFFF",
+                            userSelect: "none",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center"
+                          }}
+                        >
+                          Add Product
+                        </span>
+                      </button>
+                    </div>
+                  )}
                 </div>
-              )}
 
-              <div className="w-[250px] flex items-center justify-center gap-3">
-                <p className="text-base font-bold text-black text-center" style={{ fontWeight: 700, letterSpacing: "0.01em" }}>MANDIBULAR</p>
+                {/* MANDIBULAR Column */}
+                <div className="flex items-center justify-center gap-3">
+                  <p className="text-base font-bold text-black text-center" style={{ fontWeight: 700, letterSpacing: "0.01em" }}>MANDIBULAR</p>
                 {/* Only show Add Product button when in tooth selection step */}
                 {showProductDetails && selectedProduct && (
                   <div
@@ -1703,11 +1723,86 @@ export default function CaseDesignCenterPage() {
                   </div>
                 )}
               </div>
+              </div>
             </div>
 
             {/* Product Category Cards - Show when no subcategories, products, or product details are shown */}
             {!showSubcategories && !showProducts && !showProductDetails && (
-              <div className="flex gap-4 justify-center">
+              <div className="w-full flex flex-col gap-4">
+                {/* Search Bar for Products */}
+                <div className="flex justify-center">
+                  <div className="relative max-w-[373px] w-full">
+                    <Input
+                      type="text"
+                      placeholder="Search Products"
+                      value={productSearchQuery}
+                      onChange={(e) => setProductSearchQuery(e.target.value)}
+                      className="h-[34px] pl-3 pr-10 border-[#b4b0b0] rounded"
+                    />
+                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-3 w-3 text-[#b4b0b0]" />
+                  </div>
+                </div>
+
+                {/* Product Search Results */}
+                {productSearchQuery.trim() && (
+                  <div className="w-full">
+                    {isSearchingProducts ? (
+                      <div className="flex items-center justify-center py-20">
+                        <div className="text-gray-500">Searching products...</div>
+                      </div>
+                    ) : productSearchResults.length === 0 ? (
+                      <div className="flex items-center justify-center py-10">
+                        <div className="text-center">
+                          <p className="text-gray-600">No products found matching "{productSearchQuery}"</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex gap-4 justify-center flex-wrap">
+                        {productSearchResults.map((product: Product) => {
+                          const isSelected = selectedProduct?.id === product.id
+                          return (
+                            <div
+                              key={product.id}
+                              onClick={() => handleProductSelect(product)}
+                              className={`bg-white border-2 ${isSelected ? "border-[#1162a8] shadow-lg" : "border-[#b4b0b0] hover:border-[#1162A8]"
+                                } rounded-lg h-[210px] w-[155px] p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:shadow-md transition-all`}
+                            >
+                              <div className="w-[117px] h-[117px] rounded overflow-hidden">
+                                <img
+                                  src={product.image_url || "/images/product-default.png"}
+                                  alt={product.name}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    e.currentTarget.src = "/images/product-default.png"
+                                  }}
+                                />
+                              </div>
+                              <p className="text-[11px] text-black text-center">
+                                {product.name}
+                              </p>
+                              <div className="flex flex-col gap-1 items-start w-[87px]">
+                                <div className="bg-[rgba(17,98,168,0.2)] border border-[#1162a8] rounded-[10px] h-[15px] flex items-center justify-center w-full">
+                                  <p className="text-[#1162a8] text-[9.5px]">
+                                    ${product.price || 999}
+                                  </p>
+                                </div>
+                                <div className="bg-[rgba(146,147,147,0.2)] border border-[#929393] rounded-[10px] h-[15px] flex items-center justify-center w-full">
+                                  <p className="text-[#929393] text-[9.5px]">
+                                    est {product.estimated_days || 14} days
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Category Cards - Show when no search query */}
+                {!productSearchQuery.trim() && (
+                  <div className="flex gap-4 justify-center">
                 {mainCategories.map((category: ProductCategoryApi) => {
                   const isSelected = selectedCategory === category.name
                   return (
@@ -1733,6 +1828,8 @@ export default function CaseDesignCenterPage() {
                     </div>
                   )
                 })}
+                  </div>
+                )}
               </div>
             )}
 

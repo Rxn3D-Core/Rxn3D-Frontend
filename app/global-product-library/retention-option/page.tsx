@@ -13,6 +13,8 @@ import { useTranslation } from "react-i18next"
 import { CreateRetentionOptionModal } from "@/components/product-management/create-retention-option-modal"
 import { LinkRetentionTypeModal } from "@/components/product-management/link-retention-type-modal"
 import { LinkProductsModal } from "@/components/product-management/link-products-modal"
+import { getRetentionOptions, updateRetentionOptionStatus } from "@/services/retention-options-api"
+import { useToast } from "@/hooks/use-toast"
 
 type SortField = "name" | "code" | "status"
 type SortDirection = "asc" | "desc"
@@ -45,9 +47,44 @@ export default function RetentionOptionPage() {
     return () => clearTimeout(timeoutId)
   }, [searchInput])
 
+  const fetchRetentionOptions = async () => {
+    setLoading(true)
+    try {
+      // Global page - don't pass customer_id (for super admin)
+      const response = await getRetentionOptions({
+        q: searchTerm || undefined,
+        per_page: entriesPerPage,
+        page: currentPage,
+        order_by: sortField,
+        sort_by: sortDirection,
+        // Explicitly don't pass customer_id for global/super admin
+      })
+
+      if (response.status && response.data) {
+        setRetentionOptions(response.data.data || [])
+        setPagination(response.data.pagination || {
+          total: 0,
+          per_page: entriesPerPage,
+          last_page: 1,
+          current_page: 1,
+        })
+      }
+    } catch (error) {
+      console.error("Failed to fetch retention options:", error)
+      setRetentionOptions([])
+      setPagination({
+        total: 0,
+        per_page: entriesPerPage,
+        last_page: 1,
+        current_page: 1,
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
-    // TODO: Fetch retention options from API
-    // fetchRetentionOptions(currentPage, entriesPerPage, searchTerm, sortField, sortDirection)
+    fetchRetentionOptions()
   }, [currentPage, entriesPerPage, searchTerm, sortField, sortDirection, currentLanguage])
 
   const handleSort = (field: SortField) => {
@@ -89,9 +126,27 @@ export default function RetentionOptionPage() {
     setCurrentPage(1)
   }
 
+  const { toast } = useToast()
+
   const handleStatusToggle = async (id: number, currentStatus: 'Active' | 'Inactive') => {
-    // TODO: Implement status toggle API call
-    console.log('Toggle status for retention option:', id, currentStatus)
+    try {
+      const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active'
+      await updateRetentionOptionStatus(id, newStatus)
+      
+      toast({
+        title: "Success",
+        description: `Retention option status updated to ${newStatus}`,
+      })
+      
+      // Refresh the list
+      fetchRetentionOptions()
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update retention option status",
+        variant: "destructive",
+      })
+    }
   }
 
   function handleEdit(option: any): void {
@@ -408,6 +463,12 @@ export default function RetentionOptionPage() {
             setEditOption(null)
           }}
           option={editOption}
+          onSuccess={() => {
+            // Refresh the list after successful create/update
+            fetchRetentionOptions()
+            // Reset to first page to see the new/updated item
+            setCurrentPage(1)
+          }}
         />
         <LinkRetentionTypeModal
           isOpen={showLinkRetentionTypeModal}

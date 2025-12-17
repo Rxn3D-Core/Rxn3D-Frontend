@@ -9,6 +9,13 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { useTranslation } from "react-i18next"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
+import {
+  getRetentionOptions,
+} from "@/services/retention-options-api"
+import {
+  getRetentionsWithRetentionOptions,
+  linkRetentionsWithRetentionOptions,
+} from "@/services/retentions-api"
 
 interface LinkRetentionOptionModalProps {
   isOpen: boolean
@@ -21,6 +28,15 @@ interface RetentionType {
   name: string
   code: string
   status: string
+  retention_options?: Array<{
+    id: number
+    name: string
+    image_url: string | null
+    status: "Active" | "Inactive"
+    sequence: number
+    link_id: number | null
+    is_lab_specific: boolean
+  }>
 }
 
 interface RetentionOption {
@@ -30,8 +46,6 @@ interface RetentionOption {
   status: string
   retention_id?: number
 }
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000/api"
 
 // Helper function to get customer ID
 const getCustomerId = (user: any): number | null => {
@@ -55,12 +69,6 @@ const getCustomerId = (user: any): number | null => {
   }
 
   return null
-}
-
-const getAuthToken = () => {
-  const token = localStorage.getItem("token")
-  if (!token) throw new Error("Authentication token not found.")
-  return token
 }
 
 export function LinkRetentionOptionModal({ isOpen, onClose, onApply }: LinkRetentionOptionModalProps) {
@@ -121,31 +129,27 @@ export function LinkRetentionOptionModal({ isOpen, onClose, onApply }: LinkReten
 
   const fetchRetentionTypes = async (customerId: number | null, page: number = 1) => {
     try {
-      const token = getAuthToken()
-      const searchParam = searchQuery ? `&q=${encodeURIComponent(searchQuery)}` : ""
-      const customerParam = customerId ? `&customer_id=${customerId}` : ""
-      
-      const response = await fetch(
-        `${API_BASE_URL}/library/retentions?status=Active&per_page=10&page=${page}${searchParam}${customerParam}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        }
-      )
+      const response = await getRetentionsWithRetentionOptions({
+        q: searchQuery || undefined,
+        status: "Active",
+        customer_id: customerId || undefined,
+        per_page: 10,
+        page,
+      })
 
-      if (!response.ok) {
-        throw new Error("Failed to fetch retention types")
+      if (response.status && response.data) {
+        const retentionTypesList = response.data.data || []
+        const pagination = response.data.pagination || { current_page: 1, last_page: 1, total: 0, per_page: 10 }
+        setRetentionTypes(retentionTypesList)
+        setRetentionTypesPagination(pagination)
       }
-
-      const data = await response.json()
-      const retentionTypesList = data.data?.data || []
-      const pagination = data.data?.pagination || { current_page: 1, last_page: 1, total: 0, per_page: 10 }
-      setRetentionTypes(retentionTypesList)
-      setRetentionTypesPagination(pagination)
     } catch (error: any) {
       console.error("Error fetching retention types:", error)
+      toast({
+        title: t("error") || "Error",
+        description: error.message || t("Failed to fetch retention types", "Failed to fetch retention types"),
+        variant: "destructive",
+      })
       setRetentionTypes([])
       setRetentionTypesPagination({ current_page: 1, last_page: 1, total: 0, per_page: 10 })
     }
@@ -153,34 +157,27 @@ export function LinkRetentionOptionModal({ isOpen, onClose, onApply }: LinkReten
 
   const fetchRetentionOptions = async (customerId: number | null, page: number = 1) => {
     try {
-      const token = getAuthToken()
-      const searchParam = searchQuery ? `&q=${encodeURIComponent(searchQuery)}` : ""
-      const customerParam = customerId ? `&customer_id=${customerId}` : ""
-      
-      // Assuming retention options endpoint exists - adjust if different
-      const response = await fetch(
-        `${API_BASE_URL}/library/retention-options?status=Active&per_page=10&page=${page}${searchParam}${customerParam}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        }
-      )
+      const response = await getRetentionOptions({
+        q: searchQuery || undefined,
+        status: "Active",
+        customer_id: customerId || undefined,
+        per_page: 10,
+        page,
+      })
 
-      if (!response.ok) {
-        throw new Error("Failed to fetch retention options")
+      if (response.status && response.data) {
+        const retentionOptionsList = response.data.data || []
+        const pagination = response.data.pagination || { current_page: 1, last_page: 1, total: 0, per_page: 10 }
+        setRetentionOptions(retentionOptionsList)
+        setRetentionOptionsPagination(pagination)
       }
-
-      const data = await response.json()
-      const retentionOptionsList = data.data?.data || []
-      const pagination = data.data?.pagination || { current_page: 1, last_page: 1, total: 0, per_page: 10 }
-      setRetentionOptions(retentionOptionsList)
-      setRetentionOptionsPagination(pagination)
     } catch (error: any) {
       console.error("Error fetching retention options:", error)
-      // If endpoint doesn't exist, try alternative approach
-      // For now, set empty array
+      toast({
+        title: t("error") || "Error",
+        description: error.message || t("Failed to fetch retention options", "Failed to fetch retention options"),
+        variant: "destructive",
+      })
       setRetentionOptions([])
       setRetentionOptionsPagination({ current_page: 1, last_page: 1, total: 0, per_page: 10 })
     }
@@ -264,6 +261,24 @@ export function LinkRetentionOptionModal({ isOpen, onClose, onApply }: LinkReten
 
     setIsLoading(true)
     try {
+      const customerId = getCustomerId(user)
+      
+      // Prepare payload for linking API
+      const payload = {
+        ...(customerId ? { customer_id: customerId } : {}),
+        retentions: selectedRetentionTypes.map((retentionId, index) => ({
+          id: retentionId,
+          retention_options: selectedRetentionOptions.map((optionId, seqIndex) => ({
+            retention_option_id: optionId,
+            status: "Active" as const,
+            sequence: seqIndex + 1,
+          })),
+        })),
+      }
+
+      // Call the linking API
+      await linkRetentionsWithRetentionOptions(payload)
+
       // Call the onApply callback if provided
       if (onApply) {
         onApply(selectedRetentionTypes, selectedRetentionOptions)
