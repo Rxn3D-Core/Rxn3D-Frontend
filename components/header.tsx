@@ -39,6 +39,7 @@ import { preloadComponentsByRoute } from "@/lib/code-splitting"
 import { useSlipContext } from "../app/lab-case-management/SlipContext"
 import DriverHistoryModal from "./driver-history-modal"
 import { CustomerLogo } from "@/components/customer-logo"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 interface HeaderProps {
   toggleSidebar?: () => void
@@ -811,6 +812,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
 
             {/* Enhanced Right Section - Pushed to right edge */}
             <div className="flex items-center gap-1 sm:gap-1.5 md:gap-2 lg:gap-3 xl:gap-4 2xl:gap-5 flex-shrink-0 ml-auto">
+              <ThemeToggle />
               <div className="hidden md:block">
                 <LanguageSwitcher />
               </div>

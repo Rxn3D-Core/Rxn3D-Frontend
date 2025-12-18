@@ -8,14 +8,12 @@ export default function CaseDesignCenterLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="flex min-h-screen">
+    <div className="flex h-screen overflow-hidden">
       <DashboardSidebar />
-      <div className="flex-1 flex flex-col">
-        <div className="flex-1 flex">
-          <main className="flex-1">
-            {children}
-          </main>
-        </div>
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <main className="flex-1 overflow-auto">
+          {children}
+        </main>
       </div>
     </div>
   )

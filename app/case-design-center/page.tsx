@@ -7568,13 +7568,9 @@ export default function CaseDesignCenterPage() {
 
           {/* Footer - Consistent across all pages */}
           <div 
-            className="bg-white flex-shrink-0 fixed sm:relative bottom-0 left-0 right-0 z-50 sm:z-auto"
+            className="bg-white flex-shrink-0 sticky bottom-0 left-0 right-0 z-10"
             style={{
-              position: "absolute",
-              width: "100%",
               height: "59.94px",
-              right: 0,
-              bottom: 0,
               background: "#FFFFFF",
             }}
           >

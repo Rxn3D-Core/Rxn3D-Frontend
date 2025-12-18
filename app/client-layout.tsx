@@ -5,6 +5,7 @@ import type React from "react"
 import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { ImpersonationBanner } from "@/components/impersonation-banner"
+import { ChatSupportBox } from "@/components/chat-support-box"
 
 export function ClientLayout({ children }: { children: React.ReactNode }) {
   const [isRedirecting, setIsRedirecting] = useState(false)
@@ -75,6 +76,9 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Chat Support Box - Available on all authenticated pages */}
+      <ChatSupportBox />
     </div>
   )
 }
