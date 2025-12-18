@@ -451,7 +451,7 @@ export function AddDoctorModal({ isOpen, onClose, onDoctorConnect }: AddDoctorMo
                   <div className="relative bg-orange-100 border border-orange-200 rounded-lg px-4 py-3 shadow-lg max-w-sm">
                     <div className="absolute -top-2 left-6 w-4 h-4 bg-orange-100 border-l border-t border-orange-200 transform rotate-45"></div>
                     <p className="text-sm text-orange-800">
-                      Type the dental lab&apos;s name to connect with an existing user or create a new one.
+                      Type the doctor's name to connect with an existing user or create a new one.
                     </p>
                   </div>
                 </div>

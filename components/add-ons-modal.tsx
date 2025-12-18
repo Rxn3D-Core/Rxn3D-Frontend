@@ -71,6 +71,13 @@ export default function AddOnsModal({ isOpen, onClose, onAddAddOns, labId, produ
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
   const hasLoadedRef = useRef<boolean>(false)
+  const lastLoadedProductIdRef = useRef<string | null>(null)
+  const productIdRef = useRef<string>(productId) // Keep productId in ref for closure safety
+  
+  // Update productId ref when it changes
+  useEffect(() => {
+    productIdRef.current = productId
+  }, [productId])
 
   // Get existing add-ons from Zustand store in real-time
   const existingAddOns = useMemo(() => {
@@ -89,6 +96,8 @@ export default function AddOnsModal({ isOpen, onClose, onAddAddOns, labId, produ
 
   // Single debounced function to handle all API calls
   const debouncedFetch = useCallback((searchTerm: string, isInitialLoad: boolean = false) => {
+    console.log(`🚀 debouncedFetch called: searchTerm="${searchTerm}", isInitialLoad=${isInitialLoad}, current productId=${productId}`)
+    
     // Clear existing timeout
     if (debounceTimeoutRef.current) {
       clearTimeout(debounceTimeoutRef.current)
@@ -102,21 +111,68 @@ export default function AddOnsModal({ isOpen, onClose, onAddAddOns, labId, produ
     // Create new abort controller
     abortControllerRef.current = new AbortController()
 
-    // For initial load, don't debounce - load immediately
-    const delay = isInitialLoad ? 0 : 500 // Increased debounce delay for search
+    // Capture productId in a variable for the closure
+    const currentProductId = productIdRef.current
+    console.log(`📌 Captured productId: ${currentProductId}`)
+    
+    // For initial load, call directly without setTimeout to avoid timing issues
+    if (isInitialLoad) {
+      console.log(`🚀 Initial load - calling fetch directly for productId=${currentProductId}`)
+      if (!currentProductId) {
+        console.warn(`⚠️ Cannot fetch addons: productId is ${currentProductId}`)
+        return
+      }
 
+      const productIdNum = parseInt(currentProductId, 10)
+      if (isNaN(productIdNum)) {
+        console.error(`❌ Invalid productId: ${currentProductId} (parsed as ${productIdNum})`)
+        return
+      }
+
+      // Call fetch directly for initial load
+      setLoading(true)
+      fetchProductAddons(productIdNum)
+        .then(() => {
+          console.log(`✅ Successfully fetched addons for product ${productIdNum}`)
+          setLoading(false)
+        })
+        .catch((error) => {
+          if (error instanceof Error && error.name !== 'AbortError') {
+            console.error('Error fetching addons:', error)
+          }
+          setLoading(false)
+        })
+      return
+    }
+
+    // For search, use debounced setTimeout
+    const delay = 500
+    console.log(`⏱️ Setting timeout with delay=${delay}ms for productId=${currentProductId}`)
+    
     debounceTimeoutRef.current = setTimeout(async () => {
-      if (!productId) return
+      console.log(`⏰ Timeout executed! productId=${currentProductId}`)
+      if (!currentProductId) {
+        console.warn(`⚠️ Cannot fetch addons: productId is ${currentProductId}`)
+        return
+      }
 
-      console.log(`🔍 Fetching addons for product ${productId}, search: "${searchTerm}", isInitial: ${isInitialLoad}`)
+      const productIdNum = parseInt(currentProductId, 10)
+      if (isNaN(productIdNum)) {
+        console.error(`❌ Invalid productId: ${currentProductId} (parsed as ${productIdNum})`)
+        return
+      }
+
+      console.log(`🔍 Fetching addons for product ${currentProductId} (${productIdNum}), search: "${searchTerm}"`)
       setLoading(true)
       try {
-        const productIdNum = parseInt(productId, 10)
         if (searchTerm.trim()) {
+          console.log(`🔎 Calling searchProductAddons(${productIdNum}, "${searchTerm}")`)
           await searchProductAddons(productIdNum, searchTerm)
         } else {
+          console.log(`📥 Calling fetchProductAddons(${productIdNum})`)
           await fetchProductAddons(productIdNum)
         }
+        console.log(`✅ Successfully fetched addons for product ${productIdNum}`)
       } catch (error) {
         // Only log error if it's not an abort error
         if (error instanceof Error && error.name !== 'AbortError') {
@@ -147,17 +203,35 @@ export default function AddOnsModal({ isOpen, onClose, onAddAddOns, labId, produ
 
   // Load initial data when modal opens (only if no data exists and not already loaded)
   useEffect(() => {
-    if (isOpen && productId && !hasLoadedRef.current) {
-      // Check if we already have data for this product
-      const hasData = productAddons && productAddons.length > 0
+    if (isOpen && productId) {
+      console.log(`📦 AddOnsModal: isOpen=${isOpen}, productId=${productId}, lastLoaded=${lastLoadedProductIdRef.current}`)
       
-      if (!hasData) {
+      // Reset loaded flag if productId has changed - always fetch for new product
+      if (lastLoadedProductIdRef.current !== productId) {
+        console.log(`🔄 Product ID changed from ${lastLoadedProductIdRef.current} to ${productId}, resetting and fetching`)
+        hasLoadedRef.current = false
+        lastLoadedProductIdRef.current = productId
+        // Always fetch when productId changes, regardless of existing data
         hasLoadedRef.current = true
+        console.log(`🎬 About to call debouncedFetch for productId=${productId}`)
         debouncedFetch("", true) // Initial load with empty search term
-      } else {
-        // Data already exists, just set the categories
-        setAddOnCategories(productAddons)
-        hasLoadedRef.current = true
+        return
+      }
+      
+      // Only check existing data if we haven't loaded yet and productId hasn't changed
+      if (!hasLoadedRef.current) {
+        const hasData = productAddons && productAddons.length > 0
+        
+        if (!hasData) {
+          console.log(`📥 No existing data, fetching addons for product ${productId}`)
+          hasLoadedRef.current = true
+          debouncedFetch("", true) // Initial load with empty search term
+        } else {
+          console.log(`✅ Using existing data for product ${productId}`)
+          // Data already exists, just set the categories
+          setAddOnCategories(productAddons)
+          hasLoadedRef.current = true
+        }
       }
     }
   }, [isOpen, productId, productAddons, debouncedFetch])
@@ -166,6 +240,7 @@ export default function AddOnsModal({ isOpen, onClose, onAddAddOns, labId, produ
   useEffect(() => {
     if (!isOpen) {
       hasLoadedRef.current = false
+      lastLoadedProductIdRef.current = null
     }
   }, [isOpen])
 

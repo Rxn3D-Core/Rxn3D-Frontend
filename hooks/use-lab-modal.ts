@@ -2,17 +2,13 @@ import { useCallback, useEffect } from 'react'
 import { useLabModalStore } from '@/stores/lab-modal-store'
 import { useInvitation } from '@/contexts/invitation-context'
 import {
-  labSearchSchema,
   labInviteSchema,
   labConnectionSchema,
-  type LabSearchInput,
   type LabInviteInput,
   type LabConnectionInput,
-  type LabApiResponse,
-  type LabsApiResponse
 } from '@/lib/validations/lab-modal'
 
-const API_BASE_URL = "http://localhost:3000/api"
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000"
 
 export const useLabModal = () => {
   const store = useLabModalStore()
@@ -27,21 +23,8 @@ export const useLabModal = () => {
     showCustomToast
   } = store
 
-  // Search labs with validation
+  // Search labs - fetch connected labs/offices
   const searchLabs = useCallback(async (searchQuery: string = "") => {
-    // Validate search input
-    const searchInput: LabSearchInput = {
-      searchTerm: searchQuery,
-      sortBy: sortBy as "location" | "name-az" | "name-za"
-    }
-
-    try {
-      labSearchSchema.parse(searchInput)
-    } catch (error) {
-      setError("Invalid search parameters")
-      return
-    }
-
     setIsLoading(true)
     setError(null)
 
@@ -51,65 +34,71 @@ export const useLabModal = () => {
         throw new Error("No authentication token found")
       }
 
-      const userStr = localStorage.getItem("user")
-      if (!userStr) {
-        throw new Error("No user information found")
-      }
+      // Get role from localStorage to determine endpoint
+      const role = localStorage.getItem("role") || ""
+      
+      // Use the same logic as choose-lab page
+      // For lab_admin, fetch connected-offices, otherwise fetch connected-labs
+      const endpoint = role === "lab_admin" 
+        ? "/v1/slip/connected-offices"
+        : "/v1/slip/connected-labs"
 
-      const user = JSON.parse(userStr)
-      const customerId = user.customers?.[0]?.id
-
-      if (!customerId) {
-        throw new Error("No customer ID found")
-      }
-
-      // Build query parameters - search for lab_admin users
-      const params = new URLSearchParams({
-        customer_id: customerId.toString(),
-        role: "lab_admin",
-        status: "Active",
-        per_page: "50"
-      })
-
+      const url = new URL(endpoint, API_BASE_URL)
+      
       if (searchQuery.trim()) {
-        params.append("q", searchQuery.trim())
+        url.searchParams.append("search", searchQuery.trim())
       }
 
-      const response = await fetch(`${API_BASE_URL}/users?${params}`, {
+      const response = await fetch(url.toString(), {
         method: "GET",
         headers: {
-          "Authorization": `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
       })
 
-      if (!response.ok) {
-        throw new Error(`Failed to search labs: ${response.status}`)
+      if (response.status === 401) {
+        window.location.href = "/login"
+        throw new Error("Unauthorized")
       }
 
-      const data: LabsApiResponse = await response.json()
+      if (!response.ok) {
+        throw new Error(`Failed to fetch labs: ${response.status}`)
+      }
 
-      // Transform the API response to match our Lab interface
-      const labs = data.data?.map((user: LabApiResponse) => ({
-        id: user.id.toString(),
-        name: user.full_name || `${user.first_name || ""} ${user.last_name || ""}`.trim(),
-        location: user.customers?.[0]?.address || "Location not specified",
-        logo: user.profile_image || "/images/office-default.png",
-        email: user.email,
-        phone: user.phone,
-        address: user.customers?.[0]?.address,
-        status: "available" as const
-      })) || []
+      const data = await response.json()
+      
+      // Transform data based on whether it's offices or labs
+      const labsList = (data.data || []).map((item: any) => {
+        // Handle both office and lab structures
+        const lab = item.lab || item.office || item
+        const location = lab.location || item.location || ""
+        const city = lab.city || item.city || ""
+        const state = lab.state || item.state || ""
+        const locationString = location || (city && state ? `${city}, ${state}` : city || state || "Location not specified")
+        
+        return {
+          id: lab.id?.toString() || item.id?.toString() || "",
+          name: lab.name || item.name || "",
+          location: locationString,
+          logo: lab.logo_url || lab.logo || item.logo || lab.image || item.image || "/images/office-default.png",
+          email: lab.email || item.email || "",
+          phone: lab.phone || item.phone || "",
+          address: lab.address || item.address || locationString,
+          isConnected: item.is_favorite || false,
+          status: item.is_favorite ? "connected" as const : "available" as const
+        }
+      })
 
-      setLabs(labs)
+      setLabs(labsList)
 
       // Show toast if no results found and user was searching
-      if (searchQuery.trim() && labs.length === 0) {
+      if (searchQuery.trim() && labsList.length === 0) {
         showCustomToast("No Results Found", `No labs found for "${searchQuery}"`, "destructive")
       }
     } catch (err: any) {
       console.error("Error searching labs:", err)
-      const errorMessage = err.message || "Failed to search labs"
+      const errorMessage = err.message || "Failed to fetch labs"
       setError(errorMessage)
       setLabs([])
 
@@ -118,7 +107,7 @@ export const useLabModal = () => {
     } finally {
       setIsLoading(false)
     }
-  }, [sortBy, setLabs, setIsLoading, setError, showCustomToast])
+  }, [setLabs, setIsLoading, setError, showCustomToast])
 
   // Send lab invitation with validation
   const sendLabInvitation = useCallback(async (inviteData: LabInviteInput) => {

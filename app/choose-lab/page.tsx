@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { useQuery } from "@tanstack/react-query"
 import { Search, Star, Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -16,6 +17,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
 import { CustomerLogo } from "@/components/customer-logo"
 import { SlipCreationHeader } from "@/components/slip-creation-header"
+import { useDebounce } from "@/lib/performance-utils"
+import CancelSlipCreationModal from "@/components/cancel-slip-creation-modal"
+import { AddNewLabModal } from "@/components/add-new-lab-modal"
+import { useCustomerLogoStore } from "@/stores/customer-logo-store"
 
 interface Lab {
   id: number
@@ -25,7 +30,6 @@ interface Lab {
   state?: string
   logo?: string
   image?: string
-  customer_id?: number
   is_favorite?: boolean
 }
 
@@ -43,13 +47,16 @@ export default function ChooseLabPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
-  const [labs, setLabs] = useState<Lab[]>([])
-  const [filteredLabs, setFilteredLabs] = useState<Lab[]>([])
-  const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [sortBy, setSortBy] = useState("name-asc")
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null)
   const [createdBy, setCreatedBy] = useState<string>("")
+  const [showCancelModal, setShowCancelModal] = useState(false)
+  const [showAddLabModal, setShowAddLabModal] = useState(false)
+  const { setCustomerLogo } = useCustomerLogoStore()
+
+  // Debounce search query to avoid excessive API calls
+  const debouncedSearchQuery = useDebounce(searchQuery, 500)
 
   // Get doctor from URL or localStorage
   useEffect(() => {
@@ -78,10 +85,15 @@ export default function ChooseLabPage() {
     }
   }, [searchParams])
 
-  // Fetch labs using the same logic as dental-slip-page.tsx
-  const fetchLabs = useCallback(async () => {
-    setIsLoading(true)
-    try {
+  // Fetch labs using React Query with debounced search
+  const {
+    data: labs = [],
+    isLoading,
+    error,
+    refetch,
+  } = useQuery<Lab[]>({
+    queryKey: ["labs", debouncedSearchQuery],
+    queryFn: async () => {
       const token = localStorage.getItem("token")
       if (!token) {
         throw new Error("No authentication token found")
@@ -95,11 +107,11 @@ export default function ChooseLabPage() {
       const endpoint = role === "lab_admin" 
         ? "/v1/slip/connected-offices"
         : "/v1/slip/connected-labs"
-      
+
       const url = new URL(endpoint, API_BASE_URL)
       
-      if (searchQuery.trim()) {
-        url.searchParams.append("search", searchQuery.trim())
+      if (debouncedSearchQuery.trim()) {
+        url.searchParams.append("search", debouncedSearchQuery.trim())
       }
 
       const response = await fetch(url.toString(), {
@@ -112,7 +124,7 @@ export default function ChooseLabPage() {
 
       if (response.status === 401) {
         window.location.href = "/login"
-        return
+        throw new Error("Unauthorized")
       }
 
       if (!response.ok) {
@@ -126,50 +138,40 @@ export default function ChooseLabPage() {
         // Handle both office and lab structures
         const lab = item.lab || item.office || item
         return {
-          id: lab.id || item.id,
+          id: lab.id || item.id, // Use lab/office ID directly
           name: lab.name || item.name || "",
           location: lab.location || item.location || "",
           city: lab.city || item.city || "",
           state: lab.state || item.state || "",
-          logo: lab.logo || item.logo || lab.image || item.image || null,
+          logo: lab.logo_url || lab.logo || item.logo || lab.image || item.image || null,
           image: lab.image || item.image || null,
-          customer_id: lab.customer_id || item.customer_id || lab.id || item.id,
           is_favorite: item.is_favorite || false,
         }
       })
 
-      setLabs(labsList)
-    } catch (error: any) {
-      console.error("Error fetching labs:", error)
+      return labsList
+    },
+    enabled: typeof window !== "undefined" && !!localStorage.getItem("token"),
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    gcTime: 1000 * 60 * 10, // 10 minutes
+    retry: 1,
+    refetchOnWindowFocus: false,
+  })
+
+  // Show error toast if query fails
+  useEffect(() => {
+    if (error) {
       toast({
         title: "Error",
-        description: error.message || "Failed to fetch labs",
+        description: error instanceof Error ? error.message : "Failed to fetch labs",
         variant: "destructive",
       })
-    } finally {
-      setIsLoading(false)
     }
-  }, [searchQuery, toast])
+  }, [error, toast])
 
-  useEffect(() => {
-    fetchLabs()
-  }, [fetchLabs])
-
-  // Sort and filter labs
+  // Sort labs (search is handled by API with debounced query)
   const sortedAndFilteredLabs = useMemo(() => {
     let result = [...labs]
-
-    // Apply search filter (already handled by API, but we can filter client-side too)
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase()
-      result = result.filter(
-        (lab) =>
-          lab.name.toLowerCase().includes(query) ||
-          lab.location?.toLowerCase().includes(query) ||
-          lab.city?.toLowerCase().includes(query) ||
-          lab.state?.toLowerCase().includes(query)
-      )
-    }
 
     // Apply sorting
     result.sort((a, b) => {
@@ -188,29 +190,50 @@ export default function ChooseLabPage() {
     })
 
     return result
-  }, [labs, searchQuery, sortBy])
-
-  useEffect(() => {
-    setFilteredLabs(sortedAndFilteredLabs)
-  }, [sortedAndFilteredLabs])
+  }, [labs, sortBy])
 
   const handleAddLab = () => {
-    toast({
-      title: "Add Lab",
-      description: "Add lab functionality will be implemented here",
-    })
+    setShowAddLabModal(true)
   }
 
   const handleLabSelect = (lab: Lab) => {
     // Store selected lab
     localStorage.setItem("selectedLab", JSON.stringify(lab))
     
-    // Navigate to patient input page
-    router.push(`/patient-input?labId=${lab.id}`)
+    // Store logo in the format CustomerLogo component expects (only for "Sending to" section)
+    // This does NOT change the center logo, which remains the user's own customer logo
+    if (lab.logo) {
+      setCustomerLogo(lab.id, lab.logo)
+    }
+    
+    // Navigate to choose doctor page
+    router.push(`/choose-doctor?labId=${lab.id}`)
+  }
+
+  const handleLabSelectFromModal = (lab: any) => {
+    // Handle lab selection from the modal
+    // The modal might return a lab that was just connected
+    // Refresh the labs list to show the newly connected lab
+    refetch()
+    // If a lab is provided, select it and navigate
+    if (lab) {
+      // Transform lab to match Lab interface if needed
+      const transformedLab: Lab = {
+        id: lab.id || lab.customer_id,
+        name: lab.name || "",
+        location: lab.location || "",
+        city: lab.city || "",
+        state: lab.state || "",
+        logo: lab.logo_url || lab.logo || lab.image || null,
+        image: lab.image || null,
+        is_favorite: lab.is_favorite || false,
+      }
+      handleLabSelect(transformedLab)
+    }
   }
 
   const handleCancel = () => {
-    router.back()
+    setShowCancelModal(true)
   }
 
   const getLocationString = (lab: Lab) => {
@@ -224,15 +247,25 @@ export default function ChooseLabPage() {
   return (
     <div className="min-h-screen bg-white">
       <SlipCreationHeader 
-        variant="with-doctor-info"
+        variant="full"
         doctor={selectedDoctor}
         createdBy={createdBy}
+        showLogo={true}
       />
 
       <div className="container mx-auto px-6 max-w-[1400px]">
 
           {/* Title */}
-          <h1 className="text-xl font-semibold text-center mb-6">Choose a Lab</h1>
+          <h1 className="text-xl font-semibold text-center mb-6">
+            {typeof window !== "undefined"
+              ? (() => {
+                  const role = window.localStorage.getItem("role");
+                  if (role === "lab_admin") return "Choose a Office";
+                  if (role === "office_admin") return "Choose a Lab";
+                  return "Choose Lab";
+                })()
+              : "Choose Lab"}
+          </h1>
 
           {/* Search and Controls Bar */}
           <div className="flex items-center gap-4 mb-4 max-w-5xl mx-auto">
@@ -240,7 +273,16 @@ export default function ChooseLabPage() {
             <div className="relative flex-1">
               <Input
                 type="text"
-                placeholder="Search Dental Lab"
+                placeholder={
+                  typeof window !== "undefined"
+                    ? (() => {
+                        const role = window.localStorage.getItem("role");
+                        if (role === "lab_admin") return "Search Dental Office";
+                        if (role === "office_admin") return "Search Dental lab";
+                        return "Search Dental Lab";
+                      })()
+                    : "Search Dental Lab"
+                }
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="h-10 pl-4 pr-10 border-gray-300 rounded-md text-sm"
@@ -253,7 +295,14 @@ export default function ChooseLabPage() {
               onClick={handleAddLab}
               className="bg-[#1162a8] hover:bg-[#0e5189] text-white h-10 px-4 rounded-md text-sm font-semibold whitespace-nowrap"
             >
-              Add New lab
+              {typeof window !== "undefined"
+                ? (() => {
+                    const role = window.localStorage.getItem("role");
+                    if (role === "lab_admin") return "Add New Office";
+                    if (role === "office_admin") return "Add New Lab";
+                    return "Add New Lab";
+                  })()
+                : "Add New Lab"}
             </Button>
           </div>
 
@@ -276,7 +325,7 @@ export default function ChooseLabPage() {
 
             {/* Results Count */}
             <p className="text-sm text-gray-400">
-              {filteredLabs.length} {filteredLabs.length === 1 ? "lab" : "labs"} found
+              {sortedAndFilteredLabs.length} {sortedAndFilteredLabs.length === 1 ? "lab" : "labs"} found
             </p>
           </div>
 
@@ -285,14 +334,28 @@ export default function ChooseLabPage() {
             <div className="flex items-center justify-center py-20">
               <div className="text-gray-500">Loading labs...</div>
             </div>
-          ) : filteredLabs.length === 0 ? (
+          ) : sortedAndFilteredLabs.length === 0 ? (
             <div className="flex items-center justify-center py-20">
-              <div className="text-gray-500">No labs found</div>
+              <div className="text-gray-500">
+                {typeof window !== "undefined"
+                  ? (() => {
+                      const role = window.localStorage.getItem("role");
+                      if (role === "office_admin") {
+                        // If there are no labs found, check if there are any 'lab_admin' roles in the lab data
+                        const anyLabAdmin = sortedAndFilteredLabs.some(
+                          (lab: any) => lab.role === "lab_admin"
+                        );
+                        return anyLabAdmin ? "No offices found" : "No labs found";
+                      }
+                      return "No labs found";
+                    })()
+                  : "No labs found"}
+              </div>
             </div>
           ) : (
             /* Lab Cards Grid */
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12 max-w-6xl mx-auto">
-              {filteredLabs.map((lab) => (
+              {sortedAndFilteredLabs.map((lab: Lab) => (
                 <div
                   key={lab.id}
                   className="bg-white border-2 border-gray-300 rounded-lg p-4 flex flex-col items-center justify-between relative group hover:shadow-lg transition-all min-h-[220px] hover:border-[#1162A8]"
@@ -306,13 +369,32 @@ export default function ChooseLabPage() {
 
                   {/* Lab Logo */}
                   <div className="flex-1 flex items-center justify-center w-full py-4">
-                    {lab.customer_id ? (
-                      <CustomerLogo
-                        customerId={lab.customer_id}
+                    {lab.logo ? (
+                      <img
+                        src={lab.logo}
                         alt={lab.name}
                         className="max-h-[80px] max-w-[140px] object-contain"
+                        onError={(e) => {
+                          // Fallback to CustomerLogo if image fails to load
+                          const target = e.target as HTMLImageElement
+                          target.style.display = 'none'
+                          const fallback = target.nextElementSibling as HTMLElement
+                          if (fallback) {
+                            fallback.style.display = 'flex'
+                          }
+                        }}
                       />
-                    ) : (
+                    ) : null}
+                    {lab.id && (
+                      <div style={{ display: lab.logo ? 'none' : 'flex' }} className="items-center justify-center">
+                        <CustomerLogo
+                          customerId={lab.id}
+                          alt={lab.name}
+                          className="max-h-[80px] max-w-[140px] object-contain"
+                        />
+                      </div>
+                    )}
+                    {!lab.logo && !lab.id && (
                       <div className="w-[140px] h-[80px] bg-gray-50 rounded flex items-center justify-center">
                         <span className="text-xs text-gray-400">No Logo</span>
                       </div>
@@ -342,18 +424,79 @@ export default function ChooseLabPage() {
               ))}
             </div>
           )}
+        </div>
 
-          {/* Cancel Button */}
-          <div className="flex justify-end max-w-6xl mx-auto">
+        {/* Footer - Consistent across all pages */}
+        <div 
+          className="bg-white flex-shrink-0 fixed sm:relative bottom-0 left-0 right-0 z-50 sm:z-auto"
+          style={{
+            position: "absolute",
+            width: "100%",
+            height: "59.94px",
+            right: 0,
+            bottom: 0,
+            background: "#FFFFFF",
+          }}
+        >
+          <div className="flex justify-end items-center h-full px-6">
             <Button
               onClick={handleCancel}
               variant="outline"
-              className="border-2 border-[#1162a8] text-[#1162a8] h-10 px-6 rounded-md text-sm font-semibold hover:bg-blue-50"
+              style={{
+                boxSizing: "border-box",
+                display: "flex",
+                flexDirection: "row",
+                justifyContent: "center",
+                alignItems: "center",
+                padding: "12px 16px",
+                gap: "10px",
+                minWidth: "111px",
+                height: "27px",
+                border: "2px solid #9BA5B7",
+                borderRadius: "6px",
+                fontFamily: "Verdana",
+                fontStyle: "normal",
+                fontWeight: 700,
+                fontSize: "12px",
+                lineHeight: "22px",
+                letterSpacing: "-0.02em",
+                color: "#9BA5B7",
+                background: "transparent",
+                whiteSpace: "nowrap",
+              }}
+              className="hover:opacity-80"
             >
               Cancel
             </Button>
           </div>
         </div>
+
+        {/* Cancel Slip Creation Modal */}
+      {showCancelModal && (
+        <CancelSlipCreationModal
+          open={showCancelModal}
+          onCancel={() => setShowCancelModal(false)}
+          onConfirm={() => {
+            setShowCancelModal(false)
+            setTimeout(() => {
+              router.replace("/dashboard")
+            }, 100)
+          }}
+        />
+      )}
+
+      {/* Add New Lab Modal */}
+      <AddNewLabModal
+        open={showAddLabModal}
+        onOpenChange={(open) => {
+          setShowAddLabModal(open)
+          // Refresh labs list when modal closes (in case a lab was added/connected)
+          if (!open) {
+            refetch()
+          }
+        }}
+        onLabSelect={handleLabSelectFromModal}
+      />
     </div>
   )
 }

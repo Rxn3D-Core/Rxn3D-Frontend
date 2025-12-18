@@ -61,30 +61,35 @@ interface SlipCreationHeaderProps {
 }
 
 const CustomerLogoFromStorage = ({ size = "default" }: { size?: "default" | "large" }) => {
-  const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  const [customerId, setCustomerId] = useState<number | null>(null)
 
   useEffect(() => {
-    // Read customer logo from localStorage
-    const loadLogo = () => {
+    // Read customer_id from localStorage (user's own customer_id)
+    const loadCustomerId = () => {
       if (typeof window !== 'undefined') {
-        const logo = localStorage.getItem("customerLogo")
-        setLogoUrl(logo)
+        const customerIdStr = localStorage.getItem("customerId")
+        if (customerIdStr) {
+          const id = Number(customerIdStr)
+          if (!isNaN(id)) {
+            setCustomerId(id)
+          }
+        }
       }
     }
 
-    loadLogo()
+    loadCustomerId()
 
     // Listen for storage changes (cross-tab updates)
     if (typeof window !== 'undefined') {
       const handleStorageChange = (e: StorageEvent) => {
-        if (e.key === "customerLogo") {
-          loadLogo()
+        if (e.key === "customerId") {
+          loadCustomerId()
         }
       }
       window.addEventListener('storage', handleStorageChange)
       
-      // Poll for same-window updates (check every 2 seconds)
-      const intervalId = setInterval(loadLogo, 2000)
+      // Poll for same-window updates (check every 500ms)
+      const intervalId = setInterval(loadCustomerId, 500)
       
       return () => {
         window.removeEventListener('storage', handleStorageChange)
@@ -96,15 +101,11 @@ const CustomerLogoFromStorage = ({ size = "default" }: { size?: "default" | "lar
   if (size === "large") {
     return (
       <div className="w-[343.75px] h-[75px] flex items-center justify-center">
-        {logoUrl ? (
-          <img
-            src={logoUrl}
+        {customerId ? (
+          <CustomerLogo
+            customerId={customerId}
             alt="Customer Logo"
             className="max-w-full max-h-full object-contain"
-            onError={(e) => {
-              const target = e.target as HTMLImageElement
-              target.style.display = 'none'
-            }}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
@@ -117,15 +118,11 @@ const CustomerLogoFromStorage = ({ size = "default" }: { size?: "default" | "lar
   
   return (
     <div className="flex items-center justify-center">
-      {logoUrl ? (
-        <img
-          src={logoUrl}
+      {customerId ? (
+        <CustomerLogo
+          customerId={customerId}
           alt="Customer Logo"
           className="max-h-[75px] max-w-[300px] object-contain"
-          onError={(e) => {
-            const target = e.target as HTMLImageElement
-            target.style.display = 'none'
-          }}
         />
       ) : (
         <div className="w-full h-full flex items-center justify-center">
@@ -143,7 +140,7 @@ const CreatedBySection = ({ createdBy, variant = "default" }: { createdBy: strin
 
   if (variant === "compact") {
     return (
-      <div className="flex flex-col items-center gap-[15px] w-[170px] h-[121.74px]">
+      <div className="flex flex-col items-center gap-[15px] w-[170px]">
         <div className="w-[72.74px] h-[72.74px] rounded-full overflow-hidden">
           <Avatar className="w-full h-full">
             <AvatarImage
@@ -203,16 +200,42 @@ const SendingToSection = ({ lab }: { lab: Lab }) => {
     router.push("/choose-lab")
   }
   
+  // Use customer_id if available, otherwise use id (for labs/offices, id is the customer_id)
+  const customerId = lab?.customer_id || lab?.id
+  
+  // If lab has a logo property directly, use it as fallback
+  const hasDirectLogo = lab?.logo && typeof lab.logo === 'string'
+  
   return (
     <div className="flex items-center gap-[7px] w-[350px] h-[75px]">
       <p className="text-[15.9926px] font-bold leading-[22px] tracking-[-0.02em] text-[#080808]">Sending to</p>
-      {lab?.customer_id && (
-        <div className="relative">
-          <CustomerLogo
-            customerId={lab.customer_id}
-            alt={lab.name}
-            className="w-[83.61px] h-[33.24px] object-contain"
-          />
+      {customerId && (
+        <div className="relative flex items-center h-[33.24px]">
+          <div className="h-[33.24px] flex items-center">
+            {hasDirectLogo ? (
+              <img
+                src={lab.logo}
+                alt={lab.name}
+                className="max-w-[83.61px] max-h-[100px] h-[100px] object-contain"
+                onError={(e) => {
+                  // Fallback to CustomerLogo if direct logo fails
+                  const target = e.target as HTMLImageElement
+                  target.style.display = 'none'
+                  const fallback = target.nextElementSibling as HTMLElement
+                  if (fallback) {
+                    fallback.style.display = 'flex'
+                  }
+                }}
+              />
+            ) : null}
+            <div style={{ display: hasDirectLogo ? 'none' : 'flex' }} className="items-center">
+              <CustomerLogo
+                customerId={customerId}
+                alt={lab.name}
+                className="max-w-[83.61px] max-h-[100px] h-[100px] object-contain"
+              />
+            </div>
+          </div>
           <button
             onClick={handleEditClick}
             className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 border border-gray-200 hover:bg-gray-50 cursor-pointer transition-colors"
@@ -407,35 +430,53 @@ const PatientInfoSection = ({
   const hasNameValue = name.trim() !== ""
   const hasGenderValue = gender.trim() !== ""
 
+  // Validation: Name should have at least 2 words, and second word should have at least 2 characters
+  // (first word + first 2 letters of second word)
+  const isValidName = () => {
+    if (!hasNameValue) return false
+    const nameParts = name.trim().split(/\s+/).filter(part => part.length > 0)
+    return nameParts.length >= 2 && nameParts[1].length >= 2
+  }
+
+  const isNameValid = isValidName()
+  const isGenderValid = hasGenderValue
+
   // Determine border color based on focus and validation state
   const getNameBorderColor = () => {
-    if (hasNameValue) return "border-[#119933]" // valid state
+    if (hasNameValue && !isNameValid) return "border-red-500" // invalid state - red
+    if (isNameValid) return "border-[#119933]" // valid state
     if (isNameFocused) return "border-[#1162A8]" // focus state
     return "border-[#7F7F7F]" // default
   }
 
   const getGenderBorderColor = () => {
-    if (hasGenderValue) return "border-[#119933]" // valid state
+    if (showGenderField && !isGenderValid) return "border-red-500" // invalid state - red
+    if (isGenderValid) return "border-[#119933]" // valid state
     if (isGenderFocused) return "border-[#1162A8]" // focus state
     return "border-[#7F7F7F]" // default
   }
 
   // Determine label color
   const getNameLabelColor = () => {
-    if (hasNameValue) return "text-[#119933]"
+    if (hasNameValue && !isNameValid) return "text-red-500" // invalid state - red
+    if (isNameValid) return "text-[#119933]"
     if (isNameFocused) return "text-[#1162A8]"
     return "text-[#7F7F7F]"
   }
 
   const getGenderLabelColor = () => {
-    if (hasGenderValue) return "text-[#119933]"
+    if (showGenderField && !isGenderValid) return "text-red-500" // invalid state - red
+    if (isGenderValid) return "text-[#119933]"
     if (isGenderFocused) return "text-[#1162A8]"
     return "text-[#7F7F7F]"
   }
 
   // Determine ring/glow effect
   const getNameRingEffect = () => {
-    if (isNameFocused && hasNameValue) {
+    if (hasNameValue && !isNameValid) {
+      return "ring-2 ring-red-500 ring-opacity-20 shadow-[0_0_0_4px_rgba(239,68,68,0.15)]"
+    }
+    if (isNameFocused && isNameValid) {
       return "ring-2 ring-[#119933] ring-opacity-20 shadow-[0_0_0_4px_rgba(17,153,51,0.15)]"
     }
     if (isNameFocused) {
@@ -445,7 +486,10 @@ const PatientInfoSection = ({
   }
 
   const getGenderRingEffect = () => {
-    if (isGenderFocused && hasGenderValue) {
+    if (showGenderField && !isGenderValid) {
+      return "ring-2 ring-red-500 ring-opacity-20 shadow-[0_0_0_4px_rgba(239,68,68,0.15)]"
+    }
+    if (isGenderFocused && isGenderValid) {
       return "ring-2 ring-[#119933] ring-opacity-20 shadow-[0_0_0_4px_rgba(17,153,51,0.15)]"
     }
     if (isGenderFocused) {
@@ -505,7 +549,7 @@ const PatientInfoSection = ({
             Patient name
           </label>
           {/* Validation Icon */}
-          {hasNameValue && (
+          {isNameValid && (
             <div className="absolute right-[12.32px] top-1/2 -translate-y-1/2">
               <Check className="h-5 w-5 text-[#119933]" aria-label="Valid" />
             </div>
@@ -610,7 +654,7 @@ const PatientInfoSection = ({
               Gender
             </label>
             {/* Validation Icon */}
-            {hasGenderValue && (
+            {isGenderValid && (
               <div className="absolute right-[12.32px] top-1/2 -translate-y-1/2 z-20 pointer-events-none">
                 <Check className="h-5 w-5 text-[#119933]" aria-label="Valid" />
               </div>
@@ -624,7 +668,7 @@ const PatientInfoSection = ({
 
 export function SlipCreationHeader({
   variant = "simple",
-  sendingToLab,
+  sendingToLab: propSendingToLab,
   showLogo = true,
   createdBy,
   doctor,
@@ -633,6 +677,53 @@ export function SlipCreationHeader({
   containerClassName = "container mx-auto px-6 max-w-[1400px]",
   headerClassName = "",
 }: SlipCreationHeaderProps) {
+  // Read selected lab from localStorage if not provided as prop
+  const [sendingToLab, setSendingToLab] = useState<Lab | null>(propSendingToLab || null)
+
+  useEffect(() => {
+    // Use prop if provided, otherwise read from localStorage
+    if (propSendingToLab) {
+      setSendingToLab(propSendingToLab)
+    } else {
+      const loadLabFromStorage = () => {
+        if (typeof window !== 'undefined') {
+          const storedLab = localStorage.getItem("selectedLab")
+          if (storedLab) {
+            try {
+              const lab = JSON.parse(storedLab)
+              setSendingToLab(lab)
+            } catch (error) {
+              console.error("Error parsing selected lab:", error)
+              setSendingToLab(null)
+            }
+          } else {
+            setSendingToLab(null)
+          }
+        }
+      }
+
+      loadLabFromStorage()
+
+      // Listen for storage changes
+      if (typeof window !== 'undefined') {
+        const handleStorageChange = (e: StorageEvent) => {
+          if (e.key === "selectedLab") {
+            loadLabFromStorage()
+          }
+        }
+        window.addEventListener('storage', handleStorageChange)
+        
+        // Poll for same-window updates (check every 500ms)
+        const intervalId = setInterval(loadLabFromStorage, 500)
+        
+        return () => {
+          window.removeEventListener('storage', handleStorageChange)
+          clearInterval(intervalId)
+        }
+      }
+    }
+  }, [propSendingToLab])
+
   // Simple variant: Just logo centered (for choose-doctor)
   if (variant === "simple") {
     return (
@@ -675,7 +766,7 @@ export function SlipCreationHeader({
         </div>
 
         {/* Second Header - Frame 2381 */}
-        <div className="bg-white border border-[#D9D9D9]">
+        <div className="bg-white ">
           <div className="flex items-center justify-between px-5 py-[10px] h-[154.92px]">
             {/* Left: Doctor Info */}
             {doctor ? (
@@ -716,9 +807,9 @@ export function SlipCreationHeader({
   if (variant === "with-sending-to") {
     return (
       <div className="bg-white border border-[#D9D9D9]">
-        <div className="flex items-center justify-between px-5 py-[10px]">
+        <div className="flex items-center justify-between px-5 py-[10px] min-h-[122px]">
           {/* Sending to (Left) */}
-          <div className="w-[350px] h-[75px] flex items-center">
+          <div className="w-[350px] flex items-center">
             {sendingToLab ? (
               <SendingToSection lab={sendingToLab} />
             ) : (
@@ -736,8 +827,8 @@ export function SlipCreationHeader({
           )}
 
           {/* Right: Empty space or Created By */}
-          <div className="w-[350px] h-[75px] flex items-center justify-end">
-            {createdBy && <CreatedBySection createdBy={createdBy} />}
+          <div className="w-[350px] flex items-center justify-end">
+            {createdBy && <CreatedBySection createdBy={createdBy} variant="compact" />}
           </div>
         </div>
       </div>

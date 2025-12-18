@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
 import { SlipCreationHeader } from "@/components/slip-creation-header"
+import { clearSlipCreationStorage } from "@/utils/slip-creation-storage"
 
 interface Doctor {
   id: number
@@ -89,6 +90,8 @@ export default function PatientInputPage() {
   }, [patientName, gender, router])
 
   const handleCancel = () => {
+    // Clear all slip creation storage when canceling
+    clearSlipCreationStorage()
     router.back()
   }
 
@@ -144,21 +147,48 @@ export default function PatientInputPage() {
           {/* Content goes here */}
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex justify-end gap-3 mt-8">
+      </div>
+
+      {/* Footer - Consistent across all pages */}
+      <div 
+        className="bg-white flex-shrink-0 fixed sm:relative bottom-0 left-0 right-0 z-50 sm:z-auto"
+        style={{
+          position: "absolute",
+          width: "100%",
+          height: "59.94px",
+          right: 0,
+          bottom: 0,
+          background: "#FFFFFF",
+        }}
+      >
+        <div className="flex justify-end items-center h-full px-6">
           <Button
             onClick={handleCancel}
             variant="outline"
-            className="border-2 border-[#1162a8] text-[#1162a8] h-10 px-6 rounded-md text-sm font-semibold hover:bg-blue-50"
+            style={{
+              display: "flex",
+              flexDirection: "row",
+              justifyContent: "center",
+              alignItems: "center",
+              padding: "12px 16px",
+              gap: "10px",
+              minWidth: "111px",
+              height: "27px",
+              background: "#1162A8",
+              borderRadius: "6px",
+              border: "none",
+              fontFamily: "Verdana",
+              fontStyle: "normal",
+              fontWeight: 700,
+              fontSize: "12px",
+              lineHeight: "22px",
+              letterSpacing: "-0.02em",
+              color: "#FFFFFF",
+              whiteSpace: "nowrap",
+            }}
+            className="hover:opacity-90"
           >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleContinue}
-            disabled={!patientName.trim() || !gender}
-            className="bg-[#1162a8] text-white h-10 px-6 rounded-md text-sm font-semibold hover:bg-[#0d4d87] disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Continue
+            Previous
           </Button>
         </div>
       </div>

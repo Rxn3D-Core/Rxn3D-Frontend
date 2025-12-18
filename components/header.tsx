@@ -762,7 +762,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                   // Remove caseDesignCache from localStorage when starting a new slip
                   localStorage.removeItem("caseDesignCache");
                   // Navigate to choose-doctor page
-                  router.replace("/choose-doctor");
+                  router.replace("/choose-lab");
                   // Call onNewSlip callback if provided
                   if (onNewSlip) {
                     onNewSlip();

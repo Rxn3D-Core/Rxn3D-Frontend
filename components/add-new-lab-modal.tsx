@@ -87,16 +87,33 @@ export function AddNewLabModal({ open, onOpenChange, onLabSelect, onInviteLab }:
     setInviteEmail(watchedEmail)
   }, [watchedEmail, setInviteEmail])
 
+  // Track previous isOpen state to detect when store closes the modal
+  const prevIsOpenRef = React.useRef(isOpen)
+  const isInitialMountRef = React.useRef(true)
+
   // Update store when prop changes
   React.useEffect(() => {
     setOpen(open)
+    // On initial mount, sync the ref
+    if (isInitialMountRef.current) {
+      prevIsOpenRef.current = open
+      isInitialMountRef.current = false
+    }
   }, [open, setOpen])
 
   // Update parent when store changes (e.g. after successful submission)
+  // Only close parent if store explicitly closed (was open, now closed)
+  // Skip on initial mount to avoid closing immediately
   React.useEffect(() => {
-    if (!isOpen && open) {
+    if (isInitialMountRef.current) {
+      prevIsOpenRef.current = isOpen
+      return
+    }
+    
+    if (prevIsOpenRef.current && !isOpen && open) {
       onOpenChange(false)
     }
+    prevIsOpenRef.current = isOpen
   }, [isOpen, open, onOpenChange])
 
   // Reset form when modal closes
@@ -171,7 +188,16 @@ export function AddNewLabModal({ open, onOpenChange, onLabSelect, onInviteLab }:
                 <div className="relative">
                   <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <Input
-                    placeholder="Search Dental Lab"
+                    placeholder={
+                      typeof window !== "undefined"
+                        ? (() => {
+                            const role = window.localStorage.getItem("role");
+                            if (role === "lab_admin") return "Search Dental Office";
+                            if (role === "office_admin") return "Search Dental lab";
+                            return "Search Dental Lab";
+                          })()
+                        : "Search Dental Lab"
+                    }
                     value={searchTerm}
                     onChange={(e) => {
                       setSearchTerm(e.target.value)

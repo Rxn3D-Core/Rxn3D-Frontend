@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,6 +15,8 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
 import { SlipCreationHeader } from "@/components/slip-creation-header"
+import { AddDoctorModal } from "@/components/add-doctor-modal"
+import { clearSlipCreationStorage } from "@/utils/slip-creation-storage"
 
 interface Doctor {
   id: number
@@ -32,10 +34,17 @@ interface ConnectedOffice {
   }
 }
 
+interface Lab {
+  id: number
+  name: string
+  logo?: string
+}
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000"
 
 export default function ChooseDoctorPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { toast } = useToast()
   const [doctors, setDoctors] = useState<Doctor[]>([])
   const [filteredDoctors, setFilteredDoctors] = useState<Doctor[]>([])
@@ -43,6 +52,40 @@ export default function ChooseDoctorPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [sortBy, setSortBy] = useState("name-asc")
   const [connectedOffices, setConnectedOffices] = useState<ConnectedOffice[]>([])
+  const [selectedLab, setSelectedLab] = useState<Lab | null>(null)
+  const [createdBy, setCreatedBy] = useState<string>("")
+  const [showAddDoctorModal, setShowAddDoctorModal] = useState(false)
+
+  // Get lab from URL or localStorage
+  useEffect(() => {
+    const labId = searchParams.get("labId")
+    if (labId) {
+      const storedLab = localStorage.getItem("selectedLab")
+      if (storedLab) {
+        try {
+          const lab = JSON.parse(storedLab)
+          setSelectedLab(lab)
+        } catch (error) {
+          console.error("Error parsing selected lab:", error)
+        }
+      }
+    }
+
+    // Get created by from localStorage (user info)
+    const userStr = localStorage.getItem("user")
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr)
+        setCreatedBy(`${user.first_name || ""} ${user.last_name || ""}`.trim())
+      } catch (error) {
+        console.error("Error parsing user:", error)
+      }
+    }
+  }, [searchParams])
+
+  // Refs for debouncing API calls
+  const fetchConnectedOfficesTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const fetchDoctorsTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Fetch connected offices (for lab_admin role)
   const fetchConnectedOffices = useCallback(async () => {
@@ -70,6 +113,23 @@ export default function ChooseDoctorPage() {
     }
   }, [])
 
+  // Debounced version of fetchConnectedOffices
+  const debouncedFetchConnectedOffices = useCallback((): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      if (fetchConnectedOfficesTimeoutRef.current) {
+        clearTimeout(fetchConnectedOfficesTimeoutRef.current)
+      }
+      fetchConnectedOfficesTimeoutRef.current = setTimeout(async () => {
+        try {
+          const result = await fetchConnectedOffices()
+          resolve(result)
+        } catch (error) {
+          reject(error)
+        }
+      }, 300) // 300ms debounce delay
+    })
+  }, [fetchConnectedOffices])
+
   // Fetch doctors using the same logic as dental-slip-page.tsx
   const fetchDoctors = useCallback(async () => {
     setIsLoading(true)
@@ -82,29 +142,35 @@ export default function ChooseDoctorPage() {
       const role = localStorage.getItem("role") || ""
       let officeId: number | null = null
 
-      // Determine office ID based on role (same logic as dental-slip-page.tsx)
-      if (role === "office_admin" || role === "doctor") {
-        // For office_admin and doctor roles, use customerId as officeId
-        const customerId = localStorage.getItem("customerId")
-        if (customerId) {
-          officeId = Number(customerId)
-        } else {
-          throw new Error("No customer ID found")
-        }
-      } else if (role === "lab_admin") {
-        // For lab_admin, first fetch connected offices, then use first office
-        const offices = await fetchConnectedOffices()
-        if (offices && offices.length > 0) {
-          const firstOffice = offices[0] as ConnectedOffice
-          officeId = firstOffice?.office?.id || null
-          if (!officeId) {
-            throw new Error("No office ID found in connected offices")
+      // Priority 1: If lab/office is selected from choose-lab page, use its ID
+      if (selectedLab) {
+        // Use the lab/office ID directly
+        officeId = selectedLab.id
+      } else {
+        // Priority 2: Determine office ID based on role (same logic as dental-slip-page.tsx)
+        if (role === "office_admin" || role === "doctor") {
+          // For office_admin and doctor roles, use customerId as officeId
+          const customerId = localStorage.getItem("customerId")
+          if (customerId) {
+            officeId = Number(customerId)
+          } else {
+            throw new Error("No customer ID found")
+          }
+        } else if (role === "lab_admin") {
+          // For lab_admin, first fetch connected offices, then use first office
+          const offices = await debouncedFetchConnectedOffices()
+          if (offices && offices.length > 0) {
+            const firstOffice = offices[0] as ConnectedOffice
+            officeId = firstOffice?.office?.id || null
+            if (!officeId) {
+              throw new Error("No office ID found in connected offices")
+            }
+          } else {
+            throw new Error("No connected offices found")
           }
         } else {
-          throw new Error("No connected offices found")
+          throw new Error(`Role ${role} not supported for doctor selection`)
         }
-      } else {
-        throw new Error(`Role ${role} not supported for doctor selection`)
       }
 
       if (!officeId) {
@@ -151,21 +217,53 @@ export default function ChooseDoctorPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [fetchConnectedOffices, toast])
+  }, [selectedLab, debouncedFetchConnectedOffices, toast])
 
-  // Fetch doctors on mount
+  // Debounced version of fetchDoctors
+  const debouncedFetchDoctors = useCallback((): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      if (fetchDoctorsTimeoutRef.current) {
+        clearTimeout(fetchDoctorsTimeoutRef.current)
+      }
+      fetchDoctorsTimeoutRef.current = setTimeout(async () => {
+        try {
+          await fetchDoctors()
+          resolve()
+        } catch (error) {
+          reject(error)
+        }
+      }, 300) // 300ms debounce delay
+    })
+  }, [fetchDoctors])
+
+  // Fetch doctors on mount and when selectedLab changes (with debouncing)
   useEffect(() => {
     const role = localStorage.getItem("role") || ""
     
-    // For lab_admin, first fetch offices, then doctors
-    if (role === "lab_admin") {
-      fetchConnectedOffices().then(() => {
-        fetchDoctors()
-      })
+    // If lab is selected, fetch doctors directly (debounced)
+    if (selectedLab) {
+      debouncedFetchDoctors()
     } else {
-      fetchDoctors()
+      // For lab_admin, first fetch offices (debounced), then doctors (debounced)
+      if (role === "lab_admin") {
+        debouncedFetchConnectedOffices().then(() => {
+          debouncedFetchDoctors()
+        })
+      } else {
+        debouncedFetchDoctors()
+      }
     }
-  }, [fetchDoctors, fetchConnectedOffices])
+
+    // Cleanup timeouts on unmount or dependency change
+    return () => {
+      if (fetchConnectedOfficesTimeoutRef.current) {
+        clearTimeout(fetchConnectedOfficesTimeoutRef.current)
+      }
+      if (fetchDoctorsTimeoutRef.current) {
+        clearTimeout(fetchDoctorsTimeoutRef.current)
+      }
+    }
+  }, [selectedLab, debouncedFetchDoctors, debouncedFetchConnectedOffices])
 
   // Sort and filter doctors
   const sortedAndFilteredDoctors = useMemo(() => {
@@ -205,22 +303,27 @@ export default function ChooseDoctorPage() {
   }, [sortedAndFilteredDoctors])
 
   const handleAddDoctor = () => {
-    // Navigate to add doctor page or open modal
-    // For now, we'll just show a toast
-    toast({
-      title: "Add Doctor",
-      description: "Add doctor functionality will be implemented here",
-    })
+    setShowAddDoctorModal(true)
   }
 
   const handleDoctorSelect = (doctor: Doctor) => {
     // Store selected doctor in localStorage for the next step
     localStorage.setItem("selectedDoctor", JSON.stringify(doctor))
-    // Navigate to choose-lab page
-    router.push(`/choose-lab?doctorId=${doctor.id}`)
+    
+    // Check if lab is already selected (from URL param)
+    const labId = searchParams.get("labId")
+    if (labId && selectedLab) {
+      // If lab is selected, navigate to patient input page
+      router.push(`/patient-input?labId=${labId}&doctorId=${doctor.id}`)
+    } else {
+      // Otherwise, navigate to choose-lab page (backward compatibility)
+      router.push(`/choose-lab?doctorId=${doctor.id}`)
+    }
   }
 
   const handleCancel = () => {
+    // Clear all slip creation storage when canceling
+    clearSlipCreationStorage()
     router.back()
   }
 
@@ -232,10 +335,15 @@ export default function ChooseDoctorPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <SlipCreationHeader variant="simple" />
+      <SlipCreationHeader 
+        variant={selectedLab ? "full" : "simple"}
+        sendingToLab={selectedLab}
+        createdBy={createdBy}
+        showLogo={true}
+      />
 
       <div className="container mx-auto px-6 max-w-[1400px]">
-        <div className="border-t border-gray-200 pt-8">
+        <div className="pt-8">
           {/* Title */}
           <h1 className="text-xl font-semibold text-center mb-8">Choose a Doctor</h1>
 
@@ -322,18 +430,80 @@ export default function ChooseDoctorPage() {
             </div>
           )}
 
-          {/* Cancel Button */}
-          <div className="flex justify-end max-w-6xl mx-auto px-4">
+        </div>
+
+        {/* Footer - Consistent across all pages */}
+        <div 
+          className="bg-white flex-shrink-0 fixed sm:relative bottom-0 left-0 right-0 z-50 sm:z-auto"
+          style={{
+            position: "absolute",
+            width: "100%",
+            height: "59.94px",
+            right: 0,
+            bottom: 0,
+            background: "#FFFFFF",
+          }}
+        >
+          <div className="flex justify-end items-center h-full px-6">
             <Button
               onClick={handleCancel}
               variant="outline"
-              className="border-2 border-[#1162a8] text-[#1162a8] h-10 px-6 rounded-md text-sm font-semibold hover:bg-blue-50"
+              style={{
+                display: "flex",
+                flexDirection: "row",
+                justifyContent: "center",
+                alignItems: "center",
+                padding: "12px 16px",
+                gap: "10px",
+                minWidth: "111px",
+                height: "27px",
+                background: "#1162A8",
+                borderRadius: "6px",
+                border: "none",
+                fontFamily: "Verdana",
+                fontStyle: "normal",
+                fontWeight: 700,
+                fontSize: "12px",
+                lineHeight: "22px",
+                letterSpacing: "-0.02em",
+                color: "#FFFFFF",
+                whiteSpace: "nowrap",
+              }}
+              className="hover:opacity-90"
             >
-              Cancel
+              Previous
             </Button>
           </div>
         </div>
       </div>
+
+      {/* Add Doctor Modal */}
+      <AddDoctorModal
+        isOpen={showAddDoctorModal}
+        onClose={() => setShowAddDoctorModal(false)}
+        onDoctorConnect={(doctorId: string, doctorData?: any) => {
+          // Refresh the doctors list to show the newly connected doctor
+          fetchDoctors()
+          
+          // If doctor data is provided and user wants to auto-select, we can do that
+          // For now, just refresh the list and close the modal
+          setShowAddDoctorModal(false)
+          
+          // Show success message
+          if (doctorData) {
+            const doctorName = doctorData.name || `${doctorData.first_name || ""} ${doctorData.last_name || ""}`.trim()
+            toast({
+              title: "Doctor Connected",
+              description: `${doctorName} has been connected successfully.`,
+            })
+          } else {
+            toast({
+              title: "Doctor Connected",
+              description: "Doctor has been connected successfully.",
+            })
+          }
+        }}
+      />
     </div>
   )
 }
