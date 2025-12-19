@@ -479,17 +479,20 @@ export default function RetentionOptionPage() {
           onClose={() => setShowLinkRetentionTypeModal(false)}
           onApply={(selectedOptions, selectedTypes) => {
             console.log("Linking retention options:", selectedOptions, "to types:", selectedTypes)
+            // Refresh the list after successful linking
+            fetchRetentionOptions()
             setShowLinkRetentionTypeModal(false)
           }}
         />
         <LinkProductsModal
           isOpen={showLinkProductsModal}
-          onClose={() => setShowLinkProductsModal(false)}
+          onClose={() => {
+            setShowLinkProductsModal(false)
+            // Refresh the list after modal closes (in case linking was successful)
+            fetchRetentionOptions()
+          }}
           entityType="retention-option"
           context="lab"
-          onApply={() => {
-            setShowLinkProductsModal(false)
-          }}
         />
       </>
     </div>

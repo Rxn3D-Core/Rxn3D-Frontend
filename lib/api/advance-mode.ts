@@ -173,7 +173,7 @@ export const advanceCategoriesApi = {
    */
   list: async (params?: PaginationParams & { is_custom?: 'Yes' | 'No' }) => {
     const response = await apiClient.get<ApiResponse<PaginatedResponse<AdvanceCategory>>>(
-      '/api/v1/library/advance/categories',
+      '/library/advance/categories',
       { params }
     )
     return response.data
@@ -184,7 +184,7 @@ export const advanceCategoriesApi = {
    */
   get: async (id: number, customerId?: number) => {
     const response = await apiClient.get<ApiResponse<AdvanceCategory>>(
-      `/api/v1/library/advance/categories/${id}`,
+      `/library/advance/categories/${id}`,
       { params: { customer_id: customerId } }
     )
     return response.data
@@ -202,7 +202,7 @@ export const advanceCategoriesApi = {
     image?: string // base64 encoded
   }) => {
     const response = await apiClient.post<ApiResponse<AdvanceCategory>>(
-      '/api/v1/library/advance/categories',
+      '/library/advance/categories',
       data
     )
     return response.data
@@ -219,7 +219,7 @@ export const advanceCategoriesApi = {
     image?: string
   }) => {
     const response = await apiClient.put<ApiResponse<AdvanceCategory>>(
-      `/api/v1/library/advance/categories/${id}`,
+      `/library/advance/categories/${id}`,
       data
     )
     return response.data
@@ -230,7 +230,7 @@ export const advanceCategoriesApi = {
    */
   delete: async (id: number) => {
     const response = await apiClient.delete<ApiResponse<void>>(
-      `/api/v1/library/advance/categories/${id}`
+      `/library/advance/categories/${id}`
     )
     return response.data
   },
@@ -240,7 +240,7 @@ export const advanceCategoriesApi = {
    */
   linkProducts: async (id: number, productIds: number[]) => {
     const response = await apiClient.post<ApiResponse<void>>(
-      `/api/v1/library/advance/categories/${id}/link-products`,
+      `/library/advance/categories/${id}/link-products`,
       { product_ids: productIds }
     )
     return response.data
@@ -251,7 +251,7 @@ export const advanceCategoriesApi = {
    */
   linkCategories: async (id: number, categoryIds: number[]) => {
     const response = await apiClient.post<ApiResponse<void>>(
-      `/api/v1/library/advance/categories/${id}/link-categories`,
+      `/library/advance/categories/${id}/link-categories`,
       { category_ids: categoryIds }
     )
     return response.data
@@ -262,7 +262,7 @@ export const advanceCategoriesApi = {
    */
   updateStatus: async (id: number, status: 'Active' | 'Inactive', customerId?: number) => {
     const response = await apiClient.patch<ApiResponse<AdvanceCategory>>(
-      `/api/v1/library/advance/categories/${id}/status`,
+      `/library/advance/categories/${id}/status`,
       { status, customer_id: customerId }
     )
     return response.data
@@ -282,7 +282,7 @@ export const advanceSubcategoriesApi = {
     is_custom?: 'Yes' | 'No'
   }) => {
     const response = await apiClient.get<ApiResponse<PaginatedResponse<AdvanceSubcategory>>>(
-      '/api/v1/library/advance/subcategories',
+      '/library/advance/subcategories',
       { params }
     )
     return response.data
@@ -293,7 +293,7 @@ export const advanceSubcategoriesApi = {
    */
   get: async (id: number, customerId?: number) => {
     const response = await apiClient.get<ApiResponse<AdvanceSubcategory>>(
-      `/api/v1/library/advance/subcategories/${id}`,
+      `/library/advance/subcategories/${id}`,
       { params: { customer_id: customerId } }
     )
     return response.data
@@ -312,7 +312,7 @@ export const advanceSubcategoriesApi = {
     image?: string
   }) => {
     const response = await apiClient.post<ApiResponse<AdvanceSubcategory>>(
-      '/api/v1/library/advance/subcategories',
+      '/library/advance/subcategories',
       data
     )
     return response.data
@@ -330,7 +330,7 @@ export const advanceSubcategoriesApi = {
     image?: string
   }) => {
     const response = await apiClient.put<ApiResponse<AdvanceSubcategory>>(
-      `/api/v1/library/advance/subcategories/${id}`,
+      `/library/advance/subcategories/${id}`,
       data
     )
     return response.data
@@ -341,7 +341,7 @@ export const advanceSubcategoriesApi = {
    */
   delete: async (id: number) => {
     const response = await apiClient.delete<ApiResponse<void>>(
-      `/api/v1/library/advance/subcategories/${id}`
+      `/library/advance/subcategories/${id}`
     )
     return response.data
   },
@@ -351,7 +351,7 @@ export const advanceSubcategoriesApi = {
    */
   linkProducts: async (id: number, productIds: number[]) => {
     const response = await apiClient.post<ApiResponse<void>>(
-      `/api/v1/library/advance/subcategories/${id}/link-products`,
+      `/library/advance/subcategories/${id}/link-products`,
       { product_ids: productIds }
     )
     return response.data
@@ -362,7 +362,7 @@ export const advanceSubcategoriesApi = {
    */
   linkCategories: async (id: number, categoryIds: number[]) => {
     const response = await apiClient.post<ApiResponse<void>>(
-      `/api/v1/library/advance/subcategories/${id}/link-categories`,
+      `/library/advance/subcategories/${id}/link-categories`,
       { category_ids: categoryIds }
     )
     return response.data
@@ -373,7 +373,7 @@ export const advanceSubcategoriesApi = {
    */
   updateStatus: async (id: number, status: 'Active' | 'Inactive', customerId?: number) => {
     const response = await apiClient.patch<ApiResponse<AdvanceSubcategory>>(
-      `/api/v1/library/advance/subcategories/${id}/status`,
+      `/library/advance/subcategories/${id}/status`,
       { status, customer_id: customerId }
     )
     return response.data
@@ -395,7 +395,7 @@ export const advanceFieldsApi = {
     is_custom?: 'Yes' | 'No'
   }) => {
     const response = await apiClient.get<ApiResponse<PaginatedResponse<AdvanceField>>>(
-      '/api/v1/library/advance/fields',
+      '/library/advance/fields',
       { params }
     )
     return response.data
@@ -406,7 +406,7 @@ export const advanceFieldsApi = {
    */
   get: async (id: number, customerId?: number) => {
     const response = await apiClient.get<ApiResponse<AdvanceField>>(
-      `/api/v1/library/advance/fields/${id}`,
+      `/library/advance/fields/${id}`,
       { params: { customer_id: customerId } }
     )
     return response.data
@@ -439,7 +439,7 @@ export const advanceFieldsApi = {
     }[]
   }) => {
     const response = await apiClient.post<ApiResponse<AdvanceField>>(
-      '/api/v1/library/advance/fields',
+      '/library/advance/fields',
       data
     )
     return response.data
@@ -469,7 +469,7 @@ export const advanceFieldsApi = {
     }[]
   }) => {
     const response = await apiClient.put<ApiResponse<AdvanceField>>(
-      `/api/v1/library/advance/fields/${id}`,
+      `/library/advance/fields/${id}`,
       data
     )
     return response.data
@@ -480,7 +480,7 @@ export const advanceFieldsApi = {
    */
   delete: async (id: number) => {
     const response = await apiClient.delete<ApiResponse<void>>(
-      `/api/v1/library/advance/fields/${id}`
+      `/library/advance/fields/${id}`
     )
     return response.data
   },
@@ -490,7 +490,7 @@ export const advanceFieldsApi = {
    */
   linkProducts: async (id: number, productIds: number[]) => {
     const response = await apiClient.post<ApiResponse<void>>(
-      `/api/v1/library/advance/fields/${id}/link-products`,
+      `/library/advance/fields/${id}/link-products`,
       { product_ids: productIds }
     )
     return response.data
@@ -508,7 +508,7 @@ export const advanceFieldsApi = {
     image?: string
   }) => {
     const response = await apiClient.post<ApiResponse<FieldOption>>(
-      `/api/v1/library/advance/fields/${fieldId}/options`,
+      `/library/advance/fields/${fieldId}/options`,
       data
     )
     return response.data
@@ -526,7 +526,7 @@ export const advanceFieldsApi = {
     image?: string
   }) => {
     const response = await apiClient.put<ApiResponse<FieldOption>>(
-      `/api/v1/library/advance/fields/${fieldId}/options/${optionId}`,
+      `/library/advance/fields/${fieldId}/options/${optionId}`,
       data
     )
     return response.data
@@ -537,7 +537,7 @@ export const advanceFieldsApi = {
    */
   deleteOption: async (fieldId: number, optionId: number) => {
     const response = await apiClient.delete<ApiResponse<void>>(
-      `/api/v1/library/advance/fields/${fieldId}/options/${optionId}`
+      `/library/advance/fields/${fieldId}/options/${optionId}`
     )
     return response.data
   },
@@ -547,7 +547,7 @@ export const advanceFieldsApi = {
    */
   updateStatus: async (id: number, status: 'Active' | 'Inactive', customerId?: number) => {
     const response = await apiClient.patch<ApiResponse<AdvanceField>>(
-      `/api/v1/library/advance/fields/${id}/status`,
+      `/library/advance/fields/${id}/status`,
       { status, customer_id: customerId }
     )
     return response.data
@@ -564,7 +564,7 @@ export const implantsApi = {
    */
   list: async (params?: PaginationParams) => {
     const response = await apiClient.get<ApiResponse<PaginatedResponse<Implant>>>(
-      '/api/v1/library/implants',
+      '/library/implants',
       { params }
     )
     return response.data
@@ -575,7 +575,7 @@ export const implantsApi = {
    */
   get: async (id: number, customerId?: number) => {
     const response = await apiClient.get<ApiResponse<Implant>>(
-      `/api/v1/library/implants/${id}`,
+      `/library/implants/${id}`,
       { params: { customer_id: customerId } }
     )
     return response.data
@@ -606,7 +606,7 @@ export const implantsApi = {
     }[]
   }) => {
     const response = await apiClient.post<ApiResponse<Implant>>(
-      '/api/v1/library/implants',
+      '/library/implants',
       data
     )
     return response.data
@@ -638,7 +638,7 @@ export const implantsApi = {
     }[]
   }) => {
     const response = await apiClient.put<ApiResponse<Implant>>(
-      `/api/v1/library/implants/${id}`,
+      `/library/implants/${id}`,
       data
     )
     return response.data
@@ -649,7 +649,7 @@ export const implantsApi = {
    */
   delete: async (id: number) => {
     const response = await apiClient.delete<ApiResponse<void>>(
-      `/api/v1/library/implants/${id}`
+      `/library/implants/${id}`
     )
     return response.data
   },
@@ -666,7 +666,7 @@ export const implantsApi = {
     image?: string
   }) => {
     const response = await apiClient.post<ApiResponse<ImplantPlatform>>(
-      `/api/v1/library/implants/${implantId}/platforms`,
+      `/library/implants/${implantId}/platforms`,
       data
     )
     return response.data
@@ -684,7 +684,7 @@ export const implantsApi = {
     image?: string
   }) => {
     const response = await apiClient.put<ApiResponse<ImplantPlatform>>(
-      `/api/v1/library/implants/${implantId}/platforms/${platformId}`,
+      `/library/implants/${implantId}/platforms/${platformId}`,
       data
     )
     return response.data
@@ -695,7 +695,7 @@ export const implantsApi = {
    */
   deletePlatform: async (implantId: number, platformId: number) => {
     const response = await apiClient.delete<ApiResponse<void>>(
-      `/api/v1/library/implants/${implantId}/platforms/${platformId}`
+      `/library/implants/${implantId}/platforms/${platformId}`
     )
     return response.data
   },
@@ -705,7 +705,7 @@ export const implantsApi = {
    */
   linkProducts: async (id: number, productIds: number[]) => {
     const response = await apiClient.post<ApiResponse<void>>(
-      `/api/v1/library/implants/${id}/link-products`,
+      `/library/implants/${id}/link-products`,
       { product_ids: productIds }
     )
     return response.data
@@ -716,7 +716,7 @@ export const implantsApi = {
    */
   updateStatus: async (id: number, status: 'Active' | 'Inactive', customerId?: number, price?: number) => {
     const response = await apiClient.patch<ApiResponse<Implant>>(
-      `/api/v1/library/implants/${id}/status`,
+      `/library/implants/${id}/status`,
       { status, customer_id: customerId, price }
     )
     return response.data
@@ -733,7 +733,7 @@ export const implantsApi = {
     price?: number
   ) => {
     const response = await apiClient.patch<ApiResponse<ImplantPlatform>>(
-      `/api/v1/library/implants/${implantId}/platforms/${platformId}/status`,
+      `/library/implants/${implantId}/platforms/${platformId}/status`,
       { status, customer_id: customerId, price }
     )
     return response.data
@@ -750,7 +750,7 @@ export const abutmentsApi = {
    */
   list: async (params?: PaginationParams) => {
     const response = await apiClient.get<ApiResponse<PaginatedResponse<Abutment>>>(
-      '/api/v1/library/abutments',
+      '/library/abutments',
       { params }
     )
     return response.data
@@ -761,7 +761,7 @@ export const abutmentsApi = {
    */
   get: async (id: number, customerId?: number) => {
     const response = await apiClient.get<ApiResponse<Abutment>>(
-      `/api/v1/library/abutments/${id}`,
+      `/library/abutments/${id}`,
       { params: { customer_id: customerId } }
     )
     return response.data
@@ -792,7 +792,7 @@ export const abutmentsApi = {
     }[]
   }) => {
     const response = await apiClient.post<ApiResponse<Abutment>>(
-      '/api/v1/library/abutments',
+      '/library/abutments',
       data
     )
     return response.data
@@ -824,7 +824,7 @@ export const abutmentsApi = {
     }[]
   }) => {
     const response = await apiClient.put<ApiResponse<Abutment>>(
-      `/api/v1/library/abutments/${id}`,
+      `/library/abutments/${id}`,
       data
     )
     return response.data
@@ -835,7 +835,7 @@ export const abutmentsApi = {
    */
   delete: async (id: number) => {
     const response = await apiClient.delete<ApiResponse<void>>(
-      `/api/v1/library/abutments/${id}`
+      `/library/abutments/${id}`
     )
     return response.data
   },
@@ -852,7 +852,7 @@ export const abutmentsApi = {
     image?: string
   }) => {
     const response = await apiClient.post<ApiResponse<AbutmentPlatform>>(
-      `/api/v1/library/abutments/${abutmentId}/platforms`,
+      `/library/abutments/${abutmentId}/platforms`,
       data
     )
     return response.data
@@ -870,7 +870,7 @@ export const abutmentsApi = {
     image?: string
   }) => {
     const response = await apiClient.put<ApiResponse<AbutmentPlatform>>(
-      `/api/v1/library/abutments/${abutmentId}/platforms/${platformId}`,
+      `/library/abutments/${abutmentId}/platforms/${platformId}`,
       data
     )
     return response.data
@@ -881,7 +881,7 @@ export const abutmentsApi = {
    */
   deletePlatform: async (abutmentId: number, platformId: number) => {
     const response = await apiClient.delete<ApiResponse<void>>(
-      `/api/v1/library/abutments/${abutmentId}/platforms/${platformId}`
+      `/library/abutments/${abutmentId}/platforms/${platformId}`
     )
     return response.data
   },
@@ -891,7 +891,7 @@ export const abutmentsApi = {
    */
   linkProducts: async (id: number, productIds: number[]) => {
     const response = await apiClient.post<ApiResponse<void>>(
-      `/api/v1/library/abutments/${id}/link-products`,
+      `/library/abutments/${id}/link-products`,
       { product_ids: productIds }
     )
     return response.data
@@ -902,7 +902,7 @@ export const abutmentsApi = {
    */
   updateStatus: async (id: number, status: 'Active' | 'Inactive', customerId?: number, price?: number) => {
     const response = await apiClient.patch<ApiResponse<Abutment>>(
-      `/api/v1/library/abutments/${id}/status`,
+      `/library/abutments/${id}/status`,
       { status, customer_id: customerId, price }
     )
     return response.data
@@ -919,7 +919,7 @@ export const abutmentsApi = {
     price?: number
   ) => {
     const response = await apiClient.patch<ApiResponse<AbutmentPlatform>>(
-      `/api/v1/library/abutments/${abutmentId}/platforms/${platformId}/status`,
+      `/library/abutments/${abutmentId}/platforms/${platformId}/status`,
       { status, customer_id: customerId, price }
     )
     return response.data

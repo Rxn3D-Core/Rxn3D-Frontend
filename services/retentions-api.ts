@@ -58,7 +58,7 @@ export async function getRetentionsWithRetentionOptions(filters: {
   if (filters.page) params.append("page", filters.page.toString())
 
   const response = await fetch(
-    `${API_BASE_URL}/v1/library/retentions/with-retention-options?${params.toString()}`,
+    `${API_BASE_URL}/library/retentions/with-retention-options?${params.toString()}`,
     {
       method: "GET",
       headers: {
@@ -174,6 +174,7 @@ export async function getRetentions(filters: {
 
   return response.json()
 }
+
 
 
 

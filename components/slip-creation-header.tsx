@@ -241,7 +241,7 @@ const SendingToSection = ({ lab }: { lab: Lab }) => {
             className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 border border-gray-200 hover:bg-gray-50 cursor-pointer transition-colors"
             aria-label="Edit lab or office"
           >
-            <Pencil className="w-[13.99px] h-[13.99px] text-[#B4B0B0]" />
+            <Pencil className="w-[18px] h-[18px] text-[#B4B0B0]" />
           </button>
         </div>
       )}
@@ -281,7 +281,7 @@ const DoctorInfoSection = ({ doctor, variant = "default" }: { doctor: Doctor; va
               className="absolute -bottom-1 -right-1 bg-white rounded-full p-1 border border-gray-200 hover:bg-gray-50 cursor-pointer transition-colors"
               aria-label="Edit doctor"
             >
-              <Pencil className="w-[14px] h-[14px] text-[#B4B0B0]" />
+              <Pencil className="w-[18px] h-[18px] text-[#B4B0B0]" />
             </button>
           </div>
         </div>
@@ -309,7 +309,7 @@ const DoctorInfoSection = ({ doctor, variant = "default" }: { doctor: Doctor; va
           className="absolute -bottom-0.5 -right-0.5 bg-white rounded-full p-1 border border-gray-300 hover:bg-gray-50 cursor-pointer transition-colors"
           aria-label="Edit doctor"
         >
-          <Pencil className="h-3 w-3 text-gray-400" />
+          <Pencil className="h-[18px] w-[18px] text-[#B4B0B0]" />
         </button>
       </div>
       <p className="text-base font-normal text-gray-900">
@@ -744,13 +744,7 @@ export function SlipCreationHeader({
           <div className="flex items-center justify-between px-5 py-[10px]">
             {/* Left: Sending to */}
             <div className="w-[350px] h-[75px] flex items-center">
-              {sendingToLab ? (
-                <SendingToSection lab={sendingToLab} />
-              ) : (
-                <div className="flex items-center gap-[7px]">
-                  <p className="text-[15.9926px] font-bold leading-[22px] tracking-[-0.02em] text-[#080808]">Sending to</p>
-                </div>
-              )}
+              {sendingToLab && <SendingToSection lab={sendingToLab} />}
             </div>
 
             {/* Center: Customer Logo */}
@@ -810,13 +804,7 @@ export function SlipCreationHeader({
         <div className="flex items-center justify-between px-5 py-[10px] min-h-[122px]">
           {/* Sending to (Left) */}
           <div className="w-[350px] flex items-center">
-            {sendingToLab ? (
-              <SendingToSection lab={sendingToLab} />
-            ) : (
-              <div className="flex items-center gap-[7px]">
-                <p className="text-[15.9926px] font-bold leading-[22px] tracking-[-0.02em] text-[#080808]">Sending to</p>
-              </div>
-            )}
+            {sendingToLab && <SendingToSection lab={sendingToLab} />}
           </div>
 
           {/* Center: Customer Logo */}

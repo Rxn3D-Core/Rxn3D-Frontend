@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
 import {
+  getRetentionOptions,
   getRetentionOptionsWithRetentions,
   linkRetentionOptionsWithRetentions,
 } from "@/services/retention-options-api"
@@ -125,12 +126,16 @@ export function LinkRetentionTypeModal({ isOpen, onClose, onApply }: LinkRetenti
 
   const fetchRetentionOptions = async (customerId: number | null, page: number = 1) => {
     try {
-      const response = await getRetentionOptionsWithRetentions({
+      // Use the simpler getRetentionOptions endpoint which might be more reliable
+      const response = await getRetentionOptions({
         q: searchQuery || undefined,
-        status: "Active",
+        // Try without status filter first to see all retention options
+        // status: "Active",
         customer_id: customerId || undefined,
-        per_page: 10,
+        per_page: 100,
         page,
+        order_by: "name",
+        sort_by: "asc",
       })
 
       if (response.status && response.data) {
@@ -138,6 +143,16 @@ export function LinkRetentionTypeModal({ isOpen, onClose, onApply }: LinkRetenti
         const pagination = response.data.pagination || { current_page: 1, last_page: 1, total: 0, per_page: 10 }
         setRetentionOptions(retentionOptionsList)
         setRetentionOptionsPagination(pagination)
+        
+        // Log for debugging
+        console.log("Retention options fetched:", retentionOptionsList.length, "items", { customerId, page })
+        if (retentionOptionsList.length === 0) {
+          console.warn("No retention options found. Filters:", { customerId, searchQuery, page })
+        }
+      } else {
+        console.warn("Unexpected response format:", response)
+        setRetentionOptions([])
+        setRetentionOptionsPagination({ current_page: 1, last_page: 1, total: 0, per_page: 10 })
       }
     } catch (error: any) {
       console.error("Error fetching retention options:", error)
@@ -155,9 +170,10 @@ export function LinkRetentionTypeModal({ isOpen, onClose, onApply }: LinkRetenti
     try {
       const response = await getRetentions({
         q: searchQuery || undefined,
-        status: "Active",
+        // Remove status filter to show all retention types, or make it optional
+        // status: "Active",
         customer_id: customerId || undefined,
-        per_page: 10,
+        per_page: 100,
         page,
       })
 
@@ -166,6 +182,13 @@ export function LinkRetentionTypeModal({ isOpen, onClose, onApply }: LinkRetenti
         const pagination = response.data.pagination || { current_page: 1, last_page: 1, total: 0, per_page: 10 }
         setRetentionTypes(retentionTypesList)
         setRetentionTypesPagination(pagination)
+        
+        // Log for debugging
+        console.log("Retention types fetched:", retentionTypesList.length, "items")
+      } else {
+        console.warn("Unexpected response format:", response)
+        setRetentionTypes([])
+        setRetentionTypesPagination({ current_page: 1, last_page: 1, total: 0, per_page: 10 })
       }
     } catch (error: any) {
       console.error("Error fetching retention types:", error)
@@ -272,26 +295,38 @@ export function LinkRetentionTypeModal({ isOpen, onClose, onApply }: LinkRetenti
         })),
       }
 
-      // Call the linking API
-      await linkRetentionOptionsWithRetentions(payload)
+      console.log("Linking retention options with retentions, payload:", payload)
 
-      // Call the onApply callback if provided
-      if (onApply) {
-        onApply(selectedRetentionOptions, selectedRetentionTypes)
+      // Call the linking API
+      const response = await linkRetentionOptionsWithRetentions(payload)
+
+      console.log("API response:", response)
+
+      // Check if API call was successful
+      if (!response.status) {
+        throw new Error(response.message || "Failed to link retention options with retentions")
       }
-      
+
       toast({
         title: t("success") || "Success",
-        description: t("Retention options linked successfully", "Retention options linked successfully"),
+        description: response.message || t("Retention options linked successfully", "Retention options linked successfully"),
       })
-      
-      onClose()
+
+      // Call the onApply callback if provided (this will handle closing the modal)
+      if (onApply) {
+        onApply(selectedRetentionOptions, selectedRetentionTypes)
+      } else {
+        // Only close if no callback is provided
+        onClose()
+      }
     } catch (error: any) {
+      console.error("Error linking retention options with retentions:", error)
       toast({
         title: t("error") || "Error",
         description: error.message || t("Failed to link retention options", "Failed to link retention options"),
         variant: "destructive",
       })
+      // Don't close the modal on error so user can try again
     } finally {
       setIsLoading(false)
     }
@@ -416,6 +451,68 @@ export function LinkRetentionTypeModal({ isOpen, onClose, onApply }: LinkRetenti
               </div>
             </div>
 
+            {/* Selected Retention Types to be Linked */}
+            {selectedRetentionTypes.length > 0 && (
+              <div className="px-4 py-3 border-b border-gray-200 bg-blue-50">
+                <div className="flex items-center justify-between mb-2">
+                  <h6 className="text-sm font-semibold text-gray-900">
+                    {t("Selected retention types to link", "Selected retention types to link")} ({selectedRetentionTypes.length})
+                  </h6>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleClearAllRetentionTypes}
+                    className="h-6 px-2 text-xs"
+                  >
+                    {t("Clear all", "Clear all")}
+                  </Button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {selectedRetentionTypes.map((typeId) => {
+                    const type = retentionTypes.find(t => t.id === typeId)
+                    if (!type) return null
+                    return (
+                      <div
+                        key={typeId}
+                        className="flex items-center gap-1 px-2 py-1 bg-white border border-blue-200 rounded-md text-xs"
+                      >
+                        <span className="text-gray-900">{type.name}</span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleRetentionTypeToggle(typeId)
+                          }}
+                          className="ml-1 text-gray-400 hover:text-gray-600"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Select All / Clear All for Retention Types */}
+            <div className="px-4 py-3 border-b border-gray-200 flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSelectAllRetentionTypes}
+                className="flex-1"
+              >
+                {t("Select all", "Select all")}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleClearAllRetentionTypes}
+                className="flex-1"
+              >
+                {t("Clear all", "Clear all")}
+              </Button>
+            </div>
+
             {/* Retention Types List */}
             <div className="flex-1 overflow-y-auto p-4">
               {isLoadingData ? (
@@ -453,6 +550,14 @@ export function LinkRetentionTypeModal({ isOpen, onClose, onApply }: LinkRetenti
                   )}
                 </div>
               )}
+            </div>
+
+            <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
+              <p className="text-sm text-gray-600">
+                {selectedRetentionTypes.length > 0
+                  ? `${selectedRetentionTypes.length} ${t("retention type selected", "retention type selected")}`
+                  : t("No retention type selected", "No retention type selected")}
+              </p>
             </div>
           </div>
         </div>

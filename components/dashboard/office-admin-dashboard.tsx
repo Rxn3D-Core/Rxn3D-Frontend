@@ -20,6 +20,8 @@ import { fetchProfileData, saveProfileData } from "@/lib/api-profile"
 import { useFetchUsersQuery } from "@/hooks/use-users"
 import { useFetchUserInvitations } from "@/hooks/use-user-invitations"
 import { useQueryClient } from "@tanstack/react-query"
+import { useDashboardSettings } from "@/hooks/use-dashboard-settings"
+import { WIDGET_IDS } from "@/lib/dashboard-widgets"
 interface StatusCardProps {
   title: string
   count: number
@@ -46,6 +48,9 @@ export function OfficeAdminDashboard() {
   const { user } = useAuth()
   const { toast } = useToast()
   const { labs, isLoading, error, fetchConnections } = useConnection()
+  const userRole = user?.roles?.[0] || "office_admin"
+  const userId = user?.id
+  const { isEnabled } = useDashboardSettings(userRole, userId)
   const { sent, received, fetchAllInvitations, deleteInvitation, resendInvitation, acceptInvitation, cancelInvitation } = useInvitation()
   const queryClient = useQueryClient()
 
@@ -306,14 +311,17 @@ export function OfficeAdminDashboard() {
         </div>
 
         {/* KPI Cards */}
+        {isEnabled(WIDGET_IDS.KPI_CARDS) && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-4 sm:mb-6">
           <KpiCard title="Total Case Spend" value="$64,587.70" change="40.3%" isPositive={true} icon="dollar" />
           <KpiCard title="Outstanding Balance" value="$11,567.44" change="20.3%" isPositive={true} icon="document" />
           <KpiCard title="Total Cases" value="2657" change="2.3%" isPositive={false} icon="dollar" />
           <KpiCard title="Case approval rate" value="97.50%" change="40.3%" isPositive={true} icon="dollar" />
         </div>
+        )}
 
         {/* Status Cards */}
+        {isEnabled(WIDGET_IDS.STATUS_CARDS) && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
           <StatusCard title="Rush Cases" count={15} color="text-red-500" />
           <StatusCard title="On Hold Cases" count={135} color="text-red-500" />
@@ -321,10 +329,12 @@ export function OfficeAdminDashboard() {
           <StatusCard title="New Stage notes" count={110} color="text-black" />
           <StatusCard title="Late Cases" count={10} color="text-black" />
         </div>
+        )}
 
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
           {/* My Lab Section */}
+          {isEnabled(WIDGET_IDS.MY_LABS) && (
           <div className="bg-white rounded-xl shadow-sm border border-[#e4e6ef] overflow-hidden">
             <div className="p-3 sm:p-4 border-b border-[#e4e6ef] bg-[#1162a8]">
               <div className="flex justify-between items-center">
@@ -580,8 +590,10 @@ export function OfficeAdminDashboard() {
               )}
             </div>
           </div>
+          )}
 
           {/* My Users Section */}
+          {isEnabled(WIDGET_IDS.MY_USERS_OFFICE) && (
           <div className="bg-white rounded-xl shadow-sm border border-[#d9d9d9] overflow-hidden">
             <div className="p-3 sm:p-4 border-b border-[#d9d9d9] bg-[#1162a8]">
               <div className="flex justify-between items-center">
@@ -815,9 +827,11 @@ export function OfficeAdminDashboard() {
               </div>
             </div>
           </div>
+          )}
         </div>
 
         {/* More Features Coming Soon */}
+        {isEnabled(WIDGET_IDS.COMING_SOON) && (
         <div className="bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 rounded-xl border border-emerald-200 p-6 sm:p-8 lg:p-12 text-center shadow-lg relative overflow-hidden">
           {/* Background decorative elements */}
           <div className="absolute top-0 left-0 w-16 h-16 sm:w-32 sm:h-32 bg-emerald-200 rounded-full opacity-20 -translate-x-8 sm:-translate-x-16 -translate-y-8 sm:-translate-y-16"></div>
@@ -858,6 +872,7 @@ export function OfficeAdminDashboard() {
             </div>
           </div>
         </div>
+        )}
 
       </div>
 

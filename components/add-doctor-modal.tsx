@@ -349,7 +349,7 @@ export function AddDoctorModal({ isOpen, onClose, onDoctorConnect }: AddDoctorMo
         <div className="flex items-center justify-end mb-6">
         </div>
 
-        {/* Search Bar and Sort Row */}
+        {/* Search Bar Row */}
         <div className="flex items-center gap-4 mb-4">
           <div className="relative flex-1">
             <div className="relative">
@@ -458,18 +458,31 @@ export function AddDoctorModal({ isOpen, onClose, onDoctorConnect }: AddDoctorMo
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Label className="text-sm text-gray-600">Sort B</Label>
-            <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="name-az">Name A-Z</SelectItem>
-                <SelectItem value="name-za">Name Z-A</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          
+          {/* Add new button */}
+          <Button 
+            onClick={() => {
+              setSearchTerm("")
+              setStep("invite")
+            }}
+            className="bg-[#1162a8] hover:bg-[#0f5490] text-white rounded-lg px-4 py-2 whitespace-nowrap"
+          >
+            Add new
+          </Button>
+        </div>
+
+        {/* Sort Row */}
+        <div className="flex items-center gap-2 mb-4">
+          <Label className="text-sm text-gray-600">Sort By:</Label>
+          <Select value={sortBy} onValueChange={setSortBy}>
+            <SelectTrigger className="w-32">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="name-az">Name A-Z</SelectItem>
+              <SelectItem value="name-za">Name Z-A</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Count */}

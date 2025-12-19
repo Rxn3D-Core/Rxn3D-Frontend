@@ -181,11 +181,11 @@ export function RetentionProvider({ children }: { children: React.ReactNode }) {
 
         const result = await response.json()
         console.log(result)
-        if (!result.ok) {
+        if (!response.ok || !result.status) {
           setAnimationType("error")
-          setError(result.error_description || "Failed to create retention.")
-          toast.error(result.error_description || "Failed to create retention.")
-          throw new Error(result.error_description || "Failed to create retention")
+          setError(result.error_description || result.message || "Failed to create retention.")
+          toast.error(result.error_description || result.message || "Failed to create retention.")
+          throw new Error(result.error_description || result.message || "Failed to create retention")
         }
         
         setAnimationType("success")

@@ -69,7 +69,7 @@ export function LinkProductModal({ isOpen, onClose, context = "global", fieldId,
 
     // Fetch fields list - if fieldId is provided, fetch that specific field, otherwise fetch all
     const { data: fieldsData, isLoading: isLoadingFields } = useAdvanceFields(
-        fieldId ? undefined : { per_page: 100, status: "Active" as const }
+        fieldId ? undefined : { per_page: 100 }
     )
     const { data: singleFieldData } = useAdvanceField(fieldId || 0)
     const linkProductsMutation = useLinkFieldProducts()
@@ -134,7 +134,7 @@ export function LinkProductModal({ isOpen, onClose, context = "global", fieldId,
                 }
 
                 const url = new URL(`${process.env.NEXT_PUBLIC_API_BASE_URL}/library/products`)
-                url.searchParams.append('per_page', '25')
+                url.searchParams.append('per_page', '100')
                 url.searchParams.append('order_by', 'name')
                 url.searchParams.append('sort_by', 'asc')
 

@@ -265,7 +265,7 @@ export async function updateRetentionOptionStatus(
   const token = getAuthToken()
 
   const response = await fetch(
-    `${API_BASE_URL}/v1/library/retention-options/${id}/status`,
+    `${API_BASE_URL}/library/retention-options/${id}/status`,
     {
       method: "PATCH",
       headers: {
@@ -311,7 +311,7 @@ export async function getRetentionOptionsWithRetentions(filters: {
   if (filters.page) params.append("page", filters.page.toString())
 
   const response = await fetch(
-    `${API_BASE_URL}/v1/library/retention-options/with-retentions?${params.toString()}`,
+    `${API_BASE_URL}/library/retention-options/with-retentions?${params.toString()}`,
     {
       method: "GET",
       headers: {
@@ -353,7 +353,7 @@ export async function linkRetentionOptionsWithRetentions(payload: {
   const token = getAuthToken()
 
   const response = await fetch(
-    `${API_BASE_URL}/v1/library/retention-options/link-retentions`,
+    `${API_BASE_URL}/library/retention-options/link-retentions`,
     {
       method: "POST",
       headers: {

@@ -269,10 +269,16 @@ export function AddNewLabModal({ open, onOpenChange, onLabSelect, onInviteLab }:
                 </div>
               </div>
 
-              {/* New slip button */}
-              {/* <Button className="bg-[#1162a8] hover:bg-[#0f5490] text-white rounded-lg px-4 py-2 whitespace-nowrap">
-                + New slip
-              </Button> */}
+              {/* Add new button */}
+              <Button 
+                onClick={() => {
+                  setSearchTerm("")
+                  setShowInviteModal(true)
+                }}
+                className="bg-[#1162a8] hover:bg-[#0f5490] text-white rounded-lg px-4 py-2 whitespace-nowrap"
+              >
+                Add new
+              </Button>
             </div>
 
             {/* Sort and count */}

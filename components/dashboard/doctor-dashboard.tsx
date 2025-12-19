@@ -8,6 +8,8 @@ import { useAuth } from "@/contexts/auth-context"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useDashboardSettings } from "@/hooks/use-dashboard-settings"
+import { WIDGET_IDS } from "@/lib/dashboard-widgets"
 
 interface StatusCardProps {
   title: string
@@ -33,6 +35,9 @@ function StatusCard({ title, count, color }: StatusCardProps) {
 
 export function DoctorDashboard() {
   const { user } = useAuth()
+  const userRole = user?.roles?.[0] || "doctor"
+  const userId = user?.id
+  const { isEnabled } = useDashboardSettings(userRole, userId)
 
   const [searchQuery, setSearchQuery] = useState("")
   const [casesTab, setCasesTab] = useState("active")
@@ -97,14 +102,17 @@ export function DoctorDashboard() {
         </div>
 
         {/* KPI Cards */}
+        {isEnabled(WIDGET_IDS.KPI_CARDS) && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-4 sm:mb-6">
           <KpiCard title="Total Cases" value="142" change="12.5%" isPositive={true} icon="document" />
           <KpiCard title="Active Cases" value="28" change="5.2%" isPositive={true} icon="dollar" />
           <KpiCard title="Completed Cases" value="114" change="8.1%" isPositive={true} icon="dollar" />
           <KpiCard title="Approval Rate" value="94.5%" change="2.3%" isPositive={true} icon="dollar" />
         </div>
+        )}
 
         {/* Status Cards */}
+        {isEnabled(WIDGET_IDS.STATUS_CARDS) && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
           <StatusCard title="Pending Review" count={8} color="text-orange-500" />
           <StatusCard title="In Progress" count={15} color="text-blue-500" />
@@ -116,6 +124,7 @@ export function DoctorDashboard() {
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
           {/* My Cases Section */}
+          {isEnabled(WIDGET_IDS.MY_CASES) && (
           <div className="bg-white rounded-xl shadow-sm border border-[#e4e6ef] overflow-hidden">
             <div className="p-3 sm:p-4 border-b border-[#e4e6ef] bg-[#1162a8]">
               <div className="flex justify-between items-center">
@@ -231,8 +240,10 @@ export function DoctorDashboard() {
               )}
             </div>
           </div>
+          )}
 
           {/* Appointments Section */}
+          {isEnabled(WIDGET_IDS.APPOINTMENTS) && (
           <div className="bg-white rounded-xl shadow-sm border border-[#d9d9d9] overflow-hidden">
             <div className="p-3 sm:p-4 border-b border-[#d9d9d9] bg-[#1162a8]">
               <div className="flex justify-between items-center">
@@ -332,9 +343,11 @@ export function DoctorDashboard() {
               )}
             </div>
           </div>
+          )}
         </div>
 
         {/* More Features Coming Soon */}
+        {isEnabled(WIDGET_IDS.COMING_SOON) && (
         <div className="bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 rounded-xl border border-emerald-200 p-6 sm:p-8 lg:p-12 text-center shadow-lg relative overflow-hidden">
           {/* Background decorative elements */}
           <div className="absolute top-0 left-0 w-16 h-16 sm:w-32 sm:h-32 bg-emerald-200 rounded-full opacity-20 -translate-x-8 sm:-translate-x-16 -translate-y-8 sm:-translate-y-16"></div>
@@ -375,6 +388,7 @@ export function DoctorDashboard() {
             </div>
           </div>
         </div>
+        )}
       </div>
     </div>
   )

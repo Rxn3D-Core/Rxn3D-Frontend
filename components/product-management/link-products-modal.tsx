@@ -28,8 +28,11 @@ import { fetchStageProductConnections, type StageWithProducts } from "@/services
 import { linkMaterialsToProducts, buildMaterialLinkPayload } from "@/services/material-product-link-api"
 import { linkImpressionsToProducts, buildImpressionLinkPayload } from "@/services/impression-product-link-api"
 import { linkRetentionsToProducts, buildRetentionLinkPayload } from "@/services/retention-product-link-api"
+import { linkRetentionOptionsToProductsCategories, buildRetentionOptionLinkPayload } from "@/services/retention-option-product-link-api"
 import { useToast } from "@/hooks/use-toast"
 import { LoadingOverlay } from "@/components/ui/loading-overlay"
+import { getRetentionOptions } from "@/services/retention-options-api"
+import { useAuth } from "@/contexts/auth-context"
 
 // Helper function to get auth token
 const getAuthToken = () => {
@@ -71,6 +74,11 @@ export function LinkProductsModal({ isOpen, onClose, entityType = "stage", conte
   const { grades, fetchGrades } = useGrades()
   const { t } = useTranslation()
   const { toast } = useToast()
+  const { user } = useAuth()
+
+  // State for retention options
+  const [retentionOptions, setRetentionOptions] = useState<any[]>([])
+  const [isLoadingRetentionOptions, setIsLoadingRetentionOptions] = useState(false)
 
   // Get entities based on entityType
   const getEntities = () => {
@@ -82,8 +90,7 @@ export function LinkProductsModal({ isOpen, onClose, entityType = "stage", conte
       case "retention":
         return retentions
       case "retention-option":
-        // TODO: Fetch retention options from API
-        return []
+        return retentionOptions
       case "stage":
       default:
         return stages
@@ -206,7 +213,7 @@ export function LinkProductsModal({ isOpen, onClose, entityType = "stage", conte
 
         // Build URL with query parameters
         const url = new URL(`${process.env.NEXT_PUBLIC_API_BASE_URL}/library/products`)
-        url.searchParams.append('per_page', '25')
+        url.searchParams.append('per_page', '100')
         url.searchParams.append('order_by', 'name')
         url.searchParams.append('sort_by', 'asc')
         
@@ -295,6 +302,74 @@ export function LinkProductsModal({ isOpen, onClose, entityType = "stage", conte
       fetchGrades(1, 100) // Fetch all grades (assuming max 100)
     }
   }, [isOpen, entityType, fetchGrades])
+
+  // Fetch retention options when modal opens and entityType is retention-option
+  useEffect(() => {
+    const fetchRetentionOptionsData = async () => {
+      if (!isOpen || entityType !== "retention-option") {
+        setRetentionOptions([])
+        return
+      }
+
+      setIsLoadingRetentionOptions(true)
+      try {
+        // Get customer ID similar to how it's done in the retention option pages
+        const getCustomerId = () => {
+          if (typeof window === "undefined") return null
+          
+          const storedCustomerId = localStorage.getItem("customerId")
+          if (storedCustomerId) {
+            return parseInt(storedCustomerId, 10)
+          }
+
+          if (user?.customers && user.customers.length > 0) {
+            return user.customers[0].id
+          }
+
+          if (user?.customer_id) {
+            return user.customer_id
+          }
+
+          if (user?.customer?.id) {
+            return user.customer.id
+          }
+
+          return null
+        }
+
+        const customerId = getCustomerId()
+        
+        // For global context (superadmin), don't pass customer_id
+        // For lab context, pass customer_id if available
+        const response = await getRetentionOptions({
+          per_page: 100,
+          page: 1,
+          order_by: "name",
+          sort_by: "asc",
+          // Only pass customer_id for lab context, not for global
+          ...(context === "lab" && customerId ? { customer_id: customerId } : {}),
+        })
+
+        if (response.status && response.data) {
+          setRetentionOptions(response.data.data || [])
+        } else {
+          setRetentionOptions([])
+        }
+      } catch (error: any) {
+        console.error("Error fetching retention options:", error)
+        toast({
+          title: t("error") || "Error",
+          description: error.message || t("Failed to fetch retention options", "Failed to fetch retention options"),
+          variant: "destructive",
+        })
+        setRetentionOptions([])
+      } finally {
+        setIsLoadingRetentionOptions(false)
+      }
+    }
+
+    fetchRetentionOptionsData()
+  }, [isOpen, entityType, context, user, toast, t])
 
   // Reset selections when modal opens/closes or entityType changes
   useEffect(() => {
@@ -857,6 +932,16 @@ export function LinkProductsModal({ isOpen, onClose, entityType = "stage", conte
           response = await linkRetentionsToProducts(payload)
           break
         }
+        case "retention-option": {
+          const payload = buildRetentionOptionLinkPayload(
+            selectedEntities,
+            selectedProducts,
+            products,
+            retentionOptions
+          )
+          response = await linkRetentionOptionsToProductsCategories(payload)
+          break
+        }
         case "stage":
         default: {
           const payload = buildLinkPayload(
@@ -889,7 +974,11 @@ export function LinkProductsModal({ isOpen, onClose, entityType = "stage", conte
           prevProducts.map(product => {
             if (selectedProducts.includes(product.id)) {
               // Product was just linked with entities - update status to "some"
-              const entityProperty = entityType === "material" ? "materials" : entityType === "impression" ? "impressions" : entityType === "retention" ? "retentions" : "stages"
+              const entityProperty = entityType === "material" ? "materials" 
+                : entityType === "impression" ? "impressions" 
+                : entityType === "retention" ? "retentions" 
+                : entityType === "retention-option" ? "retention_options"
+                : "stages"
               return {
                 ...product,
                 imageStatus: "some" as const,
@@ -979,45 +1068,59 @@ export function LinkProductsModal({ isOpen, onClose, entityType = "stage", conte
               </div>
 
               <div className="flex-1 overflow-y-auto p-4">
-                <div className="space-y-3">
-                  {entityType === "stage" && stageProductConnections.length > 0 ? (
-                    // Show stages from API response for stage entity type
-                    stageProductConnections.map((stageData) => (
-                      <div key={stageData.stage.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
-                        <div className="flex items-center gap-3">
-                          <Checkbox
-                            checked={selectedEntities.includes(stageData.stage.id)}
-                            onCheckedChange={(checked) => handleEntitySelect(stageData.stage.id, !!checked)}
-                            className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]"
-                          />
-                          <span className="font-medium text-gray-900">{stageData.stage.name}</span>
-                        </div>
-                        <span className="text-sm text-gray-600">
-                          ${stageData.products[0]?.lab_data?.price || 0}
-                        </span>
-                      </div>
-                    ))
-                  ) : (
-                    // Show entities from context for other entity types
-                    entities.map((entity: any) => (
-                      <div key={entity.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
-                        <div className="flex items-center gap-3">
-                          <Checkbox
-                            checked={selectedEntities.includes(entity.id)}
-                            onCheckedChange={(checked) => handleEntitySelect(entity.id, !!checked)}
-                            className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]"
-                          />
-                          <span className="font-medium text-gray-900">{entity.name}</span>
-                        </div>
-                        {(entity.price !== undefined || (entity as any).lab_material?.price !== undefined || (entity as any).lab_retention?.price !== undefined) && (
-                          <span className="text-sm font-semibold text-gray-600">
-                            ${typeof entity.price === 'number' ? entity.price : (entity as any).lab_material?.price || (entity as any).lab_retention?.price || 0}
+                {isLoadingRetentionOptions && entityType === "retention-option" ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-[#1162a8]" />
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {entityType === "stage" && stageProductConnections.length > 0 ? (
+                      // Show stages from API response for stage entity type
+                      stageProductConnections.map((stageData) => (
+                        <div key={stageData.stage.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
+                          <div className="flex items-center gap-3">
+                            <Checkbox
+                              checked={selectedEntities.includes(stageData.stage.id)}
+                              onCheckedChange={(checked) => handleEntitySelect(stageData.stage.id, !!checked)}
+                              className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]"
+                            />
+                            <span className="font-medium text-gray-900">{stageData.stage.name}</span>
+                          </div>
+                          <span className="text-sm text-gray-600">
+                            ${stageData.products[0]?.lab_data?.price || 0}
                           </span>
-                        )}
+                        </div>
+                      ))
+                    ) : entities.length === 0 ? (
+                      <div className="text-center py-8 text-gray-500">
+                        <p className="text-sm">
+                          {entityType === "retention-option" 
+                            ? t("No retention options found", "No retention options found")
+                            : t("No entities found", "No entities found")}
+                        </p>
                       </div>
-                    ))
-                  )}
-                </div>
+                    ) : (
+                      // Show entities from context for other entity types
+                      entities.map((entity: any) => (
+                        <div key={entity.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
+                          <div className="flex items-center gap-3">
+                            <Checkbox
+                              checked={selectedEntities.includes(entity.id)}
+                              onCheckedChange={(checked) => handleEntitySelect(entity.id, !!checked)}
+                              className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]"
+                            />
+                            <span className="font-medium text-gray-900">{entity.name}</span>
+                          </div>
+                          {(entity.price !== undefined || (entity as any).lab_material?.price !== undefined || (entity as any).lab_retention?.price !== undefined) && (
+                            <span className="text-sm font-semibold text-gray-600">
+                              ${typeof entity.price === 'number' ? entity.price : (entity as any).lab_material?.price || (entity as any).lab_retention?.price || 0}
+                            </span>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">

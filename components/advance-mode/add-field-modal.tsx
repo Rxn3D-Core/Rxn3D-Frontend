@@ -5,7 +5,7 @@ import { useDebounce } from "@/lib/performance-utils"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { X, Link as LinkIcon, HelpCircle, Edit, Copy, Trash2 } from "lucide-react"
+import { X, Link as LinkIcon, HelpCircle, Edit, Copy, Trash2, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -91,6 +91,7 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [initialImageBase64, setInitialImageBase64] = useState<string | null>(null)
   const [showPreviewModal, setShowPreviewModal] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   
   // Mutations
   const createFieldMutation = useCreateAdvanceField()
@@ -372,6 +373,7 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
       setIsAddOptionModalOpen(false)
       setEditingOptionId(null)
       setIsInitialLoad(false)
+      setIsSaving(false) // Reset saving state when modal opens
       
       // Reset the processed field ID ref when modal opens
       lastProcessedFieldIdRef.current = 0
@@ -526,22 +528,56 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
     )
   }
 
-  // Form validation check similar to create-grade-modal
+  // Form validation check - use form.watch() to reactively track form values
   const formValues = form.watch()
+  
+  // Check if form fields are valid
+  const fieldName = (formValues.fieldName || "").toString().trim()
+  const category = (formValues.category || "").toString().trim()
+  const subCategory = (formValues.subCategory || "").toString().trim()
+  const fieldType = (formValues.fieldType || "").toString().trim()
+  
+  const hasFieldName = fieldName !== ""
+  const hasCategory = category !== ""
+  const hasSubCategory = subCategory !== ""
+  const hasFieldType = fieldType !== ""
+  
+  // When editing, if fieldData exists, we might have category/subcategory from the API
+  // even if they're not yet set in the form (due to async loading)
+  const hasCategoryFromData = isEditing && fieldData && fieldData.advance_category_id
+  const hasSubCategoryFromData = isEditing && fieldData && fieldData.advance_subcategory_id
+  
+  // Category and subcategory are valid if set in form OR if we have them from fieldData
+  const categoryValid = hasCategory || hasCategoryFromData
+  const subCategoryValid = hasSubCategory || hasSubCategoryFromData
+  
+  // Validate additional charges
+  const canAddCharges = formValues.canAddAdditionalCharges ?? false
+  const chargeType = formValues.chargeType || "once"
+  const additionalCharge = formValues.additionalCharge || "0.00"
+  
+  const additionalChargesValid = 
+    canAddCharges === false || 
+    (canAddCharges === true && 
+     (chargeType === "per-option" || 
+      (chargeType === "once" && 
+       additionalCharge && 
+       !isNaN(parseFloat(additionalCharge)) && 
+       parseFloat(additionalCharge) >= 0)))
+  
   const isFormValid =
-    formValues.fieldName?.trim() !== "" &&
-    formValues.category?.trim() !== "" &&
-    formValues.subCategory?.trim() !== "" &&
-    formValues.fieldType?.trim() !== "" &&
-    (formValues.canAddAdditionalCharges === false || 
-     (formValues.canAddAdditionalCharges === true && 
-      (formValues.chargeType === "per-option" || 
-       (formValues.chargeType === "once" && 
-        formValues.additionalCharge && 
-        !isNaN(parseFloat(formValues.additionalCharge || "0")) && 
-        parseFloat(formValues.additionalCharge || "0") >= 0))))
+    hasFieldName &&
+    categoryValid &&
+    subCategoryValid &&
+    hasFieldType &&
+    additionalChargesValid
 
   const handleSave = async (data: AddFieldFormValues) => {
+    // Prevent multiple submissions
+    if (isSaving || createFieldMutation.isPending || updateFieldMutation.isPending) {
+      return
+    }
+
     // Validate options - at least one option is required for dropdown, radio, and checkbox
     if (requiresOptions(data.fieldType) && options.length === 0) {
       form.setError("fieldType", {
@@ -573,6 +609,31 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
       return
     }
 
+    // Validate additional charge when charge type is "once"
+    if (data.canAddAdditionalCharges && data.chargeType === "once") {
+      const chargeValue = parseFloat(data.additionalCharge || "0")
+      if (isNaN(chargeValue) || chargeValue < 0) {
+        form.setError("additionalCharge", {
+          type: "manual",
+          message: "Additional charge must be a valid number greater than or equal to 0",
+        })
+        setActiveTab("pricing")
+        toast({
+          title: "Validation Error",
+          description: "Additional charge must be a valid number",
+          variant: "destructive",
+        })
+        return
+      }
+    }
+
+    // Set saving state immediately after validation passes
+    // Use a small delay to ensure React processes the state update before async operations
+    setIsSaving(true)
+    
+    // Force a microtask to ensure state update is visible
+    await Promise.resolve()
+    
     try {
       // Map form field types to API field types (1:1 mapping now, but kept explicit for clarity)
       const fieldTypeMap: Record<"dropdown" | "radio" | "checkbox" | "number" | "shade_guide" | "text" | "file_upload" | "multiline_text" | "implant_library", string> = {
@@ -650,6 +711,10 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
           },
           image: imageBase64 && imageBase64 !== initialImageBase64 ? imageBase64 : undefined,
         })
+        toast({
+          title: "Success",
+          description: isEditing ? "Field updated successfully" : "Field created successfully",
+        })
         onClose()
       } else {
         // Fallback: if no onSave callback, handle mutation here
@@ -679,6 +744,8 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
         description: error.message || "Failed to save field",
         variant: "destructive",
       })
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -761,15 +828,27 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
     )
   }
 
+  const isLoading = isSaving || createFieldMutation.isPending || updateFieldMutation.isPending
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-2 sm:p-4">
-      <div className="bg-white rounded-lg shadow-lg w-full max-w-5xl h-full max-h-[95vh] sm:h-auto sm:max-h-[90vh] flex flex-col">
+      <div className="bg-white rounded-lg shadow-lg w-full max-w-5xl h-full max-h-[95vh] sm:h-auto sm:max-h-[90vh] flex flex-col relative">
+        {/* Loading Overlay */}
+        {isLoading && (
+          <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-50 rounded-lg">
+            <div className="flex flex-col items-center gap-3">
+              <Loader2 className="h-8 w-8 animate-spin text-[#1162a8]" />
+              <p className="text-sm text-gray-700 font-medium">Saving field...</p>
+            </div>
+          </div>
+        )}
         {/* Header */}
         <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 flex-shrink-0">
           <h2 className="text-xl sm:text-2xl font-bold text-gray-900">{isEditing ? "Edit Field" : "Add Field"}</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            disabled={isLoading}
+            className="text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <X className="h-5 w-5 sm:h-6 sm:w-6" />
           </button>
@@ -777,6 +856,10 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSave)} className="flex flex-col flex-1 min-h-0">
+            {/* Disable form interactions during save */}
+            {isLoading && (
+              <div className="absolute inset-0 z-40 cursor-not-allowed" />
+            )}
             {/* Content - Scrollable */}
             <div className="flex-1 overflow-y-auto p-4 sm:p-6">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mb-4 sm:mb-6">
@@ -1383,16 +1466,24 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
                 type="button"
                 variant="outline"
                 onClick={onClose}
-                className="px-4 sm:px-6 border-gray-300 text-gray-700 hover:bg-gray-50 text-sm sm:text-base"
+                disabled={isLoading}
+                className="px-4 sm:px-6 border-gray-300 text-gray-700 hover:bg-gray-50 text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
-                disabled={!isFormValid || (requiresOptions(formValues.fieldType) && options.length === 0) || createFieldMutation.isPending || updateFieldMutation.isPending}
-                className="px-4 sm:px-6 bg-[#1162a8] hover:bg-[#0f5497] text-white text-sm sm:text-base disabled:opacity-50"
+                disabled={!isFormValid || (requiresOptions(formValues.fieldType) && options.length === 0) || isLoading}
+                className="px-4 sm:px-6 bg-[#1162a8] hover:bg-[#0f5497] text-white text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
               >
-                {createFieldMutation.isPending || updateFieldMutation.isPending ? "Saving..." : "Save Changes"}
+                {(isSaving || createFieldMutation.isPending || updateFieldMutation.isPending) ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save Changes"
+                )}
               </Button>
             </div>
           </form>

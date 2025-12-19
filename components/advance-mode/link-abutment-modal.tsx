@@ -127,7 +127,7 @@ export function LinkAbutmentModal({ isOpen, onClose, context = "global", onApply
                 }
 
                 const url = new URL(`${process.env.NEXT_PUBLIC_API_BASE_URL}/library/products`)
-                url.searchParams.append('per_page', '25')
+                url.searchParams.append('per_page', '100')
                 url.searchParams.append('order_by', 'name')
                 url.searchParams.append('sort_by', 'asc')
 

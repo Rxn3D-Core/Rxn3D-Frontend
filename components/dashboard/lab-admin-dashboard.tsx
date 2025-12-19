@@ -18,6 +18,8 @@ import { ProfileModal, type ProfileData } from "@/components/profile-modal"
 import { fetchProfileData, saveProfileData } from "@/lib/api-profile"
 import { useFetchUsersQuery } from "@/hooks/use-users"
 import { useFetchUserInvitations } from "@/hooks/use-user-invitations"
+import { useDashboardSettings } from "@/hooks/use-dashboard-settings"
+import { WIDGET_IDS } from "@/lib/dashboard-widgets"
 
 const getStatusBadgeClass = (status: string) => {
   const statusLower = status?.toLowerCase() || ""
@@ -68,6 +70,9 @@ const getStatusLabel = (status: string) => {
 export function LabAdminDashboard() {
   const { user } = useAuth()
   const { toast } = useToast()
+  const userRole = user?.roles?.[0] || "lab_admin"
+  const userId = user?.id
+  const { isEnabled } = useDashboardSettings(userRole, userId)
 
   // Use cached hooks - automatic fetching with cache!
   const { data: connectionsData, isLoading: isLoadingConnections, error: connectionsError } = useConnections(user?.id)
@@ -277,6 +282,7 @@ export function LabAdminDashboard() {
         </div>
 
         {/* KPI Cards */}
+        {isEnabled(WIDGET_IDS.KPI_CARDS) && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-4 sm:mb-6">
           <KpiCard
             title="Total Revenue"
@@ -307,8 +313,10 @@ export function LabAdminDashboard() {
             icon="dollar"
           />
         </div>
+        )}
 
         {/* Plan Statistics */}
+        {isEnabled(WIDGET_IDS.STATUS_CARDS) && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
           <PlanCard title="Rush Cases" count={15} color="text-red-500" />
           <PlanCard title="On Hold Cases" count={135} color="text-red-500" />
@@ -316,10 +324,12 @@ export function LabAdminDashboard() {
           <PlanCard title="New Stage notes" count={110} color="text-black" />
           <PlanCard title="Late Cases" count={10} color="text-black" />
         </div>
+        )}
 
         {/* Main content grid */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
           {/* My Practices Section */}
+          {isEnabled(WIDGET_IDS.MY_PRACTICES) && (
           <div className="bg-white rounded-xl shadow-sm border border-[#e4e6ef] overflow-hidden">
             <div className="p-3 sm:p-4 border-b border-[#e4e6ef] bg-[#1162a8]">
               <div className="flex justify-between items-center">
@@ -601,8 +611,10 @@ export function LabAdminDashboard() {
               )}
             </div>
           </div>
+          )}
 
           {/* My Users Section */}
+          {isEnabled(WIDGET_IDS.MY_USERS_LAB) && (
           <div className="bg-white rounded-xl shadow-sm border border-[#d9d9d9] overflow-hidden">
             <div className="p-3 sm:p-4 border-b border-[#d9d9d9] bg-[#1162a8]">
               <div className="flex justify-between items-center">
@@ -809,9 +821,11 @@ export function LabAdminDashboard() {
               </div>
             </div>
           </div>
+          )}
         </div>
 
         {/* More Features Coming Soon */}
+        {isEnabled(WIDGET_IDS.COMING_SOON) && (
         <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-xl border border-blue-200 p-6 sm:p-8 lg:p-12 text-center shadow-lg relative overflow-hidden">
           {/* Background decorative elements */}
           <div className="absolute top-0 left-0 w-16 h-16 sm:w-32 sm:h-32 bg-blue-200 rounded-full opacity-20 -translate-x-8 sm:-translate-x-16 -translate-y-8 sm:-translate-y-16"></div>
@@ -852,6 +866,7 @@ export function LabAdminDashboard() {
             </div>
           </div>
         </div>
+        )}
       </div>
 
       <ProfileModal

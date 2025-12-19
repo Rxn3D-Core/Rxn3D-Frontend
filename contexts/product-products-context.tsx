@@ -60,7 +60,7 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
   const [products, setProducts] = useState<Product[]>([])
   const [pagination, setPagination] = useState<ProductPagination>({
     total: 0,
-    per_page: 25,
+    per_page: 100,
     current_page: 1,
     last_page: 1,
   })
@@ -537,7 +537,7 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
       if (!token) {
         setError(t("productContext.authRequired", "Authentication required to fetch products."))
         setProducts([])
-        setPagination({ ...pagination, total: 0, current_page: 1, last_page: 1, per_page: 25 })
+        setPagination({ ...pagination, total: 0, current_page: 1, last_page: 1, per_page: 100 })
         setIsLoading(false)
         triggerAnimation("error", t("productContext.authRequiredAnimation", "Authentication required. Please log in."))
         return
@@ -628,7 +628,7 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
         setProducts(safeProducts)
         setPagination(result.data.pagination || {
           total: 0,
-          per_page: 25,
+          per_page: 100,
           current_page: 1,
           last_page: 1,
         })

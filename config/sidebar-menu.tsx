@@ -21,6 +21,7 @@ import {
   Layers,
   Settings2,
   ListPlusIcon,
+  LayoutDashboard,
 } from "lucide-react"
 import type { ReactNode } from "react"
 import { useTranslation } from "react-i18next"
@@ -180,7 +181,19 @@ export const superadminMenu: MenuItem[] = [
     id: "system-setting",
     title: "System Setting",
     icon: <Cog className="h-5 w-5" />,
+    children: [
+      {
+        id: "dashboard-settings",
+        title: "Dashboard Settings",
+        icon: <LayoutDashboard className="h-5 w-5" />,
+        path: "/dashboard/settings",
+      },
+      {
+        id: "system-setting-main",
+        title: "System Setting",
     path: "/system-setting",
+      },
+    ],
   },
 ]
 
@@ -297,7 +310,19 @@ export const labAdminMenu: MenuItem[] = [
     id: "system-setting",
     title: "System Setting",
     icon: <Cog className="h-5 w-5" />,
+    children: [
+      {
+        id: "dashboard-settings",
+        title: "Dashboard Settings",
+        icon: <LayoutDashboard className="h-5 w-5" />,
+        path: "/dashboard/settings",
+      },
+      {
+        id: "system-setting-main",
+        title: "System Setting",
     path: "/lab-administrator/system-settings",
+      },
+    ],
   },
 ]
 
@@ -381,7 +406,19 @@ export const officeAdminMenu: MenuItem[] = [
     id: "settings",
     title: "System Settings",
     icon: <Cog className="h-5 w-5" />,
+    children: [
+      {
+        id: "dashboard-settings",
+        title: "Dashboard Settings",
+        icon: <LayoutDashboard className="h-5 w-5" />,
+        path: "/dashboard/settings",
+      },
+      {
+        id: "system-settings-main",
+        title: "System Settings",
     path: "/office-administrator/system-settings",
+      },
+    ],
   },
 ]
 
@@ -413,7 +450,19 @@ export const doctorAdminMenu: MenuItem[] = [
     id: "system-setting",
     title: "System Setting",
     icon: <Cog className="h-5 w-5" />,
+    children: [
+      {
+        id: "dashboard-settings",
+        title: "Dashboard Settings",
+        icon: <LayoutDashboard className="h-5 w-5" />,
+        path: "/dashboard/settings",
+      },
+      {
+        id: "system-setting-main",
+        title: "System Setting",
     path: "/doctor/system-settings",
+      },
+    ],
   },
 ]
 
@@ -463,7 +512,19 @@ export const officeUserMenu: MenuItem[] = [
     id: "system-setting",
     title: "System Setting",
     icon: <Cog className="h-5 w-5" />,
+    children: [
+      {
+        id: "dashboard-settings",
+        title: "Dashboard Settings",
+        icon: <LayoutDashboard className="h-5 w-5" />,
+        path: "/dashboard/settings",
+      },
+      {
+        id: "system-setting-main",
+        title: "System Setting",
     path: "/settings",
+      },
+    ],
   },
   {
     id: "connections",

@@ -19,6 +19,10 @@ import { CustomerSearchBox } from "../CustomerSearchBox"
 import { PlanCard } from "./plan-card"
 import { useCustomer } from "@/contexts/customer-context"
 import { useTranslation } from "react-i18next"
+import { useDashboardSettings } from "@/hooks/use-dashboard-settings"
+import { WIDGET_IDS } from "@/lib/dashboard-widgets"
+import { useDashboardSettings } from "@/hooks/use-dashboard-settings"
+import { WIDGET_IDS } from "@/lib/dashboard-widgets"
 
 export function SuperAdminDashboard() {
   const [showPracticeForm, setShowPracticeForm] = useState(false)
@@ -51,6 +55,12 @@ export function SuperAdminDashboard() {
   const [labs, setLabs] = useState<any[]>([])
   const { isLoading: isSearchLoading, customers, isCustomersLoading, customersError, officeCustomers, labCustomers, fetchCustomers } = useCustomer()
   const { t } = useTranslation()
+  const userRole = user?.roles?.[0] || "superadmin"
+  const userId = user?.id
+  const { isEnabled } = useDashboardSettings(userRole, userId)
+  const userRole = user?.roles?.[0] || "superadmin"
+  const userId = user?.id
+  const { isEnabled } = useDashboardSettings(userRole, userId)
 
   useEffect(() => {
     if (!isCustomersLoading && !customersError) {
@@ -284,6 +294,7 @@ export function SuperAdminDashboard() {
         </div>
 
         {/* KPI Cards */}
+        {isEnabled(WIDGET_IDS.KPI_CARDS) && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-4 sm:mb-6">
           {isLoading ? (
             Array.from({ length: 4 }).map((_, i) => (
@@ -302,8 +313,10 @@ export function SuperAdminDashboard() {
             </>
           )}
         </div>
+        )}
 
         {/* Plan Statistics */}
+        {isEnabled(WIDGET_IDS.PLAN_STATISTICS) && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
           <PlanCard
             title={tDashboard("pendingInvites", "Pending Invites")}
@@ -323,10 +336,12 @@ export function SuperAdminDashboard() {
           <PlanCard title={tDashboard("businessPlan", "Business Plan")} count={110} color="#1162a8" />
           <PlanCard title={tDashboard("enterprisePlan", "Enterprise Plan")} count={10} color="#1162a8" />
         </div>
+        )}
 
         {/* Main Dashboard Content */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
           {/* All Practices */}
+          {isEnabled(WIDGET_IDS.ALL_PRACTICES) && (
           <div className="bg-white rounded-xl shadow-sm border border-[#d9d9d9] overflow-hidden">
             <div className="p-3 sm:p-4 border-b border-[#d9d9d9] bg-[#1162a8]">
               <div className="flex justify-between items-center">
@@ -541,8 +556,10 @@ export function SuperAdminDashboard() {
               </div>
             </div>
           </div>
+          )}
 
           {/* All Labs */}
+          {isEnabled(WIDGET_IDS.ALL_LABS) && (
           <div className="bg-white rounded-xl shadow-sm border border-[#d9d9d9] overflow-hidden">
             <div className="p-3 sm:p-4 border-b border-[#d9d9d9] bg-[#1162a8]">
               <div className="flex justify-between items-center">
@@ -758,8 +775,10 @@ export function SuperAdminDashboard() {
               </div>
             </div>
           </div>
+          )}
 
           {/* My Users */}
+          {isEnabled(WIDGET_IDS.MY_USERS) && (
           <div className="bg-white rounded-xl shadow-sm border border-[#d9d9d9] overflow-hidden">
             <div className="p-3 sm:p-4 border-b border-[#d9d9d9] bg-[#1162a8]">
               <div className="flex justify-between items-center">
@@ -880,8 +899,10 @@ export function SuperAdminDashboard() {
               </div>
             </div>
           </div>
+          )}
 
           {/* More Features Coming Soon */}
+          {isEnabled(WIDGET_IDS.COMING_SOON) && (
           <div className="bg-gradient-to-br from-violet-50 via-purple-50 to-fuchsia-50 rounded-xl border border-violet-200 p-6 sm:p-8 lg:p-12 text-center shadow-lg relative overflow-hidden">
             {/* Background decorative elements */}
             <div className="absolute top-0 left-0 w-16 h-16 sm:w-32 sm:h-32 bg-violet-200 rounded-full opacity-20 -translate-x-8 sm:-translate-x-16 -translate-y-8 sm:-translate-y-16"></div>
@@ -922,6 +943,7 @@ export function SuperAdminDashboard() {
               </div>
             </div>
           </div>
+          )}
 
         </div>
 
