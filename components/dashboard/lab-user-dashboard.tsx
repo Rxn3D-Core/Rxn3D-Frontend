@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useDashboardSettings } from "@/hooks/use-dashboard-settings"
-import { WIDGET_IDS } from "@/lib/dashboard-widgets"
+import { WIDGET_IDS, getCustomerId } from "@/lib/dashboard-widgets"
 
 interface StatusCardProps {
   title: string
@@ -37,7 +37,8 @@ export function LabUserDashboard() {
   const { user } = useAuth()
   const userRole = user?.roles?.[0] || "lab_user"
   const userId = user?.id
-  const { isEnabled } = useDashboardSettings(userRole, userId)
+  const customerId = getCustomerId(user)
+  const { isEnabled, enabledWidgets } = useDashboardSettings(userRole, userId, customerId)
 
   const [searchQuery, setSearchQuery] = useState("")
   const [casesTab, setCasesTab] = useState("active")
@@ -404,6 +405,27 @@ export function LabUserDashboard() {
           </div>
         </div>
         )}
+
+      {/* Empty State - When all widgets are disabled */}
+      {enabledWidgets.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-16 sm:py-24 px-4">
+          <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4 sm:mb-6">
+            <FileText className="h-8 w-8 sm:h-10 sm:w-10 text-gray-400" />
+          </div>
+          <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2 text-center">
+            Dashboard is Empty
+          </h3>
+          <p className="text-sm sm:text-base text-gray-600 text-center max-w-md mb-6">
+            All widgets are currently hidden. Enable widgets from Dashboard Settings to customize your dashboard.
+          </p>
+          <Button
+            onClick={() => window.location.href = "/dashboard/settings"}
+            className="bg-[#1162a8] hover:bg-[#0f5497] text-white"
+          >
+            Go to Dashboard Settings
+          </Button>
+        </div>
+      )}
       </div>
     </div>
   )

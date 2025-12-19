@@ -343,7 +343,7 @@ export default function ChooseDoctorPage() {
       />
 
       <div className="container mx-auto px-6 max-w-[1400px]">
-        <div className="pt-8">
+        <div className="border-t border-gray-200 pt-8">
           {/* Title */}
           <h1 className="text-xl font-semibold text-center mb-8">Choose a Doctor</h1>
 

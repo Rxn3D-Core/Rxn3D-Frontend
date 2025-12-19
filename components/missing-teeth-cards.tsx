@@ -784,7 +784,7 @@ export const MissingTeethCards: React.FC<MissingTeethCardsProps> = ({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="w-full max-w-full space-y-3">
       {/* All Teeth Missing Button - Only show when there are selected teeth and missing teeth extraction type exists, and case is not submitted */}
       {!isCaseSubmitted && effectiveSelectedTeeth.length > 0 && filteredAvailableExtractionTypes.some((et: any) => et.name === 'Missing teeth') && (
         <Button
@@ -806,7 +806,7 @@ export const MissingTeethCards: React.FC<MissingTeethCardsProps> = ({
       )}
 
       {/* Bordered container with tooltip for extraction type cards */}
-      <div className={`${!selectedExtractionType ? 'border-4 border-amber-300 rounded-lg p-3 bg-gradient-to-r from-amber-50 to-yellow-50' : ''}`}>
+      <div className={`w-full max-w-full ${!selectedExtractionType ? 'border-4 border-amber-300 rounded-lg p-3 bg-gradient-to-r from-amber-50 to-yellow-50' : ''}`}>
         {/* Tooltip - Only show when no extraction type is selected */}
         {!selectedExtractionType && (
           <div className="mb-3 flex items-center justify-center">
@@ -815,7 +815,7 @@ export const MissingTeethCards: React.FC<MissingTeethCardsProps> = ({
         )}
 
         {/* Dynamic Extraction Type Cards */}
-        <div className="space-y-2">
+        <div className="w-full max-w-full space-y-2">
         {filteredAvailableExtractionTypes
           .filter((extractionType) => {
             // Hide "Missing teeth" card when case is submitted

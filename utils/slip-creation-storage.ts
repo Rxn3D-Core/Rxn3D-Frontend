@@ -28,11 +28,28 @@ export function clearSlipCreationStorage() {
     "showDentalSlipModal",
     "defaultLabId",
     "patientData",
+    "savedProducts",
+    "selectedProduct",
+    "selectedCategory",
+    "selectedSubcategory",
+    "selectedSubcategoryId",
   ]
 
   localStorageKeysToRemove.forEach((key) => {
     localStorage.removeItem(key)
   })
+
+  // Clear all productDetails_* keys
+  try {
+    const keys = Object.keys(localStorage)
+    keys.forEach((key) => {
+      if (key.startsWith("productDetails_")) {
+        localStorage.removeItem(key)
+      }
+    })
+  } catch (error) {
+    console.error("Error clearing product details from localStorage:", error)
+  }
 
   // Clear sessionStorage items
   const sessionStorageKeysToRemove = [

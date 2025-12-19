@@ -2,14 +2,35 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { ImpersonationBanner } from "@/components/impersonation-banner"
 import { ChatSupportBox } from "@/components/chat-support-box"
+import { useAuth } from "@/contexts/auth-context"
+import { useDashboardSettings } from "@/hooks/use-dashboard-settings"
+import { WIDGET_IDS, getCustomerId } from "@/lib/dashboard-widgets"
+import { useDashboardSettingsStore } from "@/stores/dashboard-settings-store"
 
 export function ClientLayout({ children }: { children: React.ReactNode }) {
   const [isRedirecting, setIsRedirecting] = useState(false)
   const [showContent, setShowContent] = useState(true)
+  const { user } = useAuth()
+  const userRole = user?.roles?.[0] || ""
+  const userId = user?.id
+  const customerId = getCustomerId(user)
+  const { isEnabled, isLoading } = useDashboardSettings(userRole, userId, customerId)
+  const { chatSupportEnabled, initializeFromSettings } = useDashboardSettingsStore()
+  
+  // Initialize Zustand store from settings when they load
+  useEffect(() => {
+    if (!isLoading && userRole) {
+      const enabled = isEnabled(WIDGET_IDS.CHAT_SUPPORT)
+      initializeFromSettings(enabled)
+    }
+  }, [isLoading, userRole, isEnabled, initializeFromSettings])
+  
+  // Use Zustand store for real-time updates, fallback to hook if store not initialized
+  const shouldShowChat = user && (isLoading || !userRole ? true : chatSupportEnabled)
 
   return (
     <div className="min-h-screen relative overflow-hidden">
@@ -77,8 +98,8 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
         )}
       </AnimatePresence>
 
-      {/* Chat Support Box - Available on all authenticated pages */}
-      <ChatSupportBox />
+      {/* Chat Support Box - Available on all authenticated pages (if enabled in dashboard settings) */}
+      {shouldShowChat && <ChatSupportBox />}
     </div>
   )
 }

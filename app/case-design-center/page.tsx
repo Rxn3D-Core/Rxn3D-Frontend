@@ -259,8 +259,196 @@ export default function CaseDesignCenterPage() {
   const [mandibularRetention, setMandibularRetention] = useState<string>("")
   const [mandibularImplantDetails, setMandibularImplantDetails] = useState<string>("")
 
+  // State to track if advance fields should be shown per product
+  const [showAdvanceFields, setShowAdvanceFields] = useState<{ [productId: string]: boolean }>({})
+  
+  // State to store fetched advance fields per product
+  const [productAdvanceFields, setProductAdvanceFields] = useState<{ [productId: string]: any[] }>({})
+  
+  // State to track which fields are completed per product (for progressive disclosure)
+  const [completedFields, setCompletedFields] = useState<{ [productId: string]: Set<string> }>({})
+
   // Unified accordion state - tracks which accordion is open (only one at a time)
   const [openAccordion, setOpenAccordion] = useState<string | null>(null)
+
+  // Helper function to get field order based on category
+  const getFieldOrder = (category: string): string[] => {
+    const categoryLower = category.toLowerCase()
+    const isFixedRestoration = categoryLower.includes("fixed")
+    const isRemovableOrOrtho = categoryLower.includes("removable") || 
+                                categoryLower.includes("orthodontic") || 
+                                categoryLower.includes("ortho")
+    
+    if (isFixedRestoration) {
+      return [
+        "product_material",
+        "retention",
+        "implant",
+        "stump_shade",
+        "crown_third_shade",
+        "tooth_shade",
+        "stage",
+        "pontic_design",
+        "embrasures",
+        "occlusal_contact",
+        "interproximal_contact",
+        "impressions",
+        "add_ons"
+      ]
+    } else if (isRemovableOrOrtho) {
+      return [
+        "product_material",
+        "implant",
+        "grade",
+        "stage",
+        "teeth_shade",
+        "gum_shade",
+        "impression",
+        "advance_fields"
+      ]
+    }
+    // Default order (fallback)
+    return ["product_material", "retention", "stage"]
+  }
+
+  // Helper function to check if a field is configured for the product
+  const isFieldConfigured = (fieldName: string, productDetails: any, savedProduct: SavedProduct): boolean => {
+    if (!productDetails) return false
+
+    switch (fieldName) {
+      case "implant":
+        return !!(productDetails.implant || savedProduct.mandibularImplantDetails || savedProduct.maxillaryImplantDetails)
+      case "grade":
+        return !!(productDetails.grades && Array.isArray(productDetails.grades) && productDetails.grades.length > 0)
+      case "teeth_shade":
+        return !!(productDetails.teeth_shades && Array.isArray(productDetails.teeth_shades) && productDetails.teeth_shades.length > 0)
+      case "gum_shade":
+        return !!(productDetails.gum_shades && Array.isArray(productDetails.gum_shades) && productDetails.gum_shades.length > 0)
+      case "stump_shade":
+      case "crown_third_shade":
+      case "pontic_design":
+      case "embrasures":
+      case "occlusal_contact":
+      case "interproximal_contact":
+      case "advance_fields":
+        const advanceFields = productDetails.advance_fields || productAdvanceFields[savedProduct.id] || []
+        return advanceFields.length > 0
+      default:
+        return true // Always show product_material, retention, stage, impressions, add_ons
+    }
+  }
+
+  // Helper function to get advance field by name
+  const getAdvanceFieldByName = (fieldName: string, advanceFields: any[]): any | null => {
+    if (!advanceFields || !Array.isArray(advanceFields)) return null
+    
+    const nameLower = fieldName.toLowerCase()
+    return advanceFields.find(field => {
+      const fieldNameLower = (field.name || "").toLowerCase()
+      if (nameLower === "stump_shade") {
+        return fieldNameLower.includes("stump") && fieldNameLower.includes("shade")
+      } else if (nameLower === "crown_third_shade") {
+        return fieldNameLower.includes("crown") && (fieldNameLower.includes("third") || fieldNameLower.includes("3rd")) && fieldNameLower.includes("shade")
+      } else if (nameLower === "pontic_design") {
+        return fieldNameLower.includes("pontic") && fieldNameLower.includes("design")
+      } else if (nameLower === "embrasures") {
+        return fieldNameLower.includes("embrasure")
+      } else if (nameLower === "occlusal_contact") {
+        return fieldNameLower.includes("occlusal") && fieldNameLower.includes("contact")
+      } else if (nameLower === "interproximal_contact") {
+        return (fieldNameLower.includes("interproximal") || fieldNameLower.includes("proximal")) && fieldNameLower.includes("contact")
+      }
+      return false
+    }) || null
+  }
+
+  // Helper function to check if a field is completed
+  const isFieldCompleted = (fieldName: string, savedProduct: SavedProduct, archType: "maxillary" | "mandibular"): boolean => {
+    const material = archType === "maxillary" ? savedProduct.maxillaryMaterial : savedProduct.mandibularMaterial
+    const retention = archType === "maxillary" ? savedProduct.maxillaryRetention : savedProduct.mandibularRetention
+    const implantDetails = archType === "maxillary" ? "" : savedProduct.mandibularImplantDetails
+    const stage = archType === "maxillary" ? savedProduct.maxillaryStage : savedProduct.mandibularStage
+    const toothShade = archType === "maxillary" ? savedProduct.maxillaryToothShade : savedProduct.mandibularToothShade
+    const gumShade = archType === "maxillary" ? savedProduct.maxillaryGumShadeBrand : savedProduct.mandibularGumShadeBrand
+    const impression = archType === "maxillary" ? savedProduct.maxillaryImpression : savedProduct.mandibularImpression
+    const ponticDesign = archType === "maxillary" ? savedProduct.maxillaryPonticDesign : savedProduct.mandibularPonticDesign
+    const embrasure = archType === "maxillary" ? savedProduct.maxillaryEmbrasure : savedProduct.mandibularEmbrasure
+    const occlusalContact = archType === "maxillary" ? savedProduct.maxillaryOcclusalContact : savedProduct.mandibularOcclusalContact
+    const proximalContact = archType === "maxillary" ? savedProduct.maxillaryProximalContact : savedProduct.mandibularProximalContact
+    const stumpShade = archType === "maxillary" ? savedProduct.maxillaryStumpShade : ""
+
+    switch (fieldName) {
+      case "product_material":
+        return !!(material && material.trim() !== "")
+      case "retention":
+        return !!(retention && retention.trim() !== "")
+      case "implant":
+        return !!(implantDetails && implantDetails.trim() !== "")
+      case "grade":
+        // Grade is typically stored in material field or separate grade field
+        return !!(material && material.trim() !== "")
+      case "stage":
+        return !!(stage && stage.trim() !== "")
+      case "teeth_shade":
+        return !!(toothShade && toothShade.trim() !== "")
+      case "gum_shade":
+        return !!(gumShade)
+      case "impression":
+      case "impressions":
+        return !!(impression && impression.trim() !== "")
+      case "stump_shade":
+        return !!(stumpShade && stumpShade.trim() !== "")
+      case "crown_third_shade":
+        // Check if advance field value is set
+        return false // Will be checked via advance fields
+      case "pontic_design":
+        return !!(ponticDesign && ponticDesign.trim() !== "")
+      case "embrasures":
+        return !!(embrasure && embrasure.trim() !== "")
+      case "occlusal_contact":
+        return !!(occlusalContact && occlusalContact.trim() !== "")
+      case "interproximal_contact":
+        return !!(proximalContact && proximalContact.trim() !== "")
+      case "add_ons":
+        const addOns = archType === "maxillary" ? savedProduct.maxillaryAddOns : savedProduct.mandibularAddOns
+        return !!(addOns && Array.isArray(addOns) && addOns.length > 0)
+      default:
+        return false
+    }
+  }
+
+  // Helper function to check if a field should be visible (progressive disclosure)
+  const isFieldVisible = (
+    fieldName: string, 
+    productId: string, 
+    savedProduct: SavedProduct, 
+    productDetails: any,
+    archType: "maxillary" | "mandibular"
+  ): boolean => {
+    const fieldOrder = getFieldOrder(savedProduct.category)
+    const currentFieldIndex = fieldOrder.indexOf(fieldName)
+    
+    // If field is not in the order, don't show it
+    if (currentFieldIndex === -1) return false
+    
+    // First field is always visible
+    if (currentFieldIndex === 0) return true
+    
+    // Check if field is configured
+    if (!isFieldConfigured(fieldName, productDetails, savedProduct)) {
+      return false
+    }
+    
+    // Check if all previous fields are completed
+    for (let i = 0; i < currentFieldIndex; i++) {
+      const previousField = fieldOrder[i]
+      if (!isFieldCompleted(previousField, savedProduct, archType)) {
+        return false
+      }
+    }
+    
+    return true
+  }
 
   // Scroll refs and state for horizontal scrolling
   const subcategoriesScrollRef = useRef<HTMLDivElement>(null)
@@ -667,6 +855,10 @@ export default function CaseDesignCenterPage() {
 
   // Check if selected category is Fixed Restoration
   const isFixedRestoration = selectedCategory?.toLowerCase().includes("fixed") || false
+  // Check if selected category is Orthodontics or Removable Restoration (extraction should only show for these)
+  const isOrthodonticsOrRemovable = selectedCategory?.toLowerCase().includes("orthodontic") || 
+                                     selectedCategory?.toLowerCase().includes("ortho") ||
+                                     selectedCategory?.toLowerCase().includes("removable") || false
 
   const handleCategorySelect = (category: ProductCategoryApi) => {
     setSelectedCategory(category.name)
@@ -756,6 +948,15 @@ export default function CaseDesignCenterPage() {
         setProductDetails(details)
         console.log("Product details fetched:", details)
         console.log("Product extractions:", details.extractions)
+
+        // Check if product has extraction data and show MissingTeethCards immediately
+        const hasExtractionData = (details.extractions && Array.isArray(details.extractions) && details.extractions.length > 0) ||
+                                  (details.data?.extractions && Array.isArray(details.data.extractions) && details.data.extractions.length > 0)
+        
+        if (hasExtractionData && isFixedRestoration) {
+          // Don't set missingTeethCardClicked to false - let extraction cards show immediately
+          // The cards will be visible as long as selectedProduct exists and missingTeethCardClicked is false
+        }
 
         // Store product details in localStorage for persistence
         // Only store essential data to avoid quota exceeded errors
@@ -1392,6 +1593,14 @@ export default function CaseDesignCenterPage() {
       return
     }
 
+    // Auto-populate product name and retention type if not already set
+    // Material: Use product name if not set
+    const finalMaxillaryMaterial = maxillaryMaterial || (type === "maxillary" ? selectedProduct.name : "")
+    const finalMandibularMaterial = mandibularMaterial || (type === "mandibular" ? selectedProduct.name : "")
+    // Retention: Keep existing value or leave empty (user will select it)
+    const finalMaxillaryRetention = maxillaryRetention
+    const finalMandibularRetention = mandibularRetention
+
     // Create saved product configuration
     const savedProduct: SavedProduct = {
       id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -1403,15 +1612,41 @@ export default function CaseDesignCenterPage() {
       subcategoryId: selectedSubcategoryId,
       maxillaryTeeth: [...maxillaryTeeth],
       mandibularTeeth: [...mandibularTeeth],
-      maxillaryMaterial,
+      maxillaryMaterial: finalMaxillaryMaterial,
       maxillaryStumpShade,
-      maxillaryRetention,
+      maxillaryRetention: finalMaxillaryRetention,
       maxillaryNotes,
-      mandibularMaterial,
-      mandibularRetention,
+      mandibularMaterial: finalMandibularMaterial,
+      mandibularRetention: finalMandibularRetention,
       mandibularImplantDetails,
       createdAt: Date.now(),
       addedFrom: type, // Track which side the product was added from
+    }
+    
+    // If both material and retention are set, show advance fields and fetch them
+    const productId = savedProduct.id
+    if ((type === "maxillary" && finalMaxillaryMaterial && finalMaxillaryRetention) ||
+        (type === "mandibular" && finalMandibularMaterial && finalMandibularRetention)) {
+      setShowAdvanceFields(prev => ({ ...prev, [productId]: true }))
+      
+      // Fetch advance fields from productDetails if available, otherwise fetch from API
+      if (productDetails?.advance_fields && Array.isArray(productDetails.advance_fields)) {
+        setProductAdvanceFields(prev => ({ ...prev, [productId]: productDetails.advance_fields }))
+      } else if (selectedProduct?.id) {
+        // Fetch advance fields from API
+        const fetchAdvanceFields = async () => {
+          try {
+            const labId = selectedLab?.id || selectedLab?.customer_id
+            const details = await fetchProductDetails(selectedProduct.id, labId)
+            if (details?.advance_fields && Array.isArray(details.advance_fields)) {
+              setProductAdvanceFields(prev => ({ ...prev, [productId]: details.advance_fields }))
+            }
+          } catch (error) {
+            console.error("Error fetching advance fields:", error)
+          }
+        }
+        fetchAdvanceFields()
+      }
     }
 
     // Add to saved products array
@@ -2480,35 +2715,45 @@ export default function CaseDesignCenterPage() {
                       />
                     </div>
 
-                    {/* Missing Teeth Cards - Show first for Fixed Restoration */}
-                    {selectedProduct && !missingTeethCardClicked && (
-                      <div className="w-full">
-                        <MissingTeethCards
-                          type="maxillary"
-                          selectedTeeth={maxillaryTeeth}
-                          missingTeeth={[]}
-                          extractedTeeth={[]}
-                          willExtractTeeth={[]}
-                          onAllTeethMissing={() => { }}
-                          onTeethInMouthClick={handleMissingTeethCardClick}
-                          onMissingTeethClick={handleMissingTeethCardClick}
-                          onWillExtractClick={handleMissingTeethCardClick}
-                          isCaseSubmitted={false}
-                          showTeethInMouth={true}
-                          showMissingTeeth={true}
-                          showWillExtract={true}
-                          onExtractionTypeSelect={(extractionType) => {
-                            // When any extraction type is selected, show the product accordion
-                            if (extractionType) {
-                              handleMissingTeethCardClick()
-                            }
-                          }}
-                          onTeethSelectionChange={(teeth) => {
-                            // Update maxillary teeth when selection changes
-                            setMaxillaryTeeth(teeth)
-                          }}
-                        />
-                      </div>
+                    {/* Missing Teeth Cards - Show immediately when product has extraction data, but only for Orthodontics or Removable Restoration */}
+                    {selectedProduct && !missingTeethCardClicked && productDetails && isOrthodonticsOrRemovable && (
+                      (() => {
+                        const hasExtractionData = (productDetails.extractions && Array.isArray(productDetails.extractions) && productDetails.extractions.length > 0) ||
+                                                  (productDetails.data?.extractions && Array.isArray(productDetails.data.extractions) && productDetails.data.extractions.length > 0)
+                        return hasExtractionData ? (
+                          <div className="w-full">
+                            <MissingTeethCards
+                              type="maxillary"
+                              selectedTeeth={maxillaryTeeth}
+                              missingTeeth={[]}
+                              extractedTeeth={[]}
+                              willExtractTeeth={[]}
+                              onAllTeethMissing={() => { }}
+                              onTeethInMouthClick={handleMissingTeethCardClick}
+                              onMissingTeethClick={handleMissingTeethCardClick}
+                              onWillExtractClick={handleMissingTeethCardClick}
+                              isCaseSubmitted={false}
+                              showTeethInMouth={true}
+                              showMissingTeeth={true}
+                              showWillExtract={true}
+                              productDetails={productDetails}
+                              extractionData={productDetails.extractions || productDetails.data?.extractions}
+                              productId={selectedProduct.id?.toString()}
+                              selectedProduct={selectedProduct.name}
+                              onExtractionTypeSelect={(extractionType) => {
+                                // When any extraction type is selected, show the product accordion
+                                if (extractionType) {
+                                  handleMissingTeethCardClick()
+                                }
+                              }}
+                              onTeethSelectionChange={(teeth) => {
+                                // Update maxillary teeth when selection changes
+                                setMaxillaryTeeth(teeth)
+                              }}
+                            />
+                          </div>
+                        ) : null
+                      })()
                     )}
 
                     {/* Summary Card - Single card for all selected teeth */}
@@ -3568,7 +3813,7 @@ export default function CaseDesignCenterPage() {
                                           position: 'relative',
                                           height: 'auto',
                                           minHeight: 'auto',
-                                          marginTop: '75px',
+                                          marginTop: '10px',
                                           paddingLeft: '15.87px',
                                           paddingRight: '15.87px',
                                           paddingBottom: '20px',
@@ -3689,7 +3934,8 @@ export default function CaseDesignCenterPage() {
                                           </div>
                                         </div>
 
-                                        {/* Row 2: Stump Shade, Tooth Shade, Stage */}
+                                        {/* Row 2: Stump Shade, Tooth Shade, Stage - Only show if advance fields should be displayed */}
+                                        {(showAdvanceFields[savedProduct.id] || (savedProduct.maxillaryMaterial && savedProduct.maxillaryRetention)) && (
                                         <div
                                           className="flex flex-col sm:flex-row flex-wrap gap-5"
                                           style={{
@@ -3866,8 +4112,10 @@ export default function CaseDesignCenterPage() {
                                             </label>
                                           </div>
                                         </div>
+                                        )}
 
-                                        {/* Row 3: Teeth Selection Display */}
+                                        {/* Row 3: Teeth Selection Display - Only show if advance fields should be displayed */}
+                                        {(showAdvanceFields[savedProduct.id] || (savedProduct.maxillaryMaterial && savedProduct.maxillaryRetention)) && (
                                         <div
                                           className="flex flex-col sm:flex-row flex-wrap gap-5"
                                           style={{
@@ -3928,6 +4176,7 @@ export default function CaseDesignCenterPage() {
                                             </label>
                                           </div>
                                         </div>
+                                        )}
 
                                         {/* Notes if available */}
                                         {savedProduct.maxillaryNotes && (
@@ -4299,35 +4548,45 @@ export default function CaseDesignCenterPage() {
                       />
                     </div>
 
-                    {/* Missing Teeth Cards - Show first for Fixed Restoration */}
-                    {isFixedRestoration && selectedProduct && !missingTeethCardClicked && (
-                      <div className="w-full">
-                        <MissingTeethCards
-                          type="mandibular"
-                          selectedTeeth={mandibularTeeth}
-                          missingTeeth={[]}
-                          extractedTeeth={[]}
-                          willExtractTeeth={[]}
-                          onAllTeethMissing={() => { }}
-                          onTeethInMouthClick={handleMissingTeethCardClick}
-                          onMissingTeethClick={handleMissingTeethCardClick}
-                          onWillExtractClick={handleMissingTeethCardClick}
-                          isCaseSubmitted={false}
-                          showTeethInMouth={true}
-                          showMissingTeeth={true}
-                          showWillExtract={true}
-                          onExtractionTypeSelect={(extractionType) => {
-                            // When any extraction type is selected, show the product accordion
-                            if (extractionType) {
-                              handleMissingTeethCardClick()
-                            }
-                          }}
-                          onTeethSelectionChange={(teeth) => {
-                            // Update mandibular teeth when selection changes
-                            setMandibularTeeth(teeth)
-                          }}
-                        />
-                      </div>
+                    {/* Missing Teeth Cards - Show immediately when product has extraction data, but only for Orthodontics or Removable Restoration */}
+                    {selectedProduct && !missingTeethCardClicked && productDetails && isOrthodonticsOrRemovable && (
+                      (() => {
+                        const hasExtractionData = (productDetails.extractions && Array.isArray(productDetails.extractions) && productDetails.extractions.length > 0) ||
+                                                  (productDetails.data?.extractions && Array.isArray(productDetails.data.extractions) && productDetails.data.extractions.length > 0)
+                        return hasExtractionData ? (
+                          <div className="w-full">
+                            <MissingTeethCards
+                              type="mandibular"
+                              selectedTeeth={mandibularTeeth}
+                              missingTeeth={[]}
+                              extractedTeeth={[]}
+                              willExtractTeeth={[]}
+                              onAllTeethMissing={() => { }}
+                              onTeethInMouthClick={handleMissingTeethCardClick}
+                              onMissingTeethClick={handleMissingTeethCardClick}
+                              onWillExtractClick={handleMissingTeethCardClick}
+                              isCaseSubmitted={false}
+                              showTeethInMouth={true}
+                              showMissingTeeth={true}
+                              showWillExtract={true}
+                              productDetails={productDetails}
+                              extractionData={productDetails.extractions || productDetails.data?.extractions}
+                              productId={selectedProduct.id?.toString()}
+                              selectedProduct={selectedProduct.name}
+                              onExtractionTypeSelect={(extractionType) => {
+                                // When any extraction type is selected, show the product accordion
+                                if (extractionType) {
+                                  handleMissingTeethCardClick()
+                                }
+                              }}
+                              onTeethSelectionChange={(teeth) => {
+                                // Update mandibular teeth when selection changes
+                                setMandibularTeeth(teeth)
+                              }}
+                            />
+                          </div>
+                        ) : null
+                      })()
                     )}
 
                     {/* Summary Card - Single card for all selected teeth */}
@@ -5546,7 +5805,7 @@ export default function CaseDesignCenterPage() {
                                           position: 'relative',
                                           height: 'auto',
                                           minHeight: 'auto',
-                                          marginTop: '75px',
+                                          marginTop: '10px',
                                           paddingLeft: '15.87px',
                                           paddingRight: '15.87px',
                                           paddingBottom: '20px',
@@ -6294,7 +6553,7 @@ export default function CaseDesignCenterPage() {
                                           position: 'relative',
                                           height: 'auto',
                                           minHeight: 'auto',
-                                          marginTop: '75px',
+                                          marginTop: '10px',
                                           paddingLeft: '15.87px',
                                           paddingRight: '15.87px',
                                           paddingBottom: '20px',
@@ -6974,7 +7233,7 @@ export default function CaseDesignCenterPage() {
                                           position: 'relative',
                                           height: 'auto',
                                           minHeight: 'auto',
-                                          marginTop: '75px',
+                                          marginTop: '10px',
                                           paddingLeft: '15.87px',
                                           paddingRight: '15.87px',
                                           paddingBottom: '20px',
@@ -7095,7 +7354,8 @@ export default function CaseDesignCenterPage() {
                                           </div>
                                         </div>
 
-                                        {/* Row 2: Tooth Shade, Stage */}
+                                        {/* Row 2: Tooth Shade, Stage - Only show if advance fields should be displayed */}
+                                        {(showAdvanceFields[savedProduct.id] || (savedProduct.mandibularMaterial && savedProduct.mandibularRetention)) && (
                                         <div
                                           className="flex flex-col sm:flex-row flex-wrap gap-5"
                                           style={{
@@ -7202,8 +7462,10 @@ export default function CaseDesignCenterPage() {
                                             </label>
                                           </div>
                                         </div>
+                                        )}
 
-                                        {/* Row 3: Teeth Selection Display */}
+                                        {/* Row 3: Teeth Selection Display - Only show if advance fields should be displayed */}
+                                        {(showAdvanceFields[savedProduct.id] || (savedProduct.mandibularMaterial && savedProduct.mandibularRetention)) && (
                                         <div
                                           className="flex flex-col sm:flex-row flex-wrap gap-5"
                                           style={{
@@ -7264,6 +7526,7 @@ export default function CaseDesignCenterPage() {
                                             </label>
                                           </div>
                                         </div>
+                                        )}
 
                                         {/* Implant Details if available */}
                                         {savedProduct.mandibularImplantDetails && (

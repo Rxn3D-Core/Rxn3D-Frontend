@@ -39,6 +39,9 @@ export const WIDGET_IDS = {
   // Doctor specific
   MY_CASES: "my-cases",
   APPOINTMENTS: "appointments",
+  
+  // Global widget
+  CHAT_SUPPORT: "chat-support",
 } as const
 
 // Default widgets for Superadmin
@@ -50,6 +53,7 @@ export function getDefaultSuperAdminWidgets(): DashboardWidget[] {
     { id: WIDGET_IDS.ALL_LABS, title: "All Labs", enabled: true, order: 3 },
     { id: WIDGET_IDS.MY_USERS, title: "My Users", enabled: true, order: 4 },
     { id: WIDGET_IDS.COMING_SOON, title: "More Features Coming Soon", enabled: true, order: 5 },
+    { id: WIDGET_IDS.CHAT_SUPPORT, title: "Chat Support", enabled: true, order: 6 },
   ]
 }
 
@@ -61,6 +65,7 @@ export function getDefaultLabAdminWidgets(): DashboardWidget[] {
     { id: WIDGET_IDS.MY_PRACTICES, title: "My Practices", enabled: true, order: 2 },
     { id: WIDGET_IDS.MY_USERS_LAB, title: "My Users", enabled: true, order: 3 },
     { id: WIDGET_IDS.COMING_SOON, title: "More Features Coming Soon", enabled: true, order: 4 },
+    { id: WIDGET_IDS.CHAT_SUPPORT, title: "Chat Support", enabled: true, order: 5 },
   ]
 }
 
@@ -72,6 +77,7 @@ export function getDefaultOfficeAdminWidgets(): DashboardWidget[] {
     { id: WIDGET_IDS.MY_LABS, title: "My Labs", enabled: true, order: 2 },
     { id: WIDGET_IDS.MY_USERS_OFFICE, title: "My Users", enabled: true, order: 3 },
     { id: WIDGET_IDS.COMING_SOON, title: "More Features Coming Soon", enabled: true, order: 4 },
+    { id: WIDGET_IDS.CHAT_SUPPORT, title: "Chat Support", enabled: true, order: 5 },
   ]
 }
 
@@ -83,6 +89,7 @@ export function getDefaultDoctorWidgets(): DashboardWidget[] {
     { id: WIDGET_IDS.MY_CASES, title: "My Cases", enabled: true, order: 2 },
     { id: WIDGET_IDS.APPOINTMENTS, title: "Appointments", enabled: true, order: 3 },
     { id: WIDGET_IDS.COMING_SOON, title: "More Features Coming Soon", enabled: true, order: 4 },
+    { id: WIDGET_IDS.CHAT_SUPPORT, title: "Chat Support", enabled: true, order: 5 },
   ]
 }
 
@@ -92,6 +99,7 @@ export function getDefaultLabUserWidgets(): DashboardWidget[] {
     { id: WIDGET_IDS.KPI_CARDS, title: "KPI Cards", enabled: true, order: 0 },
     { id: WIDGET_IDS.STATUS_CARDS, title: "Status Cards", enabled: true, order: 1 },
     { id: WIDGET_IDS.COMING_SOON, title: "More Features Coming Soon", enabled: true, order: 2 },
+    { id: WIDGET_IDS.CHAT_SUPPORT, title: "Chat Support", enabled: true, order: 3 },
   ]
 }
 
@@ -101,6 +109,7 @@ export function getDefaultOfficeUserWidgets(): DashboardWidget[] {
     { id: WIDGET_IDS.KPI_CARDS, title: "KPI Cards", enabled: true, order: 0 },
     { id: WIDGET_IDS.STATUS_CARDS, title: "Status Cards", enabled: true, order: 1 },
     { id: WIDGET_IDS.COMING_SOON, title: "More Features Coming Soon", enabled: true, order: 2 },
+    { id: WIDGET_IDS.CHAT_SUPPORT, title: "Chat Support", enabled: true, order: 3 },
   ]
 }
 
@@ -125,20 +134,68 @@ export function getDefaultWidgetsForRole(role: string): DashboardWidget[] {
   }
 }
 
-// SessionStorage key generator
-export function getDashboardSettingsKey(role: string, userId?: number): string {
-  if (userId) {
-    return `dashboard-settings-${role}-${userId}`
+// Helper function to get customer ID from various sources
+export function getCustomerId(user?: any): number | null {
+  if (typeof window === "undefined") return null
+  
+  // First try to get from localStorage (set during login/location selection)
+  const storedCustomerId = localStorage.getItem("customerId")
+  if (storedCustomerId) {
+    return parseInt(storedCustomerId, 10)
   }
-  return `dashboard-settings-${role}`
+
+  // Try to get from selectedLocation in localStorage
+  const selectedLocation = localStorage.getItem("selectedLocation")
+  if (selectedLocation) {
+    try {
+      const location = JSON.parse(selectedLocation)
+      if (location?.id) {
+        return location.id
+      }
+    } catch (e) {
+      // Ignore parse errors
+    }
+  }
+
+  // Then try to get from user's customers array
+  if (user?.customers && user.customers.length > 0) {
+    return user.customers[0].id
+  }
+
+  // If user has a customer_id property
+  if (user?.customer_id) {
+    return user.customer_id
+  }
+
+  // If user has a customer object
+  if (user?.customer?.id) {
+    return user.customer.id
+  }
+
+  return null
+}
+
+// SessionStorage key generator
+export function getDashboardSettingsKey(role: string, userId?: number, customerId?: number | null): string {
+  const parts = [`dashboard-settings-${role}`]
+  
+  if (userId) {
+    parts.push(`user-${userId}`)
+  }
+  
+  if (customerId) {
+    parts.push(`customer-${customerId}`)
+  }
+  
+  return parts.join("-")
 }
 
 // Load settings from sessionStorage
-export function loadDashboardSettings(role: string, userId?: number): DashboardSettings | null {
+export function loadDashboardSettings(role: string, userId?: number, customerId?: number | null): DashboardSettings | null {
   if (typeof window === "undefined") return null
   
   try {
-    const key = getDashboardSettingsKey(role, userId)
+    const key = getDashboardSettingsKey(role, userId, customerId)
     const stored = sessionStorage.getItem(key)
     if (stored) {
       return JSON.parse(stored) as DashboardSettings
@@ -151,11 +208,11 @@ export function loadDashboardSettings(role: string, userId?: number): DashboardS
 }
 
 // Save settings to sessionStorage
-export function saveDashboardSettings(settings: DashboardSettings, userId?: number): void {
+export function saveDashboardSettings(settings: DashboardSettings, userId?: number, customerId?: number | null): void {
   if (typeof window === "undefined") return
   
   try {
-    const key = getDashboardSettingsKey(settings.role, userId)
+    const key = getDashboardSettingsKey(settings.role, userId, customerId)
     sessionStorage.setItem(key, JSON.stringify(settings))
   } catch (error) {
     console.error("Error saving dashboard settings:", error)

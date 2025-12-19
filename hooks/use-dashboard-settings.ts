@@ -9,7 +9,7 @@ import {
   isWidgetEnabled,
 } from "@/lib/dashboard-widgets"
 
-export function useDashboardSettings(role: string, userId?: number) {
+export function useDashboardSettings(role: string, userId?: number, customerId?: number | null) {
   const [settings, setSettings] = useState<DashboardSettings | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
@@ -21,7 +21,7 @@ export function useDashboardSettings(role: string, userId?: number) {
     }
 
     // Try to load from sessionStorage
-    const stored = loadDashboardSettings(role, userId)
+    const stored = loadDashboardSettings(role, userId, customerId)
     
     if (stored) {
       setSettings(stored)
@@ -34,11 +34,11 @@ export function useDashboardSettings(role: string, userId?: number) {
       }
       setSettings(newSettings)
       // Save defaults to sessionStorage
-      saveDashboardSettings(newSettings, userId)
+      saveDashboardSettings(newSettings, userId, customerId)
     }
     
     setIsLoading(false)
-  }, [role, userId])
+  }, [role, userId, customerId])
 
   // Update widget enabled state
   const toggleWidget = useCallback(
@@ -55,9 +55,9 @@ export function useDashboardSettings(role: string, userId?: number) {
       }
 
       setSettings(updatedSettings)
-      saveDashboardSettings(updatedSettings, userId)
+      saveDashboardSettings(updatedSettings, userId, customerId)
     },
-    [settings, userId]
+    [settings, userId, customerId]
   )
 
   // Update widget order
@@ -77,18 +77,18 @@ export function useDashboardSettings(role: string, userId?: number) {
       }
 
       setSettings(updatedSettings)
-      saveDashboardSettings(updatedSettings, userId)
+      saveDashboardSettings(updatedSettings, userId, customerId)
     },
-    [settings, userId]
+    [settings, userId, customerId]
   )
 
   // Save settings
   const saveSettings = useCallback(
     (newSettings: DashboardSettings) => {
       setSettings(newSettings)
-      saveDashboardSettings(newSettings, userId)
+      saveDashboardSettings(newSettings, userId, customerId)
     },
-    [userId]
+    [userId, customerId]
   )
 
   // Reset to defaults
@@ -99,8 +99,8 @@ export function useDashboardSettings(role: string, userId?: number) {
       widgets: defaultWidgets,
     }
     setSettings(defaultSettings)
-    saveDashboardSettings(defaultSettings, userId)
-  }, [role, userId])
+    saveDashboardSettings(defaultSettings, userId, customerId)
+  }, [role, userId, customerId])
 
   // Get enabled widgets in order
   const enabledWidgets = settings ? getEnabledWidgets(settings) : []

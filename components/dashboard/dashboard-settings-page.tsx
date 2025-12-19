@@ -25,7 +25,9 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { useDashboardSettings } from "@/hooks/use-dashboard-settings"
 import type { DashboardWidget } from "@/lib/dashboard-widgets"
+import { WIDGET_IDS, getCustomerId } from "@/lib/dashboard-widgets"
 import { useAuth } from "@/contexts/auth-context"
+import { useDashboardSettingsStore } from "@/stores/dashboard-settings-store"
 
 interface SortableWidgetItemProps {
   widget: DashboardWidget
@@ -77,6 +79,7 @@ export function DashboardSettingsPage() {
   const { user } = useAuth()
   const userRole = user?.roles?.[0] || ""
   const userId = user?.id
+  const customerId = getCustomerId(user)
 
   const {
     settings,
@@ -84,7 +87,9 @@ export function DashboardSettingsPage() {
     toggleWidget,
     updateWidgetOrder,
     saveSettings,
-  } = useDashboardSettings(userRole, userId)
+  } = useDashboardSettings(userRole, userId, customerId)
+  
+  const { setChatSupportEnabled } = useDashboardSettingsStore()
 
   const [localWidgets, setLocalWidgets] = useState<DashboardWidget[]>([])
 
@@ -94,8 +99,14 @@ export function DashboardSettingsPage() {
       // Sort widgets by order
       const sorted = [...settings.widgets].sort((a, b) => a.order - b.order)
       setLocalWidgets(sorted)
+      
+      // Sync chat support state with Zustand store
+      const chatSupportWidget = settings.widgets.find(w => w.id === WIDGET_IDS.CHAT_SUPPORT)
+      if (chatSupportWidget) {
+        setChatSupportEnabled(chatSupportWidget.enabled)
+      }
     }
-  }, [settings])
+  }, [settings, setChatSupportEnabled])
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -197,6 +208,10 @@ export function DashboardSettingsPage() {
                                 w.id === widgetId ? { ...w, enabled } : w
                               )
                             )
+                            // Update Zustand store for chat support
+                            if (widgetId === WIDGET_IDS.CHAT_SUPPORT) {
+                              setChatSupportEnabled(enabled)
+                            }
                           }}
                         />
                       ))}

@@ -360,12 +360,23 @@ export function LinkProductModal({ isOpen, onClose, context = "global", fieldId,
             // Use the mutation hook to link products to each selected field
             setIsSubmitting(true)
             try {
+                // Determine customer_id based on role
+                const role = typeof window !== "undefined" ? localStorage.getItem("role") : null
+                let customerId: string | null = null
+
+                if (role === "lab_admin") {
+                    customerId = typeof window !== "undefined" ? localStorage.getItem("customerId") : null
+                } else if (role === "superadmin") {
+                    customerId = typeof window !== "undefined" ? localStorage.getItem("customerId") : null
+                }
+
                 // Link products to all selected fields
                 await Promise.all(
                     fieldsToLink.map(fieldId =>
                         linkProductsMutation.mutateAsync({
                             id: fieldId,
                             product_ids: selectedProducts,
+                            customer_id: customerId,
                         })
                     )
                 )

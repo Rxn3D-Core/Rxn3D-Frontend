@@ -70,7 +70,7 @@ export default function ProductsPage() {
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
   const [subcategoryFilter, setSubcategoryFilter] = useState<number | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
-  const [entriesPerPage, setEntriesPerPage] = useState("100")
+  const [entriesPerPage, setEntriesPerPage] = useState("10")
 
   // Use React Query for data fetching
   const {
@@ -103,7 +103,7 @@ export default function ProductsPage() {
   
   const pagination = productsData?.pagination || {
     total: 0,
-    per_page: 100,
+    per_page: 10,
     current_page: 1,
     last_page: 1,
   }

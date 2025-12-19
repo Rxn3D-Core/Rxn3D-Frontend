@@ -1670,11 +1670,23 @@ export const useLinkFieldProducts = () => {
     mutationFn: async ({
       id,
       product_ids,
+      customer_id,
     }: {
       id: number
       product_ids: number[]
+      customer_id?: number | string | null
     }) => {
-      const response = await fetch(ensureAbsoluteUrl(`/library/advance/fields/${id}/link-products`), {
+      const baseUrl = ensureAbsoluteUrl(`/library/advance/fields/${id}/link-products`)
+      const queryParams = new URLSearchParams()
+      
+      // Add customer_id as query parameter if provided
+      if (customer_id) {
+        queryParams.append('customer_id', String(customer_id))
+      }
+
+      const url = queryParams.toString() ? `${baseUrl}?${queryParams.toString()}` : baseUrl
+
+      const response = await fetch(url, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({ product_ids }),
