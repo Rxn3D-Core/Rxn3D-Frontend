@@ -20,9 +20,7 @@ import { PlanCard } from "./plan-card"
 import { useCustomer } from "@/contexts/customer-context"
 import { useTranslation } from "react-i18next"
 import { useDashboardSettings } from "@/hooks/use-dashboard-settings"
-import { WIDGET_IDS } from "@/lib/dashboard-widgets"
-import { useDashboardSettings } from "@/hooks/use-dashboard-settings"
-import { WIDGET_IDS } from "@/lib/dashboard-widgets"
+import { WIDGET_IDS, getCustomerId } from "@/lib/dashboard-widgets"
 
 export function SuperAdminDashboard() {
   const [showPracticeForm, setShowPracticeForm] = useState(false)

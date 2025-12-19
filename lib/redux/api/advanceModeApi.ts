@@ -167,6 +167,18 @@ export const advanceModeApi = apiSlice.injectEndpoints({
     // ===== CATEGORIES =====
     getAdvanceCategories: builder.query<PaginatedResponse<AdvanceCategory>, PaginationParams>({
       query: (params = {}) => {
+        // Get role and customerId from localStorage for lab_admin
+        let customerId = params.customer_id
+        if (typeof window !== 'undefined') {
+          const role = localStorage.getItem('role')
+          if (role === 'lab_admin' && !customerId) {
+            const storedCustomerId = localStorage.getItem('customerId')
+            if (storedCustomerId) {
+              customerId = parseInt(storedCustomerId, 10)
+            }
+          }
+        }
+
         const queryParams = new URLSearchParams()
         if (params.page) queryParams.append('page', params.page.toString())
         if (params.per_page) queryParams.append('per_page', params.per_page.toString())
@@ -174,7 +186,8 @@ export const advanceModeApi = apiSlice.injectEndpoints({
         if (params.status) queryParams.append('status', params.status)
         if (params.order_by) queryParams.append('order_by', params.order_by)
         if (params.sort_by) queryParams.append('sort_by', params.sort_by)
-        if (params.customer_id) queryParams.append('customer_id', params.customer_id.toString())
+        // Add customer_id if role is lab_admin and customerId is available
+        if (customerId) queryParams.append('customer_id', customerId.toString())
 
         return `/v1/library/advance/categories?${queryParams.toString()}`
       },

@@ -440,11 +440,11 @@ export function CreateRetentionOptionModal({ isOpen, onClose, option, isCopying 
                         )}
                         {!isLoadingDetails && (
                             <>
-                        {/* Retention Type Details */}
+                        {/* Retention Option Details */}
                         <div className="space-y-4">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
-                                    <span className="text-base font-medium">Retention Type Details</span>
+                                    <span className="text-base font-medium">Retention Option Details</span>
                                     <TooltipProvider>
                                         <Tooltip>
                                             <TooltipTrigger asChild>
@@ -521,7 +521,7 @@ export function CreateRetentionOptionModal({ isOpen, onClose, option, isCopying 
                                             lineHeight: "14px",
                                         }}
                                     >
-                                        Retention type name <span className="text-red-500">*</span>
+                                        Retention option name <span className="text-red-500">*</span>
                                     </label>
                                     {/* Validation Icon */}
                                     {hasNameValue && !errors.optionName && (

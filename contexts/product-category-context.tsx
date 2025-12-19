@@ -383,8 +383,8 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
         lang: currentLanguage,
       })
       
-      // Pass customer_id if customerId is defined (for lab_admin role)
-      if (customerId) {
+      // Pass customer_id if role is lab_admin and customerId is defined
+      if (isLabAdmin && customerId) {
         params.append("customer_id", customerId.toString())
       }
       
@@ -418,7 +418,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
     } finally {
       setIsLoadingParentDropdown(false)
     }
-  }, [toast, currentLanguage, customerId])
+  }, [toast, currentLanguage, customerId, isLabAdmin])
 
   const createCategoryInternal = async (
     endpoint: string,

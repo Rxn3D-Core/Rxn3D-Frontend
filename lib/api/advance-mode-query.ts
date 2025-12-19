@@ -211,6 +211,18 @@ export const useAdvanceCategories = (params?: PaginationParams) => {
   return useQuery({
     queryKey: ['advanceCategories', params],
     queryFn: async () => {
+      // Get role and customerId from localStorage for lab_admin
+      let customerId = params?.customer_id
+      if (typeof window !== 'undefined') {
+        const role = localStorage.getItem('role')
+        if (role === 'lab_admin' && !customerId) {
+          const storedCustomerId = localStorage.getItem('customerId')
+          if (storedCustomerId) {
+            customerId = parseInt(storedCustomerId, 10)
+          }
+        }
+      }
+
       const queryParams = new URLSearchParams()
       if (params?.page) queryParams.append('page', params.page.toString())
       if (params?.per_page) queryParams.append('per_page', params.per_page.toString())
@@ -218,7 +230,8 @@ export const useAdvanceCategories = (params?: PaginationParams) => {
       if (params?.status) queryParams.append('status', params.status)
       if (params?.order_by) queryParams.append('order_by', params.order_by)
       if (params?.sort_by) queryParams.append('sort_by', params.sort_by)
-      if (params?.customer_id) queryParams.append('customer_id', params.customer_id.toString())
+      // Add customer_id if role is lab_admin and customerId is available
+      if (customerId) queryParams.append('customer_id', customerId.toString())
       if (params?.is_custom) queryParams.append('is_custom', params.is_custom)
 
       const response = await fetch(`${ensureAbsoluteUrl('/library/advance/categories')}?${queryParams.toString()}`, {

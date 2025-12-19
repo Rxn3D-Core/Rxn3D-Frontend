@@ -54,9 +54,7 @@ function ConditionalProvidersInternal({ children }: { children: React.ReactNode 
                             <SlipProvider>
                               <DriverSlipProvider>
                                 <React.Suspense fallback={null}>
-                                  <ModelPreloadProvider>
                                     {children}
-                                  </ModelPreloadProvider>
                                 </React.Suspense>
                               </DriverSlipProvider>
                             </SlipProvider>

@@ -312,12 +312,13 @@ export default function CaseDesignCenterPage() {
   }
 
   // Helper function to check if a field is configured for the product
-  const isFieldConfigured = (fieldName: string, productDetails: any, savedProduct: SavedProduct): boolean => {
+  const isFieldConfigured = (fieldName: string, productDetails: any, savedProduct: SavedProduct, archType?: "maxillary" | "mandibular"): boolean => {
     if (!productDetails) return false
 
     switch (fieldName) {
       case "implant":
-        return !!(productDetails.implant || savedProduct.mandibularImplantDetails || savedProduct.maxillaryImplantDetails)
+        const implantDetails = archType === "maxillary" ? "" : savedProduct.mandibularImplantDetails
+        return !!(productDetails.implant || implantDetails)
       case "grade":
         return !!(productDetails.grades && Array.isArray(productDetails.grades) && productDetails.grades.length > 0)
       case "teeth_shade":
@@ -435,7 +436,7 @@ export default function CaseDesignCenterPage() {
     if (currentFieldIndex === 0) return true
     
     // Check if field is configured
-    if (!isFieldConfigured(fieldName, productDetails, savedProduct)) {
+    if (!isFieldConfigured(fieldName, productDetails, savedProduct, archType)) {
       return false
     }
     
@@ -3651,6 +3652,14 @@ export default function CaseDesignCenterPage() {
                               : teeth.length > 0
                                 ? `#${teeth.join(", #")}`
                                 : "No teeth selected"
+                            
+                            const productDetails = savedProduct.productDetails
+                            const archType: "maxillary" | "mandibular" = "maxillary"
+                            const categoryLower = savedProduct.category.toLowerCase()
+                            const isFixedRestoration = categoryLower.includes("fixed")
+                            const isRemovableOrOrtho = categoryLower.includes("removable") || 
+                                                       categoryLower.includes("orthodontic") || 
+                                                       categoryLower.includes("ortho")
 
                             return (
                               <Card key={savedProduct.id} className="overflow-hidden border border-gray-200 shadow-sm">
@@ -3806,7 +3815,7 @@ export default function CaseDesignCenterPage() {
                                     </div>
 
                                     <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto' }}>
-                                      {/* Summary detail - Same structure as current product accordion */}
+                                      {/* Summary detail - Progressive field disclosure */}
                                       <div
                                         className="bg-white w-full"
                                         style={{
@@ -3825,7 +3834,935 @@ export default function CaseDesignCenterPage() {
                                           boxSizing: 'border-box'
                                         }}
                                       >
-                                        {/* Row 1: Product - Material and Retention Type */}
+                                        {/* Field 1: Product - Material (always visible) */}
+                                        {isFieldVisible("product_material", savedProduct.id, savedProduct, productDetails, archType) && (
+                                          <div
+                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                            style={{
+                                              display: 'flex',
+                                              flexDirection: 'row',
+                                              alignItems: 'flex-start',
+                                              padding: '0px',
+                                              gap: '20px',
+                                              flex: 'none',
+                                              order: 0,
+                                              alignSelf: 'stretch',
+                                              flexGrow: 0
+                                            }}
+                                          >
+                                            <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
+                                              <div
+                                                className="flex items-center"
+                                                style={{
+                                                  padding: '12px 39px 5px 15px',
+                                                  gap: '5px',
+                                                  width: '100%',
+                                                  height: '37px',
+                                                  position: 'relative',
+                                                  marginTop: '5.27px',
+                                                  background: '#FFFFFF',
+                                                  border: '0.740384px solid #7F7F7F',
+                                                  borderRadius: '7.7px',
+                                                  boxSizing: 'border-box'
+                                                }}
+                                              >
+                                                <span style={{
+                                                  fontFamily: 'Verdana',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14.4px',
+                                                  lineHeight: '20px',
+                                                  letterSpacing: '-0.02em',
+                                                  color: '#000000',
+                                                  whiteSpace: 'nowrap'
+                                                }}>{savedProduct.maxillaryMaterial || 'Not specified'}</span>
+                                              </div>
+                                              <label
+                                                className="absolute bg-white"
+                                                style={{
+                                                  padding: '0px',
+                                                  height: '14px',
+                                                  left: '8.9px',
+                                                  top: '0px',
+                                                  fontFamily: 'Arial',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14px',
+                                                  lineHeight: '14px',
+                                                  color: '#7F7F7F'
+                                                }}
+                                              >
+                                                Product - Material
+                                              </label>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {/* Field 2: Retention (Fixed Restoration only, visible after Product/Material) */}
+                                        {isFixedRestoration && isFieldVisible("retention", savedProduct.id, savedProduct, productDetails, archType) && (
+                                          <div
+                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                            style={{
+                                              display: 'flex',
+                                              flexDirection: 'row',
+                                              alignItems: 'flex-start',
+                                              padding: '0px',
+                                              gap: '20px',
+                                              flex: 'none',
+                                              order: 1,
+                                              alignSelf: 'stretch',
+                                              flexGrow: 0
+                                            }}
+                                          >
+                                            <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
+                                              <div
+                                                className="flex items-center"
+                                                style={{
+                                                  padding: '12px 39px 5px 15px',
+                                                  gap: '5px',
+                                                  width: '100%',
+                                                  height: '37px',
+                                                  position: 'relative',
+                                                  marginTop: '5.27px',
+                                                  background: '#FFFFFF',
+                                                  border: '0.740384px solid #7F7F7F',
+                                                  borderRadius: '7.7px',
+                                                  boxSizing: 'border-box'
+                                                }}
+                                              >
+                                                <span style={{
+                                                  fontFamily: 'Arial',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14px',
+                                                  lineHeight: '14px',
+                                                  color: '#000000',
+                                                  whiteSpace: 'nowrap'
+                                                }}>{savedProduct.maxillaryRetention || 'Not specified'}</span>
+                                              </div>
+                                              <label
+                                                className="absolute bg-white"
+                                                style={{
+                                                  padding: '0px',
+                                                  height: '14px',
+                                                  left: '9.23px',
+                                                  top: '0px',
+                                                  fontFamily: 'Arial',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14px',
+                                                  lineHeight: '14px',
+                                                  color: '#7F7F7F'
+                                                }}
+                                              >
+                                                Select Retention type
+                                              </label>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {/* Field 3: Implant (if configured, visible after previous field) */}
+                                        {isFieldVisible("implant", savedProduct.id, savedProduct, productDetails, archType) && (
+                                          <div
+                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                            style={{
+                                              display: 'flex',
+                                              flexDirection: 'row',
+                                              alignItems: 'flex-start',
+                                              padding: '0px',
+                                              gap: '20px',
+                                              flex: 'none',
+                                              order: 2,
+                                              alignSelf: 'stretch',
+                                              flexGrow: 0
+                                            }}
+                                          >
+                                            <div className="relative flex-1 min-w-[250px] max-w-[100%]" style={{ minHeight: '43px' }}>
+                                              <div
+                                                className="flex items-start"
+                                                style={{
+                                                  padding: '12px 15px 5px 15px',
+                                                  gap: '5px',
+                                                  width: '100%',
+                                                  minHeight: '37px',
+                                                  background: '#FFFFFF',
+                                                  border: '0.740384px solid #7F7F7F',
+                                                  borderRadius: '7.7px',
+                                                  boxSizing: 'border-box',
+                                                  position: 'relative',
+                                                  marginTop: '5.27px'
+                                                }}
+                                              >
+                                                <span style={{
+                                                  fontFamily: 'Verdana',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14.4px',
+                                                  lineHeight: '20px',
+                                                  letterSpacing: '-0.02em',
+                                                  color: '#000000'
+                                                }}>Not specified</span>
+                                              </div>
+                                              <label
+                                                className="absolute bg-white"
+                                                style={{
+                                                  padding: '0px',
+                                                  height: '14px',
+                                                  left: '8.9px',
+                                                  top: '0px',
+                                                  fontFamily: 'Arial',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14px',
+                                                  lineHeight: '14px',
+                                                  color: '#7F7F7F'
+                                                }}
+                                              >
+                                                Implant Details
+                                              </label>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {/* Field 4: Grade (Removables/Ortho only, visible after Implant) */}
+                                        {isRemovableOrOrtho && isFieldVisible("grade", savedProduct.id, savedProduct, productDetails, archType) && (
+                                          <div
+                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                            style={{
+                                              display: 'flex',
+                                              flexDirection: 'row',
+                                              alignItems: 'flex-start',
+                                              padding: '0px',
+                                              gap: '20px',
+                                              flex: 'none',
+                                              order: 3,
+                                              alignSelf: 'stretch',
+                                              flexGrow: 0
+                                            }}
+                                          >
+                                            <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
+                                              <div
+                                                className="flex items-center"
+                                                style={{
+                                                  padding: '12px 39px 5px 15px',
+                                                  gap: '5px',
+                                                  width: '100%',
+                                                  height: '37px',
+                                                  position: 'relative',
+                                                  marginTop: '5.27px',
+                                                  background: '#FFFFFF',
+                                                  border: '0.740384px solid #7F7F7F',
+                                                  borderRadius: '7.7px',
+                                                  boxSizing: 'border-box'
+                                                }}
+                                              >
+                                                <span style={{
+                                                  fontFamily: 'Verdana',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14.4px',
+                                                  lineHeight: '20px',
+                                                  letterSpacing: '-0.02em',
+                                                  color: '#000000',
+                                                  whiteSpace: 'nowrap'
+                                                }}>{savedProduct.maxillaryMaterial || 'Not specified'}</span>
+                                              </div>
+                                              <label
+                                                className="absolute bg-white"
+                                                style={{
+                                                  padding: '0px',
+                                                  height: '14px',
+                                                  left: '8.9px',
+                                                  top: '0px',
+                                                  fontFamily: 'Arial',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14px',
+                                                  lineHeight: '14px',
+                                                  color: '#7F7F7F'
+                                                }}
+                                              >
+                                                Grade
+                                              </label>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {/* Field 5: Stump Shade (Fixed Restoration only, advance field, visible after Implant) */}
+                                        {isFixedRestoration && isFieldVisible("stump_shade", savedProduct.id, savedProduct, productDetails, archType) && (
+                                          <div
+                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                            style={{
+                                              display: 'flex',
+                                              flexDirection: 'row',
+                                              alignItems: 'flex-start',
+                                              padding: '0px',
+                                              gap: '20px',
+                                              flex: 'none',
+                                              order: 4,
+                                              alignSelf: 'stretch',
+                                              flexGrow: 0
+                                            }}
+                                          >
+                                            <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div
+                                                className="flex items-center justify-between"
+                                                style={{
+                                                  padding: '12px 39px 5px 15px',
+                                                  gap: '5px',
+                                                  width: '100%',
+                                                  height: '37px',
+                                                  background: '#FFFFFF',
+                                                  border: '0.740384px solid #7F7F7F',
+                                                  borderRadius: '7.7px',
+                                                  boxSizing: 'border-box',
+                                                  position: 'relative',
+                                                  marginTop: '5.27px'
+                                                }}
+                                              >
+                                                <span style={{
+                                                  fontFamily: 'Verdana',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14.4px',
+                                                  lineHeight: '20px',
+                                                  letterSpacing: '-0.02em',
+                                                  color: '#000000'
+                                                }}>{savedProduct.maxillaryStumpShade || 'Not specified'}</span>
+                                                {savedProduct.maxillaryStumpShade && (
+                                                  <div
+                                                    className="flex items-center justify-center"
+                                                    style={{
+                                                      width: '37.51px',
+                                                      height: '41.97px',
+                                                      background: 'linear-gradient(0deg, #DED2C7 0.05%, #E3D4C4 7.04%, #EDD9C1 25.04%, #F0DBC0 50.02%, #F0DCC2 76.01%, #F1E0CA 90%, #F3E7D7 100%)',
+                                                      borderRadius: '8px',
+                                                      position: 'absolute',
+                                                      right: '0px',
+                                                      top: '-1px'
+                                                    }}
+                                                  >
+                                                    <span style={{
+                                                      fontFamily: 'Verdana',
+                                                      fontStyle: 'normal',
+                                                      fontWeight: 400,
+                                                      fontSize: '12.8603px',
+                                                      lineHeight: '18px',
+                                                      letterSpacing: '-0.02em',
+                                                      color: '#000000'
+                                                    }}>{savedProduct.maxillaryStumpShade}</span>
+                                                  </div>
+                                                )}
+                                              </div>
+                                              <label
+                                                className="absolute bg-white"
+                                                style={{
+                                                  padding: '0px',
+                                                  height: '14px',
+                                                  left: '8.9px',
+                                                  top: '0px',
+                                                  fontFamily: 'Arial',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14px',
+                                                  lineHeight: '14px',
+                                                  color: '#7F7F7F'
+                                                }}
+                                              >
+                                                Stump Shade
+                                              </label>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {/* Field 6: Crown Third Shade (Fixed Restoration only, advance field, visible after Stump Shade) */}
+                                        {isFixedRestoration && isFieldVisible("crown_third_shade", savedProduct.id, savedProduct, productDetails, archType) && (
+                                          <div
+                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                            style={{
+                                              display: 'flex',
+                                              flexDirection: 'row',
+                                              alignItems: 'flex-start',
+                                              padding: '0px',
+                                              gap: '20px',
+                                              flex: 'none',
+                                              order: 5,
+                                              alignSelf: 'stretch',
+                                              flexGrow: 0
+                                            }}
+                                          >
+                                            <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div
+                                                className="flex items-center"
+                                                style={{
+                                                  padding: '12px 39px 5px 15px',
+                                                  gap: '5px',
+                                                  width: '100%',
+                                                  height: '37px',
+                                                  background: '#FFFFFF',
+                                                  border: '0.740384px solid #7F7F7F',
+                                                  borderRadius: '7.7px',
+                                                  boxSizing: 'border-box',
+                                                  position: 'relative',
+                                                  marginTop: '5.27px'
+                                                }}
+                                              >
+                                                <span style={{
+                                                  fontFamily: 'Verdana',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14.4px',
+                                                  lineHeight: '20px',
+                                                  letterSpacing: '-0.02em',
+                                                  color: '#000000'
+                                                }}>Not specified</span>
+                                              </div>
+                                              <label
+                                                className="absolute bg-white"
+                                                style={{
+                                                  padding: '0px',
+                                                  height: '14px',
+                                                  left: '8.9px',
+                                                  top: '0px',
+                                                  fontFamily: 'Arial',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14px',
+                                                  lineHeight: '14px',
+                                                  color: '#7F7F7F'
+                                                }}
+                                              >
+                                                Crown Third Shade
+                                              </label>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {/* Field 7: Tooth Shade (Fixed Restoration) or Teeth Shade (Removables/Ortho) */}
+                                        {isFieldVisible(isFixedRestoration ? "tooth_shade" : "teeth_shade", savedProduct.id, savedProduct, productDetails, archType) && (
+                                          <div
+                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                            style={{
+                                              display: 'flex',
+                                              flexDirection: 'row',
+                                              alignItems: 'flex-start',
+                                              padding: '0px',
+                                              gap: '20px',
+                                              flex: 'none',
+                                              order: 6,
+                                              alignSelf: 'stretch',
+                                              flexGrow: 0
+                                            }}
+                                          >
+                                            <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div
+                                                className="flex items-center justify-between"
+                                                style={{
+                                                  padding: '12px 39px 5px 15px',
+                                                  gap: '5px',
+                                                  width: '100%',
+                                                  height: '37px',
+                                                  background: '#FFFFFF',
+                                                  border: '0.740384px solid #7F7F7F',
+                                                  borderRadius: '7.7px',
+                                                  boxSizing: 'border-box',
+                                                  position: 'relative',
+                                                  marginTop: '5.27px'
+                                                }}
+                                              >
+                                                <span style={{
+                                                  fontFamily: 'Verdana',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14.4px',
+                                                  lineHeight: '20px',
+                                                  letterSpacing: '-0.02em',
+                                                  color: '#000000'
+                                                }}>{savedProduct.maxillaryToothShade || 'Not specified'}</span>
+                                              </div>
+                                              <label
+                                                className="absolute bg-white"
+                                                style={{
+                                                  padding: '0px',
+                                                  height: '14px',
+                                                  left: '8.9px',
+                                                  top: '0px',
+                                                  fontFamily: 'Arial',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14px',
+                                                  lineHeight: '14px',
+                                                  color: '#7F7F7F'
+                                                }}
+                                              >
+                                                {isFixedRestoration ? "Tooth Shade" : "Teeth Shade"}
+                                              </label>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {/* Field 8: Gum Shade (Removables/Ortho only, visible after Teeth Shade) */}
+                                        {isRemovableOrOrtho && isFieldVisible("gum_shade", savedProduct.id, savedProduct, productDetails, archType) && (
+                                          <div
+                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                            style={{
+                                              display: 'flex',
+                                              flexDirection: 'row',
+                                              alignItems: 'flex-start',
+                                              padding: '0px',
+                                              gap: '20px',
+                                              flex: 'none',
+                                              order: 7,
+                                              alignSelf: 'stretch',
+                                              flexGrow: 0
+                                            }}
+                                          >
+                                            <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div
+                                                className="flex items-center"
+                                                style={{
+                                                  padding: '12px 39px 5px 15px',
+                                                  gap: '5px',
+                                                  width: '100%',
+                                                  height: '37px',
+                                                  background: '#FFFFFF',
+                                                  border: '0.740384px solid #7F7F7F',
+                                                  borderRadius: '7.7px',
+                                                  boxSizing: 'border-box',
+                                                  position: 'relative',
+                                                  marginTop: '5.27px'
+                                                }}
+                                              >
+                                                <span style={{
+                                                  fontFamily: 'Verdana',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14.4px',
+                                                  lineHeight: '20px',
+                                                  letterSpacing: '-0.02em',
+                                                  color: '#000000'
+                                                }}>Not specified</span>
+                                              </div>
+                                              <label
+                                                className="absolute bg-white"
+                                                style={{
+                                                  padding: '0px',
+                                                  height: '14px',
+                                                  left: '8.9px',
+                                                  top: '0px',
+                                                  fontFamily: 'Arial',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14px',
+                                                  lineHeight: '14px',
+                                                  color: '#7F7F7F'
+                                                }}
+                                              >
+                                                Gum Shade
+                                              </label>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {/* Field 9: Stage (visible after previous field) */}
+                                        {isFieldVisible("stage", savedProduct.id, savedProduct, productDetails, archType) && (
+                                          <div
+                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                            style={{
+                                              display: 'flex',
+                                              flexDirection: 'row',
+                                              alignItems: 'flex-start',
+                                              padding: '0px',
+                                              gap: '20px',
+                                              flex: 'none',
+                                              order: 8,
+                                              alignSelf: 'stretch',
+                                              flexGrow: 0
+                                            }}
+                                          >
+                                            <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div
+                                                className="flex items-center"
+                                                style={{
+                                                  padding: '12px 39px 5px 15px',
+                                                  gap: '5px',
+                                                  width: '100%',
+                                                  height: '37px',
+                                                  position: 'relative',
+                                                  marginTop: '5.27px',
+                                                  background: '#FFFFFF',
+                                                  border: '0.740384px solid #7F7F7F',
+                                                  borderRadius: '7.7px',
+                                                  boxSizing: 'border-box'
+                                                }}
+                                              >
+                                                <span style={{
+                                                  fontFamily: 'Verdana',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14.4px',
+                                                  lineHeight: '20px',
+                                                  letterSpacing: '-0.02em',
+                                                  color: '#000000'
+                                                }}>{savedProduct.maxillaryStage || 'Finish'}</span>
+                                              </div>
+                                              <label
+                                                className="absolute bg-white"
+                                                style={{
+                                                  padding: '0px',
+                                                  height: '14px',
+                                                  left: '8.9px',
+                                                  top: '0px',
+                                                  fontFamily: 'Arial',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14px',
+                                                  lineHeight: '14px',
+                                                  color: '#7F7F7F'
+                                                }}
+                                              >
+                                                Stage
+                                              </label>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {/* Field 10: Pontic Design (Fixed Restoration only, advance field, visible after Stage) */}
+                                        {isFixedRestoration && isFieldVisible("pontic_design", savedProduct.id, savedProduct, productDetails, archType) && (
+                                          <div
+                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                            style={{
+                                              display: 'flex',
+                                              flexDirection: 'row',
+                                              alignItems: 'flex-start',
+                                              padding: '0px',
+                                              gap: '20px',
+                                              flex: 'none',
+                                              order: 9,
+                                              alignSelf: 'stretch',
+                                              flexGrow: 0
+                                            }}
+                                          >
+                                            <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div
+                                                className="flex items-center"
+                                                style={{
+                                                  padding: '12px 39px 5px 15px',
+                                                  gap: '5px',
+                                                  width: '100%',
+                                                  height: '37px',
+                                                  background: '#FFFFFF',
+                                                  border: '0.740384px solid #7F7F7F',
+                                                  borderRadius: '7.7px',
+                                                  boxSizing: 'border-box',
+                                                  position: 'relative',
+                                                  marginTop: '5.27px'
+                                                }}
+                                              >
+                                                <span style={{
+                                                  fontFamily: 'Verdana',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14.4px',
+                                                  lineHeight: '20px',
+                                                  letterSpacing: '-0.02em',
+                                                  color: '#000000'
+                                                }}>{savedProduct.maxillaryPonticDesign || 'Not specified'}</span>
+                                              </div>
+                                              <label
+                                                className="absolute bg-white"
+                                                style={{
+                                                  padding: '0px',
+                                                  height: '14px',
+                                                  left: '8.9px',
+                                                  top: '0px',
+                                                  fontFamily: 'Arial',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14px',
+                                                  lineHeight: '14px',
+                                                  color: '#7F7F7F'
+                                                }}
+                                              >
+                                                Pontic Design
+                                              </label>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {/* Field 11: Embrasures (Fixed Restoration only, advance field, visible after Pontic Design) */}
+                                        {isFixedRestoration && isFieldVisible("embrasures", savedProduct.id, savedProduct, productDetails, archType) && (
+                                          <div
+                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                            style={{
+                                              display: 'flex',
+                                              flexDirection: 'row',
+                                              alignItems: 'flex-start',
+                                              padding: '0px',
+                                              gap: '20px',
+                                              flex: 'none',
+                                              order: 10,
+                                              alignSelf: 'stretch',
+                                              flexGrow: 0
+                                            }}
+                                          >
+                                            <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div
+                                                className="flex items-center"
+                                                style={{
+                                                  padding: '12px 39px 5px 15px',
+                                                  gap: '5px',
+                                                  width: '100%',
+                                                  height: '37px',
+                                                  background: '#FFFFFF',
+                                                  border: '0.740384px solid #7F7F7F',
+                                                  borderRadius: '7.7px',
+                                                  boxSizing: 'border-box',
+                                                  position: 'relative',
+                                                  marginTop: '5.27px'
+                                                }}
+                                              >
+                                                <span style={{
+                                                  fontFamily: 'Verdana',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14.4px',
+                                                  lineHeight: '20px',
+                                                  letterSpacing: '-0.02em',
+                                                  color: '#000000'
+                                                }}>{savedProduct.maxillaryEmbrasure || 'Not specified'}</span>
+                                              </div>
+                                              <label
+                                                className="absolute bg-white"
+                                                style={{
+                                                  padding: '0px',
+                                                  height: '14px',
+                                                  left: '8.9px',
+                                                  top: '0px',
+                                                  fontFamily: 'Arial',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14px',
+                                                  lineHeight: '14px',
+                                                  color: '#7F7F7F'
+                                                }}
+                                              >
+                                                Embrasures
+                                              </label>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {/* Field 12: Occlusal Contact (Fixed Restoration only, advance field, visible after Embrasures) */}
+                                        {isFixedRestoration && isFieldVisible("occlusal_contact", savedProduct.id, savedProduct, productDetails, archType) && (
+                                          <div
+                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                            style={{
+                                              display: 'flex',
+                                              flexDirection: 'row',
+                                              alignItems: 'flex-start',
+                                              padding: '0px',
+                                              gap: '20px',
+                                              flex: 'none',
+                                              order: 11,
+                                              alignSelf: 'stretch',
+                                              flexGrow: 0
+                                            }}
+                                          >
+                                            <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div
+                                                className="flex items-center"
+                                                style={{
+                                                  padding: '12px 39px 5px 15px',
+                                                  gap: '5px',
+                                                  width: '100%',
+                                                  height: '37px',
+                                                  background: '#FFFFFF',
+                                                  border: '0.740384px solid #7F7F7F',
+                                                  borderRadius: '7.7px',
+                                                  boxSizing: 'border-box',
+                                                  position: 'relative',
+                                                  marginTop: '5.27px'
+                                                }}
+                                              >
+                                                <span style={{
+                                                  fontFamily: 'Verdana',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14.4px',
+                                                  lineHeight: '20px',
+                                                  letterSpacing: '-0.02em',
+                                                  color: '#000000'
+                                                }}>{savedProduct.maxillaryOcclusalContact || 'Not specified'}</span>
+                                              </div>
+                                              <label
+                                                className="absolute bg-white"
+                                                style={{
+                                                  padding: '0px',
+                                                  height: '14px',
+                                                  left: '8.9px',
+                                                  top: '0px',
+                                                  fontFamily: 'Arial',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14px',
+                                                  lineHeight: '14px',
+                                                  color: '#7F7F7F'
+                                                }}
+                                              >
+                                                Occlusal Contact
+                                              </label>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {/* Field 13: Interproximal Contact (Fixed Restoration only, advance field, visible after Occlusal Contact) */}
+                                        {isFixedRestoration && isFieldVisible("interproximal_contact", savedProduct.id, savedProduct, productDetails, archType) && (
+                                          <div
+                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                            style={{
+                                              display: 'flex',
+                                              flexDirection: 'row',
+                                              alignItems: 'flex-start',
+                                              padding: '0px',
+                                              gap: '20px',
+                                              flex: 'none',
+                                              order: 12,
+                                              alignSelf: 'stretch',
+                                              flexGrow: 0
+                                            }}
+                                          >
+                                            <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div
+                                                className="flex items-center"
+                                                style={{
+                                                  padding: '12px 39px 5px 15px',
+                                                  gap: '5px',
+                                                  width: '100%',
+                                                  height: '37px',
+                                                  background: '#FFFFFF',
+                                                  border: '0.740384px solid #7F7F7F',
+                                                  borderRadius: '7.7px',
+                                                  boxSizing: 'border-box',
+                                                  position: 'relative',
+                                                  marginTop: '5.27px'
+                                                }}
+                                              >
+                                                <span style={{
+                                                  fontFamily: 'Verdana',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14.4px',
+                                                  lineHeight: '20px',
+                                                  letterSpacing: '-0.02em',
+                                                  color: '#000000'
+                                                }}>{savedProduct.maxillaryProximalContact || 'Not specified'}</span>
+                                              </div>
+                                              <label
+                                                className="absolute bg-white"
+                                                style={{
+                                                  padding: '0px',
+                                                  height: '14px',
+                                                  left: '8.9px',
+                                                  top: '0px',
+                                                  fontFamily: 'Arial',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14px',
+                                                  lineHeight: '14px',
+                                                  color: '#7F7F7F'
+                                                }}
+                                              >
+                                                Interproximal Contact
+                                              </label>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {/* Field 14: Impressions (visible after previous field) */}
+                                        {isFieldVisible(isFixedRestoration ? "impressions" : "impression", savedProduct.id, savedProduct, productDetails, archType) && (
+                                          <div
+                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                            style={{
+                                              display: 'flex',
+                                              flexDirection: 'row',
+                                              alignItems: 'flex-start',
+                                              padding: '0px',
+                                              gap: '20px',
+                                              flex: 'none',
+                                              order: 13,
+                                              alignSelf: 'stretch',
+                                              flexGrow: 0
+                                            }}
+                                          >
+                                            <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
+                                              <div
+                                                className="flex items-center"
+                                                style={{
+                                                  padding: '12px 39px 5px 15px',
+                                                  gap: '5px',
+                                                  width: '100%',
+                                                  height: '37px',
+                                                  background: '#FFFFFF',
+                                                  border: '0.740384px solid #7F7F7F',
+                                                  borderRadius: '7.7px',
+                                                  boxSizing: 'border-box',
+                                                  position: 'relative',
+                                                  marginTop: '5.27px'
+                                                }}
+                                              >
+                                                <span style={{
+                                                  fontFamily: 'Verdana',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14.4px',
+                                                  lineHeight: '20px',
+                                                  letterSpacing: '-0.02em',
+                                                  color: '#000000'
+                                                }}>{savedProduct.maxillaryImpression || 'Not specified'}</span>
+                                              </div>
+                                              <label
+                                                className="absolute bg-white"
+                                                style={{
+                                                  padding: '0px',
+                                                  height: '14px',
+                                                  left: '8.9px',
+                                                  top: '0px',
+                                                  fontFamily: 'Arial',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14px',
+                                                  lineHeight: '14px',
+                                                  color: '#7F7F7F'
+                                                }}
+                                              >
+                                                {isFixedRestoration ? "Impressions" : "Impression"}
+                                              </label>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {/* Field 15: Add ons (always shown last, visible after Impressions) */}
+                                        {isFieldVisible("add_ons", savedProduct.id, savedProduct, productDetails, archType) && (
+                                          <div
+                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                            style={{
+                                              display: 'flex',
+                                              flexDirection: 'row',
+                                              alignItems: 'flex-start',
+                                              padding: '0px',
+                                              gap: '20px',
+                                              flex: 'none',
+                                              order: 14,
+                                              alignSelf: 'stretch',
+                                              flexGrow: 0
+                                            }}
+                                          >
+                                            {/* Add ons button will be rendered separately below */}
+                                          </div>
+                                        )}
+
+                                        {/* Selected Teeth Display (always visible for reference) */}
                                         <div
                                           className="flex flex-col sm:flex-row flex-wrap gap-5"
                                           style={{
@@ -3835,26 +4772,25 @@ export default function CaseDesignCenterPage() {
                                             padding: '0px',
                                             gap: '20px',
                                             flex: 'none',
-                                            order: 0,
+                                            order: 99,
                                             alignSelf: 'stretch',
                                             flexGrow: 0
                                           }}
                                         >
-                                          {/* Product - Material */}
-                                          <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
+                                          <div className="relative flex-1 min-w-[250px] max-w-[100%]" style={{ minHeight: '43px' }}>
                                             <div
                                               className="flex items-center"
                                               style={{
-                                                padding: '12px 39px 5px 15px',
+                                                padding: '12px 15px 5px 15px',
                                                 gap: '5px',
                                                 width: '100%',
                                                 height: '37px',
-                                                position: 'relative',
-                                                marginTop: '5.27px',
                                                 background: '#FFFFFF',
                                                 border: '0.740384px solid #7F7F7F',
                                                 borderRadius: '7.7px',
-                                                boxSizing: 'border-box'
+                                                boxSizing: 'border-box',
+                                                position: 'relative',
+                                                marginTop: '5.27px'
                                               }}
                                             >
                                               <span style={{
@@ -3864,9 +4800,8 @@ export default function CaseDesignCenterPage() {
                                                 fontSize: '14.4px',
                                                 lineHeight: '20px',
                                                 letterSpacing: '-0.02em',
-                                                color: '#000000',
-                                                whiteSpace: 'nowrap'
-                                              }}>{savedProduct.maxillaryMaterial || 'Not specified'}</span>
+                                                color: '#000000'
+                                              }}>{displayTeeth}</span>
                                             </div>
                                             <label
                                               className="absolute bg-white"
@@ -3883,59 +4818,13 @@ export default function CaseDesignCenterPage() {
                                                 color: '#7F7F7F'
                                               }}
                                             >
-                                              Product - Material
-                                            </label>
-                                          </div>
-
-                                          {/* Retention Type */}
-                                          <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
-                                            <div
-                                              className="flex items-center"
-                                              style={{
-                                                padding: '12px 39px 5px 15px',
-                                                gap: '5px',
-                                                width: '100%',
-                                                height: '37px',
-                                                position: 'relative',
-                                                marginTop: '5.27px',
-                                                background: '#FFFFFF',
-                                                border: '0.740384px solid #7F7F7F',
-                                                borderRadius: '7.7px',
-                                                boxSizing: 'border-box'
-                                              }}
-                                            >
-                                              <span style={{
-                                                fontFamily: 'Arial',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14px',
-                                                lineHeight: '14px',
-                                                color: '#000000',
-                                                whiteSpace: 'nowrap'
-                                              }}>{savedProduct.maxillaryRetention || 'Not specified'}</span>
-                                            </div>
-                                            <label
-                                              className="absolute bg-white"
-                                              style={{
-                                                padding: '0px',
-                                                height: '14px',
-                                                left: '9.23px',
-                                                top: '0px',
-                                                fontFamily: 'Arial',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14px',
-                                                lineHeight: '14px',
-                                                color: '#7F7F7F'
-                                              }}
-                                            >
-                                              Select Retention type
+                                              Selected Teeth
                                             </label>
                                           </div>
                                         </div>
 
-                                        {/* Row 2: Stump Shade, Tooth Shade, Stage - Only show if advance fields should be displayed */}
-                                        {(showAdvanceFields[savedProduct.id] || (savedProduct.maxillaryMaterial && savedProduct.maxillaryRetention)) && (
+                                        {/* Notes if available */}
+                                        {savedProduct.maxillaryNotes && (
                                         <div
                                           className="flex flex-col sm:flex-row flex-wrap gap-5"
                                           style={{
@@ -5644,6 +6533,14 @@ export default function CaseDesignCenterPage() {
                               : teeth.length > 0
                                 ? `#${teeth.join(", #")}`
                                 : "No teeth selected"
+                            
+                            const productDetails = savedProduct.productDetails
+                            const archType: "maxillary" | "mandibular" = "mandibular"
+                            const categoryLower = savedProduct.category.toLowerCase()
+                            const isFixedRestoration = categoryLower.includes("fixed")
+                            const isRemovableOrOrtho = categoryLower.includes("removable") || 
+                                                       categoryLower.includes("orthodontic") || 
+                                                       categoryLower.includes("ortho")
 
                             return (
                               <Card key={savedProduct.id} className="overflow-hidden border border-gray-200 shadow-sm">
@@ -5798,7 +6695,7 @@ export default function CaseDesignCenterPage() {
                                     </div>
 
                                     <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto' }}>
-                                      {/* Summary detail - Same structure as current product accordion */}
+                                      {/* Summary detail - Progressive field disclosure */}
                                       <div
                                         className="bg-white w-full"
                                         style={{
@@ -5817,7 +6714,911 @@ export default function CaseDesignCenterPage() {
                                           boxSizing: 'border-box'
                                         }}
                                       >
-                                        {/* Row 1: Product - Material and Retention Type */}
+                                        {/* Field 1: Product - Material (always visible) */}
+                                        {isFieldVisible("product_material", savedProduct.id, savedProduct, productDetails, archType) && (
+                                          <div
+                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                            style={{
+                                              display: 'flex',
+                                              flexDirection: 'row',
+                                              alignItems: 'flex-start',
+                                              padding: '0px',
+                                              gap: '20px',
+                                              flex: 'none',
+                                              order: 0,
+                                              alignSelf: 'stretch',
+                                              flexGrow: 0
+                                            }}
+                                          >
+                                            <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
+                                              <div
+                                                className="flex items-center"
+                                                style={{
+                                                  padding: '12px 39px 5px 15px',
+                                                  gap: '5px',
+                                                  width: '100%',
+                                                  height: '37px',
+                                                  position: 'relative',
+                                                  marginTop: '5.27px',
+                                                  background: '#FFFFFF',
+                                                  border: '0.740384px solid #7F7F7F',
+                                                  borderRadius: '7.7px',
+                                                  boxSizing: 'border-box'
+                                                }}
+                                              >
+                                                <span style={{
+                                                  fontFamily: 'Verdana',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14.4px',
+                                                  lineHeight: '20px',
+                                                  letterSpacing: '-0.02em',
+                                                  color: '#000000',
+                                                  whiteSpace: 'nowrap'
+                                                }}>{savedProduct.mandibularMaterial || 'Not specified'}</span>
+                                              </div>
+                                              <label
+                                                className="absolute bg-white"
+                                                style={{
+                                                  padding: '0px',
+                                                  height: '14px',
+                                                  left: '8.9px',
+                                                  top: '0px',
+                                                  fontFamily: 'Arial',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14px',
+                                                  lineHeight: '14px',
+                                                  color: '#7F7F7F'
+                                                }}
+                                              >
+                                                Product - Material
+                                              </label>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {/* Field 2: Retention (Fixed Restoration only, visible after Product/Material) */}
+                                        {isFixedRestoration && isFieldVisible("retention", savedProduct.id, savedProduct, productDetails, archType) && (
+                                          <div
+                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                            style={{
+                                              display: 'flex',
+                                              flexDirection: 'row',
+                                              alignItems: 'flex-start',
+                                              padding: '0px',
+                                              gap: '20px',
+                                              flex: 'none',
+                                              order: 1,
+                                              alignSelf: 'stretch',
+                                              flexGrow: 0
+                                            }}
+                                          >
+                                            <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
+                                              <div
+                                                className="flex items-center"
+                                                style={{
+                                                  padding: '12px 39px 5px 15px',
+                                                  gap: '5px',
+                                                  width: '100%',
+                                                  height: '37px',
+                                                  position: 'relative',
+                                                  marginTop: '5.27px',
+                                                  background: '#FFFFFF',
+                                                  border: '0.740384px solid #7F7F7F',
+                                                  borderRadius: '7.7px',
+                                                  boxSizing: 'border-box'
+                                                }}
+                                              >
+                                                <span style={{
+                                                  fontFamily: 'Arial',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14px',
+                                                  lineHeight: '14px',
+                                                  color: '#000000',
+                                                  whiteSpace: 'nowrap'
+                                                }}>{savedProduct.mandibularRetention || 'Not specified'}</span>
+                                              </div>
+                                              <label
+                                                className="absolute bg-white"
+                                                style={{
+                                                  padding: '0px',
+                                                  height: '14px',
+                                                  left: '9.23px',
+                                                  top: '0px',
+                                                  fontFamily: 'Arial',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14px',
+                                                  lineHeight: '14px',
+                                                  color: '#7F7F7F'
+                                                }}
+                                              >
+                                                Select Retention type
+                                              </label>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {/* Field 3: Implant (if configured, visible after previous field) */}
+                                        {isFieldVisible("implant", savedProduct.id, savedProduct, productDetails, archType) && (
+                                          <div
+                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                            style={{
+                                              display: 'flex',
+                                              flexDirection: 'row',
+                                              alignItems: 'flex-start',
+                                              padding: '0px',
+                                              gap: '20px',
+                                              flex: 'none',
+                                              order: 2,
+                                              alignSelf: 'stretch',
+                                              flexGrow: 0
+                                            }}
+                                          >
+                                            <div className="relative flex-1 min-w-[250px] max-w-[100%]" style={{ minHeight: '43px' }}>
+                                              <div
+                                                className="flex items-start"
+                                                style={{
+                                                  padding: '12px 15px 5px 15px',
+                                                  gap: '5px',
+                                                  width: '100%',
+                                                  minHeight: '37px',
+                                                  background: '#FFFFFF',
+                                                  border: '0.740384px solid #7F7F7F',
+                                                  borderRadius: '7.7px',
+                                                  boxSizing: 'border-box',
+                                                  position: 'relative',
+                                                  marginTop: '5.27px'
+                                                }}
+                                              >
+                                                <span style={{
+                                                  fontFamily: 'Verdana',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14.4px',
+                                                  lineHeight: '20px',
+                                                  letterSpacing: '-0.02em',
+                                                  color: '#000000'
+                                                }}>{savedProduct.mandibularImplantDetails || 'Not specified'}</span>
+                                              </div>
+                                              <label
+                                                className="absolute bg-white"
+                                                style={{
+                                                  padding: '0px',
+                                                  height: '14px',
+                                                  left: '8.9px',
+                                                  top: '0px',
+                                                  fontFamily: 'Arial',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14px',
+                                                  lineHeight: '14px',
+                                                  color: '#7F7F7F'
+                                                }}
+                                              >
+                                                Implant Details
+                                              </label>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {/* Field 4: Grade (Removables/Ortho only, visible after Implant) */}
+                                        {isRemovableOrOrtho && isFieldVisible("grade", savedProduct.id, savedProduct, productDetails, archType) && (
+                                          <div
+                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                            style={{
+                                              display: 'flex',
+                                              flexDirection: 'row',
+                                              alignItems: 'flex-start',
+                                              padding: '0px',
+                                              gap: '20px',
+                                              flex: 'none',
+                                              order: 3,
+                                              alignSelf: 'stretch',
+                                              flexGrow: 0
+                                            }}
+                                          >
+                                            <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
+                                              <div
+                                                className="flex items-center"
+                                                style={{
+                                                  padding: '12px 39px 5px 15px',
+                                                  gap: '5px',
+                                                  width: '100%',
+                                                  height: '37px',
+                                                  position: 'relative',
+                                                  marginTop: '5.27px',
+                                                  background: '#FFFFFF',
+                                                  border: '0.740384px solid #7F7F7F',
+                                                  borderRadius: '7.7px',
+                                                  boxSizing: 'border-box'
+                                                }}
+                                              >
+                                                <span style={{
+                                                  fontFamily: 'Verdana',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14.4px',
+                                                  lineHeight: '20px',
+                                                  letterSpacing: '-0.02em',
+                                                  color: '#000000',
+                                                  whiteSpace: 'nowrap'
+                                                }}>{savedProduct.mandibularMaterial || 'Not specified'}</span>
+                                              </div>
+                                              <label
+                                                className="absolute bg-white"
+                                                style={{
+                                                  padding: '0px',
+                                                  height: '14px',
+                                                  left: '8.9px',
+                                                  top: '0px',
+                                                  fontFamily: 'Arial',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14px',
+                                                  lineHeight: '14px',
+                                                  color: '#7F7F7F'
+                                                }}
+                                              >
+                                                Grade
+                                              </label>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {/* Field 5: Stump Shade (Fixed Restoration only, advance field, visible after Implant) */}
+                                        {isFixedRestoration && isFieldVisible("stump_shade", savedProduct.id, savedProduct, productDetails, archType) && (
+                                          <div
+                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                            style={{
+                                              display: 'flex',
+                                              flexDirection: 'row',
+                                              alignItems: 'flex-start',
+                                              padding: '0px',
+                                              gap: '20px',
+                                              flex: 'none',
+                                              order: 4,
+                                              alignSelf: 'stretch',
+                                              flexGrow: 0
+                                            }}
+                                          >
+                                            <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div
+                                                className="flex items-center justify-between"
+                                                style={{
+                                                  padding: '12px 39px 5px 15px',
+                                                  gap: '5px',
+                                                  width: '100%',
+                                                  height: '37px',
+                                                  background: '#FFFFFF',
+                                                  border: '0.740384px solid #7F7F7F',
+                                                  borderRadius: '7.7px',
+                                                  boxSizing: 'border-box',
+                                                  position: 'relative',
+                                                  marginTop: '5.27px'
+                                                }}
+                                              >
+                                                <span style={{
+                                                  fontFamily: 'Verdana',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14.4px',
+                                                  lineHeight: '20px',
+                                                  letterSpacing: '-0.02em',
+                                                  color: '#000000'
+                                                }}>{savedProduct.maxillaryStumpShade || 'Not specified'}</span>
+                                              </div>
+                                              <label
+                                                className="absolute bg-white"
+                                                style={{
+                                                  padding: '0px',
+                                                  height: '14px',
+                                                  left: '8.9px',
+                                                  top: '0px',
+                                                  fontFamily: 'Arial',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14px',
+                                                  lineHeight: '14px',
+                                                  color: '#7F7F7F'
+                                                }}
+                                              >
+                                                Stump Shade
+                                              </label>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {/* Field 6: Crown Third Shade (Fixed Restoration only, advance field, visible after Stump Shade) */}
+                                        {isFixedRestoration && isFieldVisible("crown_third_shade", savedProduct.id, savedProduct, productDetails, archType) && (
+                                          <div
+                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                            style={{
+                                              display: 'flex',
+                                              flexDirection: 'row',
+                                              alignItems: 'flex-start',
+                                              padding: '0px',
+                                              gap: '20px',
+                                              flex: 'none',
+                                              order: 5,
+                                              alignSelf: 'stretch',
+                                              flexGrow: 0
+                                            }}
+                                          >
+                                            <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div
+                                                className="flex items-center"
+                                                style={{
+                                                  padding: '12px 39px 5px 15px',
+                                                  gap: '5px',
+                                                  width: '100%',
+                                                  height: '37px',
+                                                  background: '#FFFFFF',
+                                                  border: '0.740384px solid #7F7F7F',
+                                                  borderRadius: '7.7px',
+                                                  boxSizing: 'border-box',
+                                                  position: 'relative',
+                                                  marginTop: '5.27px'
+                                                }}
+                                              >
+                                                <span style={{
+                                                  fontFamily: 'Verdana',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14.4px',
+                                                  lineHeight: '20px',
+                                                  letterSpacing: '-0.02em',
+                                                  color: '#000000'
+                                                }}>Not specified</span>
+                                              </div>
+                                              <label
+                                                className="absolute bg-white"
+                                                style={{
+                                                  padding: '0px',
+                                                  height: '14px',
+                                                  left: '8.9px',
+                                                  top: '0px',
+                                                  fontFamily: 'Arial',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14px',
+                                                  lineHeight: '14px',
+                                                  color: '#7F7F7F'
+                                                }}
+                                              >
+                                                Crown Third Shade
+                                              </label>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {/* Field 7: Tooth Shade (Fixed Restoration) or Teeth Shade (Removables/Ortho) */}
+                                        {isFieldVisible(isFixedRestoration ? "tooth_shade" : "teeth_shade", savedProduct.id, savedProduct, productDetails, archType) && (
+                                          <div
+                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                            style={{
+                                              display: 'flex',
+                                              flexDirection: 'row',
+                                              alignItems: 'flex-start',
+                                              padding: '0px',
+                                              gap: '20px',
+                                              flex: 'none',
+                                              order: 6,
+                                              alignSelf: 'stretch',
+                                              flexGrow: 0
+                                            }}
+                                          >
+                                            <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div
+                                                className="flex items-center justify-between"
+                                                style={{
+                                                  padding: '12px 39px 5px 15px',
+                                                  gap: '5px',
+                                                  width: '100%',
+                                                  height: '37px',
+                                                  background: '#FFFFFF',
+                                                  border: '0.740384px solid #7F7F7F',
+                                                  borderRadius: '7.7px',
+                                                  boxSizing: 'border-box',
+                                                  position: 'relative',
+                                                  marginTop: '5.27px'
+                                                }}
+                                              >
+                                                <span style={{
+                                                  fontFamily: 'Verdana',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14.4px',
+                                                  lineHeight: '20px',
+                                                  letterSpacing: '-0.02em',
+                                                  color: '#000000'
+                                                }}>{savedProduct.mandibularToothShade || 'Not specified'}</span>
+                                              </div>
+                                              <label
+                                                className="absolute bg-white"
+                                                style={{
+                                                  padding: '0px',
+                                                  height: '14px',
+                                                  left: '8.9px',
+                                                  top: '0px',
+                                                  fontFamily: 'Arial',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14px',
+                                                  lineHeight: '14px',
+                                                  color: '#7F7F7F'
+                                                }}
+                                              >
+                                                {isFixedRestoration ? "Tooth Shade" : "Teeth Shade"}
+                                              </label>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {/* Field 8: Gum Shade (Removables/Ortho only, visible after Teeth Shade) */}
+                                        {isRemovableOrOrtho && isFieldVisible("gum_shade", savedProduct.id, savedProduct, productDetails, archType) && (
+                                          <div
+                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                            style={{
+                                              display: 'flex',
+                                              flexDirection: 'row',
+                                              alignItems: 'flex-start',
+                                              padding: '0px',
+                                              gap: '20px',
+                                              flex: 'none',
+                                              order: 7,
+                                              alignSelf: 'stretch',
+                                              flexGrow: 0
+                                            }}
+                                          >
+                                            <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div
+                                                className="flex items-center"
+                                                style={{
+                                                  padding: '12px 39px 5px 15px',
+                                                  gap: '5px',
+                                                  width: '100%',
+                                                  height: '37px',
+                                                  background: '#FFFFFF',
+                                                  border: '0.740384px solid #7F7F7F',
+                                                  borderRadius: '7.7px',
+                                                  boxSizing: 'border-box',
+                                                  position: 'relative',
+                                                  marginTop: '5.27px'
+                                                }}
+                                              >
+                                                <span style={{
+                                                  fontFamily: 'Verdana',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14.4px',
+                                                  lineHeight: '20px',
+                                                  letterSpacing: '-0.02em',
+                                                  color: '#000000'
+                                                }}>Not specified</span>
+                                              </div>
+                                              <label
+                                                className="absolute bg-white"
+                                                style={{
+                                                  padding: '0px',
+                                                  height: '14px',
+                                                  left: '8.9px',
+                                                  top: '0px',
+                                                  fontFamily: 'Arial',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14px',
+                                                  lineHeight: '14px',
+                                                  color: '#7F7F7F'
+                                                }}
+                                              >
+                                                Gum Shade
+                                              </label>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {/* Field 9: Stage (visible after previous field) */}
+                                        {isFieldVisible("stage", savedProduct.id, savedProduct, productDetails, archType) && (
+                                          <div
+                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                            style={{
+                                              display: 'flex',
+                                              flexDirection: 'row',
+                                              alignItems: 'flex-start',
+                                              padding: '0px',
+                                              gap: '20px',
+                                              flex: 'none',
+                                              order: 8,
+                                              alignSelf: 'stretch',
+                                              flexGrow: 0
+                                            }}
+                                          >
+                                            <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div
+                                                className="flex items-center"
+                                                style={{
+                                                  padding: '12px 39px 5px 15px',
+                                                  gap: '5px',
+                                                  width: '100%',
+                                                  height: '37px',
+                                                  position: 'relative',
+                                                  marginTop: '5.27px',
+                                                  background: '#FFFFFF',
+                                                  border: '0.740384px solid #7F7F7F',
+                                                  borderRadius: '7.7px',
+                                                  boxSizing: 'border-box'
+                                                }}
+                                              >
+                                                <span style={{
+                                                  fontFamily: 'Verdana',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14.4px',
+                                                  lineHeight: '20px',
+                                                  letterSpacing: '-0.02em',
+                                                  color: '#000000'
+                                                }}>{savedProduct.mandibularStage || 'Finish'}</span>
+                                              </div>
+                                              <label
+                                                className="absolute bg-white"
+                                                style={{
+                                                  padding: '0px',
+                                                  height: '14px',
+                                                  left: '8.9px',
+                                                  top: '0px',
+                                                  fontFamily: 'Arial',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14px',
+                                                  lineHeight: '14px',
+                                                  color: '#7F7F7F'
+                                                }}
+                                              >
+                                                Stage
+                                              </label>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {/* Field 10: Pontic Design (Fixed Restoration only, advance field, visible after Stage) */}
+                                        {isFixedRestoration && isFieldVisible("pontic_design", savedProduct.id, savedProduct, productDetails, archType) && (
+                                          <div
+                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                            style={{
+                                              display: 'flex',
+                                              flexDirection: 'row',
+                                              alignItems: 'flex-start',
+                                              padding: '0px',
+                                              gap: '20px',
+                                              flex: 'none',
+                                              order: 9,
+                                              alignSelf: 'stretch',
+                                              flexGrow: 0
+                                            }}
+                                          >
+                                            <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div
+                                                className="flex items-center"
+                                                style={{
+                                                  padding: '12px 39px 5px 15px',
+                                                  gap: '5px',
+                                                  width: '100%',
+                                                  height: '37px',
+                                                  background: '#FFFFFF',
+                                                  border: '0.740384px solid #7F7F7F',
+                                                  borderRadius: '7.7px',
+                                                  boxSizing: 'border-box',
+                                                  position: 'relative',
+                                                  marginTop: '5.27px'
+                                                }}
+                                              >
+                                                <span style={{
+                                                  fontFamily: 'Verdana',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14.4px',
+                                                  lineHeight: '20px',
+                                                  letterSpacing: '-0.02em',
+                                                  color: '#000000'
+                                                }}>{savedProduct.mandibularPonticDesign || 'Not specified'}</span>
+                                              </div>
+                                              <label
+                                                className="absolute bg-white"
+                                                style={{
+                                                  padding: '0px',
+                                                  height: '14px',
+                                                  left: '8.9px',
+                                                  top: '0px',
+                                                  fontFamily: 'Arial',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14px',
+                                                  lineHeight: '14px',
+                                                  color: '#7F7F7F'
+                                                }}
+                                              >
+                                                Pontic Design
+                                              </label>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {/* Field 11: Embrasures (Fixed Restoration only, advance field, visible after Pontic Design) */}
+                                        {isFixedRestoration && isFieldVisible("embrasures", savedProduct.id, savedProduct, productDetails, archType) && (
+                                          <div
+                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                            style={{
+                                              display: 'flex',
+                                              flexDirection: 'row',
+                                              alignItems: 'flex-start',
+                                              padding: '0px',
+                                              gap: '20px',
+                                              flex: 'none',
+                                              order: 10,
+                                              alignSelf: 'stretch',
+                                              flexGrow: 0
+                                            }}
+                                          >
+                                            <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div
+                                                className="flex items-center"
+                                                style={{
+                                                  padding: '12px 39px 5px 15px',
+                                                  gap: '5px',
+                                                  width: '100%',
+                                                  height: '37px',
+                                                  background: '#FFFFFF',
+                                                  border: '0.740384px solid #7F7F7F',
+                                                  borderRadius: '7.7px',
+                                                  boxSizing: 'border-box',
+                                                  position: 'relative',
+                                                  marginTop: '5.27px'
+                                                }}
+                                              >
+                                                <span style={{
+                                                  fontFamily: 'Verdana',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14.4px',
+                                                  lineHeight: '20px',
+                                                  letterSpacing: '-0.02em',
+                                                  color: '#000000'
+                                                }}>{savedProduct.mandibularEmbrasure || 'Not specified'}</span>
+                                              </div>
+                                              <label
+                                                className="absolute bg-white"
+                                                style={{
+                                                  padding: '0px',
+                                                  height: '14px',
+                                                  left: '8.9px',
+                                                  top: '0px',
+                                                  fontFamily: 'Arial',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14px',
+                                                  lineHeight: '14px',
+                                                  color: '#7F7F7F'
+                                                }}
+                                              >
+                                                Embrasures
+                                              </label>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {/* Field 12: Occlusal Contact (Fixed Restoration only, advance field, visible after Embrasures) */}
+                                        {isFixedRestoration && isFieldVisible("occlusal_contact", savedProduct.id, savedProduct, productDetails, archType) && (
+                                          <div
+                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                            style={{
+                                              display: 'flex',
+                                              flexDirection: 'row',
+                                              alignItems: 'flex-start',
+                                              padding: '0px',
+                                              gap: '20px',
+                                              flex: 'none',
+                                              order: 11,
+                                              alignSelf: 'stretch',
+                                              flexGrow: 0
+                                            }}
+                                          >
+                                            <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div
+                                                className="flex items-center"
+                                                style={{
+                                                  padding: '12px 39px 5px 15px',
+                                                  gap: '5px',
+                                                  width: '100%',
+                                                  height: '37px',
+                                                  background: '#FFFFFF',
+                                                  border: '0.740384px solid #7F7F7F',
+                                                  borderRadius: '7.7px',
+                                                  boxSizing: 'border-box',
+                                                  position: 'relative',
+                                                  marginTop: '5.27px'
+                                                }}
+                                              >
+                                                <span style={{
+                                                  fontFamily: 'Verdana',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14.4px',
+                                                  lineHeight: '20px',
+                                                  letterSpacing: '-0.02em',
+                                                  color: '#000000'
+                                                }}>{savedProduct.mandibularOcclusalContact || 'Not specified'}</span>
+                                              </div>
+                                              <label
+                                                className="absolute bg-white"
+                                                style={{
+                                                  padding: '0px',
+                                                  height: '14px',
+                                                  left: '8.9px',
+                                                  top: '0px',
+                                                  fontFamily: 'Arial',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14px',
+                                                  lineHeight: '14px',
+                                                  color: '#7F7F7F'
+                                                }}
+                                              >
+                                                Occlusal Contact
+                                              </label>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {/* Field 13: Interproximal Contact (Fixed Restoration only, advance field, visible after Occlusal Contact) */}
+                                        {isFixedRestoration && isFieldVisible("interproximal_contact", savedProduct.id, savedProduct, productDetails, archType) && (
+                                          <div
+                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                            style={{
+                                              display: 'flex',
+                                              flexDirection: 'row',
+                                              alignItems: 'flex-start',
+                                              padding: '0px',
+                                              gap: '20px',
+                                              flex: 'none',
+                                              order: 12,
+                                              alignSelf: 'stretch',
+                                              flexGrow: 0
+                                            }}
+                                          >
+                                            <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div
+                                                className="flex items-center"
+                                                style={{
+                                                  padding: '12px 39px 5px 15px',
+                                                  gap: '5px',
+                                                  width: '100%',
+                                                  height: '37px',
+                                                  background: '#FFFFFF',
+                                                  border: '0.740384px solid #7F7F7F',
+                                                  borderRadius: '7.7px',
+                                                  boxSizing: 'border-box',
+                                                  position: 'relative',
+                                                  marginTop: '5.27px'
+                                                }}
+                                              >
+                                                <span style={{
+                                                  fontFamily: 'Verdana',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14.4px',
+                                                  lineHeight: '20px',
+                                                  letterSpacing: '-0.02em',
+                                                  color: '#000000'
+                                                }}>{savedProduct.mandibularProximalContact || 'Not specified'}</span>
+                                              </div>
+                                              <label
+                                                className="absolute bg-white"
+                                                style={{
+                                                  padding: '0px',
+                                                  height: '14px',
+                                                  left: '8.9px',
+                                                  top: '0px',
+                                                  fontFamily: 'Arial',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14px',
+                                                  lineHeight: '14px',
+                                                  color: '#7F7F7F'
+                                                }}
+                                              >
+                                                Interproximal Contact
+                                              </label>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {/* Field 14: Impressions (visible after previous field) */}
+                                        {isFieldVisible(isFixedRestoration ? "impressions" : "impression", savedProduct.id, savedProduct, productDetails, archType) && (
+                                          <div
+                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                            style={{
+                                              display: 'flex',
+                                              flexDirection: 'row',
+                                              alignItems: 'flex-start',
+                                              padding: '0px',
+                                              gap: '20px',
+                                              flex: 'none',
+                                              order: 13,
+                                              alignSelf: 'stretch',
+                                              flexGrow: 0
+                                            }}
+                                          >
+                                            <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
+                                              <div
+                                                className="flex items-center"
+                                                style={{
+                                                  padding: '12px 39px 5px 15px',
+                                                  gap: '5px',
+                                                  width: '100%',
+                                                  height: '37px',
+                                                  background: '#FFFFFF',
+                                                  border: '0.740384px solid #7F7F7F',
+                                                  borderRadius: '7.7px',
+                                                  boxSizing: 'border-box',
+                                                  position: 'relative',
+                                                  marginTop: '5.27px'
+                                                }}
+                                              >
+                                                <span style={{
+                                                  fontFamily: 'Verdana',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14.4px',
+                                                  lineHeight: '20px',
+                                                  letterSpacing: '-0.02em',
+                                                  color: '#000000'
+                                                }}>{savedProduct.mandibularImpression || 'Not specified'}</span>
+                                              </div>
+                                              <label
+                                                className="absolute bg-white"
+                                                style={{
+                                                  padding: '0px',
+                                                  height: '14px',
+                                                  left: '8.9px',
+                                                  top: '0px',
+                                                  fontFamily: 'Arial',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14px',
+                                                  lineHeight: '14px',
+                                                  color: '#7F7F7F'
+                                                }}
+                                              >
+                                                {isFixedRestoration ? "Impressions" : "Impression"}
+                                              </label>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {/* Field 15: Add ons (always shown last, visible after Impressions) */}
+                                        {isFieldVisible("add_ons", savedProduct.id, savedProduct, productDetails, archType) && (
+                                          <div
+                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                            style={{
+                                              display: 'flex',
+                                              flexDirection: 'row',
+                                              alignItems: 'flex-start',
+                                              padding: '0px',
+                                              gap: '20px',
+                                              flex: 'none',
+                                              order: 14,
+                                              alignSelf: 'stretch',
+                                              flexGrow: 0
+                                            }}
+                                          >
+                                            {/* Add ons button will be rendered separately below */}
+                                          </div>
+                                        )}
+
+                                        {/* Selected Teeth Display (always visible for reference) */}
                                         <div
                                           className="flex flex-col sm:flex-row flex-wrap gap-5"
                                           style={{
@@ -5827,229 +7628,11 @@ export default function CaseDesignCenterPage() {
                                             padding: '0px',
                                             gap: '20px',
                                             flex: 'none',
-                                            order: 0,
+                                            order: 99,
                                             alignSelf: 'stretch',
                                             flexGrow: 0
                                           }}
                                         >
-                                          {/* Product - Material */}
-                                          <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
-                                            <div
-                                              className="flex items-center"
-                                              style={{
-                                                padding: '12px 39px 5px 15px',
-                                                gap: '5px',
-                                                width: '100%',
-                                                height: '37px',
-                                                position: 'relative',
-                                                marginTop: '5.27px',
-                                                background: '#FFFFFF',
-                                                border: '0.740384px solid #7F7F7F',
-                                                borderRadius: '7.7px',
-                                                boxSizing: 'border-box'
-                                              }}
-                                            >
-                                              <span style={{
-                                                fontFamily: 'Verdana',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14.4px',
-                                                lineHeight: '20px',
-                                                letterSpacing: '-0.02em',
-                                                color: '#000000',
-                                                whiteSpace: 'nowrap'
-                                              }}>{savedProduct.mandibularMaterial || 'Not specified'}</span>
-                                            </div>
-                                            <label
-                                              className="absolute bg-white"
-                                              style={{
-                                                padding: '0px',
-                                                height: '14px',
-                                                left: '8.9px',
-                                                top: '0px',
-                                                fontFamily: 'Arial',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14px',
-                                                lineHeight: '14px',
-                                                color: '#7F7F7F'
-                                              }}
-                                            >
-                                              Product - Material
-                                            </label>
-                                          </div>
-
-                                          {/* Retention Type */}
-                                          <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
-                                            <div
-                                              className="flex items-center"
-                                              style={{
-                                                padding: '12px 39px 5px 15px',
-                                                gap: '5px',
-                                                width: '100%',
-                                                height: '37px',
-                                                position: 'relative',
-                                                marginTop: '5.27px',
-                                                background: '#FFFFFF',
-                                                border: '0.740384px solid #7F7F7F',
-                                                borderRadius: '7.7px',
-                                                boxSizing: 'border-box'
-                                              }}
-                                            >
-                                              <span style={{
-                                                fontFamily: 'Arial',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14px',
-                                                lineHeight: '14px',
-                                                color: '#000000',
-                                                whiteSpace: 'nowrap'
-                                              }}>{savedProduct.mandibularRetention || 'Not specified'}</span>
-                                            </div>
-                                            <label
-                                              className="absolute bg-white"
-                                              style={{
-                                                padding: '0px',
-                                                height: '14px',
-                                                left: '9.23px',
-                                                top: '0px',
-                                                fontFamily: 'Arial',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14px',
-                                                lineHeight: '14px',
-                                                color: '#7F7F7F'
-                                              }}
-                                            >
-                                              Select Retention type
-                                            </label>
-                                          </div>
-                                        </div>
-
-                                        {/* Row 2: Tooth Shade, Stage */}
-                                        <div
-                                          className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                          style={{
-                                            display: 'flex',
-                                            flexDirection: 'row',
-                                            alignItems: 'flex-start',
-                                            padding: '0px',
-                                            gap: '20px',
-                                            flex: 'none',
-                                            order: 1,
-                                            alignSelf: 'stretch',
-                                            flexGrow: 0
-                                          }}
-                                        >
-                                          {/* Tooth Shade */}
-                                          <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
-                                            <div
-                                              className="flex items-center justify-between"
-                                              style={{
-                                                padding: '12px 39px 5px 15px',
-                                                gap: '5px',
-                                                width: '100%',
-                                                height: '37px',
-                                                background: '#FFFFFF',
-                                                border: '0.740384px solid #7F7F7F',
-                                                borderRadius: '7.7px',
-                                                boxSizing: 'border-box',
-                                                position: 'relative',
-                                                marginTop: '5.27px'
-                                              }}
-                                            >
-                                              <span style={{
-                                                fontFamily: 'Verdana',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14.4px',
-                                                lineHeight: '20px',
-                                                letterSpacing: '-0.02em',
-                                                color: '#000000'
-                                              }}>Not specified</span>
-                                            </div>
-                                            <label
-                                              className="absolute bg-white"
-                                              style={{
-                                                padding: '0px',
-                                                height: '14px',
-                                                left: '8.9px',
-                                                top: '0px',
-                                                fontFamily: 'Arial',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14px',
-                                                lineHeight: '14px',
-                                                color: '#7F7F7F'
-                                              }}
-                                            >
-                                              Tooth Shade
-                                            </label>
-                                          </div>
-
-                                          {/* Stage */}
-                                          <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
-                                            <div
-                                              className="flex items-center"
-                                              style={{
-                                                padding: '12px 39px 5px 15px',
-                                                gap: '5px',
-                                                width: '100%',
-                                                height: '37px',
-                                                position: 'relative',
-                                                marginTop: '5.27px',
-                                                background: '#FFFFFF',
-                                                border: '0.740384px solid #7F7F7F',
-                                                borderRadius: '7.7px',
-                                                boxSizing: 'border-box'
-                                              }}
-                                            >
-                                              <span style={{
-                                                fontFamily: 'Verdana',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14.4px',
-                                                lineHeight: '20px',
-                                                letterSpacing: '-0.02em',
-                                                color: '#000000'
-                                              }}>Finish</span>
-                                            </div>
-                                            <label
-                                              className="absolute bg-white"
-                                              style={{
-                                                padding: '0px',
-                                                height: '14px',
-                                                left: '8.9px',
-                                                top: '0px',
-                                                fontFamily: 'Arial',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14px',
-                                                lineHeight: '14px',
-                                                color: '#7F7F7F'
-                                              }}
-                                            >
-                                              Stage
-                                            </label>
-                                          </div>
-                                        </div>
-
-                                        {/* Row 3: Teeth Selection Display */}
-                                        <div
-                                          className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                          style={{
-                                            display: 'flex',
-                                            flexDirection: 'row',
-                                            alignItems: 'flex-start',
-                                            padding: '0px',
-                                            gap: '20px',
-                                            flex: 'none',
-                                            order: 2,
-                                            alignSelf: 'stretch',
-                                            flexGrow: 0
-                                          }}
-                                        >
-                                          {/* Teeth Selection */}
                                           <div className="relative flex-1 min-w-[250px] max-w-[100%]" style={{ minHeight: '43px' }}>
                                             <div
                                               className="flex items-center"
