@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -16,6 +16,11 @@ import {
   SpaceIcon as Sphere,
   Pyramid,
   Rotate3d,
+  ArrowUp,
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  X,
 } from "lucide-react"
 import * as THREE from "three"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
@@ -49,6 +54,8 @@ export default function SimpleSTLViewer({
   const [showGrid, setShowGrid] = useState(true) // Set grid to true on initial load
   const [loading, setLoading] = useState(true) // New state for loading indicator
   const [error, setError] = useState<string | null>(null) // New state for errors
+  const [modelColor, setModelColor] = useState<string>(materialColor || "#cccccc") // Color state
+  const [viewerModels, setViewerModels] = useState<Array<{ url: string; color: string }>>([]) // Models in viewer
 
   const thumbnailRef = useRef<HTMLDivElement>(null)
   const modalRef = useRef<HTMLDivElement>(null)
@@ -222,7 +229,7 @@ export default function SimpleSTLViewer({
 
     // --- Enhanced Material ---
     const material = new THREE.MeshStandardMaterial({
-      color: meshColor,
+      color: modelColor || meshColor,
       roughness: 0.5, // Adjust for surface realism
       metalness: 0.2, // Slight metallic effect
       wireframe: wireframe,
@@ -304,6 +311,7 @@ export default function SimpleSTLViewer({
     thumbnailFitOffset,
     createGradientTexture,
     stlUrl,
+    modelColor,
   ]);
 
   // Animate function with smooth entrance animation
@@ -344,11 +352,91 @@ export default function SimpleSTLViewer({
 
   const resetView = useCallback(() => {
     if (modalSceneRef.current) {
-      modalSceneRef.current.controls.reset(); // Resets camera to initial position and orientation
-      // If you want a specific position, you'd set it directly:
-      // modalSceneRef.current.camera.position.set(5, 5, 5);
-      // modalSceneRef.current.camera.lookAt(0, 0, 0);
-      // modalSceneRef.current.controls.update();
+      const { camera, controls, mesh } = modalSceneRef.current;
+      if (mesh && mesh.geometry) {
+        mesh.geometry.computeBoundingBox();
+        const box = mesh.geometry.boundingBox;
+        if (box) {
+          const center = new THREE.Vector3();
+          box.getCenter(center);
+          const size = new THREE.Vector3();
+          box.getSize(size);
+          const maxDim = Math.max(size.x, size.y, size.z);
+          const fov = camera.fov * (Math.PI / 180);
+          const cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2)) * 1.2;
+          camera.position.set(0, 0, cameraZ);
+          camera.lookAt(0, 0, 0);
+          controls.target.set(0, 0, 0);
+          controls.update();
+        }
+      }
+    }
+  }, []);
+
+  // Camera movement controls
+  const moveCamera = useCallback((direction: 'up' | 'down' | 'left' | 'right' | 'center') => {
+    if (!modalSceneRef.current) return;
+    const { camera, controls } = modalSceneRef.current;
+    const moveDistance = 2; // Distance to move per click
+    
+    switch (direction) {
+      case 'up':
+        camera.position.y += moveDistance;
+        controls.target.y += moveDistance;
+        break;
+      case 'down':
+        camera.position.y -= moveDistance;
+        controls.target.y -= moveDistance;
+        break;
+      case 'left':
+        camera.position.x -= moveDistance;
+        controls.target.x -= moveDistance;
+        break;
+      case 'right':
+        camera.position.x += moveDistance;
+        controls.target.x += moveDistance;
+        break;
+      case 'center':
+        resetView();
+        return;
+    }
+    controls.update();
+  }, [resetView]);
+
+  // Add to viewer functionality
+  const addToViewer = useCallback(() => {
+    if (stlUrl) {
+      setViewerModels(prev => [...prev, { url: stlUrl, color: modelColor }]);
+      // You could also trigger a notification or callback here
+    }
+  }, [stlUrl, modelColor]);
+
+  // Clear display functionality
+  const clearDisplay = useCallback(() => {
+    if (modalSceneRef.current?.mesh) {
+      const { scene, mesh } = modalSceneRef.current;
+      // Remove mesh from scene
+      scene.remove(mesh);
+      // Dispose of geometry and material
+      if (mesh.geometry) mesh.geometry.dispose();
+      if (mesh.material) {
+        if (Array.isArray(mesh.material)) {
+          mesh.material.forEach((mat: THREE.Material) => mat.dispose());
+        } else {
+          mesh.material.dispose();
+        }
+      }
+      // Clear the mesh reference
+      modalSceneRef.current.mesh = null;
+    }
+  }, []);
+
+  // Update color
+  const updateColor = useCallback((color: string) => {
+    setModelColor(color);
+    if (modalSceneRef.current?.mesh?.material) {
+      modalSceneRef.current.mesh.material.color.set(color);
+      modalSceneRef.current.mesh.material.needsUpdate = true;
     }
   }, []);
 
@@ -417,7 +505,7 @@ export default function SimpleSTLViewer({
       { rows: 3, cols: 3, icon: "nine" },
     ];
 
-    const renderLayoutIcon = (layout: any, index: number) => {
+      const renderLayoutIcon = (layout: any, index: number) => {
       const isSelected = selectedLayout === index;
       const { rows, cols } = layout;
       
@@ -425,9 +513,10 @@ export default function SimpleSTLViewer({
         <button
           key={index}
           onClick={() => setSelectedLayout(index)}
-          className={`w-15 h-20 p-1 border rounded ${
+          className={`w-12 h-16 sm:w-15 sm:h-20 p-1 border rounded ${
             isSelected ? 'bg-blue-600 border-blue-600' : 'bg-gray-100 border-gray-300 hover:bg-gray-200'
           } transition-colors`}
+          aria-label={`Layout ${rows}x${cols}`}
         >
           <div className={`w-full h-full grid gap-px ${isSelected ? 'text-white' : 'text-gray-600'}`} 
                style={{ gridTemplateRows: `repeat(${rows}, 1fr)`, gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
@@ -480,6 +569,7 @@ export default function SimpleSTLViewer({
         // Ensure wireframe and grid states are applied on modal open
         if (modalSceneRef.current.mesh) {
           modalSceneRef.current.mesh.material.wireframe = wireframe;
+          modalSceneRef.current.mesh.material.color.set(modelColor);
           modalSceneRef.current.mesh.material.needsUpdate = true;
         }
         if (modalSceneRef.current.grid) {
@@ -499,7 +589,26 @@ export default function SimpleSTLViewer({
     // return () => {
     //   cleanupViewer(modalSceneRef, modalRef.current);
     // };
-  }, [isModalOpen, stlUrl, animate, initializeViewer, cleanupViewer, wireframe, showGrid]);
+  }, [isModalOpen, stlUrl, animate, initializeViewer, cleanupViewer, wireframe, showGrid, modelColor]);
+
+  // Handle window resize for modal viewer
+  useEffect(() => {
+    if (!isModalOpen || !modalSceneRef.current) return;
+
+    const handleResize = () => {
+      const container = modalRef.current;
+      if (container && modalSceneRef.current?.renderer) {
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+        modalSceneRef.current.camera.aspect = width / height;
+        modalSceneRef.current.camera.updateProjectionMatrix();
+        modalSceneRef.current.renderer.setSize(width, height);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [isModalOpen]);
 
 
   // Extract filename from stlUrl
@@ -580,56 +689,77 @@ export default function SimpleSTLViewer({
       </Card>
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-[90vw] h-[90vh] p-0">
-          <DialogHeader className="p-8 pb-0">
-            <DialogTitle className="flex items-center justify-between text-xl">
+        <DialogContent className="max-w-[95vw] sm:max-w-[90vw] h-[95vh] sm:h-[90vh] p-0 flex flex-col">
+          <DialogHeader className="p-4 sm:p-8 pb-2 sm:pb-0 flex-shrink-0">
+            <DialogTitle className="flex items-center justify-between text-lg sm:text-xl">
               <span className="flex items-center gap-3">
+                <span className="truncate">{title}</span>
               </span>
-              <div className="flex gap-3">
-                {fileSize && <Badge variant="secondary">{fileSize}</Badge>}
-                {dimensions && <Badge variant="outline">{dimensions}</Badge>}
+              <div className="flex gap-2 sm:gap-3 flex-wrap">
+                {fileSize && <Badge variant="secondary" className="text-xs">{fileSize}</Badge>}
+                {dimensions && <Badge variant="outline" className="text-xs">{dimensions}</Badge>}
                 {stlFilename && (
-                  <Badge variant="outline" className="text-xs">{stlFilename}</Badge>
+                  <Badge variant="outline" className="text-xs truncate max-w-[100px] sm:max-w-none">{stlFilename}</Badge>
                 )}
               </div>
             </DialogTitle>
           </DialogHeader>
 
-          <div className="flex flex-1 min-h-0 h-[calc(90vh-5rem)]">
+          <div className="flex flex-col sm:flex-row flex-1 min-h-0 overflow-hidden">
             {/* STL controls sidebar on the left */}
-            <div className="w-100 p-8 border-r bg-gray-50/50 flex flex-col">
-              <h2 className="font-bold text-xl mb-6 flex items-center gap-2">
+            <div className="w-full sm:w-80 lg:w-96 p-4 sm:p-8 border-r bg-gray-50/50 flex flex-col overflow-y-auto flex-shrink-0">
+              <h2 className="font-bold text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">
                 <Rotate3d className="w-5 h-5" />
                 STL Viewer
               </h2>
-              <div className="mb-8">
-                <h3 className="font-semibold mb-3">Controls</h3>
+              <div className="mb-6 sm:mb-8">
+                <h3 className="font-semibold mb-3 text-sm sm:text-base">Controls</h3>
                 <div className="flex flex-col items-center gap-3">
                   {/* Arrow controls matching diamond pattern */}
-                  <div className="relative flex items-center justify-center w-32 h-32">
+                  <div className="relative flex items-center justify-center w-24 h-24 sm:w-32 sm:h-32">
                     {/* Up arrow */}
-                    <button className="absolute top-0 w-0 h-0 border-l-[20px] border-r-[20px] border-b-[30px] border-l-transparent border-r-transparent border-b-gray-300 hover:border-b-gray-400 transition-colors">
-                      <span className="sr-only">Up</span>
+                    <button 
+                      onClick={() => moveCamera('up')}
+                      className="absolute top-0 w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded-full transition-colors shadow-sm"
+                      aria-label="Move camera up"
+                    >
+                      <ArrowUp className="w-4 h-4 sm:w-5 sm:h-5 text-gray-700" />
                     </button>
 
                     {/* Left arrow */}
-                    <button className="absolute left-0 w-0 h-0 border-t-[20px] border-b-[20px] border-r-[30px] border-t-transparent border-b-transparent border-r-gray-300 hover:border-r-gray-400 transition-colors">
-                      <span className="sr-only">Left</span>
+                    <button 
+                      onClick={() => moveCamera('left')}
+                      className="absolute left-0 w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded-full transition-colors shadow-sm"
+                      aria-label="Move camera left"
+                    >
+                      <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 text-gray-700" />
                     </button>
 
                     {/* Center button */}
-                    <button className="absolute w-6 h-6 bg-blue-600 rounded-full hover:bg-blue-700 transition-colors shadow">
-                      <span className="sr-only">Center</span>
+                    <button 
+                      onClick={() => moveCamera('center')}
+                      className="absolute w-8 h-8 sm:w-10 sm:h-10 bg-blue-600 rounded-full hover:bg-blue-700 transition-colors shadow flex items-center justify-center"
+                      aria-label="Reset camera to center"
+                    >
+                      <RotateCcw className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
                     </button>
 
                     {/* Right arrow */}
-                    <button className="absolute right-0 w-0 h-0 border-t-[20px] border-b-[20px] border-l-[30px] border-t-transparent border-b-transparent border-l-gray-300 hover:border-l-gray-400 transition-colors">
-                      <span className="sr-only">Right</span>
+                    <button 
+                      onClick={() => moveCamera('right')}
+                      className="absolute right-0 w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded-full transition-colors shadow-sm"
+                      aria-label="Move camera right"
+                    >
+                      <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 text-gray-700" />
                     </button>
 
                     {/* Down arrow */}
-                    <button className="absolute bottom-0 w-0 h-0 border-l-[20px] border-r-[20px] border-t-[30px] border-l-transparent border-r-transparent border-t-gray-300 hover:border-t-gray-400 transition-colors">
-                      <span className="sr-only">Down</span>
+                    <button 
+                      onClick={() => moveCamera('down')}
+                      className="absolute bottom-0 w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded-full transition-colors shadow-sm"
+                      aria-label="Move camera down"
+                    >
+                      <ArrowDown className="w-4 h-4 sm:w-5 sm:h-5 text-gray-700" />
                     </button>
                   </div>
 
@@ -640,17 +770,29 @@ export default function SimpleSTLViewer({
                     className="w-full mt-4 shadow"
                   >
                     <RotateCcw className="w-4 h-4 mr-2" />
-                    Reset
+                    Reset View
                   </Button>
                 </div>
               </div>
               <div>
-                <h3 className="font-semibold mb-3">Display</h3>
+                <h3 className="font-semibold mb-3 text-sm sm:text-base">Display</h3>
                 <div className="flex flex-col gap-3">
-                  <Button size="sm" className="bg-blue-700 text-white shadow" disabled>
+                  <Button 
+                    size="sm" 
+                    className="bg-blue-700 text-white shadow hover:bg-blue-800" 
+                    onClick={addToViewer}
+                    disabled={!stlUrl}
+                  >
+                    <Eye className="w-4 h-4 mr-2" />
                     Add to Viewer
                   </Button>
-                  <Button size="sm" variant="outline" className="shadow" disabled>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="shadow hover:bg-red-50 hover:border-red-300 hover:text-red-700" 
+                    onClick={clearDisplay}
+                  >
+                    <X className="w-4 h-4 mr-2" />
                     Clear Display
                   </Button>
                   <Button
@@ -659,6 +801,7 @@ export default function SimpleSTLViewer({
                     onClick={toggleWireframe}
                     className="shadow"
                   >
+                    {wireframe ? <EyeOff className="w-4 h-4 mr-2" /> : <Eye className="w-4 h-4 mr-2" />}
                     Wireframe
                   </Button>
                   <Button
@@ -667,11 +810,40 @@ export default function SimpleSTLViewer({
                     onClick={toggleGrid}
                     className="shadow"
                   >
+                    <Grid3X3 className="w-4 h-4 mr-2" />
                     Grid
                   </Button>
                   <div className="flex items-center gap-2">
-                    <div className="w-8 h-6 bg-gray-400 rounded"></div>
-                    <Button size="sm" variant="outline" className="shadow" disabled>
+                    <div 
+                      className="w-10 h-8 rounded border-2 border-gray-300 cursor-pointer hover:border-gray-400 transition-colors"
+                      style={{ backgroundColor: modelColor }}
+                      onClick={() => {
+                        const input = document.createElement('input');
+                        input.type = 'color';
+                        input.value = modelColor;
+                        input.onchange = (e) => {
+                          const target = e.target as HTMLInputElement;
+                          updateColor(target.value);
+                        };
+                        input.click();
+                      }}
+                    />
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="shadow flex-1"
+                      onClick={() => {
+                        const input = document.createElement('input');
+                        input.type = 'color';
+                        input.value = modelColor;
+                        input.onchange = (e) => {
+                          const target = e.target as HTMLInputElement;
+                          updateColor(target.value);
+                        };
+                        input.click();
+                      }}
+                    >
+                      <Maximize className="w-4 h-4 mr-2" />
                       Color Picker
                     </Button>
                   </div>
@@ -679,15 +851,15 @@ export default function SimpleSTLViewer({
               </div>
 
               {/* Layout Section */}
-              <div>
-                  <h3 className="font-semibold mb-1 text-lg">Layout</h3>
-                  <div className="grid grid-cols-2 gap-1">
+              <div className="mt-6 sm:mt-8">
+                  <h3 className="font-semibold mb-2 sm:mb-3 text-sm sm:text-base">Layout</h3>
+                  <div className="grid grid-cols-2 gap-1 sm:gap-2">
                     {layoutOptions.map((layout, index) => renderLayoutIcon(layout, index))}
                   </div>
                 </div>
             </div>
             {/* STL viewer area */}
-            <div className="flex-1 relative h-full min-h-[60vh] flex flex-col">
+            <div className="flex-1 relative h-full min-h-[300px] sm:min-h-[60vh] flex flex-col overflow-hidden">
               {/* Multiple thumbnails above STL viewer in modal */}
               {hasThumbnails && (
                 <div className="w-full flex gap-2 px-2 py-2 bg-white rounded-t-lg overflow-x-auto" style={{ minHeight: "80px" }}>
@@ -705,10 +877,32 @@ export default function SimpleSTLViewer({
               <div
                 ref={modalRef}
                 className="w-full flex-1 bg-gray-50"
-                style={{ minHeight: "60vh" }}
+                style={{ minHeight: "300px" }}
               ></div>
             </div>
           </div>
+          
+          {/* Footer */}
+          <DialogFooter className="p-4 sm:p-6 border-t bg-gray-50/50 flex-shrink-0 flex-col sm:flex-row gap-2 sm:gap-0 sm:justify-between">
+            <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm text-gray-600">
+              {viewerModels.length > 0 && (
+                <Badge variant="secondary" className="text-xs">
+                  {viewerModels.length} model{viewerModels.length > 1 ? 's' : ''} in viewer
+                </Badge>
+              )}
+              <span className="text-gray-500">Use mouse to rotate, scroll to zoom, drag to pan</span>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsModalOpen(false)}
+                className="shadow"
+              >
+                Close
+              </Button>
+            </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

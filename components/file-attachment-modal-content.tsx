@@ -24,11 +24,24 @@ import SimpleSTLViewer from "./demo/simple-stl-generator"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { useSlipCreation } from "../contexts/slip-creation-context"
 
+interface SavedProduct {
+  id: string
+  product: { id: number; name: string }
+  maxillaryStage?: string
+  mandibularStage?: string
+  maxillaryTeeth: number[]
+  mandibularTeeth: number[]
+  [key: string]: any
+}
+
 interface FileAttachmentModalContentProps {
   setShowAttachModal: (show: boolean) => void
   isCaseSubmitted: boolean
   slipId?: number // <-- Add slipId prop for API
   onAttachmentsUploaded?: (attachments: any[]) => void // <-- Callback to parent
+  doctorName?: string // <-- Doctor name from case design center
+  patientName?: string // <-- Patient name from case design center
+  savedProducts?: SavedProduct[] // <-- Saved products with stages
 }
 
 const SectionHeader = ({
@@ -68,6 +81,9 @@ export default function FileAttachmentModalContent({
   isCaseSubmitted,
   slipId,
   onAttachmentsUploaded,
+  doctorName: propDoctorName,
+  patientName: propPatientName,
+  savedProducts = [],
 }: FileAttachmentModalContentProps) {
   const { uploadSlipAttachment, fetchSlipAttachments } = useSlipCreation()
   const [simulatedUploads, setSimulatedUploads] = useState<
@@ -83,23 +99,41 @@ export default function FileAttachmentModalContent({
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [uploadedAttachments, setUploadedAttachments] = useState<any[]>([])
 
-  // --- Get doctor and patient name from localStorage.caseDesignCache.slipData.formData ---
-  const [doctorName, setDoctorName] = useState<string>("")
-  const [patientName, setPatientName] = useState<string>("")
+  // --- Get doctor and patient name from props or localStorage fallback ---
+  const [doctorName, setDoctorName] = useState<string>(propDoctorName || "")
+  const [patientName, setPatientName] = useState<string>(propPatientName || "")
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    // Use props if provided, otherwise fallback to localStorage
+    if (propDoctorName) {
+      setDoctorName(propDoctorName)
+    } else if (typeof window !== "undefined") {
       try {
         const cacheStr = localStorage.getItem("caseDesignCache")
         if (cacheStr) {
           const cache = JSON.parse(cacheStr)
           const formData = cache?.slipData?.formData
           setDoctorName(formData?.doctor || "")
+        }
+      } catch {}
+    }
+  }, [propDoctorName])
+
+  useEffect(() => {
+    // Use props if provided, otherwise fallback to localStorage
+    if (propPatientName) {
+      setPatientName(propPatientName)
+    } else if (typeof window !== "undefined") {
+      try {
+        const cacheStr = localStorage.getItem("caseDesignCache")
+        if (cacheStr) {
+          const cache = JSON.parse(cacheStr)
+          const formData = cache?.slipData?.formData
           setPatientName(formData?.patient || formData?.patient_name || "")
         }
       } catch {}
     }
-  }, [])
+  }, [propPatientName])
 
   useEffect(() => {
     return () => {
@@ -232,8 +266,8 @@ export default function FileAttachmentModalContent({
     if (slipId) {
       try {
         // Upload each file using context API
-        for (const { file, url, type } of simulatedUploads) {
-          await uploadSlipAttachment(Number(slipId), file, type, description)
+        for (const { file } of simulatedUploads) {
+          await uploadSlipAttachment(Number(slipId), file, description)
         }
         // Optionally notify parent
         if (onAttachmentsUploaded) onAttachmentsUploaded(simulatedUploads)
@@ -270,20 +304,55 @@ export default function FileAttachmentModalContent({
     setShowAttachModal(false)
   }
 
-  // --- Group files by section (mock logic, you can adjust as needed) ---
-  const customTrayFiles = simulatedUploads.filter(f => f.type === "image")
-  const biteBlockFiles = simulatedUploads.filter(f => f.type === "stl")
-  const tryInWithTeethFiles = simulatedUploads.filter(f => f.type === "other")
-  // For demo, split try-in files into two groups
-  const tryInWithTeethFiles1 = tryInWithTeethFiles.slice(0, 3)
-  const tryInWithTeethFiles2 = tryInWithTeethFiles.slice(3)
+  // --- Group files by stage based on savedProducts ---
+  // Extract unique stages from savedProducts
+  const getStagesFromProducts = () => {
+    const stages = new Set<string>()
+    savedProducts.forEach((product) => {
+      if (product.maxillaryStage && product.maxillaryTeeth.length > 0) {
+        stages.add(product.maxillaryStage)
+      }
+      if (product.mandibularStage && product.mandibularTeeth.length > 0) {
+        stages.add(product.mandibularStage)
+      }
+    })
+    // If no stages found, use default stages
+    if (stages.size === 0) {
+      return ["Custom Tray", "Bite Block", "Try in with Teeth", "Finish"]
+    }
+    return Array.from(stages).sort()
+  }
 
-  // Accordion state for each section
-  const [expanded, setExpanded] = useState<{ [key: string]: boolean }>({
-    "custom-tray": true,
-    "bite-block": true,
-    "try-in-1": true,
-    "try-in-2": true,
+  const stages = getStagesFromProducts()
+
+  // Group files by stage (for now, we'll distribute files across stages)
+  // In a real implementation, you might want to let users assign files to specific stages
+  const groupFilesByStage = () => {
+    const grouped: { [stage: string]: typeof simulatedUploads } = {}
+    stages.forEach((stage) => {
+      grouped[stage] = []
+    })
+
+    // Distribute files across stages (you can enhance this logic)
+    simulatedUploads.forEach((file, index) => {
+      const stageIndex = index % stages.length
+      const stage = stages[stageIndex]
+      if (!grouped[stage]) grouped[stage] = []
+      grouped[stage].push(file)
+    })
+
+    return grouped
+  }
+
+  const filesByStage = groupFilesByStage()
+
+  // Accordion state for each section - dynamically based on stages
+  const [expanded, setExpanded] = useState<{ [key: string]: boolean }>(() => {
+    const initial: { [key: string]: boolean } = {}
+    stages.forEach((stage) => {
+      initial[stage] = true // All sections expanded by default
+    })
+    return initial
   })
 
   const toggleAccordion = (key: string) => {
@@ -442,269 +511,190 @@ export default function FileAttachmentModalContent({
             </div>
           ) : (
             <div className="space-y-8">
-              {/* Custom Tray Section */}
-              <div className="border rounded-lg mb-8">
-                <div
-                  className="flex items-center gap-2 p-4 cursor-pointer hover:bg-gray-100 rounded-t-lg transition"
-                  onClick={() => toggleAccordion("custom-tray")}
-                  style={{ userSelect: "none" }}
-                >
-                  {expanded["custom-tray"] ? (
-                    <ChevronDown className="w-5 h-5 text-gray-500" />
-                  ) : (
-                    <ChevronRight className="w-5 h-5 text-gray-500" />
-                  )}
-                  <FileText className="w-5 h-5 text-blue-600" />
-                  <span className="font-semibold text-lg">Custom Tray</span>
-                  <Badge variant="secondary" className="text-xs">{customTrayFiles.length} files</Badge>
-                  <span className="text-xs text-gray-500">Slip # 123456</span>
-                </div>
-                {expanded["custom-tray"] && (
-                  <div className="p-4 grid grid-cols-3 gap-6">
-                    {customTrayFiles.map(({ file, url }, idx) => (
-                      <div key={url} className="bg-white rounded-xl shadow p-4 relative flex flex-col items-center w-full max-w-md mx-auto border-2 border-blue-200">
-                        {/* Checkbox top-left for image selection (multi-select) */}
-                        <input
-                          type="checkbox"
-                          checked={selectedImageThumbnailUrls.includes(url)}
-                          onChange={() => setSelectedImageThumbnailUrls(
-                            selectedImageThumbnailUrls.includes(url)
-                              ? selectedImageThumbnailUrls.filter(u => u !== url)
-                              : [...selectedImageThumbnailUrls, url]
-                          )}
-                          className="absolute top-2 left-2 w-5 h-5 accent-blue-600 z-20"
-                          title="Use as STL Viewer Thumbnail"
-                        />
-                        <div className="w-full aspect-square bg-white rounded-lg mb-2 flex items-center justify-center overflow-hidden relative">
-                          <img src={url} alt={file.name} className="object-cover w-full h-full rounded-lg" />
-                          <div className="absolute top-2 right-2 text-xs text-gray-700 font-semibold bg-white rounded px-2 py-1 shadow border border-gray-200 z-10">
-                            ID: {547896 + idx}
-                          </div>
-                          {idx === 1 && (
-                            <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center rounded-lg z-20">
-                              <span className="text-white font-bold text-lg">Archived</span>
-                            </div>
-                          )}
-                        </div>
-                        <div className="w-full px-2">
-                          <div className="truncate font-medium text-base mb-1">{file.name}</div>
-                          <div className="text-xs text-gray-500 mb-2">{`${(file.size / 1024 / 1024).toFixed(2)} MB`}</div>
-                          <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
-                            <Calendar className="w-3 h-3" />
-                            <span>{new Date(file.lastModified).toLocaleDateString()} @ {new Date(file.lastModified).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              className="p-1 hover:bg-gray-200 rounded"
-                              title="Delete"
-                              onClick={() => handleDeleteFile(url)}
-                            >
-                              <Trash2 className="w-4 h-4 text-gray-400" />
-                            </button>
-                            <button className="p-1 hover:bg-gray-200 rounded" title="Download">
-                              <Download className="w-4 h-4 text-gray-400" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-              {/* Bite Block Section */}
-              <div className="border rounded-lg mb-8">
-                <div
-                  className="flex items-center gap-2 p-4 cursor-pointer hover:bg-gray-100 rounded-t-lg transition"
-                  onClick={() => toggleAccordion("bite-block")}
-                  style={{ userSelect: "none" }}
-                >
-                  {expanded["bite-block"] ? (
-                    <ChevronDown className="w-5 h-5 text-gray-500" />
-                  ) : (
-                    <ChevronRight className="w-5 h-5 text-gray-500" />
-                  )}
-                  <FileText className="w-5 h-5 text-blue-600" />
-                  <span className="font-semibold text-lg">Bite block</span>
-                  <Badge variant="secondary" className="text-xs">{biteBlockFiles.length} files</Badge>
-                  <span className="text-xs text-gray-500">Slip # 657842</span>
-                </div>
-                {expanded["bite-block"] && (
-                  <div className="p-4 grid grid-cols-3 gap-6">
-                    {biteBlockFiles.map(({ file, url }, idx) => {
-                      // Only use selected images as thumbnails (do not fallback to first image)
-                      const imageThumbnails = selectedImageThumbnailUrls;
-                      return (
-                        <div
-                          key={url}
-                          className={`bg-white rounded-xl shadow p-4 relative flex flex-col items-center w-full max-w-md mx-auto border-2 border-blue-200 ${
-                            selectedStlUrls.includes(url) ? "ring-2 ring-blue-500" : ""
-                          }`}
-                        >
-                          {/* Checkbox top-left */}
-                          <input
-                            type="checkbox"
-                            checked={selectedStlUrls.includes(url)}
-                            onChange={() => handleToggleStlCheckbox(url)}
-                            className="absolute top-2 left-2 w-5 h-5 accent-blue-600 z-20"
-                            title="Show in STL Viewer"
-                          />
-                          <div className="w-full aspect-square bg-white rounded-lg mb-2 flex items-center justify-center overflow-hidden relative">
-                            <SimpleSTLViewer
-                              title={file.name.replace('.stl', '')}
-                              geometryType="cube"
-                              fileSize={`${(file.size / 1024 / 1024).toFixed(1)} MB`}
-                              dimensions="Unknown"
-                              stlUrl={url}
-                              materialColor="#f9c74f"
-                              viewerKey={url}
-                              autoOpen={false}
-                              thumbnailUrls={imageThumbnails} // <-- Only checked images
-                            />
-                            <div className="absolute top-2 right-2 text-xs text-gray-700 font-semibold bg-white rounded px-2 py-1 shadow border border-gray-200 z-10">
-                              ID: {547896 + idx}
-                            </div>
-                            {/* Restore View File button for STL */}
-                            <button
-                              type="button"
-                              className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-blue-700 text-white px-3 py-1 rounded text-xs font-medium shadow hover:bg-blue-800 transition"
-                              style={{ zIndex: 10 }}
-                              onClick={e => {
-                                e.stopPropagation();
-                                handleViewStlFile(url)
-                              }}
-                            >
-                              View File
-                            </button>
-                          </div>
-                          <div className="w-full px-2">
-                            <div className="truncate font-medium text-base mb-1">{file.name}</div>
-                            <div className="text-xs text-gray-500 mb-2">{`${(file.size / 1024 / 1024).toFixed(2)} MB`}</div>
-                            <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
-                              <Calendar className="w-3 h-3" />
-                              <span>{new Date(file.lastModified).toLocaleDateString()} @ {new Date(file.lastModified).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                            </div>
-                            <div className="flex gap-2">
-                              <button
-                                className="p-1 hover:bg-gray-200 rounded"
-                                title="Delete"
-                                onClick={() => handleDeleteFile(url)}
+              {/* Dynamic Stage Sections */}
+              {stages.map((stage, stageIdx) => {
+                const stageFiles = filesByStage[stage] || []
+                const stageKey = stage.toLowerCase().replace(/\s+/g, "-")
+                return (
+                  <div key={stage} className="border rounded-lg mb-8">
+                    <div
+                      className="flex items-center gap-2 p-4 cursor-pointer hover:bg-gray-100 rounded-t-lg transition"
+                      onClick={() => toggleAccordion(stageKey)}
+                      style={{ userSelect: "none" }}
+                    >
+                      {expanded[stageKey] ? (
+                        <ChevronDown className="w-5 h-5 text-gray-500" />
+                      ) : (
+                        <ChevronRight className="w-5 h-5 text-gray-500" />
+                      )}
+                      <FileText className="w-5 h-5 text-blue-600" />
+                      <span className="font-semibold text-lg">{stage}</span>
+                      <Badge variant="secondary" className="text-xs">{stageFiles.length} files</Badge>
+                      {savedProducts.length > 0 && (
+                        <span className="text-xs text-gray-500">
+                          {savedProducts.filter(p => 
+                            (p.maxillaryStage === stage && p.maxillaryTeeth.length > 0) ||
+                            (p.mandibularStage === stage && p.mandibularTeeth.length > 0)
+                          ).map(p => p.product.name).join(", ")}
+                        </span>
+                      )}
+                    </div>
+                    {expanded[stageKey] && (
+                      <div className="p-4 grid grid-cols-3 gap-6">
+                        {stageFiles.map(({ file, url }, idx) => {
+                          const isStl = file.name?.toLowerCase().endsWith(".stl") || url.toLowerCase().endsWith(".stl")
+                          const isImage = file.type?.startsWith("image/") || url.match(/\.(jpg|jpeg|png|gif|webp)$/i)
+                          
+                          if (isStl) {
+                            // STL file rendering
+                            const imageThumbnails = selectedImageThumbnailUrls
+                            return (
+                              <div
+                                key={url}
+                                className={`bg-white rounded-xl shadow p-4 relative flex flex-col items-center w-full max-w-md mx-auto border-2 border-blue-200 ${
+                                  selectedStlUrls.includes(url) ? "ring-2 ring-blue-500" : ""
+                                }`}
                               >
-                                <Trash2 className="w-4 h-4 text-gray-400" />
-                              </button>
-                              <button className="p-1 hover:bg-gray-200 rounded" title="Download">
-                                <Download className="w-4 h-4 text-gray-400" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-              {/* Try in with Teeth Sections */}
-              <div className="border rounded-lg mb-8">
-                <div
-                  className="flex items-center gap-2 p-4 cursor-pointer hover:bg-gray-100 rounded-t-lg transition"
-                  onClick={() => toggleAccordion("try-in-1")}
-                  style={{ userSelect: "none" }}
-                >
-                  {expanded["try-in-1"] ? (
-                    <ChevronDown className="w-5 h-5 text-gray-500" />
-                  ) : (
-                    <ChevronRight className="w-5 h-5 text-gray-500" />
-                  )}
-                  <FileText className="w-5 h-5 text-blue-600" />
-                  <span className="font-semibold text-lg">Try in with Teeth</span>
-                  <Badge variant="secondary" className="text-xs">{tryInWithTeethFiles1.length} files</Badge>
-                  <span className="text-xs text-gray-500">Slip # 345679</span>
-                </div>
-                {expanded["try-in-1"] && (
-                  <div className="p-4 grid grid-cols-3 gap-6">
-                    {tryInWithTeethFiles1.map(({ file, url }, idx) => (
-                      <div key={url} className="bg-white rounded-xl shadow p-4 relative flex flex-col items-center w-full max-w-md mx-auto border-2 border-blue-200">
-                        <div className="w-full aspect-square bg-white rounded-lg mb-2 flex items-center justify-center overflow-hidden relative">
-                          <FileText className="w-16 h-16 text-gray-300" />
-                          <div className="absolute top-2 right-2 text-xs text-gray-700 font-semibold bg-white rounded px-2 py-1 shadow border border-gray-200 z-10">
-                            ID: {547896 + idx}
-                          </div>
-                        </div>
-                        <div className="w-full px-2">
-                          <div className="truncate font-medium text-base mb-1">{file.name}</div>
-                          <div className="text-xs text-gray-500 mb-2">{`${(file.size / 1024 / 1024).toFixed(2)} MB`}</div>
-                          <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
-                            <Calendar className="w-3 h-3" />
-                            <span>{new Date(file.lastModified).toLocaleDateString()} @ {new Date(file.lastModified).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              className="p-1 hover:bg-gray-200 rounded"
-                              title="Delete"
-                              onClick={() => handleDeleteFile(url)}
-                            >
-                              <Trash2 className="w-4 h-4 text-gray-400" />
-                            </button>
-                            <button className="p-1 hover:bg-gray-200 rounded" title="Download">
-                              <Download className="w-4 h-4 text-gray-400" />
-                            </button>
-                          </div>
-                        </div>
+                                {/* Checkbox top-left */}
+                                <input
+                                  type="checkbox"
+                                  checked={selectedStlUrls.includes(url)}
+                                  onChange={() => handleToggleStlCheckbox(url)}
+                                  className="absolute top-2 left-2 w-5 h-5 accent-blue-600 z-20"
+                                  title="Show in STL Viewer"
+                                />
+                                <div className="w-full aspect-square bg-white rounded-lg mb-2 flex items-center justify-center overflow-hidden relative">
+                                  <SimpleSTLViewer
+                                    title={file.name?.replace('.stl', '') || 'STL File'}
+                                    geometryType="cube"
+                                    fileSize={`${(file.size / 1024 / 1024).toFixed(1)} MB`}
+                                    dimensions="Unknown"
+                                    stlUrl={url}
+                                    materialColor="#f9c74f"
+                                    viewerKey={url}
+                                    autoOpen={false}
+                                    thumbnailUrls={imageThumbnails}
+                                  />
+                                  <div className="absolute top-2 right-2 text-xs text-gray-700 font-semibold bg-white rounded px-2 py-1 shadow border border-gray-200 z-10">
+                                    ID: {547896 + idx}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-blue-700 text-white px-3 py-1 rounded text-xs font-medium shadow hover:bg-blue-800 transition"
+                                    style={{ zIndex: 10 }}
+                                    onClick={e => {
+                                      e.stopPropagation()
+                                      handleViewStlFile(url)
+                                    }}
+                                  >
+                                    View File
+                                  </button>
+                                </div>
+                                <div className="w-full px-2">
+                                  <div className="truncate font-medium text-base mb-1">{file.name || 'STL File'}</div>
+                                  <div className="text-xs text-gray-500 mb-2">{`${(file.size / 1024 / 1024).toFixed(2)} MB`}</div>
+                                  <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
+                                    <Calendar className="w-3 h-3" />
+                                    <span>{new Date(file.lastModified || Date.now()).toLocaleDateString()} @ {new Date(file.lastModified || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <button
+                                      className="p-1 hover:bg-gray-200 rounded"
+                                      title="Delete"
+                                      onClick={() => handleDeleteFile(url)}
+                                    >
+                                      <Trash2 className="w-4 h-4 text-gray-400" />
+                                    </button>
+                                    <button className="p-1 hover:bg-gray-200 rounded" title="Download">
+                                      <Download className="w-4 h-4 text-gray-400" />
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          } else if (isImage) {
+                            // Image file rendering
+                            return (
+                              <div key={url} className="bg-white rounded-xl shadow p-4 relative flex flex-col items-center w-full max-w-md mx-auto border-2 border-blue-200">
+                                {/* Checkbox top-left for image selection (multi-select) */}
+                                <input
+                                  type="checkbox"
+                                  checked={selectedImageThumbnailUrls.includes(url)}
+                                  onChange={() => setSelectedImageThumbnailUrls(
+                                    selectedImageThumbnailUrls.includes(url)
+                                      ? selectedImageThumbnailUrls.filter(u => u !== url)
+                                      : [...selectedImageThumbnailUrls, url]
+                                  )}
+                                  className="absolute top-2 left-2 w-5 h-5 accent-blue-600 z-20"
+                                  title="Use as STL Viewer Thumbnail"
+                                />
+                                <div className="w-full aspect-square bg-white rounded-lg mb-2 flex items-center justify-center overflow-hidden relative">
+                                  <img src={url} alt={file.name || 'Image'} className="object-cover w-full h-full rounded-lg" />
+                                  <div className="absolute top-2 right-2 text-xs text-gray-700 font-semibold bg-white rounded px-2 py-1 shadow border border-gray-200 z-10">
+                                    ID: {547896 + idx}
+                                  </div>
+                                </div>
+                                <div className="w-full px-2">
+                                  <div className="truncate font-medium text-base mb-1">{file.name || 'Image'}</div>
+                                  <div className="text-xs text-gray-500 mb-2">{`${(file.size / 1024 / 1024).toFixed(2)} MB`}</div>
+                                  <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
+                                    <Calendar className="w-3 h-3" />
+                                    <span>{new Date(file.lastModified || Date.now()).toLocaleDateString()} @ {new Date(file.lastModified || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <button
+                                      className="p-1 hover:bg-gray-200 rounded"
+                                      title="Delete"
+                                      onClick={() => handleDeleteFile(url)}
+                                    >
+                                      <Trash2 className="w-4 h-4 text-gray-400" />
+                                    </button>
+                                    <button className="p-1 hover:bg-gray-200 rounded" title="Download">
+                                      <Download className="w-4 h-4 text-gray-400" />
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          } else {
+                            // Other file types
+                            return (
+                              <div key={url} className="bg-white rounded-xl shadow p-4 relative flex flex-col items-center w-full max-w-md mx-auto border-2 border-blue-200">
+                                <div className="w-full aspect-square bg-white rounded-lg mb-2 flex items-center justify-center overflow-hidden relative">
+                                  <FileText className="w-16 h-16 text-gray-300" />
+                                  <div className="absolute top-2 right-2 text-xs text-gray-700 font-semibold bg-white rounded px-2 py-1 shadow border border-gray-200 z-10">
+                                    ID: {547896 + idx}
+                                  </div>
+                                </div>
+                                <div className="w-full px-2">
+                                  <div className="truncate font-medium text-base mb-1">{file.name || 'File'}</div>
+                                  <div className="text-xs text-gray-500 mb-2">{`${(file.size / 1024 / 1024).toFixed(2)} MB`}</div>
+                                  <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
+                                    <Calendar className="w-3 h-3" />
+                                    <span>{new Date(file.lastModified || Date.now()).toLocaleDateString()} @ {new Date(file.lastModified || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <button
+                                      className="p-1 hover:bg-gray-200 rounded"
+                                      title="Delete"
+                                      onClick={() => handleDeleteFile(url)}
+                                    >
+                                      <Trash2 className="w-4 h-4 text-gray-400" />
+                                    </button>
+                                    <button className="p-1 hover:bg-gray-200 rounded" title="Download">
+                                      <Download className="w-4 h-4 text-gray-400" />
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          }
+                        })}
                       </div>
-                    ))}
+                    )}
                   </div>
-                )}
-              </div>
-              <div className="border rounded-lg mb-8">
-                <div
-                  className="flex items-center gap-2 p-4 cursor-pointer hover:bg-gray-100 rounded-t-lg transition"
-                  onClick={() => toggleAccordion("try-in-2")}
-                  style={{ userSelect: "none" }}
-                >
-                  {expanded["try-in-2"] ? (
-                    <ChevronDown className="w-5 h-5 text-gray-500" />
-                  ) : (
-                    <ChevronRight className="w-5 h-5 text-gray-500" />
-                  )}
-                  <FileText className="w-5 h-5 text-blue-600" />
-                  <span className="font-semibold text-lg">Try in with Teeth</span>
-                  <Badge variant="secondary" className="text-xs">{tryInWithTeethFiles2.length} files</Badge>
-                  <span className="text-xs text-gray-500">Slip # 125478</span>
-                </div>
-                {expanded["try-in-2"] && (
-                  <div className="p-4 grid grid-cols-3 gap-6">
-                    {tryInWithTeethFiles2.map(({ file, url }, idx) => (
-                      <div key={url} className="bg-white rounded-xl shadow p-4 relative flex flex-col items-center w-full max-w-md mx-auto border-2 border-blue-200">
-                        <div className="w-full aspect-square bg-white rounded-lg mb-2 flex items-center justify-center overflow-hidden relative">
-                          <FileText className="w-16 h-16 text-gray-300" />
-                          <div className="absolute top-2 right-2 text-xs text-gray-700 font-semibold bg-white rounded px-2 py-1 shadow border border-gray-200 z-10">
-                            ID: {547896 + idx}
-                          </div>
-                        </div>
-                        <div className="w-full px-2">
-                          <div className="truncate font-medium text-base mb-1">{file.name}</div>
-                          <div className="text-xs text-gray-500 mb-2">{`${(file.size / 1024 / 1024).toFixed(2)} MB`}</div>
-                          <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
-                            <Calendar className="w-3 h-3" />
-                            <span>{new Date(file.lastModified).toLocaleDateString()} @ {new Date(file.lastModified).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              className="p-1 hover:bg-gray-200 rounded"
-                              title="Delete"
-                              onClick={() => handleDeleteFile(url)}
-                            >
-                              <Trash2 className="w-4 h-4 text-gray-400" />
-                            </button>
-                            <button className="p-1 hover:bg-gray-200 rounded" title="Download">
-                              <Download className="w-4 h-4 text-gray-400" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                )
+              })}
             </div>
           )}
         </div>

@@ -11188,6 +11188,9 @@ export default function CaseDesignCenterPage() {
           <FileAttachmentModalContent
             setShowAttachModal={setShowAttachModal}
             isCaseSubmitted={isSubmitting}
+            doctorName={selectedDoctor ? `${selectedDoctor.first_name} ${selectedDoctor.last_name}` : undefined}
+            patientName={patientData?.name}
+            savedProducts={savedProducts}
           />
         </DialogContent>
       </Dialog>

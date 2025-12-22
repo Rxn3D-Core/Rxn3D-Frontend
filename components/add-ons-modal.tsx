@@ -334,9 +334,17 @@ export default function AddOnsModal({ isOpen, onClose, onAddAddOns, labId, produ
     }))
     .filter(category => category.subcategories.length > 0)
 
+  // Calculate totals for all add-ons (existing + selected)
+  const totalAddOns = useMemo(() => {
+    const allAddOns = [...existingAddOns, ...selectedAddOns]
+    const totalCount = allAddOns.reduce((sum, item) => sum + item.qty, 0)
+    const totalPrice = allAddOns.reduce((sum, item) => sum + (item.qty * item.price), 0)
+    return { totalCount, totalPrice }
+  }, [existingAddOns, selectedAddOns])
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl p-6 rounded-xl shadow-2xl flex flex-col">
+      <DialogContent className="max-w-6xl p-6 rounded-xl shadow-2xl flex flex-col">
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center gap-2">
             <Plus className="w-5 h-5" />
@@ -347,129 +355,157 @@ export default function AddOnsModal({ isOpen, onClose, onAddAddOns, labId, produ
           </Button>
         </div>
 
-        <div className="relative mb-4">
-          <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-          <Input
-            placeholder="Search Add ons"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 py-2 rounded-lg"
-          />
-        </div>
-
-        <div className="flex-1 overflow-y-auto pr-2 -mr-2">
-          {loading ? (
-            <div className="text-center py-8 text-gray-500">Loading add-ons...</div>
-          ) : (
-            <Accordion type="multiple" className="w-full">
-              {filteredCategories.map((category) => (
-                <AccordionItem key={category.id} value={category.id.toString()} className="border rounded-lg mb-2">
-                  <AccordionTrigger className="px-4 py-3 font-medium hover:no-underline">
-                    {category.name}
-                  </AccordionTrigger>
-                  <AccordionContent className="px-4 pb-4">
-                    {category.subcategories.map((subcat) => (
-                      <div key={subcat.id} className="mb-6">
-                        <div className="font-semibold mb-2">{subcat.name}</div>
-                        <div className="grid grid-cols-4 gap-4 mb-2 text-sm font-medium text-gray-700">
-                          <div>Add-on</div>
-                          <div>Price</div>
-                          <div>Qty</div>
-                          <div></div>
-                        </div>
-                        {subcat.addons.map((addon) => {
-                          const currentQty = currentSelections[subcat.id]?.[addon.id] || 0
-                          return (
-                            <div key={addon.id} className="grid grid-cols-4 gap-4 items-center mb-2">
-                              <div>{addon.name}</div>
-                              <div>
-                                {`$${Number(typeof addon.price === "string" ? parseFloat(addon.price) : addon.price).toFixed(2)}`}
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-8 w-8 p-0"
-                                  onClick={() =>
-                                    setCurrentSelections(prev => ({
-                                      ...prev,
-                                      [subcat.id]: {
-                                        ...prev[subcat.id],
-                                        [addon.id]: Math.max(0, (prev[subcat.id]?.[addon.id] || 0) - 1)
-                                      }
-                                    }))
-                                  }
-                                  disabled={currentQty === 0}
-                                >
-                                  <Minus className="w-4 h-4" />
-                                </Button>
-                                <span className="min-w-[2rem] text-center font-medium">{currentQty}</span>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-8 w-8 p-0"
-                                  onClick={() =>
-                                    setCurrentSelections(prev => ({
-                                      ...prev,
-                                      [subcat.id]: {
-                                        ...prev[subcat.id],
-                                        [addon.id]: Math.min(10, (prev[subcat.id]?.[addon.id] || 0) + 1)
-                                      }
-                                    }))
-                                  }
-                                  disabled={currentQty >= 10}
-                                >
-                                  <Plus className="w-4 h-4" />
-                                </Button>
-                              </div>
-                              <Button
-                                size="sm"
-                                className="bg-[#1162a8] hover:bg-[#0f5490] text-white"
-                                onClick={() => handleAddClick(category, subcat, addon)}
-                                disabled={currentQty === 0}
-                              >
-                                <Plus className="w-4 h-4 mr-1" /> Add
-                              </Button>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    ))}
-                  </AccordionContent>
-                </AccordionItem>
-              ))}
-            </Accordion>
-          )}
-
-          {(existingAddOns.length > 0 || selectedAddOns.length > 0) && (
-            <div className="mt-4 p-4 border rounded-lg bg-gray-50">
-              <h3 className="font-semibold text-base mb-3">Added Add-ons:</h3>
-              <ul className="space-y-2">
-                {/* Show existing add-ons (already configured) */}
-                {existingAddOns.map((item, idx) => (
-                  <li key={`existing-${item.addon_id}-${idx}`} className="flex items-center justify-between text-sm">
-                    <span>
-                      {item.qty} x {item.name} ({item.category} / {item.subcategory}) - {`$${Number(item.price).toFixed(2)}`}
-                    </span>
-                    <Button variant="ghost" size="sm" onClick={() => handleRemoveExistingAddOn(idx)}>
-                      <X className="w-4 h-4 text-red-500" />
-                    </Button>
-                  </li>
-                ))}
-                {/* Show add-ons selected in this session */}
-                {selectedAddOns.map((item) => (
-                  <li key={item.tempId} className="flex items-center justify-between text-sm">
-                    <span>
-                      {item.qty} x {item.name} ({item.category} / {item.subcategory}) - {`$${Number(item.price).toFixed(2)}`}
-                    </span>
-                    <Button variant="ghost" size="sm" onClick={() => handleRemoveAddOn(item.tempId)}>
-                      <X className="w-4 h-4 text-red-500" />
-                    </Button>
-                  </li>
-                ))}
-              </ul>
+        <div className="grid grid-cols-2 gap-6 flex-1 min-h-0 max-h-[70vh]">
+          {/* Left Column - Selection */}
+          <div className="flex flex-col min-h-0">
+            <div className="relative mb-4 flex-shrink-0">
+              <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+              <Input
+                placeholder="Search Add ons"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 py-2 rounded-lg"
+              />
             </div>
-          )}
+
+            <div className="flex-1 overflow-y-auto pr-2 -mr-2 min-h-0">
+              {loading ? (
+                <div className="text-center py-8 text-gray-500">Loading add-ons...</div>
+              ) : (
+                <Accordion type="multiple" className="w-full">
+                  {filteredCategories.map((category) => (
+                    <AccordionItem key={category.id} value={category.id.toString()} className="border rounded-lg mb-2">
+                      <AccordionTrigger className="px-4 py-3 font-medium hover:no-underline">
+                        {category.name}
+                      </AccordionTrigger>
+                      <AccordionContent className="px-4 pb-4">
+                        {category.subcategories.map((subcat) => (
+                          <div key={subcat.id} className="mb-6">
+                            <div className="font-semibold mb-2">{subcat.name}</div>
+                            <div className="grid grid-cols-4 gap-4 mb-2 text-sm font-medium text-gray-700">
+                              <div>Add-on</div>
+                              <div>Price</div>
+                              <div>Qty</div>
+                              <div></div>
+                            </div>
+                            {subcat.addons.map((addon) => {
+                              const currentQty = currentSelections[subcat.id]?.[addon.id] || 0
+                              return (
+                                <div key={addon.id} className="grid grid-cols-4 gap-4 items-center mb-2">
+                                  <div>{addon.name}</div>
+                                  <div>
+                                    {`$${Number(typeof addon.price === "string" ? parseFloat(addon.price) : addon.price).toFixed(2)}`}
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-8 w-8 p-0"
+                                      onClick={() =>
+                                        setCurrentSelections(prev => ({
+                                          ...prev,
+                                          [subcat.id]: {
+                                            ...prev[subcat.id],
+                                            [addon.id]: Math.max(0, (prev[subcat.id]?.[addon.id] || 0) - 1)
+                                          }
+                                        }))
+                                      }
+                                      disabled={currentQty === 0}
+                                    >
+                                      <Minus className="w-4 h-4" />
+                                    </Button>
+                                    <span className="min-w-[2rem] text-center font-medium">{currentQty}</span>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-8 w-8 p-0"
+                                      onClick={() =>
+                                        setCurrentSelections(prev => ({
+                                          ...prev,
+                                          [subcat.id]: {
+                                            ...prev[subcat.id],
+                                            [addon.id]: Math.min(10, (prev[subcat.id]?.[addon.id] || 0) + 1)
+                                          }
+                                        }))
+                                      }
+                                      disabled={currentQty >= 10}
+                                    >
+                                      <Plus className="w-4 h-4" />
+                                    </Button>
+                                  </div>
+                                  <Button
+                                    size="sm"
+                                    className="bg-[#1162a8] hover:bg-[#0f5490] text-white"
+                                    onClick={() => handleAddClick(category, subcat, addon)}
+                                    disabled={currentQty === 0}
+                                  >
+                                    <Plus className="w-4 h-4 mr-1" /> Add
+                                  </Button>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        ))}
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
+                </Accordion>
+              )}
+            </div>
+          </div>
+
+          {/* Right Column - Added Add-ons */}
+          <div className="flex flex-col min-h-0">
+            <div className="flex-shrink-0 mb-3">
+              <h3 className="font-semibold text-base mb-2">Added Add-ons:</h3>
+              {(existingAddOns.length > 0 || selectedAddOns.length > 0) && (
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="font-medium text-gray-700">Total Items:</span>
+                    <span className="font-semibold">{totalAddOns.totalCount}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm mt-1">
+                    <span className="font-medium text-gray-700">Total Price:</span>
+                    <span className="font-semibold text-[#1162a8]">${totalAddOns.totalPrice.toFixed(2)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="flex-1 overflow-y-auto pr-2 -mr-2 min-h-0">
+              {(existingAddOns.length > 0 || selectedAddOns.length > 0) ? (
+                <div className="p-4 border rounded-lg bg-gray-50">
+                  <ul className="space-y-2">
+                    {/* Show existing add-ons (already configured) */}
+                    {existingAddOns.map((item, idx) => (
+                      <li key={`existing-${item.addon_id}-${idx}`} className="flex items-center justify-between text-sm p-2 bg-white rounded border">
+                        <span className="flex-1">
+                          {item.qty} x {item.name} ({item.category} / {item.subcategory}) - {`$${Number(item.price).toFixed(2)}`}
+                        </span>
+                        <Button variant="ghost" size="sm" onClick={() => handleRemoveExistingAddOn(idx)}>
+                          <X className="w-4 h-4 text-red-500" />
+                        </Button>
+                      </li>
+                    ))}
+                    {/* Show add-ons selected in this session */}
+                    {selectedAddOns.map((item) => (
+                      <li key={item.tempId} className="flex items-center justify-between text-sm p-2 bg-white rounded border">
+                        <span className="flex-1">
+                          {item.qty} x {item.name} ({item.category} / {item.subcategory}) - {`$${Number(item.price).toFixed(2)}`}
+                        </span>
+                        <Button variant="ghost" size="sm" onClick={() => handleRemoveAddOn(item.tempId)}>
+                          <X className="w-4 h-4 text-red-500" />
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <div className="p-4 border rounded-lg bg-gray-50 text-center text-gray-500 text-sm">
+                  No add-ons added yet
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         <div className="flex justify-end gap-3 mt-6">

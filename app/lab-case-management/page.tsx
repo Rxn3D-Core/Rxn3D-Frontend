@@ -78,6 +78,7 @@ export default function LabSlipPage() {
     timestamp: true,
     office: true,
     patient: true,
+    caseNumber: true,
     pan: true,
     product: true,
     status: true,
@@ -1149,6 +1150,7 @@ export default function LabSlipPage() {
                         timestamp: "Time Stamp",
                         office: "Office Code",
                         patient: "Patient",
+                        caseNumber: "Case Number",
                         pan: "Pan",
                         product: "Product",
                         status: "Status",
@@ -1386,7 +1388,7 @@ export default function LabSlipPage() {
         )}
 
         {/* Move Pagination to Top */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-4">
           <div className="text-sm text-gray-600">
             Showing {(currentPage - 1) * itemsPerPage + 1}
             -
@@ -1437,11 +1439,11 @@ export default function LabSlipPage() {
         )}
 
         {/* Table */}
-        <div className="border border-gray-200 rounded-lg overflow-hidden shadow-sm bg-white">
+        <div className="border border-gray-200 rounded-lg overflow-hidden shadow-sm bg-white overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="px-4 py-3 w-12">
+                <th className="px-3 py-2 w-12 whitespace-nowrap">
                   <Checkbox
                     checked={allOnPageSelected}
                     indeterminate={!allOnPageSelected && someOnPageSelected}
@@ -1455,16 +1457,17 @@ export default function LabSlipPage() {
                     }}
                   />
                 </th>
-                {visibleColumns.timestamp && <th className="px-4 py-3 text-left font-medium text-gray-700">Timestamp</th>}
-                {visibleColumns.office && <th className="px-4 py-3 text-left font-medium text-gray-700">Office Code</th>}
-                {visibleColumns.patient && <th className="px-4 py-3 text-left font-medium text-gray-700">Patient</th>}
-                {visibleColumns.pan && <th className="px-4 py-3 text-left font-medium text-gray-700">Pan</th>}
-                {visibleColumns.product && <th className="px-4 py-3 text-left font-medium text-gray-700">Product</th>}
-                {visibleColumns.status && <th className="px-4 py-3 text-left font-medium text-gray-700">Status</th>}
-                {visibleColumns.location && <th className="px-4 py-3 text-left font-medium text-gray-700">Location</th>}
-                {visibleColumns.attachment && <th className="px-4 py-3 text-left font-medium text-gray-700">Attachment</th>}
-                {visibleColumns.due && <th className="px-4 py-3 text-left font-medium text-gray-700">Due date</th>}
-                {visibleColumns.actions && <th className="px-4 py-3 text-left font-medium text-gray-700">Actions</th>}
+                {visibleColumns.timestamp && <th className="px-3 py-2 text-left font-medium text-gray-700 whitespace-nowrap">Timestamp</th>}
+                {visibleColumns.office && <th className="px-3 py-2 text-left font-medium text-gray-700 whitespace-nowrap">Office Code</th>}
+                {visibleColumns.patient && <th className="px-3 py-2 text-left font-medium text-gray-700 whitespace-nowrap">Patient</th>}
+                {visibleColumns.caseNumber && <th className="px-3 py-2 text-left font-medium text-gray-700 whitespace-nowrap">Case Number</th>}
+                {visibleColumns.pan && <th className="px-3 py-2 text-left font-medium text-gray-700 whitespace-nowrap">Pan</th>}
+                {visibleColumns.product && <th className="px-3 py-2 text-left font-medium text-gray-700 whitespace-nowrap">Product</th>}
+                {visibleColumns.status && <th className="px-3 py-2 text-left font-medium text-gray-700 whitespace-nowrap">Status</th>}
+                {visibleColumns.location && <th className="px-3 py-2 text-left font-medium text-gray-700 whitespace-nowrap">Location</th>}
+                {visibleColumns.attachment && <th className="px-3 py-2 text-left font-medium text-gray-700 whitespace-nowrap">Attachment</th>}
+                {visibleColumns.due && <th className="px-3 py-2 text-left font-medium text-gray-700 whitespace-nowrap">Due date</th>}
+                {visibleColumns.actions && <th className="px-3 py-2 text-left font-medium text-gray-700 whitespace-nowrap">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -1472,62 +1475,67 @@ export default function LabSlipPage() {
                 // Skeleton loading rows
                 Array.from({ length: itemsPerPage }).map((_, idx) => (
                   <tr key={`skeleton-${idx}`} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-2 whitespace-nowrap">
                       <Skeleton className="h-4 w-4" />
                     </td>
                     {visibleColumns.timestamp && (
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2 whitespace-nowrap">
                         <Skeleton className="h-4 w-32" />
                       </td>
                     )}
                     {visibleColumns.office && (
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2 whitespace-nowrap">
                         <Skeleton className="h-4 w-24" />
                       </td>
                     )}
                     {visibleColumns.patient && (
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2 whitespace-nowrap">
                         <Skeleton className="h-4 w-32" />
                       </td>
                     )}
+                    {visibleColumns.caseNumber && (
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        <Skeleton className="h-4 w-24" />
+                      </td>
+                    )}
                     {visibleColumns.pan && (
-                      <td className="px-4 py-3">
-                        <Skeleton className="h-6 w-12 rounded" />
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        <Skeleton className="h-5 w-12 rounded" />
                       </td>
                     )}
                     {visibleColumns.product && (
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2 whitespace-nowrap">
                         <Skeleton className="h-4 w-40" />
                       </td>
                     )}
                     {visibleColumns.status && (
-                      <td className="px-4 py-3">
-                        <Skeleton className="h-6 w-20 rounded-full" />
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        <Skeleton className="h-5 w-20 rounded-full" />
                       </td>
                     )}
                     {visibleColumns.location && (
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2 whitespace-nowrap">
                         <Skeleton className="h-4 w-48" />
                       </td>
                     )}
                     {visibleColumns.attachment && (
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-3 py-2 text-center whitespace-nowrap">
                         <Skeleton className="h-4 w-4 mx-auto" />
                       </td>
                     )}
                     {visibleColumns.due && (
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2 whitespace-nowrap">
                         <Skeleton className="h-4 w-28" />
                       </td>
                     )}
                     {visibleColumns.actions && (
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2 whitespace-nowrap">
                         <div className="flex items-center gap-1">
-                          <Skeleton className="h-8 w-8 rounded" />
-                          <Skeleton className="h-8 w-8 rounded" />
-                          <Skeleton className="h-8 w-8 rounded" />
-                          <Skeleton className="h-8 w-8 rounded" />
-                          <Skeleton className="h-8 w-8 rounded" />
+                          <Skeleton className="h-7 w-7 rounded" />
+                          <Skeleton className="h-7 w-7 rounded" />
+                          <Skeleton className="h-7 w-7 rounded" />
+                          <Skeleton className="h-7 w-7 rounded" />
+                          <Skeleton className="h-7 w-7 rounded" />
                         </div>
                       </td>
                     )}
@@ -1541,6 +1549,7 @@ export default function LabSlipPage() {
                       (visibleColumns.timestamp ? 1 : 0) +
                       (visibleColumns.office ? 1 : 0) +
                       (visibleColumns.patient ? 1 : 0) +
+                      (visibleColumns.caseNumber ? 1 : 0) +
                       (visibleColumns.pan ? 1 : 0) +
                       (visibleColumns.product ? 1 : 0) +
                       (visibleColumns.status ? 1 : 0) +
@@ -1564,7 +1573,7 @@ export default function LabSlipPage() {
                     onClick={(e) => handleRowClick(row, e)}
                     title="Click to view virtual slip"
                   >
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-2 whitespace-nowrap">
                       <Checkbox
                         checked={selected.includes(row.id)}
                         onCheckedChange={() =>
@@ -1581,76 +1590,67 @@ export default function LabSlipPage() {
                         }}
                       />
                     </td>
-                    {visibleColumns.timestamp && <td className="px-4 py-3 whitespace-nowrap text-gray-600">   <span className="inline-flex items-center gap-2 text-black">
-                      <svg width="22" height="23" viewBox="0 0 22 23" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M8.21875 3.70044H4.71875C3.75225 3.70044 2.96875 4.52125 2.96875 5.53377V9.20044C2.96875 10.213 3.75225 11.0338 4.71875 11.0338H8.21875C9.18525 11.0338 9.96875 10.213 9.96875 9.20044V5.53377C9.96875 4.52125 9.18525 3.70044 8.21875 3.70044Z" stroke="#1162A8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                        <path d="M6.46875 11.0337V14.7004C6.46875 15.1866 6.65312 15.6529 6.98131 15.9967C7.3095 16.3405 7.75462 16.5337 8.21875 16.5337H11.7188" stroke="#1162A8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                        <path d="M16.9688 12.8672H13.4688C12.5023 12.8672 11.7188 13.688 11.7188 14.7005V18.3672C11.7188 19.3797 12.5023 20.2005 13.4688 20.2005H16.9688C17.9352 20.2005 18.7188 19.3797 18.7188 18.3672V14.7005C18.7188 13.688 17.9352 12.8672 16.9688 12.8672Z" stroke="#1162A8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-
-                      <span className="text-sm">{row.createdAt}</span>
-                    </span>
+                    {visibleColumns.timestamp && <td className="px-3 py-2 whitespace-nowrap text-gray-600">
+                      <span className="inline-flex items-center gap-1.5 text-black">
+                        <svg width="18" height="19" viewBox="0 0 22 23" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
+                          <path d="M8.21875 3.70044H4.71875C3.75225 3.70044 2.96875 4.52125 2.96875 5.53377V9.20044C2.96875 10.213 3.75225 11.0338 4.71875 11.0338H8.21875C9.18525 11.0338 9.96875 10.213 9.96875 9.20044V5.53377C9.96875 4.52125 9.18525 3.70044 8.21875 3.70044Z" stroke="#1162A8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                          <path d="M6.46875 11.0337V14.7004C6.46875 15.1866 6.65312 15.6529 6.98131 15.9967C7.3095 16.3405 7.75462 16.5337 8.21875 16.5337H11.7188" stroke="#1162A8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                          <path d="M16.9688 12.8672H13.4688C12.5023 12.8672 11.7188 13.688 11.7188 14.7005V18.3672C11.7188 19.3797 12.5023 20.2005 13.4688 20.2005H16.9688C17.9352 20.2005 18.7188 19.3797 18.7188 18.3672V14.7005C18.7188 13.688 17.9352 12.8672 16.9688 12.8672Z" stroke="#1162A8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                        <span className="text-xs">{row.createdAt}</span>
+                      </span>
                     </td>}
-                    {visibleColumns.office && <td className="px-4 py-3 font-medium text-gray-900">{row.officeCode}</td>}
-                    {visibleColumns.patient && <td className="px-4 py-3 text-gray-900">{row.patient}</td>}
+                    {visibleColumns.office && <td className="px-3 py-2 whitespace-nowrap font-medium text-gray-900 text-xs">{row.officeCode}</td>}
+                    {visibleColumns.patient && <td className="px-3 py-2 whitespace-nowrap text-gray-900 text-xs">{row.patient}</td>}
+                    {visibleColumns.caseNumber && <td className="px-3 py-2 whitespace-nowrap text-gray-900 font-mono text-xs">{row.caseNumber || '-'}</td>}
                     {visibleColumns.pan &&
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2 whitespace-nowrap">
                         <span
-                          className={`inline-block w-12 text-center py-1 rounded text-white font-mono text-xs`}
+                          className={`inline-block w-12 text-center py-0.5 rounded text-white font-mono text-xs`}
                           style={row.panColorStyle}
                         >
                           {row.pan}
                         </span>
                       </td>}
-                    {visibleColumns.product && <td className="px-4 py-3 text-gray-900">{row.product}</td>}
+                    {visibleColumns.product && <td className="px-3 py-2 whitespace-nowrap text-gray-900 text-xs">{row.product}</td>}
                     {visibleColumns.status &&
-                      <td className="px-4 py-3">
-                        <div className="flex gap-2 items-center">
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        <div className="flex gap-1.5 items-center">
                           {row.rush && (
-                            <Badge className="bg-red-600 text-white font-medium px-2 py-1 text-xs">
-                              <svg width="12" height="14" viewBox="0 0 16 19" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-1">
+                            <Badge className="!rounded-md bg-red-600 text-white font-medium px-1.5 py-0.5 text-xs flex items-center gap-0.5 border-0">
+                              <svg width="8" height="10" viewBox="0 0 16 19" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
                                 <path d="M8.15625 7.91504V2.66504L2.53125 10.915H6.90625L6.90625 16.165L12.5313 7.91504L8.15625 7.91504Z" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                               </svg>
                               Rush
                             </Badge>
                           )}
                           {row.status === "In Progress" && (
-                            <Badge className="bg-green-100 text-green-800 border border-green-200 font-medium px-2 py-1 text-xs hover:bg-green-200 hover:border-green-300 hover:text-green-900 transition-colors duration-200">In Progress</Badge>
+                            <Badge className="!rounded-md bg-green-100 text-green-800 border border-green-200 font-medium px-1.5 py-0.5 text-xs whitespace-nowrap">In Progress</Badge>
                           )}
                           {row.status === "On Hold" && (
-                            <Badge className="bg-yellow-100 text-yellow-800 border border-yellow-200 font-medium px-2 py-1 text-xs hover:bg-yellow-200 hover:border-yellow-300 hover:text-yellow-900 transition-colors duration-200">On Hold</Badge>
+                            <Badge className="!rounded-md bg-yellow-100 text-yellow-800 border border-yellow-200 font-medium px-1.5 py-0.5 text-xs whitespace-nowrap">On Hold</Badge>
                           )}
                           {row.status === "Cancelled" && (
-                            <Badge
-                              className="text-gray-600 border font-medium px-2 py-1 text-xs hover:bg-gray-200 hover:border-gray-300 hover:text-gray-800 transition-colors duration-200"
-                              style={{ backgroundColor: "#E6E6E6", borderColor: "#E6E6E6" }}
-                            >
-                              Cancelled
-                            </Badge>
+                            <Badge className="!rounded-md bg-gray-100 text-gray-600 border border-gray-200 font-medium px-1.5 py-0.5 text-xs whitespace-nowrap">Cancelled</Badge>
                           )}
                           {row.status === "Draft" && (
-                            <Badge
-                              className="text-gray-600 border font-medium px-2 py-1 text-xs hover:bg-gray-200 hover:border-gray-300 hover:text-gray-800 transition-colors duration-200"
-                              style={{ backgroundColor: "#E6E6E6", borderColor: "#E6E6E6" }}
-                            >
-                              Draft
-                            </Badge>
+                            <Badge className="!rounded-md bg-gray-100 text-gray-600 border border-gray-200 font-medium px-1.5 py-0.5 text-xs whitespace-nowrap">Draft</Badge>
                           )}
                         </div>
                       </td>}
                     {visibleColumns.location &&
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2 whitespace-nowrap">
                         {row.location.includes("In office ready to pickup") && (
-                          <span className="inline-flex items-center gap-2 text-green-700">
+                          <span className="inline-flex items-center gap-1.5 text-green-700">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation()
                                 handleLocationIconClick(row)
                               }}
-                              className="hover:bg-gray-100 p-1 rounded transition-colors"
+                              className="hover:bg-gray-100 p-0.5 rounded transition-colors flex-shrink-0"
                               title="View driver history"
                             >
-                              <svg width="22" height="32" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <svg width="18" height="26" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
                                 <g clipPath="url(#clip0_4629_90148)">
                                 <path d="M8.30289 6.72046H2.50289C1.5143 6.72046 0.712891 7.52187 0.712891 8.51046V15.4605C0.712891 16.449 1.5143 17.2505 2.50289 17.2505H8.30289C9.29148 17.2505 10.0929 16.449 10.0929 15.4605V8.51046C10.0929 7.52187 9.29148 6.72046 8.30289 6.72046Z" stroke="#119933" strokeMiterlimit="10"/>
                                 <path d="M5.40359 17.7905L1.68359 22.1805H9.13359L5.40359 17.7905Z" stroke="#119933" strokeMiterlimit="10"/>
@@ -1667,20 +1667,20 @@ export default function LabSlipPage() {
                                 </svg>
 
                             </button>
-                            <span className="text-sm">{row.location}</span>
+                            <span className="text-xs">{row.location}</span>
                           </span>
                         )}
                         {row.location.includes("On route to the lab") && (
-                          <span className="inline-flex items-center gap-2 text-red-600">
+                          <span className="inline-flex items-center gap-1.5 text-red-600">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation()
                                 handleLocationIconClick(row)
                               }}
-                              className="hover:bg-gray-100 p-1 rounded transition-colors"
+                              className="hover:bg-gray-100 p-0.5 rounded transition-colors flex-shrink-0"
                               title="View driver history"
                             >
-                              <svg width="23" height="32" viewBox="0 0 23 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="cursor-pointer">
+                              <svg width="18" height="26" viewBox="0 0 23 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="cursor-pointer">
                                 <path d="M8.84977 18.0735H3.04977C2.06118 18.0735 1.25977 18.8749 1.25977 19.8635V26.8135C1.25977 27.8021 2.06118 28.6035 3.04977 28.6035H8.84977C9.83836 28.6035 10.6398 27.8021 10.6398 26.8135V19.8635C10.6398 18.8749 9.83836 18.0735 8.84977 18.0735Z" stroke="#CF0202" strokeMiterlimit="10" />
                                 <path d="M5.95383 17.3179L9.67383 12.9279L2.22383 12.9279L5.95383 17.3179Z" stroke="#CF0202" strokeMiterlimit="10" />
                                 <path d="M5.95312 12.928L5.95312 4.06798" stroke="#CF0202" strokeMiterlimit="10" />
@@ -1689,20 +1689,20 @@ export default function LabSlipPage() {
                                 <path d="M21.7702 21.2581V28.4681C21.7702 29.2381 21.6002 30.0081 21.2402 30.5981C21.1802 30.6981 21.1202 30.7781 21.0702 30.8181C20.8502 30.9981 20.2702 30.9581 20.0302 30.8181C19.9802 30.7881 19.9202 30.7281 19.8502 30.6481C19.4502 30.1681 19.2402 29.4481 19.2402 28.7081V24.9481" stroke="#CF0202" strokeMiterlimit="10" />
                               </svg>
                             </button>
-                            <span className="text-sm">{row.location}</span>
+                            <span className="text-xs">{row.location}</span>
                           </span>
                         )}
                         {row.location.includes("In lab") && (
-                          <span className="inline-flex items-center gap-2 text-red-600">
+                          <span className="inline-flex items-center gap-1.5 text-red-600">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation()
                                 handleLocationIconClick(row)
                               }}
-                              className="hover:bg-gray-100 p-1 rounded transition-colors"
+                              className="hover:bg-gray-100 p-0.5 rounded transition-colors flex-shrink-0"
                               title="View driver history"
                             >
-                              <svg width="23" height="32" viewBox="0 0 23 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="cursor-pointer">
+                              <svg width="18" height="26" viewBox="0 0 23 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="cursor-pointer">
                                 <path d="M8.84977 18.0735H3.04977C2.06118 18.0735 1.25977 18.8749 1.25977 19.8635V26.8135C1.25977 27.8021 2.06118 28.6035 3.04977 28.6035H8.84977C9.83836 28.6035 10.6398 27.8021 10.6398 26.8135V19.8635C10.6398 18.8749 9.83836 18.0735 8.84977 18.0735Z" stroke="#CF0202" strokeMiterlimit="10" />
                                 <path d="M5.95383 17.3179L9.67383 12.9279L2.22383 12.9279L5.95383 17.3179Z" stroke="#CF0202" strokeMiterlimit="10" />
                                 <path d="M5.95312 12.928L5.95312 4.06798" stroke="#CF0202" strokeMiterlimit="10" />
@@ -1711,62 +1711,61 @@ export default function LabSlipPage() {
                                 <path d="M21.7702 21.2581V28.4681C21.7702 29.2381 21.6002 30.0081 21.2402 30.5981C21.1802 30.6981 21.1202 30.7781 21.0702 30.8181C20.8502 30.9981 20.2702 30.9581 20.0302 30.8181C19.9802 30.7881 19.9202 30.7281 19.8502 30.6481C19.4502 30.1681 19.2402 29.4481 19.2402 28.7081V24.9481" stroke="#CF0202" strokeMiterlimit="10" />
                               </svg>
                             </button>
-                            <span className="text-sm">{row.location}</span>
+                            <span className="text-xs">{row.location}</span>
                           </span>
                         )}
                       </td>}
                     {visibleColumns.attachment &&
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-3 py-2 text-center whitespace-nowrap">
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
                             handleAttachmentClick(row)
                           }}
-                          className="hover:bg-gray-100 p-1 rounded transition-colors"
+                          className="hover:bg-gray-100 p-0.5 rounded transition-colors"
                           title={row.attachment ? "View attachments" : "Add attachments"}
                         >
                           {row.attachment
-                            ? <Paperclip className="h-4 w-4 text-blue-600 inline-block" />
-                            : <Paperclip className="h-4 w-4 text-gray-300 inline-block" />}
+                            ? <Paperclip className="h-3.5 w-3.5 text-blue-600 inline-block" />
+                            : <Paperclip className="h-3.5 w-3.5 text-gray-300 inline-block" />}
                         </button>
                       </td>}
                     {visibleColumns.due &&
-                      <td className="px-4 py-3">
-                        <div className="inline-flex items-center gap-2">
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1.5">
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
                               handleDateIconClick(row)
                             }}
-                            className="hover:bg-gray-100 p-1 rounded transition-colors"
+                            className="hover:bg-gray-100 p-0.5 rounded transition-colors flex-shrink-0"
                             title="Change due date"
                           >
-                            <svg width="19" height="19" viewBox="0 0 19 19" fill="none" xmlns="http://www.w3.org/2000/svg" className="cursor-pointer">
+                            <svg width="16" height="16" viewBox="0 0 19 19" fill="none" xmlns="http://www.w3.org/2000/svg" className="cursor-pointer">
                               <path d="M5.12109 2.55518V4.24268M12.9961 2.55518V4.24268M2.30859 14.3677V5.93018C2.30859 5.48262 2.48638 5.0534 2.80285 4.73693C3.11932 4.42047 3.54854 4.24268 3.99609 4.24268H14.1211C14.5686 4.24268 14.9979 4.42047 15.3143 4.73693C15.6308 5.0534 15.8086 5.48262 15.8086 5.93018V14.3677M2.30859 14.3677C2.30859 14.8152 2.48638 15.2445 2.80285 15.5609C3.11932 15.8774 3.54854 16.0552 3.99609 16.0552H14.1211C14.5686 16.0552 14.9979 15.8774 15.3143 15.5609C15.6308 15.2445 15.8086 14.8152 15.8086 14.3677M2.30859 14.3677V8.74268C2.30859 8.29512 2.48638 7.8659 2.80285 7.54943C3.11932 7.23297 3.54854 7.05518 3.99609 7.05518H14.1211C14.5686 7.05518 14.9979 7.23297 15.3143 7.54943C15.6308 7.8659 15.8086 8.29512 15.8086 8.74268V14.3677M9.05859 9.86768H9.06459V9.87368H9.05859V9.86768ZM9.05859 11.5552H9.06459V11.5612H9.05859V11.5552ZM9.05859 13.2427H9.06459V13.2487H9.05859V13.2427ZM7.37109 11.5552H7.37709V11.5612H7.37109V11.5552ZM7.37109 13.2427H7.37709V13.2487H7.37109V13.2427ZM5.68359 11.5552H5.68959V11.5612H5.68359V11.5552ZM5.68359 13.2427H5.68959V13.2487H5.68359V13.2427ZM10.7461 9.86768H10.7521V9.87368H10.7461V9.86768ZM10.7461 11.5552H10.7521V11.5612H10.7461V11.5552ZM10.7461 13.2427H10.7521V13.2487H10.7461V13.2427ZM12.4336 9.86768H12.4396V9.87368H12.4336V9.86768ZM12.4336 11.5552H12.4396V11.5612H12.4336V11.5552Z" stroke="#1162A8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                           </svg>
                           </button>
-
-                          <span className="text-gray-900">{row.dueDate}</span>
-                          {row.rush && <span className="text-red-500">
-                            <svg width="12" height="14" viewBox="0 0 16 19" fill="none">
+                          <span className="text-gray-900 text-xs">{row.dueDate}</span>
+                          {row.rush && <span className="text-red-500 flex-shrink-0">
+                            <svg width="10" height="12" viewBox="0 0 16 19" fill="none">
                               <path d="M8.71094 8.41504V3.16504L3.08594 11.415H7.46094L7.46094 16.665L13.0859 7.91504L8.71094 7.91504Z" stroke="#CF0202" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                             </svg>
                           </span>}
-                          {row.overdue && <Badge className="bg-red-100 text-red-700 text-xs px-2 py-1">Overdue</Badge>}
+                          {row.overdue && <Badge className="bg-red-100 text-red-700 text-xs px-1.5 py-0.5 whitespace-nowrap">Overdue</Badge>}
                         </div>
                       </td>}
                     {visibleColumns.actions &&
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1">
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        <div className="flex items-center gap-0.5">
                           <Popover open={printDropdownOpen === row.id} onOpenChange={open => setPrintDropdownOpen(open ? row.id : null)}>
                             <PopoverTrigger asChild>
                               <Button 
                                 variant="ghost" 
                                 size="sm" 
-                                className="h-8 w-8 p-0 hover:bg-gray-100"
+                                className="h-7 w-7 p-0 hover:bg-gray-100"
                                 onClick={(e) => e.stopPropagation()}
                               >
-                                <svg width="19" height="19" viewBox="0 0 19 19" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <svg width="16" height="16" viewBox="0 0 19 19" fill="none" xmlns="http://www.w3.org/2000/svg">
                                   <path d="M4.875 6.83887V1.58887H13.875V6.83887M4.875 13.5889H3.375C2.97718 13.5889 2.59564 13.4308 2.31434 13.1495C2.03304 12.8682 1.875 12.4867 1.875 12.0889V8.33887C1.875 7.94104 2.03304 7.55951 2.31434 7.27821C2.59564 6.9969 2.97718 6.83887 3.375 6.83887H15.375C15.7728 6.83887 16.1544 6.9969 16.4357 7.27821C16.717 7.55951 16.875 7.94104 16.875 8.33887V12.0889C16.875 12.4867 16.717 12.8682 16.4357 13.1495C16.1544 13.4308 15.7728 13.5889 15.375 13.5889H13.875M4.875 10.5889H13.875V16.5889H4.875V10.5889Z" stroke="#1162A8" strokeLinecap="round" strokeLinejoin="round" />
                                 </svg>
                               </Button>
@@ -1799,13 +1798,13 @@ export default function LabSlipPage() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-8 w-8 p-0 hover:bg-gray-100"
+                            className="h-7 w-7 p-0 hover:bg-gray-100"
                             onClick={(e) => {
                               e.stopPropagation()
                               handleAddOnsClick(row)
                             }}
                           >
-                            <svg width="19" height="19" viewBox="0 0 19 19" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <svg width="16" height="16" viewBox="0 0 19 19" fill="none" xmlns="http://www.w3.org/2000/svg">
                               <path d="M4.39844 9.08887H14.8984" stroke="#1162A8" strokeLinecap="round" strokeLinejoin="round" />
                               <path d="M9.64844 3.83887V14.3389" stroke="#1162A8" strokeLinecap="round" strokeLinejoin="round" />
                             </svg>
@@ -1813,23 +1812,23 @@ export default function LabSlipPage() {
                           <Button 
                             variant="ghost" 
                             size="sm" 
-                            className="h-8 w-8 p-0 hover:bg-gray-100"  
+                            className="h-7 w-7 p-0 hover:bg-gray-100"  
                             onClick={(e) => {
                               e.stopPropagation()
                               handleCallLogClick(row)
                             }}
                           >
-                            <svg width="19" height="19" viewBox="0 0 19 19" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <svg width="16" height="16" viewBox="0 0 19 19" fill="none" xmlns="http://www.w3.org/2000/svg">
                               <path d="M11.2959 12.5149C11.4508 12.586 11.6253 12.6023 11.7906 12.5609C11.956 12.5196 12.1024 12.4232 12.2056 12.2876L12.4719 11.9389C12.6116 11.7526 12.7928 11.6014 13.0011 11.4972C13.2093 11.3931 13.439 11.3389 13.6719 11.3389H15.9219C16.3197 11.3389 16.7012 11.4969 16.9825 11.7782C17.2638 12.0595 17.4219 12.441 17.4219 12.8389V15.0889C17.4219 15.4867 17.2638 15.8682 16.9825 16.1495C16.7012 16.4308 16.3197 16.5889 15.9219 16.5889C12.3415 16.5889 8.90767 15.1666 6.37593 12.6348C3.84419 10.1031 2.42188 6.66929 2.42188 3.08887C2.42187 2.69104 2.57991 2.30951 2.86121 2.02821C3.14252 1.7469 3.52405 1.58887 3.92188 1.58887H6.17188C6.5697 1.58887 6.95123 1.7469 7.23253 2.02821C7.51384 2.30951 7.67188 2.69104 7.67188 3.08887V5.33887C7.67188 5.57173 7.61766 5.8014 7.51352 6.00969C7.40937 6.21797 7.25817 6.39915 7.07187 6.53887L6.72087 6.80212C6.58319 6.90725 6.48614 7.05681 6.44622 7.22538C6.4063 7.39395 6.42596 7.57115 6.50188 7.72687C7.52689 9.80877 9.21269 11.4925 11.2959 12.5149Z" stroke="#1162A8" strokeLinecap="round" strokeLinejoin="round" />
                             </svg>
                           </Button>
                           <Button 
                             variant="ghost" 
                             size="sm" 
-                            className="h-8 w-8 p-0 hover:bg-gray-100"
+                            className="h-7 w-7 p-0 hover:bg-gray-100"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            <svg width="17" height="17" viewBox="0 0 17 17" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <svg width="14" height="14" viewBox="0 0 17 17" fill="none" xmlns="http://www.w3.org/2000/svg">
                               <path d="M14.5031 5.57471H7.10957C6.2929 5.57471 5.63086 6.23675 5.63086 7.05342V14.447C5.63086 15.2636 6.2929 15.9257 7.10957 15.9257H14.5031C15.3198 15.9257 15.9818 15.2636 15.9818 14.447V7.05342C15.9818 6.23675 15.3198 5.57471 14.5031 5.57471Z" stroke="#1162A8" strokeLinecap="round" strokeLinejoin="round" />
                               <path d="M2.67402 11.4896C1.86073 11.4896 1.19531 10.8242 1.19531 10.0109V2.61738C1.19531 1.80409 1.86073 1.13867 2.67402 1.13867H10.0676C10.8809 1.13867 11.5463 1.80409 11.5463 2.61738" stroke="#1162A8" strokeLinecap="round" strokeLinejoin="round" />
                             </svg>
@@ -1839,10 +1838,10 @@ export default function LabSlipPage() {
                               <Button 
                                 variant="ghost" 
                                 size="sm" 
-                                className="h-8 w-8 p-0 hover:bg-gray-100"
+                                className="h-7 w-7 p-0 hover:bg-gray-100"
                                 onClick={(e) => e.stopPropagation()}
                               >
-                                <MoreVertical className="h-4 w-4 text-gray-500" />
+                                <MoreVertical className="h-3.5 w-3.5 text-gray-500" />
                               </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-56 p-0 border border-gray-200 rounded-lg shadow-lg">
@@ -1887,6 +1886,55 @@ export default function LabSlipPage() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Pagination at Bottom */}
+        <div className="flex items-center justify-between mt-4 border-t border-gray-200 pt-4">
+          <div className="text-sm text-gray-600">
+            Showing {(currentPage - 1) * itemsPerPage + 1}
+            -
+            {Math.min(currentPage * itemsPerPage, filteredSlips.length)}
+            {" "}of {filteredSlips.length} entries
+          </div>
+          <div className="flex items-center space-x-1">
+            <button
+              className="h-8 w-8 rounded-full flex items-center justify-center text-xs bg-gray-100 text-gray-600 disabled:opacity-50 hover:bg-gray-200 transition-colors"
+              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+              disabled={currentPage === 1}
+            >
+              «
+            </button>
+            {Array.from({ length: Math.min(5, maxPage) }, (_, i) => {
+              let pageNum: number;
+              if (maxPage <= 5) {
+                pageNum = i + 1;
+              } else if (currentPage <= 3) {
+                pageNum = i + 1;
+              } else if (currentPage >= maxPage - 2) {
+                pageNum = maxPage - 4 + i;
+              } else {
+                pageNum = currentPage - 2 + i;
+              }
+              return (
+                <button
+                  key={pageNum}
+                  className={`h-8 w-8 rounded-full flex items-center justify-center text-xs transition-colors ${
+                    pageNum === currentPage ? "bg-[#1162a8] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  }`}
+                  onClick={() => setCurrentPage(pageNum)}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+            <button
+              className="h-8 w-8 rounded-full flex items-center justify-center text-xs bg-gray-100 text-gray-600 disabled:opacity-50 hover:bg-gray-200 transition-colors"
+              onClick={() => setCurrentPage(Math.min(maxPage, currentPage + 1))}
+              disabled={currentPage === maxPage}
+            >
+              »
+            </button>
+          </div>
         </div>
 
         {/* Archive Confirm Dialog */}

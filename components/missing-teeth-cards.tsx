@@ -640,19 +640,70 @@ export const MissingTeethCards: React.FC<MissingTeethCardsProps> = ({
   const formatTeethListWithVisual = (teeth: number[], extractionTypeName?: string, bgColor?: string) => {
     if (teeth.length === 0) return 'None';
     
-    // Get the appropriate text color for this extraction type
-    const textColor = bgColor ? getTextColor(bgColor, extractionTypeName) : '#000000';
+    // Get the appropriate text color for this extraction type using reference styles
+    const textColor = extractionTypeName 
+      ? getExtractionBoxStyles(extractionTypeName).textColor
+      : (bgColor ? getTextColor(bgColor, extractionTypeName) : '#000000');
     
     // Show all teeth without maxDisplay limitation
     return teeth.map(tooth => (
-      <span key={tooth} className="text-xs font-bold mx-0.5" style={{ color: textColor }}>
+      <span 
+        key={tooth} 
+        className="mx-0.5" 
+        style={{ 
+          color: textColor,
+          fontSize: '14px',
+          fontFamily: 'Verdana, sans-serif',
+          fontWeight: '400',
+          lineHeight: '22px',
+          letterSpacing: '-0.02em'
+        }}
+      >
         {tooth}
       </span>
     ));
   };
 
+  // Reference styles for extraction boxes
+  const getExtractionBoxStyles = (extractionTypeName: string) => {
+    const styleMap: { [key: string]: { bg: string; border: string; textColor: string; fontWeight?: string } } = {
+      'Teeth in mouth': {
+        bg: '#F3EBD7',
+        border: '#E4DCC8',
+        textColor: '#000000',
+        fontWeight: '400'
+      },
+      'Missing teeth': {
+        bg: '#E9E8E7',
+        border: '#B0AFAE',
+        textColor: '#000000',
+        fontWeight: '400'
+      },
+      'Will extract on delivery': {
+        bg: '#C50026',
+        border: '#C50026',
+        textColor: '#FFFFFF',
+        fontWeight: '700'
+      }
+    };
+
+    // Return the style for this extraction type, or fallback to default
+    return styleMap[extractionTypeName] || {
+      bg: '#FFFFFF',
+      border: '#D1D5DB',
+      textColor: '#000000',
+      fontWeight: '400'
+    };
+  };
+
   // Determine text color based on background color brightness
   const getTextColor = (bgColor: string, extractionTypeName?: string): string => {
+    // Use reference styles if available
+    if (extractionTypeName) {
+      const boxStyles = getExtractionBoxStyles(extractionTypeName);
+      return boxStyles.textColor;
+    }
+    
     // Special case for "Will extract on delivery" - always use white text
     if (extractionTypeName === 'Will extract on delivery') {
       return '#FFFFFF';
@@ -826,7 +877,11 @@ export const MissingTeethCards: React.FC<MissingTeethCardsProps> = ({
           })
           .map((extractionType: any) => {
         const isSelected = selectedExtractionType === extractionType.name;
-        const textColor = getTextColor(extractionType.color, extractionType.name);
+        
+        // Get reference box styles for this extraction type
+        const boxStyles = getExtractionBoxStyles(extractionType.name);
+        const textColor = boxStyles.textColor;
+        const fontWeight = boxStyles.fontWeight || '400';
 
         // Get teeth for this extraction type
         // Always show the teeth that have been selected for this specific extraction type
@@ -845,39 +900,148 @@ export const MissingTeethCards: React.FC<MissingTeethCardsProps> = ({
         // Only show border/icon when there's an actual validation issue
         const showValidationIndicator = hasError || hasWarning;
 
+        // Determine border color - use reference border color when not selected/validated
+        // Remove red borders - only show yellow for warnings
+        const defaultBorderColor = showValidationIndicator && hasWarning
+          ? '#F59E0B'
+          : boxStyles.border;
+
+        // Extract content to render in both branches
+        const boxContent = (
+          <>
+            <div className="flex flex-col items-center text-center w-full">
+              <div className="flex items-center gap-1 mb-1 relative w-full justify-center">
+                <span
+                  className="text-sm"
+                  style={{ 
+                    color: textColor,
+                    fontWeight: fontWeight,
+                    fontFamily: 'Verdana, sans-serif',
+                    letterSpacing: '-0.02em',
+                    lineHeight: '22px'
+                  }}
+                >
+                  {extractionType.name}
+                </span>
+                {isSelected && !showValidationIndicator && (
+                  <div className="relative">
+                    <div className="w-3 h-3 bg-blue-600 rounded-full animate-ping absolute"></div>
+                    <div className="w-3 h-3 bg-blue-600 rounded-full animate-pulse"></div>
+                  </div>
+                )}
+                {/* Question mark icon for validation warnings - only show when there's a warning, hover to show tooltip */}
+                {showValidationIndicator && hasWarning && (
+                  <div 
+                    className="relative"
+                    onMouseEnter={() => setHoveredTooltip(extractionType.name)}
+                    onMouseLeave={() => setHoveredTooltip(null)}
+                  >
+                    <div className="ml-1 p-0.5 rounded-full hover:bg-white/20 transition-colors cursor-help">
+                      <svg 
+                        className="w-4 h-4" 
+                        fill="currentColor" 
+                        viewBox="0 0 20 20"
+                        style={{ color: '#D97706' }}
+                      >
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    
+                    {/* Tooltip on hover - styled like submit case popover */}
+                    <div 
+                      className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 pointer-events-none transition-opacity duration-200 z-50" 
+                      style={{ 
+                        minWidth: '300px',
+                        opacity: hoveredTooltip === extractionType.name ? 1 : 0
+                      }}
+                    >
+                      <div className="bg-white border-2 border-amber-200 rounded-lg shadow-xl p-3 relative">
+                        {/* Arrow pointing down */}
+                        <div className="absolute bottom-[-10px] left-1/2 -translate-x-1/2 w-4 h-4 bg-white border-r-2 border-b-2 border-amber-200 transform rotate-45" />
+                        
+                        {/* Content */}
+                        <div className="relative z-10 flex items-start gap-3">
+                          {/* Icon */}
+                          <div className="flex-shrink-0 mt-0.5">
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-md">
+                              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                              </svg>
+                            </div>
+                          </div>
+                          
+                          {/* Message */}
+                          <div className="flex-1">
+                            <p className="text-sm text-gray-700 leading-relaxed">
+                              {validationResult.solution || validationResult.message}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Enhanced teeth display */}
+              <div className="w-full">
+                {teethForType.length > 0 ? (
+                  <div className="flex flex-col items-center gap-1">
+                    <div className="flex flex-wrap justify-center gap-1 max-w-full">
+                      {formatTeethListWithVisual(teethForType, extractionType.name, boxStyles.bg)}
+                    </div>
+                  </div>
+                ) : (
+                  <span
+                    className="text-sm"
+                    style={{ 
+                      color: textColor, 
+                      opacity: 0.7,
+                      fontFamily: 'Verdana, sans-serif',
+                      fontWeight: '400',
+                      lineHeight: '22px',
+                      letterSpacing: '-0.02em'
+                    }}
+                  >
+                  </span>
+                )}
+              </div>
+            </div>
+          </>
+        );
+
         return (
-          <div key={extractionType.name} className="relative">
+          <div key={extractionType.name} className="relative max-w-[450px] mx-auto">
             <div
-              className={`w-full min-h-[60px] rounded-lg flex items-center justify-center px-3 py-2 transition-all duration-300 ease-in-out relative ${
+              className={`rounded-md flex items-center justify-center px-3 py-2 transition-all duration-300 ease-in-out relative ${
                 isCaseSubmitted
                   ? 'cursor-not-allowed opacity-50'
                   : 'cursor-pointer hover:shadow-lg hover:scale-[1.03] active:scale-[0.98]'
               } ${
                 isSelected
-                  ? showValidationIndicator
-                    ? hasError
-                      ? 'border-4 border-red-600 shadow-2xl ring-4 ring-red-300 ring-opacity-50 transform scale-[1.04]'
-                      : 'border-4 border-yellow-600 shadow-2xl ring-4 ring-yellow-300 ring-opacity-50 transform scale-[1.04]'
-                    : 'border-4 border-blue-600 shadow-2xl ring-4 ring-blue-300 ring-opacity-50 transform scale-[1.04] animate-pulse-slow'
-                  : showValidationIndicator
-                    ? hasError
-                      ? 'border-4 border-red-500 hover:border-red-600 hover:shadow-red-200'
-                      : 'border-4 border-yellow-500 hover:border-yellow-600 hover:shadow-yellow-200'
+                  ? showValidationIndicator && hasWarning
+                    ? 'border-4 border-yellow-600 shadow-2xl ring-4 ring-yellow-300 ring-opacity-50 transform scale-[1.04]'
+                    : 'border-4 border-blue-600 shadow-2xl ring-4 ring-blue-300 ring-opacity-50 transform scale-[1.04]'
+                  : showValidationIndicator && hasWarning
+                    ? 'border-4 border-yellow-500 hover:border-yellow-600 hover:shadow-yellow-200'
                     : 'border-2 hover:border-blue-400 hover:shadow-blue-200'
               }`}
               style={{
-                backgroundColor: extractionType.color,
+                backgroundColor: boxStyles.bg,
                 borderColor: isSelected 
-                  ? (showValidationIndicator ? (hasError ? '#DC2626' : '#D97706') : '#2563EB')
-                  : (showValidationIndicator ? (hasError ? '#EF4444' : '#F59E0B') : extractionType.color),
+                  ? (showValidationIndicator && hasWarning ? '#D97706' : '#2563EB')
+                  : defaultBorderColor,
+                borderRadius: '6px',
+                minHeight: '84.59px',
+                width: '100%',
+                maxWidth: '450px',
                 boxShadow: isSelected
-                  ? showValidationIndicator
-                    ? hasError
-                      ? '0 0 0 4px rgba(220, 38, 38, 0.3), 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 0 20px rgba(220, 38, 38, 0.4)'
-                      : '0 0 0 4px rgba(217, 119, 6, 0.3), 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 0 20px rgba(217, 119, 6, 0.4)'
+                  ? showValidationIndicator && hasWarning
+                    ? '0 0 0 4px rgba(217, 119, 6, 0.3), 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 0 20px rgba(217, 119, 6, 0.4)'
                     : '0 0 0 4px rgba(59, 130, 246, 0.3), 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 0 20px rgba(59, 130, 246, 0.4)'
                   : undefined,
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                boxSizing: 'border-box'
               }}
               onClick={() => {
                 if (!isCaseSubmitted) {
@@ -885,91 +1049,7 @@ export const MissingTeethCards: React.FC<MissingTeethCardsProps> = ({
                 }
               }}
             >
-              <div className="flex flex-col items-center text-center w-full">
-                <div className="flex items-center gap-1 mb-1 relative w-full justify-center">
-                  <span
-                    className="text-xs font-semibold"
-                    style={{ color: textColor }}
-                  >
-                    {extractionType.name}
-                  </span>
-                  {isSelected && !showValidationIndicator && (
-                    <div className="relative">
-                      <div className="w-3 h-3 bg-blue-600 rounded-full animate-ping absolute"></div>
-                      <div className="w-3 h-3 bg-blue-600 rounded-full animate-pulse"></div>
-                    </div>
-                  )}
-                  {/* Question mark icon for validation errors/warnings - only show when there's an issue, hover to show tooltip */}
-                  {showValidationIndicator && (
-                    <div 
-                      className="relative"
-                      onMouseEnter={() => setHoveredTooltip(extractionType.name)}
-                      onMouseLeave={() => setHoveredTooltip(null)}
-                    >
-                      <div className="ml-1 p-0.5 rounded-full hover:bg-white/20 transition-colors cursor-help">
-                        <svg 
-                          className="w-4 h-4" 
-                          fill="currentColor" 
-                          viewBox="0 0 20 20"
-                          style={{ color: hasError ? '#DC2626' : '#D97706' }}
-                        >
-                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-                        </svg>
-                      </div>
-                      
-                      {/* Tooltip on hover - styled like submit case popover */}
-                      <div 
-                        className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 pointer-events-none transition-opacity duration-200 z-50" 
-                        style={{ 
-                          minWidth: '300px',
-                          opacity: hoveredTooltip === extractionType.name ? 1 : 0
-                        }}
-                      >
-                        <div className="bg-white border-2 border-amber-200 rounded-lg shadow-xl p-3 relative">
-                          {/* Arrow pointing down */}
-                          <div className="absolute bottom-[-10px] left-1/2 -translate-x-1/2 w-4 h-4 bg-white border-r-2 border-b-2 border-amber-200 transform rotate-45" />
-                          
-                          {/* Content */}
-                          <div className="relative z-10 flex items-start gap-3">
-                            {/* Icon */}
-                            <div className="flex-shrink-0 mt-0.5">
-                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-md">
-                                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                </svg>
-                              </div>
-                            </div>
-                            
-                            {/* Message */}
-                            <div className="flex-1">
-                              <p className="text-sm text-gray-700 leading-relaxed">
-                                {validationResult.solution || validationResult.message}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Enhanced teeth display */}
-                <div className="w-full">
-                  {teethForType.length > 0 ? (
-                    <div className="flex flex-col items-center gap-1">
-                      <div className="flex flex-wrap justify-center gap-1 max-w-full">
-                        {formatTeethListWithVisual(teethForType, extractionType.name, extractionType.color)}
-                      </div>
-                    </div>
-                  ) : (
-                    <span
-                      className="text-xs font-medium"
-                      style={{ color: textColor, opacity: 0.7 }}
-                    >
-                    </span>
-                  )}
-                </div>
-              </div>
+              {boxContent}
             </div>
           </div>
         );
