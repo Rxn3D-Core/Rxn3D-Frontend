@@ -189,4 +189,199 @@ export const getShadeColor = (
   
   // Default color for other systems
   return '#F5F0E8'
+}
+
+/**
+ * Gets the gradient colors for a specific shade based on the SVG gradients
+ * Returns the gradient stops as an array of {offset, color} objects
+ * @param shadeName - The shade name (e.g., "A1", "A2", "D4", etc.)
+ * @returns Array of gradient stops or default gradient if shade not found
+ */
+export const getShadeGradientColors = (shadeName: string): Array<{offset: string, color: string}> => {
+  // Map of shade names to their gradient colors from the SVG
+  // Based on the paint linear gradients in tooth-shade-selection-svg.tsx
+  const shadeGradients: Record<string, Array<{offset: string, color: string}>> = {
+    'OM1': [
+      { offset: '0', color: '#DED2C7' },
+      { offset: '0.07', color: '#E3D4C4' },
+      { offset: '0.25', color: '#EDD9C1' },
+      { offset: '0.5', color: '#F0DBC0' },
+      { offset: '0.76', color: '#F0DCC2' },
+      { offset: '0.9', color: '#F1E0CA' },
+      { offset: '1', color: '#F3E7D7' }
+    ],
+    'A1': [
+      { offset: '0', color: '#DED2C7' },
+      { offset: '0.07', color: '#E3D4C4' },
+      { offset: '0.25', color: '#EDD9C1' },
+      { offset: '0.5', color: '#F0DBC0' },
+      { offset: '0.76', color: '#F0DCC2' },
+      { offset: '0.9', color: '#F1E0CA' },
+      { offset: '1', color: '#F3E7D7' }
+    ],
+    'A2': [
+      { offset: '0', color: '#DDD4CB' },
+      { offset: '0.07', color: '#E2D9CB' },
+      { offset: '0.25', color: '#ECE1CD' },
+      { offset: '0.5', color: '#EFE4CE' },
+      { offset: '0.81', color: '#EFE5D0' },
+      { offset: '0.98', color: '#F1E9D8' },
+      { offset: '1', color: '#F2EADA' }
+    ],
+    'OM2': [
+      { offset: '0', color: '#DDD4CB' },
+      { offset: '0.07', color: '#E2D9CB' },
+      { offset: '0.25', color: '#ECE1CD' },
+      { offset: '0.5', color: '#EFE4CE' },
+      { offset: '0.81', color: '#EFE5D0' },
+      { offset: '0.98', color: '#F1E9D8' },
+      { offset: '1', color: '#F2EADA' }
+    ],
+    'D4': [
+      { offset: '0', color: '#DDD4CB' },
+      { offset: '0.07', color: '#E2D9CB' },
+      { offset: '0.25', color: '#ECE1CD' },
+      { offset: '0.5', color: '#EFE4CE' },
+      { offset: '0.81', color: '#EFE5D0' },
+      { offset: '0.98', color: '#F1E9D8' },
+      { offset: '1', color: '#F2EADA' }
+    ],
+    'B4': [
+      { offset: '0', color: '#DDD4CB' },
+      { offset: '0.07', color: '#E2D9CB' },
+      { offset: '0.25', color: '#ECE1CD' },
+      { offset: '0.5', color: '#EFE4CE' },
+      { offset: '0.81', color: '#EFE5D0' },
+      { offset: '0.98', color: '#F1E9D8' },
+      { offset: '1', color: '#F2EADA' }
+    ],
+    'OM3': [
+      { offset: '0', color: '#DDD4CB' },
+      { offset: '0.07', color: '#E2D9CB' },
+      { offset: '0.25', color: '#ECE1CD' },
+      { offset: '0.5', color: '#EFE4CE' },
+      { offset: '0.81', color: '#EFE5D0' },
+      { offset: '0.98', color: '#F1E9D8' },
+      { offset: '1', color: '#F2EADA' }
+    ],
+    'A3': [
+      { offset: '0', color: '#DDD4CB' },
+      { offset: '0.07', color: '#E2D9CB' },
+      { offset: '0.25', color: '#ECE1CD' },
+      { offset: '0.5', color: '#EFE4CE' },
+      { offset: '0.81', color: '#EFE5D0' },
+      { offset: '0.98', color: '#F1E9D8' },
+      { offset: '1', color: '#F2EADA' }
+    ],
+    'A3.5': [
+      { offset: '0', color: '#DDD4CB' },
+      { offset: '0.07', color: '#E2D9CB' },
+      { offset: '0.25', color: '#ECE1CD' },
+      { offset: '0.5', color: '#EFE4CE' },
+      { offset: '0.81', color: '#EFE5D0' },
+      { offset: '0.98', color: '#F1E9D8' },
+      { offset: '1', color: '#F2EADA' }
+    ],
+    'A4': [
+      { offset: '0', color: '#DDD4CB' },
+      { offset: '0.07', color: '#E2D9CB' },
+      { offset: '0.25', color: '#ECE1CD' },
+      { offset: '0.5', color: '#EFE4CE' },
+      { offset: '0.81', color: '#EFE5D0' },
+      { offset: '0.98', color: '#F1E9D8' },
+      { offset: '1', color: '#F2EADA' }
+    ],
+    'B1': [
+      { offset: '0', color: '#DDD4CB' },
+      { offset: '0.07', color: '#E2D9CB' },
+      { offset: '0.25', color: '#ECE1CD' },
+      { offset: '0.5', color: '#EFE4CE' },
+      { offset: '0.81', color: '#EFE5D0' },
+      { offset: '0.98', color: '#F1E9D8' },
+      { offset: '1', color: '#F2EADA' }
+    ],
+    'B2': [
+      { offset: '0', color: '#DDD4CB' },
+      { offset: '0.07', color: '#E2D9CB' },
+      { offset: '0.25', color: '#ECE1CD' },
+      { offset: '0.5', color: '#EFE4CE' },
+      { offset: '0.81', color: '#EFE5D0' },
+      { offset: '0.98', color: '#F1E9D8' },
+      { offset: '1', color: '#F2EADA' }
+    ],
+    'B3': [
+      { offset: '0', color: '#DDD4CB' },
+      { offset: '0.07', color: '#E2D9CB' },
+      { offset: '0.25', color: '#ECE1CD' },
+      { offset: '0.5', color: '#EFE4CE' },
+      { offset: '0.81', color: '#EFE5D0' },
+      { offset: '0.98', color: '#F1E9D8' },
+      { offset: '1', color: '#F2EADA' }
+    ],
+    'C1': [
+      { offset: '0', color: '#DDD4CB' },
+      { offset: '0.07', color: '#E2D9CB' },
+      { offset: '0.25', color: '#ECE1CD' },
+      { offset: '0.5', color: '#EFE4CE' },
+      { offset: '0.81', color: '#EFE5D0' },
+      { offset: '0.98', color: '#F1E9D8' },
+      { offset: '1', color: '#F2EADA' }
+    ],
+    'C2': [
+      { offset: '0', color: '#DDD4CB' },
+      { offset: '0.07', color: '#E2D9CB' },
+      { offset: '0.25', color: '#ECE1CD' },
+      { offset: '0.5', color: '#EFE4CE' },
+      { offset: '0.81', color: '#EFE5D0' },
+      { offset: '0.98', color: '#F1E9D8' },
+      { offset: '1', color: '#F2EADA' }
+    ],
+    'C3': [
+      { offset: '0', color: '#DDD4CB' },
+      { offset: '0.07', color: '#E2D9CB' },
+      { offset: '0.25', color: '#ECE1CD' },
+      { offset: '0.5', color: '#EFE4CE' },
+      { offset: '0.81', color: '#EFE5D0' },
+      { offset: '0.98', color: '#F1E9D8' },
+      { offset: '1', color: '#F2EADA' }
+    ],
+    'C4': [
+      { offset: '0', color: '#DDD4CB' },
+      { offset: '0.07', color: '#E2D9CB' },
+      { offset: '0.25', color: '#ECE1CD' },
+      { offset: '0.5', color: '#EFE4CE' },
+      { offset: '0.81', color: '#EFE5D0' },
+      { offset: '0.98', color: '#F1E9D8' },
+      { offset: '1', color: '#F2EADA' }
+    ],
+    'D2': [
+      { offset: '0', color: '#DDD4CB' },
+      { offset: '0.07', color: '#E2D9CB' },
+      { offset: '0.25', color: '#ECE1CD' },
+      { offset: '0.5', color: '#EFE4CE' },
+      { offset: '0.81', color: '#EFE5D0' },
+      { offset: '0.98', color: '#F1E9D8' },
+      { offset: '1', color: '#F2EADA' }
+    ],
+    'D3': [
+      { offset: '0', color: '#DDD4CB' },
+      { offset: '0.07', color: '#E2D9CB' },
+      { offset: '0.25', color: '#ECE1CD' },
+      { offset: '0.5', color: '#EFE4CE' },
+      { offset: '0.81', color: '#EFE5D0' },
+      { offset: '0.98', color: '#F1E9D8' },
+      { offset: '1', color: '#F2EADA' }
+    ]
+  }
+
+  // Return the gradient for the shade, or default gradient
+  return shadeGradients[shadeName] || shadeGradients['A1'] || [
+    { offset: '0', color: '#DED2C7' },
+    { offset: '0.07', color: '#E3D4C4' },
+    { offset: '0.25', color: '#EDD9C1' },
+    { offset: '0.5', color: '#F0DBC0' },
+    { offset: '0.76', color: '#F0DCC2' },
+    { offset: '0.9', color: '#F1E0CA' },
+    { offset: '1', color: '#F3E7D7' }
+  ]
 } 

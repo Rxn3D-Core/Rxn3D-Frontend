@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { getShadeGradientColors } from "@/utils/teeth-shade-utils"
 
 export interface FieldConfig {
   key: string
@@ -34,6 +35,7 @@ interface DynamicProductFieldsProps {
   onOpenImpressionModal?: () => void
   getImpressionCount?: () => number
   onOpenShadeModal?: (fieldKey: string) => void
+  shadeColors?: Record<string, string> // Map of shade names to gradient colors
 }
 
 export function DynamicProductFields({
@@ -45,7 +47,97 @@ export function DynamicProductFields({
   onOpenImpressionModal,
   getImpressionCount,
   onOpenShadeModal,
+  shadeColors = {},
 }: DynamicProductFieldsProps) {
+  // Helper to check if a value is actually set (not empty, not "Not specified", not undefined, not null)
+  const hasValue = (value: string | undefined | null): boolean => {
+    if (!value) return false
+    const trimmed = String(value).trim()
+    return trimmed !== "" && trimmed.toLowerCase() !== "not specified" && trimmed.toLowerCase() !== "finish"
+  }
+
+  // Helper to get field value
+  const getFieldValueByKey = (fieldKey: string): string | undefined => {
+    const config = fieldConfigs.find(f => f.key === fieldKey)
+    if (!config) return undefined
+    const stateKey = arch === "maxillary" ? config.maxillaryStateKey : config.mandibularStateKey
+    if (!stateKey) return undefined
+    return savedProduct[stateKey as keyof typeof savedProduct] as string | undefined
+  }
+
+  // Helper to check if a field should be visible based on progressive disclosure
+  const isFieldVisibleProgressive = (config: FieldConfig): boolean => {
+    // Always show material (sequence 1) and retention (sequence 2) initially
+    if (config.sequence === 1 || config.sequence === 2) {
+      return true
+    }
+
+    // retention_option (sequence 3) - show after retention has value
+    if (config.key === "retention_option") {
+      const retentionValue = getFieldValueByKey("retention")
+      return hasValue(retentionValue)
+    }
+
+    // stump_shade (sequence 4) - show after retention has value (only for maxillary)
+    if (config.key === "stump_shade") {
+      if (arch === "mandibular") return false // Mandibular doesn't have stump shade
+      const retentionValue = getFieldValueByKey("retention")
+      return hasValue(retentionValue)
+    }
+
+    // tooth_shade (sequence 5) - show after stump_shade has value (maxillary) or retention has value (mandibular)
+    if (config.key === "tooth_shade") {
+      if (arch === "maxillary") {
+        const stumpShadeValue = getFieldValueByKey("stump_shade")
+        return hasValue(stumpShadeValue)
+      } else {
+        // For mandibular, show after retention has value
+        const retentionValue = getFieldValueByKey("retention")
+        return hasValue(retentionValue)
+      }
+    }
+
+    // stage (sequence 6) - show after tooth_shade has value
+    if (config.key === "stage") {
+      const toothShadeValue = getFieldValueByKey("tooth_shade")
+      return hasValue(toothShadeValue)
+    }
+
+    // impression (sequence 7) and other fields - show after stage has value
+    if (config.sequence >= 7) {
+      const stageValue = getFieldValueByKey("stage")
+      return hasValue(stageValue)
+    }
+
+    // For any other fields, check dependencies first
+    if (config.dependsOn) {
+      const dependencyValue = getFieldValueByKey(config.dependsOn)
+      if (!hasValue(dependencyValue)) {
+        return false
+      }
+    }
+
+    return true
+  }
+
+  // Helper to check if all required fields are filled (for showing advance fields)
+  const areAllRequiredFieldsFilled = (): boolean => {
+    const materialValue = getFieldValueByKey("material")
+    const retentionValue = getFieldValueByKey("retention")
+    const stumpShadeValue = getFieldValueByKey("stump_shade")
+    const toothShadeValue = getFieldValueByKey("tooth_shade")
+    const stageValue = getFieldValueByKey("stage")
+
+    // Check all required fields
+    const hasMaterial = hasValue(materialValue)
+    const hasRetention = hasValue(retentionValue)
+    const hasStumpShade = arch === "maxillary" ? hasValue(stumpShadeValue) : true // Mandibular doesn't have stump shade
+    const hasToothShade = hasValue(toothShadeValue)
+    const hasStage = hasValue(stageValue)
+
+    return hasMaterial && hasRetention && hasStumpShade && hasToothShade && hasStage
+  }
+
   // Filter and sort fields that should be displayed
   const visibleFields = fieldConfigs
     .filter(config => {
@@ -55,7 +147,12 @@ export function DynamicProductFields({
         return false
       }
 
-      // Check dependencies
+      // Progressive disclosure: hide fields initially, show them one by one as previous fields are filled
+      if (!isFieldVisibleProgressive(config)) {
+        return false
+      }
+
+      // Check dependencies (for fields that have explicit dependsOn)
       if (config.dependsOn) {
         const dependencyConfig = fieldConfigs.find(f => f.key === config.dependsOn)
         if (dependencyConfig) {
@@ -133,6 +230,21 @@ export function DynamicProductFields({
     }
   }
 
+  // Helper to check if a field is required
+  const isFieldRequired = (config: FieldConfig): boolean => {
+    // All standard fields are required (material, retention, stump_shade, tooth_shade, stage, impression)
+    const requiredFields = ["material", "retention", "stump_shade", "tooth_shade", "stage", "impression"]
+    return requiredFields.includes(config.key)
+  }
+
+  // Helper to check if field should show red border (value is "Not specified" and field is required)
+  const shouldShowRedBorder = (config: FieldConfig, value: string | undefined): boolean => {
+    if (!isFieldRequired(config)) return false
+    if (!value) return true
+    const trimmed = String(value).trim().toLowerCase()
+    return trimmed === "" || trimmed === "not specified"
+  }
+
   const renderField = (config: FieldConfig) => {
     const value = getFieldValue(config)
     const currentId = getFieldId(config)
@@ -143,6 +255,9 @@ export function DynamicProductFields({
       const displayText = impressionCount > 0
         ? `${impressionCount} impression${impressionCount > 1 ? "s" : ""} selected`
         : "Not specified"
+      
+      // For impression field, show red border only if count is 0 (meaning "Not specified") and field is required
+      const showRedBorder = isFieldRequired(config) && impressionCount === 0
 
       const fieldWidth = getResponsiveFieldWidth(config, displayText)
 
@@ -158,14 +273,14 @@ export function DynamicProductFields({
             className="flex items-center cursor-pointer"
             onClick={onOpenImpressionModal}
             style={{
-              padding: '12px 39px 5px 15px',
+              padding: '12px 15px 5px 15px',
               gap: '5px',
               width: '100%',
               height: '37px',
               position: 'relative',
               marginTop: '5.27px',
               background: '#FFFFFF',
-              border: '0.740384px solid #7F7F7F',
+              border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
               borderRadius: '7.7px',
               boxSizing: 'border-box'
             }}
@@ -216,6 +331,7 @@ export function DynamicProductFields({
       }
 
       const displayValue = value || "Not specified"
+      const showRedBorder = shouldShowRedBorder(config, value)
       const fieldWidth = getResponsiveFieldWidth(config, displayValue, options)
 
       return (
@@ -241,14 +357,14 @@ export function DynamicProductFields({
           >
             <SelectTrigger
               style={{
-                padding: '12px 39px 5px 15px',
+                padding: '12px 15px 5px 15px',
                 gap: '5px',
                 width: '100%',
                 height: '37px',
                 position: 'relative',
                 marginTop: '5.27px',
                 background: '#FFFFFF',
-                border: '0.740384px solid #7F7F7F',
+                border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
                 borderRadius: '7.7px',
                 boxSizing: 'border-box'
               }}
@@ -291,10 +407,44 @@ export function DynamicProductFields({
 
     if (config.fieldType === "shade") {
       const shadeValue = value || "Not specified"
+      const showRedBorder = shouldShowRedBorder(config, value)
       const shadeBrand = arch === "maxillary"
         ? savedProduct.maxillaryShadeBrand
         : savedProduct.mandibularShadeBrand
       const brandName = shadeBrand ? "Vita 3D Master" : ""
+      
+      // Extract shade name from value - handle formats like "Brand - Shade" or just "Shade"
+      let shadeName = 'A1' // default
+      if (value && value !== "Not specified") {
+        // If value contains " - ", extract the part after the dash
+        if (value.includes(' - ')) {
+          const parts = value.split(' - ')
+          shadeName = parts[parts.length - 1].trim()
+        } else {
+          shadeName = value.trim()
+        }
+      }
+      
+      // Get gradient colors for the selected shade
+      const gradientColors = getShadeGradientColors(shadeName)
+      
+      // Debug logging (can be removed later)
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Shade field render:', {
+          configKey: config.key,
+          value,
+          extractedShadeName: shadeName,
+          gradientColorsCount: gradientColors?.length || 0,
+          firstColor: gradientColors?.[0]?.color || 'none'
+        })
+      }
+      
+      // Create unique gradient ID for this field based on value to ensure proper updates
+      // Replace dots and other special chars with dashes for valid CSS IDs
+      const safeShadeName = shadeName.replace(/[^a-zA-Z0-9]/g, '-')
+      const gradientId = `shade-gradient-${config.key}-${arch}-${safeShadeName}`
+      const filterId = `filter-${gradientId}`
+      const clipId = `clip-shade-${config.key}-${arch}`
 
       return (
         <div className="relative" style={{ minHeight: '43px', width: '100%' }}>
@@ -310,12 +460,12 @@ export function DynamicProductFields({
               }
             }}
             style={{
-              padding: '12px 39px 5px 15px',
+              padding: '12px 15px 5px 15px',
               gap: '5px',
               width: '100%',
               height: '37px',
               background: '#FFFFFF',
-              border: '0.740384px solid #7F7F7F',
+              border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
               borderRadius: '7.7px',
               boxSizing: 'border-box',
               position: 'relative',
@@ -337,22 +487,79 @@ export function DynamicProductFields({
                 style={{
                   width: '37.51px',
                   height: '41.97px',
-                  background: 'linear-gradient(0deg, #DED2C7 0.05%, #E3D4C4 7.04%, #EDD9C1 25.04%, #F0DBC0 50.02%, #F0DCC2 76.01%, #F1E0CA 90%, #F3E7D7 100%)',
                   borderRadius: '8px',
                   position: 'absolute',
                   right: '0px',
                   top: '-1px'
                 }}
               >
-                <span style={{
-                  fontFamily: 'Verdana',
-                  fontStyle: 'normal',
-                  fontWeight: 400,
-                  fontSize: '12.8603px',
-                  lineHeight: '18px',
-                  letterSpacing: '-0.02em',
-                  color: '#000000'
-                }}>{value}</span>
+                <svg 
+                  key={`shade-svg-${shadeName}-${config.key}`}
+                  width="38" 
+                  height="37" 
+                  viewBox="0 0 38 37" 
+                  fill="none" 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  style={{ width: '100%', height: '100%' }}
+                >
+                  <defs>
+                    <linearGradient id={gradientId} x1="18.7451" y1="34.9299" x2="18.7451" y2="1.31738" gradientUnits="userSpaceOnUse">
+                      {gradientColors && gradientColors.length > 0 ? (
+                        gradientColors.map((stop, index) => (
+                          <stop key={`${gradientId}-stop-${index}`} offset={stop.offset} stopColor={stop.color} />
+                        ))
+                      ) : (
+                        // Fallback gradient if no colors found
+                        <>
+                          <stop offset="0" stopColor="#DED2C7" />
+                          <stop offset="0.07" stopColor="#E3D4C4" />
+                          <stop offset="0.25" stopColor="#EDD9C1" />
+                          <stop offset="0.5" stopColor="#F0DBC0" />
+                          <stop offset="0.76" stopColor="#F0DCC2" />
+                          <stop offset="0.9" stopColor="#F1E0CA" />
+                          <stop offset="1" stopColor="#F3E7D7" />
+                        </>
+                      )}
+                    </linearGradient>
+                    <filter id={filterId} x="2.8371" y="0.424306" width="35.4067" height="176.788" filterUnits="userSpaceOnUse" colorInterpolationFilters="sRGB">
+                      <feFlood floodOpacity="0" result="BackgroundImageFix"/>
+                      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+                      <feOffset dx="1.78615" dy="6.25154"/>
+                      <feGaussianBlur stdDeviation="3.57231"/>
+                      <feColorMatrix type="matrix" values="0 0 0 0 0.137255 0 0 0 0 0.121569 0 0 0 0 0.12549 0 0 0 0.2 0"/>
+                      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow"/>
+                      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow" result="shape"/>
+                    </filter>
+                  </defs>
+                  <g clipPath={`url(#${clipId})`}>
+                    <g filter={`url(#${filterId})`}>
+                      <path d="M28.818 61.9683V163.816H8.68481V61.9683C8.68481 57.1043 11.9055 53.0329 16.2557 51.883V34.8203L21.2471 34.9136V51.8985C25.5973 53.0485 28.818 57.1199 28.818 61.9838V61.9683Z" fill="#8F8C88"/>
+                      <path d="M21.2499 32.708V34.8991L16.2585 34.8214V32.708H21.2499Z" fill="#8F8C88"/>
+                      <path d="M29.3078 27.8438C29.4452 31.7442 26.8198 34.9921 23.5533 34.9454L21.2484 34.9144L16.2571 34.8211L13.3264 34.7745C10.3194 34.7279 7.96878 31.651 8.213 28.0613L9.28148 12.1641C9.69361 6.04147 13.9675 1.31738 19.0962 1.31738C21.6911 1.31738 24.057 2.54502 25.7971 4.54965C27.5372 6.55428 28.6515 9.3359 28.7583 12.4439L29.2925 27.8438H29.3078Z" fill={`url(#${gradientId})`}/>
+                      <path style={{ mixBlendMode: 'screen' }} opacity="0.42" d="M24.8115 29.7413C24.3078 30.2697 24.0789 31.0622 24.2315 31.7926C24.4757 31.9324 24.7963 31.9169 25.0558 31.7926C25.3152 31.6683 25.5442 31.4818 25.7426 31.2953C26.1395 30.9224 28.6733 28.3428 27.5896 27.8144C27.208 27.6279 26.5669 28.234 26.3227 28.4671C25.8342 28.9022 25.2694 29.2751 24.8115 29.7413Z" fill={`url(#${gradientId})`}/>
+                      <path style={{ mixBlendMode: 'screen' }} opacity="0.42" d="M26.6397 25.2954C27.1587 25.1089 27.3114 24.4407 27.3724 23.8812C27.5098 22.7935 27.8761 21.1929 27.4487 20.1362C27.2045 19.5301 26.7924 19.2038 26.5329 19.8254C26.3039 20.3537 26.655 21.4415 26.6855 22.0009C26.7161 22.3894 26.8382 25.2021 26.6245 25.2798L26.6397 25.2954Z" fill={`url(#${gradientId})`}/>
+                      <path style={{ mixBlendMode: 'screen' }} opacity="0.42" d="M23.2475 5.84099C23.4307 6.12071 23.6291 6.46258 23.9649 6.49366C24.2396 6.52474 24.4991 6.30718 24.5907 6.04301C24.6823 5.77883 24.6518 5.48358 24.5907 5.2194C24.3923 4.55119 23.9038 3.97622 23.2933 3.66542C22.7743 3.41679 21.7364 3.16815 21.8737 4.05392C21.9653 4.65997 22.9422 5.2971 23.2628 5.82545L23.2475 5.84099Z" fill={`url(#${gradientId})`}/>
+                    </g>
+                    <text 
+                      x="18.75" 
+                      y="19.5" 
+                      textAnchor="middle" 
+                      dominantBaseline="middle"
+                      style={{
+                        fontFamily: 'Verdana',
+                        fontSize: '12.8603px',
+                        fontWeight: 400,
+                        fill: '#000000',
+                        pointerEvents: 'none'
+                      }}
+                    >
+                      {shadeName}
+                    </text>
+                  </g>
+                  <clipPath id={clipId}>
+                    <rect width="37.5092" height="41.9746" fill="white" transform="translate(0 -1)"/>
+                  </clipPath>
+                </svg>
               </div>
             )}
           </div>
@@ -371,7 +578,7 @@ export function DynamicProductFields({
               color: '#7F7F7F'
             }}
           >
-            {config.label}
+            {value && value !== "Not specified" ? `${config.label} - ${value}` : config.label}
           </label>
         </div>
       )

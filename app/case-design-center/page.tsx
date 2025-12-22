@@ -32,6 +32,8 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Checkbox } from "@/components/ui/checkbox"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
 import AddOnsModal from "@/components/add-ons-modal"
 import RushRequestModal from "@/components/rush-request-modal"
@@ -631,6 +633,81 @@ export default function CaseDesignCenterPage() {
     }
     
     return true
+  }
+
+  // Helper function to check if all required fields are filled (for showing advance fields)
+  const areAllRequiredFieldsFilled = (archType: "maxillary" | "mandibular"): boolean => {
+    const material = archType === "maxillary" ? maxillaryMaterial : mandibularMaterial
+    const retention = archType === "maxillary" ? maxillaryRetention : mandibularRetention
+    const stumpShade = archType === "maxillary" ? maxillaryStumpShade : ""
+    const toothShade = archType === "maxillary" ? maxillaryToothShade : mandibularToothShade
+    const stage = archType === "maxillary" ? maxillaryStage : mandibularStage
+
+    // Helper to check if a value is actually set
+    const hasValue = (value: string | undefined | null): boolean => {
+      if (!value) return false
+      const trimmed = String(value).trim()
+      return trimmed !== "" && trimmed.toLowerCase() !== "not specified" && trimmed.toLowerCase() !== "finish"
+    }
+
+    // Check all required fields
+    const hasMaterial = hasValue(material)
+    const hasRetention = hasValue(retention)
+    const hasStumpShade = archType === "maxillary" ? hasValue(stumpShade) : true // Mandibular doesn't have stump shade
+    const hasToothShade = hasValue(toothShade)
+    const hasStage = hasValue(stage)
+
+    return hasMaterial && hasRetention && hasStumpShade && hasToothShade && hasStage
+  }
+
+  // Helper function to check if accordion field should be visible (progressive disclosure for accordion)
+  // Fields are hidden initially and shown automatically when the previous field has a value
+  const isAccordionFieldVisible = (
+    fieldName: "stump_shade" | "tooth_shade" | "stage" | "notes" | "implant_details",
+    savedProduct: SavedProduct,
+    archType: "maxillary" | "mandibular"
+  ): boolean => {
+    const retention = archType === "maxillary" ? savedProduct.maxillaryRetention : savedProduct.mandibularRetention
+    const stumpShade = archType === "maxillary" ? savedProduct.maxillaryStumpShade : ""
+    const toothShade = archType === "maxillary" ? savedProduct.maxillaryToothShade : savedProduct.mandibularToothShade
+    const stage = archType === "maxillary" ? savedProduct.maxillaryStage : savedProduct.mandibularStage
+
+    // Helper to check if a value is actually set (not empty, not "Not specified", not undefined, not null)
+    const hasValue = (value: string | undefined | null): boolean => {
+      if (!value) return false
+      const trimmed = String(value).trim()
+      return trimmed !== "" && trimmed.toLowerCase() !== "not specified" && trimmed.toLowerCase() !== "finish"
+    }
+
+    switch (fieldName) {
+      case "stump_shade":
+        // Show stump shade ONLY after retention has a real value (only for maxillary)
+        // Initially hidden, shows automatically when retention is filled
+        return archType === "maxillary" && hasValue(retention)
+      case "tooth_shade":
+        // For maxillary: show tooth shade ONLY after stump shade has a real value
+        // For mandibular: show tooth shade ONLY after retention has a real value
+        // Initially hidden, shows automatically when previous field is filled
+        if (archType === "maxillary") {
+          return hasValue(stumpShade)
+        } else {
+          return hasValue(retention)
+        }
+      case "stage":
+        // Show stage ONLY after tooth shade has a real value
+        // Initially hidden, shows automatically when tooth shade is filled
+        return hasValue(toothShade)
+      case "notes":
+        // Show notes ONLY after stage has a real value (for maxillary)
+        // Initially hidden, shows automatically when stage is filled
+        return archType === "maxillary" && hasValue(stage)
+      case "implant_details":
+        // Show implant details ONLY after stage has a real value (for mandibular)
+        // Initially hidden, shows automatically when stage is filled
+        return archType === "mandibular" && hasValue(stage)
+      default:
+        return false
+    }
   }
 
   // Scroll refs and state for horizontal scrolling
@@ -1239,6 +1316,70 @@ export default function CaseDesignCenterPage() {
 
   // Function to format teeth numbers for display
   // Formats consecutive teeth as ranges (e.g., #4–5) and non-consecutive as individual numbers
+  // Helper function to format advance field values for notes
+  const formatAdvanceFields = (product: SavedProduct, arch: "maxillary" | "mandibular"): string => {
+    if (!product.advanceFields || product.advanceFields.length === 0) {
+      return ""
+    }
+
+    // Get advance field definitions from productDetails
+    const fieldDefinitions = product.productDetails?.advance_fields || []
+    if (!fieldDefinitions || fieldDefinitions.length === 0) {
+      return ""
+    }
+
+    const fieldTexts: string[] = []
+
+    product.advanceFields.forEach((savedField) => {
+      // Find the field definition
+      const fieldDef = fieldDefinitions.find((f: any) => f.id === savedField.advance_field_id)
+      if (!fieldDef) return
+
+      const fieldName = fieldDef.name || fieldDef.description || "Advanced Field"
+      let fieldValue = ""
+
+      // Handle different field types
+      if (savedField.advance_field_value) {
+        if (fieldDef.field_type === "dropdown" || fieldDef.field_type === "radio") {
+          // For dropdown/radio, find the option name
+          const option = fieldDef.options?.find((opt: any) => 
+            opt.id === savedField.advance_field_value || 
+            opt.name === savedField.advance_field_value ||
+            String(opt.id) === String(savedField.advance_field_value)
+          )
+          fieldValue = option?.name || savedField.advance_field_value
+        } else if (fieldDef.field_type === "checkbox") {
+          // For checkbox, might have multiple values
+          if (Array.isArray(savedField.advance_field_value)) {
+            const optionNames = savedField.advance_field_value.map((val: any) => {
+              const option = fieldDef.options?.find((opt: any) => 
+                opt.id === val || opt.name === val || String(opt.id) === String(val)
+              )
+              return option?.name || val
+            })
+            fieldValue = optionNames.join(", ")
+          } else {
+            fieldValue = savedField.advance_field_value
+          }
+        } else if (fieldDef.field_type === "file") {
+          // For file uploads, show file name if available
+          fieldValue = savedField.file?.name || savedField.advance_field_value || "File uploaded"
+        } else {
+          // For text, textarea, number, etc.
+          fieldValue = savedField.advance_field_value
+        }
+      }
+
+      if (fieldValue) {
+        // Include teeth number if specified
+        const teethInfo = savedField.teeth_number ? ` (tooth #${savedField.teeth_number})` : ""
+        fieldTexts.push(`${fieldName}: ${fieldValue}${teethInfo}`)
+      }
+    })
+
+    return fieldTexts.length > 0 ? fieldTexts.join("; ") : ""
+  }
+
   const formatTeethNumbers = (teeth: number[]): string => {
     if (teeth.length === 0) return ""
     const sorted = [...teeth].sort((a, b) => a - b)
@@ -1644,7 +1785,11 @@ export default function CaseDesignCenterPage() {
             ? product.maxillaryAddOns.join(", ")
             : "selected"
 
-          notes += ` Design specifications: ${ponticDesign}, ${embrasure}, ${contourPonticType}, ${proximalContact}, ${occlusalContact}. Impression: ${impressionText}. Add-ons ${addOns}`
+          // Get advance fields for maxillary
+          const advanceFieldsText = formatAdvanceFields(product, "maxillary")
+          const advanceFieldsSection = advanceFieldsText ? ` Advanced fields: ${advanceFieldsText}.` : ""
+
+          notes += ` Design specifications: ${ponticDesign}, ${embrasure}, ${contourPonticType}, ${proximalContact}, ${occlusalContact}. Impression: ${impressionText}. Add-ons ${addOns}.${advanceFieldsSection}`
         } else if (isRemovable) {
           const teeth = formatTeethNumbers(product.maxillaryTeeth)
           const productName = product.product.name || "removable restoration"
@@ -1667,7 +1812,11 @@ export default function CaseDesignCenterPage() {
             ? product.maxillaryAddOns.join(", ")
             : "selected"
 
-          notes += `Fabricate a ${grade} ${productName} replacing teeth ${teeth}, in the ${stage} stage. Use ${teethShade} denture teeth with ${gumShade} gingiva. Impression: ${impressionText}. Add-ons ${addOns}`
+          // Get advance fields for maxillary
+          const advanceFieldsText = formatAdvanceFields(product, "maxillary")
+          const advanceFieldsSection = advanceFieldsText ? ` Advanced fields: ${advanceFieldsText}.` : ""
+
+          notes += `Fabricate a ${grade} ${productName} replacing teeth ${teeth}, in the ${stage} stage. Use ${teethShade} denture teeth with ${gumShade} gingiva. Impression: ${impressionText}. Add-ons ${addOns}.${advanceFieldsSection}`
         } else if (isOrthodontic) {
           const productName = product.product.name || "orthodontic appliance"
           const instructions = product.maxillaryNotes || "Standard specifications"
@@ -1736,7 +1885,11 @@ export default function CaseDesignCenterPage() {
             ? product.mandibularAddOns.join(", ")
             : "selected"
 
-          notes += ` Design specifications: ${ponticDesign}, ${embrasure}, ${contourPonticType}, ${proximalContact}, ${occlusalContact}. Impression: ${impressionText}. Add-ons ${addOns}`
+          // Get advance fields for mandibular
+          const advanceFieldsText = formatAdvanceFields(product, "mandibular")
+          const advanceFieldsSection = advanceFieldsText ? ` Advanced fields: ${advanceFieldsText}.` : ""
+
+          notes += ` Design specifications: ${ponticDesign}, ${embrasure}, ${contourPonticType}, ${proximalContact}, ${occlusalContact}. Impression: ${impressionText}. Add-ons ${addOns}.${advanceFieldsSection}`
         } else if (isRemovable) {
           const teeth = formatTeethNumbers(product.mandibularTeeth)
           const productName = product.product.name || "removable restoration"
@@ -1759,7 +1912,11 @@ export default function CaseDesignCenterPage() {
             ? product.mandibularAddOns.join(", ")
             : "Selected"
 
-          notes += `Fabricate a ${grade} ${productName} replacing teeth ${teeth}, in the ${stage} stage. Use ${teethShade} denture teeth with ${gumShade} gingiva. Impression: ${impressionText}. Add-ons ${addOns}`
+          // Get advance fields for mandibular
+          const advanceFieldsText = formatAdvanceFields(product, "mandibular")
+          const advanceFieldsSection = advanceFieldsText ? ` Advanced fields: ${advanceFieldsText}.` : ""
+
+          notes += `Fabricate a ${grade} ${productName} replacing teeth ${teeth}, in the ${stage} stage. Use ${teethShade} denture teeth with ${gumShade} gingiva. Impression: ${impressionText}. Add-ons ${addOns}.${advanceFieldsSection}`
         } else if (isOrthodontic) {
           const productName = product.product.name || "orthodontic appliance"
           const instructions = product.maxillaryNotes || "Standard specifications"
@@ -1773,15 +1930,113 @@ export default function CaseDesignCenterPage() {
   }
 
   // Initialize maxillaryNotes with generated notes when empty and we have products
-  // Only initialize if maxillaryNotes is empty to preserve user input
+  // Also update when products are added or modified
   useEffect(() => {
-    if (!maxillaryNotes && savedProducts.length > 0) {
+    if (savedProducts.length > 0) {
       const generatedNotes = generateCaseNotes()
       if (generatedNotes) {
-        setMaxillaryNotes(generatedNotes)
+        // Only update if notes are empty or if we're adding the first product
+        // This preserves user edits while auto-updating when products change
+        if (!maxillaryNotes || savedProducts.length === 1) {
+          setMaxillaryNotes(generatedNotes)
+        } else {
+          // If user has edited notes, only update if the generated notes are significantly different
+          // This is a simple check - you might want to make it more sophisticated
+          const currentNotesLength = maxillaryNotes.length
+          const generatedNotesLength = generatedNotes.length
+          // If generated notes are much longer (new product added), update them
+          if (generatedNotesLength > currentNotesLength * 1.5) {
+            setMaxillaryNotes(generatedNotes)
+          }
+        }
       }
     }
-  }, [savedProducts.length]) // Only run when savedProducts length changes
+  }, [savedProducts.length, savedProducts]) // Run when savedProducts change
+
+  // Track if we've auto-added the current product to avoid duplicates
+  const autoAddedProductRef = useRef<string | null>(null)
+
+  // Auto-add product when selected and required fields are filled
+  useEffect(() => {
+    // Only auto-add if we have a product selected and product details loaded
+    if (!selectedProduct || !productDetails || !selectedCategory || !selectedSubcategory) {
+      return
+    }
+
+    // Check if we've already auto-added this product
+    const currentProductKey = `${selectedProduct.id}-${selectedCategoryId}-${selectedSubcategoryId}`
+    if (autoAddedProductRef.current === currentProductKey) {
+      return
+    }
+
+    // Determine which arch has teeth selected
+    const hasMaxillaryTeeth = maxillaryTeeth.length > 0
+    const hasMandibularTeeth = mandibularTeeth.length > 0
+
+    if (!hasMaxillaryTeeth && !hasMandibularTeeth) {
+      return
+    }
+
+    // Check if required fields are filled for the arch with teeth
+    let shouldAutoAdd = false
+    let archToAdd: "maxillary" | "mandibular" | null = null
+
+    if (hasMaxillaryTeeth) {
+      // Check if material and retention are filled for maxillary
+      if (maxillaryMaterial && maxillaryRetention) {
+        shouldAutoAdd = true
+        archToAdd = "maxillary"
+      }
+    }
+
+    if (hasMandibularTeeth && !shouldAutoAdd) {
+      // Check if material and retention are filled for mandibular
+      if (mandibularMaterial && mandibularRetention) {
+        shouldAutoAdd = true
+        archToAdd = "mandibular"
+      }
+    }
+
+    // If both arches have teeth and fields, prefer maxillary
+    if (hasMaxillaryTeeth && hasMandibularTeeth) {
+      if (maxillaryMaterial && maxillaryRetention) {
+        shouldAutoAdd = true
+        archToAdd = "maxillary"
+      } else if (mandibularMaterial && mandibularRetention) {
+        shouldAutoAdd = true
+        archToAdd = "mandibular"
+      }
+    }
+
+    // Auto-save the product if conditions are met (without resetting form)
+    if (shouldAutoAdd && archToAdd) {
+      // Mark that we've auto-added this product
+      autoAddedProductRef.current = currentProductKey
+
+      // Use setTimeout to ensure state updates are complete
+      setTimeout(() => {
+        handleAutoSaveProduct(archToAdd!)
+      }, 100)
+    }
+  }, [
+    selectedProduct?.id,
+    productDetails?.id,
+    selectedCategoryId,
+    selectedSubcategoryId,
+    maxillaryTeeth.length,
+    mandibularTeeth.length,
+    maxillaryMaterial,
+    maxillaryRetention,
+    mandibularMaterial,
+    mandibularRetention,
+  ])
+
+  // Reset auto-added ref when product changes
+  useEffect(() => {
+    if (!selectedProduct) {
+      autoAddedProductRef.current = null
+    }
+  }, [selectedProduct?.id])
 
   // Impression selection handlers
   const handleImpressionQuantityUpdate = (impressionKey: string, quantity: number) => {
@@ -2122,6 +2377,159 @@ export default function CaseDesignCenterPage() {
     }
   }
 
+  // Auto-save product without resetting form - keeps user on current product details
+  const handleAutoSaveProduct = (type: "maxillary" | "mandibular") => {
+    // Validate that we have a product selected
+    if (!selectedProduct) {
+      return
+    }
+
+    // Validate that we have teeth selected for the specified type
+    const teethForType = type === "maxillary" ? maxillaryTeeth : mandibularTeeth
+    if (teethForType.length === 0) {
+      return
+    }
+
+    // Validate category and subcategory
+    if (!selectedCategory || !selectedCategoryId || !selectedSubcategory || !selectedSubcategoryId) {
+      return
+    }
+
+    // Check if this product is already saved (to avoid duplicates)
+    const currentProductKey = `${selectedProduct.id}-${selectedCategoryId}-${selectedSubcategoryId}`
+    const isAlreadySaved = savedProducts.some(p => 
+      p.product.id === selectedProduct.id && 
+      p.categoryId === selectedCategoryId && 
+      p.subcategoryId === selectedSubcategoryId &&
+      JSON.stringify(p.maxillaryTeeth) === JSON.stringify(maxillaryTeeth) &&
+      JSON.stringify(p.mandibularTeeth) === JSON.stringify(mandibularTeeth)
+    )
+
+    if (isAlreadySaved) {
+      return // Already saved, skip
+    }
+
+    // Auto-populate product name and retention type if not already set
+    const finalMaxillaryMaterial = maxillaryMaterial || (type === "maxillary" ? selectedProduct.name : "")
+    const finalMandibularMaterial = mandibularMaterial || (type === "mandibular" ? selectedProduct.name : "")
+    const finalMaxillaryRetention = maxillaryRetention
+    const finalMandibularRetention = mandibularRetention
+
+    // Get impression selections for this product
+    const productId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    const impressions = productDetails?.impressions || []
+    const maxillaryImpressions = type === "maxillary" 
+      ? getImpressionSelections(productId, "maxillary", impressions)
+      : []
+    const mandibularImpressions = type === "mandibular"
+      ? getImpressionSelections(productId, "mandibular", impressions)
+      : []
+
+    // Create saved product configuration
+    const savedProduct: SavedProduct = {
+      id: productId,
+      product: selectedProduct,
+      productDetails: productDetails,
+      category: selectedCategory,
+      categoryId: selectedCategoryId,
+      subcategory: selectedSubcategory,
+      subcategoryId: selectedSubcategoryId,
+      maxillaryTeeth: [...maxillaryTeeth],
+      mandibularTeeth: [...mandibularTeeth],
+      maxillaryMaterial: finalMaxillaryMaterial,
+      maxillaryStumpShade,
+      maxillaryRetention: finalMaxillaryRetention,
+      maxillaryNotes,
+      mandibularMaterial: finalMandibularMaterial,
+      mandibularRetention: finalMandibularRetention,
+      mandibularImplantDetails,
+      createdAt: Date.now(),
+      addedFrom: type,
+      maxillaryImpressions: maxillaryImpressions.length > 0 ? maxillaryImpressions : undefined,
+      mandibularImpressions: mandibularImpressions.length > 0 ? mandibularImpressions : undefined,
+      // Include ID fields and additional fields
+      maxillaryMaterialId: type === "maxillary" ? maxillaryMaterialId : undefined,
+      maxillaryRetentionId: type === "maxillary" ? maxillaryRetentionId : undefined,
+      maxillaryRetentionOptionId: type === "maxillary" ? maxillaryRetentionOptionId : undefined,
+      maxillaryGumShadeId: type === "maxillary" ? maxillaryGumShadeId : undefined,
+      maxillaryShadeId: type === "maxillary" ? maxillaryShadeId : undefined,
+      maxillaryStageId: type === "maxillary" ? maxillaryStageId : undefined,
+      maxillaryToothShade: type === "maxillary" ? maxillaryToothShade : undefined,
+      maxillaryStage: type === "maxillary" ? maxillaryStage : undefined,
+      mandibularMaterialId: type === "mandibular" ? mandibularMaterialId : undefined,
+      mandibularRetentionId: type === "mandibular" ? mandibularRetentionId : undefined,
+      mandibularRetentionOptionId: type === "mandibular" ? mandibularRetentionOptionId : undefined,
+      mandibularGumShadeId: type === "mandibular" ? mandibularGumShadeId : undefined,
+      mandibularShadeId: type === "mandibular" ? mandibularShadeId : undefined,
+      mandibularStageId: type === "mandibular" ? mandibularStageId : undefined,
+      mandibularToothShade: type === "mandibular" ? mandibularToothShade : undefined,
+      mandibularStage: type === "mandibular" ? mandibularStage : undefined,
+      // Include advance fields if any are set
+      advanceFields: productDetails?.advance_fields && Array.isArray(productDetails.advance_fields)
+        ? productDetails.advance_fields
+            .map((field: any) => {
+              const fieldKey = `advance_${field.id}`
+              const value = advanceFieldValues[fieldKey]
+              if (value) {
+                const fieldData: any = {
+                  advance_field_id: field.id,
+                  advance_field_value: typeof value === "object" ? value.advance_field_value : value,
+                  teeth_number: null,
+                }
+                
+                if (typeof value === "object" && value.option_id) {
+                  fieldData.option_id = value.option_id
+                }
+                
+                if (typeof value === "object" && Array.isArray(value.option_ids)) {
+                  fieldData.option_ids = value.option_ids
+                }
+                
+                if (typeof value === "object" && value.file) {
+                  fieldData.file = value.file
+                }
+                
+                return fieldData
+              }
+              return null
+            })
+            .filter((field: any) => field !== null)
+        : undefined,
+    }
+    
+    // If both material and retention are set, show advance fields and fetch them
+    if ((type === "maxillary" && finalMaxillaryMaterial && finalMaxillaryRetention) ||
+        (type === "mandibular" && finalMandibularMaterial && finalMandibularRetention)) {
+      setShowAdvanceFields(prev => ({ ...prev, [savedProduct.id]: true }))
+      
+      if (productDetails?.advance_fields && Array.isArray(productDetails.advance_fields)) {
+        setProductAdvanceFields(prev => ({ ...prev, [savedProduct.id]: productDetails.advance_fields }))
+      } else if (selectedProduct?.id) {
+        const fetchAdvanceFields = async () => {
+          try {
+            const labId = selectedLab?.id || selectedLab?.customer_id
+            const details = await fetchProductDetails(selectedProduct.id, labId)
+            if (details?.advance_fields && Array.isArray(details.advance_fields)) {
+              setProductAdvanceFields(prev => ({ ...prev, [savedProduct.id]: details.advance_fields }))
+            }
+          } catch (error) {
+            console.error("Error fetching advance fields:", error)
+          }
+        }
+        fetchAdvanceFields()
+      }
+    }
+
+    // Add to saved products array (without resetting form)
+    setSavedProducts((prev) => [...prev, savedProduct])
+
+    // Update case summary notes when product is auto-saved
+    const updatedNotes = generateCaseNotes()
+    if (updatedNotes) {
+      setMaxillaryNotes(updatedNotes)
+    }
+  }
+
   // Handler for Add Product button - saves current product and resets to categories
   const handleAddProduct = (type: "maxillary" | "mandibular") => {
     // Validate that we have a product selected
@@ -2219,12 +2627,28 @@ export default function CaseDesignCenterPage() {
               const fieldKey = `advance_${field.id}`
               const value = advanceFieldValues[fieldKey]
               if (value) {
-                return {
+                const fieldData: any = {
                   advance_field_id: field.id,
                   advance_field_value: typeof value === "object" ? value.advance_field_value : value,
-                  option_id: typeof value === "object" ? value.option_id : undefined,
                   teeth_number: null, // Can be set per tooth if needed
                 }
+                
+                // Handle option_id for single selection (dropdown, radio)
+                if (typeof value === "object" && value.option_id) {
+                  fieldData.option_id = value.option_id
+                }
+                
+                // Handle option_ids for multiple selection (checkbox)
+                if (typeof value === "object" && Array.isArray(value.option_ids)) {
+                  fieldData.option_ids = value.option_ids
+                }
+                
+                // Handle file upload
+                if (typeof value === "object" && value.file) {
+                  fieldData.file = value.file
+                }
+                
+                return fieldData
               }
               return null
             })
@@ -2288,6 +2712,12 @@ export default function CaseDesignCenterPage() {
       title: "Product Added",
       description: `${selectedProduct.name} has been added to your case`,
     })
+
+    // Update case summary notes when product is added
+    const updatedNotes = generateCaseNotes()
+    if (updatedNotes) {
+      setMaxillaryNotes(updatedNotes)
+    }
   }
 
   // Handler to delete a saved product
@@ -2433,14 +2863,106 @@ export default function CaseDesignCenterPage() {
       return
     }
 
-    // If there's a current product being configured but not saved, prompt to save it first
-    if (hasCurrentProduct && !hasSavedProducts) {
-      toast({
-        title: "Save Product First",
-        description: "Please click 'Add Product' to save your current product configuration before submitting",
-        variant: "destructive",
-      })
-      return
+    // If there's a current product with teeth selected, automatically include it in the submission
+    let productsToSubmit = [...savedProducts]
+    if (hasCurrentProduct && selectedProduct) {
+      // Validate category and subcategory are set
+      if (!selectedCategory || !selectedCategoryId || !selectedSubcategory || !selectedSubcategoryId) {
+        toast({
+          title: "Missing Information",
+          description: "Please ensure category and subcategory are selected for the current product",
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Determine which arch to use for addedFrom (prefer the one with more teeth, or maxillary if equal)
+      const addedFrom: "maxillary" | "mandibular" = maxillaryTeeth.length >= mandibularTeeth.length ? "maxillary" : "mandibular"
+      
+      // Auto-populate product name and retention type if not already set
+      const finalMaxillaryMaterial = maxillaryMaterial || (addedFrom === "maxillary" ? selectedProduct.name : "")
+      const finalMandibularMaterial = mandibularMaterial || (addedFrom === "mandibular" ? selectedProduct.name : "")
+      
+      // Get impression selections for this product
+      const productId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      const impressions = productDetails?.impressions || []
+      const maxillaryImpressions = getImpressionSelections(productId, "maxillary", impressions)
+      const mandibularImpressions = getImpressionSelections(productId, "mandibular", impressions)
+
+      // Create saved product configuration for current product
+      const currentProductAsSaved: SavedProduct = {
+        id: productId,
+        product: selectedProduct,
+        productDetails: productDetails,
+        category: selectedCategory,
+        categoryId: selectedCategoryId,
+        subcategory: selectedSubcategory,
+        subcategoryId: selectedSubcategoryId,
+        maxillaryTeeth: [...maxillaryTeeth],
+        mandibularTeeth: [...mandibularTeeth],
+        maxillaryMaterial: finalMaxillaryMaterial,
+        maxillaryStumpShade,
+        maxillaryRetention: maxillaryRetention,
+        maxillaryNotes,
+        mandibularMaterial: finalMandibularMaterial,
+        mandibularRetention: mandibularRetention,
+        mandibularImplantDetails,
+        createdAt: Date.now(),
+        addedFrom,
+        maxillaryImpressions: maxillaryImpressions.length > 0 ? maxillaryImpressions : undefined,
+        mandibularImpressions: mandibularImpressions.length > 0 ? mandibularImpressions : undefined,
+        maxillaryMaterialId,
+        maxillaryRetentionId,
+        maxillaryRetentionOptionId,
+        maxillaryGumShadeId,
+        maxillaryShadeId,
+        maxillaryStageId,
+        maxillaryToothShade,
+        maxillaryStage,
+        mandibularMaterialId,
+        mandibularRetentionId,
+        mandibularRetentionOptionId,
+        mandibularGumShadeId,
+        mandibularShadeId,
+        mandibularStageId,
+        mandibularToothShade,
+        mandibularStage,
+        advanceFields: productDetails?.advance_fields && Array.isArray(productDetails.advance_fields)
+          ? productDetails.advance_fields
+              .map((field: any) => {
+                const fieldKey = `advance_${field.id}`
+                const value = advanceFieldValues[fieldKey]
+                if (value) {
+                  const fieldData: any = {
+                    advance_field_id: field.id,
+                    advance_field_value: typeof value === "object" ? value.advance_field_value : value,
+                    teeth_number: null,
+                  }
+                  
+                  // Handle option_id for single selection (dropdown, radio)
+                  if (typeof value === "object" && value.option_id) {
+                    fieldData.option_id = value.option_id
+                  }
+                  
+                  // Handle option_ids for multiple selection (checkbox)
+                  if (typeof value === "object" && Array.isArray(value.option_ids)) {
+                    fieldData.option_ids = value.option_ids
+                  }
+                  
+                  // Handle file upload
+                  if (typeof value === "object" && value.file) {
+                    fieldData.file = value.file
+                  }
+                  
+                  return fieldData
+                }
+                return null
+              })
+              .filter((field: any) => field !== null)
+          : undefined,
+      }
+      
+      productsToSubmit.push(currentProductAsSaved)
     }
 
     // Validate required data
@@ -2489,13 +3011,13 @@ export default function CaseDesignCenterPage() {
         selectedLab,
         selectedDoctor,
         patientData,
-        savedProducts,
+        savedProducts: productsToSubmit,
         user,
         locationId: undefined, // Could be added from user preferences
       })
 
       // Extract files from advance fields if any
-      const files = extractFilesFromAdvanceFields(savedProducts)
+      const files = extractFilesFromAdvanceFields(productsToSubmit)
 
       // Call API
       const response = await slipCreationService.createSlip(payload, files.length > 0 ? files : undefined)
@@ -3645,10 +4167,11 @@ export default function CaseDesignCenterPage() {
                                       }}
                                     />
                                     
-                                    {/* Advance Fields - Shown after all standard fields */}
+                                    {/* Advance Fields - Shown only after all required fields are filled */}
                                     {productDetails.advance_fields && 
                                      Array.isArray(productDetails.advance_fields) && 
-                                     productDetails.advance_fields.length > 0 && (
+                                     productDetails.advance_fields.length > 0 &&
+                                     areAllRequiredFieldsFilled("maxillary") && (
                                       <div
                                         className="flex flex-col gap-5"
                                   style={{
@@ -3675,6 +4198,18 @@ export default function CaseDesignCenterPage() {
                                                   return { minWidth: "100%", maxWidth: "100%", width: "100%", flex: "1 1 100%" }
                                                 }
                                                 
+                                                // Radio and checkbox fields need more width to display options
+                                                if (field.field_type === "radio" || field.field_type === "checkbox") {
+                                                  const minWidth = 250
+                                                  const maxWidth = "48%"
+                                                  return { 
+                                                    minWidth: `${minWidth}px`, 
+                                                    maxWidth, 
+                                                    width: `${minWidth}px`, 
+                                                    flex: '1 1 auto' 
+                                                  }
+                                                }
+                                                
                                                 // For other fields, calculate based on content
                                                 const displayValue = typeof currentValue === "object" 
                                                   ? currentValue?.advance_field_value || ""
@@ -3682,7 +4217,7 @@ export default function CaseDesignCenterPage() {
                                                 
                                                 // Get the longest possible value for width calculation
                                                 let longestText = field.name || ""
-                                                if (field.field_type === "dropdown" && field.options) {
+                                                if ((field.field_type === "dropdown" || field.field_type === "radio" || field.field_type === "checkbox") && field.options) {
                                                   // Find longest option name
                                                   const longestOption = field.options.reduce((longest: any, opt: any) => {
                                                     return (opt.name?.length || 0) > (longest?.name?.length || 0) ? opt : longest
@@ -3707,6 +4242,29 @@ export default function CaseDesignCenterPage() {
                                               }
                                               
                                               const fieldWidth = getFieldWidth()
+                                              
+                                              // Check if field is required and value is "Not specified" or empty
+                                              const isFieldRequired = field.is_required === "Yes" || field.is_required === true
+                                              const displayValue = typeof currentValue === "object" 
+                                                ? currentValue?.advance_field_value || ""
+                                                : currentValue || ""
+                                              
+                                              // For checkbox fields, check if at least one option is selected
+                                              let isEmptyOrNotSpecified = false
+                                              if (field.field_type === "checkbox") {
+                                                const currentSelectedIds = typeof currentValue === "object" 
+                                                  ? (Array.isArray(currentValue?.option_ids) ? currentValue.option_ids : 
+                                                     currentValue?.option_id ? [currentValue.option_id] : [])
+                                                  : []
+                                                isEmptyOrNotSpecified = currentSelectedIds.length === 0
+                                              } else {
+                                                isEmptyOrNotSpecified = !displayValue || 
+                                                  displayValue.trim() === "" || 
+                                                  displayValue.trim().toLowerCase() === "not specified" ||
+                                                  (field.field_type === "dropdown" && displayValue === `Select ${field.name}`)
+                                              }
+                                              
+                                              const showRedBorder = isFieldRequired && isEmptyOrNotSpecified
                                               
                                               // Render based on field_type
                                               const renderAdvanceField = () => {
@@ -3775,11 +4333,12 @@ export default function CaseDesignCenterPage() {
                                                       }}
                                                     >
                                                       <SelectTrigger
-                                                        className="h-[37px] mt-[5.27px] border-[#7F7F7F] rounded-[7.7px] text-[14.4px] font-normal"
+                                                        className="h-[37px] mt-[5.27px] rounded-[7.7px] text-[14.4px] font-normal"
                                       style={{
-                                        padding: '12px 39px 5px 15px',
+                                        padding: '12px 15px 5px 15px',
                                         gap: '5px',
                                         background: '#FFFFFF',
+                                        border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
                                         boxSizing: 'border-box',
                                                           minWidth: fieldWidth.minWidth,
                                                           maxWidth: fieldWidth.maxWidth,
@@ -3819,10 +4378,11 @@ export default function CaseDesignCenterPage() {
                                                           }
                                                         }))
                                                       }}
-                                                      className="mt-[5.27px] border-[#7F7F7F] rounded-[7.7px] text-[14.4px]"
+                                                      className="mt-[5.27px] rounded-[7.7px] text-[14.4px]"
                                       style={{
                                                         padding: '12px 15px 5px 15px',
                                                         minHeight: '80px',
+                                                        border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
                                                         minWidth: fieldWidth.minWidth,
                                                         maxWidth: fieldWidth.maxWidth,
                                                         width: fieldWidth.width,
@@ -3848,9 +4408,10 @@ export default function CaseDesignCenterPage() {
                                                           }
                                                         }))
                                                       }}
-                                                      className="h-[37px] mt-[5.27px] border-[#7F7F7F] rounded-[7.7px] text-[14.4px]"
+                                                      className="h-[37px] mt-[5.27px] rounded-[7.7px] text-[14.4px]"
                                         style={{
                                                         padding: '12px 15px 5px 15px',
+                                                        border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
                                                         minWidth: fieldWidth.minWidth,
                                                         maxWidth: fieldWidth.maxWidth,
                                                         width: fieldWidth.width,
@@ -3875,10 +4436,268 @@ export default function CaseDesignCenterPage() {
                                                           }
                                                         }))
                                                       }}
-                                                      className="mt-[5.27px] border-[#7F7F7F] rounded-[7.7px] text-[14.4px]"
+                                                      className="mt-[5.27px] rounded-[7.7px] text-[14.4px]"
                                       style={{
                                                         padding: '12px 15px 5px 15px',
                                                         minHeight: '80px',
+                                                        minWidth: fieldWidth.minWidth,
+                                                        maxWidth: fieldWidth.maxWidth,
+                                                        width: fieldWidth.width,
+                                                        flex: fieldWidth.flex,
+                                                      }}
+                                                      placeholder={`Enter ${field.name}`}
+                                                    />
+                                                  )
+                                                }
+                                                
+                                                // Radio field
+                                                if (field.field_type === "radio" && field.options && Array.isArray(field.options)) {
+                                                  const activeOptions = field.options.filter((opt: any) => opt.status === "Active" || opt.status === undefined)
+                                                  const currentOptionId = typeof currentValue === "object" 
+                                                    ? currentValue?.option_id?.toString() 
+                                                    : currentValue?.toString() || ""
+                                                  
+                                                  // Find default option if no value is set
+                                                  const defaultOption = !currentOptionId
+                                                    ? activeOptions.find((opt: any) => 
+                                                        opt.is_default === "Yes" || opt.is_default === true
+                                                      )
+                                                    : null
+                                                  
+                                                  const selectedOptionId = currentOptionId || defaultOption?.id?.toString() || ""
+                                                  
+                                                  // Auto-select default if exists and no value is set
+                                                  if (defaultOption && !currentOptionId) {
+                                                    setTimeout(() => {
+                                                      setAdvanceFieldValues(prev => ({
+                                                        ...prev,
+                                                        [fieldKey]: {
+                                                          advance_field_id: field.id,
+                                                          advance_field_value: defaultOption.name,
+                                                          option_id: defaultOption.id
+                                                        }
+                                                      }))
+                                                    }, 0)
+                                                  }
+                                                  
+                                                  return (
+                                                    <div 
+                                                      className="mt-[5.27px] rounded-[7.7px]"
+                                                      style={{
+                                                        padding: '12px 15px 5px 15px',
+                                                        minHeight: '37px',
+                                                        background: '#FFFFFF',
+                                                        border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
+                                                        minWidth: fieldWidth.minWidth,
+                                                        maxWidth: fieldWidth.maxWidth,
+                                                        width: fieldWidth.width,
+                                                        flex: fieldWidth.flex,
+                                                      }}
+                                                    >
+                                                      <RadioGroup
+                                                        value={selectedOptionId}
+                                                        onValueChange={(value) => {
+                                                          const selectedOption = activeOptions.find((opt: any) => opt.id?.toString() === value)
+                                                          setAdvanceFieldValues(prev => ({
+                                                            ...prev,
+                                                            [fieldKey]: selectedOption ? {
+                                                              advance_field_id: field.id,
+                                                              advance_field_value: selectedOption.name,
+                                                              option_id: selectedOption.id
+                                                            } : null
+                                                          }))
+                                                        }}
+                                                        className="space-y-2"
+                                                      >
+                                                        {activeOptions
+                                                          .sort((a: any, b: any) => (a.sequence || 0) - (b.sequence || 0))
+                                                          .map((option: any) => (
+                                                            <div key={option.id} className="flex items-center space-x-2">
+                                                              <RadioGroupItem value={option.id.toString()} id={`${fieldKey}-${option.id}`} />
+                                                              <Label 
+                                                                htmlFor={`${fieldKey}-${option.id}`}
+                                                                className="text-[14.4px] font-normal cursor-pointer"
+                                                              >
+                                                                {option.name}
+                                                              </Label>
+                                                            </div>
+                                                          ))}
+                                                      </RadioGroup>
+                                                    </div>
+                                                  )
+                                                }
+                                                
+                                                // Checkbox field (multiple selection)
+                                                if (field.field_type === "checkbox" && field.options && Array.isArray(field.options)) {
+                                                  const activeOptions = field.options.filter((opt: any) => opt.status === "Active" || opt.status === undefined)
+                                                  
+                                                  // For checkbox, value can be an array of selected option IDs
+                                                  const currentSelectedIds = typeof currentValue === "object" 
+                                                    ? (Array.isArray(currentValue?.option_ids) ? currentValue.option_ids : 
+                                                       currentValue?.option_id ? [currentValue.option_id] : [])
+                                                    : []
+                                                  
+                                                  const handleCheckboxChange = (optionId: number, checked: boolean) => {
+                                                    setAdvanceFieldValues(prev => {
+                                                      const current = prev[fieldKey]
+                                                      const currentIds = typeof current === "object" 
+                                                        ? (Array.isArray(current?.option_ids) ? current.option_ids : 
+                                                           current?.option_id ? [current.option_id] : [])
+                                                        : []
+                                                      
+                                                      let newIds: number[]
+                                                      if (checked) {
+                                                        newIds = [...currentIds, optionId]
+                                                      } else {
+                                                        newIds = currentIds.filter((id: number) => id !== optionId)
+                                                      }
+                                                      
+                                                      // Get selected option names
+                                                      const selectedOptions = activeOptions.filter((opt: any) => newIds.includes(opt.id))
+                                                      const optionNames = selectedOptions.map((opt: any) => opt.name).join(", ")
+                                                      
+                                                      return {
+                                                        ...prev,
+                                                        [fieldKey]: {
+                                                          advance_field_id: field.id,
+                                                          advance_field_value: optionNames || "",
+                                                          option_ids: newIds
+                                                        }
+                                                      }
+                                                    })
+                                                  }
+                                                  
+                                                  return (
+                                                    <div 
+                                                      className="mt-[5.27px] rounded-[7.7px]"
+                                                      style={{
+                                                        padding: '12px 15px 5px 15px',
+                                                        minHeight: '37px',
+                                                        background: '#FFFFFF',
+                                                        border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
+                                                        minWidth: fieldWidth.minWidth,
+                                                        maxWidth: fieldWidth.maxWidth,
+                                                        width: fieldWidth.width,
+                                                        flex: fieldWidth.flex,
+                                                      }}
+                                                    >
+                                                      <div className="space-y-2">
+                                                        {activeOptions
+                                                          .sort((a: any, b: any) => (a.sequence || 0) - (b.sequence || 0))
+                                                          .map((option: any) => (
+                                                            <div key={option.id} className="flex items-center space-x-2">
+                                                              <Checkbox
+                                                                id={`${fieldKey}-${option.id}`}
+                                                                checked={currentSelectedIds.includes(option.id)}
+                                                                onCheckedChange={(checked) => handleCheckboxChange(option.id, checked === true)}
+                                                                className="border-gray-400"
+                                                              />
+                                                              <Label 
+                                                                htmlFor={`${fieldKey}-${option.id}`}
+                                                                className="text-[14.4px] font-normal cursor-pointer"
+                                                              >
+                                                                {option.name}
+                                                              </Label>
+                                                            </div>
+                                                          ))}
+                                                      </div>
+                                                    </div>
+                                                  )
+                                                }
+                                                
+                                                // File upload field
+                                                if (field.field_type === "file_upload") {
+                                                  const currentFile = typeof currentValue === "object" && currentValue?.file 
+                                                    ? currentValue.file 
+                                                    : null
+                                                  
+                                                  return (
+                                                    <div 
+                                                      className="mt-[5.27px] rounded-[7.7px]"
+                                                      style={{
+                                                        padding: '12px 15px 5px 15px',
+                                                        minHeight: '37px',
+                                                        background: '#FFFFFF',
+                                                        border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
+                                                        minWidth: fieldWidth.minWidth,
+                                                        maxWidth: fieldWidth.maxWidth,
+                                                        width: fieldWidth.width,
+                                                        flex: fieldWidth.flex,
+                                                      }}
+                                                    >
+                                                      <input
+                                                        type="file"
+                                                        onChange={(e) => {
+                                                          const file = e.target.files?.[0] || null
+                                                          setAdvanceFieldValues(prev => ({
+                                                            ...prev,
+                                                            [fieldKey]: {
+                                                              advance_field_id: field.id,
+                                                              advance_field_value: file?.name || "",
+                                                              file: file
+                                                            }
+                                                          }))
+                                                        }}
+                                                        className="text-[14.4px] w-full"
+                                                        accept=".jpg,.jpeg,.png,.gif,.svg,.pdf,.stl,.mp4,.avi,.mov,.zip,.rar"
+                                                      />
+                                                      {currentFile && (
+                                                        <div className="mt-2 text-xs text-gray-600">
+                                                          Selected: {currentFile.name}
+                                                        </div>
+                                                      )}
+                                                    </div>
+                                                  )
+                                                }
+                                                
+                                                // Shade guide field
+                                                if (field.field_type === "shade_guide") {
+                                                  return (
+                                                    <Input
+                                                      type="text"
+                                                      value={typeof currentValue === "object" ? currentValue?.advance_field_value || "" : currentValue || ""}
+                                                      onChange={(e) => {
+                                                        setAdvanceFieldValues(prev => ({
+                                                          ...prev,
+                                                          [fieldKey]: {
+                                                            advance_field_id: field.id,
+                                                            advance_field_value: e.target.value
+                                                          }
+                                                        }))
+                                                      }}
+                                                      className="h-[37px] mt-[5.27px] rounded-[7.7px] text-[14.4px]"
+                                                      style={{
+                                                        padding: '12px 15px 5px 15px',
+                                                        border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
+                                                        minWidth: fieldWidth.minWidth,
+                                                        maxWidth: fieldWidth.maxWidth,
+                                                        width: fieldWidth.width,
+                                                        flex: fieldWidth.flex,
+                                                      }}
+                                                      placeholder={`Enter ${field.name}`}
+                                                    />
+                                                  )
+                                                }
+                                                
+                                                // Implant library field
+                                                if (field.field_type === "implant_library") {
+                                                  return (
+                                                    <Input
+                                                      type="text"
+                                                      value={typeof currentValue === "object" ? currentValue?.advance_field_value || "" : currentValue || ""}
+                                                      onChange={(e) => {
+                                                        setAdvanceFieldValues(prev => ({
+                                                          ...prev,
+                                                          [fieldKey]: {
+                                                            advance_field_id: field.id,
+                                                            advance_field_value: e.target.value
+                                                          }
+                                                        }))
+                                                      }}
+                                                      className="h-[37px] mt-[5.27px] rounded-[7.7px] text-[14.4px]"
+                                                      style={{
+                                                        padding: '12px 15px 5px 15px',
+                                                        border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
                                                         minWidth: fieldWidth.minWidth,
                                                         maxWidth: fieldWidth.maxWidth,
                                                         width: fieldWidth.width,
@@ -4519,7 +5338,7 @@ export default function CaseDesignCenterPage() {
                                               <div
                                                 className="flex items-center"
                                                 style={{
-                                                  padding: '12px 39px 5px 15px',
+                                                  padding: '12px 15px 5px 15px',
                                                   gap: '5px',
                                                   width: '100%',
                                                   height: '37px',
@@ -4583,7 +5402,7 @@ export default function CaseDesignCenterPage() {
                                               <div
                                                 className="flex items-center"
                                                 style={{
-                                                  padding: '12px 39px 5px 15px',
+                                                  padding: '12px 15px 5px 15px',
                                                   gap: '5px',
                                                   width: '100%',
                                                   height: '37px',
@@ -4709,7 +5528,7 @@ export default function CaseDesignCenterPage() {
                                               <div
                                                 className="flex items-center"
                                                 style={{
-                                                  padding: '12px 39px 5px 15px',
+                                                  padding: '12px 15px 5px 15px',
                                                   gap: '5px',
                                                   width: '100%',
                                                   height: '37px',
@@ -4773,7 +5592,7 @@ export default function CaseDesignCenterPage() {
                                               <div
                                                 className="flex items-center justify-between"
                                                 style={{
-                                                  padding: '12px 39px 5px 15px',
+                                                  padding: '12px 15px 5px 15px',
                                                   gap: '5px',
                                                   width: '100%',
                                                   height: '37px',
@@ -4860,7 +5679,7 @@ export default function CaseDesignCenterPage() {
                                               <div
                                                 className="flex items-center"
                                                 style={{
-                                                  padding: '12px 39px 5px 15px',
+                                                  padding: '12px 15px 5px 15px',
                                                   gap: '5px',
                                                   width: '100%',
                                                   height: '37px',
@@ -4923,7 +5742,7 @@ export default function CaseDesignCenterPage() {
                                               <div
                                                 className="flex items-center justify-between"
                                                 style={{
-                                                  padding: '12px 39px 5px 15px',
+                                                  padding: '12px 15px 5px 15px',
                                                   gap: '5px',
                                                   width: '100%',
                                                   height: '37px',
@@ -4986,7 +5805,7 @@ export default function CaseDesignCenterPage() {
                                               <div
                                                 className="flex items-center"
                                                 style={{
-                                                  padding: '12px 39px 5px 15px',
+                                                  padding: '12px 15px 5px 15px',
                                                   gap: '5px',
                                                   width: '100%',
                                                   height: '37px',
@@ -5049,7 +5868,7 @@ export default function CaseDesignCenterPage() {
                                               <div
                                                 className="flex items-center"
                                                 style={{
-                                                  padding: '12px 39px 5px 15px',
+                                                  padding: '12px 15px 5px 15px',
                                                   gap: '5px',
                                                   width: '100%',
                                                   height: '37px',
@@ -5112,7 +5931,7 @@ export default function CaseDesignCenterPage() {
                                               <div
                                                 className="flex items-center"
                                                 style={{
-                                                  padding: '12px 39px 5px 15px',
+                                                  padding: '12px 15px 5px 15px',
                                                   gap: '5px',
                                                   width: '100%',
                                                   height: '37px',
@@ -5175,7 +5994,7 @@ export default function CaseDesignCenterPage() {
                                               <div
                                                 className="flex items-center"
                                                 style={{
-                                                  padding: '12px 39px 5px 15px',
+                                                  padding: '12px 15px 5px 15px',
                                                   gap: '5px',
                                                   width: '100%',
                                                   height: '37px',
@@ -5238,7 +6057,7 @@ export default function CaseDesignCenterPage() {
                                               <div
                                                 className="flex items-center"
                                                 style={{
-                                                  padding: '12px 39px 5px 15px',
+                                                  padding: '12px 15px 5px 15px',
                                                   gap: '5px',
                                                   width: '100%',
                                                   height: '37px',
@@ -5301,7 +6120,7 @@ export default function CaseDesignCenterPage() {
                                               <div
                                                 className="flex items-center"
                                                 style={{
-                                                  padding: '12px 39px 5px 15px',
+                                                  padding: '12px 15px 5px 15px',
                                                   gap: '5px',
                                                   width: '100%',
                                                   height: '37px',
@@ -5364,7 +6183,7 @@ export default function CaseDesignCenterPage() {
                                               <div
                                                 className="flex items-center"
                                                 style={{
-                                                  padding: '12px 39px 5px 15px',
+                                                  padding: '12px 15px 5px 15px',
                                                   gap: '5px',
                                                   width: '100%',
                                                   height: '37px',
@@ -5509,7 +6328,7 @@ export default function CaseDesignCenterPage() {
                                             <div
                                               className="flex items-center justify-between"
                                               style={{
-                                                padding: '12px 39px 5px 15px',
+                                                padding: '12px 15px 5px 15px',
                                                 gap: '5px',
                                                 width: '100%',
                                                 height: '37px',
@@ -5579,7 +6398,7 @@ export default function CaseDesignCenterPage() {
                                             <div
                                               className="flex items-center justify-between"
                                               style={{
-                                                padding: '12px 39px 5px 15px',
+                                                padding: '12px 15px 5px 15px',
                                                 gap: '5px',
                                                 width: '100%',
                                                 height: '37px',
@@ -5625,7 +6444,7 @@ export default function CaseDesignCenterPage() {
                                             <div
                                               className="flex items-center"
                                               style={{
-                                                padding: '12px 39px 5px 15px',
+                                                padding: '12px 15px 5px 15px',
                                                 gap: '5px',
                                                 width: '100%',
                                                 height: '37px',
@@ -6327,7 +7146,7 @@ export default function CaseDesignCenterPage() {
                                     <div
                                       className="flex items-center"
                                       style={{
-                                        padding: '12px 39px 5px 15px',
+                                        padding: '12px 15px 5px 15px',
                                         gap: '5px',
                                         width: '100%',
                                         height: '37px',
@@ -6374,7 +7193,7 @@ export default function CaseDesignCenterPage() {
                                     <div
                                       className="flex items-center"
                                       style={{
-                                        padding: '12px 39px 5px 15px',
+                                        padding: '12px 15px 5px 15px',
                                         gap: '5px',
                                         width: '100%',
                                         height: '37px',
@@ -6436,7 +7255,7 @@ export default function CaseDesignCenterPage() {
                                     <div
                                       className="flex items-center justify-between"
                                       style={{
-                                        padding: '12px 39px 5px 15px',
+                                        padding: '12px 15px 5px 15px',
                                         gap: '5px',
                                         width: '100%',
                                         height: '37px',
@@ -6504,7 +7323,7 @@ export default function CaseDesignCenterPage() {
                                     <div
                                       className="flex items-center justify-between"
                                       style={{
-                                        padding: '12px 39px 5px 15px',
+                                        padding: '12px 15px 5px 15px',
                                         gap: '5px',
                                         width: '100%',
                                         height: '37px',
@@ -6572,7 +7391,7 @@ export default function CaseDesignCenterPage() {
                                     <div
                                       className="flex items-center"
                                       style={{
-                                        padding: '12px 39px 5px 15px',
+                                        padding: '12px 15px 5px 15px',
                                         gap: '5px',
                                         width: '100%',
                                         height: '37px',
@@ -6874,7 +7693,7 @@ export default function CaseDesignCenterPage() {
                                     <div
                                       className="flex items-center"
                                       style={{
-                                        padding: '12px 39px 5px 15px',
+                                        padding: '12px 15px 5px 15px',
                                         gap: '5px',
                                         width: '100%',
                                         height: '37px',
@@ -7401,7 +8220,7 @@ export default function CaseDesignCenterPage() {
                                               <div
                                                 className="flex items-center"
                                                 style={{
-                                                  padding: '12px 39px 5px 15px',
+                                                  padding: '12px 15px 5px 15px',
                                                   gap: '5px',
                                                   width: '100%',
                                                   height: '37px',
@@ -7465,7 +8284,7 @@ export default function CaseDesignCenterPage() {
                                               <div
                                                 className="flex items-center"
                                                 style={{
-                                                  padding: '12px 39px 5px 15px',
+                                                  padding: '12px 15px 5px 15px',
                                                   gap: '5px',
                                                   width: '100%',
                                                   height: '37px',
@@ -7591,7 +8410,7 @@ export default function CaseDesignCenterPage() {
                                               <div
                                                 className="flex items-center"
                                                 style={{
-                                                  padding: '12px 39px 5px 15px',
+                                                  padding: '12px 15px 5px 15px',
                                                   gap: '5px',
                                                   width: '100%',
                                                   height: '37px',
@@ -7655,7 +8474,7 @@ export default function CaseDesignCenterPage() {
                                               <div
                                                 className="flex items-center justify-between"
                                                 style={{
-                                                  padding: '12px 39px 5px 15px',
+                                                  padding: '12px 15px 5px 15px',
                                                   gap: '5px',
                                                   width: '100%',
                                                   height: '37px',
@@ -7718,7 +8537,7 @@ export default function CaseDesignCenterPage() {
                                               <div
                                                 className="flex items-center"
                                                 style={{
-                                                  padding: '12px 39px 5px 15px',
+                                                  padding: '12px 15px 5px 15px',
                                                   gap: '5px',
                                                   width: '100%',
                                                   height: '37px',
@@ -7781,7 +8600,7 @@ export default function CaseDesignCenterPage() {
                                               <div
                                                 className="flex items-center justify-between"
                                                 style={{
-                                                  padding: '12px 39px 5px 15px',
+                                                  padding: '12px 15px 5px 15px',
                                                   gap: '5px',
                                                   width: '100%',
                                                   height: '37px',
@@ -7844,7 +8663,7 @@ export default function CaseDesignCenterPage() {
                                               <div
                                                 className="flex items-center"
                                                 style={{
-                                                  padding: '12px 39px 5px 15px',
+                                                  padding: '12px 15px 5px 15px',
                                                   gap: '5px',
                                                   width: '100%',
                                                   height: '37px',
@@ -7907,7 +8726,7 @@ export default function CaseDesignCenterPage() {
                                               <div
                                                 className="flex items-center"
                                                 style={{
-                                                  padding: '12px 39px 5px 15px',
+                                                  padding: '12px 15px 5px 15px',
                                                   gap: '5px',
                                                   width: '100%',
                                                   height: '37px',
@@ -7970,7 +8789,7 @@ export default function CaseDesignCenterPage() {
                                               <div
                                                 className="flex items-center"
                                                 style={{
-                                                  padding: '12px 39px 5px 15px',
+                                                  padding: '12px 15px 5px 15px',
                                                   gap: '5px',
                                                   width: '100%',
                                                   height: '37px',
@@ -8033,7 +8852,7 @@ export default function CaseDesignCenterPage() {
                                               <div
                                                 className="flex items-center"
                                                 style={{
-                                                  padding: '12px 39px 5px 15px',
+                                                  padding: '12px 15px 5px 15px',
                                                   gap: '5px',
                                                   width: '100%',
                                                   height: '37px',
@@ -8096,7 +8915,7 @@ export default function CaseDesignCenterPage() {
                                               <div
                                                 className="flex items-center"
                                                 style={{
-                                                  padding: '12px 39px 5px 15px',
+                                                  padding: '12px 15px 5px 15px',
                                                   gap: '5px',
                                                   width: '100%',
                                                   height: '37px',
@@ -8159,7 +8978,7 @@ export default function CaseDesignCenterPage() {
                                               <div
                                                 className="flex items-center"
                                                 style={{
-                                                  padding: '12px 39px 5px 15px',
+                                                  padding: '12px 15px 5px 15px',
                                                   gap: '5px',
                                                   width: '100%',
                                                   height: '37px',
@@ -8222,7 +9041,7 @@ export default function CaseDesignCenterPage() {
                                               <div
                                                 className="flex items-center"
                                                 style={{
-                                                  padding: '12px 39px 5px 15px',
+                                                  padding: '12px 15px 5px 15px',
                                                   gap: '5px',
                                                   width: '100%',
                                                   height: '37px',
@@ -8835,7 +9654,7 @@ export default function CaseDesignCenterPage() {
                                             <div
                                               className="flex items-center"
                                               style={{
-                                                padding: '12px 39px 5px 15px',
+                                                padding: '12px 15px 5px 15px',
                                                 gap: '5px',
                                                 width: '100%',
                                                 height: '37px',
@@ -8882,7 +9701,7 @@ export default function CaseDesignCenterPage() {
                                             <div
                                               className="flex items-center"
                                               style={{
-                                                padding: '12px 39px 5px 15px',
+                                                padding: '12px 15px 5px 15px',
                                                 gap: '5px',
                                                 width: '100%',
                                                 height: '37px',
@@ -8925,6 +9744,7 @@ export default function CaseDesignCenterPage() {
                                         </div>
 
                                         {/* Row 2: Stump Shade, Tooth Shade, Stage */}
+                                        {isAccordionFieldVisible("stump_shade", savedProduct, isMaxillary ? "maxillary" : "mandibular") && (
                                         <div
                                           className="flex flex-col sm:flex-row flex-wrap gap-5"
                                           style={{
@@ -8944,7 +9764,7 @@ export default function CaseDesignCenterPage() {
                                             <div
                                               className="flex items-center justify-between"
                                               style={{
-                                                padding: '12px 39px 5px 15px',
+                                                padding: '12px 15px 5px 15px',
                                                 gap: '5px',
                                                 width: '100%',
                                                 height: '37px',
@@ -9010,11 +9830,12 @@ export default function CaseDesignCenterPage() {
                                           </div>
 
                                           {/* Tooth Shade */}
+                                          {isAccordionFieldVisible("tooth_shade", savedProduct, isMaxillary ? "maxillary" : "mandibular") && (
                                           <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
                                             <div
                                               className="flex items-center"
                                               style={{
-                                                padding: '12px 39px 5px 15px',
+                                                padding: '12px 15px 5px 15px',
                                                 gap: '5px',
                                                 width: '100%',
                                                 height: '37px',
@@ -9054,13 +9875,15 @@ export default function CaseDesignCenterPage() {
                                               Tooth Shade
                                             </label>
                                           </div>
+                                          )}
 
                                           {/* Stage */}
+                                          {isAccordionFieldVisible("stage", savedProduct, isMaxillary ? "maxillary" : "mandibular") && (
                                           <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
                                             <div
                                               className="flex items-center"
                                               style={{
-                                                padding: '12px 39px 5px 15px',
+                                                padding: '12px 15px 5px 15px',
                                                 gap: '5px',
                                                 width: '100%',
                                                 height: '37px',
@@ -9100,7 +9923,9 @@ export default function CaseDesignCenterPage() {
                                               Stage
                                             </label>
                                           </div>
+                                          )}
                                         </div>
+                                        )}
 
                                         {/* Row 3: Teeth Selection Display */}
                                         <div
@@ -9165,7 +9990,7 @@ export default function CaseDesignCenterPage() {
                                         </div>
 
                                         {/* Notes if available */}
-                                        {isMaxillary && savedProduct.maxillaryNotes && (
+                                        {isMaxillary && isAccordionFieldVisible("notes", savedProduct, "maxillary") && savedProduct.maxillaryNotes && (
                                           <div
                                             className="flex flex-col sm:flex-row flex-wrap gap-5"
                                             style={{
@@ -9228,7 +10053,7 @@ export default function CaseDesignCenterPage() {
                                         )}
 
                                         {/* Mandibular Implant Details if available */}
-                                        {!isMaxillary && savedProduct.mandibularImplantDetails && (
+                                        {!isMaxillary && isAccordionFieldVisible("implant_details", savedProduct, "mandibular") && savedProduct.mandibularImplantDetails && (
                                           <div
                                             className="flex flex-col sm:flex-row flex-wrap gap-5"
                                             style={{
@@ -9515,7 +10340,7 @@ export default function CaseDesignCenterPage() {
                                             <div
                                               className="flex items-center"
                                               style={{
-                                                padding: '12px 39px 5px 15px',
+                                                padding: '12px 15px 5px 15px',
                                                 gap: '5px',
                                                 width: '100%',
                                                 height: '37px',
@@ -9562,7 +10387,7 @@ export default function CaseDesignCenterPage() {
                                             <div
                                               className="flex items-center"
                                               style={{
-                                                padding: '12px 39px 5px 15px',
+                                                padding: '12px 15px 5px 15px',
                                                 gap: '5px',
                                                 width: '100%',
                                                 height: '37px',
@@ -9604,8 +10429,8 @@ export default function CaseDesignCenterPage() {
                                           </div>
                                         </div>
 
-                                        {/* Row 2: Tooth Shade, Stage - Only show if advance fields should be displayed */}
-                                        {(showAdvanceFields[savedProduct.id] || (savedProduct.mandibularMaterial && savedProduct.mandibularRetention)) && (
+                                        {/* Row 2: Tooth Shade, Stage - Progressive disclosure */}
+                                        {isAccordionFieldVisible("tooth_shade", savedProduct, "mandibular") && (
                                         <div
                                           className="flex flex-col sm:flex-row flex-wrap gap-5"
                                           style={{
@@ -9625,7 +10450,7 @@ export default function CaseDesignCenterPage() {
                                             <div
                                               className="flex items-center"
                                               style={{
-                                                padding: '12px 39px 5px 15px',
+                                                padding: '12px 15px 5px 15px',
                                                 gap: '5px',
                                                 width: '100%',
                                                 height: '37px',
@@ -9667,11 +10492,12 @@ export default function CaseDesignCenterPage() {
                                           </div>
 
                                           {/* Stage */}
+                                          {isAccordionFieldVisible("stage", savedProduct, "mandibular") && (
                                           <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
                                             <div
                                               className="flex items-center"
                                               style={{
-                                                padding: '12px 39px 5px 15px',
+                                                padding: '12px 15px 5px 15px',
                                                 gap: '5px',
                                                 width: '100%',
                                                 height: '37px',
@@ -9711,11 +10537,11 @@ export default function CaseDesignCenterPage() {
                                               Stage
                                             </label>
                                           </div>
+                                          )}
                                         </div>
                                         )}
 
-                                        {/* Row 3: Teeth Selection Display - Only show if advance fields should be displayed */}
-                                        {(showAdvanceFields[savedProduct.id] || (savedProduct.mandibularMaterial && savedProduct.mandibularRetention)) && (
+                                        {/* Row 3: Teeth Selection Display - Always visible */}
                                         <div
                                           className="flex flex-col sm:flex-row flex-wrap gap-5"
                                           style={{
@@ -9776,10 +10602,9 @@ export default function CaseDesignCenterPage() {
                                             </label>
                                           </div>
                                         </div>
-                                        )}
 
                                         {/* Implant Details if available */}
-                                        {savedProduct.mandibularImplantDetails && (
+                                        {isAccordionFieldVisible("implant_details", savedProduct, "mandibular") && savedProduct.mandibularImplantDetails && (
                                           <div
                                             className="flex flex-col sm:flex-row flex-wrap gap-5"
                                             style={{

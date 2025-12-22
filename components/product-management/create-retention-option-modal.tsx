@@ -492,7 +492,7 @@ export function CreateRetentionOptionModal({ isOpen, onClose, option, isCopying 
                                             errors.optionName && "border-red-500"
                                         )}
                                         style={{
-                                            padding: "25px 30.8px 9.24px 12.32px",
+                                            padding: "25px 12.8px 9.24px 12.32px",
                                             borderWidth: "0.740384px",
                                             fontFamily: "Arial",
                                             fontStyle: "normal",
@@ -559,7 +559,7 @@ export function CreateRetentionOptionModal({ isOpen, onClose, option, isCopying 
                                                     errors.optionCode && "border-red-500"
                                                 )}
                                                 style={{
-                                                    padding: "25px 30.8px 9.24px 12.32px",
+                                                    padding: "25px 12.8px 9.24px 12.32px",
                                                     borderWidth: "0.740384px",
                                                     fontFamily: "Arial",
                                                     fontStyle: "normal",
@@ -638,7 +638,7 @@ export function CreateRetentionOptionModal({ isOpen, onClose, option, isCopying 
                                             errors.sequence && "border-red-500"
                                         )}
                                         style={{
-                                            padding: "25px 30.8px 9.24px 12.32px",
+                                            padding: "25px 12.8px 9.24px 12.32px",
                                             borderWidth: "0.740384px",
                                             fontFamily: "Arial",
                                             fontStyle: "normal",

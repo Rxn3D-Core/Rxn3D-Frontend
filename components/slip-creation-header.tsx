@@ -518,7 +518,7 @@ const PatientInfoSection = ({
               !isNameFocused && "hover:shadow-[0_0_8px_rgba(17,98,168,0.2)] transition-shadow duration-150"
             )}
             style={{
-              padding: "25px 30.8px 9.24px 12.32px",
+              padding: "25px 12.8px 9.24px 12.32px",
               borderWidth: "0.740384px",
               fontFamily: "Arial",
               fontStyle: "normal",
@@ -571,7 +571,7 @@ const PatientInfoSection = ({
                 !isGenderFocused && "hover:shadow-[0_0_8px_rgba(17,98,168,0.2)] transition-shadow duration-150"
               )}
               style={{
-                padding: "25px 30.8px 9.24px 12.32px",
+                padding: "25px 12.8px 9.24px 12.32px",
                 borderWidth: "0.740384px",
                 fontFamily: "Arial",
                 fontStyle: "normal",

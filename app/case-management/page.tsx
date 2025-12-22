@@ -239,7 +239,7 @@ export default function SlipPage() {
   }
 
   return (
-    <div className="w-full p-6 space-y-4 bg-gray-50 min-h-screen">
+    <div className="w-full p-6 space-y-4 bg-gray-50 min-h-screen overflow-x-auto">
       {/* Filter Bar */}
       <div className="flex flex-wrap gap-3 items-center mb-4 rounded-lg bg-white shadow-sm px-4 py-3">
         <Input
@@ -283,11 +283,11 @@ export default function SlipPage() {
         </Button>
         <div className="flex items-center gap-4 ml-2">
           <label className="flex items-center gap-1 text-xs cursor-pointer">
-            <Checkbox checked={showWithAttachments} onCheckedChange={setShowWithAttachments} className="border-blue-400" />
+            <Checkbox checked={showWithAttachments} onCheckedChange={(checked) => setShowWithAttachments(checked === true)} className="border-blue-400" />
             With attachments
           </label>
           <label className="flex items-center gap-1 text-xs cursor-pointer">
-            <Checkbox checked={showLabConnect} onCheckedChange={setShowLabConnect} className="border-blue-400" />
+            <Checkbox checked={showLabConnect} onCheckedChange={(checked) => setShowLabConnect(checked === true)} className="border-blue-400" />
             Lab Connect only
           </label>
         </div>
@@ -308,14 +308,13 @@ export default function SlipPage() {
       )}
 
       {/* Table */}
-      <div className="border border-gray-200 rounded-lg overflow-hidden shadow-sm bg-white">
+      <div className="border border-gray-200 rounded-lg overflow-hidden shadow-sm bg-white overflow-x-auto">
         <table className="min-w-full text-sm">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
               <th className="px-4 py-3 w-12">
                 <Checkbox
-                  checked={allOnPageSelected}
-                  indeterminate={!allOnPageSelected && someOnPageSelected}
+                  checked={!allOnPageSelected && someOnPageSelected ? "indeterminate" : allOnPageSelected || false}
                   onCheckedChange={handleSelectAllPage}
                   aria-label="Select all"
                   className="border-gray-400"
@@ -326,7 +325,7 @@ export default function SlipPage() {
               {visibleColumns.patient && <th className="px-4 py-3 text-left font-medium text-gray-700">Patient</th>}
               {visibleColumns.pan && <th className="px-4 py-3 text-left font-medium text-gray-700">Pan</th>}
               {visibleColumns.product && <th className="px-4 py-3 text-left font-medium text-gray-700">Product</th>}
-              {visibleColumns.status && <th className="px-4 py-3 text-left font-medium text-gray-700">Status</th>}
+              {visibleColumns.status && <th className="px-4 py-3 text-left font-medium text-gray-700 whitespace-nowrap">Status</th>}
               {visibleColumns.location && <th className="px-4 py-3 text-left font-medium text-gray-700">Location</th>}
               {visibleColumns.attachment && <th className="px-4 py-3 text-left font-medium text-gray-700">Attachment</th>}
               {visibleColumns.due && <th className="px-4 py-3 text-left font-medium text-gray-700">Due date</th>}
@@ -377,24 +376,24 @@ export default function SlipPage() {
                     </td>}
                   {visibleColumns.product && <td className="px-4 py-3 text-gray-900">{row.product}</td>}
                   {visibleColumns.status &&
-                    <td className="px-4 py-3">
-                      <div className="flex gap-2 items-center">
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="flex gap-1.5 items-center flex-wrap">
                         {row.rush && (
-                          <Badge className="bg-red-600 text-white font-medium px-2 py-1 text-xs">
-                            <svg width="12" height="14" viewBox="0 0 16 19" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-1">
+                          <Badge className="!rounded-md bg-red-600 text-white font-medium px-2 py-1 text-xs flex items-center gap-1 border-0">
+                            <svg width="10" height="12" viewBox="0 0 16 19" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
                               <path d="M8.15625 7.91504V2.66504L2.53125 10.915H6.90625L6.90625 16.165L12.5313 7.91504L8.15625 7.91504Z" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                             </svg>
                             Rush
                           </Badge>
                         )}
                         {row.status === "In Progress" && (
-                          <Badge className="bg-green-100 text-green-800 border border-green-200 font-medium px-2 py-1 text-xs">In Progress</Badge>
+                          <Badge className="!rounded-md bg-green-100 text-green-800 border border-green-200 font-medium px-2 py-1 text-xs whitespace-nowrap">In Progress</Badge>
                         )}
                         {row.status === "On Hold" && (
-                          <Badge className="bg-yellow-100 text-yellow-800 border border-yellow-200 font-medium px-2 py-1 text-xs">On Hold</Badge>
+                          <Badge className="!rounded-md bg-yellow-100 text-yellow-800 border border-yellow-200 font-medium px-2 py-1 text-xs whitespace-nowrap">On Hold</Badge>
                         )}
                         {row.status === "Cancelled" && (
-                          <Badge className="bg-gray-100 text-gray-600 border border-gray-200 font-medium px-2 py-1 text-xs">Cancelled</Badge>
+                          <Badge className="!rounded-md bg-gray-100 text-gray-600 border border-gray-200 font-medium px-2 py-1 text-xs whitespace-nowrap">Cancelled</Badge>
                         )}
                       </div>
                     </td>}

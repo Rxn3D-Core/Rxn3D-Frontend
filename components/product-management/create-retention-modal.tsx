@@ -727,7 +727,7 @@ export function CreateRetentionModal({ isOpen, onClose, retention, isCopying = f
                       errors.retentionName && "border-red-500"
                     )}
                     style={{
-                      padding: "25px 30.8px 9.24px 12.32px",
+                      padding: "25px 12.8px 9.24px 12.32px",
                       borderWidth: "0.740384px",
                       fontFamily: "Arial",
                       fontStyle: "normal",
@@ -794,7 +794,7 @@ export function CreateRetentionModal({ isOpen, onClose, retention, isCopying = f
                           errors.retentionCode && "border-red-500"
                         )}
                         style={{
-                          padding: "25px 30.8px 9.24px 12.32px",
+                          padding: "25px 12.8px 9.24px 12.32px",
                           borderWidth: "0.740384px",
                           fontFamily: "Arial",
                           fontStyle: "normal",
