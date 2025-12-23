@@ -20,8 +20,10 @@ export function RetentionSection({
 }) {
   const watchedRetentions = watch("retentions") || []
   const watchedApplyRetentionMechanism = watch("apply_retention_mechanism")
-  // Only allow one retention to be selected at a time
-  const selectedRetentionId = watchedRetentions[0]?.retention_id
+  // Helper function to check if a retention is selected
+  const isRetentionSelected = (retentionId: any) => {
+    return watchedRetentions.some((ret: any) => ret.retention_id === retentionId)
+  }
 
   return (
     <div className="border-t">
@@ -78,21 +80,37 @@ export function RetentionSection({
                 {retentions.map((retention) => (
                   <label key={retention.id} className="flex items-center gap-2 cursor-pointer">
                     <input
-                      type="radio"
-                      name="retention"
+                      type="checkbox"
                       value={retention.id}
-                      checked={selectedRetentionId === retention.id}
-                      onChange={() => {
-                        // Only one retention allowed, so setValue with single object array
-                        setValue(
-                          "retentions",
-                          [{
+                      checked={isRetentionSelected(retention.id)}
+                      onChange={(e) => {
+                        const isChecked = e.target.checked
+                        if (isChecked) {
+                          // Add retention to the array
+                          const newRetention = {
                             retention_id: retention.id,
-                            sequence: 1,
+                            sequence: watchedRetentions.length + 1,
                             status: "Active"
-                          }],
-                          { shouldDirty: true }
-                        )
+                          }
+                          setValue(
+                            "retentions",
+                            [...watchedRetentions, newRetention],
+                            { shouldDirty: true }
+                          )
+                        } else {
+                          // Remove retention from the array
+                          const updatedRetentions = watchedRetentions
+                            .filter((ret: any) => ret.retention_id !== retention.id)
+                            .map((ret: any, index: number) => ({
+                              ...ret,
+                              sequence: index + 1
+                            }))
+                          setValue(
+                            "retentions",
+                            updatedRetentions,
+                            { shouldDirty: true }
+                          )
+                        }
                       }}
                       className="accent-[#1162a8] w-5 h-5"
                     />

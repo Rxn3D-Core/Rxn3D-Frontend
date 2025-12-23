@@ -1956,88 +1956,6 @@ export default function CaseDesignCenterPage() {
   // Track if we've auto-added the current product to avoid duplicates
   const autoAddedProductRef = useRef<string | null>(null)
 
-  // Auto-add product when selected and required fields are filled
-  useEffect(() => {
-    // Only auto-add if we have a product selected and product details loaded
-    if (!selectedProduct || !productDetails || !selectedCategory || !selectedSubcategory) {
-      return
-    }
-
-    // Check if we've already auto-added this product
-    const currentProductKey = `${selectedProduct.id}-${selectedCategoryId}-${selectedSubcategoryId}`
-    if (autoAddedProductRef.current === currentProductKey) {
-      return
-    }
-
-    // Determine which arch has teeth selected
-    const hasMaxillaryTeeth = maxillaryTeeth.length > 0
-    const hasMandibularTeeth = mandibularTeeth.length > 0
-
-    if (!hasMaxillaryTeeth && !hasMandibularTeeth) {
-      return
-    }
-
-    // Check if required fields are filled for the arch with teeth
-    let shouldAutoAdd = false
-    let archToAdd: "maxillary" | "mandibular" | null = null
-
-    if (hasMaxillaryTeeth) {
-      // Check if material and retention are filled for maxillary
-      if (maxillaryMaterial && maxillaryRetention) {
-        shouldAutoAdd = true
-        archToAdd = "maxillary"
-      }
-    }
-
-    if (hasMandibularTeeth && !shouldAutoAdd) {
-      // Check if material and retention are filled for mandibular
-      if (mandibularMaterial && mandibularRetention) {
-        shouldAutoAdd = true
-        archToAdd = "mandibular"
-      }
-    }
-
-    // If both arches have teeth and fields, prefer maxillary
-    if (hasMaxillaryTeeth && hasMandibularTeeth) {
-      if (maxillaryMaterial && maxillaryRetention) {
-        shouldAutoAdd = true
-        archToAdd = "maxillary"
-      } else if (mandibularMaterial && mandibularRetention) {
-        shouldAutoAdd = true
-        archToAdd = "mandibular"
-      }
-    }
-
-    // Auto-save the product if conditions are met (without resetting form)
-    if (shouldAutoAdd && archToAdd) {
-      // Mark that we've auto-added this product
-      autoAddedProductRef.current = currentProductKey
-
-      // Use setTimeout to ensure state updates are complete
-      setTimeout(() => {
-        handleAutoSaveProduct(archToAdd!)
-      }, 100)
-    }
-  }, [
-    selectedProduct?.id,
-    productDetails?.id,
-    selectedCategoryId,
-    selectedSubcategoryId,
-    maxillaryTeeth.length,
-    mandibularTeeth.length,
-    maxillaryMaterial,
-    maxillaryRetention,
-    mandibularMaterial,
-    mandibularRetention,
-  ])
-
-  // Reset auto-added ref when product changes
-  useEffect(() => {
-    if (!selectedProduct) {
-      autoAddedProductRef.current = null
-    }
-  }, [selectedProduct?.id])
-
   // Impression selection handlers
   const handleImpressionQuantityUpdate = (impressionKey: string, quantity: number) => {
     setSelectedImpressions(prev => ({
@@ -2395,19 +2313,12 @@ export default function CaseDesignCenterPage() {
       return
     }
 
-    // Check if this product is already saved (to avoid duplicates)
-    const currentProductKey = `${selectedProduct.id}-${selectedCategoryId}-${selectedSubcategoryId}`
-    const isAlreadySaved = savedProducts.some(p => 
-      p.product.id === selectedProduct.id && 
-      p.categoryId === selectedCategoryId && 
-      p.subcategoryId === selectedSubcategoryId &&
-      JSON.stringify(p.maxillaryTeeth) === JSON.stringify(maxillaryTeeth) &&
-      JSON.stringify(p.mandibularTeeth) === JSON.stringify(mandibularTeeth)
-    )
+    // Create a unique key that includes the arch type and teeth
+    const teethForTypeSorted = [...teethForType].sort()
+    const currentProductKey = `${selectedProduct.id}-${selectedCategoryId}-${selectedSubcategoryId}-${type}-${JSON.stringify(teethForTypeSorted)}`
 
-    if (isAlreadySaved) {
-      return // Already saved, skip
-    }
+    // Mark that we're processing this product configuration
+    autoAddedProductRef.current = currentProductKey
 
     // Auto-populate product name and retention type if not already set
     const finalMaxillaryMaterial = maxillaryMaterial || (type === "maxillary" ? selectedProduct.name : "")
@@ -2415,113 +2326,153 @@ export default function CaseDesignCenterPage() {
     const finalMaxillaryRetention = maxillaryRetention
     const finalMandibularRetention = mandibularRetention
 
-    // Get impression selections for this product
-    const productId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-    const impressions = productDetails?.impressions || []
-    const maxillaryImpressions = type === "maxillary" 
-      ? getImpressionSelections(productId, "maxillary", impressions)
-      : []
-    const mandibularImpressions = type === "mandibular"
-      ? getImpressionSelections(productId, "mandibular", impressions)
-      : []
+    // Update existing product or add new one using functional update to get latest state
+    setSavedProducts((prevProducts) => {
+      // Find existing auto-saved product in the CURRENT state
+      const existingIndex = [...prevProducts].reverse().findIndex(p =>
+        p.product.id === selectedProduct.id &&
+        p.categoryId === selectedCategoryId &&
+        p.subcategoryId === selectedSubcategoryId &&
+        p.addedFrom === type
+      )
 
-    // Create saved product configuration
-    const savedProduct: SavedProduct = {
-      id: productId,
-      product: selectedProduct,
-      productDetails: productDetails,
-      category: selectedCategory,
-      categoryId: selectedCategoryId,
-      subcategory: selectedSubcategory,
-      subcategoryId: selectedSubcategoryId,
-      maxillaryTeeth: [...maxillaryTeeth],
-      mandibularTeeth: [...mandibularTeeth],
-      maxillaryMaterial: finalMaxillaryMaterial,
-      maxillaryStumpShade,
-      maxillaryRetention: finalMaxillaryRetention,
-      maxillaryNotes,
-      mandibularMaterial: finalMandibularMaterial,
-      mandibularRetention: finalMandibularRetention,
-      mandibularImplantDetails,
-      createdAt: Date.now(),
-      addedFrom: type,
-      maxillaryImpressions: maxillaryImpressions.length > 0 ? maxillaryImpressions : undefined,
-      mandibularImpressions: mandibularImpressions.length > 0 ? mandibularImpressions : undefined,
-      // Include ID fields and additional fields
-      maxillaryMaterialId: type === "maxillary" ? maxillaryMaterialId : undefined,
-      maxillaryRetentionId: type === "maxillary" ? maxillaryRetentionId : undefined,
-      maxillaryRetentionOptionId: type === "maxillary" ? maxillaryRetentionOptionId : undefined,
-      maxillaryGumShadeId: type === "maxillary" ? maxillaryGumShadeId : undefined,
-      maxillaryShadeId: type === "maxillary" ? maxillaryShadeId : undefined,
-      maxillaryStageId: type === "maxillary" ? maxillaryStageId : undefined,
-      maxillaryToothShade: type === "maxillary" ? maxillaryToothShade : undefined,
-      maxillaryStage: type === "maxillary" ? maxillaryStage : undefined,
-      mandibularMaterialId: type === "mandibular" ? mandibularMaterialId : undefined,
-      mandibularRetentionId: type === "mandibular" ? mandibularRetentionId : undefined,
-      mandibularRetentionOptionId: type === "mandibular" ? mandibularRetentionOptionId : undefined,
-      mandibularGumShadeId: type === "mandibular" ? mandibularGumShadeId : undefined,
-      mandibularShadeId: type === "mandibular" ? mandibularShadeId : undefined,
-      mandibularStageId: type === "mandibular" ? mandibularStageId : undefined,
-      mandibularToothShade: type === "mandibular" ? mandibularToothShade : undefined,
-      mandibularStage: type === "mandibular" ? mandibularStage : undefined,
-      // Include advance fields if any are set
-      advanceFields: productDetails?.advance_fields && Array.isArray(productDetails.advance_fields)
-        ? productDetails.advance_fields
-            .map((field: any) => {
-              const fieldKey = `advance_${field.id}`
-              const value = advanceFieldValues[fieldKey]
-              if (value) {
-                const fieldData: any = {
-                  advance_field_id: field.id,
-                  advance_field_value: typeof value === "object" ? value.advance_field_value : value,
-                  teeth_number: null,
-                }
-                
-                if (typeof value === "object" && value.option_id) {
-                  fieldData.option_id = value.option_id
-                }
-                
-                if (typeof value === "object" && Array.isArray(value.option_ids)) {
-                  fieldData.option_ids = value.option_ids
-                }
-                
-                if (typeof value === "object" && value.file) {
-                  fieldData.file = value.file
-                }
-                
-                return fieldData
-              }
-              return null
-            })
-            .filter((field: any) => field !== null)
-        : undefined,
-    }
-    
-    // If both material and retention are set, show advance fields and fetch them
-    if ((type === "maxillary" && finalMaxillaryMaterial && finalMaxillaryRetention) ||
-        (type === "mandibular" && finalMandibularMaterial && finalMandibularRetention)) {
-      setShowAdvanceFields(prev => ({ ...prev, [savedProduct.id]: true }))
-      
-      if (productDetails?.advance_fields && Array.isArray(productDetails.advance_fields)) {
-        setProductAdvanceFields(prev => ({ ...prev, [savedProduct.id]: productDetails.advance_fields }))
-      } else if (selectedProduct?.id) {
-        const fetchAdvanceFields = async () => {
-          try {
-            const labId = selectedLab?.id || selectedLab?.customer_id
-            const details = await fetchProductDetails(selectedProduct.id, labId)
-            if (details?.advance_fields && Array.isArray(details.advance_fields)) {
-              setProductAdvanceFields(prev => ({ ...prev, [savedProduct.id]: details.advance_fields }))
-            }
-          } catch (error) {
-            console.error("Error fetching advance fields:", error)
-          }
+      // Convert reversed index back to original array index
+      const actualIndex = existingIndex !== -1
+        ? prevProducts.length - 1 - existingIndex
+        : -1
+
+      // If we found an existing product, check if teeth are exactly the same
+      if (actualIndex !== -1) {
+        const existingProduct = prevProducts[actualIndex]
+        const existingTeeth = type === "maxillary"
+          ? [...(existingProduct.maxillaryTeeth || [])].sort()
+          : [...(existingProduct.mandibularTeeth || [])].sort()
+        const currentTeeth = type === "maxillary"
+          ? [...maxillaryTeeth].sort()
+          : [...mandibularTeeth].sort()
+
+        // If teeth are exactly the same, no need to update
+        if (JSON.stringify(existingTeeth) === JSON.stringify(currentTeeth)) {
+          return prevProducts // No changes
         }
-        fetchAdvanceFields()
       }
-    }
 
-    // Add to saved products array (without resetting form)
-    setSavedProducts((prev) => [...prev, savedProduct])
+      // Get impression selections for this product
+      const productId = actualIndex !== -1 ? prevProducts[actualIndex].id : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      const impressions = productDetails?.impressions || []
+      const maxillaryImpressions = type === "maxillary"
+        ? getImpressionSelections(productId, "maxillary", impressions)
+        : []
+      const mandibularImpressions = type === "mandibular"
+        ? getImpressionSelections(productId, "mandibular", impressions)
+        : []
+
+      // Create saved product configuration
+      const savedProduct: SavedProduct = {
+        id: productId,
+        product: selectedProduct,
+        productDetails: productDetails,
+        category: selectedCategory,
+        categoryId: selectedCategoryId,
+        subcategory: selectedSubcategory,
+        subcategoryId: selectedSubcategoryId,
+        maxillaryTeeth: [...maxillaryTeeth],
+        mandibularTeeth: [...mandibularTeeth],
+        maxillaryMaterial: finalMaxillaryMaterial,
+        maxillaryStumpShade,
+        maxillaryRetention: finalMaxillaryRetention,
+        maxillaryNotes,
+        mandibularMaterial: finalMandibularMaterial,
+        mandibularRetention: finalMandibularRetention,
+        mandibularImplantDetails,
+        createdAt: actualIndex !== -1 ? prevProducts[actualIndex].createdAt : Date.now(),
+        addedFrom: type,
+        maxillaryImpressions: maxillaryImpressions.length > 0 ? maxillaryImpressions : undefined,
+        mandibularImpressions: mandibularImpressions.length > 0 ? mandibularImpressions : undefined,
+        // Include ID fields and additional fields
+        maxillaryMaterialId: type === "maxillary" ? maxillaryMaterialId : undefined,
+        maxillaryRetentionId: type === "maxillary" ? maxillaryRetentionId : undefined,
+        maxillaryRetentionOptionId: type === "maxillary" ? maxillaryRetentionOptionId : undefined,
+        maxillaryGumShadeId: type === "maxillary" ? maxillaryGumShadeId : undefined,
+        maxillaryShadeId: type === "maxillary" ? maxillaryShadeId : undefined,
+        maxillaryStageId: type === "maxillary" ? maxillaryStageId : undefined,
+        maxillaryToothShade: type === "maxillary" ? maxillaryToothShade : undefined,
+        maxillaryStage: type === "maxillary" ? maxillaryStage : undefined,
+        mandibularMaterialId: type === "mandibular" ? mandibularMaterialId : undefined,
+        mandibularRetentionId: type === "mandibular" ? mandibularRetentionId : undefined,
+        mandibularRetentionOptionId: type === "mandibular" ? mandibularRetentionOptionId : undefined,
+        mandibularGumShadeId: type === "mandibular" ? mandibularGumShadeId : undefined,
+        mandibularShadeId: type === "mandibular" ? mandibularShadeId : undefined,
+        mandibularStageId: type === "mandibular" ? mandibularStageId : undefined,
+        mandibularToothShade: type === "mandibular" ? mandibularToothShade : undefined,
+        mandibularStage: type === "mandibular" ? mandibularStage : undefined,
+        // Include advance fields if any are set
+        advanceFields: productDetails?.advance_fields && Array.isArray(productDetails.advance_fields)
+          ? productDetails.advance_fields
+              .map((field: any) => {
+                const fieldKey = `advance_${field.id}`
+                const value = advanceFieldValues[fieldKey]
+                if (value) {
+                  const fieldData: any = {
+                    advance_field_id: field.id,
+                    advance_field_value: typeof value === "object" ? value.advance_field_value : value,
+                    teeth_number: null,
+                  }
+
+                  if (typeof value === "object" && value.option_id) {
+                    fieldData.option_id = value.option_id
+                  }
+
+                  if (typeof value === "object" && Array.isArray(value.option_ids)) {
+                    fieldData.option_ids = value.option_ids
+                  }
+
+                  if (typeof value === "object" && value.file) {
+                    fieldData.file = value.file
+                  }
+
+                  return fieldData
+                }
+                return null
+              })
+              .filter((field: any) => field !== null)
+          : undefined,
+      }
+
+      // If both material and retention are set, show advance fields and fetch them
+      if ((type === "maxillary" && finalMaxillaryMaterial && finalMaxillaryRetention) ||
+          (type === "mandibular" && finalMandibularMaterial && finalMandibularRetention)) {
+        setShowAdvanceFields(prev => ({ ...prev, [savedProduct.id]: true }))
+
+        if (productDetails?.advance_fields && Array.isArray(productDetails.advance_fields)) {
+          setProductAdvanceFields(prev => ({ ...prev, [savedProduct.id]: productDetails.advance_fields }))
+        } else if (selectedProduct?.id) {
+          const fetchAdvanceFields = async () => {
+            try {
+              const labId = selectedLab?.id || selectedLab?.customer_id
+              const details = await fetchProductDetails(selectedProduct.id, labId)
+              if (details?.advance_fields && Array.isArray(details.advance_fields)) {
+                setProductAdvanceFields(prev => ({ ...prev, [savedProduct.id]: details.advance_fields }))
+              }
+            } catch (error) {
+              console.error("Error fetching advance fields:", error)
+            }
+          }
+          fetchAdvanceFields()
+        }
+      }
+
+      // Update existing product or add new one
+      if (actualIndex !== -1) {
+        // Update existing auto-saved product with new teeth selection
+        const updated = [...prevProducts]
+        updated[actualIndex] = savedProduct
+        return updated
+      } else {
+        // Add to saved products array
+        return [...prevProducts, savedProduct]
+      }
+    })
 
     // Update case summary notes when product is auto-saved
     const updatedNotes = generateCaseNotes()
@@ -3260,7 +3211,9 @@ export default function CaseDesignCenterPage() {
               <div className="grid grid-cols-2 flex-1 gap-4">
                 {/* MAXILLARY Column */}
                 <div className="flex items-center justify-center gap-3">
-                  <p className="text-base font-bold text-black text-center" style={{ fontWeight: 700, letterSpacing: "0.01em" }}>MAXILLARY</p>
+                  {showProductDetails && (
+                    <p className="text-base font-bold text-black text-center" style={{ fontWeight: 700, letterSpacing: "0.01em" }}>MAXILLARY</p>
+                  )}
                   {/* Only show Add Product button when in tooth selection step */}
                   {showProductDetails && selectedProduct && (
                     <div
@@ -3351,7 +3304,9 @@ export default function CaseDesignCenterPage() {
 
                 {/* MANDIBULAR Column */}
                 <div className="flex items-center justify-center gap-3">
-                  <p className="text-base font-bold text-black text-center" style={{ fontWeight: 700, letterSpacing: "0.01em" }}>MANDIBULAR</p>
+                  {showProductDetails && (
+                    <p className="text-base font-bold text-black text-center" style={{ fontWeight: 700, letterSpacing: "0.01em" }}>MANDIBULAR</p>
+                  )}
                   {/* Only show Add Product button when in tooth selection step */}
                   {showProductDetails && selectedProduct && (
                     <div
@@ -3779,23 +3734,6 @@ export default function CaseDesignCenterPage() {
                     <div className="flex items-center gap-4 w-full justify-center">
                       {/* Left side buttons */}
                       <div className="flex flex-col gap-5">
-                        <button
-                          onClick={() => {
-                            console.log("Custom Shade - Patient comes to the lab")
-                            setSelectedShadeOption("custom")
-                            setCurrentShadeField(null)
-                            setSelectedShadesForSVG([])
-                          }}
-                          className={`w-[224px] h-[78px] ${
-                            selectedShadeOption === "custom"
-                              ? "bg-[#DFEEFB] shadow-[0_1px_4px_rgba(17,98,168,0.7)]"
-                              : "bg-white shadow-md"
-                          } rounded-lg flex items-center justify-center hover:bg-[#DFEEFB] transition-colors`}
-                        >
-                          <span className="font-bold text-[15.5px] text-center leading-tight">
-                            Custom Shade<br />Patient comes to the lab
-                          </span>
-                        </button>
                         <button
                           onClick={() => {
                             console.log("Set as Stump shade")
@@ -5136,13 +5074,13 @@ export default function CaseDesignCenterPage() {
                               : teeth.length > 0
                                 ? `#${teeth.join(", #")}`
                                 : "No teeth selected"
-                            
+
                             const productDetails = savedProduct.productDetails
                             const archType: "maxillary" | "mandibular" = "maxillary"
                             const categoryLower = savedProduct.category.toLowerCase()
                             const isFixedRestoration = categoryLower.includes("fixed")
-                            const isRemovableOrOrtho = categoryLower.includes("removable") || 
-                                                       categoryLower.includes("orthodontic") || 
+                            const isRemovableOrOrtho = categoryLower.includes("removable") ||
+                                                       categoryLower.includes("orthodontic") ||
                                                        categoryLower.includes("ortho")
 
                             return (
@@ -5251,6 +5189,13 @@ export default function CaseDesignCenterPage() {
                                                 <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '0px 10px', gap: '10px', width: 'fit-content', height: '17px', background: '#F9F9F9', boxShadow: '1px 1px 3.5px rgba(0, 0, 0, 0.25)', borderRadius: '6px', flex: 'none', order: 1, flexGrow: 0 }}>
                                                   <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', flex: 'none', order: 0, flexGrow: 0 }}>{savedProduct.subcategory}</span>
                                                 </div>
+
+                                                {/* Badge - Stage */}
+                                                {savedProduct.maxillaryStage && (
+                                                  <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '0px 10px', gap: '10px', width: 'fit-content', height: '17px', background: '#F9F9F9', boxShadow: '1px 1px 3.5px rgba(0, 0, 0, 0.25)', borderRadius: '6px', flex: 'none', order: 2, flexGrow: 0 }}>
+                                                    <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', flex: 'none', order: 0, flexGrow: 0 }}>{savedProduct.maxillaryStage}</span>
+                                                  </div>
+                                                )}
 
                                                 {/* Est days */}
                                                 <span style={{ width: 'auto', height: '22px', fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', letterSpacing: '-0.02em', color: '#B4B0B0', flex: 'none', order: 4, flexGrow: 0 }}>
@@ -8019,13 +7964,13 @@ export default function CaseDesignCenterPage() {
                               : teeth.length > 0
                                 ? `#${teeth.join(", #")}`
                                 : "No teeth selected"
-                            
+
                             const productDetails = savedProduct.productDetails
                             const archType: "maxillary" | "mandibular" = "mandibular"
                             const categoryLower = savedProduct.category.toLowerCase()
                             const isFixedRestoration = categoryLower.includes("fixed")
-                            const isRemovableOrOrtho = categoryLower.includes("removable") || 
-                                                       categoryLower.includes("orthodontic") || 
+                            const isRemovableOrOrtho = categoryLower.includes("removable") ||
+                                                       categoryLower.includes("orthodontic") ||
                                                        categoryLower.includes("ortho")
 
                             return (
@@ -8133,6 +8078,13 @@ export default function CaseDesignCenterPage() {
                                                 <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '0px 10px', gap: '10px', width: 'fit-content', height: '17px', background: '#F9F9F9', boxShadow: '1px 1px 3.5px rgba(0, 0, 0, 0.25)', borderRadius: '6px', flex: 'none', order: 1, flexGrow: 0 }}>
                                                   <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', flex: 'none', order: 0, flexGrow: 0 }}>{savedProduct.subcategory}</span>
                                                 </div>
+
+                                                {/* Badge - Stage */}
+                                                {savedProduct.mandibularStage && (
+                                                  <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '0px 10px', gap: '10px', width: 'fit-content', height: '17px', background: '#F9F9F9', boxShadow: '1px 1px 3.5px rgba(0, 0, 0, 0.25)', borderRadius: '6px', flex: 'none', order: 2, flexGrow: 0 }}>
+                                                    <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', flex: 'none', order: 0, flexGrow: 0 }}>{savedProduct.mandibularStage}</span>
+                                                  </div>
+                                                )}
 
                                                 {/* Est days */}
                                                 <span style={{ width: 'auto', height: '22px', fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', letterSpacing: '-0.02em', color: '#B4B0B0', flex: 'none', order: 4, flexGrow: 0 }}>

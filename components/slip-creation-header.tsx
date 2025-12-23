@@ -58,6 +58,9 @@ interface SlipCreationHeaderProps {
   // Container class overrides
   containerClassName?: string
   headerClassName?: string
+  
+  // Hide second header section (for lab/office selection screens)
+  hideSecondHeader?: boolean
 }
 
 const CustomerLogoFromStorage = ({ size = "default" }: { size?: "default" | "large" }) => {
@@ -374,8 +377,11 @@ const PatientInfoSection = ({
   const onNameChange = editablePatientData?.onNameChange ?? (() => {})
   const onGenderChange = editablePatientData?.onGenderChange ?? (() => {})
 
-  // Show gender field only when patient name has a value
-  const showGenderField = name.trim() !== ""
+  // Show gender field only when both first name and last name have at least 2 letters each
+  const showGenderField = (() => {
+    const nameParts = name.trim().split(/\s+/).filter(part => part.length > 0)
+    return nameParts.length >= 2 && nameParts[0].length >= 2 && nameParts[1].length >= 2
+  })()
 
   // Check if should auto-open gender dropdown
   const shouldAutoOpenGender = (inputName: string, inputGender: string): boolean => {
@@ -443,8 +449,27 @@ const PatientInfoSection = ({
 
   // Determine border color based on focus and validation state
   const getNameBorderColor = () => {
-    if (hasNameValue && !isNameValid) return "border-red-500" // invalid state - red
-    if (isNameValid) return "border-[#119933]" // valid state
+    if (hasNameValue) {
+      const nameParts = name.trim().split(/\s+/).filter(part => part.length > 0)
+      
+      // Red: First name is incomplete (< 2 characters)
+      if (nameParts.length === 0 || nameParts[0].length < 2) {
+        return "border-red-500"
+      }
+      
+      // Orange: First name is complete but no last name entered
+      if (nameParts.length === 1) {
+        return "border-orange-500"
+      }
+      
+      // Green: Both first name and last name are valid
+      if (isNameValid) {
+        return "border-[#119933]"
+      }
+      
+      // Red: Has last name but it's incomplete (< 2 characters)
+      return "border-red-500"
+    }
     if (isNameFocused) return "border-[#1162A8]" // focus state
     return "border-[#7F7F7F]" // default
   }
@@ -458,8 +483,27 @@ const PatientInfoSection = ({
 
   // Determine label color
   const getNameLabelColor = () => {
-    if (hasNameValue && !isNameValid) return "text-red-500" // invalid state - red
-    if (isNameValid) return "text-[#119933]"
+    if (hasNameValue) {
+      const nameParts = name.trim().split(/\s+/).filter(part => part.length > 0)
+      
+      // Red: First name is incomplete (< 2 characters)
+      if (nameParts.length === 0 || nameParts[0].length < 2) {
+        return "text-red-500"
+      }
+      
+      // Orange: First name is complete but no last name entered
+      if (nameParts.length === 1) {
+        return "text-orange-500"
+      }
+      
+      // Green: Both first name and last name are valid
+      if (isNameValid) {
+        return "text-[#119933]"
+      }
+      
+      // Red: Has last name but it's incomplete (< 2 characters)
+      return "text-red-500"
+    }
     if (isNameFocused) return "text-[#1162A8]"
     return "text-[#7F7F7F]"
   }
@@ -473,11 +517,26 @@ const PatientInfoSection = ({
 
   // Determine ring/glow effect
   const getNameRingEffect = () => {
-    if (hasNameValue && !isNameValid) {
+    if (hasNameValue) {
+      const nameParts = name.trim().split(/\s+/).filter(part => part.length > 0)
+      
+      // Red: First name is incomplete (< 2 characters)
+      if (nameParts.length === 0 || nameParts[0].length < 2) {
+        return "ring-2 ring-red-500 ring-opacity-20 shadow-[0_0_0_4px_rgba(239,68,68,0.15)]"
+      }
+      
+      // Orange: First name is complete but no last name entered
+      if (nameParts.length === 1) {
+        return "ring-2 ring-orange-500 ring-opacity-20 shadow-[0_0_0_4px_rgba(249,115,22,0.15)]"
+      }
+      
+      // Green: Both first name and last name are valid
+      if (isNameValid) {
+        return "ring-2 ring-[#119933] ring-opacity-20 shadow-[0_0_0_4px_rgba(17,153,51,0.15)]"
+      }
+      
+      // Red: Has last name but it's incomplete (< 2 characters)
       return "ring-2 ring-red-500 ring-opacity-20 shadow-[0_0_0_4px_rgba(239,68,68,0.15)]"
-    }
-    if (isNameFocused && isNameValid) {
-      return "ring-2 ring-[#119933] ring-opacity-20 shadow-[0_0_0_4px_rgba(17,153,51,0.15)]"
     }
     if (isNameFocused) {
       return "ring-2 ring-[#1162A8] ring-opacity-20 shadow-[0_0_0_4px_rgba(17,98,168,0.15)]"
@@ -674,8 +733,9 @@ export function SlipCreationHeader({
   doctor,
   patientData,
   editablePatientData,
-  containerClassName = "container mx-auto px-6 max-w-[1400px]",
+  containerClassName = "container mx-auto px-6 max-w-[1400px] pt-8",
   headerClassName = "",
+  hideSecondHeader = false,
 }: SlipCreationHeaderProps) {
   // Read selected lab from localStorage if not provided as prop
   const [sendingToLab, setSendingToLab] = useState<Lab | null>(propSendingToLab || null)
@@ -760,39 +820,41 @@ export function SlipCreationHeader({
         </div>
 
         {/* Second Header - Frame 2381 */}
-        <div className="bg-white ">
-          <div className="flex items-center justify-between px-5 py-[10px] h-[154.92px]">
-            {/* Left: Doctor Info */}
-            {doctor ? (
-              <div className="flex items-center justify-center">
-                <DoctorInfoSection doctor={doctor} variant="full" />
-              </div>
-            ) : (
-              <div className="w-[200px]"></div>
-            )}
+        {!hideSecondHeader && (
+          <div className="bg-white ">
+            <div className="flex items-center justify-between px-5 py-[10px] h-[154.92px]">
+              {/* Left: Doctor Info */}
+              {doctor ? (
+                <div className="flex items-center justify-center">
+                  <DoctorInfoSection doctor={doctor} variant="full" />
+                </div>
+              ) : (
+                <div className="w-[200px]"></div>
+              )}
 
-            {/* Center: Patient Info */}
-            {(patientData || editablePatientData) ? (
-              <div className="flex-1 flex items-center justify-center">
-                <PatientInfoSection 
-                  patientData={patientData} 
-                  editablePatientData={editablePatientData}
-                />
-              </div>
-            ) : (
-              <div className="flex-1"></div>
-            )}
+              {/* Center: Patient Info */}
+              {(patientData || editablePatientData) ? (
+                <div className="flex-1 flex items-center justify-center">
+                  <PatientInfoSection 
+                    patientData={patientData} 
+                    editablePatientData={editablePatientData}
+                  />
+                </div>
+              ) : (
+                <div className="flex-1"></div>
+              )}
 
-            {/* Right: Created By */}
-            {createdBy ? (
-              <div className="flex items-center justify-center">
-                <CreatedBySection createdBy={createdBy} variant="compact" />
-              </div>
-            ) : (
-              <div className="w-[170px]"></div>
-            )}
+              {/* Right: Created By */}
+              {createdBy ? (
+                <div className="flex items-center justify-center">
+                  <CreatedBySection createdBy={createdBy} variant="compact" />
+                </div>
+              ) : (
+                <div className="w-[170px]"></div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </>
     )
   }

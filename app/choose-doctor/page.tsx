@@ -340,31 +340,34 @@ export default function ChooseDoctorPage() {
         sendingToLab={selectedLab}
         createdBy={createdBy}
         showLogo={true}
+        hideSecondHeader={true}
       />
 
-      <div className="container mx-auto px-6 max-w-[1400px]">
-        <div className="border-t border-gray-200 pt-8">
+      <div className="container mx-auto px-6 max-w-[1400px] pt-8">
+        <div className="">
           {/* Title */}
           <h1 className="text-xl font-semibold text-center mb-8">Choose a Doctor</h1>
 
           {/* Search and Controls Bar */}
-          <div className="flex items-center gap-4 mb-4 max-w-5xl mx-auto">
-            {/* Search Input - takes most space */}
-            <div className="relative flex-1">
-              <Input
-                type="text"
-                placeholder="Search Doctors"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-10 pl-4 pr-10 border-gray-300 rounded-md text-sm"
-              />
-              <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            </div>
+          <div className="flex items-center justify-between gap-4 mb-4 max-w-5xl mx-auto">
+            {/* Search Input - takes most space - hide if 5 or fewer doctors */}
+            {doctors.length > 5 && (
+              <div className="relative flex-1">
+                <Input
+                  type="text"
+                  placeholder="Search Doctors"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="h-10 pl-4 pr-10 border-gray-300 rounded-md text-sm"
+                />
+                <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              </div>
+            )}
 
             {/* Add Doctor Button */}
             <Button
               onClick={handleAddDoctor}
-              className="bg-[#1162a8] hover:bg-[#0e5189] text-white h-10 px-4 rounded-md text-sm font-semibold whitespace-nowrap"
+              className="bg-[#1162a8] hover:bg-[#0e5189] text-white h-10 px-4 rounded-md text-sm font-semibold whitespace-nowrap ml-auto"
             >
               + Add Doctor
             </Button>
