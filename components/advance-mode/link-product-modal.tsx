@@ -46,6 +46,7 @@ interface FieldListItem {
     type: string
     subcategory: string
     isSelected: boolean
+    productIds?: number[]
 }
 
 export function LinkProductModal({ isOpen, onClose, context = "global", fieldId, onApply }: LinkProductModalProps) {
@@ -88,6 +89,7 @@ export function LinkProductModal({ isOpen, onClose, context = "global", fieldId,
             type: displayField.field_type || '-',
             subcategory: displayField.advance_subcategory?.name || displayField.subcategory?.name || '-',
             isSelected: true,
+            productIds: displayField.product_ids || (displayField.products?.map((p: any) => p.id) || []),
         }]
         : (fieldsData?.data || []).map((field: AdvanceField) => ({
             id: field.id,
@@ -96,10 +98,25 @@ export function LinkProductModal({ isOpen, onClose, context = "global", fieldId,
             type: field.field_type || '-',
             subcategory: field.advance_subcategory?.name || field.subcategory?.name || '-',
             isSelected: selectedFields.includes(field.id),
+            productIds: field.product_ids || (field.products?.map((p: any) => p.id) || []),
         }))
 
     // Get unique categories from products
     const categories = Array.from(new Set(products.map(p => p.category).filter(Boolean)))
+
+    // Get all linked product IDs from selected fields
+    const getLinkedProductIdsFromSelectedFields = (): number[] => {
+        if (fieldId && displayField) {
+            return displayField.product_ids || (displayField.products?.map((p: any) => p.id) || [])
+        }
+        const selectedFieldObjects = fieldList.filter(f => selectedFields.includes(f.id))
+        const allProductIds = selectedFieldObjects
+            .flatMap(f => f.productIds || [])
+            .filter((id): id is number => typeof id === 'number')
+        return Array.from(new Set(allProductIds))
+    }
+
+    const linkedProductIdsFromFields = getLinkedProductIdsFromSelectedFields()
 
     // Fetch products from API
     useEffect(() => {
@@ -201,18 +218,22 @@ export function LinkProductModal({ isOpen, onClose, context = "global", fieldId,
         fetchProducts()
     }, [isOpen])
 
-    // Load existing linked products when field data is available
+    // Load existing linked products when field data is available (single field mode)
     useEffect(() => {
         if (displayField) {
-            // Check both products and categories fields for linked products
+            // Check product_ids array first (new API format)
             let linkedProductIds: number[] = []
             
-            if (displayField.products && Array.isArray(displayField.products)) {
+            if (displayField.product_ids && Array.isArray(displayField.product_ids)) {
+                // Use product_ids array directly from API
+                linkedProductIds = displayField.product_ids.filter((id: any) => typeof id === 'number')
+            } else if (displayField.products && Array.isArray(displayField.products)) {
+                // Fallback to products array (extract IDs from product objects)
                 linkedProductIds = displayField.products
                     .map((product: any) => product.id || product)
                     .filter((id: any) => typeof id === 'number')
             } else if (displayField.categories && Array.isArray(displayField.categories)) {
-                // Sometimes linked products might be in categories field
+                // Sometimes linked products might be in categories field (legacy format)
                 linkedProductIds = displayField.categories
                     .map((cat: any) => cat.id || cat)
                     .filter((id: any) => typeof id === 'number')
@@ -268,9 +289,29 @@ export function LinkProductModal({ isOpen, onClose, context = "global", fieldId,
     const handleFieldSelect = (fieldId: number, checked: boolean) => {
         if (checked) {
             setSelectedFields([...selectedFields, fieldId])
+            
+            // Load linked products for this field
+            const field = fieldList.find(f => f.id === fieldId)
+            if (field && field.productIds && field.productIds.length > 0) {
+                // Add the field's linked products to selected products (union, no duplicates)
+                setSelectedProducts(prev => {
+                    const combined = Array.from(new Set([...prev, ...field.productIds!]))
+                    return combined
+                })
+            }
         } else {
             setSelectedFields(selectedFields.filter(id => id !== fieldId))
+            
+            // Optionally remove products that were only linked to this field
+            // For now, we'll keep the products selected even if field is deselected
+            // This allows users to manually manage product selections
         }
+    }
+
+    const handleFieldRowClick = (fieldId: number) => {
+        if (!fieldId) return // Don't allow clicking when fieldId is provided (single field mode)
+        const isCurrentlySelected = selectedFields.includes(fieldId)
+        handleFieldSelect(fieldId, !isCurrentlySelected)
     }
 
     const handleSelectAllFields = () => {
@@ -287,6 +328,11 @@ export function LinkProductModal({ isOpen, onClose, context = "global", fieldId,
         } else {
             setSelectedProducts(selectedProducts.filter(id => id !== productId))
         }
+    }
+
+    const handleProductRowClick = (productId: number) => {
+        const isCurrentlySelected = selectedProducts.includes(productId)
+        handleProductSelect(productId, !isCurrentlySelected)
     }
 
     const handleSelectAllProducts = () => {
@@ -461,12 +507,21 @@ export function LinkProductModal({ isOpen, onClose, context = "global", fieldId,
                             ) : (
                                 <div className="space-y-3">
                                     {filteredFields.map((field) => (
-                                        <div key={field.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
+                                        <div 
+                                            key={field.id} 
+                                            onClick={() => handleFieldRowClick(field.id)}
+                                            className={`flex items-center justify-between p-3 border rounded-lg transition-colors cursor-pointer ${
+                                                selectedFields.includes(field.id)
+                                                    ? 'border-[#1162a8] bg-blue-50 hover:bg-blue-100'
+                                                    : 'border-gray-200 hover:bg-gray-50'
+                                            }`}
+                                        >
                                             <div className="flex items-center gap-3 flex-1">
                                                 {!fieldId && (
                                                     <Checkbox
                                                         checked={selectedFields.includes(field.id)}
                                                         onCheckedChange={(checked) => handleFieldSelect(field.id, !!checked)}
+                                                        onClick={(e) => e.stopPropagation()}
                                                         className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]"
                                                     />
                                                 )}
@@ -480,6 +535,14 @@ export function LinkProductModal({ isOpen, onClose, context = "global", fieldId,
                                                             <>
                                                                 <span className="mx-2">•</span>
                                                                 <span>{field.subcategory}</span>
+                                                            </>
+                                                        )}
+                                                        {field.productIds && field.productIds.length > 0 && (
+                                                            <>
+                                                                <span className="mx-2">•</span>
+                                                                <span className="text-blue-600 font-medium">
+                                                                    {field.productIds.length} linked product{field.productIds.length !== 1 ? 's' : ''}
+                                                                </span>
                                                             </>
                                                         )}
                                                     </div>
@@ -642,27 +705,50 @@ export function LinkProductModal({ isOpen, onClose, context = "global", fieldId,
                             ) : (
                                 // Individual Products View
                                 <div className="space-y-3">
-                                    {filteredProducts.map((product) => (
-                                        <div key={product.id} className="border border-gray-200 rounded-lg p-3 hover:bg-gray-50">
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-3 flex-1">
-                                                    <Checkbox
-                                                        checked={selectedProducts.includes(product.id)}
-                                                        onCheckedChange={(checked) => handleProductSelect(product.id, !!checked)}
-                                                        className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]"
-                                                    />
-                                                    <div className="flex items-center gap-2">
-                                                        {getImageStatusIcon(product.imageStatus)}
-                                                        <ImageIcon className="h-4 w-4 text-gray-400" />
+                                    {filteredProducts.map((product) => {
+                                        const isLinkedToSelectedField = linkedProductIdsFromFields.includes(product.id)
+                                        const isSelected = selectedProducts.includes(product.id)
+                                        
+                                        return (
+                                            <div 
+                                                key={product.id}
+                                                onClick={() => handleProductRowClick(product.id)}
+                                                className={`border rounded-lg p-3 transition-colors cursor-pointer ${
+                                                    isLinkedToSelectedField && isSelected
+                                                        ? 'border-blue-300 bg-blue-50 hover:bg-blue-100'
+                                                        : isLinkedToSelectedField
+                                                        ? 'border-yellow-300 bg-yellow-50 hover:bg-yellow-100'
+                                                        : isSelected
+                                                        ? 'border-[#1162a8] bg-blue-50 hover:bg-blue-100'
+                                                        : 'border-gray-200 hover:bg-gray-50'
+                                                }`}
+                                            >
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-3 flex-1">
+                                                        <Checkbox
+                                                            checked={isSelected}
+                                                            onCheckedChange={(checked) => handleProductSelect(product.id, !!checked)}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]"
+                                                        />
+                                                        <div className="flex items-center gap-2">
+                                                            {getImageStatusIcon(product.imageStatus)}
+                                                            <ImageIcon className="h-4 w-4 text-gray-400" />
+                                                        </div>
+                                                        <span className="font-medium text-gray-900">{product.name}</span>
+                                                        {isLinkedToSelectedField && (
+                                                            <Badge variant="outline" className="text-xs bg-blue-100 text-blue-700 border-blue-300">
+                                                                Linked
+                                                            </Badge>
+                                                        )}
                                                     </div>
-                                                    <span className="font-medium text-gray-900">{product.name}</span>
+                                                    <Badge variant="outline" className="text-xs">
+                                                        {product.category}
+                                                    </Badge>
                                                 </div>
-                                                <Badge variant="outline" className="text-xs">
-                                                    {product.category}
-                                                </Badge>
                                             </div>
-                                        </div>
-                                    ))}
+                                        )
+                                    })}
                                 </div>
                             )}
                         </div>

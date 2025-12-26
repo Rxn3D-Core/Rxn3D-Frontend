@@ -5,7 +5,7 @@
 import { useState } from "react"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { Calendar as CalendarIcon, Zap } from "lucide-react"
-import { format, isValid, parseISO } from "date-fns"
+import { format } from "date-fns"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
@@ -23,9 +23,9 @@ interface RushRequestModalProps {
 
 export default function RushRequestModal({ isOpen, onClose, onConfirm, product }: RushRequestModalProps) {
   const [targetDate, setTargetDate] = useState<Date | undefined>()
-  const [daysSaved, setDaysSaved] = useState(11)
-  const [rushPercentage, setRushPercentage] = useState(50)
-  const [rushFee, setRushFee] = useState(25)
+  const [daysSaved, setDaysSaved] = useState(5)
+  const [rushPercentage, setRushPercentage] = useState(80)
+  const [rushFee, setRushFee] = useState(80)
 
   const handleConfirm = () => {
     const rushData = {
@@ -146,7 +146,7 @@ export default function RushRequestModal({ isOpen, onClose, onConfirm, product }
                     letterSpacing: '-0.02em',
                     color: '#545F71',
                   }}>
-                    Original Delivery
+                    Est Delivery
                   </span>
                   <span className="sm:w-[135.53px] text-xs sm:text-sm" style={{
                     fontWeight: 400,
@@ -154,15 +154,7 @@ export default function RushRequestModal({ isOpen, onClose, onConfirm, product }
                     letterSpacing: '-0.02em',
                     color: '#000000',
                   }}>
-                    {(() => {
-                      try {
-                        const date = parseISO(product.deliveryDate)
-                        if (!isValid(date)) return "-"
-                        return format(date, "MM/dd/yyyy 'at' h:mmaaa")
-                      } catch {
-                        return "-"
-                      }
-                    })()}
+                    {product.deliveryDate}
                   </span>
                 </div>
                 <div className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-0">
@@ -246,7 +238,7 @@ export default function RushRequestModal({ isOpen, onClose, onConfirm, product }
                 letterSpacing: '-0.02em',
                 color: '#B4B0B0',
               }}>
-                Lab working days: Monday - Friday (excluding holidays)
+                Lab hours: Monday - Friday (excluding holidays)
               </p>
             </div>
 
@@ -336,12 +328,12 @@ export default function RushRequestModal({ isOpen, onClose, onConfirm, product }
           </div>
 
           {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-[10.58px] mb-3 sm:mb-[23.55px] sm:pl-[124.61px]">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-[14px] mb-3 sm:mb-[23.55px] justify-center">
             <button
               onClick={onClose}
-              className="w-full sm:w-[111px]"
+              className="w-full sm:w-[148px]"
               style={{
-                height: '27px',
+                height: '36px',
                 border: '2px solid #9BA5B7',
                 borderRadius: '6px',
                 background: 'transparent',
@@ -352,7 +344,7 @@ export default function RushRequestModal({ isOpen, onClose, onConfirm, product }
                 cursor: 'pointer',
               }}
             >
-              <span className="text-[10px] sm:text-xs" style={{
+              <span className="text-xs sm:text-sm" style={{
                 fontWeight: 700,
                 lineHeight: '22px',
                 letterSpacing: '-0.02em',
@@ -365,7 +357,7 @@ export default function RushRequestModal({ isOpen, onClose, onConfirm, product }
               onClick={handleConfirm}
               className="w-full sm:w-[203px]"
               style={{
-                height: '27px',
+                height: '36px',
                 background: '#CF0202',
                 borderRadius: '6px',
                 border: 'none',
@@ -377,8 +369,8 @@ export default function RushRequestModal({ isOpen, onClose, onConfirm, product }
                 cursor: 'pointer',
               }}
             >
-              <Zap className="w-4 h-4 sm:w-6 sm:h-6" style={{ color: '#FFFFFF', strokeWidth: '2px' }} />
-              <span className="text-[10px] sm:text-xs" style={{
+              <Zap className="w-4 h-4 sm:w-5 sm:h-5" style={{ color: '#FFFFFF', strokeWidth: '2px' }} />
+              <span className="text-xs sm:text-sm" style={{
                 fontWeight: 700,
                 lineHeight: '22px',
                 letterSpacing: '-0.02em',

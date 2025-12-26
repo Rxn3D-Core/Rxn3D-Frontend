@@ -58,6 +58,7 @@ const addFieldSchema = z.object({
     required_error: "Field type is required",
   }),
   requiredField: z.boolean(),
+  isSystemDefault: z.boolean(),
   description: z.string().optional(),
   fieldDetails: z.boolean(),
   canAddAdditionalCharges: z.boolean(),
@@ -142,6 +143,7 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
       subCategory: "",
       fieldType: "dropdown",
       requiredField: false,
+      isSystemDefault: false,
       description: "",
       fieldDetails: true,
       canAddAdditionalCharges: false,
@@ -411,6 +413,7 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
           subCategory: "", // Will be set after category is selected and subcategories load
           fieldType: fieldTypeMap[fieldData.field_type] || "text",
           requiredField: fieldData.is_required === 'Yes',
+          isSystemDefault: fieldData.is_system_default === 'Yes',
           description: fieldData.description || "",
           fieldDetails: true,
           canAddAdditionalCharges: fieldData.has_additional_pricing === 'Yes',
@@ -462,6 +465,7 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
           subCategory: "",
           fieldType: "dropdown",
           requiredField: false,
+          isSystemDefault: false,
           description: "",
           fieldDetails: true,
           canAddAdditionalCharges: false,
@@ -655,6 +659,7 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
         advance_subcategory_id: data.subCategory ? parseInt(data.subCategory, 10) : undefined,
         field_type: fieldTypeMap[data.fieldType],
         is_required: data.requiredField ? 'Yes' : 'No',
+        is_system_default: data.isSystemDefault ? 'Yes' : 'No',
         has_additional_pricing: data.canAddAdditionalCharges ? 'Yes' : 'No',
         charge_type: data.canAddAdditionalCharges 
           ? (data.chargeType === 'per-option' ? 'per_selected_option' : 'once_per_field')
@@ -1075,26 +1080,48 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
                       )}
                     />
 
-                    <FormField
-                      control={form.control}
-                      name="requiredField"
-                      render={({ field }) => (
-                        <FormItem>
-                          <div className="flex items-center gap-2 pt-6">
-                            <FormControl>
-                              <Checkbox
-                                checked={field.value}
-                                onCheckedChange={field.onChange}
-                                className="data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]"
-                              />
-                            </FormControl>
-                            <FormLabel className="text-sm font-medium text-gray-700 cursor-pointer">
-                              Required field
-                            </FormLabel>
-                          </div>
-                        </FormItem>
-                      )}
-                    />
+                    <div className="flex flex-col sm:flex-row gap-4">
+                      <FormField
+                        control={form.control}
+                        name="requiredField"
+                        render={({ field }) => (
+                          <FormItem>
+                            <div className="flex items-center gap-2 pt-6">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                  className="data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]"
+                                />
+                              </FormControl>
+                              <FormLabel className="text-sm font-medium text-gray-700 cursor-pointer">
+                                Required field
+                              </FormLabel>
+                            </div>
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="isSystemDefault"
+                        render={({ field }) => (
+                          <FormItem>
+                            <div className="flex items-center gap-2 pt-6">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                  className="data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]"
+                                />
+                              </FormControl>
+                              <FormLabel className="text-sm font-medium text-gray-700 cursor-pointer">
+                                System default
+                              </FormLabel>
+                            </div>
+                          </FormItem>
+                        )}
+                      />
+                    </div>
                   </div>
                 </div>
           </div>

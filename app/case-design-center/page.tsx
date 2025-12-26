@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useMemo } from "react"
+import React, { useState, useEffect, useRef, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
 import { useDebounce } from "@/lib/performance-utils"
@@ -45,6 +45,7 @@ import PrintPreviewModal from "@/components/print-preview-modal"
 import { ImpressionSelectionModal } from "@/components/impression-selection-modal"
 import { DynamicProductFields } from "@/components/case-design-center/dynamic-product-fields"
 import { ToothShadeSelectionModal } from "@/components/tooth-shade-selection-modal"
+import { ImplantPartsPopover } from "@/components/implant-parts-popover"
 
 // Type for categories from allCategories API
 type ProductCategoryApi = {
@@ -221,6 +222,125 @@ interface SavedProduct {
   }>
 }
 
+// Helper component for Stage field with auto-open functionality
+function StageFieldComponent({
+  savedProduct,
+  isMaxillary,
+  openStageDropdown,
+  setOpenStageDropdown,
+  handleStageSelect
+}: {
+  savedProduct: SavedProduct
+  isMaxillary: boolean
+  openStageDropdown: Record<string, { maxillary?: boolean; mandibular?: boolean }>
+  setOpenStageDropdown: React.Dispatch<React.SetStateAction<Record<string, { maxillary?: boolean; mandibular?: boolean }>>>
+  handleStageSelect: (productId: string, arch: "maxillary" | "mandibular", stageName: string, stageId?: number) => void
+}) {
+  const arch = isMaxillary ? "maxillary" : "mandibular"
+  const stageValue = isMaxillary ? savedProduct.maxillaryStage : savedProduct.mandibularStage
+  
+  // Auto-open dropdown when component mounts if value is "Not specified" or empty
+  useEffect(() => {
+    const isNotSpecified = !stageValue || 
+      stageValue.trim() === "" || 
+      stageValue.trim().toLowerCase() === "not specified" || 
+      stageValue.trim().toLowerCase() === "finish"
+    
+    if (isNotSpecified) {
+      // Small delay to ensure the Select component is ready
+      const timer = setTimeout(() => {
+        setOpenStageDropdown((prev) => ({
+          ...prev,
+          [savedProduct.id]: {
+            ...prev[savedProduct.id],
+            [arch]: true
+          }
+        }))
+      }, 100)
+      
+      return () => clearTimeout(timer)
+    }
+  }, []) // Only run on mount
+
+  return (
+    <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+      <Select
+        open={openStageDropdown[savedProduct.id]?.[arch] || false}
+        onOpenChange={(open) =>
+          setOpenStageDropdown((prev) => ({
+            ...prev,
+            [savedProduct.id]: {
+              ...prev[savedProduct.id],
+              [arch]: open
+            }
+          }))
+        }
+        value={stageValue || ""}
+        onValueChange={(value) => {
+          const productDetails = savedProduct.productDetails
+          const stages = productDetails?.stages || []
+          const selectedStage = stages.find((s: any) => s.name === value || s.id?.toString() === value)
+          handleStageSelect(
+            savedProduct.id,
+            arch,
+            value,
+            selectedStage?.id
+          )
+        }}
+      >
+        <SelectTrigger
+          style={{
+            padding: '12px 15px 5px 15px',
+            gap: '5px',
+            width: '100%',
+            height: '37px',
+            position: 'relative',
+            marginTop: '5.27px',
+            background: '#FFFFFF',
+            border: '0.740384px solid #7F7F7F',
+            borderRadius: '7.7px',
+            boxSizing: 'border-box',
+            fontFamily: 'Verdana',
+            fontStyle: 'normal',
+            fontWeight: 400,
+            fontSize: '14.4px',
+            lineHeight: '20px',
+            letterSpacing: '-0.02em',
+            color: '#000000'
+          }}
+        >
+          <SelectValue placeholder="Not specified" />
+        </SelectTrigger>
+        <SelectContent className="z-[50] max-h-[300px] overflow-y-auto">
+          {savedProduct.productDetails?.stages?.map((stage: any, idx: number) => (
+            <SelectItem key={idx} value={stage.name || stage.id?.toString() || ""}>
+              {stage.name || stage}
+            </SelectItem>
+          )) || []}
+        </SelectContent>
+      </Select>
+      <label
+        className="absolute bg-white"
+        style={{
+          padding: '0px',
+          height: '14px',
+          left: '8.9px',
+          top: '0px',
+          fontFamily: 'Arial',
+          fontStyle: 'normal',
+          fontWeight: 400,
+          fontSize: '14px',
+          lineHeight: '14px',
+          color: '#7F7F7F',
+          pointerEvents: 'none',
+          zIndex: 1
+        }}
+      >
+        Stage
+      </label>
+    </div>
+  )
+}
 
 export default function CaseDesignCenterPage() {
   const router = useRouter()
@@ -307,6 +427,9 @@ export default function CaseDesignCenterPage() {
   // Unified accordion state - tracks which accordion is open (only one at a time)
   const [openAccordion, setOpenAccordion] = useState<string | null>(null)
 
+  // State to track which stage dropdown is open: { [productId]: { [arch]: boolean } }
+  const [openStageDropdown, setOpenStageDropdown] = useState<Record<string, { maxillary?: boolean; mandibular?: boolean }>>({})
+
   // Impression selection modal state
   const [showImpressionModal, setShowImpressionModal] = useState<boolean>(false)
   const [currentImpressionArch, setCurrentImpressionArch] = useState<"maxillary" | "mandibular">("maxillary")
@@ -375,14 +498,23 @@ export default function CaseDesignCenterPage() {
       case "gum_shade":
         return !!(productDetails.gum_shades && Array.isArray(productDetails.gum_shades) && productDetails.gum_shades.length > 0)
       case "stump_shade":
+        // Check if stump_shade exists as an advance field
+        const advanceFields = productDetails.advance_fields || productAdvanceFields[savedProduct.id] || []
+        const stumpShadeField = getAdvanceFieldByName("stump_shade", advanceFields)
+        // If stump_shade exists as an advance field, use that; otherwise, check if it's configured as a regular field
+        if (stumpShadeField) {
+          return true
+        }
+        // Fallback: check if advance fields exist (for backward compatibility)
+        return advanceFields.length > 0
       case "crown_third_shade":
       case "pontic_design":
       case "embrasures":
       case "occlusal_contact":
       case "interproximal_contact":
       case "advance_fields":
-        const advanceFields = productDetails.advance_fields || productAdvanceFields[savedProduct.id] || []
-        return advanceFields.length > 0
+        const allAdvanceFields = productDetails.advance_fields || productAdvanceFields[savedProduct.id] || []
+        return allAdvanceFields.length > 0
       default:
         return true // Always show product_material, retention, stage, impressions, add_ons
     }
@@ -410,6 +542,226 @@ export default function CaseDesignCenterPage() {
       }
       return false
     }) || null
+  }
+
+  // Helper function to get advance field value from saved product
+  const getAdvanceFieldValue = (savedProduct: SavedProduct, fieldId: number, archType: "maxillary" | "mandibular"): any => {
+    if (!savedProduct.advanceFields || !Array.isArray(savedProduct.advanceFields)) {
+      return null
+    }
+    
+    // Find the advance field data for this field ID
+    const savedField = savedProduct.advanceFields.find((af: any) => af.advance_field_id === fieldId)
+    if (!savedField) {
+      return null
+    }
+    
+    return savedField
+  }
+
+  // Helper function to render an advance field for saved products
+  const renderSavedAdvanceField = (field: any, savedProduct: SavedProduct, archType: "maxillary" | "mandibular") => {
+    const savedField = getAdvanceFieldValue(savedProduct, field.id, archType)
+    const fieldValue = savedField?.advance_field_value || ""
+    
+    // For stump shade, check if we have a value in maxillaryStumpShade and sync it
+    const isStumpShade = field.name?.toLowerCase().includes("stump") && field.name?.toLowerCase().includes("shade")
+    const stumpShadeValue = archType === "maxillary" ? savedProduct.maxillaryStumpShade : ""
+    const displayValue = isStumpShade && stumpShadeValue ? stumpShadeValue : fieldValue
+    
+    // Check if field is required and value is empty
+    const isFieldRequired = field.is_required === "Yes" || field.is_required === true
+    const isEmptyOrNotSpecified = !displayValue || 
+      displayValue.trim() === "" || 
+      displayValue.trim().toLowerCase() === "not specified" ||
+      (field.field_type === "dropdown" && displayValue === `Select ${field.name}`)
+    
+    const showRedBorder = isFieldRequired && isEmptyOrNotSpecified
+    
+    // Render based on field_type
+    if (field.field_type === "dropdown" && field.options && Array.isArray(field.options)) {
+      const activeOptions = field.options.filter((opt: any) => opt.status === "Active" || opt.status === undefined)
+      const selectedOption = activeOptions.find((opt: any) => 
+        opt.id === displayValue || 
+        opt.name === displayValue ||
+        String(opt.id) === String(displayValue)
+      )
+      
+      return (
+        <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+          <div
+            className="flex items-center justify-between"
+            style={{
+              padding: '12px 15px 5px 15px',
+              gap: '5px',
+              width: '100%',
+              height: '37px',
+              background: '#FFFFFF',
+              border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
+              borderRadius: '7.7px',
+              boxSizing: 'border-box',
+              position: 'relative',
+              marginTop: '5.27px'
+            }}
+          >
+            <span style={{
+              fontFamily: 'Verdana',
+              fontStyle: 'normal',
+              fontWeight: 400,
+              fontSize: '14.4px',
+              lineHeight: '20px',
+              letterSpacing: '-0.02em',
+              color: '#000000'
+            }}>{selectedOption ? selectedOption.name : (displayValue || 'Not specified')}</span>
+            {isStumpShade && displayValue && (
+              <div
+                className="flex items-center justify-center"
+                style={{
+                  width: '37.51px',
+                  height: '41.97px',
+                  background: 'linear-gradient(0deg, #DED2C7 0.05%, #E3D4C4 7.04%, #EDD9C1 25.04%, #F0DBC0 50.02%, #F0DCC2 76.01%, #F1E0CA 90%, #F3E7D7 100%)',
+                  borderRadius: '8px',
+                  position: 'absolute',
+                  right: '0px',
+                  top: '-1px'
+                }}
+              >
+                <span style={{
+                  fontFamily: 'Verdana',
+                  fontStyle: 'normal',
+                  fontWeight: 400,
+                  fontSize: '12.8603px',
+                  lineHeight: '18px',
+                  letterSpacing: '-0.02em',
+                  color: '#000000'
+                }}>{displayValue}</span>
+              </div>
+            )}
+          </div>
+          <label
+            className="absolute bg-white"
+            style={{
+              padding: '0px',
+              height: '14px',
+              left: '8.9px',
+              top: '0px',
+              fontFamily: 'Arial',
+              fontStyle: 'normal',
+              fontWeight: 400,
+              fontSize: '14px',
+              lineHeight: '14px',
+              color: '#7F7F7F'
+            }}
+          >
+            {field.name || "Advanced Field"}
+            {isFieldRequired && (
+              <span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>
+            )}
+          </label>
+        </div>
+      )
+    } else if (field.field_type === "text") {
+      return (
+        <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+          <div
+            className="flex items-center"
+            style={{
+              padding: '12px 15px 5px 15px',
+              gap: '5px',
+              width: '100%',
+              height: '37px',
+              background: '#FFFFFF',
+              border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
+              borderRadius: '7.7px',
+              boxSizing: 'border-box',
+              position: 'relative',
+              marginTop: '5.27px'
+            }}
+          >
+            <span style={{
+              fontFamily: 'Verdana',
+              fontStyle: 'normal',
+              fontWeight: 400,
+              fontSize: '14.4px',
+              lineHeight: '20px',
+              letterSpacing: '-0.02em',
+              color: '#000000'
+            }}>{displayValue || 'Not specified'}</span>
+          </div>
+          <label
+            className="absolute bg-white"
+            style={{
+              padding: '0px',
+              height: '14px',
+              left: '8.9px',
+              top: '0px',
+              fontFamily: 'Arial',
+              fontStyle: 'normal',
+              fontWeight: 400,
+              fontSize: '14px',
+              lineHeight: '14px',
+              color: '#7F7F7F'
+            }}
+          >
+            {field.name || "Advanced Field"}
+            {isFieldRequired && (
+              <span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>
+            )}
+          </label>
+        </div>
+      )
+    }
+    
+    // Default rendering for other field types
+    return (
+      <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+        <div
+          className="flex items-center"
+          style={{
+            padding: '12px 15px 5px 15px',
+            gap: '5px',
+            width: '100%',
+            height: '37px',
+            background: '#FFFFFF',
+            border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
+            borderRadius: '7.7px',
+            boxSizing: 'border-box',
+            position: 'relative',
+            marginTop: '5.27px'
+          }}
+        >
+          <span style={{
+            fontFamily: 'Verdana',
+            fontStyle: 'normal',
+            fontWeight: 400,
+            fontSize: '14.4px',
+            lineHeight: '20px',
+            letterSpacing: '-0.02em',
+            color: '#000000'
+          }}>{displayValue || 'Not specified'}</span>
+        </div>
+        <label
+          className="absolute bg-white"
+          style={{
+            padding: '0px',
+            height: '14px',
+            left: '8.9px',
+            top: '0px',
+            fontFamily: 'Arial',
+            fontStyle: 'normal',
+            fontWeight: 400,
+            fontSize: '14px',
+            lineHeight: '14px',
+            color: '#7F7F7F'
+          }}
+        >
+          {field.name || "Advanced Field"}
+          {isFieldRequired && (
+            <span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>
+          )}
+        </label>
+      </div>
+    )
   }
 
   // Field configuration system - defines field metadata
@@ -660,6 +1012,39 @@ export default function CaseDesignCenterPage() {
     return hasMaterial && hasRetention && hasStumpShade && hasToothShade && hasStage
   }
 
+  // Helper function to check if product accordion is complete
+  const isAccordionComplete = (): boolean => {
+    // If there are no saved products, accordion is not complete
+    if (savedProducts.length === 0) {
+      return false
+    }
+
+    // Helper to check if a value is actually set
+    const hasValue = (value: string | undefined | null): boolean => {
+      if (!value) return false
+      const trimmed = String(value).trim()
+      return trimmed !== "" && trimmed.toLowerCase() !== "not specified" && trimmed.toLowerCase() !== "finish"
+    }
+
+    // Check if all saved products have required fields filled
+    return savedProducts.every((product) => {
+      const hasMaterial = product.addedFrom === "maxillary" 
+        ? hasValue(product.maxillaryMaterial)
+        : hasValue(product.mandibularMaterial)
+      const hasRetention = product.addedFrom === "maxillary"
+        ? hasValue(product.maxillaryRetention)
+        : hasValue(product.mandibularRetention)
+      const hasToothShade = product.addedFrom === "maxillary"
+        ? hasValue(product.maxillaryToothShade)
+        : hasValue(product.mandibularToothShade)
+      const hasStage = product.addedFrom === "maxillary"
+        ? hasValue(product.maxillaryStage)
+        : hasValue(product.mandibularStage)
+
+      return hasMaterial && hasRetention && hasToothShade && hasStage
+    })
+  }
+
   // Helper function to check if accordion field should be visible (progressive disclosure for accordion)
   // Fields are hidden initially and shown automatically when the previous field has a value
   const isAccordionFieldVisible = (
@@ -732,12 +1117,20 @@ export default function CaseDesignCenterPage() {
     if (value && openAccordion === value) {
       // Same accordion clicked - close it
       setOpenAccordion(null)
+      // Close stage dropdowns for this accordion
+      setOpenStageDropdown((prev) => {
+        const newState = { ...prev }
+        delete newState[value]
+        return newState
+      })
     } else if (value) {
       // Different accordion clicked or opening for first time - open it
       setOpenAccordion(value)
     } else {
       // Empty string means closing
       setOpenAccordion(null)
+      // Close all stage dropdowns
+      setOpenStageDropdown({})
     }
   }
 
@@ -757,6 +1150,100 @@ export default function CaseDesignCenterPage() {
   
   // Saved products state - array of product configurations
   const [savedProducts, setSavedProducts] = useState<SavedProduct[]>([])
+
+  // Helper function to calculate total add-ons count across all saved products
+  const getTotalAddOnsCount = useMemo(() => {
+    return savedProducts.reduce((total, product) => {
+      const maxillaryCount = product.maxillaryAddOnsStructured?.reduce((sum, addon) => sum + (addon.qty || addon.quantity || 1), 0) || 0
+      const mandibularCount = product.mandibularAddOnsStructured?.reduce((sum, addon) => sum + (addon.qty || addon.quantity || 1), 0) || 0
+      return total + maxillaryCount + mandibularCount
+    }, 0)
+  }, [savedProducts])
+
+  // Helper function to calculate add-ons count for a specific product
+  const getProductAddOnsCount = (product: SavedProduct) => {
+    const maxillaryCount = product.maxillaryAddOnsStructured?.reduce((sum, addon) => sum + (addon.qty || addon.quantity || 1), 0) || 0
+    const mandibularCount = product.mandibularAddOnsStructured?.reduce((sum, addon) => sum + (addon.qty || addon.quantity || 1), 0) || 0
+    return maxillaryCount + mandibularCount
+  }
+
+  // Helper function to get attached files count from localStorage
+  const getAttachedFilesCount = () => {
+    if (typeof window === "undefined") return 0
+    try {
+      const cacheStr = localStorage.getItem("caseDesignCache")
+      if (cacheStr) {
+        const cache = JSON.parse(cacheStr)
+        if (Array.isArray(cache.attachments)) {
+          return cache.attachments.length
+        }
+      }
+    } catch (error) {
+      console.error("Error reading attachments from localStorage:", error)
+    }
+    return 0
+  }
+
+  // Auto-open stage dropdown when accordion opens and stage field is visible with "Not specified" value
+  useEffect(() => {
+    if (!openAccordion) {
+      // Close all dropdowns when accordion closes
+      setOpenStageDropdown({})
+      return
+    }
+
+    // Check if this is a saved product accordion
+    const savedProduct = savedProducts.find(p => p.id === openAccordion)
+    if (!savedProduct) return
+
+    const productDetails = savedProduct.productDetails
+    if (!productDetails?.stages || !Array.isArray(productDetails.stages) || productDetails.stages.length === 0) return
+
+    // Helper to check if value is "Not specified" or empty
+    const isNotSpecified = (value: string | undefined | null): boolean => {
+      if (!value) return true
+      const trimmed = String(value).trim().toLowerCase()
+      return trimmed === "" || trimmed === "not specified" || trimmed === "finish"
+    }
+
+    // Function to check and open dropdowns
+    const checkAndOpenDropdowns = () => {
+      // Check if stage field should be visible for maxillary
+      const isMaxillaryVisible = isAccordionFieldVisible("stage", savedProduct, "maxillary")
+      // Check if stage field should be visible for mandibular
+      const isMandibularVisible = isAccordionFieldVisible("stage", savedProduct, "mandibular")
+
+      // Check maxillary stage value
+      const maxillaryStageValue = savedProduct.maxillaryStage
+      const shouldOpenMaxillary = isMaxillaryVisible && isNotSpecified(maxillaryStageValue)
+
+      // Check mandibular stage value
+      const mandibularStageValue = savedProduct.mandibularStage
+      const shouldOpenMandibular = isMandibularVisible && isNotSpecified(mandibularStageValue)
+
+      if (shouldOpenMaxillary || shouldOpenMandibular) {
+        setOpenStageDropdown((prev) => ({
+          ...prev,
+          [openAccordion]: {
+            ...prev[openAccordion],
+            ...(shouldOpenMaxillary && { maxillary: true }),
+            ...(shouldOpenMandibular && { mandibular: true })
+          }
+        }))
+      }
+    }
+
+    // Use multiple attempts with increasing delays to ensure the accordion content is fully rendered
+    const timer1 = setTimeout(checkAndOpenDropdowns, 200)
+    const timer2 = setTimeout(checkAndOpenDropdowns, 400)
+    const timer3 = setTimeout(checkAndOpenDropdowns, 600)
+
+    return () => {
+      clearTimeout(timer1)
+      clearTimeout(timer2)
+      clearTimeout(timer3)
+    }
+  }, [openAccordion, savedProducts])
 
   // Modal states
   const [showAddOnsModal, setShowAddOnsModal] = useState(false)
@@ -1119,6 +1606,27 @@ export default function CaseDesignCenterPage() {
   const isOrthodonticsOrRemovable = selectedCategory?.toLowerCase().includes("orthodontic") || 
                                      selectedCategory?.toLowerCase().includes("ortho") ||
                                      selectedCategory?.toLowerCase().includes("removable") || false
+
+  // Helper function to check if product has implant retention option
+  const hasImplantRetentionOption = (productDetails: any): boolean => {
+    if (!productDetails?.retention_options) return false
+    return productDetails.retention_options.some((opt: any) => 
+      opt.name?.toLowerCase() === "implant" || 
+      opt.lab_retention_option?.name?.toLowerCase() === "implant"
+    )
+  }
+
+  // Check if conditions are met for showing implant popover
+  const shouldShowImplantPopover = isFixedRestoration && 
+    selectedProduct && 
+    productDetails && 
+    hasImplantRetentionOption(productDetails)
+
+  // State to track which tooth was clicked to show the popover
+  const [implantPopoverState, setImplantPopoverState] = useState<{
+    arch: 'maxillary' | 'mandibular' | null
+    toothNumber: number | null
+  }>({ arch: null, toothNumber: null })
 
   const handleCategorySelect = (category: ProductCategoryApi) => {
     setSelectedCategory(category.name)
@@ -2175,6 +2683,86 @@ export default function CaseDesignCenterPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productDetails?.id, maxillaryTeeth.length, mandibularTeeth.length]) // Run when productDetails ID or teeth selections change
 
+  // Auto-open stage dropdown when stage field becomes visible and value is "Not specified"
+  useEffect(() => {
+    // Check all saved products
+    savedProducts.forEach((savedProduct) => {
+      const productDetails = savedProduct.productDetails
+      if (productDetails?.stages && Array.isArray(productDetails.stages) && productDetails.stages.length > 0) {
+        // Helper to check if value is "Not specified" or empty
+        const isNotSpecified = (value: string | undefined | null): boolean => {
+          if (!value) return true
+          const trimmed = String(value).trim().toLowerCase()
+          return trimmed === "" || trimmed === "not specified" || trimmed === "finish"
+        }
+
+        // Check maxillary
+        const isMaxillaryVisible = isAccordionFieldVisible("stage", savedProduct, "maxillary")
+        const maxillaryStageValue = savedProduct.maxillaryStage
+        const shouldOpenMaxillary = isMaxillaryVisible && isNotSpecified(maxillaryStageValue) && 
+          openAccordion === savedProduct.id
+
+        // Check mandibular
+        const isMandibularVisible = isAccordionFieldVisible("stage", savedProduct, "mandibular")
+        const mandibularStageValue = savedProduct.mandibularStage
+        const shouldOpenMandibular = isMandibularVisible && isNotSpecified(mandibularStageValue) && 
+          openAccordion === savedProduct.id
+
+        if (shouldOpenMaxillary || shouldOpenMandibular) {
+          setOpenStageDropdown((prev) => {
+            const currentState = prev[savedProduct.id]
+            // Only update if state needs to change
+            if ((shouldOpenMaxillary && !currentState?.maxillary) || (shouldOpenMandibular && !currentState?.mandibular)) {
+              return {
+                ...prev,
+                [savedProduct.id]: {
+                  ...currentState,
+                  ...(shouldOpenMaxillary && { maxillary: true }),
+                  ...(shouldOpenMandibular && { mandibular: true })
+                }
+              }
+            }
+            return prev
+          })
+        }
+      }
+    })
+
+    // Check unsaved products (maxillary-card and mandibular-card)
+    if (openAccordion === "maxillary-card" || openAccordion === "mandibular-card") {
+      const arch = openAccordion === "maxillary-card" ? "maxillary" : "mandibular"
+      const stageValue = arch === "maxillary" ? maxillaryStage : mandibularStage
+      const toothShade = arch === "maxillary" ? maxillaryToothShade : mandibularToothShade
+      
+      // Helper to check if value is "Not specified" or empty
+      const isNotSpecified = (value: string | undefined | null): boolean => {
+        if (!value) return true
+        const trimmed = String(value).trim().toLowerCase()
+        return trimmed === "" || trimmed === "not specified" || trimmed === "finish"
+      }
+      
+      // Check if stage field should be visible (tooth shade must be filled)
+      const isStageVisible = toothShade && toothShade.trim() !== "" && toothShade.trim().toLowerCase() !== "not specified"
+      
+      if (isStageVisible && isNotSpecified(stageValue) && productDetails?.stages && Array.isArray(productDetails.stages) && productDetails.stages.length > 0) {
+        setOpenStageDropdown((prev) => {
+          const currentState = prev[openAccordion]
+          if (!currentState?.[arch]) {
+            return {
+              ...prev,
+              [openAccordion]: {
+                ...currentState,
+                [arch]: true
+              }
+            }
+          }
+          return prev
+        })
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedProducts, openAccordion, maxillaryStage, mandibularStage, maxillaryToothShade, mandibularToothShade, productDetails])
+
   // Handler for field changes in dynamic fields
   const handleFieldChange = (fieldKey: string, value: string, id?: number, productId?: string, arch?: "maxillary" | "mandibular") => {
     const actualArch = arch || (maxillaryTeeth.length > 0 ? "maxillary" : "mandibular")
@@ -2702,6 +3290,29 @@ export default function CaseDesignCenterPage() {
     })
   }
 
+  // Handler for stage selection
+  const handleStageSelect = (productId: string, arch: "maxillary" | "mandibular", stageName: string, stageId?: number) => {
+    setSavedProducts((prev) =>
+      prev.map((product) => {
+        if (product.id === productId) {
+          return {
+            ...product,
+            ...(arch === "maxillary" ? { maxillaryStage: stageName, maxillaryStageId: stageId } : { mandibularStage: stageName, mandibularStageId: stageId })
+          }
+        }
+        return product
+      })
+    )
+    // Close the dropdown after selection
+    setOpenStageDropdown((prev) => ({
+      ...prev,
+      [productId]: {
+        ...prev[productId],
+        [arch]: false
+      }
+    }))
+  }
+
   // Handler to show teeth selection when clicking a saved product card
   const handleSavedProductCardClick = (savedProduct: SavedProduct) => {
     // Set the selected product and show product details to make the teeth selection interface visible
@@ -3018,19 +3629,79 @@ export default function CaseDesignCenterPage() {
   }
 
   const handleMaxillaryToothToggle = (toothNumber: number) => {
-    setMaxillaryTeeth(prev =>
-      prev.includes(toothNumber)
-        ? prev.filter(t => t !== toothNumber)
-        : [...prev, toothNumber]
-    )
+    setMaxillaryTeeth(prev => {
+      const isAdding = !prev.includes(toothNumber)
+      const newTeeth = isAdding
+        ? [...prev, toothNumber]
+        : prev.filter(t => t !== toothNumber)
+      
+      // If adding a tooth and conditions are met, show the implant popover
+      if (isAdding && shouldShowImplantPopover) {
+        setImplantPopoverState({ arch: 'maxillary', toothNumber })
+      } else {
+        // Close popover if deselecting or conditions not met
+        setImplantPopoverState({ arch: null, toothNumber: null })
+      }
+      
+      // If adding a tooth, automatically open the accordion (don't close if already open)
+      if (isAdding) {
+        // If we're in tooth selection mode with a selected product, open the card accordion
+        if (selectedProduct && showProductDetails) {
+          setOpenAccordion("maxillary-card")
+        } else {
+          // Find the most recent saved product with maxillary teeth
+          const maxillaryProducts = savedProducts.filter(p => p.maxillaryTeeth.length > 0)
+          if (maxillaryProducts.length > 0) {
+            // Open the most recent saved product accordion
+            const mostRecentProduct = maxillaryProducts[maxillaryProducts.length - 1]
+            setOpenAccordion(mostRecentProduct.id)
+          } else {
+            // No saved products, open the card accordion
+            setOpenAccordion("maxillary-card")
+          }
+        }
+      }
+      
+      return newTeeth
+    })
   }
 
   const handleMandibularToothToggle = (toothNumber: number) => {
-    setMandibularTeeth(prev =>
-      prev.includes(toothNumber)
-        ? prev.filter(t => t !== toothNumber)
-        : [...prev, toothNumber]
-    )
+    setMandibularTeeth(prev => {
+      const isAdding = !prev.includes(toothNumber)
+      const newTeeth = isAdding
+        ? [...prev, toothNumber]
+        : prev.filter(t => t !== toothNumber)
+      
+      // If adding a tooth and conditions are met, show the implant popover
+      if (isAdding && shouldShowImplantPopover) {
+        setImplantPopoverState({ arch: 'mandibular', toothNumber })
+      } else {
+        // Close popover if deselecting or conditions not met
+        setImplantPopoverState({ arch: null, toothNumber: null })
+      }
+      
+      // If adding a tooth, automatically open the accordion (don't close if already open)
+      if (isAdding) {
+        // If we're in tooth selection mode with a selected product, open the card accordion
+        if (selectedProduct && showProductDetails) {
+          setOpenAccordion("mandibular-card")
+        } else {
+          // Find the most recent saved product with mandibular teeth
+          const mandibularProducts = savedProducts.filter(p => p.mandibularTeeth.length > 0)
+          if (mandibularProducts.length > 0) {
+            // Open the most recent saved product accordion
+            const mostRecentProduct = mandibularProducts[mandibularProducts.length - 1]
+            setOpenAccordion(mostRecentProduct.id)
+          } else {
+            // No saved products, open the card accordion
+            setOpenAccordion("mandibular-card")
+          }
+        }
+      }
+      
+      return newTeeth
+    })
   }
 
   // Get subcategory image helper
@@ -3830,13 +4501,26 @@ export default function CaseDesignCenterPage() {
                     )}
 
                     {/* Dental Chart - Outside Card */}
-                    <div className="rounded-lg p-3 flex items-center justify-center">
+                    <div className="rounded-lg p-3 flex items-center justify-center relative">
+                      {shouldShowImplantPopover && implantPopoverState.arch === 'maxillary' && implantPopoverState.toothNumber !== null && (
+                        <ImplantPartsPopover
+                          onImplantPartsIncluded={() => {
+                            // Handle implant parts included action
+                            setImplantPopoverState({ arch: null, toothNumber: null })
+                          }}
+                          onEnterManually={() => {
+                            // Handle enter manually action
+                            setImplantPopoverState({ arch: null, toothNumber: null })
+                          }}
+                        />
+                      )}
                       {!currentShadeField && (
                         <MaxillaryTeethSVG
                           key={`maxillary-${maxillaryTeeth.join('-')}`}
                           selectedTeeth={maxillaryTeeth}
                           onToothClick={handleMaxillaryToothToggle}
                           className="max-w-full"
+                          isImplantMode={shouldShowImplantPopover}
                         />
                       )}
                     </div>
@@ -4106,7 +4790,8 @@ export default function CaseDesignCenterPage() {
                                     />
                                     
                                     {/* Advance Fields - Shown only after all required fields are filled */}
-                                    {productDetails.advance_fields && 
+                                    {productDetails && 
+                                     productDetails.advance_fields && 
                                      Array.isArray(productDetails.advance_fields) && 
                                      productDetails.advance_fields.length > 0 &&
                                      areAllRequiredFieldsFilled("maxillary") && (
@@ -4785,7 +5470,12 @@ export default function CaseDesignCenterPage() {
                                 )}
                               </div>
 
-                              {/* Action Buttons */}
+                              {/* Action Buttons - Only show if advance fields are showing */}
+                              {productDetails && 
+                               productDetails.advance_fields && 
+                               Array.isArray(productDetails.advance_fields) && 
+                               productDetails.advance_fields.length > 0 &&
+                               areAllRequiredFieldsFilled("maxillary") && (
                               <div
                                 className="flex flex-wrap justify-center items-center w-full"
                                 style={{
@@ -4931,7 +5621,7 @@ export default function CaseDesignCenterPage() {
                                       color: '#000000'
                                     }}
                                   >
-                                    Add ons (3 selected)
+                                    Add ons ({getTotalAddOnsCount} selected)
                                   </span>
                                 </button>
                                 <button
@@ -4980,7 +5670,7 @@ export default function CaseDesignCenterPage() {
                                       color: '#000000'
                                     }}
                                   >
-                                    Attach Files (15 uploads)
+                                    Attach Files ({getAttachedFilesCount()} uploads)
                                   </span>
                                 </button>
                                 <button
@@ -5056,6 +5746,7 @@ export default function CaseDesignCenterPage() {
                                   </span>
                                 </button>
                               </div>
+                              )}
                             </AccordionContent>
                           </AccordionItem>
                         </Accordion>
@@ -5084,7 +5775,14 @@ export default function CaseDesignCenterPage() {
                                                        categoryLower.includes("ortho")
 
                             return (
-                              <Card key={savedProduct.id} className="overflow-hidden border border-gray-200 shadow-sm">
+                              <Card
+                                key={savedProduct.id}
+                                className="overflow-hidden shadow-sm"
+                                style={{
+                                  border: savedProduct.rushData ? '1px solid #CF0202' : '1px solid #e5e7eb',
+                                  borderRadius: '10px'
+                                }}
+                              >
                                 <Accordion
                                   type="single"
                                   collapsible
@@ -5099,9 +5797,10 @@ export default function CaseDesignCenterPage() {
                                       style={{
                                         position: 'relative',
                                         height: '69.92px',
-                                        background: openAccordion === savedProduct.id ? '#DFEEFB' : '#F5F5F5',
-                                        boxShadow: '0.9px 0.9px 3.6px rgba(0, 0, 0, 0.25)',
-                                        borderRadius: openAccordion === savedProduct.id ? '5.4px 5.4px 0px 0px' : '5.4px',
+                                        background: savedProduct.rushData ? '#FFE2E2' : (openAccordion === savedProduct.id ? '#DFEEFB' : '#F5F5F5'),
+                                        boxShadow: savedProduct.rushData ? '0.9px 0.9px 3.6px 0 rgba(0, 0, 0, 0.25)' : '0.9px 0.9px 3.6px rgba(0, 0, 0, 0.25)',
+                                        borderRadius: openAccordion === savedProduct.id ? '5.4px 5.4px 0px 0px' : '10px',
+                                        border: savedProduct.rushData ? '1px solid #CF0202' : 'none',
                                         display: 'flex',
                                         flexDirection: 'column',
                                         alignItems: 'flex-start',
@@ -5162,7 +5861,7 @@ export default function CaseDesignCenterPage() {
                                             {/* Frame 2387 - Content Area */}
                                             <div style={{ position: 'absolute', width: '565.1px', height: '42px', left: '74.04px', top: '0.34px' }}>
                                               {/* Group 1433 - Tooth Numbers */}
-                                              <div style={{ position: 'absolute', width: 'auto', height: '20px', left: '0px', top: '0px' }}>
+                                              <div style={{ position: 'absolute', width: 'auto', height: '20px', left: '0px', top: '0px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                 <span
                                                   style={{
                                                     fontFamily: 'Verdana',
@@ -5176,6 +5875,18 @@ export default function CaseDesignCenterPage() {
                                                 >
                                                   {teeth.length > 0 ? teeth.join(', ') : ''}
                                                 </span>
+                                                {/* Rush Icon Indicator */}
+                                                {savedProduct.rushData && (
+                                                  <Zap
+                                                    style={{
+                                                      width: '16px',
+                                                      height: '16px',
+                                                      color: '#CF0202',
+                                                      fill: '#CF0202',
+                                                      flexShrink: 0
+                                                    }}
+                                                  />
+                                                )}
                                               </div>
 
                                               {/* Frame 2386 - Badges and Info Row */}
@@ -5518,91 +6229,120 @@ export default function CaseDesignCenterPage() {
                                         )}
 
                                         {/* Field 5: Stump Shade (Fixed Restoration only, advance field, visible after Implant) */}
-                                        {isFixedRestoration && isFieldVisible("stump_shade", savedProduct.id, savedProduct, productDetails, archType) && (
-                                          <div
-                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                            style={{
-                                              display: 'flex',
-                                              flexDirection: 'row',
-                                              alignItems: 'flex-start',
-                                              padding: '0px',
-                                              gap: '20px',
-                                              flex: 'none',
-                                              order: 4,
-                                              alignSelf: 'stretch',
-                                              flexGrow: 0
-                                            }}
-                                          >
-                                            <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                        {isFixedRestoration && isFieldVisible("stump_shade", savedProduct.id, savedProduct, productDetails, archType) && (() => {
+                                          // Check if stump_shade exists as an advance field
+                                          const advanceFields = productDetails?.advance_fields || productAdvanceFields[savedProduct.id] || []
+                                          const stumpShadeField = getAdvanceFieldByName("stump_shade", advanceFields)
+                                          
+                                          // If stump_shade exists as an advance field, render it using advance field logic
+                                          if (stumpShadeField) {
+                                            return (
                                               <div
-                                                className="flex items-center justify-between"
+                                                className="flex flex-col sm:flex-row flex-wrap gap-5"
                                                 style={{
-                                                  padding: '12px 15px 5px 15px',
-                                                  gap: '5px',
-                                                  width: '100%',
-                                                  height: '37px',
-                                                  background: '#FFFFFF',
-                                                  border: '0.740384px solid #7F7F7F',
-                                                  borderRadius: '7.7px',
-                                                  boxSizing: 'border-box',
-                                                  position: 'relative',
-                                                  marginTop: '5.27px'
-                                                }}
-                                              >
-                                                <span style={{
-                                                  fontFamily: 'Verdana',
-                                                  fontStyle: 'normal',
-                                                  fontWeight: 400,
-                                                  fontSize: '14.4px',
-                                                  lineHeight: '20px',
-                                                  letterSpacing: '-0.02em',
-                                                  color: '#000000'
-                                                }}>{savedProduct.maxillaryStumpShade || 'Not specified'}</span>
-                                                {savedProduct.maxillaryStumpShade && (
-                                                  <div
-                                                    className="flex items-center justify-center"
-                                                    style={{
-                                                      width: '37.51px',
-                                                      height: '41.97px',
-                                                      background: 'linear-gradient(0deg, #DED2C7 0.05%, #E3D4C4 7.04%, #EDD9C1 25.04%, #F0DBC0 50.02%, #F0DCC2 76.01%, #F1E0CA 90%, #F3E7D7 100%)',
-                                                      borderRadius: '8px',
-                                                      position: 'absolute',
-                                                      right: '0px',
-                                                      top: '-1px'
-                                                    }}
-                                                  >
-                                                    <span style={{
-                                                      fontFamily: 'Verdana',
-                                                      fontStyle: 'normal',
-                                                      fontWeight: 400,
-                                                      fontSize: '12.8603px',
-                                                      lineHeight: '18px',
-                                                      letterSpacing: '-0.02em',
-                                                      color: '#000000'
-                                                    }}>{savedProduct.maxillaryStumpShade}</span>
-                                                  </div>
-                                                )}
-                                              </div>
-                                              <label
-                                                className="absolute bg-white"
-                                                style={{
+                                                  display: 'flex',
+                                                  flexDirection: 'row',
+                                                  alignItems: 'flex-start',
                                                   padding: '0px',
-                                                  height: '14px',
-                                                  left: '8.9px',
-                                                  top: '0px',
-                                                  fontFamily: 'Arial',
-                                                  fontStyle: 'normal',
-                                                  fontWeight: 400,
-                                                  fontSize: '14px',
-                                                  lineHeight: '14px',
-                                                  color: '#7F7F7F'
+                                                  gap: '20px',
+                                                  flex: 'none',
+                                                  order: 4,
+                                                  alignSelf: 'stretch',
+                                                  flexGrow: 0
                                                 }}
                                               >
-                                                Stump Shade
-                                              </label>
+                                                {renderSavedAdvanceField(stumpShadeField, savedProduct, archType)}
+                                              </div>
+                                            )
+                                          }
+                                          
+                                          // Otherwise, render the hardcoded stump shade (backward compatibility)
+                                          return (
+                                            <div
+                                              className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                              style={{
+                                                display: 'flex',
+                                                flexDirection: 'row',
+                                                alignItems: 'flex-start',
+                                                padding: '0px',
+                                                gap: '20px',
+                                                flex: 'none',
+                                                order: 4,
+                                                alignSelf: 'stretch',
+                                                flexGrow: 0
+                                              }}
+                                            >
+                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                                <div
+                                                  className="flex items-center justify-between"
+                                                  style={{
+                                                    padding: '12px 15px 5px 15px',
+                                                    gap: '5px',
+                                                    width: '100%',
+                                                    height: '37px',
+                                                    background: '#FFFFFF',
+                                                    border: '0.740384px solid #7F7F7F',
+                                                    borderRadius: '7.7px',
+                                                    boxSizing: 'border-box',
+                                                    position: 'relative',
+                                                    marginTop: '5.27px'
+                                                  }}
+                                                >
+                                                  <span style={{
+                                                    fontFamily: 'Verdana',
+                                                    fontStyle: 'normal',
+                                                    fontWeight: 400,
+                                                    fontSize: '14.4px',
+                                                    lineHeight: '20px',
+                                                    letterSpacing: '-0.02em',
+                                                    color: '#000000'
+                                                  }}>{savedProduct.maxillaryStumpShade || 'Not specified'}</span>
+                                                  {savedProduct.maxillaryStumpShade && (
+                                                    <div
+                                                      className="flex items-center justify-center"
+                                                      style={{
+                                                        width: '37.51px',
+                                                        height: '41.97px',
+                                                        background: 'linear-gradient(0deg, #DED2C7 0.05%, #E3D4C4 7.04%, #EDD9C1 25.04%, #F0DBC0 50.02%, #F0DCC2 76.01%, #F1E0CA 90%, #F3E7D7 100%)',
+                                                        borderRadius: '8px',
+                                                        position: 'absolute',
+                                                        right: '0px',
+                                                        top: '-1px'
+                                                      }}
+                                                    >
+                                                      <span style={{
+                                                        fontFamily: 'Verdana',
+                                                        fontStyle: 'normal',
+                                                        fontWeight: 400,
+                                                        fontSize: '12.8603px',
+                                                        lineHeight: '18px',
+                                                        letterSpacing: '-0.02em',
+                                                        color: '#000000'
+                                                      }}>{savedProduct.maxillaryStumpShade}</span>
+                                                    </div>
+                                                  )}
+                                                </div>
+                                                <label
+                                                  className="absolute bg-white"
+                                                  style={{
+                                                    padding: '0px',
+                                                    height: '14px',
+                                                    left: '8.9px',
+                                                    top: '0px',
+                                                    fontFamily: 'Arial',
+                                                    fontStyle: 'normal',
+                                                    fontWeight: 400,
+                                                    fontSize: '14px',
+                                                    lineHeight: '14px',
+                                                    color: '#7F7F7F'
+                                                  }}
+                                                >
+                                                  Stump Shade
+                                                </label>
+                                              </div>
                                             </div>
-                                          </div>
-                                        )}
+                                          )
+                                        })()}
 
                                         {/* Field 6: Crown Third Shade (Fixed Restoration only, advance field, visible after Stump Shade) */}
                                         {isFixedRestoration && isFieldVisible("crown_third_shade", savedProduct.id, savedProduct, productDetails, archType) && (
@@ -6269,74 +7009,89 @@ export default function CaseDesignCenterPage() {
                                           }}
                                         >
                                           {/* Stump Shade */}
-                                          <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
-                                            <div
-                                              className="flex items-center justify-between"
-                                              style={{
-                                                padding: '12px 15px 5px 15px',
-                                                gap: '5px',
-                                                width: '100%',
-                                                height: '37px',
-                                                background: '#FFFFFF',
-                                                border: '0.740384px solid #7F7F7F',
-                                                borderRadius: '7.7px',
-                                                boxSizing: 'border-box',
-                                                position: 'relative',
-                                                marginTop: '5.27px'
-                                              }}
-                                            >
-                                              <span style={{
-                                                fontFamily: 'Verdana',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14.4px',
-                                                lineHeight: '20px',
-                                                letterSpacing: '-0.02em',
-                                                color: '#000000'
-                                              }}>{savedProduct.maxillaryStumpShade || 'Not specified'}</span>
-                                              {savedProduct.maxillaryStumpShade && (
+                                          {(() => {
+                                            // Check if stump_shade exists as an advance field
+                                            const productDetails = savedProduct.productDetails
+                                            const advanceFields = productDetails?.advance_fields || productAdvanceFields[savedProduct.id] || []
+                                            const stumpShadeField = getAdvanceFieldByName("stump_shade", advanceFields)
+                                            
+                                            // If stump_shade exists as an advance field, render it using advance field logic
+                                            if (stumpShadeField) {
+                                              return renderSavedAdvanceField(stumpShadeField, savedProduct, "maxillary")
+                                            }
+                                            
+                                            // Otherwise, render the hardcoded stump shade (backward compatibility)
+                                            return (
+                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
                                                 <div
-                                                  className="flex items-center justify-center"
+                                                  className="flex items-center justify-between"
                                                   style={{
-                                                    width: '37.51px',
-                                                    height: '41.97px',
-                                                    background: 'linear-gradient(0deg, #DED2C7 0.05%, #E3D4C4 7.04%, #EDD9C1 25.04%, #F0DBC0 50.02%, #F0DCC2 76.01%, #F1E0CA 90%, #F3E7D7 100%)',
-                                                    borderRadius: '8px',
-                                                    position: 'absolute',
-                                                    right: '0px',
-                                                    top: '-1px'
+                                                    padding: '12px 15px 5px 15px',
+                                                    gap: '5px',
+                                                    width: '100%',
+                                                    height: '37px',
+                                                    background: '#FFFFFF',
+                                                    border: '0.740384px solid #7F7F7F',
+                                                    borderRadius: '7.7px',
+                                                    boxSizing: 'border-box',
+                                                    position: 'relative',
+                                                    marginTop: '5.27px'
                                                   }}
                                                 >
                                                   <span style={{
                                                     fontFamily: 'Verdana',
                                                     fontStyle: 'normal',
                                                     fontWeight: 400,
-                                                    fontSize: '12.8603px',
-                                                    lineHeight: '18px',
+                                                    fontSize: '14.4px',
+                                                    lineHeight: '20px',
                                                     letterSpacing: '-0.02em',
                                                     color: '#000000'
-                                                  }}>{savedProduct.maxillaryStumpShade}</span>
+                                                  }}>{savedProduct.maxillaryStumpShade || 'Not specified'}</span>
+                                                  {savedProduct.maxillaryStumpShade && (
+                                                    <div
+                                                      className="flex items-center justify-center"
+                                                      style={{
+                                                        width: '37.51px',
+                                                        height: '41.97px',
+                                                        background: 'linear-gradient(0deg, #DED2C7 0.05%, #E3D4C4 7.04%, #EDD9C1 25.04%, #F0DBC0 50.02%, #F0DCC2 76.01%, #F1E0CA 90%, #F3E7D7 100%)',
+                                                        borderRadius: '8px',
+                                                        position: 'absolute',
+                                                        right: '0px',
+                                                        top: '-1px'
+                                                      }}
+                                                    >
+                                                      <span style={{
+                                                        fontFamily: 'Verdana',
+                                                        fontStyle: 'normal',
+                                                        fontWeight: 400,
+                                                        fontSize: '12.8603px',
+                                                        lineHeight: '18px',
+                                                        letterSpacing: '-0.02em',
+                                                        color: '#000000'
+                                                      }}>{savedProduct.maxillaryStumpShade}</span>
+                                                    </div>
+                                                  )}
                                                 </div>
-                                              )}
-                                            </div>
-                                            <label
-                                              className="absolute bg-white"
-                                              style={{
-                                                padding: '0px',
-                                                height: '14px',
-                                                left: '8.9px',
-                                                top: '0px',
-                                                fontFamily: 'Arial',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14px',
-                                                lineHeight: '14px',
-                                                color: '#7F7F7F'
-                                              }}
-                                            >
-                                              Stump Shade
-                                            </label>
-                                          </div>
+                                                <label
+                                                  className="absolute bg-white"
+                                                  style={{
+                                                    padding: '0px',
+                                                    height: '14px',
+                                                    left: '8.9px',
+                                                    top: '0px',
+                                                    fontFamily: 'Arial',
+                                                    fontStyle: 'normal',
+                                                    fontWeight: 400,
+                                                    fontSize: '14px',
+                                                    lineHeight: '14px',
+                                                    color: '#7F7F7F'
+                                                  }}
+                                                >
+                                                  Stump Shade
+                                                </label>
+                                              </div>
+                                            )
+                                          })()}
 
                                           {/* Tooth Shade */}
                                           <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
@@ -6560,7 +7315,14 @@ export default function CaseDesignCenterPage() {
                                         )}
                                       </div>
 
-                                      {/* Action Buttons */}
+                                      {/* Action Buttons - Only show if advance fields are showing */}
+                                      {(() => {
+                                        const productDetails = savedProduct.productDetails
+                                        const advanceFields = productDetails?.advance_fields || productAdvanceFields[savedProduct.id] || []
+                                        const hasAdvanceFields = advanceFields && Array.isArray(advanceFields) && advanceFields.length > 0
+                                        const allFieldsFilled = savedProduct.maxillaryMaterial && savedProduct.maxillaryRetention && savedProduct.maxillaryToothShade && savedProduct.maxillaryStage
+                                        return hasAdvanceFields && allFieldsFilled && (showAdvanceFields[savedProduct.id] || (savedProduct.maxillaryMaterial && savedProduct.maxillaryRetention))
+                                      })() && (
                                       <div
                                         className="flex flex-wrap justify-center items-center w-full"
                                         style={{
@@ -6677,7 +7439,7 @@ export default function CaseDesignCenterPage() {
                                               color: '#000000'
                                             }}
                                           >
-                                            Add ons (3 selected)
+                                            Add ons ({getProductAddOnsCount(savedProduct)} selected)
                                           </span>
                                         </button>
                                         <button
@@ -6728,7 +7490,7 @@ export default function CaseDesignCenterPage() {
                                               color: '#000000'
                                             }}
                                           >
-                                            Attach Files (15 uploads)
+                                            Attach Files ({getAttachedFilesCount()} uploads)
                                           </span>
                                         </button>
                                         <button
@@ -6784,6 +7546,7 @@ export default function CaseDesignCenterPage() {
                                           </span>
                                         </button>
                                       </div>
+                                      )}
                                     </AccordionContent>
                                   </AccordionItem>
                                 </Accordion>
@@ -6857,13 +7620,26 @@ export default function CaseDesignCenterPage() {
                     )}
 
                     {/* Dental Chart - Outside Card */}
-                    <div className="rounded-lg p-3 flex items-center justify-center">
+                    <div className="rounded-lg p-3 flex items-center justify-center relative">
+                      {shouldShowImplantPopover && implantPopoverState.arch === 'mandibular' && implantPopoverState.toothNumber !== null && (
+                        <ImplantPartsPopover
+                          onImplantPartsIncluded={() => {
+                            // Handle implant parts included action
+                            setImplantPopoverState({ arch: null, toothNumber: null })
+                          }}
+                          onEnterManually={() => {
+                            // Handle enter manually action
+                            setImplantPopoverState({ arch: null, toothNumber: null })
+                          }}
+                        />
+                      )}
                       {!currentShadeField && (
                         <MandibularTeethSVG
                           key={`mandibular-${mandibularTeeth.join('-')}`}
                           selectedTeeth={mandibularTeeth}
                           onToothClick={handleMandibularToothToggle}
                           className="max-w-full"
+                          isImplantMode={shouldShowImplantPopover}
                         />
                       )}
                     </div>
@@ -7681,7 +8457,12 @@ export default function CaseDesignCenterPage() {
                                 </div>
                               </div>
 
-                              {/* Action Buttons */}
+                              {/* Action Buttons - Only show if advance fields are showing */}
+                              {productDetails && 
+                               productDetails.advance_fields && 
+                               Array.isArray(productDetails.advance_fields) && 
+                               productDetails.advance_fields.length > 0 &&
+                               areAllRequiredFieldsFilled("mandibular") && (
                               <div
                                 className="flex flex-wrap justify-center items-center w-full"
                                 style={{
@@ -7819,7 +8600,7 @@ export default function CaseDesignCenterPage() {
                                       color: '#000000'
                                     }}
                                   >
-                                    Add ons (3 selected)
+                                    Add ons ({getTotalAddOnsCount} selected)
                                   </span>
                                 </button>
                                 <button
@@ -7869,7 +8650,7 @@ export default function CaseDesignCenterPage() {
                                       color: '#000000'
                                     }}
                                   >
-                                    Attach Files (15 uploads)
+                                    Attach Files ({getAttachedFilesCount()} uploads)
                                   </span>
                                 </button>
                                 <button
@@ -7946,6 +8727,7 @@ export default function CaseDesignCenterPage() {
                                   </span>
                                 </button>
                               </div>
+                              )}
                             </AccordionContent>
                           </AccordionItem>
                         </Accordion>
@@ -7974,7 +8756,14 @@ export default function CaseDesignCenterPage() {
                                                        categoryLower.includes("ortho")
 
                             return (
-                              <Card key={savedProduct.id} className="overflow-hidden border border-gray-200 shadow-sm">
+                              <Card
+                                key={savedProduct.id}
+                                className="overflow-hidden shadow-sm"
+                                style={{
+                                  border: savedProduct.rushData ? '1px solid #CF0202' : '1px solid #e5e7eb',
+                                  borderRadius: '10px'
+                                }}
+                              >
                                 <Accordion
                                   type="single"
                                   collapsible
@@ -7989,9 +8778,10 @@ export default function CaseDesignCenterPage() {
                                       style={{
                                         position: 'relative',
                                         height: '69.92px',
-                                        background: openAccordion === savedProduct.id ? '#DFEEFB' : '#F5F5F5',
-                                        boxShadow: '0.9px 0.9px 3.6px rgba(0, 0, 0, 0.25)',
-                                        borderRadius: openAccordion === savedProduct.id ? '5.4px 5.4px 0px 0px' : '5.4px',
+                                        background: savedProduct.rushData ? '#FFE2E2' : (openAccordion === savedProduct.id ? '#DFEEFB' : '#F5F5F5'),
+                                        boxShadow: savedProduct.rushData ? '0.9px 0.9px 3.6px 0 rgba(0, 0, 0, 0.25)' : '0.9px 0.9px 3.6px rgba(0, 0, 0, 0.25)',
+                                        borderRadius: openAccordion === savedProduct.id ? '5.4px 5.4px 0px 0px' : '10px',
+                                        border: savedProduct.rushData ? '1px solid #CF0202' : 'none',
                                         display: 'flex',
                                         flexDirection: 'column',
                                         alignItems: 'flex-start',
@@ -8051,7 +8841,7 @@ export default function CaseDesignCenterPage() {
                                             {/* Frame 2387 - Content Area */}
                                             <div style={{ position: 'absolute', width: '565.1px', height: '42px', left: '74.04px', top: '0.34px' }}>
                                               {/* Group 1433 - Tooth Numbers */}
-                                              <div style={{ position: 'absolute', width: 'auto', height: '20px', left: '0px', top: '0px' }}>
+                                              <div style={{ position: 'absolute', width: 'auto', height: '20px', left: '0px', top: '0px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                 <span
                                                   style={{
                                                     fontFamily: 'Verdana',
@@ -8065,6 +8855,18 @@ export default function CaseDesignCenterPage() {
                                                 >
                                                   {teeth.length > 0 ? teeth.join(', ') : ''}
                                                 </span>
+                                                {/* Rush Icon Indicator */}
+                                                {savedProduct.rushData && (
+                                                  <Zap
+                                                    style={{
+                                                      width: '16px',
+                                                      height: '16px',
+                                                      color: '#CF0202',
+                                                      fill: '#CF0202',
+                                                      flexShrink: 0
+                                                    }}
+                                                  />
+                                                )}
                                               </div>
 
                                               {/* Frame 2386 - Badges and Info Row */}
@@ -8407,67 +9209,96 @@ export default function CaseDesignCenterPage() {
                                         )}
 
                                         {/* Field 5: Stump Shade (Fixed Restoration only, advance field, visible after Implant) */}
-                                        {isFixedRestoration && isFieldVisible("stump_shade", savedProduct.id, savedProduct, productDetails, archType) && (
-                                          <div
-                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                            style={{
-                                              display: 'flex',
-                                              flexDirection: 'row',
-                                              alignItems: 'flex-start',
-                                              padding: '0px',
-                                              gap: '20px',
-                                              flex: 'none',
-                                              order: 4,
-                                              alignSelf: 'stretch',
-                                              flexGrow: 0
-                                            }}
-                                          >
-                                            <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                        {isFixedRestoration && isFieldVisible("stump_shade", savedProduct.id, savedProduct, productDetails, archType) && (() => {
+                                          // Check if stump_shade exists as an advance field
+                                          const advanceFields = productDetails?.advance_fields || productAdvanceFields[savedProduct.id] || []
+                                          const stumpShadeField = getAdvanceFieldByName("stump_shade", advanceFields)
+                                          
+                                          // If stump_shade exists as an advance field, render it using advance field logic
+                                          if (stumpShadeField) {
+                                            return (
                                               <div
-                                                className="flex items-center justify-between"
+                                                className="flex flex-col sm:flex-row flex-wrap gap-5"
                                                 style={{
-                                                  padding: '12px 15px 5px 15px',
-                                                  gap: '5px',
-                                                  width: '100%',
-                                                  height: '37px',
-                                                  background: '#FFFFFF',
-                                                  border: '0.740384px solid #7F7F7F',
-                                                  borderRadius: '7.7px',
-                                                  boxSizing: 'border-box',
-                                                  position: 'relative',
-                                                  marginTop: '5.27px'
-                                                }}
-                                              >
-                                                <span style={{
-                                                  fontFamily: 'Verdana',
-                                                  fontStyle: 'normal',
-                                                  fontWeight: 400,
-                                                  fontSize: '14.4px',
-                                                  lineHeight: '20px',
-                                                  letterSpacing: '-0.02em',
-                                                  color: '#000000'
-                                                }}>{savedProduct.maxillaryStumpShade || 'Not specified'}</span>
-                                              </div>
-                                              <label
-                                                className="absolute bg-white"
-                                                style={{
+                                                  display: 'flex',
+                                                  flexDirection: 'row',
+                                                  alignItems: 'flex-start',
                                                   padding: '0px',
-                                                  height: '14px',
-                                                  left: '8.9px',
-                                                  top: '0px',
-                                                  fontFamily: 'Arial',
-                                                  fontStyle: 'normal',
-                                                  fontWeight: 400,
-                                                  fontSize: '14px',
-                                                  lineHeight: '14px',
-                                                  color: '#7F7F7F'
+                                                  gap: '20px',
+                                                  flex: 'none',
+                                                  order: 4,
+                                                  alignSelf: 'stretch',
+                                                  flexGrow: 0
                                                 }}
                                               >
-                                                Stump Shade
-                                              </label>
+                                                {renderSavedAdvanceField(stumpShadeField, savedProduct, archType)}
+                                              </div>
+                                            )
+                                          }
+                                          
+                                          // Otherwise, render the hardcoded stump shade (backward compatibility)
+                                          return (
+                                            <div
+                                              className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                              style={{
+                                                display: 'flex',
+                                                flexDirection: 'row',
+                                                alignItems: 'flex-start',
+                                                padding: '0px',
+                                                gap: '20px',
+                                                flex: 'none',
+                                                order: 4,
+                                                alignSelf: 'stretch',
+                                                flexGrow: 0
+                                              }}
+                                            >
+                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                                <div
+                                                  className="flex items-center justify-between"
+                                                  style={{
+                                                    padding: '12px 15px 5px 15px',
+                                                    gap: '5px',
+                                                    width: '100%',
+                                                    height: '37px',
+                                                    background: '#FFFFFF',
+                                                    border: '0.740384px solid #7F7F7F',
+                                                    borderRadius: '7.7px',
+                                                    boxSizing: 'border-box',
+                                                    position: 'relative',
+                                                    marginTop: '5.27px'
+                                                  }}
+                                                >
+                                                  <span style={{
+                                                    fontFamily: 'Verdana',
+                                                    fontStyle: 'normal',
+                                                    fontWeight: 400,
+                                                    fontSize: '14.4px',
+                                                    lineHeight: '20px',
+                                                    letterSpacing: '-0.02em',
+                                                    color: '#000000'
+                                                  }}>{savedProduct.maxillaryStumpShade || 'Not specified'}</span>
+                                                </div>
+                                                <label
+                                                  className="absolute bg-white"
+                                                  style={{
+                                                    padding: '0px',
+                                                    height: '14px',
+                                                    left: '8.9px',
+                                                    top: '0px',
+                                                    fontFamily: 'Arial',
+                                                    fontStyle: 'normal',
+                                                    fontWeight: 400,
+                                                    fontSize: '14px',
+                                                    lineHeight: '14px',
+                                                    color: '#7F7F7F'
+                                                  }}
+                                                >
+                                                  Stump Shade
+                                                </label>
+                                              </div>
                                             </div>
-                                          </div>
-                                        )}
+                                          )
+                                        })()}
 
                                         {/* Field 6: Crown Third Shade (Fixed Restoration only, advance field, visible after Stump Shade) */}
                                         {isFixedRestoration && isFieldVisible("crown_third_shade", savedProduct.id, savedProduct, productDetails, archType) && (
@@ -9415,7 +10246,16 @@ export default function CaseDesignCenterPage() {
                                 : "No teeth selected"
 
                             return (
-                              <Card key={savedProduct.id} className="overflow-hidden border border-gray-200 shadow-sm" style={{ width: '80%', minWidth: '80%' }}>
+                              <Card
+                                key={savedProduct.id}
+                                className="overflow-hidden shadow-sm"
+                                style={{
+                                  width: '80%',
+                                  minWidth: '80%',
+                                  border: savedProduct.rushData ? '1px solid #CF0202' : '1px solid #e5e7eb',
+                                  borderRadius: '10px'
+                                }}
+                              >
                                 <Accordion
                                   type="single"
                                   collapsible
@@ -9430,9 +10270,10 @@ export default function CaseDesignCenterPage() {
                                       style={{
                                         position: 'relative',
                                         height: '69.92px',
-                                        background: openAccordion === savedProduct.id ? '#DFEEFB' : '#F5F5F5',
-                                        boxShadow: '0.9px 0.9px 3.6px rgba(0, 0, 0, 0.25)',
-                                        borderRadius: openAccordion === savedProduct.id ? '5.4px 5.4px 0px 0px' : '5.4px',
+                                        background: savedProduct.rushData ? '#FFE2E2' : (openAccordion === savedProduct.id ? '#DFEEFB' : '#F5F5F5'),
+                                        boxShadow: savedProduct.rushData ? '0.9px 0.9px 3.6px 0 rgba(0, 0, 0, 0.25)' : '0.9px 0.9px 3.6px rgba(0, 0, 0, 0.25)',
+                                        borderRadius: openAccordion === savedProduct.id ? '5.4px 5.4px 0px 0px' : '10px',
+                                        border: savedProduct.rushData ? '1px solid #CF0202' : 'none',
                                         display: 'flex',
                                         flexDirection: 'column',
                                         alignItems: 'flex-start',
@@ -9492,7 +10333,7 @@ export default function CaseDesignCenterPage() {
                                             {/* Frame 2387 - Content Area */}
                                             <div style={{ position: 'absolute', width: '565.1px', height: '42px', left: '74.04px', top: '0.34px' }}>
                                               {/* Group 1433 - Tooth Numbers */}
-                                              <div style={{ position: 'absolute', width: 'auto', height: '20px', left: '0px', top: '0px' }}>
+                                              <div style={{ position: 'absolute', width: 'auto', height: '20px', left: '0px', top: '0px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                 <span
                                                   style={{
                                                     fontFamily: 'Verdana',
@@ -9506,6 +10347,18 @@ export default function CaseDesignCenterPage() {
                                                 >
                                                   {teeth.length > 0 ? teeth.join(', ') : ''}
                                                 </span>
+                                                {/* Rush Icon Indicator */}
+                                                {savedProduct.rushData && (
+                                                  <Zap
+                                                    style={{
+                                                      width: '16px',
+                                                      height: '16px',
+                                                      color: '#CF0202',
+                                                      fill: '#CF0202',
+                                                      flexShrink: 0
+                                                    }}
+                                                  />
+                                                )}
                                               </div>
 
                                               {/* Frame 2386 - Badges and Info Row */}
@@ -9712,74 +10565,90 @@ export default function CaseDesignCenterPage() {
                                           }}
                                         >
                                           {/* Stump Shade */}
-                                          <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
-                                            <div
-                                              className="flex items-center justify-between"
-                                              style={{
-                                                padding: '12px 15px 5px 15px',
-                                                gap: '5px',
-                                                width: '100%',
-                                                height: '37px',
-                                                background: '#FFFFFF',
-                                                border: '0.740384px solid #7F7F7F',
-                                                borderRadius: '7.7px',
-                                                boxSizing: 'border-box',
-                                                position: 'relative',
-                                                marginTop: '5.27px'
-                                              }}
-                                            >
-                                              <span style={{
-                                                fontFamily: 'Verdana',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14.4px',
-                                                lineHeight: '20px',
-                                                letterSpacing: '-0.02em',
-                                                color: '#000000'
-                                              }}>{isMaxillary ? (savedProduct.maxillaryStumpShade || 'Not specified') : 'Not specified'}</span>
-                                              {isMaxillary && savedProduct.maxillaryStumpShade && (
+                                          {(() => {
+                                            // Check if stump_shade exists as an advance field
+                                            const productDetails = savedProduct.productDetails
+                                            const advanceFields = productDetails?.advance_fields || productAdvanceFields[savedProduct.id] || []
+                                            const stumpShadeField = getAdvanceFieldByName("stump_shade", advanceFields)
+                                            const currentArch = isMaxillary ? "maxillary" : "mandibular"
+                                            
+                                            // If stump_shade exists as an advance field, render it using advance field logic
+                                            if (stumpShadeField) {
+                                              return renderSavedAdvanceField(stumpShadeField, savedProduct, currentArch)
+                                            }
+                                            
+                                            // Otherwise, render the hardcoded stump shade (backward compatibility)
+                                            return (
+                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
                                                 <div
-                                                  className="flex items-center justify-center"
+                                                  className="flex items-center justify-between"
                                                   style={{
-                                                    width: '37.51px',
-                                                    height: '41.97px',
-                                                    background: 'linear-gradient(0deg, #DED2C7 0.05%, #E3D4C4 7.04%, #EDD9C1 25.04%, #F0DBC0 50.02%, #F0DCC2 76.01%, #F1E0CA 90%, #F3E7D7 100%)',
-                                                    borderRadius: '8px',
-                                                    position: 'absolute',
-                                                    right: '0px',
-                                                    top: '-1px'
+                                                    padding: '12px 15px 5px 15px',
+                                                    gap: '5px',
+                                                    width: '100%',
+                                                    height: '37px',
+                                                    background: '#FFFFFF',
+                                                    border: '0.740384px solid #7F7F7F',
+                                                    borderRadius: '7.7px',
+                                                    boxSizing: 'border-box',
+                                                    position: 'relative',
+                                                    marginTop: '5.27px'
                                                   }}
                                                 >
                                                   <span style={{
                                                     fontFamily: 'Verdana',
                                                     fontStyle: 'normal',
                                                     fontWeight: 400,
-                                                    fontSize: '12.8603px',
-                                                    lineHeight: '18px',
+                                                    fontSize: '14.4px',
+                                                    lineHeight: '20px',
                                                     letterSpacing: '-0.02em',
                                                     color: '#000000'
-                                                  }}>{savedProduct.maxillaryStumpShade}</span>
+                                                  }}>{isMaxillary ? (savedProduct.maxillaryStumpShade || 'Not specified') : 'Not specified'}</span>
+                                                  {isMaxillary && savedProduct.maxillaryStumpShade && (
+                                                    <div
+                                                      className="flex items-center justify-center"
+                                                      style={{
+                                                        width: '37.51px',
+                                                        height: '41.97px',
+                                                        background: 'linear-gradient(0deg, #DED2C7 0.05%, #E3D4C4 7.04%, #EDD9C1 25.04%, #F0DBC0 50.02%, #F0DCC2 76.01%, #F1E0CA 90%, #F3E7D7 100%)',
+                                                        borderRadius: '8px',
+                                                        position: 'absolute',
+                                                        right: '0px',
+                                                        top: '-1px'
+                                                      }}
+                                                    >
+                                                      <span style={{
+                                                        fontFamily: 'Verdana',
+                                                        fontStyle: 'normal',
+                                                        fontWeight: 400,
+                                                        fontSize: '12.8603px',
+                                                        lineHeight: '18px',
+                                                        letterSpacing: '-0.02em',
+                                                        color: '#000000'
+                                                      }}>{savedProduct.maxillaryStumpShade}</span>
+                                                    </div>
+                                                  )}
                                                 </div>
-                                              )}
-                                            </div>
-                                            <label
-                                              className="absolute bg-white"
-                                              style={{
-                                                padding: '0px',
-                                                height: '14px',
-                                                left: '8.9px',
-                                                top: '0px',
-                                                fontFamily: 'Arial',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14px',
-                                                lineHeight: '14px',
-                                                color: '#7F7F7F'
-                                              }}
-                                            >
-                                              Stump Shade
-                                            </label>
-                                          </div>
+                                                <label
+                                                  className="absolute bg-white"
+                                                  style={{
+                                                    padding: '0px',
+                                                    height: '14px',
+                                                    left: '8.9px',
+                                                    top: '0px',
+                                                    fontFamily: 'Arial',
+                                                    fontStyle: 'normal',
+                                                    fontWeight: 400,
+                                                    fontSize: '14px',
+                                                    lineHeight: '14px',
+                                                    color: '#7F7F7F'
+                                                  }}
+                                                >
+                                                  Stump Shade
+                                                </label>
+                                              </div>
+                                            )
+                                          })()}
 
                                           {/* Tooth Shade */}
                                           {isAccordionFieldVisible("tooth_shade", savedProduct, isMaxillary ? "maxillary" : "mandibular") && (
@@ -9831,50 +10700,13 @@ export default function CaseDesignCenterPage() {
 
                                           {/* Stage */}
                                           {isAccordionFieldVisible("stage", savedProduct, isMaxillary ? "maxillary" : "mandibular") && (
-                                          <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
-                                            <div
-                                              className="flex items-center"
-                                              style={{
-                                                padding: '12px 15px 5px 15px',
-                                                gap: '5px',
-                                                width: '100%',
-                                                height: '37px',
-                                                position: 'relative',
-                                                marginTop: '5.27px',
-                                                background: '#FFFFFF',
-                                                border: '0.740384px solid #7F7F7F',
-                                                borderRadius: '7.7px',
-                                                boxSizing: 'border-box'
-                                              }}
-                                            >
-                                              <span style={{
-                                                fontFamily: 'Verdana',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14.4px',
-                                                lineHeight: '20px',
-                                                letterSpacing: '-0.02em',
-                                                color: '#000000'
-                                              }}>Finish</span>
-                                            </div>
-                                            <label
-                                              className="absolute bg-white"
-                                              style={{
-                                                padding: '0px',
-                                                height: '14px',
-                                                left: '8.9px',
-                                                top: '0px',
-                                                fontFamily: 'Arial',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14px',
-                                                lineHeight: '14px',
-                                                color: '#7F7F7F'
-                                              }}
-                                            >
-                                              Stage
-                                            </label>
-                                          </div>
+                                          <StageFieldComponent
+                                            savedProduct={savedProduct}
+                                            isMaxillary={isMaxillary}
+                                            openStageDropdown={openStageDropdown}
+                                            setOpenStageDropdown={setOpenStageDropdown}
+                                            handleStageSelect={handleStageSelect}
+                                          />
                                           )}
                                         </div>
                                         )}
@@ -10096,7 +10928,16 @@ export default function CaseDesignCenterPage() {
                                 : "No teeth selected"
 
                             return (
-                              <Card key={savedProduct.id} className="overflow-hidden border border-gray-200 shadow-sm" style={{ width: '80%', minWidth: '80%' }}>
+                              <Card
+                                key={savedProduct.id}
+                                className="overflow-hidden shadow-sm"
+                                style={{
+                                  width: '80%',
+                                  minWidth: '80%',
+                                  border: savedProduct.rushData ? '1px solid #CF0202' : '1px solid #e5e7eb',
+                                  borderRadius: '10px'
+                                }}
+                              >
                                 <Accordion
                                   type="single"
                                   collapsible
@@ -10178,7 +11019,7 @@ export default function CaseDesignCenterPage() {
                                             {/* Frame 2387 - Content Area */}
                                             <div style={{ position: 'absolute', width: '565.1px', height: '42px', left: '74.04px', top: '0.34px' }}>
                                               {/* Group 1433 - Tooth Numbers */}
-                                              <div style={{ position: 'absolute', width: 'auto', height: '20px', left: '0px', top: '0px' }}>
+                                              <div style={{ position: 'absolute', width: 'auto', height: '20px', left: '0px', top: '0px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                 <span
                                                   style={{
                                                     fontFamily: 'Verdana',
@@ -10192,6 +11033,18 @@ export default function CaseDesignCenterPage() {
                                                 >
                                                   {teeth.length > 0 ? teeth.join(', ') : ''}
                                                 </span>
+                                                {/* Rush Icon Indicator */}
+                                                {savedProduct.rushData && (
+                                                  <Zap
+                                                    style={{
+                                                      width: '16px',
+                                                      height: '16px',
+                                                      color: '#CF0202',
+                                                      fill: '#CF0202',
+                                                      flexShrink: 0
+                                                    }}
+                                                  />
+                                                )}
                                               </div>
 
                                               {/* Frame 2386 - Badges and Info Row */}
@@ -10445,50 +11298,13 @@ export default function CaseDesignCenterPage() {
 
                                           {/* Stage */}
                                           {isAccordionFieldVisible("stage", savedProduct, "mandibular") && (
-                                          <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
-                                            <div
-                                              className="flex items-center"
-                                              style={{
-                                                padding: '12px 15px 5px 15px',
-                                                gap: '5px',
-                                                width: '100%',
-                                                height: '37px',
-                                                position: 'relative',
-                                                marginTop: '5.27px',
-                                                background: '#FFFFFF',
-                                                border: '0.740384px solid #7F7F7F',
-                                                borderRadius: '7.7px',
-                                                boxSizing: 'border-box'
-                                              }}
-                                            >
-                                              <span style={{
-                                                fontFamily: 'Verdana',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14.4px',
-                                                lineHeight: '20px',
-                                                letterSpacing: '-0.02em',
-                                                color: '#000000'
-                                              }}>Finish</span>
-                                            </div>
-                                            <label
-                                              className="absolute bg-white"
-                                              style={{
-                                                padding: '0px',
-                                                height: '14px',
-                                                left: '8.9px',
-                                                top: '0px',
-                                                fontFamily: 'Arial',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14px',
-                                                lineHeight: '14px',
-                                                color: '#7F7F7F'
-                                              }}
-                                            >
-                                              Stage
-                                            </label>
-                                          </div>
+                                          <StageFieldComponent
+                                            savedProduct={savedProduct}
+                                            isMaxillary={false}
+                                            openStageDropdown={openStageDropdown}
+                                            setOpenStageDropdown={setOpenStageDropdown}
+                                            handleStageSelect={handleStageSelect}
+                                          />
                                           )}
                                         </div>
                                         )}
@@ -10619,7 +11435,14 @@ export default function CaseDesignCenterPage() {
                                         )}
                                       </div>
 
-                                      {/* Action Buttons */}
+                                      {/* Action Buttons - Only show if advance fields are showing */}
+                                      {(() => {
+                                        const productDetails = savedProduct.productDetails
+                                        const advanceFields = productDetails?.advance_fields || productAdvanceFields[savedProduct.id] || []
+                                        const hasAdvanceFields = advanceFields && Array.isArray(advanceFields) && advanceFields.length > 0
+                                        const allFieldsFilled = savedProduct.mandibularMaterial && savedProduct.mandibularRetention && savedProduct.mandibularToothShade && savedProduct.mandibularStage
+                                        return hasAdvanceFields && allFieldsFilled && (showAdvanceFields[savedProduct.id] || (savedProduct.mandibularMaterial && savedProduct.mandibularRetention))
+                                      })() && (
                                       <div
                                         className="flex flex-wrap justify-center items-center w-full"
                                         style={{
@@ -10735,7 +11558,7 @@ export default function CaseDesignCenterPage() {
                                               color: '#000000'
                                             }}
                                           >
-                                            Add ons (3 selected)
+                                            Add ons ({getProductAddOnsCount(savedProduct)} selected)
                                           </span>
                                         </button>
                                         <button
@@ -10785,7 +11608,7 @@ export default function CaseDesignCenterPage() {
                                               color: '#000000'
                                             }}
                                           >
-                                            Attach Files (15 uploads)
+                                            Attach Files ({getAttachedFilesCount()} uploads)
                                           </span>
                                         </button>
                                         <button
@@ -10840,6 +11663,7 @@ export default function CaseDesignCenterPage() {
                                           </span>
                                         </button>
                                       </div>
+                                      )}
                                     </AccordionContent>
                                   </AccordionItem>
                                 </Accordion>
@@ -10982,7 +11806,8 @@ export default function CaseDesignCenterPage() {
                     >
                       Cancel
                     </Button>
-                    {/* Submit Case button with tooltip */}
+                    {/* Submit Case button with tooltip - Only show if accordion is complete */}
+                    {isAccordionComplete() && (
                     <div className="relative">
                       <Button
                         onClick={(e) => {
@@ -11087,6 +11912,7 @@ export default function CaseDesignCenterPage() {
                         </div>
                       )}
                     </div>
+                    )}
                   </div>
                 </>
               )}

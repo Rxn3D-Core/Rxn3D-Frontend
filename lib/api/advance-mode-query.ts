@@ -108,10 +108,13 @@ export interface AdvanceField {
   sequence: number
   status?: 'Active' | 'Inactive'
   is_custom?: 'Yes' | 'No'
+  is_system_default?: 'Yes' | 'No'
   code?: string
   categories?: any[]
   options?: FieldOption[]
   products?: any[]
+  product_ids?: number[]
+  category_ids?: number[]
   created_at: string
   updated_at: string
 }

@@ -189,7 +189,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
         // Add customer_id if role is lab_admin and customerId is available
         if (customerId) queryParams.append('customer_id', customerId.toString())
 
-        return `/v1/library/advance/categories?${queryParams.toString()}`
+        return `/library/advance/categories?${queryParams.toString()}`
       },
       providesTags: (result) =>
         result
@@ -201,7 +201,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
     }),
 
     getAdvanceCategory: builder.query<ApiResponse<AdvanceCategory>, number>({
-      query: (id) => `/v1/library/advance/categories/${id}`,
+      query: (id) => `/library/advance/categories/${id}`,
       providesTags: (result, error, id) => [{ type: 'AdvanceCategories', id }],
     }),
 
@@ -212,7 +212,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
       customer_id?: number | null
     }>({
       query: (data) => ({
-        url: '/v1/library/advance/categories',
+        url: '/library/advance/categories',
         method: 'POST',
         body: data,
       }),
@@ -227,7 +227,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
       sequence?: number
     }>({
       query: ({ id, ...data }) => ({
-        url: `/v1/library/advance/categories/${id}`,
+        url: `/library/advance/categories/${id}`,
         method: 'PUT',
         body: data,
       }),
@@ -239,7 +239,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
 
     deleteAdvanceCategory: builder.mutation<ApiResponse<null>, number>({
       query: (id) => ({
-        url: `/v1/library/advance/categories/${id}`,
+        url: `/library/advance/categories/${id}`,
         method: 'DELETE',
       }),
       invalidatesTags: (result, error, id) => [
@@ -253,7 +253,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
       product_ids: number[]
     }>({
       query: ({ id, product_ids }) => ({
-        url: `/v1/library/advance/categories/${id}/link-products`,
+        url: `/library/advance/categories/${id}/link-products`,
         method: 'POST',
         body: { product_ids },
       }),
@@ -265,7 +265,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
       category_ids: number[]
     }>({
       query: ({ id, category_ids }) => ({
-        url: `/v1/library/advance/categories/${id}/link-categories`,
+        url: `/library/advance/categories/${id}/link-categories`,
         method: 'POST',
         body: { category_ids },
       }),
@@ -278,7 +278,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
       customer_id?: number
     }>({
       query: ({ id, status, customer_id }) => ({
-        url: `/v1/library/advance/categories/${id}/status`,
+        url: `/library/advance/categories/${id}/status`,
         method: 'PATCH',
         body: { status, customer_id },
       }),
@@ -301,7 +301,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
         if (params.customer_id) queryParams.append('customer_id', params.customer_id.toString())
         if (params.advance_category_id) queryParams.append('advance_category_id', params.advance_category_id.toString())
 
-        return `/v1/library/advance/subcategories?${queryParams.toString()}`
+        return `/library/advance/subcategories?${queryParams.toString()}`
       },
       providesTags: (result) =>
         result
@@ -313,7 +313,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
     }),
 
     getAdvanceSubcategory: builder.query<ApiResponse<AdvanceSubcategory>, number>({
-      query: (id) => `/v1/library/advance/subcategories/${id}`,
+      query: (id) => `/library/advance/subcategories/${id}`,
       providesTags: (result, error, id) => [{ type: 'AdvanceSubcategories', id }],
     }),
 
@@ -325,7 +325,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
       customer_id?: number | null
     }>({
       query: (data) => ({
-        url: '/v1/library/advance/subcategories',
+        url: '/library/advance/subcategories',
         method: 'POST',
         body: data,
       }),
@@ -341,7 +341,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
       sequence?: number
     }>({
       query: ({ id, ...data }) => ({
-        url: `/v1/library/advance/subcategories/${id}`,
+        url: `/library/advance/subcategories/${id}`,
         method: 'PUT',
         body: data,
       }),
@@ -353,7 +353,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
 
     deleteAdvanceSubcategory: builder.mutation<ApiResponse<null>, number>({
       query: (id) => ({
-        url: `/v1/library/advance/subcategories/${id}`,
+        url: `/library/advance/subcategories/${id}`,
         method: 'DELETE',
       }),
       invalidatesTags: (result, error, id) => [
@@ -367,7 +367,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
       product_ids: number[]
     }>({
       query: ({ id, product_ids }) => ({
-        url: `/v1/library/advance/subcategories/${id}/link-products`,
+        url: `/library/advance/subcategories/${id}/link-products`,
         method: 'POST',
         body: { product_ids },
       }),
@@ -380,7 +380,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
       customer_id?: number
     }>({
       query: ({ id, status, customer_id }) => ({
-        url: `/v1/library/advance/subcategories/${id}/status`,
+        url: `/library/advance/subcategories/${id}/status`,
         method: 'PATCH',
         body: { status, customer_id },
       }),
@@ -406,7 +406,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
         if (params.advance_category_id) queryParams.append('advance_category_id', params.advance_category_id.toString())
         if (params.advance_subcategory_id) queryParams.append('advance_subcategory_id', params.advance_subcategory_id.toString())
 
-        return `/v1/library/advance/fields?${queryParams.toString()}`
+        return `/library/advance/fields?${queryParams.toString()}`
       },
       providesTags: (result) =>
         result
@@ -418,7 +418,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
     }),
 
     getAdvanceField: builder.query<ApiResponse<AdvanceField>, number>({
-      query: (id) => `/v1/library/advance/fields/${id}`,
+      query: (id) => `/library/advance/fields/${id}`,
       providesTags: (result, error, id) => [{ type: 'AdvanceFields', id }],
     }),
 
@@ -443,7 +443,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
       }>
     }>({
       query: (data) => ({
-        url: '/v1/library/advance/fields',
+        url: '/library/advance/fields',
         method: 'POST',
         body: data,
       }),
@@ -466,7 +466,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
       sequence?: number
     }>({
       query: ({ id, ...data }) => ({
-        url: `/v1/library/advance/fields/${id}`,
+        url: `/library/advance/fields/${id}`,
         method: 'PUT',
         body: data,
       }),
@@ -478,7 +478,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
 
     deleteAdvanceField: builder.mutation<ApiResponse<null>, number>({
       query: (id) => ({
-        url: `/v1/library/advance/fields/${id}`,
+        url: `/library/advance/fields/${id}`,
         method: 'DELETE',
       }),
       invalidatesTags: (result, error, id) => [
@@ -492,7 +492,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
       product_ids: number[]
     }>({
       query: ({ id, product_ids }) => ({
-        url: `/v1/library/advance/fields/${id}/link-products`,
+        url: `/library/advance/fields/${id}/link-products`,
         method: 'POST',
         body: { product_ids },
       }),
@@ -509,7 +509,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
       sequence?: number
     }>({
       query: ({ field_id, ...data }) => ({
-        url: `/v1/library/advance/fields/${field_id}/options`,
+        url: `/library/advance/fields/${field_id}/options`,
         method: 'POST',
         body: data,
       }),
@@ -526,7 +526,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
       sequence?: number
     }>({
       query: ({ field_id, option_id, ...data }) => ({
-        url: `/v1/library/advance/fields/${field_id}/options/${option_id}`,
+        url: `/library/advance/fields/${field_id}/options/${option_id}`,
         method: 'PUT',
         body: data,
       }),
@@ -538,7 +538,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
       option_id: number
     }>({
       query: ({ field_id, option_id }) => ({
-        url: `/v1/library/advance/fields/${field_id}/options/${option_id}`,
+        url: `/library/advance/fields/${field_id}/options/${option_id}`,
         method: 'DELETE',
       }),
       invalidatesTags: (result, error, { field_id }) => [{ type: 'AdvanceFields', id: field_id }],
@@ -550,7 +550,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
       status: 'Active' | 'Inactive'
     }>({
       query: ({ field_id, option_id, status }) => ({
-        url: `/v1/library/advance/fields/${field_id}/options/${option_id}/status`,
+        url: `/library/advance/fields/${field_id}/options/${option_id}/status`,
         method: 'PATCH',
         body: { status },
       }),
@@ -568,7 +568,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
         if (params.order_by) queryParams.append('order_by', params.order_by)
         if (params.sort_by) queryParams.append('sort_by', params.sort_by)
 
-        return `/v1/library/implants?${queryParams.toString()}`
+        return `/library/implants?${queryParams.toString()}`
       },
       providesTags: (result) =>
         result
@@ -580,7 +580,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
     }),
 
     getImplant: builder.query<ApiResponse<Implant>, number>({
-      query: (id) => `/v1/library/implants/${id}`,
+      query: (id) => `/library/implants/${id}`,
       providesTags: (result, error, id) => [{ type: 'Implants', id }],
     }),
 
@@ -604,7 +604,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
       }>
     }>({
       query: (data) => ({
-        url: '/v1/library/implants',
+        url: '/library/implants',
         method: 'POST',
         body: data,
       }),
@@ -625,7 +625,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
       charge_scope?: string | null
     }>({
       query: ({ id, ...data }) => ({
-        url: `/v1/library/implants/${id}`,
+        url: `/library/implants/${id}`,
         method: 'PUT',
         body: data,
       }),
@@ -637,7 +637,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
 
     deleteImplant: builder.mutation<ApiResponse<null>, number>({
       query: (id) => ({
-        url: `/v1/library/implants/${id}`,
+        url: `/library/implants/${id}`,
         method: 'DELETE',
       }),
       invalidatesTags: (result, error, id) => [
@@ -651,7 +651,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
       product_ids: number[]
     }>({
       query: ({ id, product_ids }) => ({
-        url: `/v1/library/implants/${id}/link-products`,
+        url: `/library/implants/${id}/link-products`,
         method: 'POST',
         body: { product_ids },
       }),
@@ -663,7 +663,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
       status: 'Active' | 'Inactive'
     }>({
       query: ({ id, status }) => ({
-        url: `/v1/library/implants/${id}/status`,
+        url: `/library/implants/${id}/status`,
         method: 'PATCH',
         body: { status },
       }),
@@ -683,7 +683,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
       sequence?: number
     }>({
       query: ({ implant_id, ...data }) => ({
-        url: `/v1/library/implants/${implant_id}/platforms`,
+        url: `/library/implants/${implant_id}/platforms`,
         method: 'POST',
         body: data,
       }),
@@ -700,7 +700,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
       sequence?: number
     }>({
       query: ({ implant_id, platform_id, ...data }) => ({
-        url: `/v1/library/implants/${implant_id}/platforms/${platform_id}`,
+        url: `/library/implants/${implant_id}/platforms/${platform_id}`,
         method: 'PUT',
         body: data,
       }),
@@ -712,7 +712,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
       platform_id: number
     }>({
       query: ({ implant_id, platform_id }) => ({
-        url: `/v1/library/implants/${implant_id}/platforms/${platform_id}`,
+        url: `/library/implants/${implant_id}/platforms/${platform_id}`,
         method: 'DELETE',
       }),
       invalidatesTags: (result, error, { implant_id }) => [{ type: 'Implants', id: implant_id }],
@@ -724,7 +724,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
       status: 'Active' | 'Inactive'
     }>({
       query: ({ implant_id, platform_id, status }) => ({
-        url: `/v1/library/implants/${implant_id}/platforms/${platform_id}/status`,
+        url: `/library/implants/${implant_id}/platforms/${platform_id}/status`,
         method: 'PATCH',
         body: { status },
       }),
@@ -742,7 +742,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
         if (params.order_by) queryParams.append('order_by', params.order_by)
         if (params.sort_by) queryParams.append('sort_by', params.sort_by)
 
-        return `/v1/library/abutments?${queryParams.toString()}`
+        return `/library/abutments?${queryParams.toString()}`
       },
       providesTags: (result) =>
         result
@@ -754,7 +754,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
     }),
 
     getAbutment: builder.query<ApiResponse<Abutment>, number>({
-      query: (id) => `/v1/library/abutments/${id}`,
+      query: (id) => `/library/abutments/${id}`,
       providesTags: (result, error, id) => [{ type: 'Abutments', id }],
     }),
 
@@ -778,7 +778,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
       }>
     }>({
       query: (data) => ({
-        url: '/v1/library/abutments',
+        url: '/library/abutments',
         method: 'POST',
         body: data,
       }),
@@ -799,7 +799,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
       charge_scope?: string | null
     }>({
       query: ({ id, ...data }) => ({
-        url: `/v1/library/abutments/${id}`,
+        url: `/library/abutments/${id}`,
         method: 'PUT',
         body: data,
       }),
@@ -811,7 +811,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
 
     deleteAbutment: builder.mutation<ApiResponse<null>, number>({
       query: (id) => ({
-        url: `/v1/library/abutments/${id}`,
+        url: `/library/abutments/${id}`,
         method: 'DELETE',
       }),
       invalidatesTags: (result, error, id) => [
@@ -825,7 +825,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
       product_ids: number[]
     }>({
       query: ({ id, product_ids }) => ({
-        url: `/v1/library/abutments/${id}/link-products`,
+        url: `/library/abutments/${id}/link-products`,
         method: 'POST',
         body: { product_ids },
       }),
@@ -837,7 +837,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
       status: 'Active' | 'Inactive'
     }>({
       query: ({ id, status }) => ({
-        url: `/v1/library/abutments/${id}/status`,
+        url: `/library/abutments/${id}/status`,
         method: 'PATCH',
         body: { status },
       }),
@@ -857,7 +857,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
       sequence?: number
     }>({
       query: ({ abutment_id, ...data }) => ({
-        url: `/v1/library/abutments/${abutment_id}/platforms`,
+        url: `/library/abutments/${abutment_id}/platforms`,
         method: 'POST',
         body: data,
       }),
@@ -874,7 +874,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
       sequence?: number
     }>({
       query: ({ abutment_id, platform_id, ...data }) => ({
-        url: `/v1/library/abutments/${abutment_id}/platforms/${platform_id}`,
+        url: `/library/abutments/${abutment_id}/platforms/${platform_id}`,
         method: 'PUT',
         body: data,
       }),
@@ -886,7 +886,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
       platform_id: number
     }>({
       query: ({ abutment_id, platform_id }) => ({
-        url: `/v1/library/abutments/${abutment_id}/platforms/${platform_id}`,
+        url: `/library/abutments/${abutment_id}/platforms/${platform_id}`,
         method: 'DELETE',
       }),
       invalidatesTags: (result, error, { abutment_id }) => [{ type: 'Abutments', id: abutment_id }],
@@ -898,7 +898,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
       status: 'Active' | 'Inactive'
     }>({
       query: ({ abutment_id, platform_id, status }) => ({
-        url: `/v1/library/abutments/${abutment_id}/platforms/${platform_id}/status`,
+        url: `/library/abutments/${abutment_id}/platforms/${platform_id}/status`,
         method: 'PATCH',
         body: { status },
       }),

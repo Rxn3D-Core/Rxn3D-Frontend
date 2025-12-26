@@ -4,6 +4,7 @@ import { ChevronDown, Info, AlertCircle } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { ValidationError } from "@/components/ui/validation-error"
 import { Controller } from "react-hook-form"
+import { Input } from "@/components/ui/input"
 
 export function RetentionSection({
   control,
@@ -17,12 +18,45 @@ export function RetentionSection({
   expandedSections,
   toggleExpanded,
   handleToggleSelection,
+  userRole = "",
+}: {
+  control: any
+  watch: any
+  setValue: any
+  sections: any
+  toggleSection: any
+  getValidationError: any
+  retentions: any
+  sectionHasErrors: any
+  expandedSections: any
+  toggleExpanded: any
+  handleToggleSelection: any
+  userRole?: string
 }) {
   const watchedRetentions = watch("retentions") || []
   const watchedApplyRetentionMechanism = watch("apply_retention_mechanism")
+  const isLabAdmin = userRole === "lab_admin"
+  
   // Helper function to check if a retention is selected
   const isRetentionSelected = (retentionId: any) => {
     return watchedRetentions.some((ret: any) => ret.retention_id === retentionId)
+  }
+
+  // Helper function to get selected retention by id
+  const getSelectedRetention = (retentionId: number) => {
+    return watchedRetentions.find((ret: any) => ret.retention_id === retentionId)
+  }
+
+  // Update price for a selected retention
+  const handlePriceChange = (retentionId: number, value: string) => {
+    const priceValue = value === "" ? 0 : (parseFloat(value) || 0)
+    setValue(
+      "retentions",
+      watchedRetentions.map((ret: any) =>
+        ret.retention_id === retentionId ? { ...ret, price: priceValue } : ret
+      ),
+      { shouldDirty: true }
+    )
   }
 
   return (
@@ -77,46 +111,74 @@ export function RetentionSection({
                 Select how this restoration will be retained
               </Label>
               <div className="flex flex-col gap-3">
-                {retentions.map((retention) => (
-                  <label key={retention.id} className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      value={retention.id}
-                      checked={isRetentionSelected(retention.id)}
-                      onChange={(e) => {
-                        const isChecked = e.target.checked
-                        if (isChecked) {
-                          // Add retention to the array
-                          const newRetention = {
-                            retention_id: retention.id,
-                            sequence: watchedRetentions.length + 1,
-                            status: "Active"
-                          }
-                          setValue(
-                            "retentions",
-                            [...watchedRetentions, newRetention],
-                            { shouldDirty: true }
-                          )
-                        } else {
-                          // Remove retention from the array
-                          const updatedRetentions = watchedRetentions
-                            .filter((ret: any) => ret.retention_id !== retention.id)
-                            .map((ret: any, index: number) => ({
-                              ...ret,
-                              sequence: index + 1
-                            }))
-                          setValue(
-                            "retentions",
-                            updatedRetentions,
-                            { shouldDirty: true }
-                          )
-                        }
-                      }}
-                      className="accent-[#1162a8] w-5 h-5"
-                    />
-                    <span>{retention.name}</span>
-                  </label>
-                ))}
+                {retentions.map((retention: any) => {
+                  const isSelected = isRetentionSelected(retention.id)
+                  const selectedRetention = getSelectedRetention(retention.id)
+                  
+                  return (
+                    <div key={retention.id} className="flex flex-col gap-2">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          value={retention.id}
+                          checked={isSelected}
+                          onChange={(e) => {
+                            const isChecked = e.target.checked
+                            if (isChecked) {
+                              // Add retention to the array
+                              const newRetention: any = {
+                                retention_id: retention.id,
+                                sequence: watchedRetentions.length + 1,
+                                status: "Active"
+                              }
+                              // Add price for lab admin
+                              if (isLabAdmin) {
+                                newRetention.price = 0
+                              }
+                              setValue(
+                                "retentions",
+                                [...watchedRetentions, newRetention],
+                                { shouldDirty: true }
+                              )
+                            } else {
+                              // Remove retention from the array
+                              const updatedRetentions = watchedRetentions
+                                .filter((ret: any) => ret.retention_id !== retention.id)
+                                .map((ret: any, index: number) => ({
+                                  ...ret,
+                                  sequence: index + 1
+                                }))
+                              setValue(
+                                "retentions",
+                                updatedRetentions,
+                                { shouldDirty: true }
+                              )
+                            }
+                          }}
+                          className="accent-[#1162a8] w-5 h-5"
+                        />
+                        <span>{retention.name}</span>
+                      </label>
+                      {isSelected && isLabAdmin && (
+                        <div className="ml-7 flex items-center gap-2">
+                          <Label htmlFor={`retention-price-${retention.id}`} className="text-sm text-gray-600 w-20">
+                            Price:
+                          </Label>
+                          <Input
+                            id={`retention-price-${retention.id}`}
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={selectedRetention?.price ?? ""}
+                            onChange={(e) => handlePriceChange(retention.id, e.target.value)}
+                            placeholder="0.00"
+                            className="w-32"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )}

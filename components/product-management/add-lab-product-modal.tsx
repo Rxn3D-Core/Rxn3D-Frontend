@@ -1314,6 +1314,7 @@ export function AddLabProductModal({
                     expandedSections={expandedSections}
                     toggleExpanded={toggleExpanded}
                     handleToggleSelection={handleToggleSelection}
+                    userRole={userRole}
                   />
                 </TabsContent>
 

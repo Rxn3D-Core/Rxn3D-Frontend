@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { useTranslation } from "react-i18next"
 import { useToast } from "@/hooks/use-toast"
 import { AddFieldModal, LinkProductModal } from "@/components/advance-mode"
@@ -280,12 +281,6 @@ export default function FieldsPage() {
                     <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />
                   </div>
                 </TableHead>
-                <TableHead className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors">
-                  <div className="flex items-center gap-1">
-                    {t("Subcategory")}
-                    <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />
-                  </div>
-                </TableHead>
                 <TableHead 
                   className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors"
                   onClick={() => handleSort('code')}
@@ -339,7 +334,7 @@ export default function FieldsPage() {
                   <TableCell className="py-2 px-2">
                     <div className="flex items-center gap-1.5">
                       <span className="text-xs font-medium">{item.name}</span>
-                      {item.is_custom === 'No' && (
+                      {item.is_system_default === 'Yes' && (
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
                           <path d="M13.3332 8.66664C13.3332 12 10.9998 13.6666 8.2265 14.6333C8.08128 14.6825 7.92353 14.6802 7.77984 14.6266C4.99984 13.6666 2.6665 12 2.6665 8.66664V3.99997C2.6665 3.82316 2.73674 3.65359 2.86177 3.52857C2.98679 3.40355 3.15636 3.33331 3.33317 3.33331C4.6665 3.33331 6.33317 2.53331 7.49317 1.51997C7.63441 1.39931 7.81407 1.33301 7.99984 1.33301C8.1856 1.33301 8.36527 1.39931 8.5065 1.51997C9.67317 2.53997 11.3332 3.33331 12.6665 3.33331C12.8433 3.33331 13.0129 3.40355 13.1379 3.52857C13.2629 3.65359 13.3332 3.82316 13.3332 3.99997V8.66664Z" stroke="#34C759" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                           <path d="M6 8.00033L7.33333 9.33366L10 6.66699" stroke="#34C759" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -366,22 +361,50 @@ export default function FieldsPage() {
                   </TableCell>
                   <TableCell className="py-2 px-2">
                     <div className="flex items-center gap-2">
-                      {item.categories && item.categories.length > 0 ? (
-                        <>
-                          {item.categories.slice(0, 2).map((cat: any, idx: number) => (
-                            <span key={idx} className="text-xs bg-gray-100 px-2 py-1 rounded">
-                              {cat.name || cat}
-                            </span>
-                          ))}
-                          {item.categories.length > 2 && (
-                            <Button variant="ghost" className="h-5 px-1.5 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50">
-                              +{item.categories.length - 2}
-                            </Button>
-                          )}
-                        </>
-                      ) : (
-                        <span className="text-xs text-gray-400">No categories linked</span>
-                      )}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {/* Show category/subcategory names */}
+                        {(item.category?.name || item.advance_subcategory?.name || item.subcategory?.name) && (
+                          <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+                            {item.category?.name || item.advance_subcategory?.name || item.subcategory?.name}
+                          </span>
+                        )}
+                        {/* Show product count with popover */}
+                        {((item.product_ids && item.product_ids.length > 0) || (item.products && item.products.length > 0)) ? (
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <button className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200 transition-colors cursor-pointer">
+                                {item.product_ids?.length || item.products?.length || 0} product{(item.product_ids?.length || item.products?.length || 0) !== 1 ? 's' : ''}
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-80" align="start">
+                              <div className="space-y-2">
+                                <h4 className="font-semibold text-sm text-gray-900 mb-2">Linked Products</h4>
+                                <div className="max-h-60 overflow-y-auto space-y-1">
+                                  {item.products && item.products.length > 0 ? (
+                                    item.products.map((product: any, idx: number) => (
+                                      <div key={product.id || idx} className="text-xs text-gray-700 py-1 border-b border-gray-100 last:border-0">
+                                        {product.name || `Product #${product.id || idx + 1}`}
+                                      </div>
+                                    ))
+                                  ) : item.product_ids && item.product_ids.length > 0 ? (
+                                    <div className="text-xs text-gray-500 italic">
+                                      Product names not available. {item.product_ids.length} product{item.product_ids.length !== 1 ? 's' : ''} linked.
+                                    </div>
+                                  ) : null}
+                                </div>
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        ) : null}
+                        {/* Show if no links */}
+                        {(!item.product_ids || item.product_ids.length === 0) && 
+                         (!item.products || item.products.length === 0) && 
+                         !item.category?.name && 
+                         !item.advance_subcategory?.name && 
+                         !item.subcategory?.name && (
+                          <span className="text-xs text-gray-400">No links</span>
+                        )}
+                      </div>
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
@@ -525,6 +548,7 @@ export default function FieldsPage() {
               description: data.description || undefined,
               field_type: fieldTypeMap[data.fieldType] || data.fieldType,
               is_required: data.requiredField ? 'Yes' as const : 'No' as const,
+              is_system_default: data.isSystemDefault ? 'Yes' as const : 'No' as const,
               has_additional_pricing: data.pricing?.canAddAdditionalCharges ? 'Yes' as const : 'No' as const,
               options: options.length > 0 ? options : undefined,
             }
@@ -598,7 +622,7 @@ export default function FieldsPage() {
         onConfirm={handleConfirmDelete}
         itemName={deleteConfirmation.field?.name}
         isLoading={deleteFieldMutation.isPending}
-        isCustomNo={deleteConfirmation.field?.is_custom === 'No'}
+        isCustomNo={deleteConfirmation.field?.is_system_default === 'Yes'}
       />
 
       {/* Link Product Modal */}

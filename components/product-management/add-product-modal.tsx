@@ -781,6 +781,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
                     expandedSections={expandedSections}
                     toggleExpanded={toggleExpanded}
                     handleToggleSelection={handleToggleSelection}
+                    userRole={userRole}
                   />
                 </TabsContent>
 

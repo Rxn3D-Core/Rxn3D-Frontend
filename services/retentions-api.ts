@@ -100,7 +100,7 @@ export async function linkRetentionsWithRetentionOptions(payload: {
   const token = getAuthToken()
 
   const response = await fetch(
-    `${API_BASE_URL}/v1/library/retentions/link-retention-options`,
+    `${API_BASE_URL}/library/retentions/link-retention-options`,
     {
       method: "POST",
       headers: {
@@ -150,7 +150,7 @@ export async function getRetentions(filters: {
   if (filters.sort_by) params.append("sort_by", filters.sort_by)
 
   const response = await fetch(
-    `${API_BASE_URL}/v1/library/retentions?${params.toString()}`,
+    `${API_BASE_URL}/library/retentions?${params.toString()}`,
     {
       method: "GET",
       headers: {
@@ -174,6 +174,12 @@ export async function getRetentions(filters: {
 
   return response.json()
 }
+
+
+
+
+
+
 
 
 
