@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react"
 import { X, Maximize2, ChevronLeft, ChevronRight } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { ProductCreateFormSchema, type ProductCreateForm } from "@/lib/schemas"
@@ -98,12 +98,17 @@ export function AddLabProductModal({
   const [isMaximized, setIsMaximized] = useState(true)
   const [showDiscardDialog, setShowDiscardDialog] = useState(false)
   const [activeTab, setActiveTab] = useState("details")
+  const [showTabs, setShowTabs] = useState(false) // Track if tabs should be shown
   const { t } = useTranslation()
 
   // Set initial tab to "details" when editing a product
+  // Show tabs immediately when editing (product already exists)
   useEffect(() => {
     if (isOpen && editingProduct) {
       setActiveTab("details")
+      setShowTabs(true) // Show tabs for existing products
+    } else if (isOpen && !editingProduct) {
+      setShowTabs(false) // Hide tabs for new products until created
     }
   }, [isOpen, editingProduct])
 
@@ -1046,6 +1051,8 @@ export function AddLabProductModal({
     }
 
     if (success) {
+      // Show tabs after successful creation/update
+      setShowTabs(true)
       clearValidationErrors()
       reset()
       setInitialFormValues(null) // Clear initial values
@@ -1054,7 +1061,8 @@ export function AddLabProductModal({
       setCustomGumShadeNames({}) // Clear custom gum shade names
       setCustomTeethShadeNames({}) // Clear custom teeth shade names
       setCustomMaterialNames({}) // Clear custom material names
-      onClose()
+      // Don't close the modal - keep it open to show tabs
+      // onClose() // Commented out to keep modal open after save
     }
   }
 
@@ -1156,22 +1164,28 @@ export function AddLabProductModal({
 
           <form onSubmit={handleDirectSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0 overflow-hidden">
-              {/* Progress indicator bar */}
-              <div className="px-6 pt-4 pb-3 border-b bg-gray-50 flex-shrink-0">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    {tabs[currentTabIndex].label}
-                  </h3>
-                  <span className="text-sm text-gray-500">
-                    Step {currentTabIndex + 1} of {tabs.length}
-                  </span>
-                </div>
-                {/* Progress bar */}
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div
-                    className="bg-[#1162a8] h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${((currentTabIndex + 1) / tabs.length) * 100}%` }}
-                  />
+              {/* Tab Navigation */}
+              <div className="border-b border-gray-200 bg-white flex-shrink-0">
+                <div className="flex">
+                  {tabs.map((tab) => {
+                    const isActive = activeTab === tab.id
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setActiveTab(tab.id)}
+                        className={`
+                          px-6 py-4 text-sm font-medium border-b-2 transition-colors relative
+                          ${isActive
+                            ? "border-[#1162a8] text-[#1162a8]"
+                            : "border-transparent text-gray-600 hover:text-gray-800"
+                          }
+                        `}
+                      >
+                        {tab.label}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
 

@@ -382,7 +382,6 @@ export function TeethShadeSection({
                     >
                       {!isExpanded && <Plus className="h-4 w-4 mr-1" />}
                       <span className="flex items-center gap-2">
-                        <span>{brand.name}</span>
                         {brand.system_name && (
                           <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                             isExpanded 
@@ -392,6 +391,7 @@ export function TeethShadeSection({
                             {brand.system_name}
                           </span>
                         )}
+                        <span>{brand.name}</span>
                       </span>
                       {selectedCount > 0 && (
                         <span className={`ml-1.5 text-xs font-semibold ${

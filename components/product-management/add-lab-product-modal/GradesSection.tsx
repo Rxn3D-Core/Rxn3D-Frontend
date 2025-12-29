@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Controller, Control, UseFormWatch, UseFormSetValue } from "react-hook-form"
 import { Label } from "@/components/ui/label"
 import { ValidationError } from "@/components/ui/validation-error"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { ChevronDown, Info, Plus, AlertCircle, X, Check } from "lucide-react"
 import { ProductCreateForm } from "@/lib/schemas"
 
@@ -239,10 +240,24 @@ export function GradesSection({
               name="has_grade_based_pricing"
               control={control}
               render={({ field }) => (
-                <select className="w-full sm:w-20 border rounded" value={field.value} onChange={e => field.onChange(e.target.value)}>
-                  <option value="Yes">Yes</option>
-                  <option value="No">No</option>
-                </select>
+                <RadioGroup
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  className="flex flex-row gap-4"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="Yes" id="grade-pricing-yes" />
+                    <Label htmlFor="grade-pricing-yes" className="cursor-pointer font-normal">
+                      Yes
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="No" id="grade-pricing-no" />
+                    <Label htmlFor="grade-pricing-no" className="cursor-pointer font-normal">
+                      No
+                    </Label>
+                  </div>
+                </RadioGroup>
               )}
             />
           </div>

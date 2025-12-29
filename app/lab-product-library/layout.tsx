@@ -39,7 +39,7 @@ export default function LabProductLibraryLayout({
                         <AddOnsProvider>
                           <AddOnsCategoryProvider>
                             <CaseTrackingProvider>
-                              <div className="flex h-screen bg-[#f9f9f9]">
+                              <div className="flex min-h-screen bg-[#f9f9f9]">
                                 <DashboardSidebar />
                                 <div className="flex-1 flex flex-col">
                                   <Header />

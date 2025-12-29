@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label"
 import { ValidationError } from "@/components/ui/validation-error"
 import { Controller } from "react-hook-form"
 import { Input } from "@/components/ui/input"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 
 export function RetentionSection({
   control,
@@ -106,10 +107,24 @@ export function RetentionSection({
               name="apply_retention_mechanism"
               control={control}
               render={({ field }) => (
-                <select className="w-32 border rounded" value={field.value} onChange={e => field.onChange(e.target.value)}>
-                  <option value="Yes">Yes</option>
-                  <option value="No">No</option>
-                </select>
+                <RadioGroup
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  className="flex flex-row gap-4"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="Yes" id="retention-mechanism-yes" />
+                    <Label htmlFor="retention-mechanism-yes" className="cursor-pointer font-normal">
+                      Yes
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="No" id="retention-mechanism-no" />
+                    <Label htmlFor="retention-mechanism-no" className="cursor-pointer font-normal">
+                      No
+                    </Label>
+                  </div>
+                </RadioGroup>
               )}
             />
           </div>
