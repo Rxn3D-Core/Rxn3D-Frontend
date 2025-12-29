@@ -98,19 +98,8 @@ export function AddLabProductModal({
   const [isMaximized, setIsMaximized] = useState(true)
   const [showDiscardDialog, setShowDiscardDialog] = useState(false)
   const [activeTab, setActiveTab] = useState("details")
-  const [showTabs, setShowTabs] = useState(false) // Track if tabs should be shown
+  const [visibleTabs, setVisibleTabs] = useState<Set<string>>(new Set(["details"])) // Track which tabs are visible
   const { t } = useTranslation()
-
-  // Set initial tab to "details" when editing a product
-  // Show tabs immediately when editing (product already exists)
-  useEffect(() => {
-    if (isOpen && editingProduct) {
-      setActiveTab("details")
-      setShowTabs(true) // Show tabs for existing products
-    } else if (isOpen && !editingProduct) {
-      setShowTabs(false) // Hide tabs for new products until created
-    }
-  }, [isOpen, editingProduct])
 
   const [sections, setSections] = useState({
     productDetails: true,
@@ -153,6 +142,21 @@ export function AddLabProductModal({
     { id: "officePricing", label: "Office Pricing" },
     { id: "visibility", label: "Visibility" },
   ]
+
+  // Set initial tab to "details" when editing a product
+  // Show all tabs immediately when editing (product already exists)
+  useEffect(() => {
+    if (isOpen && editingProduct) {
+      setActiveTab("details")
+      // Show all tabs for existing products
+      const allTabIds = tabs.map(tab => tab.id)
+      setVisibleTabs(new Set(allTabIds))
+    } else if (isOpen && !editingProduct) {
+      // For new products, only show the first tab initially
+      setVisibleTabs(new Set(["details"]))
+      setActiveTab("details")
+    }
+  }, [isOpen, editingProduct])
 
   const currentTabIndex = tabs.findIndex((tab) => tab.id === activeTab)
   const isFirstTab = currentTabIndex === 0
@@ -315,7 +319,10 @@ export function AddLabProductModal({
       }
     }
 
-    setActiveTab(tabs[currentTabIndex + 1].id)
+    const nextTabId = tabs[currentTabIndex + 1].id
+    // Unlock the next tab when user clicks Next
+    setVisibleTabs(prev => new Set([...prev, nextTabId]))
+    setActiveTab(nextTabId)
   }
 
   // Helper function to flatten nested errors
@@ -604,7 +611,8 @@ export function AddLabProductModal({
 
       // Determine base_price: use default grade price if available and not empty, else use response price
       const mappedGrades = mapWithStatus(gradesArr, "grade_id")
-      let basePrice = editingProduct.base_price || ""
+      // Check both base_price and price from response
+      let basePrice = editingProduct.base_price || editingProduct.price || ""
       
       if (mappedGrades.length > 0) {
         // First, try to find default grade with price (price must be > 0)
@@ -625,7 +633,7 @@ export function AddLabProductModal({
             const price = typeof gradeWithPrice.price === "number" ? gradeWithPrice.price : parseFloat(gradeWithPrice.price)
             basePrice = price.toString()
           }
-          // If no grade has price, keep the response base_price (or empty string)
+          // If no grade has price, keep the response base_price or price (or empty string)
         }
       }
 
@@ -761,7 +769,7 @@ export function AddLabProductModal({
     } else {
       reset()
       clearValidationErrors()
-      setShowTabs(false) // Reset tabs visibility
+      setVisibleTabs(new Set(["details"])) // Reset to only first tab
       onClose()
     }
   }, [isDirty, reset, clearValidationErrors, onClose])
@@ -775,7 +783,7 @@ export function AddLabProductModal({
     setCustomGumShadeNames({}) // Clear custom gum shade names
     setCustomTeethShadeNames({}) // Clear custom teeth shade names
     setReleasingStageIds([]) // Reset releasing stages
-    setShowTabs(false) // Reset tabs visibility
+    setVisibleTabs(new Set(["details"])) // Reset to only first tab
     onClose()
   }, [reset, clearValidationErrors, onClose])
 
@@ -1053,8 +1061,8 @@ export function AddLabProductModal({
     }
 
     if (success) {
-      // Show tabs after successful creation/update
-      setShowTabs(true)
+      // Show all tabs after successful creation/update
+      setVisibleTabs(new Set(tabs.map(tab => tab.id)))
       clearValidationErrors()
       reset()
       setInitialFormValues(null) // Clear initial values
@@ -1166,22 +1174,31 @@ export function AddLabProductModal({
 
           <form onSubmit={handleDirectSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0 overflow-hidden">
-              {/* Tab Navigation - Only show after product is created/updated */}
-              {showTabs && (
+              {/* Tab Navigation - Show tabs progressively as user navigates */}
+              {visibleTabs.size > 0 && (
                 <div className="border-b border-gray-200 bg-white flex-shrink-0">
                   <div className="flex">
                     {tabs.map((tab) => {
                       const isActive = activeTab === tab.id
+                      const isVisible = visibleTabs.has(tab.id)
                       return (
                         <button
                           key={tab.id}
                           type="button"
-                          onClick={() => setActiveTab(tab.id)}
+                          onClick={() => {
+                            // Only allow navigation to visible tabs
+                            if (isVisible) {
+                              setActiveTab(tab.id)
+                            }
+                          }}
+                          disabled={!isVisible}
                           className={`
                             px-6 py-4 text-sm font-medium border-b-2 transition-colors relative
                             ${isActive
                               ? "border-[#1162a8] text-[#1162a8]"
-                              : "border-transparent text-gray-600 hover:text-gray-800"
+                              : isVisible
+                              ? "border-transparent text-gray-600 hover:text-gray-800 cursor-pointer"
+                              : "border-transparent text-gray-300 cursor-not-allowed opacity-50"
                             }
                           `}
                         >
