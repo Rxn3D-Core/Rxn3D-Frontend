@@ -1,3 +1,4 @@
+import React from "react"
 import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
 import { ChevronDown, Info, AlertCircle } from "lucide-react"
@@ -36,6 +37,13 @@ export function RetentionSection({
   const watchedRetentions = watch("retentions") || []
   const watchedApplyRetentionMechanism = watch("apply_retention_mechanism")
   const isLabAdmin = userRole === "lab_admin"
+
+  // Auto-set apply_retention_mechanism to "Yes" when retentions are selected
+  React.useEffect(() => {
+    if (watchedRetentions.length > 0 && watchedApplyRetentionMechanism !== "Yes") {
+      setValue("apply_retention_mechanism", "Yes", { shouldDirty: true })
+    }
+  }, [watchedRetentions.length, watchedApplyRetentionMechanism, setValue])
   
   // Helper function to check if a retention is selected
   const isRetentionSelected = (retentionId: any) => {

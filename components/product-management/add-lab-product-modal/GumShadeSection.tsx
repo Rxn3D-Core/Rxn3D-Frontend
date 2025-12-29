@@ -372,7 +372,18 @@ export function GumShadeSection({
                       }`}
                     >
                       {!isExpanded && <Plus className="h-4 w-4 mr-1" />}
-                      {brand.name}
+                      <span className="flex items-center gap-2">
+                        <span>{brand.name}</span>
+                        {brand.system_name && (
+                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                            isExpanded 
+                              ? "bg-white/20 text-white" 
+                              : "bg-[#1162a8]/10 text-[#1162a8]"
+                          }`}>
+                            {brand.system_name}
+                          </span>
+                        )}
+                      </span>
                       {selectedCount > 0 && (
                         <span className={`ml-1.5 text-xs font-semibold ${
                           isExpanded ? "text-white" : "text-[#1162a8]"

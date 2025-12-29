@@ -41,6 +41,8 @@ type ProductDetailsSectionProps = {
   onImageChange?: (base64: string | null) => void
   userRole?: string
   setValue?: (name: string, value: any) => void
+  onSave?: (e?: React.BaseSyntheticEvent) => Promise<void>
+  isSaving?: boolean
 }
 
 export function ProductDetailsSection({
@@ -55,6 +57,8 @@ export function ProductDetailsSection({
   onImageChange,
   userRole = "",
   setValue,
+  onSave,
+  isSaving = false,
 }: ProductDetailsSectionProps) {
   const grades = useWatch({ control, name: "grades" }) || []
   const name = useWatch({ control, name: "name" }) || ""
@@ -179,11 +183,23 @@ export function ProductDetailsSection({
             <AlertCircle className="h-5 w-5 text-red-500" />
           )}
         </div>
-        <Switch
-          checked={sections.productDetails}
-          onCheckedChange={() => toggleSection("productDetails")}
-          className="data-[state=checked]:bg-[#1162a8]"
-        />
+        <div className="flex items-center gap-3">
+          {editingProduct && onSave && (
+            <Button
+              type="button"
+              onClick={onSave}
+              disabled={isSaving || !!hasErrors}
+              className="bg-[#1162a8] hover:bg-[#0d4c84] h-9 px-4 text-sm"
+            >
+              {isSaving ? "Saving..." : "Save"}
+            </Button>
+          )}
+          <Switch
+            checked={sections.productDetails}
+            onCheckedChange={() => toggleSection("productDetails")}
+            className="data-[state=checked]:bg-[#1162a8]"
+          />
+        </div>
       </div>
       
       {sections.productDetails && (

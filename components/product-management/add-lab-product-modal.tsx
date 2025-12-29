@@ -100,6 +100,13 @@ export function AddLabProductModal({
   const [activeTab, setActiveTab] = useState("details")
   const { t } = useTranslation()
 
+  // Set initial tab to "details" when editing a product
+  useEffect(() => {
+    if (isOpen && editingProduct) {
+      setActiveTab("details")
+    }
+  }, [isOpen, editingProduct])
+
   const [sections, setSections] = useState({
     productDetails: true,
     grades: false,
@@ -456,6 +463,28 @@ export function AddLabProductModal({
     }
   }, [isOpen, fetchData])
 
+  // Helper function to normalize values for comparison
+  const normalizeValue = (value: any, key: string): any => {
+    // Handle null/undefined/empty string as equivalent
+    if (value === null || value === undefined || value === "") {
+      return null;
+    }
+
+    // Normalize numeric fields (convert string numbers to numbers for comparison)
+    const numericFields = ['base_price', 'min_days_to_process', 'max_days_to_process', 'sequence', 'auto_billing_days'];
+    if (numericFields.includes(key)) {
+      const numValue = typeof value === 'string' ? parseFloat(value) : value;
+      return isNaN(numValue) ? null : numValue;
+    }
+
+    // For boolean-like fields, normalize to boolean
+    if (key === 'apply_same_status_to_opposing') {
+      return Boolean(value);
+    }
+
+    return value;
+  };
+
   // Helper function to calculate diff between original and current values
   const calculateChanges = useCallback((original: any, current: any): any => {
     if (!original) return current; // If no original, return everything
@@ -464,10 +493,14 @@ export function AddLabProductModal({
 
     // Compare each field
     for (const key in current) {
-      if (key === 'id') continue; // Skip ID field
+      if (key === 'id' || key === 'category_id') continue; // Skip ID field and category_id (UI-only)
 
       const currentValue = current[key];
       const originalValue = original[key];
+
+      // Normalize values for comparison
+      const normalizedCurrent = normalizeValue(currentValue, key);
+      const normalizedOriginal = normalizeValue(originalValue, key);
 
       // Handle arrays (like grades, stages, etc.)
       if (Array.isArray(currentValue) && Array.isArray(originalValue)) {
@@ -476,8 +509,8 @@ export function AddLabProductModal({
           changes[key] = currentValue;
         }
       }
-      // Handle primitives
-      else if (currentValue !== originalValue) {
+      // Handle primitives - compare normalized values
+      else if (normalizedCurrent !== normalizedOriginal) {
         changes[key] = currentValue;
       }
     }
@@ -595,7 +628,7 @@ export function AddLabProductModal({
         name: editingProduct.name || "",
         code: editingProduct.code || "",
         category_id: categoryId,
-        subcategory_id: editingProduct.subcategory?.id || editingProduct.subcategory_id || 0,
+        subcategory_id: editingProduct.subcategory?.id || editingProduct.subcategory_id || null,
         type: mappedType, // <-- always valid
         status: editingProduct.status || "Active",
         sequence: editingProduct.sequence || 1,
@@ -1157,6 +1190,8 @@ export function AddLabProductModal({
                     onImageChange={setImageBase64}
                     userRole={userRole}
                     setValue={setValue}
+                    onSave={editingProduct ? handleFormSubmit : undefined}
+                    isSaving={isSubmitting || isUpdating || isCreating}
                   />
                 </TabsContent>
 
