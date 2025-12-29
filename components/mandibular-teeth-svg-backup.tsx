@@ -1,27 +1,18 @@
 import React from 'react'
-import ReactDOM from 'react-dom'
-import { RetentionTypePopover } from './retention-type-popover'
 
 interface MandibularTeethSVGProps {
   selectedTeeth: number[]
   onToothClick?: (toothNumber: number) => void
   className?: string
-  retentionTypesByTooth?: Record<number, Array<'Implant' | 'Prep' | 'Pontic'>>
-  showRetentionPopover?: boolean
-  retentionPopoverTooth?: number | null
-  onSelectRetentionType?: (toothNumber: number, type: 'Implant' | 'Prep' | 'Pontic') => void
+  isImplantMode?: boolean
 }
 
 export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
   selectedTeeth,
   onToothClick,
   className = '',
-  retentionTypesByTooth = {},
-  showRetentionPopover = false,
-  retentionPopoverTooth = null,
-  onSelectRetentionType
+  isImplantMode = false
 }) => {
-  const svgRef = React.useRef<SVGSVGElement>(null)
   const isToothSelected = (toothNumber: number) => selectedTeeth.includes(toothNumber)
 
   const handleToothClick = (toothNumber: number) => {
@@ -132,155 +123,30 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
     17: { cx: 602.5, cy: 60.3748 }
   }
 
-  // Calculate popover position in viewport coordinates
-  // Position above the center of all selected teeth
-  const getPopoverPosition = () => {
-    if (!showRetentionPopover) {
-      return { left: 0, top: 0 }
-    }
-
-    // Wait for svgRef to be available
-    if (!svgRef.current) {
-      return { left: 0, top: 0 }
-    }
-
-    const svgRect = svgRef.current.getBoundingClientRect()
-    const svgViewBox = svgRef.current.viewBox.baseVal
-
-    // Check if we have valid dimensions
-    if (!svgViewBox || svgViewBox.width === 0 || svgViewBox.height === 0) {
-      return { left: 0, top: 0 }
-    }
-
-    const scaleX = svgRect.width / svgViewBox.width
-    const scaleY = svgRect.height / svgViewBox.height
-
-    // Use selectedTeeth, and ensure retentionPopoverTooth is included if not already in selectedTeeth
-    let teethToConsider = selectedTeeth.length > 0 ? [...selectedTeeth] : []
-
-    // If retentionPopoverTooth is set and not already in the list, add it
-    // This handles the case when a tooth is clicked but selectedTeeth hasn't updated yet
-    if (retentionPopoverTooth && !teethToConsider.includes(retentionPopoverTooth)) {
-      teethToConsider.push(retentionPopoverTooth)
-    }
-
-    if (teethToConsider.length === 0) return { left: 0, top: 0 }
-
-    // Calculate center position of all selected teeth
-    let totalX = 0
-    let totalY = 0
-    let count = 0
-
-    teethToConsider.forEach(toothNumber => {
-      const toothPos = circlePositions[toothNumber]
-      if (toothPos) {
-        totalX += toothPos.cx
-        totalY += toothPos.cy
-        count++
-      }
-    })
-
-    if (count === 0) return { left: 0, top: 0 }
-
-    const centerX = totalX / count
-    const centerY = totalY / count
-
-    // Convert SVG coordinates to viewport coordinates
-    const viewportX = svgRect.left + (centerX * scaleX)
-    const viewportY = svgRect.top + (centerY * scaleY)
-
-    return {
-      left: viewportX,
-      top: viewportY - 60 // 60px above the center of selected teeth
-    }
-  }
-
-  // SVG Components for each retention type
-  const ImplantIndicator = () => (
-    <svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M11.3584 22.6572C12.3213 26.4281 17.6777 26.4281 18.6406 22.6572L22.3369 8.18164C22.9437 5.80533 21.1488 3.49323 18.6963 3.49316H11.3027C8.85035 3.49343 7.05533 5.80543 7.66211 8.18164L11.3584 22.6572Z" fill="#1162A8" fillOpacity="0.2" stroke="#1162A8" strokeWidth="1.07369"/>
-    </svg>
-  )
-
-  const PrepIndicator = () => (
-    <svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M12.4797 9.15527H17.7229C19.7124 9.15527 21.4417 10.5214 21.9016 12.457L23.8938 20.8457H6.12134L8.32349 12.3701C8.81534 10.4772 10.524 9.15547 12.4797 9.15527Z" fill="#1162A8" fillOpacity="0.2" stroke="#1162A8" strokeWidth="1.07369"/>
-    </svg>
-  )
-
-  const PonticIndicator = () => (
-    <svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M4.72111 15.3455L5.9663 20.9246C9.30315 21.6011 11.3148 22.8177 14.7184 22.7296C17.6986 22.6524 23.6874 20.9246 23.6874 20.9246L24.917 18.4695C25.3972 17.5107 26.0315 14.2464 24.917 12.0243C24.1945 10.5839 23.5353 9.68426 22.0961 9.10854C20.8275 8.60105 18.6242 9.10854 18.6242 9.10854C18.6242 9.10854 16.3872 7.30331 14.7184 7.26717C13.3251 7.237 11.3189 8.41809 11.3189 8.41809C11.3189 8.41809 9.66638 7.75798 8.57034 7.80422C7.18619 7.86262 6.23675 8.08466 5.24314 9.10854C3.87617 10.5172 4.72111 15.3455 4.72111 15.3455Z" fill="#1162A8" fillOpacity="0.2" stroke="#1162A8" strokeWidth="1.07369"/>
-    </svg>
-  )
-
   // Helper function to render the selection indicator
   const renderSelectionIndicator = (toothNumber: number) => {
     const pos = circlePositions[toothNumber]
     if (!pos) return null
 
-    // Get retention types for this tooth
-    const retentionTypes = retentionTypesByTooth[toothNumber] || []
-
-    // If retention types are selected, show them
-    if (retentionTypes.length > 0) {
+    if (isImplantMode) {
+      // Position the implant SVG at the same location as the circle
+      // The implant SVG viewBox is 30x30, and the path center is approximately at (15, 15)
       return (
-        <g>
-          {retentionTypes.map((type, index) => {
-            // Horizontal spacing for multiple indicators
-            const offsetX = (index - (retentionTypes.length - 1) / 2) * 35
-            const centerX = pos.cx + offsetX
-
-            return (
-              <g key={type} transform={`translate(${centerX - 15}, ${pos.cy - 15})`}>
-                {type === 'Implant' && <ImplantIndicator />}
-                {type === 'Prep' && <PrepIndicator />}
-                {type === 'Pontic' && <PonticIndicator />}
-              </g>
-            )
-          })}
+        <g transform={`translate(${pos.cx - 15}, ${pos.cy - 15})`}>
+          <svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M11.3584 22.6572C12.3213 26.4281 17.6777 26.4281 18.6406 22.6572L22.3369 8.18164C22.9437 5.80533 21.1488 3.49323 18.6963 3.49316H11.3027C8.85035 3.49343 7.05533 5.80543 7.66211 8.18164L11.3584 22.6572Z" fill="#1162A8" fillOpacity="0.2" stroke="#1162A8" strokeWidth="1.07369"/>
+          </svg>
         </g>
       )
+    } else {
+      return <circle cx={pos.cx} cy={pos.cy} r="7.08203" fill="#FF9900" fillOpacity="0.2" stroke="#FF9900"/>
     }
-
-    // Default: show orange circle
-    return <circle cx={pos.cx} cy={pos.cy} r="7.08203" fill="#FF9900" fillOpacity="0.2" stroke="#FF9900"/>
   }
 
   return (
-    <>
-      {/* Retention Type Popover - using portal to avoid nesting issues */}
-      {showRetentionPopover && retentionPopoverTooth !== null && onSelectRetentionType && typeof window !== 'undefined' && (() => {
-        const popoverPosition = getPopoverPosition()
-        // Don't render if position calculation failed (returned 0, 0)
-        if (popoverPosition.left === 0 && popoverPosition.top === 0) {
-          return null
-        }
-        // Get the currently selected retention type for this tooth (only first one since only one is allowed)
-        const retentionTypes = retentionTypesByTooth[retentionPopoverTooth] || []
-        const selectedType = retentionTypes.length > 0 ? retentionTypes[0] : null
-        return ReactDOM.createPortal(
-          <div
-            className="fixed z-50"
-            style={{
-              left: `${popoverPosition.left}px`,
-              top: `${popoverPosition.top}px`,
-              transform: 'translateX(-50%)'
-            }}
-          >
-            <RetentionTypePopover
-              onSelectRetentionType={(type) => onSelectRetentionType(retentionPopoverTooth, type)}
-              selectedType={selectedType || undefined}
-            />
-          </div>,
-          document.body
-        )
-      })()
-      }
-
-      <div className={`relative ${className}`}>
-
-    <svg ref={svgRef} width="624" height="163" viewBox="0 0 624 163" fill="none" xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink">
+    <div className={`relative ${className}`}>
+    
+    <svg width="624" height="163" viewBox="0 0 624 163" fill="none" xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink">
 <path d="M19.5998 152.609C19.8053 152.785 19.9689 152.99 20.0905 153.225C20.2122 153.46 20.273 153.773 20.273 154.163C20.273 154.603 20.1849 155.014 20.0088 155.396C19.8368 155.777 19.5705 156.105 19.2098 156.377C18.8575 156.641 18.4422 156.845 17.9641 156.987C17.4902 157.126 16.9135 157.195 16.234 157.195C15.4581 157.195 14.7912 157.134 14.2334 157.013C13.6798 156.891 13.2289 156.755 12.8808 156.604V154.546H13.1261C13.4868 154.765 13.9167 154.953 14.4158 155.113C14.9191 155.272 15.3784 155.352 15.7936 155.352C16.0369 155.352 16.3011 155.333 16.5863 155.295C16.8715 155.253 17.1127 155.165 17.3098 155.031C17.465 154.926 17.5887 154.8 17.681 154.653C17.7733 154.502 17.8194 154.286 17.8194 154.005C17.8194 153.733 17.7565 153.523 17.6307 153.376C17.5048 153.225 17.3392 153.118 17.1337 153.055C16.9281 152.988 16.6807 152.953 16.3913 152.948C16.1019 152.94 15.8335 152.936 15.586 152.936H15.0701V151.262H15.6049C15.932 151.262 16.2214 151.252 16.4731 151.231C16.7247 151.21 16.9386 151.162 17.1148 151.086C17.2993 151.007 17.4377 150.902 17.53 150.772C17.6223 150.637 17.6684 150.442 17.6684 150.187C17.6684 149.998 17.6202 149.847 17.5237 149.734C17.4272 149.616 17.3056 149.524 17.1588 149.457C16.9952 149.381 16.8023 149.331 16.58 149.306C16.3577 149.281 16.1669 149.268 16.0075 149.268C15.6133 149.268 15.1855 149.337 14.7241 149.476C14.2627 149.61 13.8161 149.805 13.3841 150.061H13.1513V148.029C13.4952 147.89 13.9629 147.758 14.5542 147.632C15.1456 147.502 15.7454 147.437 16.3535 147.437C16.9449 147.437 17.4629 147.49 17.9075 147.595C18.3521 147.695 18.719 147.832 19.0084 148.004C19.3524 148.209 19.6082 148.459 19.776 148.752C19.9437 149.046 20.0276 149.39 20.0276 149.784C20.0276 150.304 19.8661 150.77 19.5432 151.181C19.2202 151.587 18.7945 151.847 18.2661 151.961V152.049C18.48 152.078 18.7065 152.137 18.9455 152.225C19.1846 152.313 19.4027 152.441 19.5998 152.609ZM29.4207 157H22.0662V155.452C22.6283 155.046 23.1903 154.614 23.7523 154.156C24.3185 153.699 24.7715 153.305 25.1112 152.974C25.6187 152.483 25.9794 152.055 26.1933 151.69C26.4072 151.325 26.5141 150.965 26.5141 150.608C26.5141 150.18 26.3757 149.851 26.0989 149.62C25.8263 149.386 25.4321 149.268 24.9162 149.268C24.5303 149.268 24.1235 149.348 23.6957 149.507C23.2721 149.667 22.8778 149.87 22.5129 150.117H22.3116V148.035C22.6094 147.905 23.0477 147.775 23.6265 147.645C24.2095 147.515 24.7924 147.45 25.3754 147.45C26.5498 147.45 27.4452 147.697 28.0618 148.192C28.6783 148.683 28.9866 149.379 28.9866 150.281C28.9866 150.872 28.8377 151.434 28.5399 151.967C28.2463 152.5 27.7955 153.049 27.1873 153.615C26.8056 153.968 26.4219 154.293 26.036 154.59C25.6501 154.884 25.3754 155.09 25.2119 155.207H29.4207V157Z" fill="black"/>
 <rect width="43" height="135" fill="url(#pattern0_197_3840)" onClick={() => handleToothClick(32)} style={{ cursor: 'pointer', opacity: isToothSelected(32) ? 0.7 : 1, transition: 'all 0.2s ease' }}/>
 {isToothSelected(32) && (
@@ -575,7 +441,6 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
 
 
 
-      </div>
-    </>
+    </div>
   )
 }

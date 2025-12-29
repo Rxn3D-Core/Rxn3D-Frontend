@@ -1,116 +1,23 @@
 import React from 'react'
-import ReactDOM from 'react-dom'
-import { RetentionTypePopover } from './retention-type-popover'
 
 interface MaxillaryTeethSVGProps {
   selectedTeeth: number[]
   onToothClick?: (toothNumber: number) => void
   className?: string
-  retentionTypesByTooth?: Record<number, Array<'Implant' | 'Prep' | 'Pontic'>>
-  showRetentionPopover?: boolean
-  retentionPopoverTooth?: number | null
-  onSelectRetentionType?: (toothNumber: number, type: 'Implant' | 'Prep' | 'Pontic') => void
+  isImplantMode?: boolean
 }
 
 export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
   selectedTeeth,
   onToothClick,
   className = '',
-  retentionTypesByTooth = {},
-  showRetentionPopover = false,
-  retentionPopoverTooth = null,
-  onSelectRetentionType
+  isImplantMode = false
 }) => {
-  const svgRef = React.useRef<SVGSVGElement>(null)
   const isToothSelected = (toothNumber: number) => selectedTeeth.includes(toothNumber)
 
   const handleToothClick = (toothNumber: number) => {
     if (onToothClick) {
       onToothClick(toothNumber)
-    }
-  }
-
-  // Circle positions for each tooth (cx, cy values from the original circles)
-  // MUST be defined before getPopoverPosition() uses it
-  const circlePositions: Record<number, { cx: number; cy: number }> = {
-    1: { cx: 22, cy: 75.7988 },
-    2:  { cx: 69, cy: 75.7988 },
-    3: { cx: 121, cy: 75.7988 },
-    4: { cx: 166.5, cy: 75.7988 },
-    5: { cx: 203.5, cy: 75.7988 },
-    6: { cx: 242, cy: 75.7988 },
-    7: { cx: 280, cy: 75.7988 },
-    8: { cx: 322.5, cy: 75.7988 },
-    9: { cx: 371.5, cy: 75.7988 },
-    10: { cx: 414, cy: 75.7988 },
-    11: { cx: 452, cy: 75.7988 },
-    12: { cx: 490.5, cy: 75.7988 },
-    13: { cx: 528, cy: 75.7988 },
-    14: { cx: 574, cy: 75.7988 },
-    15: { cx: 626, cy: 75.7988 },
-    16: { cx: 673, cy: 75.7988 },
-  }
-
-  // Calculate popover position in viewport coordinates
-  // Position above the center of all selected teeth
-  const getPopoverPosition = () => {
-    if (!showRetentionPopover) {
-      return { left: 0, top: 0 }
-    }
-
-    // Wait for svgRef to be available
-    if (!svgRef.current) {
-      return { left: 0, top: 0 }
-    }
-
-    const svgRect = svgRef.current.getBoundingClientRect()
-    const svgViewBox = svgRef.current.viewBox.baseVal
-
-    // Check if we have valid dimensions
-    if (!svgViewBox || svgViewBox.width === 0 || svgViewBox.height === 0) {
-      return { left: 0, top: 0 }
-    }
-
-    const scaleX = svgRect.width / svgViewBox.width
-    const scaleY = svgRect.height / svgViewBox.height
-
-    // Use selectedTeeth, and ensure retentionPopoverTooth is included if not already in selectedTeeth
-    let teethToConsider = selectedTeeth.length > 0 ? [...selectedTeeth] : []
-
-    // If retentionPopoverTooth is set and not already in the list, add it
-    // This handles the case when a tooth is clicked but selectedTeeth hasn't updated yet
-    if (retentionPopoverTooth && !teethToConsider.includes(retentionPopoverTooth)) {
-      teethToConsider.push(retentionPopoverTooth)
-    }
-
-    if (teethToConsider.length === 0) return { left: 0, top: 0 }
-
-    // Calculate center position of all selected teeth
-    let totalX = 0
-    let totalY = 0
-    let count = 0
-
-    teethToConsider.forEach(toothNumber => {
-      const toothPos = circlePositions[toothNumber]
-      if (toothPos) {
-        totalX += toothPos.cx
-        totalY += toothPos.cy
-        count++
-      }
-    })
-
-    if (count === 0) return { left: 0, top: 0 }
-
-    const centerX = totalX / count
-    const centerY = totalY / count
-
-    // Convert SVG coordinates to viewport coordinates
-    const viewportX = svgRect.left + (centerX * scaleX)
-    const viewportY = svgRect.top + (centerY * scaleY)
-
-    return {
-      left: viewportX,
-      top: viewportY - 60 // 60px above the center of selected teeth
     }
   }
   // Maxillary teeth mapping: pattern0 = tooth 1, pattern1 = tooth 2, ..., pattern15 = tooth 16
@@ -180,92 +87,49 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
     16: { cx: 22, cy: 159 }
   }
 
-  // SVG Components for each retention type
-  const ImplantIndicator = () => (
-    <svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M11.3584 22.6572C12.3213 26.4281 17.6777 26.4281 18.6406 22.6572L22.3369 8.18164C22.9437 5.80533 21.1488 3.49323 18.6963 3.49316H11.3027C8.85035 3.49343 7.05533 5.80543 7.66211 8.18164L11.3584 22.6572Z" fill="#1162A8" fillOpacity="0.2" stroke="#1162A8" strokeWidth="1.07369"/>
-    </svg>
-  )
-
-  const PrepIndicator = () => (
-    <svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M12.4797 9.15527H17.7229C19.7124 9.15527 21.4417 10.5214 21.9016 12.457L23.8938 20.8457H6.12134L8.32349 12.3701C8.81534 10.4772 10.524 9.15547 12.4797 9.15527Z" fill="#1162A8" fillOpacity="0.2" stroke="#1162A8" strokeWidth="1.07369"/>
-    </svg>
-  )
-
-  const PonticIndicator = () => (
-    <svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M4.72111 15.3455L5.9663 20.9246C9.30315 21.6011 11.3148 22.8177 14.7184 22.7296C17.6986 22.6524 23.6874 20.9246 23.6874 20.9246L24.917 18.4695C25.3972 17.5107 26.0315 14.2464 24.917 12.0243C24.1945 10.5839 23.5353 9.68426 22.0961 9.10854C20.8275 8.60105 18.6242 9.10854 18.6242 9.10854C18.6242 9.10854 16.3872 7.30331 14.7184 7.26717C13.3251 7.237 11.3189 8.41809 11.3189 8.41809C11.3189 8.41809 9.66638 7.75798 8.57034 7.80422C7.18619 7.86262 6.23675 8.08466 5.24314 9.10854C3.87617 10.5172 4.72111 15.3455 4.72111 15.3455Z" fill="#1162A8" fillOpacity="0.2" stroke="#1162A8" strokeWidth="1.07369"/>
-    </svg>
-  )
+  // Circle positions for each tooth (cx, cy values from the original circles)
+  const circlePositions: Record<number, { cx: number; cy: number }> = {
+    1: { cx: 22, cy: 75.7988 },
+    2:  { cx: 69, cy: 75.7988 },
+    3: { cx: 121, cy: 75.7988 },
+    4: { cx: 166.5, cy: 75.7988 },
+    5: { cx: 203.5, cy: 75.7988 },
+    6: { cx: 242, cy: 75.7988 },
+    7: { cx: 280, cy: 75.7988 },
+    8: { cx: 322.5, cy: 75.7988 },
+    9: { cx: 371.5, cy: 75.7988 },
+    10: { cx: 414, cy: 75.7988 },
+    11: { cx: 452, cy: 75.7988 },
+    12: { cx: 490.5, cy: 75.7988 },
+    13: { cx: 528, cy: 75.7988 },
+    14: { cx: 574, cy: 75.7988 },
+    15: { cx: 626, cy: 75.7988 },
+    16: { cx: 673, cy: 75.7988 },
+  }
 
   // Helper function to render the selection indicator
   const renderSelectionIndicator = (toothNumber: number) => {
     const pos = circlePositions[toothNumber]
     if (!pos) return null
 
-    // Get retention types for this tooth
-    const retentionTypes = retentionTypesByTooth[toothNumber] || []
-
-    // If retention types are selected, show them
-    if (retentionTypes.length > 0) {
+    if (isImplantMode) {
+      // Position the implant SVG at the same location as the circle
+      // The implant SVG viewBox is 30x30, and the path center is approximately at (15, 15)
       return (
-        <g>
-          {retentionTypes.map((type, index) => {
-            // Horizontal spacing for multiple indicators
-            const offsetX = (index - (retentionTypes.length - 1) / 2) * 35
-            const centerX = pos.cx + offsetX
-
-            return (
-              <g key={type} transform={`translate(${centerX - 15}, ${pos.cy - 15})`}>
-                {type === 'Implant' && <ImplantIndicator />}
-                {type === 'Prep' && <PrepIndicator />}
-                {type === 'Pontic' && <PonticIndicator />}
-              </g>
-            )
-          })}
+        <g transform={`translate(${pos.cx - 15}, ${pos.cy - 15})`}>
+          <svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M11.3584 22.6572C12.3213 26.4281 17.6777 26.4281 18.6406 22.6572L22.3369 8.18164C22.9437 5.80533 21.1488 3.49323 18.6963 3.49316H11.3027C8.85035 3.49343 7.05533 5.80543 7.66211 8.18164L11.3584 22.6572Z" fill="#1162A8" fillOpacity="0.2" stroke="#1162A8" strokeWidth="1.07369"/>
+          </svg>
         </g>
       )
+    } else {
+      return <circle cx={pos.cx} cy={pos.cy} r="7.08203" fill="#FF9900" fillOpacity="0.2" stroke="#FF9900"/>
     }
-
-    // Default: show orange circle
-    return <circle cx={pos.cx} cy={pos.cy} r="7.08203" fill="#FF9900" fillOpacity="0.2" stroke="#FF9900"/>
   }
 
   return (
-    <>
-      {/* Retention Type Popover - using portal to avoid nesting issues */}
-      {showRetentionPopover && retentionPopoverTooth !== null && onSelectRetentionType && typeof window !== 'undefined' && (() => {
-        const popoverPosition = getPopoverPosition()
-        // Don't render if position calculation failed (returned 0, 0)
-        if (popoverPosition.left === 0 && popoverPosition.top === 0) {
-          return null
-        }
-        // Get the currently selected retention type for this tooth (only first one since only one is allowed)
-        const retentionTypes = retentionTypesByTooth[retentionPopoverTooth] || []
-        const selectedType = retentionTypes.length > 0 ? retentionTypes[0] : null
-        return ReactDOM.createPortal(
-          <div
-            className="fixed z-50"
-            style={{
-              left: `${popoverPosition.left}px`,
-              top: `${popoverPosition.top}px`,
-              transform: 'translateX(-50%)'
-            }}
-          >
-            <RetentionTypePopover
-              onSelectRetentionType={(type) => onSelectRetentionType(retentionPopoverTooth, type)}
-              selectedType={selectedType || undefined}
-            />
-          </div>,
-          document.body
-        )
-      })()
-      }
-
-      <div className={`relative ${className}`}>
-
-      <svg ref={svgRef} width="100%" height="169" viewBox="0 0 695 169" fill="none" xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink">
+    <div className={`relative ${className}`}>
+      <svg width="100%" height="169" viewBox="0 0 695 169" fill="none" xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink">
 {toothMapping.map(({ tooth, x, width, pattern }) => {
   const isSelected = isToothSelected(tooth)
   return (
@@ -560,7 +424,7 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
 <image id="image15_0_1" width="44" height="141" preserveAspectRatio="none" xlinkHref="data:image/png;base64,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"/>
 </defs>
 </svg>
-      </div>
-    </>
+
+    </div>
   )
 }

@@ -530,6 +530,7 @@ export default function FieldsPage() {
         field={editingField}
         isEditing={!!editingField}
         onSave={async (data) => {
+          console.log("Parent onSave called with data:", data, "editingField:", editingField)
           try {
             // Transform modal data to API format
             const fieldTypeMap: Record<string, string> = {
@@ -538,9 +539,9 @@ export default function FieldsPage() {
               'checkbox': 'checkbox',
             }
 
-            // Map options - include id for existing options when editing
+            // Map options - include id for existing options when editing (use originalId for API ID)
             const options = data.options?.map((option, index) => ({
-              ...(editingField && option.id && !isNaN(parseInt(option.id)) ? { id: parseInt(option.id) } : {}),
+              ...(editingField && option.originalId && !isNaN(option.originalId) && option.originalId > 0 ? { id: option.originalId } : {}),
               name: option.label,
               image: option.image || undefined,
               status: option.status ? 'Active' as const : 'Inactive' as const,
@@ -599,6 +600,8 @@ export default function FieldsPage() {
                 id: editingField.id,
                 ...payload,
               })
+              // Refetch fields list to show updated data
+              await refetch()
               toast({
                 title: "Success",
                 description: "Field updated successfully",
@@ -606,6 +609,8 @@ export default function FieldsPage() {
             } else {
               // Create new field
               await createFieldMutation.mutateAsync(payload)
+              // Refetch fields list to show new field
+              await refetch()
               toast({
                 title: "Success",
                 description: "Field created successfully",

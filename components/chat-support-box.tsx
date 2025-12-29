@@ -113,6 +113,7 @@ export function ChatSupportBox() {
     "/case-design-center",
     "/lab-product-library",
     "/global-product-library",
+    "/patient-input",
   ]
 
   // Check if current page should hide chat support

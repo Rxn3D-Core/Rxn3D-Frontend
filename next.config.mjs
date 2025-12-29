@@ -1,4 +1,9 @@
 import withBundleAnalyzer from '@next/bundle-analyzer';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -92,19 +97,28 @@ const nextConfig = {
   },
   // Enable webpack persistent caching
   webpack: (config, { dev, isServer }) => {
-    // Enable persistent caching
-    config.cache = true;
+    // Enable persistent caching with memory-friendly settings
+    config.cache = {
+      type: 'filesystem',
+      buildDependencies: {
+        config: [__filename],
+      },
+      // Reduce memory usage by limiting cache size
+      maxMemoryGenerations: 1,
+    };
     
-    if (!dev && !isServer) {
-      // Enable production optimizations
+    // Apply optimizations for both dev and production
+    if (!isServer) {
+      // In dev mode, use lighter splitting to reduce memory usage
+      const isDevMode = dev;
       config.optimization = {
         ...config.optimization,
-        runtimeChunk: 'single',
+        runtimeChunk: isDevMode ? false : 'single', // Disable in dev to save memory
         splitChunks: {
           chunks: 'all',
-          maxInitialRequests: 25,
-          minSize: 20000,
-          maxSize: 244000, // 244KB max chunk size
+          maxInitialRequests: isDevMode ? 15 : 25, // Fewer chunks in dev
+          minSize: isDevMode ? 10000 : 20000, // Smaller min size in dev
+          maxSize: isDevMode ? 150000 : 244000, // Smaller max size in dev (150KB vs 244KB)
           cacheGroups: {
             // Core React libraries
             react: {
@@ -112,13 +126,15 @@ const nextConfig = {
               name: 'react',
               chunks: 'all',
               priority: 20,
+              enforce: true,
             },
-            // Three.js and 3D libraries
+            // Three.js and 3D libraries - separate chunk to lazy load
             three: {
               test: /[\\/]node_modules[\\/](three|@react-three)[\\/]/,
               name: 'three',
-              chunks: 'all',
+              chunks: 'async', // Only load when needed (async chunks)
               priority: 15,
+              enforce: true,
             },
             // UI component libraries
             ui: {
@@ -141,11 +157,11 @@ const nextConfig = {
               chunks: 'all',
               priority: 10,
             },
-            // Chart and visualization libraries
+            // Chart and visualization libraries - lazy load
             charts: {
               test: /[\\/]node_modules[\\/](recharts|d3)[\\/]/,
               name: 'charts',
-              chunks: 'all',
+              chunks: 'async', // Only load when needed
               priority: 8,
             },
             // Other vendor libraries
@@ -154,15 +170,18 @@ const nextConfig = {
               name: 'vendors',
               chunks: 'all',
               priority: 5,
+              minChunks: 2, // Only split if used in 2+ places
             },
-            // Common components
-            common: {
-              name: 'common',
-              minChunks: 2,
-              chunks: 'all',
-              enforce: true,
-              priority: 1,
-            },
+            // Common components - only in production
+            ...(isDevMode ? {} : {
+              common: {
+                name: 'common',
+                minChunks: 2,
+                chunks: 'all',
+                enforce: true,
+                priority: 1,
+              },
+            }),
           },
         },
       };

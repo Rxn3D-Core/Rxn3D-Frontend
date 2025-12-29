@@ -1,7 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
-import { useDebounce } from "@/lib/performance-utils"
+import React, { useState, useEffect, useMemo, useRef } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
@@ -115,12 +114,9 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
   const customerId = getCustomerId()
 
   // Fetch field data when editing using React Query
-  // Only fetch when modal is open, editing mode, and we have a field ID
-  const shouldFetchField = isOpen && isEditing && field?.id
-  const fieldId = shouldFetchField ? field.id : 0
-  
-  // Debounce field ID to prevent multiple rapid API calls
-  const debouncedFieldId = useDebounce(fieldId, 300)
+  // React Query handles caching and refetching automatically
+  // Only fetch when modal is open, we're editing, and we have a field ID
+  const fieldId = isOpen && isEditing && field?.id ? field.id : 0
   
   const { 
     data: fetchedFieldData, 
@@ -128,12 +124,21 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
     error: fieldError,
     refetch: refetchField
   } = useAdvanceField(
-    debouncedFieldId,
+    fieldId,
     customerId
   )
+  
+  // React Query's enabled option in the hook already handles fieldId > 0 check
+  // The query will automatically not run when fieldId is 0
 
-  // Use fetched field data if available, otherwise use the prop
-  const fieldData: AdvanceField | null = (fetchedFieldData as any)?.data || field || null
+  // Use React Query data when available, otherwise fall back to prop
+  // When editing, only use fetched data to ensure we have complete data (including all options)
+  const fieldData: AdvanceField | null = useMemo(() => {
+    if (isEditing) {
+      return (fetchedFieldData as any)?.data || null
+    }
+    return field || null
+  }, [isEditing, fetchedFieldData, field])
 
   const form = useForm<AddFieldFormValues>({
     resolver: zodResolver(addFieldSchema),
@@ -208,14 +213,12 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
   const categories = Array.isArray(categoriesData?.data) ? categoriesData.data : []
   const subcategories = Array.isArray(subcategoriesData?.data) ? subcategoriesData.data : []
 
-  // Track if we're in the initial load phase for editing
-  const [isInitialLoad, setIsInitialLoad] = useState(false)
-  // Track the last field ID we processed for category/subcategory setting
-  const lastProcessedFieldIdRef = useRef<number>(0)
+  // Track which field ID we've already populated to prevent infinite loops
+  const populatedFieldIdRef = useRef<number | null>(null)
 
-  // Reset subcategory when category changes (but not during initial load for editing)
+  // Reset subcategory when category changes (user interaction, not initial load)
   useEffect(() => {
-    if (selectedCategoryId && !isInitialLoad) {
+    if (selectedCategoryId) {
       const currentSubCategory = form.getValues("subCategory")
       // Only reset if subcategory doesn't belong to the new category
       if (currentSubCategory && subcategories.length > 0) {
@@ -230,91 +233,17 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
         form.setValue("subCategory", "")
       }
     }
-  }, [selectedCategoryId, form, isInitialLoad, subcategories])
+  }, [selectedCategoryId, subcategories])
 
-  // Set category after field data is fetched and categories are loaded (for editing)
-  // Only update dropdowns after data is fully loaded to prevent stale data
+  // Ensure chargeScope always has a default value of "per-case"
   useEffect(() => {
-    // Wait for field data to be fully loaded (not loading) and categories to be available
-    if (isEditing && fieldData && !isLoadingField && categories.length > 0 && debouncedFieldId > 0) {
-      const categoryId = fieldData.advance_category_id?.toString()
-      
-      // Always process if we have the data and haven't set it yet, or if field ID changed
-      const currentCategory = form.getValues("category")
-      const shouldProcess = debouncedFieldId !== lastProcessedFieldIdRef.current || 
-                           (!currentCategory && categoryId)
-      
-      if (categoryId && shouldProcess) {
-        // Check if category exists in the list - must match exactly
-        const categoryExists = categories.find(cat => 
-          cat.id.toString() === categoryId
-        )
-        
-        if (categoryExists) {
-          const currentCategory = form.getValues("category")
-          // Set category if it's empty or different - always set to ensure it's populated
-          if (!currentCategory || categoryId !== currentCategory) {
-            setIsInitialLoad(true)
-            // Use setTimeout to ensure Select component is ready
-            const timer = setTimeout(() => {
-              form.setValue("category", categoryId, { 
-                shouldValidate: true, 
-                shouldDirty: false 
-              })
-              form.trigger("category")
-              lastProcessedFieldIdRef.current = debouncedFieldId
-            }, 50)
-            return () => clearTimeout(timer)
-          } else if (currentCategory === categoryId) {
-            // Category is already set correctly, but ensure initial load flag is set
-            setIsInitialLoad(true)
-            lastProcessedFieldIdRef.current = debouncedFieldId
-          }
-        }
+    if (isOpen) {
+      const currentChargeScope = form.getValues("chargeScope")
+      if (!currentChargeScope || (currentChargeScope !== "per-case" && currentChargeScope !== "per-unit")) {
+        form.setValue("chargeScope", "per-case", { shouldDirty: false })
       }
     }
-  }, [isEditing, fieldData, isLoadingField, categories, form, debouncedFieldId])
-
-  // Set subcategory after field data is fetched, category is selected, and subcategories are loaded (for editing)
-  // Only update after all data is ready to prevent stale data
-  useEffect(() => {
-    // Wait for field data to be fully loaded, category selected, and subcategories available
-    if (isEditing && fieldData && !isLoadingField && selectedCategoryId && subcategories.length > 0 && debouncedFieldId > 0) {
-      const subCategoryId = fieldData.advance_subcategory_id?.toString()
-      
-      if (subCategoryId) {
-        const subCategoryExists = subcategories.some(
-          sub => sub.id.toString() === subCategoryId
-        )
-        if (subCategoryExists) {
-          const currentSubCategory = form.getValues("subCategory")
-          // Set subcategory if it's empty or different
-          if (!currentSubCategory || subCategoryId !== currentSubCategory) {
-            // Use setTimeout to ensure Select component is ready
-            const timer = setTimeout(() => {
-              form.setValue("subCategory", subCategoryId, { 
-                shouldValidate: true, 
-                shouldDirty: false 
-              })
-              form.trigger("subCategory")
-              // Reset initial load flag after subcategory is set
-              setIsInitialLoad(false)
-            }, 100)
-            return () => clearTimeout(timer)
-          } else {
-            setIsInitialLoad(false)
-          }
-        } else {
-          setIsInitialLoad(false)
-        }
-      } else {
-        setIsInitialLoad(false)
-      }
-    } else if (isEditing && fieldData && !isLoadingField && !selectedCategoryId && debouncedFieldId > 0) {
-      // If no category selected, reset flag
-      setIsInitialLoad(false)
-    }
-  }, [isEditing, fieldData, isLoadingField, selectedCategoryId, subcategories, form, debouncedFieldId])
+  }, [isOpen, form])
 
   // Image handling functions
   const handleImageClick = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -351,12 +280,35 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
     if (imagePreview) setShowPreviewModal(true)
   }
 
-  // Reset all fields when modal opens or field ID changes
+  // Populate form when React Query data is ready (single useEffect using React Query state)
   useEffect(() => {
-    if (isOpen) {
-      // Set initial tab based on field type - if field type requires options, show options tab, otherwise show pricing
-      const initialFieldType = isEditing && fieldData ? fieldData.field_type : "dropdown"
-      const fieldTypeMap: Record<string, string> = {
+    if (!isOpen) {
+      // Reset ref when modal closes
+      populatedFieldIdRef.current = null
+      return
+    }
+
+    // Reset UI state when modal opens
+    setIsAddOptionModalOpen(false)
+    setEditingOptionId(null)
+    setIsSaving(false)
+
+    // Handle editing mode - wait for React Query to fetch complete data
+    // Only populate once per field ID to prevent infinite loops
+    // Also wait for categories to be loaded before populating
+    if (isEditing && fieldData && !isLoadingField && fetchedFieldData && fieldId > 0 && categories.length > 0) {
+      // Skip if we've already populated this field (unless categories just loaded)
+      const categoryId = fieldData.advance_category_id?.toString() || ""
+      const currentCategory = form.getValues("category")
+      const needsRepopulation = populatedFieldIdRef.current !== fieldId || 
+                                (categoryId && !currentCategory && categories.length > 0)
+      
+      if (populatedFieldIdRef.current === fieldId && currentCategory) {
+        // Already populated and category is set, skip
+        return
+      }
+      // Map API field types to form field types (handles legacy values)
+      const fieldTypeMap: Record<string, "dropdown" | "radio" | "checkbox" | "number" | "shade_guide" | "text" | "file_upload" | "multiline_text" | "implant_library"> = {
         'select': 'dropdown',
         'dropdown': 'dropdown',
         'radio': 'radio',
@@ -370,124 +322,122 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
         'file_upload': 'file_upload',
         'implant_library': 'implant_library',
       }
-      const mappedFieldType = fieldTypeMap[initialFieldType] || "text"
-      setActiveTab(requiresOptions(mappedFieldType) ? "options" : "pricing")
-      setIsAddOptionModalOpen(false)
-      setEditingOptionId(null)
-      setIsInitialLoad(false)
-      setIsSaving(false) // Reset saving state when modal opens
+      const subCategoryId = fieldData.advance_subcategory_id?.toString() || ""
       
-      // Reset the processed field ID ref when modal opens
-      lastProcessedFieldIdRef.current = 0
+      // Find category in loaded list
+      const categoryExists = categoryId ? categories.find(cat => cat.id.toString() === categoryId) : null
+      const finalCategoryValue = categoryExists ? categoryId : ""
       
-      // Wait for field data to load if editing - only reset after data is fetched (using debounced ID)
-      if (isEditing && fieldData && !isLoadingField && debouncedFieldId > 0) {
-        // Populate form with field data for editing - similar to subcategory modal pattern
-        // Map API field types to form field types (handles legacy values)
-        const fieldTypeMap: Record<string, "dropdown" | "radio" | "checkbox" | "number" | "shade_guide" | "text" | "file_upload" | "multiline_text" | "implant_library"> = {
-          'select': 'dropdown', // Legacy: select → dropdown
-          'dropdown': 'dropdown',
-          'radio': 'radio',
-          'checkbox': 'checkbox',
-          'number': 'number',
-          'shade_guide': 'shade_guide',
-          'text': 'text',
-          'textarea': 'multiline_text', // Legacy: textarea → multiline_text
-          'multiline_text': 'multiline_text',
-          'file': 'file_upload', // Legacy: file → file_upload
-          'file_upload': 'file_upload',
-          'implant_library': 'implant_library',
-        }
-        
-        const categoryId = fieldData.advance_category_id?.toString() || ""
-        const subCategoryId = fieldData.advance_subcategory_id?.toString() || ""
-        
-        // Check if category exists in the loaded categories list
-        const categoryExists = categoryId ? categories.find(cat => cat.id.toString() === categoryId) : null
-        const finalCategoryValue = categoryExists ? categoryId : ""
-        
-        // Reset form with all values - set category if available, otherwise will be set after categories load
-        form.reset({
-          fieldName: fieldData.name || "",
-          category: finalCategoryValue, // Set if category is already loaded, otherwise will be set in useEffect
-          subCategory: "", // Will be set after category is selected and subcategories load
-          fieldType: fieldTypeMap[fieldData.field_type] || "text",
-          requiredField: fieldData.is_required === 'Yes',
-          isSystemDefault: fieldData.is_system_default === 'Yes',
-          description: fieldData.description || "",
-          fieldDetails: true,
-          canAddAdditionalCharges: fieldData.has_additional_pricing === 'Yes',
-          chargeType: fieldData.charge_type === 'per_selected_option' ? 'per-option' as const : 'once' as const,
-          additionalCharge: fieldData.price?.toString() || "0.00",
-          chargeScope: (fieldData.charge_scope || "per-case") as "per-case" | "per-unit",
-        })
-        
-        // If category wasn't set in reset (because categories weren't loaded yet), 
-        // the useEffect will handle it when categories load
-        // Clear any form errors
-        form.clearErrors()
-        
-        // Set initial load flag to prevent subcategory from being cleared
-        if (categoryId) {
-          setIsInitialLoad(true)
-        }
-        
-        // Set image if available
-        if (fieldData.image_url) {
-          setImageBase64(fieldData.image_url)
-          setImagePreview(fieldData.image_url)
-          setInitialImageBase64(fieldData.image_url)
-        } else {
-          setImageBase64(null)
-          setImagePreview(null)
-          setInitialImageBase64(null)
-        }
-        
-        // Map options from API format to modal format
-        if (fieldData.options && fieldData.options.length > 0) {
-          setOptions(fieldData.options.map((opt: any, idx: number) => ({
-            id: opt.id ? String(opt.id) : String(idx + 1), // Use the API ID as string, or generate one
-            originalId: opt.id, // Store original numeric ID for API (only for existing options)
-            image: opt.image_url || null,
-            label: opt.name,
-            isDefault: opt.is_default === 'Yes',
-            status: opt.status === 'Active',
-            price: opt.price?.toString() || "0.00",
-          })))
-        } else {
-          setOptions([])
-        }
+      // Find subcategory in loaded list (only if category is selected)
+      // Wait for subcategories to load if category exists but subcategories aren't loaded yet
+      const subCategoryExists = finalCategoryValue && subCategoryId && subcategories.length > 0
+        ? subcategories.find(sub => sub.id.toString() === subCategoryId)
+        : null
+      const finalSubCategoryValue = subCategoryExists ? subCategoryId : ""
+      
+      console.log("Populating form for editing:", {
+        fieldId,
+        categoryId,
+        subCategoryId,
+        categoryExists: !!categoryExists,
+        finalCategoryValue,
+        subCategoryExists: !!subCategoryExists,
+        finalSubCategoryValue,
+        categoriesLength: categories.length,
+        subcategoriesLength: subcategories.length
+      })
+      
+      // Reset form with field data
+      form.reset({
+        fieldName: fieldData.name || "",
+        category: finalCategoryValue,
+        subCategory: finalSubCategoryValue,
+        fieldType: fieldTypeMap[fieldData.field_type] || "text",
+        requiredField: fieldData.is_required === 'Yes',
+        isSystemDefault: fieldData.is_system_default === 'Yes',
+        description: fieldData.description || "",
+        fieldDetails: true,
+        canAddAdditionalCharges: fieldData.has_additional_pricing === 'Yes',
+        chargeType: fieldData.charge_type === 'per_selected_option' ? 'per-option' as const : 'once' as const,
+        additionalCharge: fieldData.price?.toString() || "0.00",
+        // Map API format (per_case) to form format (per-case), default to per-case
+        chargeScope: (() => {
+          const apiValue = fieldData.charge_scope
+          if (!apiValue) return "per-case"
+          // Convert underscore format to hyphen format
+          if (apiValue === 'per_case') return 'per-case'
+          if (apiValue === 'per_unit') return 'per-unit'
+          // If already in correct format, use it
+          if (apiValue === 'per-case' || apiValue === 'per-unit') return apiValue as "per-case" | "per-unit"
+          // Default fallback
+          return "per-case"
+        })() as "per-case" | "per-unit",
+      })
+      
+      form.clearErrors()
+      
+      // Set image
+      if (fieldData.image_url) {
+        setImageBase64(fieldData.image_url)
+        setImagePreview(fieldData.image_url)
+        setInitialImageBase64(fieldData.image_url)
       } else {
-        // Reset to empty form for new field
-        form.reset({
-          fieldName: "",
-          category: "",
-          subCategory: "",
-          fieldType: "dropdown",
-          requiredField: false,
-          isSystemDefault: false,
-          description: "",
-          fieldDetails: true,
-          canAddAdditionalCharges: false,
-          chargeType: "once",
-          additionalCharge: "0.00",
-          chargeScope: "per-case",
-        })
-        // Clear any form errors
-        form.clearErrors()
-        setOptions([])
         setImageBase64(null)
         setImagePreview(null)
         setInitialImageBase64(null)
-        setIsInitialLoad(false)
       }
+      
+      // Map options from API format
+      if (fieldData.options && fieldData.options.length > 0) {
+        setOptions(fieldData.options.map((opt: any, idx: number) => ({
+          id: opt.id ? String(opt.id) : String(idx + 1),
+          originalId: opt.id,
+          image: opt.image_url || null,
+          label: opt.name,
+          isDefault: opt.is_default === 'Yes',
+          status: opt.status === 'Active',
+          price: opt.price?.toString() || "0.00",
+        })))
+      } else {
+        setOptions([])
+      }
+      
+      // Set initial tab based on field type
+      const mappedFieldType = fieldTypeMap[fieldData.field_type] || "text"
+      setActiveTab(requiresOptions(mappedFieldType) ? "options" : "pricing")
+      
+      // Mark this field as populated
+      populatedFieldIdRef.current = fieldId
+    } else if (!isEditing) {
+      // Reset to empty form for new field
+      form.reset({
+        fieldName: "",
+        category: "",
+        subCategory: "",
+        fieldType: "dropdown",
+        requiredField: false,
+        isSystemDefault: false,
+        description: "",
+        fieldDetails: true,
+        canAddAdditionalCharges: false,
+        chargeType: "once",
+        additionalCharge: "0.00",
+        chargeScope: "per-case",
+      })
+      form.clearErrors()
+      setOptions([])
+      setImageBase64(null)
+      setImagePreview(null)
+      setInitialImageBase64(null)
+      setActiveTab("options")
+      populatedFieldIdRef.current = null
     }
-  }, [isOpen, fieldData, isEditing, form, isLoadingField, debouncedFieldId, categories])
+  }, [isOpen, isEditing, fieldData, isLoadingField, fetchedFieldData, categories, subcategories, fieldId])
 
   if (!isOpen) return null
 
   // Show loading state while fetching field data using React Query
-  if (isEditing && isLoadingField && shouldFetchField) {
+  if (isEditing && isLoadingField && fieldId > 0) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
         <div className="bg-white rounded-lg shadow-lg p-6">
@@ -501,7 +451,7 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
   }
 
   // Show error state if field fetch failed
-  if (isEditing && fieldError && shouldFetchField) {
+  if (isEditing && fieldError && fieldId > 0) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
         <div className="bg-white rounded-lg shadow-lg p-6 max-w-md">
@@ -548,12 +498,9 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
   
   // When editing, if fieldData exists, we might have category/subcategory from the API
   // even if they're not yet set in the form (due to async loading)
-  const hasCategoryFromData = isEditing && fieldData && fieldData.advance_category_id
-  const hasSubCategoryFromData = isEditing && fieldData && fieldData.advance_subcategory_id
-  
-  // Category and subcategory are valid if set in form OR if we have them from fieldData
-  const categoryValid = hasCategory || hasCategoryFromData
-  const subCategoryValid = hasSubCategory || hasSubCategoryFromData
+  // But we should use form values for validation since they're the source of truth
+  const categoryValid = hasCategory
+  const subCategoryValid = hasSubCategory
   
   // Validate additional charges
   const canAddCharges = formValues.canAddAdditionalCharges ?? false
@@ -576,11 +523,34 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
     hasFieldType &&
     additionalChargesValid
 
+  const isLoading = isSaving || createFieldMutation.isPending || updateFieldMutation.isPending
+
+  // Debug: Log form state
+  console.log("Form state:", {
+    isFormValid,
+    hasFieldName,
+    categoryValid,
+    subCategoryValid,
+    hasFieldType,
+    additionalChargesValid,
+    category,
+    subCategory,
+    fieldType,
+    optionsLength: options.length,
+    requiresOptions: fieldType ? requiresOptions(fieldType) : false,
+    buttonDisabled: !isFormValid || (fieldType && requiresOptions(fieldType) && options.length === 0) || isLoading,
+    isEditing,
+    fieldData: fieldData?.id
+  })
+
   const handleSave = async (data: AddFieldFormValues) => {
     // Prevent multiple submissions
     if (isSaving || createFieldMutation.isPending || updateFieldMutation.isPending) {
+      console.log("Save blocked: already saving or pending")
       return
     }
+
+    console.log("handleSave called", { isEditing, fieldData: fieldData?.id, data })
 
     // Validate options - at least one option is required for dropdown, radio, and checkbox
     if (requiresOptions(data.fieldType) && options.length === 0) {
@@ -705,7 +675,7 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
       // Call onSave callback - let the parent handle the mutation to avoid double submission
       if (onSave) {
         const { canAddAdditionalCharges, chargeType, additionalCharge, chargeScope, ...formFields } = data
-        await onSave({
+        const saveData = {
           ...formFields,
           options,
           pricing: {
@@ -715,7 +685,9 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
             chargeScope,
           },
           image: imageBase64 && imageBase64 !== initialImageBase64 ? imageBase64 : undefined,
-        })
+        }
+        console.log("Calling onSave with data:", saveData)
+        await onSave(saveData)
         toast({
           title: "Success",
           description: isEditing ? "Field updated successfully" : "Field created successfully",
@@ -832,8 +804,6 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
       )
     )
   }
-
-  const isLoading = isSaving || createFieldMutation.isPending || updateFieldMutation.isPending
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-2 sm:p-4">
@@ -1441,28 +1411,48 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
                           <FormField
                             control={form.control}
                             name="chargeScope"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel className="text-sm font-medium text-gray-700">
-                                  Charge Scope
-                                </FormLabel>
-                                <Select
-                                  value={field.value}
-                                  onValueChange={field.onChange}
-                                >
+                            render={({ field }) => {
+                              // Always ensure we have a valid value, default to "per-case"
+                              const currentValue = field.value || "per-case"
+                              const hasValue = !!currentValue
+                              
+                              return (
+                                <FormItem>
                                   <FormControl>
-                                    <SelectTrigger className="mt-1">
-                                      <SelectValue placeholder="Per case" />
-                                    </SelectTrigger>
+                                    <div className="relative w-full">
+                                      <div className="relative">
+                                        <Select
+                                          value={currentValue}
+                                          onValueChange={(value) => {
+                                            // Always set a value, default to "per-case" if empty
+                                            field.onChange(value || "per-case")
+                                          }}
+                                        >
+                                          <SelectTrigger 
+                                            className="h-14 rounded-lg border-2 bg-white px-4 pt-6 pb-2 text-base border-[#E0E0E0] focus:border-[#1162A8] focus:ring-2 focus:ring-[#1162A8] focus:ring-opacity-20 focus:shadow-[0_0_0_4px_rgba(17,98,168,0.15)] hover:shadow-[0_0_8px_rgba(17,98,168,0.2)] transition-all duration-200 [&>span]:pt-0"
+                                          >
+                                            <SelectValue placeholder="Per case" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="per-case">Per case</SelectItem>
+                                            <SelectItem value="per-unit">Per unit</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                        {hasValue && (
+                                          <label
+                                            className="absolute top-1 left-4 text-xs font-medium text-gray-500 pointer-events-none transition-all duration-200"
+                                            style={{ fontSize: '11px', lineHeight: '1' }}
+                                          >
+                                            Charge Scope
+                                          </label>
+                                        )}
+                                      </div>
+                                    </div>
                                   </FormControl>
-                                  <SelectContent>
-                                    <SelectItem value="per-case">Per case</SelectItem>
-                                    <SelectItem value="per-unit">Per unit</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                                <FormMessage />
-                              </FormItem>
-                            )}
+                                  <FormMessage />
+                                </FormItem>
+                              )
+                            }}
                           />
                         </div>
                       )}
@@ -1500,7 +1490,25 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
               </Button>
               <Button
                 type="submit"
-                disabled={!isFormValid || (requiresOptions(formValues.fieldType) && options.length === 0) || isLoading}
+                disabled={!isFormValid || (formValues.fieldType && requiresOptions(formValues.fieldType) && options.length === 0) || isLoading}
+                onClick={(e) => {
+                  const currentFormValues = form.getValues()
+                  console.log("Save button clicked", {
+                    isFormValid,
+                    currentFormValues,
+                    formValues,
+                    optionsLength: options.length,
+                    disabled: !isFormValid || (formValues.fieldType && requiresOptions(formValues.fieldType) && options.length === 0) || isLoading,
+                    validationDetails: {
+                      hasFieldName: !!currentFormValues.fieldName?.trim(),
+                      hasCategory: !!currentFormValues.category,
+                      hasSubCategory: !!currentFormValues.subCategory,
+                      hasFieldType: !!currentFormValues.fieldType,
+                    }
+                  })
+                  // Don't prevent default - let form.handleSubmit handle it
+                  // This is just for debugging
+                }}
                 className="px-4 sm:px-6 bg-[#1162a8] hover:bg-[#0f5497] text-white text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
               >
                 {(isSaving || createFieldMutation.isPending || updateFieldMutation.isPending) ? (

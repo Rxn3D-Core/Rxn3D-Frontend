@@ -40,8 +40,6 @@ export default function RetentionOptionPage() {
   const { user } = useAuth()
   const { t } = useTranslation()
 
-  const isLabAdmin = user?.role === "lab_admin"
-
   const getCustomerId = () => {
     if (typeof window === "undefined") return null
     const storedCustomerId = localStorage.getItem("customerId")
@@ -65,15 +63,14 @@ export default function RetentionOptionPage() {
     try {
       const customerId = getCustomerId()
       
-      // Only pass customer_id if user is lab_admin
       const response = await getRetentionOptions({
         q: searchTerm || undefined,
         per_page: Number(entriesPerPage),
         page: currentPage,
         order_by: sortField,
         sort_by: sortDirection,
-        // Pass customer_id only for lab_admin role
-        ...(isLabAdmin && customerId ? { customer_id: customerId } : {}),
+        // Pass customer_id when available
+        ...(customerId ? { customer_id: customerId } : {}),
       })
 
       if (response.status && response.data) {

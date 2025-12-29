@@ -1,7 +1,8 @@
 "use client"
 
-import React, { useState, useEffect, useRef, useMemo } from "react"
+import React, { useState, useEffect, useRef, useMemo, Suspense } from "react"
 import { useRouter } from "next/navigation"
+import dynamic from "next/dynamic"
 import { useQuery } from "@tanstack/react-query"
 import { useDebounce } from "@/lib/performance-utils"
 import { Search, Pencil, Eye, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Loader2, Trash2, Plus, Paperclip, Zap, Maximize2 } from "lucide-react"
@@ -13,10 +14,6 @@ import { CustomerLogo } from "@/components/customer-logo"
 import { useProductCategory, type ProductCategory } from "@/contexts/product-category-context"
 import { useSlipCreation } from "@/contexts/slip-creation-context"
 import { SlipCreationHeader } from "@/components/slip-creation-header"
-import InteractiveDentalChart3D from "@/components/interactive-dental-chart-3D"
-import { MandibularTeethSVG } from "@/components/mandibular-teeth-svg"
-import { MaxillaryTeethSVG } from "@/components/maxillary-teeth-svg"
-import { ToothShadeSelectionSVG } from "@/components/tooth-shade-selection-svg"
 import { MissingTeethCards } from "@/components/missing-teeth-cards"
 import {
   Select,
@@ -35,192 +32,102 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
-import AddOnsModal from "@/components/add-ons-modal"
-import RushRequestModal from "@/components/rush-request-modal"
-import FileAttachmentModalContent from "@/components/file-attachment-modal-content"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { clearSlipCreationStorage } from "@/utils/slip-creation-storage"
-import CancelSlipCreationModal from "@/components/cancel-slip-creation-modal"
-import PrintPreviewModal from "@/components/print-preview-modal"
-import { ImpressionSelectionModal } from "@/components/impression-selection-modal"
 import { DynamicProductFields } from "@/components/case-design-center/dynamic-product-fields"
-import { ToothShadeSelectionModal } from "@/components/tooth-shade-selection-modal"
 import { ImplantPartsPopover } from "@/components/implant-parts-popover"
+import { FooterSection } from "./sections/footer-section"
+import type { ProductCategoryApi, Doctor, Lab, PatientData, Product, SavedProduct } from "./sections/types"
 
-// Type for categories from allCategories API
-type ProductCategoryApi = {
-  id: number
-  name: string
-  code?: string
-  type?: string
-  sequence?: number
-  status?: string
-  customer_id?: number | null
-  image_url?: string
-}
-
-interface Doctor {
-  id: number
-  first_name: string
-  last_name: string
-  email: string
-  image?: string
-}
-
-interface Lab {
-  id: number
-  name: string
-  customer_id?: number
-  logo?: string
-}
-
-interface PatientData {
-  name: string
-  gender: string
-}
-
-interface Product {
-  id: number
-  name: string
-  image_url?: string
-  price?: number
-  estimated_days?: number
-}
-
-interface SavedProduct {
-  id: string // Unique ID for this saved product
-  product: Product
-  productDetails: any | null // Full product details from API including extractions
-  category: string
-  categoryId: number
-  subcategory: string
-  subcategoryId: number
-  maxillaryTeeth: number[]
-  mandibularTeeth: number[]
-  maxillaryMaterial: string
-  maxillaryStumpShade: string
-  maxillaryRetention: string
-  maxillaryNotes: string
-  mandibularMaterial: string
-  mandibularRetention: string
-  mandibularImplantDetails: string
-  createdAt: number // Timestamp
-  addedFrom: "maxillary" | "mandibular" // Track which side the product was added from
-  // Optional fields for case notes generation
-  maxillaryStage?: string
-  maxillaryToothShade?: string
-  maxillaryPonticDesign?: string
-  maxillaryEmbrasure?: string
-  maxillaryOcclusalContact?: string
-  maxillaryProximalContact?: string
-  maxillaryImpression?: string
-  maxillaryAddOns?: string[]
-  maxillaryContourPonticType?: string
-  // Maxillary implant fields
-  maxillaryImplantBrand?: string
-  maxillaryImplantPlatform?: string
-  maxillaryImplantSize?: string
-  maxillaryImplantInclusions?: string
-  maxillaryAbutmentDetail?: string
-  maxillaryAbutmentType?: string
-  mandibularStage?: string
-  mandibularToothShade?: string
-  mandibularPonticDesign?: string
-  mandibularEmbrasure?: string
-  mandibularOcclusalContact?: string
-  mandibularProximalContact?: string
-  mandibularImpression?: string
-  mandibularAddOns?: string[]
-  mandibularContourPonticType?: string
-  // Mandibular implant fields
-  mandibularImplantBrand?: string
-  mandibularImplantPlatform?: string
-  mandibularImplantSize?: string
-  mandibularImplantInclusions?: string
-  mandibularAbutmentDetail?: string
-  mandibularAbutmentType?: string
-  // API integration fields
-  // Rush request data
-  rushData?: {
-    targetDate: string
-    daysSaved?: number
-    rushPercentage?: number
-    rushFee?: number
-    totalPrice?: number
+const SavedProductsSection = dynamic(
+  () => import("./sections/saved-products-section").then((mod) => ({ default: mod.SavedProductsSection })),
+  {
+    ssr: false,
+    loading: () => null
   }
-  // Addons (structured format for API)
-  maxillaryAddOnsStructured?: Array<{
-    addon_id: number
-    qty: number
-    quantity?: number
-    category?: string
-    subcategory?: string
-    name?: string
-    price?: number
-  }>
-  mandibularAddOnsStructured?: Array<{
-    addon_id: number
-    qty: number
-    quantity?: number
-    category?: string
-    subcategory?: string
-    name?: string
-    price?: number
-  }>
-  // Impressions
-  impressions?: Array<{
-    impression_id: number
-    quantity: number
-    notes?: string
-  }>
-  // Extractions
-  extractions?: Array<{
-    extraction_id: number
-    teeth_numbers: number[]
-    notes?: string
-  }>
-  // Advance fields
-  advanceFields?: Array<{
-    teeth_number?: number | null
-    advance_field_id: number
-    advance_field_value?: string | null
-    file?: File
-  }>
-  // Slip-level notes
-  slipNotes?: Array<{
-    note: string
-  }>
-  // ID fields for API mapping
-  maxillaryShadeBrand?: number
-  maxillaryShadeId?: number
-  maxillaryGumShadeBrand?: number
-  maxillaryGumShadeId?: number
-  maxillaryRetentionId?: number
-  maxillaryRetentionOptionId?: number
-  maxillaryMaterialId?: number
-  maxillaryStageId?: number
-  maxillaryGradeId?: number
-  mandibularShadeBrand?: number
-  mandibularShadeId?: number
-  mandibularGumShadeBrand?: number
-  mandibularGumShadeId?: number
-  mandibularRetentionId?: number
-  mandibularRetentionOptionId?: number
-  mandibularMaterialId?: number
-  mandibularStageId?: number
-  mandibularGradeId?: number
-  // Impression selections with quantities
-  maxillaryImpressions?: Array<{
-    impression_id: number
-    quantity: number
-    name?: string
-  }>
-  mandibularImpressions?: Array<{
-    impression_id: number
-    quantity: number
-    name?: string
-  }>
-}
+)
+
+// Dynamic imports for heavy components - loaded only when needed
+const MandibularTeethSVG = dynamic(
+  () => import("@/components/mandibular-teeth-svg").then((mod) => ({ default: mod.MandibularTeethSVG })),
+  { 
+    ssr: false,
+    loading: () => <div className="flex items-center justify-center h-64"><Loader2 className="animate-spin" /></div>
+  }
+)
+
+const MaxillaryTeethSVG = dynamic(
+  () => import("@/components/maxillary-teeth-svg").then((mod) => ({ default: mod.MaxillaryTeethSVG })),
+  { 
+    ssr: false,
+    loading: () => <div className="flex items-center justify-center h-64"><Loader2 className="animate-spin" /></div>
+  }
+)
+
+const ToothShadeSelectionSVG = dynamic(
+  () => import("@/components/tooth-shade-selection-svg").then((mod) => ({ default: mod.ToothShadeSelectionSVG })),
+  { 
+    ssr: false,
+    loading: () => <div className="flex items-center justify-center h-64"><Loader2 className="animate-spin" /></div>
+  }
+)
+
+const AddOnsModal = dynamic(
+  () => import("@/components/add-ons-modal"),
+  { 
+    ssr: false,
+    loading: () => null
+  }
+)
+
+const RushRequestModal = dynamic(
+  () => import("@/components/rush-request-modal"),
+  { 
+    ssr: false,
+    loading: () => null
+  }
+)
+
+const PrintPreviewModal = dynamic(
+  () => import("@/components/print-preview-modal"),
+  { 
+    ssr: false,
+    loading: () => null
+  }
+)
+
+const CancelSlipCreationModal = dynamic(
+  () => import("@/components/cancel-slip-creation-modal"),
+  { 
+    ssr: false,
+    loading: () => null
+  }
+)
+
+const ImpressionSelectionModal = dynamic(
+  () => import("@/components/impression-selection-modal").then((mod) => ({ default: mod.ImpressionSelectionModal })),
+  { 
+    ssr: false,
+    loading: () => null
+  }
+)
+
+const ToothShadeSelectionModal = dynamic(
+  () => import("@/components/tooth-shade-selection-modal").then((mod) => ({ default: mod.ToothShadeSelectionModal })),
+  { 
+    ssr: false,
+    loading: () => null
+  }
+)
+
+const FileAttachmentModalContent = dynamic(
+  () => import("@/components/file-attachment-modal-content"),
+  { 
+    ssr: false,
+    loading: () => <div className="flex items-center justify-center h-64"><Loader2 className="animate-spin" /></div>
+  }
+)
+
 
 // Helper component for Stage field with auto-open functionality
 function StageFieldComponent({
@@ -384,6 +291,16 @@ export default function CaseDesignCenterPage() {
   // Dental chart states
   const [maxillaryTeeth, setMaxillaryTeeth] = useState<number[]>([])
   const [mandibularTeeth, setMandibularTeeth] = useState<number[]>([])
+
+  // Retention type state - tracks which retention types are selected for each tooth
+  const [maxillaryRetentionTypes, setMaxillaryRetentionTypes] = useState<Record<number, Array<'Implant' | 'Prep' | 'Pontic'>>>({})
+  const [mandibularRetentionTypes, setMandibularRetentionTypes] = useState<Record<number, Array<'Implant' | 'Prep' | 'Pontic'>>>({})
+
+  // Retention popover state
+  const [retentionPopoverState, setRetentionPopoverState] = useState<{
+    arch: 'maxillary' | 'mandibular' | null
+    toothNumber: number | null
+  }>({ arch: null, toothNumber: null })
 
   // Form states for MAXILLARY
   const [maxillaryMaterial, setMaxillaryMaterial] = useState<string>("")
@@ -1098,6 +1015,7 @@ export default function CaseDesignCenterPage() {
   // Scroll refs and state for horizontal scrolling
   const subcategoriesScrollRef = useRef<HTMLDivElement>(null)
   const productsScrollRef = useRef<HTMLDivElement>(null)
+  const toothSelectionRef = useRef<HTMLDivElement>(null)
   const [showSubcategoriesLeftArrow, setShowSubcategoriesLeftArrow] = useState(false)
   const [showSubcategoriesRightArrow, setShowSubcategoriesRightArrow] = useState(false)
   const [showProductsLeftArrow, setShowProductsLeftArrow] = useState(false)
@@ -1557,6 +1475,20 @@ export default function CaseDesignCenterPage() {
       setProductSearchQuery("")
     }
   }, [showSubcategories, showProducts, showProductDetails])
+
+  // Scroll to bottom when tooth selection is shown
+  useEffect(() => {
+    if (showProductDetails && selectedProduct) {
+      // Use setTimeout to ensure the DOM has rendered
+      setTimeout(() => {
+        // Scroll to the bottom of the page to show the tooth selection
+        window.scrollTo({ 
+          top: document.documentElement.scrollHeight, 
+          behavior: 'smooth' 
+        })
+      }, 100)
+    }
+  }, [showProductDetails, selectedProduct])
 
   // Scroll handlers
   const scrollSubcategories = (direction: 'left' | 'right') => {
@@ -3628,80 +3560,119 @@ export default function CaseDesignCenterPage() {
     }
   }
 
+  // Handler for retention type selection - only one type can be selected at a time
+  const handleSelectRetentionType = (arch: 'maxillary' | 'mandibular', toothNumber: number, type: 'Implant' | 'Prep' | 'Pontic') => {
+    if (arch === 'maxillary') {
+      setMaxillaryRetentionTypes(prev => {
+        const current = prev[toothNumber] || []
+        // If clicking the same type, deselect it; otherwise, replace with the new selection
+        const updated = current.includes(type) && current.length === 1 && current[0] === type
+          ? [] // Deselect if already selected
+          : [type] // Replace with new selection (only one allowed)
+        return { ...prev, [toothNumber]: updated }
+      })
+    } else {
+      setMandibularRetentionTypes(prev => {
+        const current = prev[toothNumber] || []
+        // If clicking the same type, deselect it; otherwise, replace with the new selection
+        const updated = current.includes(type) && current.length === 1 && current[0] === type
+          ? [] // Deselect if already selected
+          : [type] // Replace with new selection (only one allowed)
+        return { ...prev, [toothNumber]: updated }
+      })
+    }
+    // Close popover after selection
+    setRetentionPopoverState({ arch: null, toothNumber: null })
+  }
+
   const handleMaxillaryToothToggle = (toothNumber: number) => {
+    const isAlreadySelected = maxillaryTeeth.includes(toothNumber)
+    const isAdding = !isAlreadySelected
+
+    // For Fixed Restoration: clicking an already selected tooth shows the popover without deselecting
+    if (isFixedRestoration && isAlreadySelected) {
+      setRetentionPopoverState({ arch: 'maxillary', toothNumber })
+      return
+    }
+
+    // Update teeth selection
     setMaxillaryTeeth(prev => {
-      const isAdding = !prev.includes(toothNumber)
       const newTeeth = isAdding
         ? [...prev, toothNumber]
         : prev.filter(t => t !== toothNumber)
-      
-      // If adding a tooth and conditions are met, show the implant popover
-      if (isAdding && shouldShowImplantPopover) {
-        setImplantPopoverState({ arch: 'maxillary', toothNumber })
-      } else {
-        // Close popover if deselecting or conditions not met
-        setImplantPopoverState({ arch: null, toothNumber: null })
-      }
-      
-      // If adding a tooth, automatically open the accordion (don't close if already open)
-      if (isAdding) {
-        // If we're in tooth selection mode with a selected product, open the card accordion
-        if (selectedProduct && showProductDetails) {
-          setOpenAccordion("maxillary-card")
-        } else {
-          // Find the most recent saved product with maxillary teeth
-          const maxillaryProducts = savedProducts.filter(p => p.maxillaryTeeth.length > 0)
-          if (maxillaryProducts.length > 0) {
-            // Open the most recent saved product accordion
-            const mostRecentProduct = maxillaryProducts[maxillaryProducts.length - 1]
-            setOpenAccordion(mostRecentProduct.id)
-          } else {
-            // No saved products, open the card accordion
-            setOpenAccordion("maxillary-card")
-          }
-        }
-      }
-      
+
       return newTeeth
     })
+
+    // Handle popovers and accordions AFTER state update is queued
+    if (isAdding && isFixedRestoration) {
+      setRetentionPopoverState({ arch: 'maxillary', toothNumber })
+    } else if (isAdding && shouldShowImplantPopover) {
+      setImplantPopoverState({ arch: 'maxillary', toothNumber })
+    } else if (!isAdding) {
+      setRetentionPopoverState({ arch: null, toothNumber: null })
+      setImplantPopoverState({ arch: null, toothNumber: null })
+    }
+
+    // If adding a tooth, automatically open the accordion
+    if (isAdding) {
+      if (selectedProduct && showProductDetails) {
+        setOpenAccordion("maxillary-card")
+      } else {
+        const maxillaryProducts = savedProducts.filter(p => p.maxillaryTeeth.length > 0)
+        if (maxillaryProducts.length > 0) {
+          const mostRecentProduct = maxillaryProducts[maxillaryProducts.length - 1]
+          setOpenAccordion(mostRecentProduct.id)
+        } else {
+          setOpenAccordion("maxillary-card")
+        }
+      }
+    }
   }
 
   const handleMandibularToothToggle = (toothNumber: number) => {
+    const isAlreadySelected = mandibularTeeth.includes(toothNumber)
+    const isAdding = !isAlreadySelected
+
+    // For Fixed Restoration: clicking an already selected tooth shows the popover without deselecting
+    if (isFixedRestoration && isAlreadySelected) {
+      setRetentionPopoverState({ arch: 'mandibular', toothNumber })
+      return
+    }
+
+    // Update teeth selection
     setMandibularTeeth(prev => {
-      const isAdding = !prev.includes(toothNumber)
       const newTeeth = isAdding
         ? [...prev, toothNumber]
         : prev.filter(t => t !== toothNumber)
-      
-      // If adding a tooth and conditions are met, show the implant popover
-      if (isAdding && shouldShowImplantPopover) {
-        setImplantPopoverState({ arch: 'mandibular', toothNumber })
-      } else {
-        // Close popover if deselecting or conditions not met
-        setImplantPopoverState({ arch: null, toothNumber: null })
-      }
-      
-      // If adding a tooth, automatically open the accordion (don't close if already open)
-      if (isAdding) {
-        // If we're in tooth selection mode with a selected product, open the card accordion
-        if (selectedProduct && showProductDetails) {
-          setOpenAccordion("mandibular-card")
-        } else {
-          // Find the most recent saved product with mandibular teeth
-          const mandibularProducts = savedProducts.filter(p => p.mandibularTeeth.length > 0)
-          if (mandibularProducts.length > 0) {
-            // Open the most recent saved product accordion
-            const mostRecentProduct = mandibularProducts[mandibularProducts.length - 1]
-            setOpenAccordion(mostRecentProduct.id)
-          } else {
-            // No saved products, open the card accordion
-            setOpenAccordion("mandibular-card")
-          }
-        }
-      }
-      
+
       return newTeeth
     })
+
+    // Handle popovers and accordions AFTER state update is queued
+    if (isAdding && isFixedRestoration) {
+      setRetentionPopoverState({ arch: 'mandibular', toothNumber })
+    } else if (isAdding && shouldShowImplantPopover) {
+      setImplantPopoverState({ arch: 'mandibular', toothNumber })
+    } else if (!isAdding) {
+      setRetentionPopoverState({ arch: null, toothNumber: null })
+      setImplantPopoverState({ arch: null, toothNumber: null })
+    }
+
+    // If adding a tooth, automatically open the accordion
+    if (isAdding) {
+      if (selectedProduct && showProductDetails) {
+        setOpenAccordion("mandibular-card")
+      } else {
+        const mandibularProducts = savedProducts.filter(p => p.mandibularTeeth.length > 0)
+        if (mandibularProducts.length > 0) {
+          const mostRecentProduct = mandibularProducts[mandibularProducts.length - 1]
+          setOpenAccordion(mostRecentProduct.id)
+        } else {
+          setOpenAccordion("mandibular-card")
+        }
+      }
+    }
   }
 
   // Get subcategory image helper
@@ -4398,7 +4369,7 @@ export default function CaseDesignCenterPage() {
 
             {/* Product Details Split View - Show when product is selected */}
             {showProductDetails && selectedProduct && (
-              <div className="w-full max-w-[1400px] mx-auto">
+              <div ref={toothSelectionRef} className="w-full max-w-[1400px] mx-auto">
                 {/* Tooth Shade Selection - Shows in the middle when active */}
                 {currentShadeField && (
                   <div className="w-full mb-8">
@@ -4520,7 +4491,10 @@ export default function CaseDesignCenterPage() {
                           selectedTeeth={maxillaryTeeth}
                           onToothClick={handleMaxillaryToothToggle}
                           className="max-w-full"
-                          isImplantMode={shouldShowImplantPopover}
+                          retentionTypesByTooth={maxillaryRetentionTypes}
+                          showRetentionPopover={retentionPopoverState.arch === 'maxillary'}
+                          retentionPopoverTooth={retentionPopoverState.toothNumber}
+                          onSelectRetentionType={(tooth, type) => handleSelectRetentionType('maxillary', tooth, type)}
                         />
                       )}
                     </div>
@@ -6931,67 +6905,6 @@ export default function CaseDesignCenterPage() {
                                           </div>
                                         )}
 
-                                        {/* Selected Teeth Display (always visible for reference) */}
-                                        <div
-                                          className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                          style={{
-                                            display: 'flex',
-                                            flexDirection: 'row',
-                                            alignItems: 'flex-start',
-                                            padding: '0px',
-                                            gap: '20px',
-                                            flex: 'none',
-                                            order: 99,
-                                            alignSelf: 'stretch',
-                                            flexGrow: 0
-                                          }}
-                                        >
-                                          <div className="relative flex-1 min-w-[250px] max-w-[100%]" style={{ minHeight: '43px' }}>
-                                            <div
-                                              className="flex items-center"
-                                              style={{
-                                                padding: '12px 15px 5px 15px',
-                                                gap: '5px',
-                                                width: '100%',
-                                                height: '37px',
-                                                background: '#FFFFFF',
-                                                border: '0.740384px solid #7F7F7F',
-                                                borderRadius: '7.7px',
-                                                boxSizing: 'border-box',
-                                                position: 'relative',
-                                                marginTop: '5.27px'
-                                              }}
-                                            >
-                                              <span style={{
-                                                fontFamily: 'Verdana',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14.4px',
-                                                lineHeight: '20px',
-                                                letterSpacing: '-0.02em',
-                                                color: '#000000'
-                                              }}>{displayTeeth}</span>
-                                            </div>
-                                            <label
-                                              className="absolute bg-white"
-                                              style={{
-                                                padding: '0px',
-                                                height: '14px',
-                                                left: '8.9px',
-                                                top: '0px',
-                                                fontFamily: 'Arial',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14px',
-                                                lineHeight: '14px',
-                                                color: '#7F7F7F'
-                                              }}
-                                            >
-                                              Selected Teeth
-                                            </label>
-                                          </div>
-                                        </div>
-
                                         {/* Notes if available */}
                                         {savedProduct.maxillaryNotes && (
                                         <div
@@ -7187,70 +7100,6 @@ export default function CaseDesignCenterPage() {
                                         </div>
                                         )}
 
-                                        {/* Row 3: Teeth Selection Display - Only show if advance fields should be displayed */}
-                                        {(showAdvanceFields[savedProduct.id] || (savedProduct.maxillaryMaterial && savedProduct.maxillaryRetention)) && (
-                                        <div
-                                          className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                          style={{
-                                            display: 'flex',
-                                            flexDirection: 'row',
-                                            alignItems: 'flex-start',
-                                            padding: '0px',
-                                            gap: '20px',
-                                            flex: 'none',
-                                            order: 2,
-                                            alignSelf: 'stretch',
-                                            flexGrow: 0
-                                          }}
-                                        >
-                                          {/* Teeth Selection */}
-                                          <div className="relative flex-1 min-w-[250px] max-w-[100%]" style={{ minHeight: '43px' }}>
-                                            <div
-                                              className="flex items-center"
-                                              style={{
-                                                padding: '12px 15px 5px 15px',
-                                                gap: '5px',
-                                                width: '100%',
-                                                height: '37px',
-                                                background: '#FFFFFF',
-                                                border: '0.740384px solid #7F7F7F',
-                                                borderRadius: '7.7px',
-                                                boxSizing: 'border-box',
-                                                position: 'relative',
-                                                marginTop: '5.27px'
-                                              }}
-                                            >
-                                              <span style={{
-                                                fontFamily: 'Verdana',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14.4px',
-                                                lineHeight: '20px',
-                                                letterSpacing: '-0.02em',
-                                                color: '#000000'
-                                              }}>{displayTeeth}</span>
-                                            </div>
-                                            <label
-                                              className="absolute bg-white"
-                                              style={{
-                                                padding: '0px',
-                                                height: '14px',
-                                                left: '8.9px',
-                                                top: '0px',
-                                                fontFamily: 'Arial',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14px',
-                                                lineHeight: '14px',
-                                                color: '#7F7F7F'
-                                              }}
-                                            >
-                                              Selected Teeth
-                                            </label>
-                                          </div>
-                                        </div>
-                                        )}
-
                                         {/* Notes if available */}
                                         {savedProduct.maxillaryNotes && (
                                           <div
@@ -7439,7 +7288,7 @@ export default function CaseDesignCenterPage() {
                                               color: '#000000'
                                             }}
                                           >
-                                            Add ons ({getProductAddOnsCount(savedProduct)} selected)
+                                            Add ons ({getTotalAddOnsCount} selected)
                                           </span>
                                         </button>
                                         <button
@@ -7639,7 +7488,10 @@ export default function CaseDesignCenterPage() {
                           selectedTeeth={mandibularTeeth}
                           onToothClick={handleMandibularToothToggle}
                           className="max-w-full"
-                          isImplantMode={shouldShowImplantPopover}
+                          retentionTypesByTooth={mandibularRetentionTypes}
+                          showRetentionPopover={retentionPopoverState.arch === 'mandibular'}
+                          retentionPopoverTooth={retentionPopoverState.toothNumber}
+                          onSelectRetentionType={(tooth, type) => handleSelectRetentionType('mandibular', tooth, type)}
                         />
                       )}
                     </div>
@@ -9887,67 +9739,6 @@ export default function CaseDesignCenterPage() {
                                           </div>
                                         )}
 
-                                        {/* Selected Teeth Display (always visible for reference) */}
-                                        <div
-                                          className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                          style={{
-                                            display: 'flex',
-                                            flexDirection: 'row',
-                                            alignItems: 'flex-start',
-                                            padding: '0px',
-                                            gap: '20px',
-                                            flex: 'none',
-                                            order: 99,
-                                            alignSelf: 'stretch',
-                                            flexGrow: 0
-                                          }}
-                                        >
-                                          <div className="relative flex-1 min-w-[250px] max-w-[100%]" style={{ minHeight: '43px' }}>
-                                            <div
-                                              className="flex items-center"
-                                              style={{
-                                                padding: '12px 15px 5px 15px',
-                                                gap: '5px',
-                                                width: '100%',
-                                                height: '37px',
-                                                background: '#FFFFFF',
-                                                border: '0.740384px solid #7F7F7F',
-                                                borderRadius: '7.7px',
-                                                boxSizing: 'border-box',
-                                                position: 'relative',
-                                                marginTop: '5.27px'
-                                              }}
-                                            >
-                                              <span style={{
-                                                fontFamily: 'Verdana',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14.4px',
-                                                lineHeight: '20px',
-                                                letterSpacing: '-0.02em',
-                                                color: '#000000'
-                                              }}>{displayTeeth}</span>
-                                            </div>
-                                            <label
-                                              className="absolute bg-white"
-                                              style={{
-                                                padding: '0px',
-                                                height: '14px',
-                                                left: '8.9px',
-                                                top: '0px',
-                                                fontFamily: 'Arial',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14px',
-                                                lineHeight: '14px',
-                                                color: '#7F7F7F'
-                                              }}
-                                            >
-                                              Selected Teeth
-                                            </label>
-                                          </div>
-                                        </div>
-
                                         {/* Implant Details if available */}
                                         {savedProduct.mandibularImplantDetails && (
                                           <div
@@ -10220,1704 +10011,46 @@ export default function CaseDesignCenterPage() {
             </div>
           )}
 
-          {/* Saved Products Section - Separate division with 2 columns */}
-          {savedProducts.length > 0 && selectedCategory && !showProductDetails && (
-            <div className="w-full flex mt-4 mb-8">
-              <div
-              >
-                {/* Two Column Layout for Saved Products */}
-                <div className="w-full flex gap-4 items-start">
-                  {/* Maxillary Products - Left Column */}
-                  <div className="flex-1 flex flex-col">
-                    {/* Maxillary Accordion Header */}
-
-
-                    <div className="space-y-1 flex flex-col items-center">
-                      {savedProducts.filter(p => p.addedFrom === "maxillary").length > 0 ? (
-                        savedProducts
-                          .filter(p => p.addedFrom === "maxillary")
-                          .map((savedProduct) => {
-                            const isMaxillary = true // All products in this section are maxillary
-                            const teeth = savedProduct.maxillaryTeeth.sort((a, b) => a - b)
-                            const displayTeeth = teeth.length === 1
-                              ? `#${teeth[0]}`
-                              : teeth.length > 0
-                                ? `#${teeth.join(", #")}`
-                                : "No teeth selected"
-
-                            return (
-                              <Card
-                                key={savedProduct.id}
-                                className="overflow-hidden shadow-sm"
-                                style={{
-                                  width: '80%',
-                                  minWidth: '80%',
-                                  border: savedProduct.rushData ? '1px solid #CF0202' : '1px solid #e5e7eb',
-                                  borderRadius: '10px'
-                                }}
-                              >
-                                <Accordion
-                                  type="single"
-                                  collapsible
-                                  className="w-full"
-                                  value={openAccordion === savedProduct.id ? savedProduct.id : ""}
-                                  onValueChange={handleAccordionChange}
-                                >
-                                  <AccordionItem value={savedProduct.id} className="border-0">
-                                    {/* Header */}
-                                    <div
-                                      className="w-full"
-                                      style={{
-                                        position: 'relative',
-                                        height: '69.92px',
-                                        background: savedProduct.rushData ? '#FFE2E2' : (openAccordion === savedProduct.id ? '#DFEEFB' : '#F5F5F5'),
-                                        boxShadow: savedProduct.rushData ? '0.9px 0.9px 3.6px 0 rgba(0, 0, 0, 0.25)' : '0.9px 0.9px 3.6px rgba(0, 0, 0, 0.25)',
-                                        borderRadius: openAccordion === savedProduct.id ? '5.4px 5.4px 0px 0px' : '10px',
-                                        border: savedProduct.rushData ? '1px solid #CF0202' : 'none',
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        alignItems: 'flex-start',
-                                        padding: '14px 8px',
-                                        gap: '10px'
-                                      }}
-                                    >
-                                      <AccordionTrigger
-                                        className="hover:no-underline w-full"
-                                        style={{
-                                          padding: '0px',
-                                          gap: '10px',
-                                          width: '100%',
-                                          height: '100%',
-                                          background: 'transparent',
-                                          boxShadow: 'none',
-                                          borderRadius: '0px'
-                                        }}
-                                      >
-                                        {/* Frame 2395 */}
-                                        <div style={{ width: '697.74px', height: '42.69px', flex: 'none', order: 0, flexGrow: 0, position: 'relative' }}>
-                                          {/* Frame 2388 */}
-                                          <div style={{ position: 'absolute', width: '639.14px', height: '42.69px', left: '0px', top: '0px' }}>
-                                            {/* Product Image */}
-                                            <div
-                                              style={{
-                                                position: 'absolute',
-                                                width: '64.04px',
-                                                height: '42.69px',
-                                                left: '0px',
-                                                top: '0px',
-                                                background: '#F5F5F5',
-                                                borderRadius: '5.4px',
-                                                overflow: 'hidden',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center'
-                                              }}
-                                            >
-                                              <img
-                                                src={savedProduct.product.image_url || "/images/product-default.png"}
-                                                alt={savedProduct.product.name}
-                                                style={{
-                                                  width: '100%',
-                                                  height: '100%',
-                                                  objectFit: 'contain'
-                                                }}
-                                                onError={(e) => {
-                                                  const target = e.target as HTMLImageElement
-                                                  if (target.src !== window.location.origin + "/images/product-default.png") {
-                                                    target.src = "/images/product-default.png"
-                                                  }
-                                                }}
-                                              />
-                                            </div>
-
-                                            {/* Frame 2387 - Content Area */}
-                                            <div style={{ position: 'absolute', width: '565.1px', height: '42px', left: '74.04px', top: '0.34px' }}>
-                                              {/* Group 1433 - Tooth Numbers */}
-                                              <div style={{ position: 'absolute', width: 'auto', height: '20px', left: '0px', top: '0px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                <span
-                                                  style={{
-                                                    fontFamily: 'Verdana',
-                                                    fontStyle: 'normal',
-                                                    fontWeight: 400,
-                                                    fontSize: '14.4px',
-                                                    lineHeight: '20px',
-                                                    letterSpacing: '-0.02em',
-                                                    color: '#000000'
-                                                  }}
-                                                >
-                                                  {teeth.length > 0 ? teeth.join(', ') : ''}
-                                                </span>
-                                                {/* Rush Icon Indicator */}
-                                                {savedProduct.rushData && (
-                                                  <Zap
-                                                    style={{
-                                                      width: '16px',
-                                                      height: '16px',
-                                                      color: '#CF0202',
-                                                      fill: '#CF0202',
-                                                      flexShrink: 0
-                                                    }}
-                                                  />
-                                                )}
-                                              </div>
-
-                                              {/* Frame 2386 - Badges and Info Row */}
-                                              <div style={{ position: 'absolute', width: '565.1px', height: '22px', left: '0px', top: '20px', display: 'flex', flexDirection: 'row', alignItems: 'center', padding: '0px', gap: '5px' }}>
-                                                {/* Badge - Category */}
-                                                <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '0px 10px', gap: '10px', width: 'fit-content', height: '17px', background: '#F9F9F9', boxShadow: '1px 1px 3.5px rgba(0, 0, 0, 0.25)', borderRadius: '6px', flex: 'none', order: 0, flexGrow: 0 }}>
-                                                  <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', flex: 'none', order: 0, flexGrow: 0 }}>{savedProduct.category}</span>
-                                                </div>
-
-                                                {/* Badge - Subcategory */}
-                                                <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '0px 10px', gap: '10px', width: 'fit-content', height: '17px', background: '#F9F9F9', boxShadow: '1px 1px 3.5px rgba(0, 0, 0, 0.25)', borderRadius: '6px', flex: 'none', order: 1, flexGrow: 0 }}>
-                                                  <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', flex: 'none', order: 0, flexGrow: 0 }}>{savedProduct.subcategory}</span>
-                                                </div>
-
-                                                {/* Est days */}
-                                                <span style={{ width: 'auto', height: '22px', fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', letterSpacing: '-0.02em', color: '#B4B0B0', flex: 'none', order: 4, flexGrow: 0 }}>
-                                                  Est days: {savedProduct.product.estimated_days || 10} work days after submission
-                                                </span>
-
-                                                {/* Trash Icon */}
-                                                <button
-                                                  onClick={(e) => {
-                                                    e.stopPropagation()
-                                                    handleDeleteProduct(savedProduct.id)
-                                                  }}
-                                                  className="hover:text-red-600 transition-colors"
-                                                  style={{
-                                                    width: '16px',
-                                                    height: '16px',
-                                                    color: '#999999',
-                                                    background: 'transparent',
-                                                    border: 'none',
-                                                    cursor: 'pointer',
-                                                    flex: 'none',
-                                                    order: 5,
-                                                    flexGrow: 0,
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center'
-                                                  }}
-                                                >
-                                                  <Trash2 className="w-full h-full" />
-                                                </button>
-                                              </div>
-                                            </div>
-                                          </div>
-                                        </div>
-
-                                        {/* Chevron - Positioned relative to header */}
-                                        <div style={{ position: 'absolute', width: '21.6px', height: '21.6px', right: '8px', top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}>
-                                          <ChevronDown
-                                            className="w-full h-full transition-transform duration-200 text-black"
-                                            style={{
-                                              transform: openAccordion === savedProduct.id ? 'rotate(0deg)' : 'rotate(-180deg)'
-                                            }}
-                                          />
-                                        </div>
-                                      </AccordionTrigger>
-                                    </div>
-
-                                    <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto' }}>
-                                      {/* Summary detail */}
-                                      <div
-                                        className="bg-white w-full"
-                                        style={{
-                                          position: 'relative',
-                                          height: 'auto',
-                                          minHeight: 'auto',
-                                          marginTop: '10px',
-                                          paddingLeft: '15.87px',
-                                          paddingRight: '15.87px',
-                                          paddingBottom: '20px',
-                                          display: 'flex',
-                                          flexDirection: 'column',
-                                          alignItems: 'flex-start',
-                                          gap: '20px',
-                                          background: '#FFFFFF',
-                                          boxSizing: 'border-box'
-                                        }}
-                                      >
-                                        {/* Row 1: Product - Material and Retention Type */}
-                                        <div
-                                          className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                          style={{
-                                            display: 'flex',
-                                            flexDirection: 'row',
-                                            alignItems: 'flex-start',
-                                            padding: '0px',
-                                            gap: '20px',
-                                            flex: 'none',
-                                            order: 0,
-                                            alignSelf: 'stretch',
-                                            flexGrow: 0
-                                          }}
-                                        >
-                                          {/* Product - Material */}
-                                          <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
-                                            <div
-                                              className="flex items-center"
-                                              style={{
-                                                padding: '12px 15px 5px 15px',
-                                                gap: '5px',
-                                                width: '100%',
-                                                height: '37px',
-                                                position: 'relative',
-                                                marginTop: '5.27px',
-                                                background: '#FFFFFF',
-                                                border: '0.740384px solid #7F7F7F',
-                                                borderRadius: '7.7px',
-                                                boxSizing: 'border-box'
-                                              }}
-                                            >
-                                              <span style={{
-                                                fontFamily: 'Verdana',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14.4px',
-                                                lineHeight: '20px',
-                                                letterSpacing: '-0.02em',
-                                                color: '#000000',
-                                                whiteSpace: 'nowrap'
-                                              }}>{isMaxillary ? (savedProduct.maxillaryMaterial || 'Not specified') : (savedProduct.mandibularMaterial || 'Not specified')}</span>
-                                            </div>
-                                            <label
-                                              className="absolute bg-white"
-                                              style={{
-                                                padding: '0px',
-                                                height: '14px',
-                                                left: '8.9px',
-                                                top: '0px',
-                                                fontFamily: 'Arial',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14px',
-                                                lineHeight: '14px',
-                                                color: '#7F7F7F'
-                                              }}
-                                            >
-                                              Product - Material
-                                            </label>
-                                          </div>
-
-                                          {/* Retention Type */}
-                                          <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
-                                            <div
-                                              className="flex items-center"
-                                              style={{
-                                                padding: '12px 15px 5px 15px',
-                                                gap: '5px',
-                                                width: '100%',
-                                                height: '37px',
-                                                position: 'relative',
-                                                marginTop: '5.27px',
-                                                background: '#FFFFFF',
-                                                border: '0.740384px solid #7F7F7F',
-                                                borderRadius: '7.7px',
-                                                boxSizing: 'border-box'
-                                              }}
-                                            >
-                                              <span style={{
-                                                fontFamily: 'Arial',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14px',
-                                                lineHeight: '14px',
-                                                color: '#000000',
-                                                whiteSpace: 'nowrap'
-                                              }}>{isMaxillary ? (savedProduct.maxillaryRetention || 'Not specified') : (savedProduct.mandibularRetention || 'Not specified')}</span>
-                                            </div>
-                                            <label
-                                              className="absolute bg-white"
-                                              style={{
-                                                padding: '0px',
-                                                height: '14px',
-                                                left: '9.23px',
-                                                top: '0px',
-                                                fontFamily: 'Arial',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14px',
-                                                lineHeight: '14px',
-                                                color: '#7F7F7F'
-                                              }}
-                                            >
-                                              Select Retention type
-                                            </label>
-                                          </div>
-                                        </div>
-
-                                        {/* Row 2: Stump Shade, Tooth Shade, Stage */}
-                                        {isAccordionFieldVisible("stump_shade", savedProduct, isMaxillary ? "maxillary" : "mandibular") && (
-                                        <div
-                                          className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                          style={{
-                                            display: 'flex',
-                                            flexDirection: 'row',
-                                            alignItems: 'flex-start',
-                                            padding: '0px',
-                                            gap: '20px',
-                                            flex: 'none',
-                                            order: 1,
-                                            alignSelf: 'stretch',
-                                            flexGrow: 0
-                                          }}
-                                        >
-                                          {/* Stump Shade */}
-                                          {(() => {
-                                            // Check if stump_shade exists as an advance field
-                                            const productDetails = savedProduct.productDetails
-                                            const advanceFields = productDetails?.advance_fields || productAdvanceFields[savedProduct.id] || []
-                                            const stumpShadeField = getAdvanceFieldByName("stump_shade", advanceFields)
-                                            const currentArch = isMaxillary ? "maxillary" : "mandibular"
-                                            
-                                            // If stump_shade exists as an advance field, render it using advance field logic
-                                            if (stumpShadeField) {
-                                              return renderSavedAdvanceField(stumpShadeField, savedProduct, currentArch)
-                                            }
-                                            
-                                            // Otherwise, render the hardcoded stump shade (backward compatibility)
-                                            return (
-                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
-                                                <div
-                                                  className="flex items-center justify-between"
-                                                  style={{
-                                                    padding: '12px 15px 5px 15px',
-                                                    gap: '5px',
-                                                    width: '100%',
-                                                    height: '37px',
-                                                    background: '#FFFFFF',
-                                                    border: '0.740384px solid #7F7F7F',
-                                                    borderRadius: '7.7px',
-                                                    boxSizing: 'border-box',
-                                                    position: 'relative',
-                                                    marginTop: '5.27px'
-                                                  }}
-                                                >
-                                                  <span style={{
-                                                    fontFamily: 'Verdana',
-                                                    fontStyle: 'normal',
-                                                    fontWeight: 400,
-                                                    fontSize: '14.4px',
-                                                    lineHeight: '20px',
-                                                    letterSpacing: '-0.02em',
-                                                    color: '#000000'
-                                                  }}>{isMaxillary ? (savedProduct.maxillaryStumpShade || 'Not specified') : 'Not specified'}</span>
-                                                  {isMaxillary && savedProduct.maxillaryStumpShade && (
-                                                    <div
-                                                      className="flex items-center justify-center"
-                                                      style={{
-                                                        width: '37.51px',
-                                                        height: '41.97px',
-                                                        background: 'linear-gradient(0deg, #DED2C7 0.05%, #E3D4C4 7.04%, #EDD9C1 25.04%, #F0DBC0 50.02%, #F0DCC2 76.01%, #F1E0CA 90%, #F3E7D7 100%)',
-                                                        borderRadius: '8px',
-                                                        position: 'absolute',
-                                                        right: '0px',
-                                                        top: '-1px'
-                                                      }}
-                                                    >
-                                                      <span style={{
-                                                        fontFamily: 'Verdana',
-                                                        fontStyle: 'normal',
-                                                        fontWeight: 400,
-                                                        fontSize: '12.8603px',
-                                                        lineHeight: '18px',
-                                                        letterSpacing: '-0.02em',
-                                                        color: '#000000'
-                                                      }}>{savedProduct.maxillaryStumpShade}</span>
-                                                    </div>
-                                                  )}
-                                                </div>
-                                                <label
-                                                  className="absolute bg-white"
-                                                  style={{
-                                                    padding: '0px',
-                                                    height: '14px',
-                                                    left: '8.9px',
-                                                    top: '0px',
-                                                    fontFamily: 'Arial',
-                                                    fontStyle: 'normal',
-                                                    fontWeight: 400,
-                                                    fontSize: '14px',
-                                                    lineHeight: '14px',
-                                                    color: '#7F7F7F'
-                                                  }}
-                                                >
-                                                  Stump Shade
-                                                </label>
-                                              </div>
-                                            )
-                                          })()}
-
-                                          {/* Tooth Shade */}
-                                          {isAccordionFieldVisible("tooth_shade", savedProduct, isMaxillary ? "maxillary" : "mandibular") && (
-                                          <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
-                                            <div
-                                              className="flex items-center"
-                                              style={{
-                                                padding: '12px 15px 5px 15px',
-                                                gap: '5px',
-                                                width: '100%',
-                                                height: '37px',
-                                                background: '#FFFFFF',
-                                                border: '0.740384px solid #7F7F7F',
-                                                borderRadius: '7.7px',
-                                                boxSizing: 'border-box',
-                                                position: 'relative',
-                                                marginTop: '5.27px'
-                                              }}
-                                            >
-                                              <span style={{
-                                                fontFamily: 'Verdana',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14.4px',
-                                                lineHeight: '20px',
-                                                letterSpacing: '-0.02em',
-                                                color: '#000000'
-                                              }}>Not specified</span>
-                                            </div>
-                                            <label
-                                              className="absolute bg-white"
-                                              style={{
-                                                padding: '0px',
-                                                height: '14px',
-                                                left: '8.9px',
-                                                top: '0px',
-                                                fontFamily: 'Arial',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14px',
-                                                lineHeight: '14px',
-                                                color: '#7F7F7F'
-                                              }}
-                                            >
-                                              Tooth Shade
-                                            </label>
-                                          </div>
-                                          )}
-
-                                          {/* Stage */}
-                                          {isAccordionFieldVisible("stage", savedProduct, isMaxillary ? "maxillary" : "mandibular") && (
-                                          <StageFieldComponent
-                                            savedProduct={savedProduct}
-                                            isMaxillary={isMaxillary}
-                                            openStageDropdown={openStageDropdown}
-                                            setOpenStageDropdown={setOpenStageDropdown}
-                                            handleStageSelect={handleStageSelect}
-                                          />
-                                          )}
-                                        </div>
-                                        )}
-
-                                        {/* Row 3: Teeth Selection Display */}
-                                        <div
-                                          className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                          style={{
-                                            display: 'flex',
-                                            flexDirection: 'row',
-                                            alignItems: 'flex-start',
-                                            padding: '0px',
-                                            gap: '20px',
-                                            flex: 'none',
-                                            order: 2,
-                                            alignSelf: 'stretch',
-                                            flexGrow: 0
-                                          }}
-                                        >
-                                          {/* Teeth Selection */}
-                                          <div className="relative flex-1 min-w-[250px] max-w-[100%]" style={{ minHeight: '43px' }}>
-                                            <div
-                                              className="flex items-center"
-                                              style={{
-                                                padding: '12px 15px 5px 15px',
-                                                gap: '5px',
-                                                width: '100%',
-                                                height: '37px',
-                                                background: '#FFFFFF',
-                                                border: '0.740384px solid #7F7F7F',
-                                                borderRadius: '7.7px',
-                                                boxSizing: 'border-box',
-                                                position: 'relative',
-                                                marginTop: '5.27px'
-                                              }}
-                                            >
-                                              <span style={{
-                                                fontFamily: 'Verdana',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14.4px',
-                                                lineHeight: '20px',
-                                                letterSpacing: '-0.02em',
-                                                color: '#000000'
-                                              }}>{displayTeeth}</span>
-                                            </div>
-                                            <label
-                                              className="absolute bg-white"
-                                              style={{
-                                                padding: '0px',
-                                                height: '14px',
-                                                left: '8.9px',
-                                                top: '0px',
-                                                fontFamily: 'Arial',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14px',
-                                                lineHeight: '14px',
-                                                color: '#7F7F7F'
-                                              }}
-                                            >
-                                              Selected Teeth
-                                            </label>
-                                          </div>
-                                        </div>
-
-                                        {/* Notes if available */}
-                                        {isMaxillary && isAccordionFieldVisible("notes", savedProduct, "maxillary") && savedProduct.maxillaryNotes && (
-                                          <div
-                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                            style={{
-                                              display: 'flex',
-                                              flexDirection: 'row',
-                                              alignItems: 'flex-start',
-                                              padding: '0px',
-                                              gap: '20px',
-                                              flex: 'none',
-                                              order: 3,
-                                              alignSelf: 'stretch',
-                                              flexGrow: 0
-                                            }}
-                                          >
-                                            <div className="relative flex-1 min-w-[250px] max-w-[100%]" style={{ minHeight: '43px' }}>
-                                              <div
-                                                className="flex items-start"
-                                                style={{
-                                                  padding: '12px 15px 5px 15px',
-                                                  gap: '5px',
-                                                  width: '100%',
-                                                  minHeight: '60px',
-                                                  background: '#FFFFFF',
-                                                  border: '0.740384px solid #7F7F7F',
-                                                  borderRadius: '7.7px',
-                                                  boxSizing: 'border-box',
-                                                  position: 'relative',
-                                                  marginTop: '5.27px'
-                                                }}
-                                              >
-                                                <span style={{
-                                                  fontFamily: 'Verdana',
-                                                  fontStyle: 'normal',
-                                                  fontWeight: 400,
-                                                  fontSize: '14.4px',
-                                                  lineHeight: '20px',
-                                                  letterSpacing: '-0.02em',
-                                                  color: '#000000'
-                                                }}>{savedProduct.maxillaryNotes}</span>
-                                              </div>
-                                              <label
-                                                className="absolute bg-white"
-                                                style={{
-                                                  padding: '0px',
-                                                  height: '14px',
-                                                  left: '8.9px',
-                                                  top: '0px',
-                                                  fontFamily: 'Arial',
-                                                  fontStyle: 'normal',
-                                                  fontWeight: 400,
-                                                  fontSize: '14px',
-                                                  lineHeight: '14px',
-                                                  color: '#7F7F7F'
-                                                }}
-                                              >
-                                                Notes
-                                              </label>
-                                            </div>
-                                          </div>
-                                        )}
-
-                                        {/* Mandibular Implant Details if available */}
-                                        {!isMaxillary && isAccordionFieldVisible("implant_details", savedProduct, "mandibular") && savedProduct.mandibularImplantDetails && (
-                                          <div
-                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                            style={{
-                                              display: 'flex',
-                                              flexDirection: 'row',
-                                              alignItems: 'flex-start',
-                                              padding: '0px',
-                                              gap: '20px',
-                                              flex: 'none',
-                                              order: 4,
-                                              alignSelf: 'stretch',
-                                              flexGrow: 0
-                                            }}
-                                          >
-                                            <div className="relative flex-1 min-w-[250px] max-w-[100%]" style={{ minHeight: '43px' }}>
-                                              <div
-                                                className="flex items-start"
-                                                style={{
-                                                  padding: '12px 15px 5px 15px',
-                                                  gap: '5px',
-                                                  width: '100%',
-                                                  minHeight: '60px',
-                                                  background: '#FFFFFF',
-                                                  border: '0.740384px solid #7F7F7F',
-                                                  borderRadius: '7.7px',
-                                                  boxSizing: 'border-box',
-                                                  position: 'relative',
-                                                  marginTop: '5.27px'
-                                                }}
-                                              >
-                                                <span style={{
-                                                  fontFamily: 'Verdana',
-                                                  fontStyle: 'normal',
-                                                  fontWeight: 400,
-                                                  fontSize: '14.4px',
-                                                  lineHeight: '20px',
-                                                  letterSpacing: '-0.02em',
-                                                  color: '#000000'
-                                                }}>{savedProduct.mandibularImplantDetails}</span>
-                                              </div>
-                                              <label
-                                                className="absolute bg-white"
-                                                style={{
-                                                  padding: '0px',
-                                                  height: '14px',
-                                                  left: '8.9px',
-                                                  top: '0px',
-                                                  fontFamily: 'Arial',
-                                                  fontStyle: 'normal',
-                                                  fontWeight: 400,
-                                                  fontSize: '14px',
-                                                  lineHeight: '14px',
-                                                  color: '#7F7F7F'
-                                                }}
-                                              >
-                                                Implant Details
-                                              </label>
-                                            </div>
-                                          </div>
-                                        )}
-                                      </div>
-                                    </AccordionContent>
-                                  </AccordionItem>
-                                </Accordion>
-                              </Card>
-                            )
-                          })
-                      ) : (
-                        <div className="text-gray-400 text-sm py-4">No maxillary products</div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Mandibular Products - Right Column */}
-                  <div className="flex-1 flex flex-col">
-                    {/* Mandibular Accordion Header */}
-                    <div className="space-y-1">
-                      {savedProducts.filter(p => p.addedFrom === "mandibular").length > 0 ? (
-                        savedProducts
-                          .filter(p => p.addedFrom === "mandibular")
-                          .map((savedProduct) => {
-                            const isMaxillary = false // All products in this section are mandibular
-                            const teeth = savedProduct.mandibularTeeth.sort((a, b) => a - b)
-                            const displayTeeth = teeth.length === 1
-                              ? `#${teeth[0]}`
-                              : teeth.length > 0
-                                ? `#${teeth.join(", #")}`
-                                : "No teeth selected"
-
-                            return (
-                              <Card
-                                key={savedProduct.id}
-                                className="overflow-hidden shadow-sm"
-                                style={{
-                                  width: '80%',
-                                  minWidth: '80%',
-                                  border: savedProduct.rushData ? '1px solid #CF0202' : '1px solid #e5e7eb',
-                                  borderRadius: '10px'
-                                }}
-                              >
-                                <Accordion
-                                  type="single"
-                                  collapsible
-                                  className="w-full"
-                                  value={openAccordion === savedProduct.id ? savedProduct.id : ""}
-                                  onValueChange={handleAccordionChange}
-                                >
-                                  <AccordionItem value={savedProduct.id} className="border-0">
-                                    {/* Header */}
-                                    <div
-                                      className="w-full"
-                                      style={{
-                                        position: 'relative',
-                                        height: '69.92px',
-                                        background: openAccordion === savedProduct.id ? '#DFEEFB' : '#F5F5F5',
-                                        boxShadow: '0.9px 0.9px 3.6px rgba(0, 0, 0, 0.25)',
-                                        borderRadius: openAccordion === savedProduct.id ? '5.4px 5.4px 0px 0px' : '5.4px',
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        alignItems: 'flex-start',
-                                        padding: '14px 8px',
-                                        gap: '10px'
-                                      }}
-                                      onClick={() => handleSavedProductCardClick(savedProduct)}
-                                    >
-                                      <AccordionTrigger
-                                        className="hover:no-underline w-full"
-                                        style={{
-                                          padding: '0px',
-                                          gap: '10px',
-                                          width: '100%',
-                                          height: '100%',
-                                          background: 'transparent',
-                                          boxShadow: 'none',
-                                          borderRadius: '0px'
-                                        }}
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          handleSavedProductCardClick(savedProduct)
-                                        }}
-                                      >
-                                        {/* Frame 2395 */}
-                                        <div style={{ width: '697.74px', height: '42.69px', flex: 'none', order: 0, flexGrow: 0, position: 'relative' }}>
-                                          {/* Frame 2388 */}
-                                          <div style={{ position: 'absolute', width: '639.14px', height: '42.69px', left: '0px', top: '0px' }}>
-                                            {/* Product Image */}
-                                            <div
-                                              style={{
-                                                position: 'absolute',
-                                                width: '64.04px',
-                                                height: '42.69px',
-                                                left: '0px',
-                                                top: '0px',
-                                                background: '#F5F5F5',
-                                                borderRadius: '5.4px',
-                                                overflow: 'hidden',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center'
-                                              }}
-                                            >
-                                              <img
-                                                src={savedProduct.product.image_url || "/images/product-default.png"}
-                                                alt={savedProduct.product.name}
-                                                style={{
-                                                  width: '100%',
-                                                  height: '100%',
-                                                  objectFit: 'contain'
-                                                }}
-                                                onError={(e) => {
-                                                  const target = e.target as HTMLImageElement
-                                                  if (target.src !== window.location.origin + "/images/product-default.png") {
-                                                    target.src = "/images/product-default.png"
-                                                  }
-                                                }}
-                                              />
-                                            </div>
-
-                                            {/* Frame 2387 - Content Area */}
-                                            <div style={{ position: 'absolute', width: '565.1px', height: '42px', left: '74.04px', top: '0.34px' }}>
-                                              {/* Group 1433 - Tooth Numbers */}
-                                              <div style={{ position: 'absolute', width: 'auto', height: '20px', left: '0px', top: '0px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                <span
-                                                  style={{
-                                                    fontFamily: 'Verdana',
-                                                    fontStyle: 'normal',
-                                                    fontWeight: 400,
-                                                    fontSize: '14.4px',
-                                                    lineHeight: '20px',
-                                                    letterSpacing: '-0.02em',
-                                                    color: '#000000'
-                                                  }}
-                                                >
-                                                  {teeth.length > 0 ? teeth.join(', ') : ''}
-                                                </span>
-                                                {/* Rush Icon Indicator */}
-                                                {savedProduct.rushData && (
-                                                  <Zap
-                                                    style={{
-                                                      width: '16px',
-                                                      height: '16px',
-                                                      color: '#CF0202',
-                                                      fill: '#CF0202',
-                                                      flexShrink: 0
-                                                    }}
-                                                  />
-                                                )}
-                                              </div>
-
-                                              {/* Frame 2386 - Badges and Info Row */}
-                                              <div style={{ position: 'absolute', width: '565.1px', height: '22px', left: '0px', top: '20px', display: 'flex', flexDirection: 'row', alignItems: 'center', padding: '0px', gap: '5px' }}>
-                                                {/* Badge - Category */}
-                                                <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '0px 10px', gap: '10px', width: 'fit-content', height: '17px', background: '#F9F9F9', boxShadow: '1px 1px 3.5px rgba(0, 0, 0, 0.25)', borderRadius: '6px', flex: 'none', order: 0, flexGrow: 0 }}>
-                                                  <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', flex: 'none', order: 0, flexGrow: 0 }}>{savedProduct.category}</span>
-                                                </div>
-
-                                                {/* Badge - Subcategory */}
-                                                <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '0px 10px', gap: '10px', width: 'fit-content', height: '17px', background: '#F9F9F9', boxShadow: '1px 1px 3.5px rgba(0, 0, 0, 0.25)', borderRadius: '6px', flex: 'none', order: 1, flexGrow: 0 }}>
-                                                  <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', flex: 'none', order: 0, flexGrow: 0 }}>{savedProduct.subcategory}</span>
-                                                </div>
-
-                                                {/* Est days */}
-                                                <span style={{ width: 'auto', height: '22px', fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', letterSpacing: '-0.02em', color: '#B4B0B0', flex: 'none', order: 4, flexGrow: 0 }}>
-                                                  Est days: {savedProduct.product.estimated_days || 10} work days after submission
-                                                </span>
-
-                                                {/* Trash Icon */}
-                                                <button
-                                                  onClick={(e) => {
-                                                    e.stopPropagation()
-                                                    handleDeleteProduct(savedProduct.id)
-                                                  }}
-                                                  className="hover:text-red-600 transition-colors"
-                                                  style={{
-                                                    width: '16px',
-                                                    height: '16px',
-                                                    color: '#999999',
-                                                    background: 'transparent',
-                                                    border: 'none',
-                                                    cursor: 'pointer',
-                                                    flex: 'none',
-                                                    order: 5,
-                                                    flexGrow: 0,
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center'
-                                                  }}
-                                                >
-                                                  <Trash2 className="w-full h-full" />
-                                                </button>
-                                              </div>
-                                            </div>
-                                          </div>
-                                        </div>
-
-                                        {/* Chevron - Positioned relative to header */}
-                                        <div style={{ position: 'absolute', width: '21.6px', height: '21.6px', right: '8px', top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}>
-                                          <ChevronDown
-                                            className="w-full h-full transition-transform duration-200 text-black"
-                                            style={{
-                                              transform: openAccordion === savedProduct.id ? 'rotate(0deg)' : 'rotate(-180deg)'
-                                            }}
-                                          />
-                                        </div>
-                                      </AccordionTrigger>
-                                    </div>
-
-                                    <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto' }}>
-                                      {/* Summary detail - Same structure as maxillary but for mandibular */}
-                                      <div
-                                        className="bg-white w-full"
-                                        style={{
-                                          position: 'relative',
-                                          height: 'auto',
-                                          minHeight: 'auto',
-                                          marginTop: '10px',
-                                          paddingLeft: '15.87px',
-                                          paddingRight: '15.87px',
-                                          paddingBottom: '20px',
-                                          display: 'flex',
-                                          flexDirection: 'column',
-                                          alignItems: 'flex-start',
-                                          gap: '20px',
-                                          background: '#FFFFFF',
-                                          boxSizing: 'border-box'
-                                        }}
-                                      >
-                                        {/* Row 1: Product - Material and Retention Type */}
-                                        <div
-                                          className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                          style={{
-                                            display: 'flex',
-                                            flexDirection: 'row',
-                                            alignItems: 'flex-start',
-                                            padding: '0px',
-                                            gap: '20px',
-                                            flex: 'none',
-                                            order: 0,
-                                            alignSelf: 'stretch',
-                                            flexGrow: 0
-                                          }}
-                                        >
-                                          {/* Product - Material */}
-                                          <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
-                                            <div
-                                              className="flex items-center"
-                                              style={{
-                                                padding: '12px 15px 5px 15px',
-                                                gap: '5px',
-                                                width: '100%',
-                                                height: '37px',
-                                                position: 'relative',
-                                                marginTop: '5.27px',
-                                                background: '#FFFFFF',
-                                                border: '0.740384px solid #7F7F7F',
-                                                borderRadius: '7.7px',
-                                                boxSizing: 'border-box'
-                                              }}
-                                            >
-                                              <span style={{
-                                                fontFamily: 'Verdana',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14.4px',
-                                                lineHeight: '20px',
-                                                letterSpacing: '-0.02em',
-                                                color: '#000000',
-                                                whiteSpace: 'nowrap'
-                                              }}>{savedProduct.mandibularMaterial || 'Not specified'}</span>
-                                            </div>
-                                            <label
-                                              className="absolute bg-white"
-                                              style={{
-                                                padding: '0px',
-                                                height: '14px',
-                                                left: '8.9px',
-                                                top: '0px',
-                                                fontFamily: 'Arial',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14px',
-                                                lineHeight: '14px',
-                                                color: '#7F7F7F'
-                                              }}
-                                            >
-                                              Product - Material
-                                            </label>
-                                          </div>
-
-                                          {/* Retention Type */}
-                                          <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
-                                            <div
-                                              className="flex items-center"
-                                              style={{
-                                                padding: '12px 15px 5px 15px',
-                                                gap: '5px',
-                                                width: '100%',
-                                                height: '37px',
-                                                position: 'relative',
-                                                marginTop: '5.27px',
-                                                background: '#FFFFFF',
-                                                border: '0.740384px solid #7F7F7F',
-                                                borderRadius: '7.7px',
-                                                boxSizing: 'border-box'
-                                              }}
-                                            >
-                                              <span style={{
-                                                fontFamily: 'Arial',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14px',
-                                                lineHeight: '14px',
-                                                color: '#000000',
-                                                whiteSpace: 'nowrap'
-                                              }}>{savedProduct.mandibularRetention || 'Not specified'}</span>
-                                            </div>
-                                            <label
-                                              className="absolute bg-white"
-                                              style={{
-                                                padding: '0px',
-                                                height: '14px',
-                                                left: '9.23px',
-                                                top: '0px',
-                                                fontFamily: 'Arial',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14px',
-                                                lineHeight: '14px',
-                                                color: '#7F7F7F'
-                                              }}
-                                            >
-                                              Select Retention type
-                                            </label>
-                                          </div>
-                                        </div>
-
-                                        {/* Row 2: Tooth Shade, Stage - Progressive disclosure */}
-                                        {isAccordionFieldVisible("tooth_shade", savedProduct, "mandibular") && (
-                                        <div
-                                          className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                          style={{
-                                            display: 'flex',
-                                            flexDirection: 'row',
-                                            alignItems: 'flex-start',
-                                            padding: '0px',
-                                            gap: '20px',
-                                            flex: 'none',
-                                            order: 1,
-                                            alignSelf: 'stretch',
-                                            flexGrow: 0
-                                          }}
-                                        >
-                                          {/* Tooth Shade */}
-                                          <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
-                                            <div
-                                              className="flex items-center"
-                                              style={{
-                                                padding: '12px 15px 5px 15px',
-                                                gap: '5px',
-                                                width: '100%',
-                                                height: '37px',
-                                                background: '#FFFFFF',
-                                                border: '0.740384px solid #7F7F7F',
-                                                borderRadius: '7.7px',
-                                                boxSizing: 'border-box',
-                                                position: 'relative',
-                                                marginTop: '5.27px'
-                                              }}
-                                            >
-                                              <span style={{
-                                                fontFamily: 'Verdana',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14.4px',
-                                                lineHeight: '20px',
-                                                letterSpacing: '-0.02em',
-                                                color: '#000000'
-                                              }}>Not specified</span>
-                                            </div>
-                                            <label
-                                              className="absolute bg-white"
-                                              style={{
-                                                padding: '0px',
-                                                height: '14px',
-                                                left: '8.9px',
-                                                top: '0px',
-                                                fontFamily: 'Arial',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14px',
-                                                lineHeight: '14px',
-                                                color: '#7F7F7F'
-                                              }}
-                                            >
-                                              Tooth Shade
-                                            </label>
-                                          </div>
-
-                                          {/* Stage */}
-                                          {isAccordionFieldVisible("stage", savedProduct, "mandibular") && (
-                                          <StageFieldComponent
-                                            savedProduct={savedProduct}
-                                            isMaxillary={false}
-                                            openStageDropdown={openStageDropdown}
-                                            setOpenStageDropdown={setOpenStageDropdown}
-                                            handleStageSelect={handleStageSelect}
-                                          />
-                                          )}
-                                        </div>
-                                        )}
-
-                                        {/* Row 3: Teeth Selection Display - Always visible */}
-                                        <div
-                                          className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                          style={{
-                                            display: 'flex',
-                                            flexDirection: 'row',
-                                            alignItems: 'flex-start',
-                                            padding: '0px',
-                                            gap: '20px',
-                                            flex: 'none',
-                                            order: 2,
-                                            alignSelf: 'stretch',
-                                            flexGrow: 0
-                                          }}
-                                        >
-                                          {/* Teeth Selection */}
-                                          <div className="relative flex-1 min-w-[250px] max-w-[100%]" style={{ minHeight: '43px' }}>
-                                            <div
-                                              className="flex items-center"
-                                              style={{
-                                                padding: '12px 15px 5px 15px',
-                                                gap: '5px',
-                                                width: '100%',
-                                                height: '37px',
-                                                background: '#FFFFFF',
-                                                border: '0.740384px solid #7F7F7F',
-                                                borderRadius: '7.7px',
-                                                boxSizing: 'border-box',
-                                                position: 'relative',
-                                                marginTop: '5.27px'
-                                              }}
-                                            >
-                                              <span style={{
-                                                fontFamily: 'Verdana',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14.4px',
-                                                lineHeight: '20px',
-                                                letterSpacing: '-0.02em',
-                                                color: '#000000'
-                                              }}>{displayTeeth}</span>
-                                            </div>
-                                            <label
-                                              className="absolute bg-white"
-                                              style={{
-                                                padding: '0px',
-                                                height: '14px',
-                                                left: '8.9px',
-                                                top: '0px',
-                                                fontFamily: 'Arial',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '14px',
-                                                lineHeight: '14px',
-                                                color: '#7F7F7F'
-                                              }}
-                                            >
-                                              Selected Teeth
-                                            </label>
-                                          </div>
-                                        </div>
-
-                                        {/* Implant Details if available */}
-                                        {isAccordionFieldVisible("implant_details", savedProduct, "mandibular") && savedProduct.mandibularImplantDetails && (
-                                          <div
-                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                            style={{
-                                              display: 'flex',
-                                              flexDirection: 'row',
-                                              alignItems: 'flex-start',
-                                              padding: '0px',
-                                              gap: '20px',
-                                              flex: 'none',
-                                              order: 3,
-                                              alignSelf: 'stretch',
-                                              flexGrow: 0
-                                            }}
-                                          >
-                                            <div className="relative flex-1 min-w-[250px] max-w-[100%]" style={{ minHeight: '43px' }}>
-                                              <div
-                                                className="flex items-start"
-                                                style={{
-                                                  padding: '12px 15px 5px 15px',
-                                                  gap: '5px',
-                                                  width: '100%',
-                                                  minHeight: '60px',
-                                                  background: '#FFFFFF',
-                                                  border: '0.740384px solid #7F7F7F',
-                                                  borderRadius: '7.7px',
-                                                  boxSizing: 'border-box',
-                                                  position: 'relative',
-                                                  marginTop: '5.27px'
-                                                }}
-                                              >
-                                                <span style={{
-                                                  fontFamily: 'Verdana',
-                                                  fontStyle: 'normal',
-                                                  fontWeight: 400,
-                                                  fontSize: '14.4px',
-                                                  lineHeight: '20px',
-                                                  letterSpacing: '-0.02em',
-                                                  color: '#000000'
-                                                }}>{savedProduct.mandibularImplantDetails}</span>
-                                              </div>
-                                              <label
-                                                className="absolute bg-white"
-                                                style={{
-                                                  padding: '0px',
-                                                  height: '14px',
-                                                  left: '8.9px',
-                                                  top: '0px',
-                                                  fontFamily: 'Arial',
-                                                  fontStyle: 'normal',
-                                                  fontWeight: 400,
-                                                  fontSize: '14px',
-                                                  lineHeight: '14px',
-                                                  color: '#7F7F7F'
-                                                }}
-                                              >
-                                                Implant Details
-                                              </label>
-                                            </div>
-                                          </div>
-                                        )}
-                                      </div>
-
-                                      {/* Action Buttons - Only show if advance fields are showing */}
-                                      {(() => {
-                                        const productDetails = savedProduct.productDetails
-                                        const advanceFields = productDetails?.advance_fields || productAdvanceFields[savedProduct.id] || []
-                                        const hasAdvanceFields = advanceFields && Array.isArray(advanceFields) && advanceFields.length > 0
-                                        const allFieldsFilled = savedProduct.mandibularMaterial && savedProduct.mandibularRetention && savedProduct.mandibularToothShade && savedProduct.mandibularStage
-                                        return hasAdvanceFields && allFieldsFilled && (showAdvanceFields[savedProduct.id] || (savedProduct.mandibularMaterial && savedProduct.mandibularRetention))
-                                      })() && (
-                                      <div
-                                        className="flex flex-wrap justify-center items-center w-full"
-                                        style={{
-                                          gap: '7.03px',
-                                          position: 'relative',
-                                          marginTop: '30px',
-                                          marginBottom: '15px'
-                                        }}
-                                      >
-                                        {/* Deliver product first - Only show if multiple products */}
-                                        {savedProducts.length > 1 && (
-                                          <button
-                                            className="relative flex flex-col items-center justify-center"
-                                            style={{
-                                              width: '123.04px',
-                                              height: '46.22px',
-                                              background: '#F9F9F9',
-                                              boxShadow: '0.878154px 0.878154px 3.07354px rgba(0, 0, 0, 0.25)',
-                                              borderRadius: '5.26893px',
-                                              border: 'none',
-                                              cursor: 'pointer',
-                                              padding: '0'
-                                            }}
-                                          >
-                                            <div
-                                              className="absolute"
-                                              style={{
-                                                width: '13.91px',
-                                                height: '13.91px',
-                                                left: '50%',
-                                                top: '9.2px',
-                                                transform: 'translateX(-50%)',
-                                                background: '#FFFFFF',
-                                                border: '1.15951px solid #1162A8',
-                                                borderRadius: '1.73926px'
-                                              }}
-                                            />
-                                            <span
-                                              className="absolute text-center"
-                                              style={{
-                                                width: '85px',
-                                                height: '20px',
-                                                left: '50%',
-                                                top: '23.11px',
-                                                transform: 'translateX(-50%)',
-                                                fontFamily: 'Verdana',
-                                                fontStyle: 'normal',
-                                                fontWeight: 400,
-                                                fontSize: '8.78154px',
-                                                lineHeight: '19px',
-                                                textAlign: 'center',
-                                                letterSpacing: '-0.02em',
-                                                color: '#000000'
-                                              }}
-                                            >
-                                              Deliver product first
-                                            </span>
-                                          </button>
-                                        )}
-                                        <button
-                                          onClick={() => {
-                                            setCurrentProductForModal(savedProduct)
-                                            setCurrentArchForModal("mandibular")
-                                            setShowAddOnsModal(true)
-                                          }}
-                                          className="relative flex flex-col items-center justify-center"
-                                          style={{
-                                            width: '123.04px',
-                                            height: '46.22px',
-                                            background: '#F9F9F9',
-                                            boxShadow: '0.878154px 0.878154px 3.07354px rgba(0, 0, 0, 0.25)',
-                                            borderRadius: '5.26893px',
-                                            border: 'none',
-                                            cursor: 'pointer',
-                                            padding: '0'
-                                          }}
-                                        >
-                                          <span
-                                            className="absolute text-center"
-                                            style={{
-                                              width: '41.8px',
-                                              height: '20px',
-                                              left: '50%',
-                                              top: '3.79px',
-                                              transform: 'translateX(-50%)',
-                                              fontFamily: 'Verdana',
-                                              fontStyle: 'normal',
-                                              fontWeight: 400,
-                                              fontSize: '8.78154px',
-                                              lineHeight: '19px',
-                                              textAlign: 'center',
-                                              letterSpacing: '-0.02em',
-                                              color: '#000000'
-                                            }}
-                                          >
-                                            +
-                                          </span>
-                                          <span
-                                            className="absolute text-center"
-                                            style={{
-                                              width: '89px',
-                                              height: '20px',
-                                              left: '50%',
-                                              top: '23.11px',
-                                              transform: 'translateX(-50%)',
-                                              fontFamily: 'Verdana',
-                                              fontStyle: 'normal',
-                                              fontWeight: 400,
-                                              fontSize: '8.78154px',
-                                              lineHeight: '19px',
-                                              textAlign: 'center',
-                                              letterSpacing: '-0.02em',
-                                              color: '#000000'
-                                            }}
-                                          >
-                                            Add ons ({getProductAddOnsCount(savedProduct)} selected)
-                                          </span>
-                                        </button>
-                                        <button
-                                          onClick={() => {
-                                            setCurrentProductForModal(savedProduct)
-                                            setShowAttachModal(true)
-                                          }}
-                                          className="relative flex flex-col items-center justify-center"
-                                          style={{
-                                            width: '123.04px',
-                                            height: '46.22px',
-                                            background: '#F9F9F9',
-                                            boxShadow: '0.878154px 0.878154px 3.07354px rgba(0, 0, 0, 0.25)',
-                                            borderRadius: '5.26893px',
-                                            border: 'none',
-                                            cursor: 'pointer',
-                                            padding: '0'
-                                          }}
-                                        >
-                                          <Paperclip
-                                            className="absolute"
-                                            style={{
-                                              width: '8.78px',
-                                              height: '10.54px',
-                                              left: '50%',
-                                              top: '9.34px',
-                                              transform: 'translateX(-50%)',
-                                              color: '#1E1E1E',
-                                              strokeWidth: '0.878154px'
-                                            }}
-                                          />
-                                          <span
-                                            className="absolute text-center"
-                                            style={{
-                                              width: '107px',
-                                              height: '20px',
-                                              left: '50%',
-                                              top: '23.11px',
-                                              transform: 'translateX(-50%)',
-                                              fontFamily: 'Verdana',
-                                              fontStyle: 'normal',
-                                              fontWeight: 400,
-                                              fontSize: '8.78154px',
-                                              lineHeight: '19px',
-                                              textAlign: 'center',
-                                              letterSpacing: '-0.02em',
-                                              color: '#000000'
-                                            }}
-                                          >
-                                            Attach Files ({getAttachedFilesCount()} uploads)
-                                          </span>
-                                        </button>
-                                        <button
-                                          onClick={() => {
-                                            setCurrentProductForModal(savedProduct)
-                                            setShowRushModal(true)
-                                          }}
-                                          className="relative flex flex-col items-center justify-center"
-                                          style={{
-                                            width: '123.04px',
-                                            height: '46.22px',
-                                            background: '#F9F9F9',
-                                            boxShadow: '0px 0px 2.89791px rgba(207, 2, 2, 0.67)',
-                                            borderRadius: '5.26893px',
-                                            border: 'none',
-                                            cursor: 'pointer',
-                                            padding: '0'
-                                          }}
-                                        >
-                                          <Zap
-                                            className="absolute"
-                                            style={{
-                                              width: '8.78px',
-                                              height: '10.54px',
-                                              left: '50%',
-                                              top: '9.35px',
-                                              transform: 'translateX(-50%)',
-                                              color: '#CF0202',
-                                              fill: '#CF0202',
-                                              strokeWidth: '0.878154px'
-                                            }}
-                                          />
-                                          <span
-                                            className="absolute text-center"
-                                            style={{
-                                              width: '59px',
-                                              height: '20px',
-                                              left: '50%',
-                                              top: '23.11px',
-                                              transform: 'translateX(-50%)',
-                                              fontFamily: 'Verdana',
-                                              fontStyle: 'normal',
-                                              fontWeight: 400,
-                                              fontSize: '8.78154px',
-                                              lineHeight: '19px',
-                                              textAlign: 'center',
-                                              letterSpacing: '-0.02em',
-                                              color: '#000000'
-                                            }}
-                                          >
-                                            Request Rush
-                                          </span>
-                                        </button>
-                                      </div>
-                                      )}
-                                    </AccordionContent>
-                                  </AccordionItem>
-                                </Accordion>
-                              </Card>
-                            )
-                          })
-                      ) : (
-                        <div className="text-gray-400 text-sm py-4">No mandibular products</div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+          {/* Saved Products Section */}
+          <SavedProductsSection
+            savedProducts={savedProducts}
+            selectedCategory={selectedCategory}
+            showProductDetails={showProductDetails}
+            openAccordion={openAccordion}
+            handleAccordionChange={handleAccordionChange}
+            handleDeleteProduct={handleDeleteProduct}
+            handleSavedProductCardClick={handleSavedProductCardClick}
+            isAccordionFieldVisible={isAccordionFieldVisible}
+            getAdvanceFieldByName={getAdvanceFieldByName}
+            renderSavedAdvanceField={renderSavedAdvanceField}
+            productAdvanceFields={productAdvanceFields}
+            openStageDropdown={openStageDropdown}
+            setOpenStageDropdown={setOpenStageDropdown}
+            handleStageSelect={handleStageSelect}
+            showAdvanceFields={showAdvanceFields}
+            getTotalAddOnsCount={getTotalAddOnsCount}
+            getAttachedFilesCount={getAttachedFilesCount}
+            setCurrentProductForModal={setCurrentProductForModal}
+            setCurrentArchForModal={setCurrentArchForModal}
+            setShowAddOnsModal={setShowAddOnsModal}
+            setShowAttachModal={setShowAttachModal}
+            setShowRushModal={setShowRushModal}
+          />
 
           {/* Footer - Consistent across all pages */}
-          <div 
-            className="bg-white flex-shrink-0 sticky bottom-0 left-0 right-0 z-10"
-            style={{
-              height: "59.94px",
-              background: "#FFFFFF",
-            }}
-          >
-            <div className="flex justify-between items-center h-full px-6 relative">
-              {!showProductDetails ? (
-                // Regular footer with Previous button on right
-                <div className="flex justify-end w-full">
-                  <Button
-                    onClick={handleCancel}
-                    variant="outline"
-                    style={{
-                      display: "flex",
-                      flexDirection: "row",
-                      justifyContent: "center",
-                      alignItems: "center",
-                      padding: "12px 16px",
-                      gap: "10px",
-                      minWidth: "111px",
-                      height: "27px",
-                      background: "#1162A8",
-                      borderRadius: "6px",
-                      border: "none",
-                      fontFamily: "Verdana",
-                      fontStyle: "normal",
-                      fontWeight: 700,
-                      fontSize: "12px",
-                      lineHeight: "22px",
-                      letterSpacing: "-0.02em",
-                      color: "#FFFFFF",
-                      whiteSpace: "nowrap",
-                    }}
-                    className="hover:opacity-90"
-                  >
-                    Previous
-                  </Button>
-                </div>
-              ) : (
-                // Teeth selection page footer: Preview on left, Cancel and Submit on right
-                <>
-                  {/* Preview button on left */}
-                  <Button
-                    onClick={handlePreview}
-                    variant="outline"
-                    style={{
-                      boxSizing: "border-box",
-                      display: "flex",
-                      flexDirection: "row",
-                      justifyContent: "center",
-                      alignItems: "center",
-                      padding: "12px 16px",
-                      gap: "10px",
-                      minWidth: "111px",
-                      height: "34px",
-                      border: "2px solid #9BA5B7",
-                      borderRadius: "6px",
-                      fontFamily: "Verdana",
-                      fontStyle: "normal",
-                      fontWeight: 700,
-                      fontSize: "12px",
-                      lineHeight: "22px",
-                      letterSpacing: "-0.02em",
-                      color: "#9BA5B7",
-                      background: "transparent",
-                      whiteSpace: "nowrap",
-                    }}
-                    className="hover:opacity-80"
-                  >
-                    <Eye 
-                      style={{
-                        width: "24px",
-                        height: "24px",
-                        flex: "none",
-                        order: 0,
-                        flexGrow: 0,
-                      }}
-                    />
-                    <span
-                      style={{
-                        height: "22px",
-                        display: "flex",
-                        alignItems: "center",
-                        flex: "none",
-                        order: 1,
-                        flexGrow: 0,
-                      }}
-                    >
-                      Preview
-                    </span>
-                  </Button>
-                  
-                  {/* Cancel and Submit buttons on right */}
-                  <div className="flex items-center gap-3">
-                    <Button
-                      onClick={() => setShowCancelModal(true)}
-                      variant="outline"
-                      style={{
-                        boxSizing: "border-box",
-                        display: "flex",
-                        flexDirection: "row",
-                        justifyContent: "center",
-                        alignItems: "center",
-                        padding: "12px 16px",
-                        gap: "10px",
-                        minWidth: "111px",
-                        height: "27px",
-                        border: "2px solid #9BA5B7",
-                        borderRadius: "6px",
-                        fontFamily: "Verdana",
-                        fontStyle: "normal",
-                        fontWeight: 700,
-                        fontSize: "12px",
-                        lineHeight: "22px",
-                        letterSpacing: "-0.02em",
-                        color: "#9BA5B7",
-                        background: "transparent",
-                        whiteSpace: "nowrap",
-                      }}
-                      className="hover:opacity-80"
-                    >
-                      Cancel
-                    </Button>
-                    {/* Submit Case button with tooltip - Only show if accordion is complete */}
-                    {isAccordionComplete() && (
-                    <div className="relative">
-                      <Button
-                        onClick={(e) => {
-                          e.preventDefault()
-                          if (!confirmDetailsChecked) {
-                            setShowSubmitPopover(true)
-                          } else {
-                            setShowSubmitPopover(false)
-                            handleSubmit()
-                          }
-                        }}
-                        disabled={isSubmitting}
-                        style={{
-                          display: "flex",
-                          flexDirection: "row",
-                          justifyContent: "center",
-                          alignItems: "center",
-                          padding: "12px 16px",
-                          gap: "10px",
-                          minWidth: "111px",
-                          height: "27px",
-                          background: isSubmitting ? "#9BA5B7" : "#1162A8",
-                          borderRadius: "6px",
-                          border: "none",
-                          fontFamily: "Verdana",
-                          fontStyle: "normal",
-                          fontWeight: 700,
-                          fontSize: "12px",
-                          lineHeight: "22px",
-                          letterSpacing: "-0.02em",
-                          color: "#FFFFFF",
-                          opacity: isSubmitting ? 0.5 : 1,
-                          cursor: isSubmitting ? "not-allowed" : "pointer",
-                          whiteSpace: "nowrap",
-                        }}
-                        className="hover:opacity-90 disabled:opacity-50"
-                      >
-                        {isSubmitting ? (
-                          <>
-                            <Loader2 
-                              style={{
-                                width: "24px",
-                                height: "24px",
-                                flex: "none",
-                                order: 0,
-                                flexGrow: 0,
-                              }}
-                              className="animate-spin" 
-                            />
-                            <span
-                              style={{
-                                flex: "none",
-                                order: 1,
-                                flexGrow: 0,
-                              }}
-                            >
-                              Submitting...
-                            </span>
-                          </>
-                        ) : (
-                          <span
-                            style={{
-                              height: "22px",
-                              display: "flex",
-                              alignItems: "center",
-                              flex: "none",
-                              order: 1,
-                              flexGrow: 0,
-                            }}
-                          >
-                            Submit Case
-                          </span>
-                        )}
-                      </Button>
-                      
-                      {/* Tooltip - shown when submit is clicked, stays visible until submit is clicked again */}
-                      {showSubmitPopover && (
-                        <div className="absolute bottom-full right-0 mb-2 z-50">
-                          <div className="relative bg-orange-100 border border-orange-200 rounded-lg px-4 py-3 shadow-lg">
-                            <div className="absolute -bottom-2 right-6 w-4 h-4 bg-orange-100 border-r border-b border-orange-200 transform rotate-45"></div>
-                            <div className="flex items-center gap-3 whitespace-nowrap">
-                              <Checkbox
-                                id="confirm-details-tooltip"
-                                checked={confirmDetailsChecked}
-                                onCheckedChange={(checked) => {
-                                  setConfirmDetailsChecked(checked === true)
-                                }}
-                                className="flex-shrink-0"
-                                style={{
-                                  borderColor: "#1162a8",
-                                  backgroundColor: confirmDetailsChecked ? "#1162a8" : "transparent",
-                                }}
-                              />
-                              <label
-                                htmlFor="confirm-details-tooltip"
-                                className="text-sm text-orange-800 cursor-pointer whitespace-nowrap"
-                              >
-                                You confirm all details are correct by submitting case.
-                              </label>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
+          <FooterSection
+            showProductDetails={showProductDetails}
+            isSubmitting={isSubmitting}
+            confirmDetailsChecked={confirmDetailsChecked}
+            showSubmitPopover={showSubmitPopover}
+            isAccordionComplete={isAccordionComplete}
+            onCancel={handleCancel}
+            onPreview={handlePreview}
+            onShowCancelModal={() => setShowCancelModal(true)}
+            onSubmit={handleSubmit}
+            onConfirmDetailsChange={(checked) => setConfirmDetailsChecked(checked)}
+            onShowSubmitPopoverChange={(show) => setShowSubmitPopover(show)}
+          />
         </div>
       </div>
 

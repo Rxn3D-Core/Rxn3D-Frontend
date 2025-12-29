@@ -531,9 +531,9 @@ export default function FieldsPage() {
               'checkbox': 'checkbox',
             }
 
-            // Map options
+            // Map options - include id for existing options when editing (use originalId for API ID)
             const options = data.options?.map((option, index) => ({
-              ...(editingField && option.id && !isNaN(parseInt(option.id)) ? { id: parseInt(option.id) } : {}),
+              ...(editingField && option.originalId && !isNaN(option.originalId) && option.originalId > 0 ? { id: option.originalId } : {}),
               name: option.label,
               image: option.image || undefined,
               status: option.status ? 'Active' as const : 'Inactive' as const,
