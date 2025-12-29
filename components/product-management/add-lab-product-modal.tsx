@@ -761,6 +761,7 @@ export function AddLabProductModal({
     } else {
       reset()
       clearValidationErrors()
+      setShowTabs(false) // Reset tabs visibility
       onClose()
     }
   }, [isDirty, reset, clearValidationErrors, onClose])
@@ -774,6 +775,7 @@ export function AddLabProductModal({
     setCustomGumShadeNames({}) // Clear custom gum shade names
     setCustomTeethShadeNames({}) // Clear custom teeth shade names
     setReleasingStageIds([]) // Reset releasing stages
+    setShowTabs(false) // Reset tabs visibility
     onClose()
   }, [reset, clearValidationErrors, onClose])
 
@@ -1164,30 +1166,32 @@ export function AddLabProductModal({
 
           <form onSubmit={handleDirectSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0 overflow-hidden">
-              {/* Tab Navigation */}
-              <div className="border-b border-gray-200 bg-white flex-shrink-0">
-                <div className="flex">
-                  {tabs.map((tab) => {
-                    const isActive = activeTab === tab.id
-                    return (
-                      <button
-                        key={tab.id}
-                        type="button"
-                        onClick={() => setActiveTab(tab.id)}
-                        className={`
-                          px-6 py-4 text-sm font-medium border-b-2 transition-colors relative
-                          ${isActive
-                            ? "border-[#1162a8] text-[#1162a8]"
-                            : "border-transparent text-gray-600 hover:text-gray-800"
-                          }
-                        `}
-                      >
-                        {tab.label}
-                      </button>
-                    )
-                  })}
+              {/* Tab Navigation - Only show after product is created/updated */}
+              {showTabs && (
+                <div className="border-b border-gray-200 bg-white flex-shrink-0">
+                  <div className="flex">
+                    {tabs.map((tab) => {
+                      const isActive = activeTab === tab.id
+                      return (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => setActiveTab(tab.id)}
+                          className={`
+                            px-6 py-4 text-sm font-medium border-b-2 transition-colors relative
+                            ${isActive
+                              ? "border-[#1162a8] text-[#1162a8]"
+                              : "border-transparent text-gray-600 hover:text-gray-800"
+                            }
+                          `}
+                        >
+                          {tab.label}
+                        </button>
+                      )
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="overflow-y-auto flex-1 min-h-0">
                 <TabsContent value="details" className="mt-0 p-6 focus-visible:outline-none">
