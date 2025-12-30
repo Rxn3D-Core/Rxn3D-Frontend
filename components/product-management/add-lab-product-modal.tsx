@@ -167,7 +167,6 @@ export function AddLabProductModal({
     switch (stepId) {
       case "details":
         return ["name", "code", "subcategory_id", "base_price"]
-      // Other steps don't have required fields, but you can add them here if needed
       default:
         return []
     }
