@@ -6,7 +6,7 @@ import { ValidationError } from "@/components/ui/validation-error"
 import { AlertCircle } from "lucide-react"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { generateCodeFromName } from "@/lib/utils"
+import { generateCodeFromName, cn } from "@/lib/utils"
 import {
   Select,
   SelectContent,
@@ -170,7 +170,7 @@ export function ProductDetailsSection({
     if (imagePreview) setShowPreviewModal(true)
   }
 
-  const hasErrors = getValidationError("name") || getValidationError("code") || getValidationError("category_id") || getValidationError("subcategory_id")
+  const hasErrors = getValidationError("name") || getValidationError("code") || getValidationError("category_id") || getValidationError("subcategory_id") || getValidationError("base_price")
 
   return (
     <div className="px-4 sm:px-6 py-6 bg-white rounded-lg border border-gray-100">
@@ -294,82 +294,140 @@ export function ProductDetailsSection({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Category Selection */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Category</label>
                   <Controller
                     name="category_id"
                     control={control}
-                    render={({ field }) => (
-                      <Select
-                        value={field.value ? String(field.value) : ""}
-                        onValueChange={(value) => {
-                          const numValue = value ? Number(value) : null
-                          field.onChange(numValue)
-                          // Clear subcategory when category changes
-                          setValueWithOptions("subcategory_id", null, { shouldDirty: true })
-                        }}
-                        disabled={isCustomDisabled}
-                      >
-                        <SelectTrigger className="h-14">
-                          <SelectValue placeholder="Select Category *" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {categoriesWithSubcategories?.length > 0 ? (
-                            categoriesWithSubcategories.map((cat) => (
-                              <SelectItem key={cat.id} value={String(cat.id)}>
-                                {cat.name}
-                              </SelectItem>
-                            ))
-                          ) : (
-                            <SelectItem value="no-categories" disabled>
-                              No categories available
-                            </SelectItem>
+                    render={({ field }) => {
+                      const hasValue = field.value !== null && field.value !== undefined && field.value !== ""
+                      const selectedCategory = categoriesWithSubcategories.find(cat => cat.id === field.value)
+                      const displayValue = selectedCategory?.name || ""
+                      const isFocused = false // Select doesn't expose focus state easily, but label shows when value exists
+                      
+                      return (
+                        <div className="relative">
+                          {(hasValue || isFocused) && (
+                            <label
+                              className={cn(
+                                "absolute -top-2 left-3 bg-white px-1 text-xs transition-all z-10",
+                                getValidationError("category_id") 
+                                  ? "text-[#CF0202]" 
+                                  : hasValue 
+                                    ? "text-[#1162A8]" 
+                                    : "text-gray-500"
+                              )}
+                            >
+                              Category *
+                            </label>
                           )}
-                        </SelectContent>
-                      </Select>
-                    )}
+                          <Select
+                            value={field.value ? String(field.value) : ""}
+                            onValueChange={(value) => {
+                              const numValue = value ? Number(value) : null
+                              field.onChange(numValue)
+                              // Clear subcategory when category changes
+                              setValueWithOptions("subcategory_id", null, { shouldDirty: true })
+                            }}
+                            disabled={isCustomDisabled}
+                          >
+                            <SelectTrigger 
+                              className={cn(
+                                "h-14 pt-6 pb-2 rounded-lg border-2 transition-all",
+                                getValidationError("category_id")
+                                  ? "border-[#CF0202]"
+                                  : hasValue
+                                    ? "border-[#1162A8]"
+                                    : "border-[#E0E0E0]"
+                              )}
+                            >
+                              <SelectValue placeholder={hasValue ? "" : "Select Category *"} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {categoriesWithSubcategories?.length > 0 ? (
+                                categoriesWithSubcategories.map((cat) => (
+                                  <SelectItem key={cat.id} value={String(cat.id)}>
+                                    {cat.name}
+                                  </SelectItem>
+                                ))
+                              ) : (
+                                <SelectItem value="no-categories" disabled>
+                                  No categories available
+                                </SelectItem>
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )
+                    }}
                   />
                 </div>
 
                 {/* Subcategory Selection */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Subcategory</label>
                   <Controller
                     name="subcategory_id"
                     control={control}
-                    render={({ field }) => (
-                      <Select
-                        value={field.value ? String(field.value) : ""}
-                        onValueChange={(value) => {
-                          field.onChange(value ? Number(value) : null)
-                        }}
-                        disabled={!selectedCategoryId || isCustomDisabled}
-                      >
-                        <SelectTrigger className="h-14">
-                          <SelectValue 
-                            placeholder={
-                              selectedCategoryId 
-                                ? "Select Subcategory *" 
-                                : "Select category first"
-                            } 
-                          />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availableSubcategories.length > 0 ? (
-                            availableSubcategories.map((subcat) => (
-                              <SelectItem key={subcat.id} value={String(subcat.id)}>
-                                {subcat.name}
-                              </SelectItem>
-                            ))
-                          ) : (
-                            <SelectItem value="no-subcategories" disabled>
-                              {selectedCategoryId 
-                                ? "No subcategories available" 
-                                : "Please select a category first"}
-                            </SelectItem>
+                    render={({ field }) => {
+                      const hasValue = field.value !== null && field.value !== undefined && field.value !== ""
+                      const selectedSubcategory = availableSubcategories.find(sub => sub.id === field.value)
+                      const displayValue = selectedSubcategory?.name || ""
+                      
+                      return (
+                        <div className="relative">
+                          {(hasValue) && (
+                            <label
+                              className={cn(
+                                "absolute -top-2 left-3 bg-white px-1 text-xs transition-all z-10",
+                                getValidationError("subcategory_id") 
+                                  ? "text-[#CF0202]" 
+                                  : hasValue 
+                                    ? "text-[#1162A8]" 
+                                    : "text-gray-500"
+                              )}
+                            >
+                              Subcategory *
+                            </label>
                           )}
-                        </SelectContent>
-                      </Select>
-                    )}
+                          <Select
+                            value={field.value ? String(field.value) : ""}
+                            onValueChange={(value) => {
+                              field.onChange(value ? Number(value) : null)
+                            }}
+                            disabled={!selectedCategoryId || isCustomDisabled}
+                          >
+                            <SelectTrigger 
+                              className={cn(
+                                "h-14 pt-6 pb-2 rounded-lg border-2 transition-all",
+                                getValidationError("subcategory_id")
+                                  ? "border-[#CF0202]"
+                                  : hasValue
+                                    ? "border-[#1162A8]"
+                                    : "border-[#E0E0E0]",
+                                (!selectedCategoryId || isCustomDisabled) && "opacity-40 cursor-not-allowed bg-gray-50"
+                              )}
+                            >
+                              <SelectValue 
+                                placeholder={hasValue ? "" : (selectedCategoryId ? "Select Subcategory *" : "Select category first")} 
+                              />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {availableSubcategories.length > 0 ? (
+                                availableSubcategories.map((subcat) => (
+                                  <SelectItem key={subcat.id} value={String(subcat.id)}>
+                                    {subcat.name}
+                                  </SelectItem>
+                                ))
+                              ) : (
+                                <SelectItem value="no-subcategories" disabled>
+                                  {selectedCategoryId 
+                                    ? "No subcategories available" 
+                                    : "Please select a category first"}
+                                </SelectItem>
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )
+                    }}
                   />
                 </div>
               </div>
@@ -384,14 +442,11 @@ export function ProductDetailsSection({
           }`}>
             {/* Base Price */}
             <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-gray-700">
-                  Base Price
-                </label>
+              <div className="relative">
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Info className="h-4 w-4 text-gray-400 hover:text-gray-600 cursor-help" />
+                      <Info className="absolute right-2 top-2 h-4 w-4 text-gray-400 hover:text-gray-600 cursor-help z-10" />
                     </TooltipTrigger>
                     <TooltipContent>
                       <p>
@@ -402,46 +457,60 @@ export function ProductDetailsSection({
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
-              </div>
-              <div className="relative">
                 <Controller
                   name="base_price"
                   control={control}
-                  render={({ field }) => (
-                    <Input
-                      placeholder="0.00"
-                      className={`h-14 pl-8 ${
-                        sections.grades 
-                          ? "border-gray-200 bg-gray-50 cursor-not-allowed" 
-                          : ""
-                      }`}
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={sections.grades ? defaultGradePrice : (field.value || "")}
-                      onChange={(e) => field.onChange(e.target.value)}
-                      disabled={sections.grades}
-                      validationState={sections.grades ? "disabled" : "default"}
-                    />
-                  )}
+                  render={({ field }) => {
+                    const currentValue = sections.grades ? defaultGradePrice : (field.value || "")
+                    const hasValue = currentValue !== "" && currentValue !== null && currentValue !== undefined
+                    const hasError = getValidationError("base_price")
+                    
+                    return (
+                      <div className="relative">
+                        <Input
+                          label="Base Price"
+                          placeholder="0.00"
+                          className={`h-14 pl-8 ${
+                            sections.grades 
+                              ? "border-gray-200 bg-gray-50 cursor-not-allowed" 
+                              : ""
+                          }`}
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={currentValue}
+                          onChange={(e) => field.onChange(e.target.value)}
+                          disabled={sections.grades}
+                          validationState={
+                            sections.grades 
+                              ? "disabled" 
+                              : hasError
+                                ? "error"
+                                : hasValue
+                                  ? "valid"
+                                  : "default"
+                          }
+                          required
+                        />
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium pointer-events-none">
+                          $
+                        </span>
+                      </div>
+                    )
+                  }}
                 />
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium pointer-events-none">
-                  $
-                </span>
               </div>
             </div>
 
             {/* Min Days to Process - Only for non-superadmin */}
             {userRole !== "superadmin" && (
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">
-                  Min Days to Process
-                </label>
                 <Controller
                   name="min_days_to_process"
                   control={control}
                   render={({ field }) => (
                     <Input
+                      label="Min Days to Process"
                       placeholder="Enter minimum days"
                       className="h-14"
                       type="number"
@@ -458,36 +527,34 @@ export function ProductDetailsSection({
             {/* Max Days to Process - Only for non-superadmin */}
             {userRole !== "superadmin" && (
               <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <label className="text-sm font-medium text-gray-700">
-                    Max Days to Process
-                  </label>
+                <div className="relative">
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Info className="h-4 w-4 text-gray-400 hover:text-gray-600 cursor-help" />
+                        <Info className="absolute right-2 top-2 h-4 w-4 text-gray-400 hover:text-gray-600 cursor-help z-10" />
                       </TooltipTrigger>
                       <TooltipContent side="left" align="start">
                         <p>Maximum number of days required to process this product</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
+                  <Controller
+                    name="max_days_to_process"
+                    control={control}
+                    render={({ field }) => (
+                      <Input
+                        label="Max Days to Process"
+                        placeholder="Enter maximum days"
+                        className="h-14"
+                        type="number"
+                        min="1"
+                        value={field.value !== null && field.value !== undefined ? field.value : ""}
+                        onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                        validationState={getValidationError("max_days_to_process") ? "error" : (field.value ? "valid" : "default")}
+                      />
+                    )}
+                  />
                 </div>
-                <Controller
-                  name="max_days_to_process"
-                  control={control}
-                  render={({ field }) => (
-                    <Input
-                      placeholder="Enter maximum days"
-                      className="h-14"
-                      type="number"
-                      min="1"
-                      value={field.value !== null && field.value !== undefined ? field.value : ""}
-                      onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
-                      validationState={getValidationError("max_days_to_process") ? "error" : (field.value ? "valid" : "default")}
-                    />
-                  )}
-                />
               </div>
             )}
           </div>
@@ -560,7 +627,7 @@ export function ProductDetailsSection({
       </Dialog>
 
       {/* Validation Error Message */}
-      <ValidationError message={hasErrors ? (getValidationError("name") || getValidationError("code") || getValidationError("category_id") || getValidationError("subcategory_id")) : undefined} />
+      <ValidationError message={hasErrors ? (getValidationError("name") || getValidationError("code") || getValidationError("category_id") || getValidationError("subcategory_id") || getValidationError("base_price")) : undefined} />
     </div>
   )
 }

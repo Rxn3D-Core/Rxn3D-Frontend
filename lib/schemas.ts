@@ -177,7 +177,18 @@ export const ProductCreateFormSchema = z
     status: z.enum(["Active", "Inactive"]).default("Active"),
     sequence: z.number().min(1, "Sequence must be at least 1").default(1),
     description: z.string().nullable().optional(),
-    base_price: z.union([z.string(), z.number()]).optional(), // Updated: made completely optional
+    base_price: z.union([z.string(), z.number()]).refine(
+      (val) => {
+        if (val === undefined || val === null || val === "") {
+          return false;
+        }
+        const numValue = typeof val === "string" ? parseFloat(val) : val;
+        return !isNaN(numValue) && numValue >= 0;
+      },
+      {
+        message: "Base Price is required and must be a valid number",
+      }
+    ),
     image: z.string().nullable().optional(),
     is_teeth_based_price: z.enum(["Yes", "No"]).default("No").optional(),
 

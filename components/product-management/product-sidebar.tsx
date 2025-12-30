@@ -143,9 +143,9 @@ export function ProductSidebar({ activeTab = "products", onTabChange }: ProductS
   }
 
   return (
-    <div className="w-72 bg-white border-r border-[#d9d9d9]">
-      <div className="px-6 py-4 font-bold text-lg border-b border-[#d9d9d9]">{t("productLibrary.productManagementLabel")}</div>
-      <div className="overflow-y-auto max-h-[calc(100vh-300px)] product-sidebar-scroll">
+    <div className="w-72 bg-white border-r border-[#d9d9d9] flex flex-col h-full">
+      <div className="px-6 py-4 font-bold text-lg border-b border-[#d9d9d9] flex-shrink-0">{t("productLibrary.productManagementLabel")}</div>
+      <div className="overflow-y-auto flex-1 product-sidebar-scroll">
         {sidebarGroups.map((group) => {
           const hasActiveItem = group.items.some(item => isActive(item.href))
           const groupExpanded = isExpanded(group.id)

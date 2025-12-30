@@ -39,13 +39,13 @@ export default function LabProductLibraryLayout({
                         <AddOnsProvider>
                           <AddOnsCategoryProvider>
                             <CaseTrackingProvider>
-                              <div className="flex min-h-screen bg-[#f9f9f9]">
+                              <div className="flex h-screen bg-[#f9f9f9] overflow-hidden">
                                 <DashboardSidebar />
-                                <div className="flex-1 flex flex-col">
+                                <div className="flex-1 flex flex-col overflow-hidden">
                                   <Header />
-                                  <div className="flex-1 flex">
+                                  <div className="flex-1 flex overflow-hidden">
                                     <ProductSidebar />
-                                    <main className="flex-1">
+                                    <main className="flex-1 overflow-auto">
                                       {children}
                                     </main>
                                   </div>
