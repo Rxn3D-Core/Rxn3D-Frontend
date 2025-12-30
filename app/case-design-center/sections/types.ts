@@ -65,6 +65,7 @@ export interface SavedProduct {
   maxillaryEmbrasure?: string
   maxillaryOcclusalContact?: string
   maxillaryProximalContact?: string
+  maxillaryGap?: string
   maxillaryImpression?: string
   maxillaryAddOns?: string[]
   maxillaryContourPonticType?: string
@@ -81,6 +82,7 @@ export interface SavedProduct {
   mandibularEmbrasure?: string
   mandibularOcclusalContact?: string
   mandibularProximalContact?: string
+  mandibularGap?: string
   mandibularImpression?: string
   mandibularAddOns?: string[]
   mandibularContourPonticType?: string

@@ -216,7 +216,7 @@ function StageFieldComponent({
             color: '#000000'
           }}
         >
-          <SelectValue placeholder="Not specified" />
+          <SelectValue placeholder="Select" />
         </SelectTrigger>
         <SelectContent className="z-[50] max-h-[300px] overflow-y-auto">
           {savedProduct.productDetails?.stages?.map((stage: any, idx: number) => (
@@ -362,6 +362,11 @@ export default function CaseDesignCenterPage() {
 
   // Helper function to get field order based on category
   const getFieldOrder = (category: string): string[] => {
+    // Handle undefined or null category
+    if (!category) {
+      return ["product_material", "retention", "stage"]
+    }
+    
     const categoryLower = category.toLowerCase()
     const isFixedRestoration = categoryLower.includes("fixed")
     const isRemovableOrOrtho = categoryLower.includes("removable") || 
@@ -381,6 +386,7 @@ export default function CaseDesignCenterPage() {
         "embrasures",
         "occlusal_contact",
         "interproximal_contact",
+        "gap",
         "impressions",
         "add_ons"
       ]
@@ -400,11 +406,45 @@ export default function CaseDesignCenterPage() {
     return ["product_material", "retention", "stage"]
   }
 
+  // Helper to check if any tooth in the saved product has a retention type selected from popover
+  const hasRetentionTypeSelected = (savedProduct: SavedProduct, arch: "maxillary" | "mandibular"): boolean => {
+    const teeth = arch === "maxillary" ? savedProduct.maxillaryTeeth : savedProduct.mandibularTeeth
+    const retentionTypes = arch === "maxillary" ? maxillaryRetentionTypes : mandibularRetentionTypes
+    
+    // If no teeth are selected, don't show the field
+    if (!teeth || teeth.length === 0) {
+      return false
+    }
+    
+    // Check if any tooth in the product has a retention type selected from popover
+    const hasSelection = teeth.some(toothNumber => {
+      const types = retentionTypes[toothNumber] || []
+      // Only return true if there's actually a retention type selected (Implant, Prep, or Pontic)
+      return types.length > 0 && (types.includes('Implant') || types.includes('Prep') || types.includes('Pontic'))
+    })
+    
+    return hasSelection
+  }
+
+  // Helper to check if retention value is valid (not empty, not placeholder)
+  const hasValidRetentionValue = (retentionValue: string | undefined | null): boolean => {
+    if (!retentionValue) return false
+    const trimmed = String(retentionValue).trim()
+    return trimmed !== '' && 
+           trimmed !== 'Not specified' && 
+           trimmed !== 'Select' && 
+           trimmed !== 'Retention type'
+  }
+
   // Helper function to check if a field is configured for the product
   const isFieldConfigured = (fieldName: string, productDetails: any, savedProduct: SavedProduct, archType?: "maxillary" | "mandibular"): boolean => {
     if (!productDetails) return false
 
     switch (fieldName) {
+      case "retention":
+        // Only show retention field if user has selected a retention type from popover
+        if (!archType) return false
+        return hasRetentionTypeSelected(savedProduct, archType)
       case "implant":
         const implantDetails = archType === "maxillary" ? "" : savedProduct.mandibularImplantDetails
         return !!(productDetails.implant || implantDetails)
@@ -429,11 +469,12 @@ export default function CaseDesignCenterPage() {
       case "embrasures":
       case "occlusal_contact":
       case "interproximal_contact":
+      case "gap":
       case "advance_fields":
         const allAdvanceFields = productDetails.advance_fields || productAdvanceFields[savedProduct.id] || []
         return allAdvanceFields.length > 0
       default:
-        return true // Always show product_material, retention, stage, impressions, add_ons
+        return true // Always show product_material, stage, impressions, add_ons
     }
   }
 
@@ -456,6 +497,8 @@ export default function CaseDesignCenterPage() {
         return fieldNameLower.includes("occlusal") && fieldNameLower.includes("contact")
       } else if (nameLower === "interproximal_contact") {
         return (fieldNameLower.includes("interproximal") || fieldNameLower.includes("proximal")) && fieldNameLower.includes("contact")
+      } else if (nameLower === "gap") {
+        return fieldNameLower.includes("gap")
       }
       return false
     }) || null
@@ -529,7 +572,7 @@ export default function CaseDesignCenterPage() {
               lineHeight: '20px',
               letterSpacing: '-0.02em',
               color: '#000000'
-            }}>{selectedOption ? selectedOption.name : (displayValue || 'Not specified')}</span>
+            }}>{selectedOption ? selectedOption.name : (displayValue || 'Select')}</span>
             {isStumpShade && displayValue && (
               <div
                 className="flex items-center justify-center"
@@ -603,7 +646,7 @@ export default function CaseDesignCenterPage() {
               lineHeight: '20px',
               letterSpacing: '-0.02em',
               color: '#000000'
-            }}>{displayValue || 'Not specified'}</span>
+            }}>{displayValue || 'Input'}</span>
           </div>
           <label
             className="absolute bg-white"
@@ -655,7 +698,7 @@ export default function CaseDesignCenterPage() {
             lineHeight: '20px',
             letterSpacing: '-0.02em',
             color: '#000000'
-          }}>{displayValue || 'Not specified'}</span>
+          }}>{displayValue || 'Select'}</span>
         </div>
         <label
           className="absolute bg-white"
@@ -713,7 +756,7 @@ export default function CaseDesignCenterPage() {
     },
     {
       key: "retention",
-      label: "Select Retention type",
+      label: "Retention type",
       apiProperty: "retentions",
       fieldType: "select",
       sequence: 2,
@@ -790,6 +833,11 @@ export default function CaseDesignCenterPage() {
       return false
     }
 
+    // For retention field, only show if user has selected a retention type from popover
+    if (config.key === "retention") {
+      return hasRetentionTypeSelected(savedProduct, arch)
+    }
+
     // Check dependencies
     if (config.dependsOn) {
       const dependencyConfig = fieldConfigs.find(f => f.key === config.dependsOn)
@@ -829,6 +877,7 @@ export default function CaseDesignCenterPage() {
     const embrasure = archType === "maxillary" ? savedProduct.maxillaryEmbrasure : savedProduct.mandibularEmbrasure
     const occlusalContact = archType === "maxillary" ? savedProduct.maxillaryOcclusalContact : savedProduct.mandibularOcclusalContact
     const proximalContact = archType === "maxillary" ? savedProduct.maxillaryProximalContact : savedProduct.mandibularProximalContact
+    const gap = archType === "maxillary" ? savedProduct.maxillaryGap : savedProduct.mandibularGap
     const stumpShade = archType === "maxillary" ? savedProduct.maxillaryStumpShade : ""
 
     switch (fieldName) {
@@ -863,6 +912,8 @@ export default function CaseDesignCenterPage() {
         return !!(occlusalContact && occlusalContact.trim() !== "")
       case "interproximal_contact":
         return !!(proximalContact && proximalContact.trim() !== "")
+      case "gap":
+        return !!(gap && gap.trim() !== "")
       case "add_ons":
         const addOns = archType === "maxillary" ? savedProduct.maxillaryAddOns : savedProduct.mandibularAddOns
         return !!(addOns && Array.isArray(addOns) && addOns.length > 0)
@@ -960,6 +1011,61 @@ export default function CaseDesignCenterPage() {
 
       return hasMaterial && hasRetention && hasToothShade && hasStage
     })
+  }
+
+  // Helper function to get shade display text with brand and code
+  const getShadeDisplayText = (
+    shadeName: string | undefined,
+    shadeId: number | undefined,
+    shadeBrandId: number | undefined,
+    shadeType: "stump_shade" | "tooth_shade",
+    productDetails: any
+  ): string => {
+    if (!shadeName || shadeName.trim() === "" || shadeName === "Select" || shadeName === "Select stump shade" || shadeName === "Select tooth shade") {
+      return shadeType === "stump_shade" ? "Select stump shade" : "Select tooth shade"
+    }
+
+    if (!productDetails) {
+      return shadeName
+    }
+
+    // Get the appropriate shade array
+    const shades = shadeType === "stump_shade" 
+      ? productDetails.gum_shades 
+      : productDetails.teeth_shades
+
+    if (!shades || !Array.isArray(shades)) {
+      return shadeName
+    }
+
+    // Find the shade by ID or name
+    const shade = shades.find((s: any) => {
+      if (shadeId && (s.id === shadeId || String(s.id) === String(shadeId))) {
+        return true
+      }
+      if (s.name === shadeName || s.system_name === shadeName) {
+        return true
+      }
+      return false
+    })
+
+    if (!shade) {
+      return shadeName
+    }
+
+    // Get brand name
+    const brandName = shade.brand?.name || shade.brand_name || ""
+    // Get shade code
+    const shadeCode = shade.code || shade.shade_code || shade.name || ""
+
+    // Format: "Brand Name - Shade Code" or just "Shade Code" if no brand
+    if (brandName && shadeCode) {
+      return `${brandName} - ${shadeCode}`
+    } else if (shadeCode) {
+      return shadeCode
+    } else {
+      return shadeName
+    }
   }
 
   // Helper function to check if accordion field should be visible (progressive disclosure for accordion)
@@ -2017,6 +2123,9 @@ export default function CaseDesignCenterPage() {
         const proximalMatch = fullText.match(/(open|closed)\s+proximal\s+contact/i)
         const proximalContact = proximalMatch ? `${proximalMatch[1]} proximal contact` : "open proximal contact"
 
+        const gapMatch = fullText.match(/gap:\s*([^,\.]+)/i)
+        const gap = gapMatch ? gapMatch[1].trim() : ""
+
         // Extract impression
         const impressionMatch = fullText.match(/impression\s+used:\s*([^.]+)/i)
         const impression = impressionMatch ? impressionMatch[1].trim() : "STL file"
@@ -2085,12 +2194,14 @@ export default function CaseDesignCenterPage() {
             maxillaryEmbrasure: currentSection === "maxillary" ? embrasure : undefined,
             maxillaryOcclusalContact: currentSection === "maxillary" ? occlusalContact : undefined,
             maxillaryProximalContact: currentSection === "maxillary" ? proximalContact : undefined,
+            maxillaryGap: currentSection === "maxillary" ? gap : undefined,
             maxillaryImpression: currentSection === "maxillary" ? impression : undefined,
             maxillaryAddOns: currentSection === "maxillary" ? addOns : undefined,
             mandibularPonticDesign: currentSection === "mandibular" ? ponticDesign : undefined,
             mandibularEmbrasure: currentSection === "mandibular" ? embrasure : undefined,
             mandibularOcclusalContact: currentSection === "mandibular" ? occlusalContact : undefined,
             mandibularProximalContact: currentSection === "mandibular" ? proximalContact : undefined,
+            mandibularGap: currentSection === "mandibular" ? gap : undefined,
             mandibularImpression: currentSection === "mandibular" ? impression : undefined,
             mandibularAddOns: currentSection === "mandibular" ? addOns : undefined,
           }
@@ -2210,6 +2321,7 @@ export default function CaseDesignCenterPage() {
           const contourPonticType = product.maxillaryContourPonticType || "POS pontic design"
           const proximalContact = product.maxillaryProximalContact || "open proximal contact"
           const occlusalContact = product.maxillaryOcclusalContact || "standard occlusal contact"
+          const gap = product.maxillaryGap || ""
           
           // Format impressions with quantities
           let impressionText = "STL file"
@@ -2229,7 +2341,8 @@ export default function CaseDesignCenterPage() {
           const advanceFieldsText = formatAdvanceFields(product, "maxillary")
           const advanceFieldsSection = advanceFieldsText ? ` Advanced fields: ${advanceFieldsText}.` : ""
 
-          notes += ` Design specifications: ${ponticDesign}, ${embrasure}, ${contourPonticType}, ${proximalContact}, ${occlusalContact}. Impression: ${impressionText}. Add-ons ${addOns}.${advanceFieldsSection}`
+          const gapText = gap ? `, gap: ${gap}` : ""
+          notes += ` Design specifications: ${ponticDesign}, ${embrasure}, ${contourPonticType}, ${proximalContact}, ${occlusalContact}${gapText}. Impression: ${impressionText}. Add-ons ${addOns}.${advanceFieldsSection}`
         } else if (isRemovable) {
           const teeth = formatTeethNumbers(product.maxillaryTeeth)
           const productName = product.product.name || "removable restoration"
@@ -2310,6 +2423,7 @@ export default function CaseDesignCenterPage() {
           const contourPonticType = product.mandibularContourPonticType || "POS pontic design"
           const proximalContact = product.mandibularProximalContact || "open proximal contact"
           const occlusalContact = product.mandibularOcclusalContact || "standard occlusal contact"
+          const gap = product.mandibularGap || ""
           
           // Format impressions with quantities
           let impressionText = "STL file"
@@ -2329,7 +2443,8 @@ export default function CaseDesignCenterPage() {
           const advanceFieldsText = formatAdvanceFields(product, "mandibular")
           const advanceFieldsSection = advanceFieldsText ? ` Advanced fields: ${advanceFieldsText}.` : ""
 
-          notes += ` Design specifications: ${ponticDesign}, ${embrasure}, ${contourPonticType}, ${proximalContact}, ${occlusalContact}. Impression: ${impressionText}. Add-ons ${addOns}.${advanceFieldsSection}`
+          const gapText = gap ? `, gap: ${gap}` : ""
+          notes += ` Design specifications: ${ponticDesign}, ${embrasure}, ${contourPonticType}, ${proximalContact}, ${occlusalContact}${gapText}. Impression: ${impressionText}. Add-ons ${addOns}.${advanceFieldsSection}`
         } else if (isRemovable) {
           const teeth = formatTeethNumbers(product.mandibularTeeth)
           const productName = product.product.name || "removable restoration"
@@ -2733,6 +2848,85 @@ export default function CaseDesignCenterPage() {
               break
             case "retention_option":
               setMaxillaryRetentionOptionId(id)
+              // Auto-select retention type based on retention option's tooth_chart_type
+              if (id && productDetails?.retention_options && productDetails?.retentions) {
+                // Convert id to number for comparison (handle both string and number)
+                const numericId = typeof id === 'string' ? parseInt(id, 10) : id
+                
+                // Find the selected retention option - check multiple possible structures
+                const selectedRetentionOption = productDetails.retention_options.find((opt: any) => {
+                  // Check direct ID match (handle both string and number)
+                  if (opt.id === id || opt.id === numericId || String(opt.id) === String(id)) return true
+                  // Check nested lab_retention_option ID
+                  if (opt.lab_retention_option?.id === id || 
+                      opt.lab_retention_option?.id === numericId ||
+                      String(opt.lab_retention_option?.id) === String(id)) return true
+                  // Check if retention_option_id matches
+                  if (opt.retention_option_id === id || 
+                      opt.retention_option_id === numericId ||
+                      String(opt.retention_option_id) === String(id)) return true
+                  return false
+                })
+                
+                if (selectedRetentionOption) {
+                  // Get tooth_chart_type from various possible locations
+                  const toothChartType = selectedRetentionOption.tooth_chart_type || 
+                                         selectedRetentionOption.lab_retention_option?.tooth_chart_type ||
+                                         selectedRetentionOption.retention_option?.tooth_chart_type
+                  
+                  // Debug logging (can be removed later)
+                  if (process.env.NODE_ENV === 'development') {
+                    console.log('Retention option selected:', {
+                      id,
+                      numericId,
+                      selectedRetentionOption,
+                      toothChartType,
+                      allRetentionOptions: productDetails.retention_options
+                    })
+                  }
+                  
+                  // Map tooth_chart_type to retention type
+                  let targetRetentionName = ""
+                  if (toothChartType === "Implant" || toothChartType === "Pontic") {
+                    targetRetentionName = "Screwed"
+                  } else if (toothChartType === "Prep" || toothChartType === "Prepped") {
+                    targetRetentionName = "Cemented"
+                  }
+                  
+                  if (targetRetentionName) {
+                    // Find the matching retention by name (case-insensitive)
+                    const targetRetention = productDetails.retentions.find((ret: any) => 
+                      ret.name === targetRetentionName || 
+                      ret.name?.toLowerCase() === targetRetentionName.toLowerCase()
+                    )
+                    if (targetRetention) {
+                      if (process.env.NODE_ENV === 'development') {
+                        console.log('Auto-selecting retention type:', targetRetention)
+                      }
+                      setMaxillaryRetention(targetRetention.name)
+                      setMaxillaryRetentionId(targetRetention.id)
+                    } else if (process.env.NODE_ENV === 'development') {
+                      console.log('Retention not found:', {
+                        targetRetentionName,
+                        availableRetentions: productDetails.retentions
+                      })
+                    }
+                  } else if (process.env.NODE_ENV === 'development') {
+                    console.log('No target retention name mapped for tooth_chart_type:', toothChartType)
+                  }
+                } else if (process.env.NODE_ENV === 'development') {
+                  console.log('Retention option not found:', {
+                    id,
+                    numericId,
+                    availableOptions: productDetails.retention_options.map((opt: any) => ({
+                      id: opt.id,
+                      name: opt.name,
+                      lab_retention_option_id: opt.lab_retention_option?.id,
+                      retention_option_id: opt.retention_option_id
+                    }))
+                  })
+                }
+              }
               break
             case "stump_shade":
               setMaxillaryGumShadeId(id)
@@ -2775,6 +2969,66 @@ export default function CaseDesignCenterPage() {
               break
             case "retention_option":
               setMandibularRetentionOptionId(id)
+              // Auto-select retention type based on retention option's tooth_chart_type
+              if (id && productDetails?.retention_options && productDetails?.retentions) {
+                // Convert id to number for comparison (handle both string and number)
+                const numericId = typeof id === 'string' ? parseInt(id, 10) : id
+                
+                // Find the selected retention option - check multiple possible structures
+                const selectedRetentionOption = productDetails.retention_options.find((opt: any) => {
+                  // Check direct ID match (handle both string and number)
+                  if (opt.id === id || opt.id === numericId || String(opt.id) === String(id)) return true
+                  // Check nested lab_retention_option ID
+                  if (opt.lab_retention_option?.id === id || 
+                      opt.lab_retention_option?.id === numericId ||
+                      String(opt.lab_retention_option?.id) === String(id)) return true
+                  // Check if retention_option_id matches
+                  if (opt.retention_option_id === id || 
+                      opt.retention_option_id === numericId ||
+                      String(opt.retention_option_id) === String(id)) return true
+                  return false
+                })
+                
+                if (selectedRetentionOption) {
+                  // Get tooth_chart_type from various possible locations
+                  const toothChartType = selectedRetentionOption.tooth_chart_type || 
+                                         selectedRetentionOption.lab_retention_option?.tooth_chart_type ||
+                                         selectedRetentionOption.retention_option?.tooth_chart_type
+                  
+                  // Debug logging (can be removed later)
+                  if (process.env.NODE_ENV === 'development') {
+                    console.log('Retention option selected (mandibular):', {
+                      id,
+                      numericId,
+                      selectedRetentionOption,
+                      toothChartType
+                    })
+                  }
+                  
+                  // Map tooth_chart_type to retention type
+                  let targetRetentionName = ""
+                  if (toothChartType === "Implant" || toothChartType === "Pontic") {
+                    targetRetentionName = "Screwed"
+                  } else if (toothChartType === "Prep" || toothChartType === "Prepped") {
+                    targetRetentionName = "Cemented"
+                  }
+                  
+                  if (targetRetentionName) {
+                    // Find the matching retention by name (case-insensitive)
+                    const targetRetention = productDetails.retentions.find((ret: any) => 
+                      ret.name === targetRetentionName || 
+                      ret.name?.toLowerCase() === targetRetentionName.toLowerCase()
+                    )
+                    if (targetRetention) {
+                      if (process.env.NODE_ENV === 'development') {
+                        console.log('Auto-selecting retention type (mandibular):', targetRetention)
+                      }
+                      setMandibularRetention(targetRetention.name)
+                      setMandibularRetentionId(targetRetention.id)
+                    }
+                  }
+                }
+              }
               break
             case "stump_shade":
               setMandibularGumShadeId(id)
@@ -2799,6 +3053,54 @@ export default function CaseDesignCenterPage() {
             }
             if (config.maxillaryIdKey && id !== undefined) {
               (updated as any)[config.maxillaryIdKey] = id
+              
+              // Auto-select retention type based on retention option's tooth_chart_type
+              if (fieldKey === "retention_option" && id && updated.productDetails?.retention_options && updated.productDetails?.retentions) {
+                // Convert id to number for comparison (handle both string and number)
+                const numericId = typeof id === 'string' ? parseInt(id, 10) : id
+                
+                // Find the selected retention option - check multiple possible structures
+                const selectedRetentionOption = updated.productDetails.retention_options.find((opt: any) => {
+                  // Check direct ID match (handle both string and number)
+                  if (opt.id === id || opt.id === numericId || String(opt.id) === String(id)) return true
+                  // Check nested lab_retention_option ID
+                  if (opt.lab_retention_option?.id === id || 
+                      opt.lab_retention_option?.id === numericId ||
+                      String(opt.lab_retention_option?.id) === String(id)) return true
+                  // Check if retention_option_id matches
+                  if (opt.retention_option_id === id || 
+                      opt.retention_option_id === numericId ||
+                      String(opt.retention_option_id) === String(id)) return true
+                  return false
+                })
+                
+                if (selectedRetentionOption) {
+                  // Get tooth_chart_type from various possible locations
+                  const toothChartType = selectedRetentionOption.tooth_chart_type || 
+                                         selectedRetentionOption.lab_retention_option?.tooth_chart_type ||
+                                         selectedRetentionOption.retention_option?.tooth_chart_type
+                  
+                  // Map tooth_chart_type to retention type
+                  let targetRetentionName = ""
+                  if (toothChartType === "Implant" || toothChartType === "Pontic") {
+                    targetRetentionName = "Screwed"
+                  } else if (toothChartType === "Prep" || toothChartType === "Prepped") {
+                    targetRetentionName = "Cemented"
+                  }
+                  
+                  if (targetRetentionName) {
+                    // Find the matching retention by name (case-insensitive)
+                    const targetRetention = updated.productDetails.retentions.find((ret: any) => 
+                      ret.name === targetRetentionName || 
+                      ret.name?.toLowerCase() === targetRetentionName.toLowerCase()
+                    )
+                    if (targetRetention) {
+                      updated.maxillaryRetention = targetRetention.name
+                      updated.maxillaryRetentionId = targetRetention.id
+                    }
+                  }
+                }
+              }
             }
           } else {
             if (config.mandibularStateKey) {
@@ -2806,6 +3108,54 @@ export default function CaseDesignCenterPage() {
             }
             if (config.mandibularIdKey && id !== undefined) {
               (updated as any)[config.mandibularIdKey] = id
+              
+              // Auto-select retention type based on retention option's tooth_chart_type
+              if (fieldKey === "retention_option" && id && updated.productDetails?.retention_options && updated.productDetails?.retentions) {
+                // Convert id to number for comparison (handle both string and number)
+                const numericId = typeof id === 'string' ? parseInt(id, 10) : id
+                
+                // Find the selected retention option - check multiple possible structures
+                const selectedRetentionOption = updated.productDetails.retention_options.find((opt: any) => {
+                  // Check direct ID match (handle both string and number)
+                  if (opt.id === id || opt.id === numericId || String(opt.id) === String(id)) return true
+                  // Check nested lab_retention_option ID
+                  if (opt.lab_retention_option?.id === id || 
+                      opt.lab_retention_option?.id === numericId ||
+                      String(opt.lab_retention_option?.id) === String(id)) return true
+                  // Check if retention_option_id matches
+                  if (opt.retention_option_id === id || 
+                      opt.retention_option_id === numericId ||
+                      String(opt.retention_option_id) === String(id)) return true
+                  return false
+                })
+                
+                if (selectedRetentionOption) {
+                  // Get tooth_chart_type from various possible locations
+                  const toothChartType = selectedRetentionOption.tooth_chart_type || 
+                                         selectedRetentionOption.lab_retention_option?.tooth_chart_type ||
+                                         selectedRetentionOption.retention_option?.tooth_chart_type
+                  
+                  // Map tooth_chart_type to retention type
+                  let targetRetentionName = ""
+                  if (toothChartType === "Implant" || toothChartType === "Pontic") {
+                    targetRetentionName = "Screwed"
+                  } else if (toothChartType === "Prep" || toothChartType === "Prepped") {
+                    targetRetentionName = "Cemented"
+                  }
+                  
+                  if (targetRetentionName) {
+                    // Find the matching retention by name (case-insensitive)
+                    const targetRetention = updated.productDetails.retentions.find((ret: any) => 
+                      ret.name === targetRetentionName || 
+                      ret.name?.toLowerCase() === targetRetentionName.toLowerCase()
+                    )
+                    if (targetRetention) {
+                      updated.mandibularRetention = targetRetention.name
+                      updated.mandibularRetentionId = targetRetention.id
+                    }
+                  }
+                }
+              }
             }
           }
           return updated
@@ -3562,6 +3912,12 @@ export default function CaseDesignCenterPage() {
 
   // Handler for retention type selection - only one type can be selected at a time
   const handleSelectRetentionType = (arch: 'maxillary' | 'mandibular', toothNumber: number, type: 'Implant' | 'Prep' | 'Pontic') => {
+    // Determine if we're deselecting before updating state
+    const currentRetentionTypes = arch === 'maxillary' 
+      ? maxillaryRetentionTypes[toothNumber] || []
+      : mandibularRetentionTypes[toothNumber] || []
+    const isDeselecting = currentRetentionTypes.includes(type) && currentRetentionTypes.length === 1 && currentRetentionTypes[0] === type
+    
     if (arch === 'maxillary') {
       setMaxillaryRetentionTypes(prev => {
         const current = prev[toothNumber] || []
@@ -3581,6 +3937,37 @@ export default function CaseDesignCenterPage() {
         return { ...prev, [toothNumber]: updated }
       })
     }
+    
+    // Update retention type field based on popover selection
+    if (!isDeselecting && productDetails?.retentions) {
+      // Determine target retention name based on type
+      let targetRetentionName = ""
+      if (type === "Implant") {
+        targetRetentionName = "Screwed"
+      } else if (type === "Prep") {
+        targetRetentionName = "Cemented"
+      } else {
+        // For Pontic or any other type, default to Cemented
+        targetRetentionName = "Cemented"
+      }
+      
+      // Find the matching retention by name (case-insensitive)
+      const targetRetention = productDetails.retentions.find((ret: any) => 
+        ret.name === targetRetentionName || 
+        ret.name?.toLowerCase() === targetRetentionName.toLowerCase()
+      )
+      
+      if (targetRetention) {
+        if (arch === 'maxillary') {
+          setMaxillaryRetention(targetRetention.name)
+          setMaxillaryRetentionId(targetRetention.id)
+        } else {
+          setMandibularRetention(targetRetention.name)
+          setMandibularRetentionId(targetRetention.id)
+        }
+      }
+    }
+    
     // Close popover after selection
     setRetentionPopoverState({ arch: null, toothNumber: null })
   }
@@ -4408,7 +4795,7 @@ export default function CaseDesignCenterPage() {
                 )}
 
                 {/* Tooth Selection Interface */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-2 mb-8">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-24 lg:gap-24 mb-8">
                   {/* MAXILLARY Section */}
                   <div className="flex flex-col w-full">
                     {/* Selected Product Badge */}
@@ -4725,6 +5112,10 @@ export default function CaseDesignCenterPage() {
                                       onFieldChange={(fieldKey, value, id) => {
                                         handleFieldChange(fieldKey, value, id, undefined, "maxillary")
                                       }}
+                                      maxillaryRetentionTypes={maxillaryRetentionTypes}
+                                      mandibularRetentionTypes={mandibularRetentionTypes}
+                                      maxillaryTeeth={maxillaryTeeth}
+                                      mandibularTeeth={mandibularTeeth}
                                       onOpenImpressionModal={() => {
                                         if (selectedProduct) {
                                           const tempProduct: SavedProduct = {
@@ -5989,7 +6380,7 @@ export default function CaseDesignCenterPage() {
                                                   letterSpacing: '-0.02em',
                                                   color: '#000000',
                                                   whiteSpace: 'nowrap'
-                                                }}>{savedProduct.maxillaryMaterial || 'Not specified'}</span>
+                                                }}>{savedProduct.maxillaryMaterial || 'Select'}</span>
                                               </div>
                                               <label
                                                 className="absolute bg-white"
@@ -6052,7 +6443,7 @@ export default function CaseDesignCenterPage() {
                                                   lineHeight: '14px',
                                                   color: '#000000',
                                                   whiteSpace: 'nowrap'
-                                                }}>{savedProduct.maxillaryRetention || 'Not specified'}</span>
+                                                }}>{savedProduct.maxillaryRetention || 'Select'}</span>
                                               </div>
                                               <label
                                                 className="absolute bg-white"
@@ -6069,7 +6460,7 @@ export default function CaseDesignCenterPage() {
                                                   color: '#7F7F7F'
                                                 }}
                                               >
-                                                Select Retention type
+                                                {hasValidRetentionValue(savedProduct.maxillaryRetention) ? 'Retention type' : 'Select Retention type'}
                                               </label>
                                             </div>
                                           </div>
@@ -6179,7 +6570,7 @@ export default function CaseDesignCenterPage() {
                                                   letterSpacing: '-0.02em',
                                                   color: '#000000',
                                                   whiteSpace: 'nowrap'
-                                                }}>{savedProduct.maxillaryMaterial || 'Not specified'}</span>
+                                                }}>{savedProduct.maxillaryMaterial || 'Select'}</span>
                                               </div>
                                               <label
                                                 className="absolute bg-white"
@@ -6270,7 +6661,13 @@ export default function CaseDesignCenterPage() {
                                                     lineHeight: '20px',
                                                     letterSpacing: '-0.02em',
                                                     color: '#000000'
-                                                  }}>{savedProduct.maxillaryStumpShade || 'Not specified'}</span>
+                                                  }}>{getShadeDisplayText(
+                                                    savedProduct.maxillaryStumpShade,
+                                                    savedProduct.maxillaryGumShadeId,
+                                                    savedProduct.maxillaryGumShadeBrand,
+                                                    "stump_shade",
+                                                    productDetails
+                                                  )}</span>
                                                   {savedProduct.maxillaryStumpShade && (
                                                     <div
                                                       className="flex items-center justify-center"
@@ -6421,7 +6818,13 @@ export default function CaseDesignCenterPage() {
                                                   lineHeight: '20px',
                                                   letterSpacing: '-0.02em',
                                                   color: '#000000'
-                                                }}>{savedProduct.maxillaryToothShade || 'Not specified'}</span>
+                                                }}>{getShadeDisplayText(
+                                                  savedProduct.maxillaryToothShade,
+                                                  savedProduct.maxillaryShadeId,
+                                                  savedProduct.maxillaryShadeBrand,
+                                                  "tooth_shade",
+                                                  productDetails
+                                                )}</span>
                                               </div>
                                               <label
                                                 className="absolute bg-white"
@@ -6822,7 +7225,70 @@ export default function CaseDesignCenterPage() {
                                           </div>
                                         )}
 
-                                        {/* Field 14: Impressions (visible after previous field) */}
+                                        {/* Field 14: Gap (Fixed Restoration only, advance field, visible after Interproximal Contact) */}
+                                        {isFixedRestoration && isFieldVisible("gap", savedProduct.id, savedProduct, productDetails, archType) && (
+                                          <div
+                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                            style={{
+                                              display: 'flex',
+                                              flexDirection: 'row',
+                                              alignItems: 'flex-start',
+                                              padding: '0px',
+                                              gap: '20px',
+                                              flex: 'none',
+                                              order: 13,
+                                              alignSelf: 'stretch',
+                                              flexGrow: 0
+                                            }}
+                                          >
+                                            <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div
+                                                className="flex items-center"
+                                                style={{
+                                                  padding: '12px 15px 5px 15px',
+                                                  gap: '5px',
+                                                  width: '100%',
+                                                  height: '37px',
+                                                  background: '#FFFFFF',
+                                                  border: '0.740384px solid #7F7F7F',
+                                                  borderRadius: '7.7px',
+                                                  boxSizing: 'border-box',
+                                                  position: 'relative',
+                                                  marginTop: '5.27px'
+                                                }}
+                                              >
+                                                <span style={{
+                                                  fontFamily: 'Verdana',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14.4px',
+                                                  lineHeight: '20px',
+                                                  letterSpacing: '-0.02em',
+                                                  color: '#000000'
+                                                }}>{savedProduct.maxillaryGap || 'Not specified'}</span>
+                                              </div>
+                                              <label
+                                                className="absolute bg-white"
+                                                style={{
+                                                  padding: '0px',
+                                                  height: '14px',
+                                                  left: '8.9px',
+                                                  top: '0px',
+                                                  fontFamily: 'Arial',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14px',
+                                                  lineHeight: '14px',
+                                                  color: '#7F7F7F'
+                                                }}
+                                              >
+                                                Gap
+                                              </label>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {/* Field 15: Impressions (visible after previous field) */}
                                         {isFieldVisible(isFixedRestoration ? "impressions" : "impression", savedProduct.id, savedProduct, productDetails, archType) && (
                                           <div
                                             className="flex flex-col sm:flex-row flex-wrap gap-5"
@@ -6959,7 +7425,13 @@ export default function CaseDesignCenterPage() {
                                                     lineHeight: '20px',
                                                     letterSpacing: '-0.02em',
                                                     color: '#000000'
-                                                  }}>{savedProduct.maxillaryStumpShade || 'Not specified'}</span>
+                                                  }}>{getShadeDisplayText(
+                                                    savedProduct.maxillaryStumpShade,
+                                                    savedProduct.maxillaryGumShadeId,
+                                                    savedProduct.maxillaryGumShadeBrand,
+                                                    "stump_shade",
+                                                    productDetails
+                                                  )}</span>
                                                   {savedProduct.maxillaryStumpShade && (
                                                     <div
                                                       className="flex items-center justify-center"
@@ -7761,51 +8233,76 @@ export default function CaseDesignCenterPage() {
                                     </label>
                                   </div>
 
-                                  {/* Retention Type */}
-                                  <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
-                                    <div
-                                      className="flex items-center"
-                                      style={{
-                                        padding: '12px 15px 5px 15px',
-                                        gap: '5px',
-                                        width: '100%',
-                                        height: '37px',
-                                        position: 'relative',
-                                        marginTop: '5.27px',
-                                        background: '#FFFFFF',
-                                        border: '0.740384px solid #7F7F7F',
-                                        borderRadius: '7.7px',
-                                        boxSizing: 'border-box'
-                                      }}
-                                    >
-                                      <span style={{
-                                        fontFamily: 'Arial',
-                                        fontStyle: 'normal',
-                                        fontWeight: 400,
-                                        fontSize: '14px',
-                                        lineHeight: '14px',
-                                        color: '#000000',
-                                        whiteSpace: 'nowrap'
-                                      }}>Screwed retained</span>
+                                  {/* Retention Type - Only show if retention type selected from popover */}
+                                  {(() => {
+                                    // Create a temporary saved product object to check retention types
+                                    const tempProduct: SavedProduct = {
+                                      id: "mandibular-card",
+                                      product: selectedProduct || { id: 0, name: "" },
+                                      productDetails: productDetails,
+                                      category: selectedCategory || "",
+                                      categoryId: selectedCategoryId || 0,
+                                      subcategory: selectedSubcategory || "",
+                                      subcategoryId: selectedSubcategoryId || 0,
+                                      maxillaryTeeth: [],
+                                      mandibularTeeth: mandibularTeeth,
+                                      maxillaryMaterial: "",
+                                      maxillaryStumpShade: "",
+                                      maxillaryRetention: "",
+                                      maxillaryNotes: "",
+                                      mandibularMaterial: "",
+                                      mandibularRetention: "",
+                                      mandibularImplantDetails: "",
+                                      createdAt: Date.now(),
+                                      addedFrom: "mandibular"
+                                    }
+                                    return hasRetentionTypeSelected(tempProduct, "mandibular")
+                                  })() && (
+                                    <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
+                                      <div
+                                        className="flex items-center"
+                                        style={{
+                                          padding: '12px 15px 5px 15px',
+                                          gap: '5px',
+                                          width: '100%',
+                                          height: '37px',
+                                          position: 'relative',
+                                          marginTop: '5.27px',
+                                          background: '#FFFFFF',
+                                          border: '0.740384px solid #7F7F7F',
+                                          borderRadius: '7.7px',
+                                          boxSizing: 'border-box'
+                                        }}
+                                      >
+                                        <span style={{
+                                          fontFamily: 'Arial',
+                                          fontStyle: 'normal',
+                                          fontWeight: 400,
+                                          fontSize: '14px',
+                                          lineHeight: '14px',
+                                          color: '#000000',
+                                          whiteSpace: 'nowrap'
+                                        }}>{mandibularRetention || 'Select'}</span>
+                                      </div>
+                                      <label
+                                        className="absolute bg-white"
+                                        style={{
+                                          padding: '0px',
+                                          height: '14px',
+                                          left: '9.23px',
+                                          top: '0px',
+                                          fontFamily: 'Arial',
+                                          fontStyle: 'normal',
+                                          fontWeight: 400,
+                                          fontSize: '14px',
+                                          lineHeight: '14px',
+                                          color: '#7F7F7F'
+                                        }}
+                                      >
+                                        {hasValidRetentionValue(mandibularRetention) ? 'Retention type' : 'Select Retention type'}
+                                      </label>
                                     </div>
-                                    <label
-                                      className="absolute bg-white"
-                                      style={{
-                                        padding: '0px',
-                                        height: '14px',
-                                        left: '9.23px',
-                                        top: '0px',
-                                        fontFamily: 'Arial',
-                                        fontStyle: 'normal',
-                                        fontWeight: 400,
-                                        fontSize: '14px',
-                                        lineHeight: '14px',
-                                        color: '#7F7F7F'
-                                      }}
-                                    >
-                                      Select Retention type
-                                    </label>
-                                  </div>
+                                  )}
                                 </div>
 
                                 {/* Row 2: Stump Shade, Tooth Shade, Stage */}
@@ -8006,7 +8503,7 @@ export default function CaseDesignCenterPage() {
                                   </div>
                                 </div>
 
-                                {/* Row 3: Pontic Design, Embrasures, Occlusal Contact, Interproximal Contact */}
+                                {/* Row 3: Pontic Design, Embrasures, Occlusal Contact, Interproximal Contact, Gap */}
                                 <div
                                   className="flex flex-col sm:flex-row flex-wrap gap-5"
                                   style={{
@@ -8022,7 +8519,7 @@ export default function CaseDesignCenterPage() {
                                   }}
                                 >
                                   {/* Pontic Design */}
-                                  <div className="relative flex-1 min-w-[150px] max-w-[23%]" style={{ minHeight: '43px' }}>
+                                  <div className="relative flex-1 min-w-[150px] max-w-[19%]" style={{ minHeight: '43px' }}>
                                     <div
                                       className="flex items-center"
                                       style={{
@@ -8076,7 +8573,7 @@ export default function CaseDesignCenterPage() {
                                   </div>
 
                                   {/* Embrasures */}
-                                  <div className="relative flex-1 min-w-[150px] max-w-[23%]" style={{ minHeight: '43px' }}>
+                                  <div className="relative flex-1 min-w-[150px] max-w-[19%]" style={{ minHeight: '43px' }}>
                                     <div
                                       className="flex items-center"
                                       style={{
@@ -8131,7 +8628,7 @@ export default function CaseDesignCenterPage() {
                                   </div>
 
                                   {/* Occlusal Contact */}
-                                  <div className="relative flex-1 min-w-[150px] max-w-[23%]" style={{ minHeight: '43px' }}>
+                                  <div className="relative flex-1 min-w-[150px] max-w-[19%]" style={{ minHeight: '43px' }}>
                                     <div
                                       className="flex items-center"
                                       style={{
@@ -8191,7 +8688,7 @@ export default function CaseDesignCenterPage() {
                                   </div>
 
                                   {/* Interproximal Contact */}
-                                  <div className="relative flex-1 min-w-[150px] max-w-[23%]" style={{ minHeight: '43px' }}>
+                                  <div className="relative flex-1 min-w-[150px] max-w-[19%]" style={{ minHeight: '43px' }}>
                                     <div
                                       className="flex items-center"
                                       style={{
@@ -8244,6 +8741,55 @@ export default function CaseDesignCenterPage() {
                                       Interproximal Contact
                                     </label>
                                   </div>
+
+                                  {/* Gap */}
+                                  {selectedProduct && isFieldVisible("gap", String(selectedProduct.id), {} as SavedProduct, productDetails, currentShadeArch) && (
+                                    <div className="relative flex-1 min-w-[150px] max-w-[19%]" style={{ minHeight: '43px' }}>
+                                      <div
+                                        className="flex items-center"
+                                        style={{
+                                          padding: '12px 15px 5px 15px',
+                                          gap: '5px',
+                                          width: '100%',
+                                          height: '37px',
+                                          background: '#FFFFFF',
+                                          border: '0.740384px solid #7F7F7F',
+                                          borderRadius: '7.7px',
+                                          boxSizing: 'border-box',
+                                          position: 'relative',
+                                          marginTop: '5.27px'
+                                        }}
+                                      >
+                                        <span style={{
+                                          fontFamily: 'Verdana',
+                                          fontStyle: 'normal',
+                                          fontWeight: 400,
+                                          fontSize: '14.4px',
+                                          lineHeight: '20px',
+                                          letterSpacing: '-0.02em',
+                                          color: '#000000',
+                                          whiteSpace: 'nowrap'
+                                        }}>{currentShadeArch === "maxillary" ? (savedProducts.find(p => String(p.id) === String(selectedProduct.id))?.maxillaryGap || "Not specified") : (savedProducts.find(p => String(p.id) === String(selectedProduct.id))?.mandibularGap || "Not specified")}</span>
+                                      </div>
+                                      <label
+                                        className="absolute bg-white"
+                                        style={{
+                                          padding: '0px',
+                                          height: '14px',
+                                          left: '8.9px',
+                                          top: '0px',
+                                          fontFamily: 'Arial',
+                                          fontStyle: 'normal',
+                                          fontWeight: 400,
+                                          fontSize: '14px',
+                                          lineHeight: '14px',
+                                          color: '#7F7F7F'
+                                        }}
+                                      >
+                                        Gap
+                                      </label>
+                                    </div>
+                                  )}
                                 </div>
 
                                 {/* Row 4: Impression */}
@@ -8847,7 +9393,7 @@ export default function CaseDesignCenterPage() {
                                                   letterSpacing: '-0.02em',
                                                   color: '#000000',
                                                   whiteSpace: 'nowrap'
-                                                }}>{savedProduct.mandibularMaterial || 'Not specified'}</span>
+                                                }}>{savedProduct.mandibularMaterial || 'Select'}</span>
                                               </div>
                                               <label
                                                 className="absolute bg-white"
@@ -8910,7 +9456,7 @@ export default function CaseDesignCenterPage() {
                                                   lineHeight: '14px',
                                                   color: '#000000',
                                                   whiteSpace: 'nowrap'
-                                                }}>{savedProduct.mandibularRetention || 'Not specified'}</span>
+                                                }}>{savedProduct.mandibularRetention || 'Select'}</span>
                                               </div>
                                               <label
                                                 className="absolute bg-white"
@@ -8927,7 +9473,7 @@ export default function CaseDesignCenterPage() {
                                                   color: '#7F7F7F'
                                                 }}
                                               >
-                                                Select Retention type
+                                                {hasValidRetentionValue(savedProduct.mandibularRetention) ? 'Retention type' : 'Select Retention type'}
                                               </label>
                                             </div>
                                           </div>
@@ -9037,7 +9583,7 @@ export default function CaseDesignCenterPage() {
                                                   letterSpacing: '-0.02em',
                                                   color: '#000000',
                                                   whiteSpace: 'nowrap'
-                                                }}>{savedProduct.mandibularMaterial || 'Not specified'}</span>
+                                                }}>{savedProduct.mandibularMaterial || 'Select'}</span>
                                               </div>
                                               <label
                                                 className="absolute bg-white"
@@ -9128,7 +9674,13 @@ export default function CaseDesignCenterPage() {
                                                     lineHeight: '20px',
                                                     letterSpacing: '-0.02em',
                                                     color: '#000000'
-                                                  }}>{savedProduct.maxillaryStumpShade || 'Not specified'}</span>
+                                                  }}>{getShadeDisplayText(
+                                                    savedProduct.maxillaryStumpShade,
+                                                    savedProduct.maxillaryGumShadeId,
+                                                    savedProduct.maxillaryGumShadeBrand,
+                                                    "stump_shade",
+                                                    productDetails
+                                                  )}</span>
                                                 </div>
                                                 <label
                                                   className="absolute bg-white"
@@ -9255,7 +9807,13 @@ export default function CaseDesignCenterPage() {
                                                   lineHeight: '20px',
                                                   letterSpacing: '-0.02em',
                                                   color: '#000000'
-                                                }}>{savedProduct.mandibularToothShade || 'Not specified'}</span>
+                                                }}>{getShadeDisplayText(
+                                                  savedProduct.mandibularToothShade,
+                                                  savedProduct.mandibularShadeId,
+                                                  savedProduct.mandibularShadeBrand,
+                                                  "tooth_shade",
+                                                  productDetails
+                                                )}</span>
                                               </div>
                                               <label
                                                 className="absolute bg-white"
@@ -9656,7 +10214,70 @@ export default function CaseDesignCenterPage() {
                                           </div>
                                         )}
 
-                                        {/* Field 14: Impressions (visible after previous field) */}
+                                        {/* Field 14: Gap (Fixed Restoration only, advance field, visible after Interproximal Contact) */}
+                                        {isFixedRestoration && isFieldVisible("gap", savedProduct.id, savedProduct, productDetails, archType) && (
+                                          <div
+                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                            style={{
+                                              display: 'flex',
+                                              flexDirection: 'row',
+                                              alignItems: 'flex-start',
+                                              padding: '0px',
+                                              gap: '20px',
+                                              flex: 'none',
+                                              order: 13,
+                                              alignSelf: 'stretch',
+                                              flexGrow: 0
+                                            }}
+                                          >
+                                            <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div
+                                                className="flex items-center"
+                                                style={{
+                                                  padding: '12px 15px 5px 15px',
+                                                  gap: '5px',
+                                                  width: '100%',
+                                                  height: '37px',
+                                                  background: '#FFFFFF',
+                                                  border: '0.740384px solid #7F7F7F',
+                                                  borderRadius: '7.7px',
+                                                  boxSizing: 'border-box',
+                                                  position: 'relative',
+                                                  marginTop: '5.27px'
+                                                }}
+                                              >
+                                                <span style={{
+                                                  fontFamily: 'Verdana',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14.4px',
+                                                  lineHeight: '20px',
+                                                  letterSpacing: '-0.02em',
+                                                  color: '#000000'
+                                                }}>{savedProduct.mandibularGap || 'Not specified'}</span>
+                                              </div>
+                                              <label
+                                                className="absolute bg-white"
+                                                style={{
+                                                  padding: '0px',
+                                                  height: '14px',
+                                                  left: '8.9px',
+                                                  top: '0px',
+                                                  fontFamily: 'Arial',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 400,
+                                                  fontSize: '14px',
+                                                  lineHeight: '14px',
+                                                  color: '#7F7F7F'
+                                                }}
+                                              >
+                                                Gap
+                                              </label>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {/* Field 15: Impressions (visible after previous field) */}
                                         {isFieldVisible(isFixedRestoration ? "impressions" : "impression", savedProduct.id, savedProduct, productDetails, archType) && (
                                           <div
                                             className="flex flex-col sm:flex-row flex-wrap gap-5"
@@ -10033,6 +10654,8 @@ export default function CaseDesignCenterPage() {
             setCurrentProductForModal={setCurrentProductForModal}
             setCurrentArchForModal={setCurrentArchForModal}
             setShowAddOnsModal={setShowAddOnsModal}
+            maxillaryRetentionTypes={maxillaryRetentionTypes}
+            mandibularRetentionTypes={mandibularRetentionTypes}
             setShowAttachModal={setShowAttachModal}
             setShowRushModal={setShowRushModal}
           />

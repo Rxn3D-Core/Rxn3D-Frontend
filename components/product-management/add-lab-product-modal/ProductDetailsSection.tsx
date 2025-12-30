@@ -2,7 +2,6 @@ import React, { useRef, useState, useEffect } from "react"
 import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
 import { Controller, useWatch } from "react-hook-form"
-import { ValidationError } from "@/components/ui/validation-error"
 import { AlertCircle } from "lucide-react"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -458,7 +457,7 @@ export function ProductDetailsSection({
                     return (
                       <div className="relative">
                         <Input
-                          label="Base Price"
+                          label="Base Price *"
                           placeholder="0.00"
                           className={`h-14 pl-8 ${
                             sections.grades 
@@ -480,6 +479,7 @@ export function ProductDetailsSection({
                                   ? "valid"
                                   : "default"
                           }
+                          errorMessage={hasError ? getValidationError("base_price") : undefined}
                           required
                         />
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium pointer-events-none">
@@ -615,9 +615,6 @@ export function ProductDetailsSection({
           </div>
         </DialogContent>
       </Dialog>
-
-      {/* Validation Error Message */}
-      <ValidationError message={hasErrors ? (getValidationError("name") || getValidationError("code") || getValidationError("category_id") || getValidationError("subcategory_id") || getValidationError("base_price")) : undefined} />
     </div>
   )
 }

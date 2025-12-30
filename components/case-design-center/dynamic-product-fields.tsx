@@ -36,6 +36,10 @@ interface DynamicProductFieldsProps {
   getImpressionCount?: () => number
   onOpenShadeModal?: (fieldKey: string) => void
   shadeColors?: Record<string, string> // Map of shade names to gradient colors
+  maxillaryRetentionTypes?: Record<number, Array<'Implant' | 'Prep' | 'Pontic'>>
+  mandibularRetentionTypes?: Record<number, Array<'Implant' | 'Prep' | 'Pontic'>>
+  maxillaryTeeth?: number[]
+  mandibularTeeth?: number[]
 }
 
 export function DynamicProductFields({
@@ -48,12 +52,26 @@ export function DynamicProductFields({
   getImpressionCount,
   onOpenShadeModal,
   shadeColors = {},
+  maxillaryRetentionTypes = {},
+  mandibularRetentionTypes = {},
+  maxillaryTeeth = [],
+  mandibularTeeth = [],
 }: DynamicProductFieldsProps) {
   // Helper to check if a value is actually set (not empty, not "Not specified", not undefined, not null)
   const hasValue = (value: string | undefined | null): boolean => {
     if (!value) return false
     const trimmed = String(value).trim()
     return trimmed !== "" && trimmed.toLowerCase() !== "not specified" && trimmed.toLowerCase() !== "finish"
+  }
+
+  // Helper to check if retention value is valid (not empty, not placeholder)
+  const hasValidRetentionValue = (retentionValue: string | undefined | null): boolean => {
+    if (!retentionValue) return false
+    const trimmed = String(retentionValue).trim()
+    return trimmed !== '' && 
+           trimmed !== 'Not specified' && 
+           trimmed !== 'Select' && 
+           trimmed !== 'Select Retention type'
   }
 
   // Helper to get field value
@@ -65,11 +83,36 @@ export function DynamicProductFields({
     return savedProduct[stateKey as keyof typeof savedProduct] as string | undefined
   }
 
+  // Helper to check if any tooth has a retention type selected from popover
+  const hasRetentionTypeSelected = (): boolean => {
+    const teeth = arch === "maxillary" ? maxillaryTeeth : mandibularTeeth
+    const retentionTypes = arch === "maxillary" ? maxillaryRetentionTypes : mandibularRetentionTypes
+    
+    // If no teeth are selected, don't show the field
+    if (!teeth || teeth.length === 0) {
+      return false
+    }
+    
+    // Check if any tooth in the product has a retention type selected from popover
+    const hasSelection = teeth.some(toothNumber => {
+      const types = retentionTypes[toothNumber] || []
+      // Only return true if there's actually a retention type selected (Implant, Prep, or Pontic)
+      return types.length > 0 && (types.includes('Implant') || types.includes('Prep') || types.includes('Pontic'))
+    })
+    
+    return hasSelection
+  }
+
   // Helper to check if a field should be visible based on progressive disclosure
   const isFieldVisibleProgressive = (config: FieldConfig): boolean => {
-    // Always show material (sequence 1) and retention (sequence 2) initially
-    if (config.sequence === 1 || config.sequence === 2) {
+    // Always show material (sequence 1) initially
+    if (config.sequence === 1) {
       return true
+    }
+    
+    // For retention (sequence 2), only show if retention type selected from popover
+    if (config.sequence === 2 || config.key === "retention") {
+      return hasRetentionTypeSelected()
     }
 
     // retention_option (sequence 3) - show after retention has value
@@ -399,7 +442,9 @@ export function DynamicProductFields({
               color: '#7F7F7F'
             }}
           >
-            {config.label}
+            {config.key === "retention" 
+              ? (hasValidRetentionValue(value) ? 'Retention type' : 'Select Retention type')
+              : config.label}
           </label>
         </div>
       )

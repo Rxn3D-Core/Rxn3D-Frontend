@@ -179,7 +179,7 @@ export function GradesSection({
         ? { ...g, is_default: isDefault, price: g.price && g.price !== "" ? g.price : "" }
         : { ...g, is_default: "No" as const }
     )
-    setValue("grades", updated, { shouldDirty: true })
+    setValue("grades", updated, { shouldDirty: true, shouldValidate: true })
   }
 
   // Internal handleToggleSelection that updates form state

@@ -133,8 +133,10 @@ export function ExtractionsSection({
     
     setExtractionStatuses(updatedStatuses)
     
-    // Convert to payload format with proper sequence and status
-    const payloadData = updatedStatuses.map((status, index) => ({
+    // Convert to payload format - ONLY include active extractions
+    // Backend uses sync() which means only extractions in this array will be linked to the product
+    const activeStatuses = updatedStatuses.filter(status => status.is_active === true)
+    const payloadData = activeStatuses.map((status, index) => ({
       extraction_id: status.extraction_id,
       sequence: index + 1,
       status: "Active" as const,
@@ -183,8 +185,9 @@ export function ExtractionsSection({
       
       setExtractionStatuses(updatedStatuses)
       
-      // Convert to payload format and update form
-      const payloadData = updatedStatuses.map((status, index) => ({
+      // Convert to payload format - ONLY include active extractions
+      const activeStatuses = updatedStatuses.filter(status => status.is_active === true)
+      const payloadData = activeStatuses.map((status, index) => ({
         extraction_id: status.extraction_id,
         sequence: index + 1,
         status: "Active" as const,
@@ -219,8 +222,9 @@ export function ExtractionsSection({
       
       setExtractionStatuses(updatedStatuses)
       
-      // Convert to payload format and update form
-      const payloadData = updatedStatuses.map((status, index) => ({
+      // Convert to payload format - ONLY include active extractions
+      const activeStatuses = updatedStatuses.filter(status => status.is_active === true)
+      const payloadData = activeStatuses.map((status, index) => ({
         extraction_id: status.extraction_id,
         sequence: index + 1,
         status: "Active" as const,

@@ -7,6 +7,61 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { SavedProduct } from "./types"
 
+// Helper function to get shade display text with brand and code
+const getShadeDisplayText = (
+  shadeName: string | undefined,
+  shadeId: number | undefined,
+  shadeBrandId: number | undefined,
+  shadeType: "stump_shade" | "tooth_shade",
+  productDetails: any
+): string => {
+  if (!shadeName || shadeName.trim() === "" || shadeName === "Select" || shadeName === "Select stump shade" || shadeName === "Select tooth shade") {
+    return shadeType === "stump_shade" ? "Select stump shade" : "Select tooth shade"
+  }
+
+  if (!productDetails) {
+    return shadeName
+  }
+
+  // Get the appropriate shade array
+  const shades = shadeType === "stump_shade" 
+    ? productDetails.gum_shades 
+    : productDetails.teeth_shades
+
+  if (!shades || !Array.isArray(shades)) {
+    return shadeName
+  }
+
+  // Find the shade by ID or name
+  const shade = shades.find((s: any) => {
+    if (shadeId && (s.id === shadeId || String(s.id) === String(shadeId))) {
+      return true
+    }
+    if (s.name === shadeName || s.system_name === shadeName) {
+      return true
+    }
+    return false
+  })
+
+  if (!shade) {
+    return shadeName
+  }
+
+  // Get brand name
+  const brandName = shade.brand?.name || shade.brand_name || ""
+  // Get shade code
+  const shadeCode = shade.code || shade.shade_code || shade.name || ""
+
+  // Format: "Brand Name - Shade Code" or just "Shade Code" if no brand
+  if (brandName && shadeCode) {
+    return `${brandName} - ${shadeCode}`
+  } else if (shadeCode) {
+    return shadeCode
+  } else {
+    return shadeName
+  }
+}
+
 // StageFieldComponent - extracted from main file
 function StageFieldComponent({
   savedProduct,
@@ -94,7 +149,7 @@ function StageFieldComponent({
             color: '#000000'
           }}
         >
-          <SelectValue placeholder="Not specified" />
+          <SelectValue placeholder="Select" />
         </SelectTrigger>
         <SelectContent className="z-[50] max-h-[300px] overflow-y-auto">
           {savedProduct.productDetails?.stages?.map((stage: any, idx: number) => (
@@ -150,6 +205,8 @@ interface SavedProductsSectionProps {
   setShowAddOnsModal: (show: boolean) => void
   setShowAttachModal: (show: boolean) => void
   setShowRushModal: (show: boolean) => void
+  maxillaryRetentionTypes: Record<number, Array<'Implant' | 'Prep' | 'Pontic'>>
+  mandibularRetentionTypes: Record<number, Array<'Implant' | 'Prep' | 'Pontic'>>
 }
 
 export function SavedProductsSection({
@@ -174,8 +231,39 @@ export function SavedProductsSection({
   setCurrentArchForModal,
   setShowAddOnsModal,
   setShowAttachModal,
-  setShowRushModal
+  setShowRushModal,
+  maxillaryRetentionTypes,
+  mandibularRetentionTypes
 }: SavedProductsSectionProps) {
+  // Helper to check if any tooth in the saved product has a retention type selected from popover
+  const hasRetentionTypeSelected = (savedProduct: SavedProduct, arch: "maxillary" | "mandibular"): boolean => {
+    const teeth = arch === "maxillary" ? savedProduct.maxillaryTeeth : savedProduct.mandibularTeeth
+    const retentionTypes = arch === "maxillary" ? maxillaryRetentionTypes : mandibularRetentionTypes
+    
+    // If no teeth are selected, don't show the field
+    if (!teeth || teeth.length === 0) {
+      return false
+    }
+    
+    // Check if any tooth in the product has a retention type selected from popover
+    const hasSelection = teeth.some(toothNumber => {
+      const types = retentionTypes[toothNumber] || []
+      // Only return true if there's actually a retention type selected (Implant, Prep, or Pontic)
+      return types.length > 0 && (types.includes('Implant') || types.includes('Prep') || types.includes('Pontic'))
+    })
+    
+    return hasSelection
+  }
+
+  // Helper to check if retention value is valid (not empty, not placeholder)
+  const hasValidRetentionValue = (retentionValue: string | undefined | null): boolean => {
+    if (!retentionValue) return false
+    const trimmed = String(retentionValue).trim()
+    return trimmed !== '' && 
+           trimmed !== 'Not specified' && 
+           trimmed !== 'Select' && 
+           trimmed !== 'Select Retention type'
+  }
   if (savedProducts.length === 0 || !selectedCategory || showProductDetails) {
     return null
   }
@@ -419,7 +507,7 @@ export function SavedProductsSection({
                                         letterSpacing: '-0.02em',
                                         color: '#000000',
                                         whiteSpace: 'nowrap'
-                                      }}>{savedProduct.maxillaryMaterial || 'Not specified'}</span>
+                                      }}>{savedProduct.maxillaryMaterial || 'Select'}</span>
                                     </div>
                                     <label
                                       className="absolute bg-white"
@@ -440,51 +528,53 @@ export function SavedProductsSection({
                                     </label>
                                   </div>
 
-                                  {/* Retention Type */}
-                                  <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
-                                    <div
-                                      className="flex items-center"
-                                      style={{
-                                        padding: '12px 15px 5px 15px',
-                                        gap: '5px',
-                                        width: '100%',
-                                        height: '37px',
-                                        position: 'relative',
-                                        marginTop: '5.27px',
-                                        background: '#FFFFFF',
-                                        border: '0.740384px solid #7F7F7F',
-                                        borderRadius: '7.7px',
-                                        boxSizing: 'border-box'
-                                      }}
-                                    >
-                                      <span style={{
-                                        fontFamily: 'Arial',
-                                        fontStyle: 'normal',
-                                        fontWeight: 400,
-                                        fontSize: '14px',
-                                        lineHeight: '14px',
-                                        color: '#000000',
-                                        whiteSpace: 'nowrap'
-                                      }}>{savedProduct.maxillaryRetention || 'Not specified'}</span>
+                                  {/* Retention Type - Only show if retention type selected from popover */}
+                                  {hasRetentionTypeSelected(savedProduct, "maxillary") && (
+                                    <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
+                                      <div
+                                        className="flex items-center"
+                                        style={{
+                                          padding: '12px 15px 5px 15px',
+                                          gap: '5px',
+                                          width: '100%',
+                                          height: '37px',
+                                          position: 'relative',
+                                          marginTop: '5.27px',
+                                          background: '#FFFFFF',
+                                          border: '0.740384px solid #7F7F7F',
+                                          borderRadius: '7.7px',
+                                          boxSizing: 'border-box'
+                                        }}
+                                      >
+                                        <span style={{
+                                          fontFamily: 'Arial',
+                                          fontStyle: 'normal',
+                                          fontWeight: 400,
+                                          fontSize: '14px',
+                                          lineHeight: '14px',
+                                          color: '#000000',
+                                          whiteSpace: 'nowrap'
+                                        }}>{savedProduct.maxillaryRetention || 'Select'}</span>
+                                      </div>
+                                      <label
+                                        className="absolute bg-white"
+                                        style={{
+                                          padding: '0px',
+                                          height: '14px',
+                                          left: '9.23px',
+                                          top: '0px',
+                                          fontFamily: 'Arial',
+                                          fontStyle: 'normal',
+                                          fontWeight: 400,
+                                          fontSize: '14px',
+                                          lineHeight: '14px',
+                                          color: '#7F7F7F'
+                                        }}
+                                      >
+                                        {hasValidRetentionValue(savedProduct.maxillaryRetention) ? 'Retention type' : 'Select Retention type'}
+                                      </label>
                                     </div>
-                                    <label
-                                      className="absolute bg-white"
-                                      style={{
-                                        padding: '0px',
-                                        height: '14px',
-                                        left: '9.23px',
-                                        top: '0px',
-                                        fontFamily: 'Arial',
-                                        fontStyle: 'normal',
-                                        fontWeight: 400,
-                                        fontSize: '14px',
-                                        lineHeight: '14px',
-                                        color: '#7F7F7F'
-                                      }}
-                                    >
-                                      Select Retention type
-                                    </label>
-                                  </div>
+                                  )}
                                 </div>
 
                                 {/* Row 2: Stump Shade, Tooth Shade, Stage */}
@@ -538,7 +628,13 @@ export function SavedProductsSection({
                                             lineHeight: '20px',
                                             letterSpacing: '-0.02em',
                                             color: '#000000'
-                                          }}>{savedProduct.maxillaryStumpShade || 'Not specified'}</span>
+                                          }}>{getShadeDisplayText(
+                                            savedProduct.maxillaryStumpShade,
+                                            savedProduct.maxillaryGumShadeId,
+                                            savedProduct.maxillaryGumShadeBrand,
+                                            "stump_shade",
+                                            savedProduct.productDetails
+                                          )}</span>
                                           {savedProduct.maxillaryStumpShade && (
                                             <div
                                               className="flex items-center justify-center"
@@ -611,7 +707,7 @@ export function SavedProductsSection({
                                         lineHeight: '20px',
                                         letterSpacing: '-0.02em',
                                         color: '#000000'
-                                      }}>Not specified</span>
+                                      }}>Select</span>
                                     </div>
                                     <label
                                       className="absolute bg-white"
@@ -959,7 +1055,7 @@ export function SavedProductsSection({
                                         letterSpacing: '-0.02em',
                                         color: '#000000',
                                         whiteSpace: 'nowrap'
-                                      }}>{savedProduct.mandibularMaterial || 'Not specified'}</span>
+                                      }}>{savedProduct.mandibularMaterial || 'Select'}</span>
                                     </div>
                                     <label
                                       className="absolute bg-white"
@@ -980,51 +1076,53 @@ export function SavedProductsSection({
                                     </label>
                                   </div>
 
-                                  {/* Retention Type */}
-                                  <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
-                                    <div
-                                      className="flex items-center"
-                                      style={{
-                                        padding: '12px 15px 5px 15px',
-                                        gap: '5px',
-                                        width: '100%',
-                                        height: '37px',
-                                        position: 'relative',
-                                        marginTop: '5.27px',
-                                        background: '#FFFFFF',
-                                        border: '0.740384px solid #7F7F7F',
-                                        borderRadius: '7.7px',
-                                        boxSizing: 'border-box'
-                                      }}
-                                    >
-                                      <span style={{
-                                        fontFamily: 'Arial',
-                                        fontStyle: 'normal',
-                                        fontWeight: 400,
-                                        fontSize: '14px',
-                                        lineHeight: '14px',
-                                        color: '#000000',
-                                        whiteSpace: 'nowrap'
-                                      }}>{savedProduct.mandibularRetention || 'Not specified'}</span>
+                                  {/* Retention Type - Only show if retention type selected from popover */}
+                                  {hasRetentionTypeSelected(savedProduct, "mandibular") && (
+                                    <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
+                                      <div
+                                        className="flex items-center"
+                                        style={{
+                                          padding: '12px 15px 5px 15px',
+                                          gap: '5px',
+                                          width: '100%',
+                                          height: '37px',
+                                          position: 'relative',
+                                          marginTop: '5.27px',
+                                          background: '#FFFFFF',
+                                          border: '0.740384px solid #7F7F7F',
+                                          borderRadius: '7.7px',
+                                          boxSizing: 'border-box'
+                                        }}
+                                      >
+                                        <span style={{
+                                          fontFamily: 'Arial',
+                                          fontStyle: 'normal',
+                                          fontWeight: 400,
+                                          fontSize: '14px',
+                                          lineHeight: '14px',
+                                          color: '#000000',
+                                          whiteSpace: 'nowrap'
+                                        }}>{savedProduct.mandibularRetention || 'Select'}</span>
+                                      </div>
+                                      <label
+                                        className="absolute bg-white"
+                                        style={{
+                                          padding: '0px',
+                                          height: '14px',
+                                          left: '9.23px',
+                                          top: '0px',
+                                          fontFamily: 'Arial',
+                                          fontStyle: 'normal',
+                                          fontWeight: 400,
+                                          fontSize: '14px',
+                                          lineHeight: '14px',
+                                          color: '#7F7F7F'
+                                        }}
+                                      >
+                                        {hasValidRetentionValue(savedProduct.mandibularRetention) ? 'Retention type' : 'Select Retention type'}
+                                      </label>
                                     </div>
-                                    <label
-                                      className="absolute bg-white"
-                                      style={{
-                                        padding: '0px',
-                                        height: '14px',
-                                        left: '9.23px',
-                                        top: '0px',
-                                        fontFamily: 'Arial',
-                                        fontStyle: 'normal',
-                                        fontWeight: 400,
-                                        fontSize: '14px',
-                                        lineHeight: '14px',
-                                        color: '#7F7F7F'
-                                      }}
-                                    >
-                                      Select Retention type
-                                    </label>
-                                  </div>
+                                  )}
                                 </div>
 
                                 {/* Row 2: Tooth Shade, Stage */}
@@ -1068,7 +1166,7 @@ export function SavedProductsSection({
                                         lineHeight: '20px',
                                         letterSpacing: '-0.02em',
                                         color: '#000000'
-                                      }}>Not specified</span>
+                                      }}>Select</span>
                                     </div>
                                     <label
                                       className="absolute bg-white"

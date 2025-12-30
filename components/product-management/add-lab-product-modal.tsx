@@ -166,7 +166,7 @@ export function AddLabProductModal({
   const getRequiredFieldsForStep = (stepId: string): (keyof ProductCreateForm)[] => {
     switch (stepId) {
       case "details":
-        return ["name", "code", "subcategory_id"]
+        return ["name", "code", "subcategory_id", "base_price"]
       // Other steps don't have required fields, but you can add them here if needed
       default:
         return []
@@ -266,6 +266,7 @@ export function AddLabProductModal({
   const watchedName = watch("name")
   const watchedCode = watch("code")
   const watchedSubcategoryId = watch("subcategory_id")
+  const watchedBasePrice = watch("base_price")
 
   // Check if current step has errors
   const hasCurrentStepErrors = useMemo(() => {
@@ -293,13 +294,23 @@ export function AddLabProductModal({
       if (field === "name") value = watchedName
       else if (field === "code") value = watchedCode
       else if (field === "subcategory_id") value = watchedSubcategoryId
+      else if (field === "base_price") value = watchedBasePrice
 
       if (field === "subcategory_id") {
         return value !== null && value !== undefined && value !== 0
       }
+      if (field === "base_price") {
+        // Check if base_price is not empty, null, or undefined
+        // Also check if it's a valid number when it's not empty
+        if (value === null || value === undefined || value === "") {
+          return false
+        }
+        const numValue = typeof value === "string" ? parseFloat(value) : value
+        return !isNaN(numValue) && numValue >= 0
+      }
       return value !== null && value !== undefined && value !== ""
     })
-  }, [activeTab, watchedName, watchedCode, watchedSubcategoryId, hasCurrentStepErrors])
+  }, [activeTab, watchedName, watchedCode, watchedSubcategoryId, watchedBasePrice, hasCurrentStepErrors])
 
   const handleNext = async () => {
     if (isLastTab) return
@@ -903,13 +914,36 @@ export function AddLabProductModal({
     // Helper to ensure sequence and status for array fields
     function ensureSequenceAndStatus(arr: any[], idKey: string) {
       if (!Array.isArray(arr)) return []
-      return arr.map((item, idx) => ({
-        ...item,
-        [idKey]: item[idKey],
-        // Ensure sequence is at least 1 (fix for 0 values)
-        sequence: (item.sequence && item.sequence >= 1) ? item.sequence : idx + 1,
-        status: item.status || "Active",
-      }))
+      return arr.map((item, idx) => {
+        const baseItem = {
+          ...item,
+          [idKey]: item[idKey],
+          // Ensure sequence is at least 1 (fix for 0 values)
+          sequence: (item.sequence && item.sequence >= 1) ? item.sequence : idx + 1,
+          status: item.status || "Active",
+        }
+        
+        // For grades, explicitly preserve is_default and price
+        if (idKey === 'grade_id') {
+          return {
+            ...baseItem,
+            is_default: item.is_default === "Yes" || item.is_default === true ? "Yes" : "No",
+            price: item.price !== undefined ? item.price : "",
+          }
+        }
+        
+        // For addons, explicitly preserve is_default, price, and quantity
+        if (idKey === 'addon_id') {
+          return {
+            ...baseItem,
+            is_default: item.is_default === "Yes" || item.is_default === true ? "Yes" : "No",
+            price: item.price !== undefined ? item.price : "",
+            quantity: item.quantity !== undefined ? item.quantity : 1,
+          }
+        }
+        
+        return baseItem
+      })
     }
 
     // Special handler for extractions to clean up extra fields
@@ -1492,14 +1526,6 @@ export function AddLabProductModal({
                 </div>
               </div>
             </Tabs>
-            {/* Show API error if present */}
-            {validationErrors.length > 0 && (
-              <div className="px-6 pt-2 pb-2 text-red-600 text-sm flex-shrink-0 border-t bg-white">
-                {validationErrors.map((error, index) => (
-                  <div key={index}>{error.message}</div>
-                ))}
-              </div>
-            )}
           </form>
           </DialogContent>
         </Dialog>
