@@ -1095,7 +1095,7 @@ export function AddLabProductModal({
     }
 
     if (success) {
-      // Show all tabs after successful creation/update
+      // Show all tabs after successful creation/update (for next time it's opened)
       setVisibleTabs(new Set(tabs.map(tab => tab.id)))
       clearValidationErrors()
       reset()
@@ -1105,8 +1105,7 @@ export function AddLabProductModal({
       setCustomGumShadeNames({}) // Clear custom gum shade names
       setCustomTeethShadeNames({}) // Clear custom teeth shade names
       setCustomMaterialNames({}) // Clear custom material names
-      // Don't close the modal - keep it open to show tabs
-      // onClose() // Commented out to keep modal open after save
+      onClose() // Close modal after successful save
     }
   }
 

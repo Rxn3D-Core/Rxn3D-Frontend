@@ -36,21 +36,28 @@ export function AdvanceSidebar({ activeTab = "advance-fields", onTabChange }: Ad
   // Get user role from auth context
   const userRoles = user?.roles || (user?.role ? [user.role] : [])
   const isLabAdmin = userRoles.includes("lab_admin")
+  const isSuperAdmin = userRoles.includes("superadmin")
 
   // Set route prefix based on user role
   const routePrefix = isLabAdmin ? "/lab-advance-mode" : "/global-advance-mode"
 
-  const sidebarGroups: SidebarGroup[] = useMemo(() => [
-    {
-      id: "advance-fields",
-      label: t("advanceMode.sidebar.AdvanceFields", "Advance fields"),
-      items: [
+  const sidebarGroups: SidebarGroup[] = useMemo(() => {
+    const allItems = [
+      ...(isSuperAdmin ? [
         { id: "category", label: t("advanceMode.sidebar.Category", "Category"), href: `${routePrefix}/category` },
         { id: "sub-category", label: t("advanceMode.sidebar.SubCategory", "Sub Category"), href: `${routePrefix}/sub-category` },
-        { id: "fields", label: t("advanceMode.sidebar.Fields", "Fields"), href: `${routePrefix}/fields` },
-      ]
-    },
-  ], [t, routePrefix])
+      ] : []),
+      { id: "fields", label: t("advanceMode.sidebar.Fields", "Fields"), href: `${routePrefix}/fields` },
+    ]
+
+    return [
+      {
+        id: "advance-fields",
+        label: t("advanceMode.sidebar.AdvanceFields", "Advance fields"),
+        items: allItems
+      },
+    ]
+  }, [t, routePrefix, isSuperAdmin])
 
   // Flat items (single tabs, not in accordion)
   const flatItems: SideTabItem[] = useMemo(() => [
