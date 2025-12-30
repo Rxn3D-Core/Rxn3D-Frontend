@@ -184,16 +184,6 @@ export function ProductDetailsSection({
           )}
         </div>
         <div className="flex items-center gap-3">
-          {editingProduct && onSave && (
-            <Button
-              type="button"
-              onClick={onSave}
-              disabled={isSaving || !!hasErrors}
-              className="bg-[#1162a8] hover:bg-[#0d4c84] h-9 px-4 text-sm"
-            >
-              {isSaving ? "Saving..." : "Save"}
-            </Button>
-          )}
           <Switch
             checked={sections.productDetails}
             onCheckedChange={() => toggleSection("productDetails")}

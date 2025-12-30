@@ -1351,6 +1351,7 @@ export function AddLabProductModal({
                     handleToggleSelection={handleToggleSelection}
                     customMaterialNames={customMaterialNames}
                     setCustomMaterialNames={setCustomMaterialNames}
+                    onMaterialCreated={fetchMaterials}
                   />
                 </TabsContent>
 

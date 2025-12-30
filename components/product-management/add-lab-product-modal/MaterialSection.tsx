@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input"
 import { ChevronDown, Info, Plus, AlertCircle, X, Trash2, Search } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { ValidationError } from "@/components/ui/validation-error"
+import { generateCodeFromName } from "@/lib/utils"
+import { useToast } from "@/hooks/use-toast"
 
 type WatchedMaterial = {
   material_id: number
@@ -34,6 +36,7 @@ type MaterialSectionProps = {
   handleToggleSelection: (section: string, id: number, sequence?: number) => void
   customMaterialNames?: Record<number, string>
   setCustomMaterialNames?: React.Dispatch<React.SetStateAction<Record<number, string>>>
+  onMaterialCreated?: () => void // Callback to refresh materials list
 }
 
 export function MaterialSection({
@@ -50,12 +53,46 @@ export function MaterialSection({
   handleToggleSelection,
   customMaterialNames = {},
   setCustomMaterialNames,
+  onMaterialCreated,
 }: MaterialSectionProps) {
   const watchedMaterials = (watch("materials") || []) as WatchedMaterial[]
   const [customMaterialName, setCustomMaterialName] = useState("")
   const [showCustomInput, setShowCustomInput] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [hideUnselected, setHideUnselected] = useState(false)
+  const [isCreatingMaterial, setIsCreatingMaterial] = useState(false)
+  const { toast } = useToast()
+
+  // Helper function to get auth token
+  const getAuthToken = () => {
+    if (typeof window === 'undefined') return ''
+    return localStorage.getItem('token') || ''
+  }
+
+  // Helper function to get customer ID
+  const getCustomerId = () => {
+    if (typeof window === 'undefined') return null
+    
+    const role = localStorage.getItem('role')
+    const isLabAdmin = role === 'lab_admin'
+    const isSuperAdmin = role === 'superadmin'
+    const isOfficeAdmin = role === 'office_admin'
+    const isDoctor = role === 'doctor'
+    
+    if (isOfficeAdmin || isDoctor) {
+      const selectedLabId = localStorage.getItem('selectedLabId')
+      if (selectedLabId) {
+        return Number(selectedLabId)
+      }
+    } else if (isLabAdmin || isSuperAdmin) {
+      const customerId = localStorage.getItem('customerId')
+      if (customerId) {
+        return parseInt(customerId, 10)
+      }
+    }
+    
+    return null
+  }
   
   // Generate a temporary ID for custom material (using negative number to avoid conflicts)
   const generateCustomMaterialId = (): number => {
@@ -67,39 +104,147 @@ export function MaterialSection({
   }
 
   // Handle adding custom material
-  const handleAddCustomMaterial = () => {
+  const handleAddCustomMaterial = async () => {
     if (!customMaterialName.trim()) {
       return // Don't add if name is empty
     }
 
-    const customMaterialId = generateCustomMaterialId()
-    
-    // Store the custom material name
-    if (setCustomMaterialNames) {
-      setCustomMaterialNames((prev) => ({
-        ...prev,
-        [customMaterialId]: customMaterialName.trim(),
-      }))
+    setIsCreatingMaterial(true)
+
+    try {
+      const token = getAuthToken()
+      if (!token) {
+        toast({
+          title: "Error",
+          description: "Authentication token not found",
+          variant: "destructive",
+        })
+        setIsCreatingMaterial(false)
+        return
+      }
+
+      const customerId = getCustomerId()
+      const materialName = customMaterialName.trim()
+      const materialCode = generateCodeFromName(materialName)
+
+      // Prepare payload
+      const payload: any = {
+        name: materialName,
+        code: materialCode,
+        sequence: 1,
+        status: "Active",
+        price: 0,
+      }
+
+      // Add customer_id if available (for lab admin)
+      if (customerId) {
+        payload.customer_id = customerId
+        payload.is_custom = "Yes"
+      }
+
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api"
+      const response = await fetch(`${API_BASE_URL}/library/materials`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          window.location.href = '/login'
+          return
+        }
+        
+        const errorData = await response.json().catch(() => ({}))
+        
+        // Handle validation errors
+        if (errorData.errors) {
+          Object.entries(errorData.errors).forEach(([field, messages]: [string, any]) => {
+            if (Array.isArray(messages)) {
+              messages.forEach((message) => {
+                toast({
+                  title: `Validation Error - ${field}`,
+                  description: message,
+                  variant: "destructive",
+                })
+              })
+            }
+          })
+        } else {
+          toast({
+            title: "Error",
+            description: errorData?.message || "Failed to create material",
+            variant: "destructive",
+          })
+        }
+        
+        setIsCreatingMaterial(false)
+        return
+      }
+
+      const result = await response.json()
+
+      if (result?.data && result.data.id) {
+        // Ensure material_id is a number
+        const createdMaterialId = Number(result.data.id)
+        
+        if (isNaN(createdMaterialId) || createdMaterialId <= 0) {
+          throw new Error(`Invalid material ID received: ${result.data.id}`)
+        }
+
+        // Add the created material to the form
+        const currentList = watchedMaterials || []
+        const newSequence = currentList.length === 0 
+          ? 1 
+          : Math.max(...currentList.map((m: WatchedMaterial) => m.sequence || 0), 0) + 1
+
+        const newMaterial: WatchedMaterial = {
+          material_id: createdMaterialId,
+          sequence: newSequence,
+          is_default: "No",
+          price: 0,
+        }
+
+        setValue("materials", [...currentList, newMaterial], { 
+          shouldDirty: true,
+          shouldValidate: true 
+        })
+
+        toast({
+          title: "Material Created",
+          description: `Successfully created ${materialName}`,
+          variant: "default",
+        })
+
+        // Refresh materials list if callback is provided
+        if (onMaterialCreated) {
+          try {
+            await onMaterialCreated()
+          } catch (error) {
+            console.error("Error refreshing materials list:", error)
+            // Don't throw - material was created successfully, just refresh failed
+          }
+        }
+
+        // Reset form
+        setCustomMaterialName("")
+        setShowCustomInput(false)
+      } else {
+        throw new Error(`Invalid response from server. Expected data.id, got: ${JSON.stringify(result)}`)
+      }
+    } catch (error: any) {
+      console.error("Error creating material:", error)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create material. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsCreatingMaterial(false)
     }
-
-    // Add the custom material to the form
-    const currentList = watchedMaterials || []
-    const newSequence = currentList.length === 0 
-      ? 1 
-      : Math.max(...currentList.map((m: WatchedMaterial) => m.sequence || 0)) + 1
-
-    const newMaterial: WatchedMaterial = {
-      material_id: customMaterialId,
-      sequence: newSequence,
-      is_default: "No",
-      price: 0,
-    }
-
-    setValue("materials", [...currentList, newMaterial], { shouldDirty: true })
-
-    // Reset form
-    setCustomMaterialName("")
-    setShowCustomInput(false)
   }
 
   // Handle deleting custom material
@@ -419,7 +564,7 @@ export function MaterialSection({
                 value={customMaterialName}
                 onChange={(e) => setCustomMaterialName(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") {
+                  if (e.key === "Enter" && !isCreatingMaterial) {
                     e.preventDefault()
                     handleAddCustomMaterial()
                   } else if (e.key === "Escape") {
@@ -429,15 +574,16 @@ export function MaterialSection({
                 }}
                 className="flex-1"
                 autoFocus
+                disabled={isCreatingMaterial}
               />
               <Button
                 type="button"
                 size="sm"
                 onClick={handleAddCustomMaterial}
-                disabled={!customMaterialName.trim()}
+                disabled={!customMaterialName.trim() || isCreatingMaterial}
                 className="bg-[#1162a8] hover:bg-[#1162a8]/90"
               >
-                Add
+                {isCreatingMaterial ? "Creating..." : "Add"}
               </Button>
               <Button
                 type="button"
