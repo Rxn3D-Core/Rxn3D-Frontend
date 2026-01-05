@@ -154,6 +154,62 @@ export function DashboardSettingsPage() {
     router.push("/dashboard")
   }
 
+  const handleSelectAll = () => {
+    if (!settings) return
+    
+    const updatedWidgets = localWidgets.map((widget) => ({
+      ...widget,
+      enabled: true,
+    }))
+    
+    setLocalWidgets(updatedWidgets)
+    
+    // Update all widgets in settings at once
+    const updatedSettings = {
+      ...settings,
+      widgets: updatedWidgets.map((widget, index) => ({
+        ...widget,
+        order: index,
+      })),
+    }
+    
+    saveSettings(updatedSettings)
+    
+    // Update chat support state
+    const chatSupportWidget = updatedWidgets.find(w => w.id === WIDGET_IDS.CHAT_SUPPORT)
+    if (chatSupportWidget) {
+      setChatSupportEnabled(true)
+    }
+  }
+
+  const handleDeselectAll = () => {
+    if (!settings) return
+    
+    const updatedWidgets = localWidgets.map((widget) => ({
+      ...widget,
+      enabled: false,
+    }))
+    
+    setLocalWidgets(updatedWidgets)
+    
+    // Update all widgets in settings at once
+    const updatedSettings = {
+      ...settings,
+      widgets: updatedWidgets.map((widget, index) => ({
+        ...widget,
+        order: index,
+      })),
+    }
+    
+    saveSettings(updatedSettings)
+    
+    // Update chat support state
+    const chatSupportWidget = updatedWidgets.find(w => w.id === WIDGET_IDS.CHAT_SUPPORT)
+    if (chatSupportWidget) {
+      setChatSupportEnabled(false)
+    }
+  }
+
   if (isLoading || !settings) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -180,10 +236,32 @@ export function DashboardSettingsPage() {
           <div className="lg:col-span-2">
             <Card>
               <CardHeader>
-                <CardTitle>Widgets</CardTitle>
-                <CardDescription>
-                  Enable widgets and choose the order in which they will display on your dashboard.
-                </CardDescription>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <CardTitle>Widgets</CardTitle>
+                    <CardDescription>
+                      Enable widgets and choose the order in which they will display on your dashboard.
+                    </CardDescription>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSelectAll}
+                      className="whitespace-nowrap"
+                    >
+                      Select All
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDeselectAll}
+                      className="whitespace-nowrap"
+                    >
+                      Deselect All
+                    </Button>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
