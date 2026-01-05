@@ -526,9 +526,15 @@ export default function FieldsPage() {
           try {
             // Transform modal data to API format
             const fieldTypeMap: Record<string, string> = {
-              'dropdown': 'select',
+              'dropdown': 'dropdown',
               'radio': 'radio',
               'checkbox': 'checkbox',
+              'number': 'number',
+              'shade_guide': 'shade_guide',
+              'text': 'text',
+              'file_upload': 'file_upload',
+              'multiline_text': 'multiline_text',
+              'implant_library': 'implant_library',
             }
 
             // Map options - include id for existing options when editing (use originalId for API ID)
@@ -563,7 +569,13 @@ export default function FieldsPage() {
 
               if (data.pricing.chargeType === 'once') {
                 payload.price = data.pricing.additionalCharge ? parseFloat(data.pricing.additionalCharge) : 0
-                payload.charge_scope = data.pricing.chargeScope || 'per_case'
+                
+                // Convert form format (per-case, per-unit) to API format (per_case, per_tooth, etc.)
+                const formChargeScope = data.pricing.chargeScope || 'per-case'
+                const apiChargeScope = formChargeScope === 'per-unit' ? 'per_tooth' : formChargeScope.replace('-', '_')
+                
+                // Always include charge_scope when charge_type is 'once_per_field' (backend requires it)
+                payload.charge_scope = apiChargeScope
               }
             }
 

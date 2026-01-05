@@ -360,7 +360,8 @@ export default function ChooseLabPage() {
               {sortedAndFilteredLabs.map((lab: Lab) => (
                 <div
                   key={lab.id}
-                  className="bg-white border-2 border-gray-300 rounded-lg p-4 flex flex-col items-center justify-between relative group hover:shadow-lg transition-all min-h-[220px] hover:border-[#1162A8]"
+                  onClick={() => handleLabSelect(lab)}
+                  className="bg-white border-2 border-gray-300 rounded-lg p-4 flex flex-col items-center justify-between relative group hover:shadow-lg transition-all min-h-[220px] hover:border-[#1162A8] cursor-pointer"
                 >
                   {/* Favorite Star */}
                   {lab.is_favorite && (
@@ -414,14 +415,6 @@ export default function ChooseLabPage() {
                       {getLocationString(lab)}
                     </p>
                   )}
-
-                  {/* Select Button */}
-                  <Button
-                    onClick={() => handleLabSelect(lab)}
-                    className="bg-[#1162a8] hover:bg-[#0e5189] text-white h-9 px-6 rounded-md text-sm font-semibold w-full opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    Select
-                  </Button>
                 </div>
               ))}
             </div>

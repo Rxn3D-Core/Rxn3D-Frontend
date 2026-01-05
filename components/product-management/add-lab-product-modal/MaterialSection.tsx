@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { ValidationError } from "@/components/ui/validation-error"
 import { generateCodeFromName } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
+import { useWatch } from "react-hook-form"
 
 type WatchedMaterial = {
   material_id: number
@@ -55,7 +56,7 @@ export function MaterialSection({
   setCustomMaterialNames,
   onMaterialCreated,
 }: MaterialSectionProps) {
-  const watchedMaterials = (watch("materials") || []) as WatchedMaterial[]
+  const watchedMaterials = (useWatch({ control, name: "materials" }) || []) as WatchedMaterial[]
   const [customMaterialName, setCustomMaterialName] = useState("")
   const [showCustomInput, setShowCustomInput] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")

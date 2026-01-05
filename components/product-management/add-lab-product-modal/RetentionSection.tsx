@@ -1,5 +1,4 @@
 import React from "react"
-import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
 import { ChevronDown, Info, AlertCircle } from "lucide-react"
 import { Label } from "@/components/ui/label"
@@ -21,6 +20,7 @@ export function RetentionSection({
   toggleExpanded,
   handleToggleSelection,
   userRole = "",
+  editingProduct = null,
 }: {
   control: any
   watch: any
@@ -34,10 +34,19 @@ export function RetentionSection({
   toggleExpanded: any
   handleToggleSelection: any
   userRole?: string
+  editingProduct?: any | null
 }) {
   const watchedRetentions = watch("retentions") || []
   const watchedApplyRetentionMechanism = watch("apply_retention_mechanism")
   const isLabAdmin = userRole === "lab_admin"
+  const isCreating = !editingProduct
+
+  // Auto-set apply_retention_mechanism to "Yes" by default if not set (only when creating)
+  React.useEffect(() => {
+    if (isCreating && (!watchedApplyRetentionMechanism || watchedApplyRetentionMechanism === "")) {
+      setValue("apply_retention_mechanism", "Yes", { shouldDirty: false })
+    }
+  }, [watchedApplyRetentionMechanism, setValue, isCreating])
 
   // Auto-set apply_retention_mechanism to "Yes" when retentions are selected
   React.useEffect(() => {
@@ -86,18 +95,13 @@ export function RetentionSection({
           </span>
         </div>
         <div className="flex items-center gap-4">
-          <Switch
-            checked={sections.retention}
-            onCheckedChange={() => toggleSection("retention")}
-            className="data-[state=checked]:bg-[#1162a8]"
-          />
           <ChevronDown
             className={`h-5 w-5 transition-transform duration-200 cursor-pointer ${expandedSections.retention ? "rotate-180" : ""}`}
             onClick={() => toggleExpanded("retention")}
           />
         </div>
       </div>
-      {expandedSections.retention && sections.retention && (
+      {expandedSections.retention && (
         <div className="px-6 pb-6">
           <div className="flex items-center gap-4 mb-4">
             <Label htmlFor="apply-retention">

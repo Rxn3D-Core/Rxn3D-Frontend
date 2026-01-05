@@ -20,6 +20,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { Info } from "lucide-react"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 
 type CategoryWithSubcategories = {
   id: number
@@ -64,6 +65,7 @@ export function ProductDetailsSection({
   const code = useWatch({ control, name: "code" }) || ""
   const selectedCategoryId = useWatch({ control, name: "category_id" }) || null
   const subcategoryId = useWatch({ control, name: "subcategory_id" }) || null
+  const isSingleStage = useWatch({ control, name: "is_single_stage" }) || "No"
   
   const defaultGrade = grades.find((g: any) => g.is_default === "Yes")
   const defaultGradePrice =
@@ -423,12 +425,8 @@ export function ProductDetailsSection({
             </div>
           </div>
 
-          {/* Base Price and Processing Days - Third Row */}
-          <div className={`grid gap-4 ${
-            userRole === "superadmin" 
-              ? "grid-cols-1" 
-              : "grid-cols-1 md:grid-cols-3"
-          }`}>
+          {/* Base Price - Third Row */}
+          <div className="grid gap-4 grid-cols-1">
             {/* Base Price */}
             <div className="space-y-2">
               <div className="relative">
@@ -491,9 +489,52 @@ export function ProductDetailsSection({
                 />
               </div>
             </div>
+          </div>
 
-            {/* Min Days to Process - Only for non-superadmin */}
-            {userRole !== "superadmin" && (
+          {/* Is Single Stage Radio Button */}
+          <div className="space-y-3">
+            <label className="text-sm font-medium text-gray-700">
+              Is Single Stage
+            </label>
+            <Controller
+              name="is_single_stage"
+              control={control}
+              defaultValue="No"
+              render={({ field }) => (
+                <RadioGroup
+                  value={field.value || "No"}
+                  onValueChange={(value) => field.onChange(value)}
+                  className="flex flex-row gap-6"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem
+                      value="Yes"
+                      id="is_single_stage-yes"
+                      className="data-[state=checked]:border-[#1162a8] data-[state=checked]:text-[#1162a8]"
+                    />
+                    <label htmlFor="is_single_stage-yes" className="text-sm font-medium cursor-pointer">
+                      Yes
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem
+                      value="No"
+                      id="is_single_stage-no"
+                      className="data-[state=checked]:border-[#1162a8] data-[state=checked]:text-[#1162a8]"
+                    />
+                    <label htmlFor="is_single_stage-no" className="text-sm font-medium cursor-pointer">
+                      No
+                    </label>
+                  </div>
+                </RadioGroup>
+              )}
+            />
+          </div>
+
+          {/* Min and Max Days to Process - Show only when is_single_stage is "Yes" */}
+          {isSingleStage === "Yes" && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Min Days to Process */}
               <div className="space-y-2">
                 <Controller
                   name="min_days_to_process"
@@ -512,10 +553,8 @@ export function ProductDetailsSection({
                   )}
                 />
               </div>
-            )}
 
-            {/* Max Days to Process - Only for non-superadmin */}
-            {userRole !== "superadmin" && (
+              {/* Max Days to Process */}
               <div className="space-y-2">
                 <div className="relative">
                   <TooltipProvider>
@@ -546,8 +585,8 @@ export function ProductDetailsSection({
                   />
                 </div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Charge per tooth Toggle */}
           <div className="flex items-center gap-3">

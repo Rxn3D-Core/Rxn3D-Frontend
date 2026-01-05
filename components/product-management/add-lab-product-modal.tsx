@@ -222,7 +222,7 @@ export function AddLabProductModal({
     auto_billing_days: 31,
     is_single_stage: "No",
     link_all_addons: "No",
-    apply_retention_mechanism: "No",
+    apply_retention_mechanism: "Yes",
     retention_type: undefined,
     show_to_all_lab: "Yes",
     office_visibilities: officeCustomers.map((office) => ({
@@ -564,6 +564,46 @@ export function AddLabProductModal({
         })
       }
 
+      // Special mapping function for stages with price and days fields
+      function mapStages(arr: any[]) {
+        if (!Array.isArray(arr)) return []
+        return arr.map((item, idx) => {
+          // Handle price: convert to string, default to empty string if missing/invalid
+          let priceStr = ""
+          if (item.price !== undefined && item.price !== null && item.price !== "") {
+            const parsedPrice = typeof item.price === "number" ? item.price : parseFloat(item.price)
+            if (!Number.isNaN(parsedPrice) && parsedPrice >= 0) {
+              priceStr = parsedPrice.toString()
+            }
+          }
+
+          // Handle days: use days_to_process if available, else days, default to empty string
+          let daysStr = ""
+          if (item.days_to_process !== undefined && item.days_to_process !== null && item.days_to_process !== "") {
+            const parsedDays = typeof item.days_to_process === "number" ? item.days_to_process : parseInt(item.days_to_process, 10)
+            if (!Number.isNaN(parsedDays) && parsedDays >= 0) {
+              daysStr = parsedDays.toString()
+            }
+          } else if (item.days !== undefined && item.days !== null && item.days !== "") {
+            const parsedDays = typeof item.days === "number" ? item.days : parseInt(item.days, 10)
+            if (!Number.isNaN(parsedDays) && parsedDays >= 0) {
+              daysStr = parsedDays.toString()
+            }
+          }
+
+          return {
+            stage_id: item.stage_id ?? item.id,
+            sequence: item.sequence && item.sequence >= 1 ? item.sequence : idx + 1,
+            status: item.status || (item.is_default === "Yes" ? "Active" : "Inactive"),
+            is_default: item.is_default === "Yes" ? "Yes" : "No",
+            economy_price: priceStr,
+            standard_price: priceStr,
+            days: daysStr,
+            grade_prices: item.grade_prices || {},
+          }
+        })
+      }
+
       // Special mapping function for extractions with additional fields
       function mapExtractions(arr: any[]) {
         if (!Array.isArray(arr)) return []
@@ -577,6 +617,39 @@ export function AddLabProductModal({
           min_teeth: item.min_teeth ? Number(item.min_teeth) : undefined,
           max_teeth: item.max_teeth ? Number(item.max_teeth) : undefined,
         }))
+      }
+
+      // Special mapping function for addons with quantity and is_default fields
+      function mapAddons(arr: any[]) {
+        if (!Array.isArray(arr)) return []
+        return arr.map((item, idx) => {
+          // Handle price: convert to number, default to empty string if missing/invalid
+          let price: string | number = ""
+          if (item.price !== undefined && item.price !== null && item.price !== "") {
+            const parsedPrice = typeof item.price === "number" ? item.price : parseFloat(item.price)
+            if (!Number.isNaN(parsedPrice) && parsedPrice >= 0) {
+              price = Math.min(parsedPrice, 999999.99)
+            }
+          }
+
+          // Handle quantity: ensure it's a valid number >= 1, default to 1
+          let quantity = 1
+          if (item.quantity !== undefined && item.quantity !== null && item.quantity !== "") {
+            const parsedQuantity = typeof item.quantity === "number" ? item.quantity : parseInt(item.quantity, 10)
+            if (!Number.isNaN(parsedQuantity) && parsedQuantity >= 1) {
+              quantity = Math.floor(parsedQuantity)
+            }
+          }
+
+          return {
+            addon_id: item.addon_id ?? item.id,
+            sequence: item.sequence && item.sequence >= 1 ? item.sequence : idx + 1,
+            status: item.status || (item.is_default === "Yes" ? "Active" : "Inactive"),
+            is_default: (item.is_default === "Yes" ? "Yes" : "No") as "Yes" | "No",
+            price: price,
+            quantity: quantity,
+          }
+        })
       }
 
       // Prefer grade_details if present, else grades
@@ -659,8 +732,8 @@ export function AddLabProductModal({
         grades: mappedGrades,
         stages:
           editingProduct.stage_details && editingProduct.stage_details.length
-            ? mapWithStatus(editingProduct.stage_details, "stage_id")
-            : mapWithStatus(editingProduct.stages, "stage_id"),
+            ? mapStages(editingProduct.stage_details)
+            : mapStages(editingProduct.stages || []),
         impressions:
           editingProduct.impression_details && editingProduct.impression_details.length
             ? mapWithStatus(editingProduct.impression_details, "impression_id")
@@ -683,8 +756,8 @@ export function AddLabProductModal({
             : mapWithStatus(editingProduct.retentions, "retention_id"),
         addons:
           editingProduct.addon_details && editingProduct.addon_details.length
-            ? mapWithStatus(editingProduct.addon_details, "addon_id")
-            : mapWithStatus(editingProduct.addons, "addon_id"),
+            ? mapAddons(editingProduct.addon_details)
+            : mapAddons(editingProduct.addons || []),
         has_grade_based_pricing: hasGradeBasedPricing,
         default_grade_id: editingProduct.default_grade_id,
         enable_auto_billing: editingProduct.enable_auto_billing || "Yes",
@@ -1418,6 +1491,7 @@ export function AddLabProductModal({
                     toggleExpanded={toggleExpanded}
                     handleToggleSelection={handleToggleSelection}
                     userRole={userRole}
+                    editingProduct={editingProduct}
                   />
                 </TabsContent>
 

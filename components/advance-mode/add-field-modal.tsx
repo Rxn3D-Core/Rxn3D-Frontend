@@ -1176,8 +1176,8 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
                       <th className="px-2 sm:px-4 py-2 sm:py-3 text-left">
                         <Checkbox className="data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]" />
                       </th>
+                      <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold text-gray-900">Product</th>
                       <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold text-gray-900">Image</th>
-                      <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold text-gray-900">Label</th>
                       {form.watch("chargeType") === "per-option" && (
                         <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold text-gray-900">Price</th>
                       )}
@@ -1193,6 +1193,9 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
                           <Checkbox className="data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]" />
                         </td>
                         <td className="px-2 sm:px-4 py-2 sm:py-3">
+                          <span className="text-xs sm:text-sm text-gray-900">{option.label}</span>
+                        </td>
+                        <td className="px-2 sm:px-4 py-2 sm:py-3">
                           <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gray-100 rounded border border-gray-200 overflow-hidden flex items-center justify-center">
                             {option.image ? (
                               <img
@@ -1204,9 +1207,6 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
                               <div className="w-full h-full bg-gray-100"></div>
                             )}
                           </div>
-                        </td>
-                        <td className="px-2 sm:px-4 py-2 sm:py-3">
-                          <span className="text-xs sm:text-sm text-gray-900">{option.label}</span>
                         </td>
                         {form.watch("chargeType") === "per-option" && (
                           <td className="px-2 sm:px-4 py-2 sm:py-3">

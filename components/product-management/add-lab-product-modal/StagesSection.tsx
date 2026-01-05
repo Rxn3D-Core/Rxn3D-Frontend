@@ -121,13 +121,22 @@ export function StagesSection({
         const normalizedGradeId = typeof gradeId === "string" ? gradeId : gradeId.toString()
         
         // 1. Try stage.grade_prices (check both string and number keys)
+        // Check if the key exists first (even if value is empty string, it means user set it)
         if (stage.grade_prices) {
-            if (stage.grade_prices[gradeId] !== undefined && stage.grade_prices[gradeId] !== "") {
-                return stage.grade_prices[gradeId]
+            // Check with original gradeId (could be string or number)
+            if (gradeId in stage.grade_prices) {
+                return stage.grade_prices[gradeId] ?? ""
             }
-            // Also check with string key
-            if (stage.grade_prices[normalizedGradeId] !== undefined && stage.grade_prices[normalizedGradeId] !== "") {
-                return stage.grade_prices[normalizedGradeId]
+            // Also check with normalized string key
+            if (normalizedGradeId in stage.grade_prices) {
+                return stage.grade_prices[normalizedGradeId] ?? ""
+            }
+            // Also check with number key if gradeId is string
+            if (typeof gradeId === "string" && !isNaN(Number(gradeId))) {
+                const numKey = Number(gradeId)
+                if (numKey in stage.grade_prices) {
+                    return stage.grade_prices[numKey] ?? ""
+                }
             }
         }
         
@@ -145,17 +154,30 @@ export function StagesSection({
     // Helper to update grade price for a stage
     const setGradePrice = (stageId: string | number, gradeId: string | number, value: string) => {
         const updated = watchedStages.map(s => {
-            if (s.stage_id !== stageId) return s
+            if (s.stage_id?.toString() !== stageId.toString()) return s
             
-            // Normalize gradeId key (use the original type for consistency)
+            // Use the gradeId as-is for the key, but also ensure we update all possible key formats
+            // to avoid lookup issues
             const gradeKey = gradeId
+            const normalizedKey = typeof gradeId === "string" ? gradeId : gradeId.toString()
+            const numKey = typeof gradeId === "string" && !isNaN(Number(gradeId)) ? Number(gradeId) : null
+            
+            // Start with existing grade_prices
+            const existingPrices = { ...(s.grade_prices || {}) }
+            
+            // Remove all possible key formats to avoid duplicates
+            delete existingPrices[gradeKey]
+            delete existingPrices[normalizedKey]
+            if (numKey !== null) {
+                delete existingPrices[numKey]
+            }
+            
+            // Set the new value using the original gradeId format
+            existingPrices[gradeKey] = value
             
             return {
                 ...s,
-                grade_prices: {
-                    ...(s.grade_prices || {}),
-                    [gradeKey]: value
-                }
+                grade_prices: existingPrices
             }
         })
         setValue("stages", updated, { shouldDirty: true, shouldValidate: true })
@@ -168,6 +190,19 @@ export function StagesSection({
             is_default: s.stage_id === stageId ? "Yes" : "No"
         }))
         setValue("stages", updated, { shouldDirty: true, shouldValidate: true })
+    }
+
+    // Handle toggling releasing stage status
+    const handleToggleReleasingStage = (stageId: string | number, checked: boolean) => {
+        if (checked) {
+            // Add to releasing stages if not already present
+            if (!safeReleasingStageIds.some(id => id.toString() === stageId.toString())) {
+                safeSetReleasingStageIds([...safeReleasingStageIds, stageId])
+            }
+        } else {
+            // Remove from releasing stages
+            safeSetReleasingStageIds(safeReleasingStageIds.filter(id => id.toString() !== stageId.toString()))
+        }
     }
 
     // Handle adding/removing stages
@@ -351,14 +386,6 @@ export function StagesSection({
 
     // Handle drop for reordering stages
     const handleDrop = (e: React.DragEvent, targetStageId: string | number) => {
-        
-        // Only handle reordering if we're not dropping into the releasing area
-        const target = e.target as HTMLElement
-        const releasingArea = target.closest('[data-releasing-area]')
-        if (releasingArea) {
-            return
-        }
-        
         e.preventDefault()
         e.stopPropagation()
         
@@ -400,66 +427,10 @@ export function StagesSection({
         e.dataTransfer.dropEffect = "move"
     }
 
-    // Handle drag over for releasing stage area
-    const handleReleasingDragOver = (e: React.DragEvent) => {
-        e.preventDefault()
-        e.stopPropagation()
-        e.dataTransfer.dropEffect = "move"
-    }
 
-    // Handle drop for releasing stage area
-    const handleReleasingDrop = useCallback((e: React.DragEvent) => {
-        e.preventDefault()
-        e.stopPropagation()
-        
-        const draggedId = e.dataTransfer.getData("stage-id") || e.dataTransfer.getData("text/plain")
-        
-        if (draggedId && safeSetReleasingStageIds) {
-            // Convert to proper type and check if not already in releasing stages
-            const stageId = isNaN(Number(draggedId)) ? draggedId : Number(draggedId)
-            if (!safeReleasingStageIds.some(id => id.toString() === stageId.toString())) {
-                if (typeof safeSetReleasingStageIds === 'function') {
-                    safeSetReleasingStageIds([...safeReleasingStageIds, stageId])
-                }
-            } else {
-            }
-        } else {
-        }
-        setDraggedStageId(null)
-    }, [safeReleasingStageIds, safeSetReleasingStageIds, setDraggedStageId])
-
-    // Handle removing stage from releasing area
-    const handleRemoveFromReleasing = useCallback((stageId: string | number) => {
-        if (safeSetReleasingStageIds) {
-            if (typeof safeSetReleasingStageIds === 'function') {
-                safeSetReleasingStageIds(safeReleasingStageIds.filter(id => id.toString() !== stageId.toString()))
-            }
-        }
-    }, [safeSetReleasingStageIds, safeReleasingStageIds])
-
-    // Handle reordering within releasing area
-    const handleReleasingReorder = useCallback((draggedId: string | number, targetId: string | number) => {
-        if (!safeSetReleasingStageIds || typeof safeSetReleasingStageIds !== 'function') return
-        
-        const draggedIndex = safeReleasingStageIds.findIndex(id => id.toString() === draggedId.toString())
-        const targetIndex = safeReleasingStageIds.findIndex(id => id.toString() === targetId.toString())
-
-        if (draggedIndex === -1 || targetIndex === -1) return
-
-        const newIds = [...safeReleasingStageIds]
-        newIds.splice(draggedIndex, 1)
-        newIds.splice(targetIndex, 0, draggedId)
-        safeSetReleasingStageIds(newIds)
-    }, [safeReleasingStageIds, safeSetReleasingStageIds])
-
-    // Only show selected stages in the editable table, excluding releasing stages
+    // Show all selected stages in the editable table
     // Always sort by sequence to ensure UI order matches slip creation order
     const selectedStages = watchedStages
-        .filter((stageData) => {
-            // Hide stages that are in the releasing area
-            const isInReleasing = safeReleasingStageIds.some(id => id.toString() === stageData.stage_id.toString())
-            return !isInReleasing
-        })
         .sort((a, b) => {
             // Sort by sequence, ensuring proper numeric comparison
             const seqA = a.sequence ?? 0
@@ -560,10 +531,10 @@ export function StagesSection({
                                     className={`grid gap-2 font-medium text-sm text-gray-700 border-b pb-2 bg-white sticky top-0 z-10`}
                                     style={{
                                         gridTemplateColumns: userRole === "superadmin"
-                                            ? "minmax(120px,1fr) minmax(80px,1fr) minmax(70px,1fr) minmax(120px,1fr) 40px"
+                                            ? "minmax(120px,1fr) minmax(80px,1fr) minmax(70px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px"
                                             : hasSelectedGrades
-                                                ? `minmax(120px,1fr) minmax(80px,1fr) repeat(${watchedGrades.length}, minmax(120px,1fr)) minmax(70px,1fr) minmax(120px,1fr) 40px`
-                                                : "minmax(120px,1fr) minmax(80px,1fr) minmax(100px,1fr) minmax(70px,1fr) minmax(120px,1fr) 40px"
+                                                ? `minmax(120px,1fr) minmax(80px,1fr) repeat(${watchedGrades.length}, minmax(120px,1fr)) minmax(70px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px`
+                                                : "minmax(120px,1fr) minmax(80px,1fr) minmax(100px,1fr) minmax(70px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px"
                                     }}
                                 >
                                     <div className="px-1">Case Stage</div>
@@ -599,6 +570,9 @@ export function StagesSection({
                                     <div className="text-center px-1">
                                         <span className="whitespace-nowrap text-xs">Use as Default</span>
                                     </div>
+                                    <div className="text-center px-1">
+                                        <span className="whitespace-nowrap text-xs">Release Stage</span>
+                                    </div>
                                     <div></div>
                                 </div>
                                 {selectedStages.map((item) => {
@@ -613,10 +587,10 @@ export function StagesSection({
                                             }`}
                                             style={{
                                                 gridTemplateColumns: userRole === "superadmin"
-                                                    ? "minmax(120px,1fr) minmax(80px,1fr) minmax(70px,1fr) minmax(120px,1fr) 40px"
+                                                    ? "minmax(120px,1fr) minmax(80px,1fr) minmax(70px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px"
                                                     : hasSelectedGrades
-                                                        ? `minmax(120px,1fr) minmax(80px,1fr) repeat(${watchedGrades.length}, minmax(120px,1fr)) minmax(70px,1fr) minmax(120px,1fr) 40px`
-                                                        : "minmax(120px,1fr) minmax(80px,1fr) minmax(100px,1fr) minmax(70px,1fr) minmax(120px,1fr) 40px"
+                                                        ? `minmax(120px,1fr) minmax(80px,1fr) repeat(${watchedGrades.length}, minmax(120px,1fr)) minmax(70px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px`
+                                                        : "minmax(120px,1fr) minmax(80px,1fr) minmax(100px,1fr) minmax(70px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px"
                                             }}
                                             draggable={true}
                                             onDragStart={(e) => handleDragStart(e, stageData.stage_id)}
@@ -702,6 +676,15 @@ export function StagesSection({
                                                     aria-label={`Set ${stageInfo.name} as default stage`}
                                                 />
                                             </div>
+                                            <div className="flex items-center justify-center">
+                                                <Checkbox
+                                                    checked={safeReleasingStageIds.some(id => id.toString() === stageData.stage_id.toString())}
+                                                    onCheckedChange={(checked) => {
+                                                        handleToggleReleasingStage(stageData.stage_id, checked === true)
+                                                    }}
+                                                    aria-label={`Mark ${stageInfo.name} as releasing stage`}
+                                                />
+                                            </div>
                                             <div className="flex gap-1 items-center">
                                                 <Button
                                                     type="button"
@@ -717,8 +700,9 @@ export function StagesSection({
                                                                 sequence: index + 1
                                                             }))
                                                         setValue("stages", updated, { shouldDirty: true, shouldValidate: true })
+                                                        // Remove from releasing stages if it was marked as releasing
                                                         if (safeReleasingStageIds.some(id => id.toString() === stageData.stage_id.toString())) {
-                                                            handleRemoveFromReleasing(stageData.stage_id)
+                                                            safeSetReleasingStageIds(safeReleasingStageIds.filter(id => id.toString() !== stageData.stage_id.toString()))
                                                         }
                                                     }}
                                                     aria-label="Delete stage"
@@ -732,20 +716,17 @@ export function StagesSection({
                             </div>
                         ) : (
                             <div className="text-center py-4 text-gray-500">
-                                No stages selected for the main table. Add stages or move them from the releasing area.
+                                No stages selected. Add stages from the available stages below.
                             </div>
                         )}
                     </div>
 
                     {/* Add stage selector */}
                     <div className="border-2 border-dashed border-gray-300 rounded-md p-3 mt-2">
-                        <div className="text-sm text-gray-600 mb-2">Available stages to add or drag to releasing area:</div>
+                        <div className="text-sm text-gray-600 mb-2">Available stages to add:</div>
                         <div className="flex flex-wrap gap-2">
                             {allStages
-                                .filter((stage: { id: string | number }) => 
-                                    !isStageSelected(stage.id) || 
-                                    !safeReleasingStageIds.some(id => id.toString() === stage.id.toString())
-                                )
+                                .filter((stage: { id: string | number }) => !isStageSelected(stage.id))
                                 .map((stage: any) => (
                                     <Button
                                         key={stage.id}
@@ -758,9 +739,6 @@ export function StagesSection({
                                                 : ""
                                         }`}
                                         onClick={() => handleToggleStage(stage)}
-                                        draggable={true}
-                                        onDragStart={(e) => handleDragStart(e, stage.id)}
-                                        onDragEnd={handleDragEnd}
                                     >
                                         <Plus className="h-3 w-3 mr-1" />
                                         {stage.name}
@@ -771,233 +749,6 @@ export function StagesSection({
                                 ))
                             }
                         </div>
-                    </div>
-
-                    {/* Drag and drop area for releasing stage */}
-                    <div
-                        data-releasing-area="true"
-                        className={`border-2 border-dashed rounded-md p-4 mt-4 min-h-[120px] transition-colors duration-200 ${
-                            draggedStageId 
-                                ? "border-blue-400 bg-blue-50" 
-                                : "border-gray-300 bg-gray-50"
-                        }`}
-                        onDragOver={handleReleasingDragOver}
-                        onDrop={handleReleasingDrop}
-                        style={{ overflowX: "auto" }}
-                    >
-                        <div className="text-sm text-gray-600 mb-3 text-center">
-                            Drag stages in this area for releasing stages ({safeReleasingStageIds.length} selected)
-                        </div>
-                        {/* Header row for releasing area */}
-                        {safeReleasingStageIds.length > 0 && (
-                            <div
-                                className="grid gap-2 font-medium text-xs text-gray-700 border-b pb-1 bg-gray-50 sticky top-0 z-0 mb-2"
-                                style={{
-                                    gridTemplateColumns: userRole === "superadmin"
-                                        ? "minmax(120px,1fr) minmax(80px,1fr) minmax(70px,1fr) minmax(120px,1fr) 40px"
-                                        : hasSelectedGrades
-                                            ? `minmax(120px,1fr) minmax(80px,1fr) repeat(${watchedGrades.length}, minmax(120px,1fr)) minmax(70px,1fr) minmax(120px,1fr) 40px`
-                                            : "minmax(120px,1fr) minmax(80px,1fr) minmax(100px,1fr) minmax(70px,1fr) minmax(120px,1fr) 40px",
-                                    textAlign: "center"
-                                }}
-                            >
-                                <div className="flex justify-center px-1">Case Stage</div>
-                                <div className="flex justify-center px-1">Code</div>
-                                {/* Hide grades/price columns for superadmin */}
-                                {userRole !== "superadmin" && (
-                                  hasSelectedGrades
-                                    ? selectedGradesWithNames.map((grade: any, idx: number) => {
-                                        const hasManyGrades = watchedGrades.length > 4
-                                        return (
-                                            <div
-                                                key={grade.grade_id || grade.id || idx}
-                                                className={`font-semibold text-gray-700 flex justify-center px-1 ${
-                                                    hasManyGrades 
-                                                        ? "text-xs break-words" 
-                                                        : "text-xs"
-                                                }`}
-                                                title={grade.name}
-                                                style={{
-                                                    minWidth: hasManyGrades ? "100px" : "120px",
-                                                    wordBreak: "break-word",
-                                                    lineHeight: hasManyGrades ? "1.3" : "1.5",
-                                                    overflowWrap: "break-word"
-                                                }}
-                                            >
-                                                {grade.name}
-                                            </div>
-                                        )
-                                    })
-                                    : <div className="flex justify-center px-1">Price</div>
-                                )}
-                                <div className="flex justify-center px-1">Days</div>
-                                <div className="flex justify-center px-1">
-                                    <span className="whitespace-nowrap text-xs">Use as Default</span>
-                                </div>
-                                <div className="flex justify-center"></div>
-                            </div>
-                        )}
-                        {safeReleasingStageIds.length > 0 ? (
-                            <div className="space-y-2 min-w-full">
-                                {safeReleasingStageIds.map((stageId, idx) => {
-                                    // Always get the full stage object from watchedStages
-                                    const releasingStage = watchedStages.find((s: any) => s.stage_id.toString() === stageId.toString())
-                                    const stageInfo = allStages.find((s: any) => s.id.toString() === stageId.toString())
-                                    if (!releasingStage || !stageInfo) return null
-
-                                    return (
-                                        <div 
-                                            key={stageId}
-                                            className={`grid items-center gap-2 bg-white rounded-md border border-gray-200 px-3 py-2 shadow-sm cursor-grab active:cursor-grabbing`}
-                                            style={{
-                                                gridTemplateColumns: userRole === "superadmin"
-                                                    ? "minmax(120px,1fr) minmax(80px,1fr) minmax(70px,1fr) minmax(120px,1fr) 40px"
-                                                    : hasSelectedGrades
-                                                        ? `minmax(120px,1fr) minmax(80px,1fr) repeat(${watchedGrades.length}, minmax(120px,1fr)) minmax(70px,1fr) minmax(120px,1fr) 40px`
-                                                        : "minmax(120px,1fr) minmax(80px,1fr) minmax(100px,1fr) minmax(70px,1fr) minmax(120px,1fr) 40px",
-                                                textAlign: "center"
-                                            }}
-                                            draggable={true}
-                                            onDragStart={(e) => {
-                                                e.dataTransfer.effectAllowed = "move"
-                                                e.dataTransfer.setData("releasing-stage", stageId.toString())
-                                            }}
-                                            onDrop={(e) => {
-                                                e.preventDefault()
-                                                const draggedReleasingId = e.dataTransfer.getData("releasing-stage")
-                                                if (draggedReleasingId && draggedReleasingId !== stageId.toString()) {
-                                                    handleReleasingReorder(draggedReleasingId, stageId)
-                                                }
-                                            }}
-                                            onDragOver={(e) => {
-                                                e.preventDefault()
-                                                e.dataTransfer.dropEffect = "move"
-                                            }}
-                                        >
-                                            <div className="flex items-center gap-2 justify-center">
-                                                <GripVertical className="h-4 w-4 text-gray-400" />
-                                                <span className="font-medium">{stageInfo.name}</span>
-                                                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
-                                                    #{idx + 1}
-                                                </span>
-                                            </div>
-                                            <span className="text-sm text-gray-600 flex justify-center">{stageInfo.code}</span>
-                                            {/* Hide all pricing/grades for superadmin */}
-                                            {userRole !== "superadmin" && (
-                                              hasSelectedGrades
-                                                ? selectedGradesWithNames.map((grade: any) => (
-                                                    <div className="flex items-center justify-center" key={grade.grade_id || grade.id}>
-                                                        <div className="relative flex justify-center">
-                                                            <Input
-                                                                type="number"
-                                                                className="pl-7 h-8 w-28 text-center"
-                                                                value={
-                                                                    releasingStage.grade_prices?.[grade.grade_id || grade.id] !== undefined
-                                                                        ? releasingStage.grade_prices?.[grade.grade_id || grade.id]
-                                                                        : getGradePrice(releasingStage, grade.grade_id || grade.id)
-                                                                }
-                                                                placeholder="0"
-                                                                onChange={(e) => {
-                                                                    const updated = watchedStages.map(s =>
-                                                                        s.stage_id.toString() === stageId.toString()
-                                                                            ? {
-                                                                                ...s,
-                                                                                grade_prices: {
-                                                                                    ...(s.grade_prices || {}),
-                                                                                    [grade.grade_id || grade.id]: e.target.value
-                                                                                }
-                                                                            }
-                                                                            : s
-                                                                    )
-                                                                    setValue("stages", updated, { shouldDirty: true, shouldValidate: true })
-                                                                }}
-                                                            />
-                                                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400">$</span>
-                                                        </div>
-                                                    </div>
-                                                ))
-                                                : (
-                                                    <div className="flex items-center justify-center">
-                                                        <div className="relative flex justify-center">
-                                                            <Input
-                                                                type="number"
-                                                                className="pl-7 h-8 w-28 text-center"
-                                                                value={releasingStage.economy_price || ""}
-                                                                placeholder="0"
-                                                                onChange={(e) => {
-                                                                    const updated = watchedStages.map(s =>
-                                                                        s.stage_id.toString() === stageId.toString()
-                                                                            ? { ...s, economy_price: e.target.value }
-                                                                            : s
-                                                                    )
-                                                                    setValue("stages", updated, { shouldDirty: true, shouldValidate: true })
-                                                                }}
-                                                            />
-                                                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400">$</span>
-                                                        </div>
-                                                    </div>
-                                                )
-                                            )}
-                                            <div className="flex items-center justify-center">
-                                                <Input
-                                                    type="number"
-                                                    className="h-8 w-16 text-center"
-                                                    value={releasingStage.days || stageInfo.days_to_process || ""}
-                                                    placeholder="0"
-                                                    onChange={(e) => {
-                                                        const updated = watchedStages.map(s =>
-                                                            s.stage_id.toString() === stageId.toString()
-                                                                ? { ...s, days: e.target.value }
-                                                                : s
-                                                        )
-                                                        setValue("stages", updated, { shouldDirty: true, shouldValidate: true })
-                                                    }}
-                                                />
-                                            </div>
-                                            <div className="flex items-center justify-center">
-                                                <Checkbox
-                                                    checked={releasingStage.is_default === "Yes"}
-                                                    onCheckedChange={(checked) => {
-                                                        if (checked) {
-                                                            handleSetDefaultStage(stageId)
-                                                        } else {
-                                                            // If unchecking, set to "No" but don't set another as default
-                                                            const updated = watchedStages.map(s =>
-                                                                s.stage_id.toString() === stageId.toString()
-                                                                    ? { ...s, is_default: "No" } 
-                                                                    : s
-                                                            )
-                                                            setValue("stages", updated, { shouldDirty: true, shouldValidate: true })
-                                                        }
-                                                    }}
-                                                    aria-label={`Set ${stageInfo.name} as default stage`}
-                                                />
-                                            </div>
-                                            <div className="flex items-center justify-center gap-1">
-                                                <Button 
-                                                    type="button" 
-                                                    variant="ghost" 
-                                                    size="sm" 
-                                                    className="h-6 w-6 p-0 text-red-600 hover:text-red-600 flex items-center justify-center"
-                                                    onClick={() => handleRemoveFromReleasing(stageId)}
-                                                    aria-label="Remove releasing stage"
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    )
-                                })}
-                            </div>
-                        ) : (
-                            <div className="text-center py-4">
-                                {draggedStageId ? (
-                                    <div className="text-xs text-blue-600">Drop here to add as releasing stage</div>
-                                ) : (
-                                    <div className="text-xs text-gray-500">No releasing stages selected. Drag stages here to add them.</div>
-                                )}
-                            </div>
-                        )}
                     </div>
 
                     <ValidationError message={getValidationError("stages")} />

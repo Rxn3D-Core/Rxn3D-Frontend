@@ -72,39 +72,52 @@ export function AddOnsSection({
 
   // Update price for a selected add-on
   const handlePriceChange = (addon_id: number, value: string | number) => {
-    // Only use the value, not the whole event object
+    // Convert to string to ensure consistency, but preserve empty string for clearing
+    const priceValue = value === "" ? "" : String(value)
     setValue(
       "addons",
       watchedAddons.map((a) =>
-        a.addon_id === addon_id ? { ...a, price: value } : a
+        a.addon_id === addon_id ? { ...a, price: priceValue } : a
       ),
-      { shouldDirty: true }
+      { shouldDirty: true, shouldValidate: true }
     )
   }
 
   const handleQuantityChange = (addon_id: number, value: string) => {
-    const normalizedValue = value === "" ? "" : Number(value)
+    // Normalize quantity: if empty or invalid, default to 1, otherwise ensure it's at least 1
+    let normalizedValue: number
+    if (value === "" || value === null || value === undefined) {
+      normalizedValue = 1
+    } else {
+      const parsed = Number(value)
+      if (Number.isFinite(parsed) && parsed >= 1) {
+        normalizedValue = Math.floor(parsed)
+      } else {
+        normalizedValue = 1
+      }
+    }
     setValue(
       "addons",
       watchedAddons.map((a) =>
         a.addon_id === addon_id ? { ...a, quantity: normalizedValue } : a
       ),
-      { shouldDirty: true }
+      { shouldDirty: true, shouldValidate: true }
     )
   }
 
   const handleDefaultChange = (addon_id: number, checked: boolean | "indeterminate") => {
     if (checked === "indeterminate") return
 
+    const isDefaultValue = checked ? "Yes" : "No"
     setValue(
       "addons",
       watchedAddons.map((a) => {
         if (a.addon_id === addon_id) {
-          return { ...a, is_default: checked ? "Yes" : "No" }
+          return { ...a, is_default: isDefaultValue }
         }
         return a
       }),
-      { shouldDirty: true }
+      { shouldDirty: true, shouldValidate: true }
     )
   }
 
@@ -269,7 +282,9 @@ export function AddOnsSection({
                         min={0}
                         value={
                           selected
-                            ? selected.price ?? addOn.lab_addon?.price ?? addOn.price ?? ""
+                            ? (selected.price !== undefined && selected.price !== null 
+                                ? selected.price 
+                                : addOn.lab_addon?.price ?? addOn.price ?? "")
                             : addOn.lab_addon?.price ?? addOn.price ?? ""
                         }
                         onChange={e => handlePriceChange(addOn.id, e.target.value)}
@@ -280,7 +295,7 @@ export function AddOnsSection({
                     </div>
                   )}
                   <div className="flex justify-center">
-                    {selected?.is_default === "Yes" ? (
+                    {selected ? (
                       <Input
                         type="number"
                         min={1}

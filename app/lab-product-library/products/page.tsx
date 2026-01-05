@@ -538,9 +538,9 @@ export default function ProductsPage() {
                     className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8] h-4 w-4"
                   />
                 </TableHead>
+                <TableHead className="font-semibold text-gray-900 py-2 px-2">{t("Product")}</TableHead>
                 <TableHead className="font-semibold text-gray-900 py-2 px-2">{t("Case Pan")}</TableHead>
                 <TableHead className="font-semibold text-gray-900 py-2 px-2">{t("Category Hierarchy")}</TableHead>
-                <TableHead className="font-semibold text-gray-900 py-2 px-2">{t("Product")}</TableHead>
                 <TableHead className="font-semibold text-gray-900 py-2 px-2">{t("Code")}</TableHead>
                 <TableHead className="font-semibold text-gray-900 py-2 px-2">{t("Arch type")}</TableHead>
                 <TableHead className="font-semibold text-gray-900 py-2 px-2">{t("Price")}</TableHead>
@@ -596,6 +596,9 @@ export default function ProductsPage() {
                       />
                     </TableCell>
                     <TableCell className="py-2 px-2">
+                      <span className="truncate block text-xs max-w-[180px]">{productName}</span>
+                    </TableCell>
+                    <TableCell className="py-2 px-2">
                       <span className="inline-flex items-center gap-1.5">
                         <span
                           className="inline-block w-4 h-4 rounded border border-gray-200 flex-shrink-0"
@@ -607,9 +610,6 @@ export default function ProductsPage() {
                     </TableCell>
                     <TableCell className="py-2 px-2">
                       <span className="text-xs font-medium text-gray-900 truncate max-w-[200px]">{categoryHierarchy}</span>
-                    </TableCell>
-                    <TableCell className="py-2 px-2">
-                      <span className="truncate block text-xs max-w-[180px]">{productName}</span>
                     </TableCell>
                     <TableCell className="py-2 px-2">
                       <code className="bg-gray-100 px-1.5 py-0.5 rounded text-[10px] font-mono text-gray-800 inline-block">

@@ -110,6 +110,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
 
   const userRoles = user?.roles || (user?.role ? [user.role] : [])
   const isSuperAdmin = userRoles.includes("superadmin")
+  const isOfficeAdmin = userRoles.includes("office_admin")
 
   // Load scan history from localStorage on mount
   useEffect(() => {
@@ -774,11 +775,13 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                 <span className="hidden sm:inline md:hidden">+ Slip</span>
                 <span className="sm:hidden">+ Slip</span>
               </button>
-              <button className="bg-[#1162a8] hover:bg-blue-700 text-white px-2 sm:px-2.5 md:px-3 lg:px-4 py-1.5 sm:py-1.5 md:py-2 rounded-md sm:rounded-lg text-[10px] sm:text-xs md:text-sm font-medium transition-colors shadow-sm whitespace-nowrap flex-shrink-0">
-                <span className="hidden md:inline">{t("header.newOffice", "+ New Office")}</span>
-                <span className="hidden sm:inline md:hidden">+ Office</span>
-                <span className="sm:hidden">+ Office</span>
-              </button>
+              {!isOfficeAdmin && (
+                <button className="bg-[#1162a8] hover:bg-blue-700 text-white px-2 sm:px-2.5 md:px-3 lg:px-4 py-1.5 sm:py-1.5 md:py-2 rounded-md sm:rounded-lg text-[10px] sm:text-xs md:text-sm font-medium transition-colors shadow-sm whitespace-nowrap flex-shrink-0">
+                  <span className="hidden md:inline">{t("header.newOffice", "+ New Office")}</span>
+                  <span className="hidden sm:inline md:hidden">+ Office</span>
+                  <span className="sm:hidden">+ Office</span>
+                </button>
+              )}
               <button
                 className="bg-[#1162a8] hover:bg-blue-700 text-white px-2 sm:px-2.5 md:px-3 lg:px-4 py-1.5 sm:py-1.5 md:py-2 rounded-md sm:rounded-lg text-[10px] sm:text-xs md:text-sm font-medium flex items-center gap-1 sm:gap-1.5 md:gap-2 transition-colors shadow-sm whitespace-nowrap flex-shrink-0"
                 onClick={openScanner}
