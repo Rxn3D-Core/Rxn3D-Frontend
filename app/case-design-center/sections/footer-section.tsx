@@ -16,6 +16,7 @@ interface FooterSectionProps {
   onSubmit: () => void
   onConfirmDetailsChange: (checked: boolean) => void
   onShowSubmitPopoverChange: (show: boolean) => void
+  hidePreviousButton?: boolean
 }
 
 export function FooterSection({
@@ -30,6 +31,7 @@ export function FooterSection({
   onSubmit,
   onConfirmDetailsChange,
   onShowSubmitPopoverChange,
+  hidePreviousButton = false,
 }: FooterSectionProps) {
   return (
     <div 
@@ -41,36 +43,38 @@ export function FooterSection({
     >
       <div className="flex justify-between items-center h-full px-6 relative">
         {!showProductDetails ? (
-          // Regular footer with Previous button on right
+          // Regular footer with Previous button on right (hidden in list views)
           <div className="flex justify-end w-full">
-            <Button
-              onClick={onCancel}
-              variant="outline"
-              style={{
-                display: "flex",
-                flexDirection: "row",
-                justifyContent: "center",
-                alignItems: "center",
-                padding: "12px 16px",
-                gap: "10px",
-                minWidth: "111px",
-                height: "27px",
-                background: "#1162A8",
-                borderRadius: "6px",
-                border: "none",
-                fontFamily: "Verdana",
-                fontStyle: "normal",
-                fontWeight: 700,
-                fontSize: "12px",
-                lineHeight: "22px",
-                letterSpacing: "-0.02em",
-                color: "#FFFFFF",
-                whiteSpace: "nowrap",
-              }}
-              className="hover:opacity-90"
-            >
-              Previous
-            </Button>
+            {!hidePreviousButton && (
+              <Button
+                onClick={onCancel}
+                variant="outline"
+                style={{
+                  display: "flex",
+                  flexDirection: "row",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  padding: "12px 16px",
+                  gap: "10px",
+                  minWidth: "111px",
+                  height: "27px",
+                  background: "#1162A8",
+                  borderRadius: "6px",
+                  border: "none",
+                  fontFamily: "Verdana",
+                  fontStyle: "normal",
+                  fontWeight: 700,
+                  fontSize: "12px",
+                  lineHeight: "22px",
+                  letterSpacing: "-0.02em",
+                  color: "#FFFFFF",
+                  whiteSpace: "nowrap",
+                }}
+                className="hover:opacity-90"
+              >
+                Previous
+              </Button>
+            )}
           </div>
         ) : (
           // Teeth selection page footer: Preview on left, Cancel and Submit on right

@@ -10765,6 +10765,7 @@ export default function CaseDesignCenterPage() {
             onSubmit={handleSubmit}
             onConfirmDetailsChange={(checked) => setConfirmDetailsChecked(checked)}
             onShowSubmitPopoverChange={(show) => setShowSubmitPopover(show)}
+            hidePreviousButton={!showProductDetails && (!selectedCategory || showSubcategories || showProducts)}
           />
         </div>
       </div>
