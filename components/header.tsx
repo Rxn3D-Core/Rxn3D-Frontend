@@ -921,7 +921,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                     <CustomerLogo
                       customerId={customerId}
                       alt="Company Logo"
-                      className="h-[48px] w-auto max-w-[80px] object-contain"
+                      className="h-auto w-auto max-w-[80px] object-contain"
                     />
                   </div>
                 ) : null
