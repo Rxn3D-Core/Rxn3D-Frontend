@@ -474,7 +474,8 @@ export function AddLabProductModal({
     fetchTeethShadeBrands()
     fetchMaterials()
     fetchRetentions()
-    fetchAddOns()
+    // Fetch all addons without pagination (page 1, high limit)
+    fetchAddOns(1, 100, "", undefined, undefined)
     fetchCustomers("office")
   }, [fetchParentDropdownCategories, fetchCategoriesWithSubcategories, fetchGrades, fetchStages, fetchImpressions, fetchGumShadeBrands, fetchTeethShadeBrands, fetchMaterials, fetchRetentions, fetchAddOns, fetchCustomers])
 
@@ -1474,6 +1475,7 @@ export function AddLabProductModal({
                     toggleExpanded={toggleExpanded}
                     handleToggleSelection={handleToggleSelection}
                     userRole={userRole}
+                    onAddonCreated={fetchAddOns}
                   />
                 </TabsContent>
 

@@ -1,11 +1,13 @@
 import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
-import { ChevronDown, Info, AlertCircle, Search, Trash2 } from "lucide-react"
+import { ChevronDown, Info, AlertCircle, Search, Trash2, Plus, X } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { ValidationError } from "@/components/ui/validation-error"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useState } from "react"
+import { generateCodeFromName } from "@/lib/utils"
+import { useToast } from "@/hooks/use-toast"
 
 export function AddOnsSection({
   control,
@@ -20,11 +22,217 @@ export function AddOnsSection({
   toggleExpanded,
   handleToggleSelection,
   userRole = "", // <-- default to empty string if undefined
+  onAddonCreated,
 }) {
   const watchedAddons = watch("addons") || []
 
   // Add search state
   const [searchQuery, setSearchQuery] = useState("")
+  const [customAddonName, setCustomAddonName] = useState("")
+  const [showCustomInput, setShowCustomInput] = useState(false)
+  const [isCreatingAddon, setIsCreatingAddon] = useState(false)
+  const { toast } = useToast()
+
+  // Helper function to get auth token
+  const getAuthToken = () => {
+    if (typeof window === 'undefined') return ''
+    return localStorage.getItem('token') || ''
+  }
+
+  // Helper function to get customer ID
+  const getCustomerId = () => {
+    if (typeof window === 'undefined') return null
+    
+    const role = localStorage.getItem('role')
+    const isLabAdmin = role === 'lab_admin'
+    const isSuperAdmin = role === 'superadmin'
+    const isOfficeAdmin = role === 'office_admin'
+    const isDoctor = role === 'doctor'
+    
+    if (isOfficeAdmin || isDoctor) {
+      const selectedLabId = localStorage.getItem('selectedLabId')
+      if (selectedLabId) {
+        return Number(selectedLabId)
+      }
+    } else if (isLabAdmin || isSuperAdmin) {
+      const customerId = localStorage.getItem('customerId')
+      if (customerId) {
+        return parseInt(customerId, 10)
+      }
+    }
+    
+    return null
+  }
+
+  // Get default subcategory from existing addons
+  const getDefaultSubcategoryId = (): number | null => {
+    if (addOns.length === 0) return null
+    // Get the first addon's subcategory_id
+    const firstAddon = addOns[0]
+    return firstAddon?.subcategory?.id || firstAddon?.subcategory_id || null
+  }
+
+  // Handle adding custom addon
+  const handleAddCustomAddon = async () => {
+    if (!customAddonName.trim()) {
+      return // Don't add if name is empty
+    }
+
+    // Check if we have a subcategory to use
+    const defaultSubcategoryId = getDefaultSubcategoryId()
+    if (!defaultSubcategoryId) {
+      toast({
+        title: "Error",
+        description: "No subcategory available. Please ensure at least one addon exists with a subcategory.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsCreatingAddon(true)
+
+    try {
+      const token = getAuthToken()
+      if (!token) {
+        toast({
+          title: "Error",
+          description: "Authentication token not found",
+          variant: "destructive",
+        })
+        setIsCreatingAddon(false)
+        return
+      }
+
+      const customerId = getCustomerId()
+      const addonName = customAddonName.trim()
+      const addonCode = generateCodeFromName(addonName)
+
+      // Prepare payload
+      const payload: any = {
+        name: addonName,
+        code: addonCode,
+        subcategory_id: defaultSubcategoryId,
+        type: "Both", // Default type
+        sequence: 1,
+        status: "Active",
+      }
+
+      // Add customer_id and price if available (for lab admin)
+      if (customerId) {
+        payload.customer_id = customerId
+        payload.is_custom = "Yes"
+        payload.price = 0 // Required when customer_id is present
+      }
+
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api"
+      const response = await fetch(`${API_BASE_URL}/library/addons`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          window.location.href = '/login'
+          return
+        }
+        
+        const errorData = await response.json().catch(() => ({}))
+        
+        // Handle validation errors
+        if (errorData.errors) {
+          Object.entries(errorData.errors).forEach(([field, messages]: [string, any]) => {
+            if (Array.isArray(messages)) {
+              messages.forEach((message) => {
+                toast({
+                  title: `Validation Error - ${field}`,
+                  description: message,
+                  variant: "destructive",
+                })
+              })
+            }
+          })
+        } else {
+          toast({
+            title: "Error",
+            description: errorData?.message || "Failed to create addon",
+            variant: "destructive",
+          })
+        }
+        
+        setIsCreatingAddon(false)
+        return
+      }
+
+      const result = await response.json()
+
+      if (result?.data && result.data.id) {
+        // Ensure addon_id is a number
+        const createdAddonId = Number(result.data.id)
+        
+        if (isNaN(createdAddonId) || createdAddonId <= 0) {
+          throw new Error(`Invalid addon ID received: ${result.data.id}`)
+        }
+
+        // Add the created addon to the form
+        const currentList = watchedAddons || []
+        const newSequence = currentList.length === 0 
+          ? 1 
+          : Math.max(...currentList.map((a: any) => a.sequence || 0), 0) + 1
+
+        const newAddon = {
+          addon_id: createdAddonId,
+          sequence: newSequence,
+          is_default: "No",
+          price: customerId ? 0 : "",
+          quantity: 1,
+        }
+
+        setValue("addons", [...currentList, newAddon], { 
+          shouldDirty: true,
+          shouldValidate: true 
+        })
+
+        toast({
+          title: "Addon Created",
+          description: `Successfully created ${addonName}`,
+          variant: "default",
+        })
+
+        // Reset form first
+        setCustomAddonName("")
+        setShowCustomInput(false)
+
+        // Refresh addons list if callback is provided
+        // Use a small delay to ensure backend has processed the creation
+        if (onAddonCreated) {
+          try {
+            // Wait a bit to ensure the backend has fully processed the creation
+            await new Promise(resolve => setTimeout(resolve, 300))
+            // Fetch all addons without pagination (page 1, high limit)
+            await onAddonCreated(1, 9999, "", undefined, undefined)
+          } catch (error) {
+            console.error("Error refreshing addons list:", error)
+            // Don't throw - addon was created successfully, just refresh failed
+          }
+        }
+      } else {
+        throw new Error(`Invalid response from server. Expected data.id, got: ${JSON.stringify(result)}`)
+      }
+    } catch (error: any) {
+      console.error("Error creating addon:", error)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create addon. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsCreatingAddon(false)
+    }
+  }
 
   // Helper to get selected add-on by id
   const getSelectedAddon = (id: number) => watchedAddons.find((a) => a.addon_id === id)
@@ -323,6 +531,60 @@ export function AddOnsSection({
               )
             })}
           </div>
+          
+          {/* Add Custom Input or Button */}
+          {showCustomInput ? (
+            <div className="flex items-center gap-2 mt-4">
+              <Input
+                type="text"
+                placeholder="Enter addon name"
+                value={customAddonName}
+                onChange={(e) => setCustomAddonName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !isCreatingAddon) {
+                    e.preventDefault()
+                    handleAddCustomAddon()
+                  } else if (e.key === "Escape") {
+                    setShowCustomInput(false)
+                    setCustomAddonName("")
+                  }
+                }}
+                className="flex-1"
+                autoFocus
+                disabled={isCreatingAddon}
+              />
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleAddCustomAddon}
+                disabled={!customAddonName.trim() || isCreatingAddon}
+                className="bg-[#1162a8] hover:bg-[#1162a8]/90"
+              >
+                {isCreatingAddon ? "Creating..." : "Add"}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setShowCustomInput(false)
+                  setCustomAddonName("")
+                }}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-[#1162a8] pl-0 flex items-center gap-1 mt-4"
+              onClick={() => setShowCustomInput(true)}
+            >
+              <Plus className="h-4 w-4" /> Add Custom
+            </Button>
+          )}
           <ValidationError message={getValidationError("addons")} />
         </div>
       )}

@@ -930,6 +930,31 @@ export default function CaseDesignCenterPage() {
     productDetails: any,
     archType: "maxillary" | "mandibular"
   ): boolean => {
+    // Special case: impression field should ONLY show if stage field is visible
+    // Check this FIRST - impression is initially hidden and only shows when stage is visible
+    if (fieldName === "impression" || fieldName === "impressions") {
+      // Helper to check if a value is actually set (not empty, not "Not specified", not undefined, not null)
+      const hasValue = (value: string | undefined | null): boolean => {
+        if (!value) return false
+        const trimmed = String(value).trim()
+        return trimmed !== "" && trimmed.toLowerCase() !== "not specified" && trimmed.toLowerCase() !== "finish" && trimmed.toLowerCase() !== "select"
+      }
+      
+      // Get tooth shade value - stage is visible only when tooth shade has a value
+      const toothShade = archType === "maxillary" ? savedProduct.maxillaryToothShade : savedProduct.mandibularToothShade
+      
+      // Impression field is initially hidden - only show if stage field is visible
+      // Stage field is visible only when tooth shade has a real value
+      if (!hasValue(toothShade)) {
+        return false // Initially hidden - tooth shade not set
+      }
+      
+      // Also verify using isAccordionFieldVisible for consistency
+      if (!isAccordionFieldVisible("stage", savedProduct, archType)) {
+        return false // Stage field is not visible
+      }
+    }
+    
     const fieldOrder = getFieldOrder(savedProduct.category)
     const currentFieldIndex = fieldOrder.indexOf(fieldName)
     
@@ -2648,8 +2673,11 @@ export default function CaseDesignCenterPage() {
         if (config.maxillaryStateKey && shouldAutoSelect(config.key, "maxillary")) {
           const apiData = productDetails[config.apiProperty]
           if (apiData && Array.isArray(apiData) && apiData.length > 0) {
-            // Filter active options only
-            const activeOptions = apiData.filter((opt: any) => opt.status === "Active" || opt.status === undefined)
+            // For stages, filter by status if it exists, otherwise include all
+            // For other fields, filter active options only
+            const activeOptions = config.key === "stage" 
+              ? apiData.filter((opt: any) => opt.status === "Active" || opt.status === undefined || !opt.hasOwnProperty("status"))
+              : apiData.filter((opt: any) => opt.status === "Active" || opt.status === undefined)
             
             // If only one option, auto-select it
             if (activeOptions.length === 1) {
@@ -2691,8 +2719,11 @@ export default function CaseDesignCenterPage() {
         if (config.mandibularStateKey && shouldAutoSelect(config.key, "mandibular")) {
           const apiData = productDetails[config.apiProperty]
           if (apiData && Array.isArray(apiData) && apiData.length > 0) {
-            // Filter active options only
-            const activeOptions = apiData.filter((opt: any) => opt.status === "Active" || opt.status === undefined)
+            // For stages, filter by status if it exists, otherwise include all
+            // For other fields, filter active options only
+            const activeOptions = config.key === "stage" 
+              ? apiData.filter((opt: any) => opt.status === "Active" || opt.status === undefined || !opt.hasOwnProperty("status"))
+              : apiData.filter((opt: any) => opt.status === "Active" || opt.status === undefined)
             
             // If only one option, auto-select it
             if (activeOptions.length === 1) {
@@ -3391,6 +3422,40 @@ export default function CaseDesignCenterPage() {
     // Retention: Keep existing value or leave empty (user will select it)
     const finalMaxillaryRetention = maxillaryRetention
     const finalMandibularRetention = mandibularRetention
+    
+    // Auto-select default stage if not already set
+    let finalMaxillaryStage = maxillaryStage
+    let finalMaxillaryStageId = maxillaryStageId
+    let finalMandibularStage = mandibularStage
+    let finalMandibularStageId = mandibularStageId
+    
+    if (type === "maxillary" && (!finalMaxillaryStage || finalMaxillaryStage.trim() === "")) {
+      const stages = productDetails?.stages || []
+      const defaultStage = findDefaultOption(stages)
+      if (defaultStage) {
+        finalMaxillaryStage = defaultStage.name
+        finalMaxillaryStageId = defaultStage.id || defaultStage.stage_id
+        // Update state so UI reflects the change
+        setMaxillaryStage(finalMaxillaryStage)
+        if (finalMaxillaryStageId) {
+          setMaxillaryStageId(finalMaxillaryStageId)
+        }
+      }
+    }
+    
+    if (type === "mandibular" && (!finalMandibularStage || finalMandibularStage.trim() === "")) {
+      const stages = productDetails?.stages || []
+      const defaultStage = findDefaultOption(stages)
+      if (defaultStage) {
+        finalMandibularStage = defaultStage.name
+        finalMandibularStageId = defaultStage.id || defaultStage.stage_id
+        // Update state so UI reflects the change
+        setMandibularStage(finalMandibularStage)
+        if (finalMandibularStageId) {
+          setMandibularStageId(finalMandibularStageId)
+        }
+      }
+    }
 
     // Get impression selections for this product
     const productId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
@@ -3430,17 +3495,17 @@ export default function CaseDesignCenterPage() {
       maxillaryRetentionOptionId: type === "maxillary" ? maxillaryRetentionOptionId : undefined,
       maxillaryGumShadeId: type === "maxillary" ? maxillaryGumShadeId : undefined,
       maxillaryShadeId: type === "maxillary" ? maxillaryShadeId : undefined,
-      maxillaryStageId: type === "maxillary" ? maxillaryStageId : undefined,
+      maxillaryStageId: type === "maxillary" ? finalMaxillaryStageId : undefined,
       maxillaryToothShade: type === "maxillary" ? maxillaryToothShade : undefined,
-      maxillaryStage: type === "maxillary" ? maxillaryStage : undefined,
+      maxillaryStage: type === "maxillary" ? finalMaxillaryStage : undefined,
       mandibularMaterialId: type === "mandibular" ? mandibularMaterialId : undefined,
       mandibularRetentionId: type === "mandibular" ? mandibularRetentionId : undefined,
       mandibularRetentionOptionId: type === "mandibular" ? mandibularRetentionOptionId : undefined,
       mandibularGumShadeId: type === "mandibular" ? mandibularGumShadeId : undefined,
       mandibularShadeId: type === "mandibular" ? mandibularShadeId : undefined,
-      mandibularStageId: type === "mandibular" ? mandibularStageId : undefined,
+      mandibularStageId: type === "mandibular" ? finalMandibularStageId : undefined,
       mandibularToothShade: type === "mandibular" ? mandibularToothShade : undefined,
-      mandibularStage: type === "mandibular" ? mandibularStage : undefined,
+      mandibularStage: type === "mandibular" ? finalMandibularStage : undefined,
       // Include advance fields if any are set
       advanceFields: productDetails?.advance_fields && Array.isArray(productDetails.advance_fields)
         ? productDetails.advance_fields
@@ -4510,9 +4575,9 @@ export default function CaseDesignCenterPage() {
                           key={category.id}
                           onClick={() => handleCategorySelect(category)}
                           className={`bg-white border-2 ${isSelected ? "border-[#1162a8] shadow-lg" : "border-[#b4b0b0] hover:border-[#1162A8]"
-                            } rounded-lg h-[185px] w-[155px] p-4 flex flex-col items-center justify-center gap-4 cursor-pointer hover:shadow-md transition-all`}
+                            } rounded-lg h-[220px] w-[200px] p-4 flex flex-col items-center justify-center gap-4 cursor-pointer hover:shadow-md transition-all`}
                         >
-                          <div className="w-[117px] h-[117px] rounded overflow-hidden">
+                          <div className="w-[150px] h-[150px] rounded overflow-hidden">
                             <img
                               src={category.image_url || getCategoryImage(category.name)}
                               alt={category.name}
@@ -4522,7 +4587,7 @@ export default function CaseDesignCenterPage() {
                               }}
                             />
                           </div>
-                          <p className="text-[11px] text-black text-center">
+                          <p className="text-base text-black text-center">
                             {category.name}
                           </p>
                         </div>
@@ -4607,9 +4672,9 @@ export default function CaseDesignCenterPage() {
                             key={subcategory.id}
                             onClick={() => handleSubcategorySelect(subcategory)}
                             className={`bg-white border-2 ${isSelected ? "border-[#1162a8] shadow-lg" : "border-[#b4b0b0] hover:border-[#1162A8]"
-                              } rounded-lg h-[185px] w-[155px] p-4 flex flex-col items-center justify-center gap-4 cursor-pointer hover:shadow-md transition-all flex-shrink-0`}
+                              } rounded-lg h-[220px] w-[200px] p-4 flex flex-col items-center justify-center gap-4 cursor-pointer hover:shadow-md transition-all flex-shrink-0`}
                           >
-                            <div className="w-[117px] h-[117px] rounded overflow-hidden">
+                            <div className="w-[150px] h-[150px] rounded overflow-hidden">
                               <img
                                 src={subcategory.image_url || getSubcategoryImage(subcategory.sub_name || "")}
                                 alt={subcategory.sub_name || ""}
@@ -4619,7 +4684,7 @@ export default function CaseDesignCenterPage() {
                                 }}
                               />
                             </div>
-                            <p className="text-[11px] text-black text-center">
+                            <p className="text-base text-black text-center">
                               {subcategory.sub_name || ""}
                             </p>
                           </div>
@@ -4707,9 +4772,9 @@ export default function CaseDesignCenterPage() {
                             key={product.id}
                             onClick={() => handleProductSelect(product)}
                             className={`bg-white border-2 ${isSelected ? "border-[#1162a8] shadow-lg" : "border-[#b4b0b0] hover:border-[#1162A8]"
-                              } rounded-lg h-[210px] w-[155px] p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:shadow-md transition-all flex-shrink-0`}
+                              } rounded-lg h-[250px] w-[200px] p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:shadow-md transition-all flex-shrink-0`}
                           >
-                            <div className="w-[117px] h-[117px] rounded overflow-hidden">
+                            <div className="w-[150px] h-[150px] rounded overflow-hidden">
                               <img
                                 src={product.image_url || "/images/product-default.png"}
                                 alt={product.name}
@@ -4719,17 +4784,17 @@ export default function CaseDesignCenterPage() {
                                 }}
                               />
                             </div>
-                            <p className="text-[11px] text-black text-center">
+                            <p className="text-base text-black text-center">
                               {product.name}
                             </p>
-                            <div className="flex flex-col gap-1 items-start w-[87px]">
-                              <div className="bg-[rgba(17,98,168,0.2)] border border-[#1162a8] rounded-[10px] h-[15px] flex items-center justify-center w-full">
-                                <p className="text-[#1162a8] text-[9.5px]">
+                            <div className="flex flex-col gap-1 items-start w-[120px]">
+                              <div className="bg-[rgba(17,98,168,0.2)] border border-[#1162a8] rounded-[10px] h-[20px] flex items-center justify-center w-full">
+                                <p className="text-[#1162a8] text-xs">
                                   ${product.price || 999}
                                 </p>
                               </div>
-                              <div className="bg-[rgba(146,147,147,0.2)] border border-[#929393] rounded-[10px] h-[15px] flex items-center justify-center w-full">
-                                <p className="text-[#929393] text-[9.5px]">
+                              <div className="bg-[rgba(146,147,147,0.2)] border border-[#929393] rounded-[10px] h-[20px] flex items-center justify-center w-full">
+                                <p className="text-[#929393] text-xs">
                                   est {product.estimated_days || 14} days
                                 </p>
                               </div>
@@ -8793,6 +8858,32 @@ export default function CaseDesignCenterPage() {
                                 </div>
 
                                 {/* Row 4: Impression */}
+                                {(() => {
+                                  // Create a temporary saved product object to check visibility
+                                  const tempProduct: SavedProduct = {
+                                    id: "mandibular-card",
+                                    product: selectedProduct || { id: 0, name: "" },
+                                    productDetails: productDetails,
+                                    category: selectedCategory || "",
+                                    categoryId: selectedCategoryId || 0,
+                                    subcategory: selectedSubcategory || "",
+                                    subcategoryId: selectedSubcategoryId || 0,
+                                    maxillaryTeeth: [],
+                                    mandibularTeeth: mandibularTeeth,
+                                    maxillaryMaterial: "",
+                                    maxillaryStumpShade: "",
+                                    maxillaryRetention: "",
+                                    maxillaryNotes: "",
+                                    mandibularMaterial: mandibularMaterial,
+                                    mandibularRetention: mandibularRetention,
+                                    mandibularImplantDetails: "",
+                                    mandibularToothShade: mandibularToothShade,
+                                    mandibularStage: mandibularStage,
+                                    createdAt: Date.now(),
+                                    addedFrom: "mandibular"
+                                  }
+                                  return isFieldVisible(isFixedRestoration ? "impressions" : "impression", tempProduct.id, tempProduct, productDetails, "mandibular")
+                                })() && (
                                 <div
                                   className="flex flex-col sm:flex-row flex-wrap gap-5"
                                   style={{
@@ -8853,6 +8944,7 @@ export default function CaseDesignCenterPage() {
                                     </label>
                                   </div>
                                 </div>
+                                )}
                               </div>
 
                               {/* Action Buttons - Only show if advance fields are showing */}

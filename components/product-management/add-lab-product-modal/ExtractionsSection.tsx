@@ -50,51 +50,47 @@ export function ExtractionsSection({
   // Update extractionStatuses when extractions data or form data changes
   useEffect(() => {
     if (extractions.length > 0 && !isUpdatingRef.current) {
-      // If we have existing form data, use it and merge with API data for missing fields
-      if (watchedExtractions.length > 0) {
-        const convertedFormData = watchedExtractions.map((extraction: any) => {
-          // Find the extraction from API to get its name and color
-          const apiExtraction = extractions.find(e => e.id === extraction.extraction_id)
+      // Always show ALL extractions from the listing API
+      // Compare with product extractions and mark matching ones as active
+      const convertedStatuses = extractions.map((apiExtraction: Extraction) => {
+        // Find if this extraction exists in the product's extractions
+        const productExtraction = watchedExtractions.find(
+          (ext: any) => ext.extraction_id === apiExtraction.id
+        )
 
-          // Determine is_active based on extraction.status field (not is_active field)
-          // Status can be "Active" or "Inactive"
-          let isActive = true
-          if (extraction.status !== undefined) {
-            isActive = extraction.status === "Active"
-          } else if (extraction.is_active !== undefined) {
-            isActive = extraction.is_active === true || extraction.is_active === "Yes"
-          } else if (apiExtraction) {
-            isActive = apiExtraction.status === "Active"
-          }
+        if (productExtraction) {
+          // This extraction is in the product, mark it as active and use product data
+          // Determine is_active based on extraction.status field
+          const isActive = productExtraction.status === "Active"
 
           return {
-            extraction_id: extraction.extraction_id,
-            name: extraction.name || apiExtraction?.name || "",
-            color: extraction.color || apiExtraction?.color || "#000000",
-            is_default: extraction.is_default === "Yes",
-            is_required: extraction.is_required === "Yes",
-            is_optional: extraction.is_optional === "Yes",
+            extraction_id: apiExtraction.id,
+            name: apiExtraction.name, // Always use name from API
+            color: apiExtraction.color, // Always use color from API
+            is_default: productExtraction.is_default === "Yes",
+            is_required: productExtraction.is_required === "Yes",
+            is_optional: productExtraction.is_optional === "Yes",
             is_active: isActive,
-            min_teeth: extraction.min_teeth,
-            max_teeth: extraction.max_teeth,
+            min_teeth: productExtraction.min_teeth ?? null,
+            max_teeth: productExtraction.max_teeth ?? null,
           }
-        })
-        setExtractionStatuses(convertedFormData)
-      } else {
-        // No form data yet, create default statuses from API data
-        const convertedStatuses = extractions.map((extraction: Extraction) => ({
-          extraction_id: extraction.id,
-          name: extraction.name,
-          color: extraction.color,
-          is_default: false,
-          is_required: false,
-          is_optional: false,
-          is_active: extraction.status === 'Active',
-          min_teeth: null,
-          max_teeth: null,
-        }))
-        setExtractionStatuses(convertedStatuses)
-      }
+        } else {
+          // This extraction is NOT in the product, mark it as inactive with defaults
+          return {
+            extraction_id: apiExtraction.id,
+            name: apiExtraction.name,
+            color: apiExtraction.color,
+            is_default: false,
+            is_required: false,
+            is_optional: false,
+            is_active: false, // Not in product, so inactive by default
+            min_teeth: null,
+            max_teeth: null,
+          }
+        }
+      })
+      
+      setExtractionStatuses(convertedStatuses)
     }
   }, [extractions, watchedExtractions])
 

@@ -83,9 +83,8 @@ function StageFieldComponent({
   useEffect(() => {
     const isNotSpecified = !stageValue || 
       stageValue.trim() === "" || 
-      stageValue.trim().toLowerCase() === "not specified" || 
-      stageValue.trim().toLowerCase() === "finish"
-    
+      stageValue.trim().toLowerCase() === "not specified"
+          
     if (isNotSpecified) {
       // Small delay to ensure the Select component is ready
       const timer = setTimeout(() => {

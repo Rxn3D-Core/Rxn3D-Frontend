@@ -1184,14 +1184,14 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
                 )}
 
                 <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-3 gap-4 items-center pt-2">
-                  <div className="flex items-center space-x-2">
+                  {/* <div className="flex items-center space-x-2">
                     <Switch className="data-[state=checked]:bg-[#1162a8]"
                       id="isCommon"
                       checked={formData.is_common === "Yes"}
                       onCheckedChange={(checked) => handleInputChange("is_common", checked ? "Yes" : "No")}
                     />
                     <Label htmlFor="isCommon">Is Common</Label>
-                  </div>
+                  </div> */}
                   <div className="flex items-center space-x-2">
                     <Switch className="data-[state=checked]:bg-[#1162a8]"
                       id="isReleasingStage"
