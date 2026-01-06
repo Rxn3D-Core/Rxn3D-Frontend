@@ -11,9 +11,11 @@ interface ColorPickerProps {
   value: string
   onChange: (color: string) => void
   predefinedColors?: string[]
+  side?: "top" | "bottom" | "left" | "right"
+  align?: "start" | "center" | "end"
 }
 
-export function ColorPicker({ value, onChange, predefinedColors = [] }: ColorPickerProps) {
+export function ColorPicker({ value, onChange, predefinedColors = [], side = "bottom", align = "start" }: ColorPickerProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [showCustomPicker, setShowCustomPicker] = useState(false)
   const [customColor, setCustomColor] = useState(value)
@@ -198,8 +200,98 @@ export function ColorPicker({ value, onChange, predefinedColors = [] }: ColorPic
           </span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[520px] p-0" align="start">
-        {!showCustomPicker ? (
+      <PopoverContent className="w-[520px] p-0" side={side} align={align}>
+        <div className="flex flex-col">
+          {showCustomPicker ? (
+            <div className="p-4 relative border-b">
+              <button
+                type="button"
+                onClick={() => setShowCustomPicker(false)}
+                className="absolute top-4 right-4 w-8 h-8 rounded-full bg-[#00ACC1] text-white flex items-center justify-center hover:bg-[#0097A7] transition-colors z-10"
+              >
+                ✓
+              </button>
+
+              <h3 className="font-semibold mb-3">Color</h3>
+
+              {/* Color Gradient Canvas */}
+              <div className="mb-4 relative">
+                <canvas
+                  ref={canvasRef}
+                  onClick={handleCanvasClick}
+                  className="w-full h-48 rounded-lg cursor-crosshair border border-gray-300"
+                  style={{ maxWidth: '400px', height: '200px' }}
+                />
+              </div>
+
+              {/* Hue Slider */}
+              <div
+                ref={hueRef}
+                onClick={handleHueClick}
+                className="w-full h-6 rounded-full cursor-pointer mb-4 relative"
+                style={{
+                  background: 'linear-gradient(to right, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%)'
+                }}
+              >
+                <div
+                  className="absolute w-5 h-5 bg-white border-2 border-gray-400 rounded-full top-1/2 transform -translate-y-1/2 -translate-x-1/2 shadow-md"
+                  style={{ left: `${(hue / 360) * 100}%` }}
+                />
+              </div>
+
+              {/* RGB Inputs */}
+              <div className="flex gap-3 mb-4">
+                <div className="flex-1">
+                  <Input
+                    type="number"
+                    value={rgb.r}
+                    onChange={(e) => handleRgbChange('r', e.target.value)}
+                    min="0"
+                    max="255"
+                    className="w-full text-center"
+                  />
+                  <p className="text-xs text-center mt-1 text-gray-500">R</p>
+                </div>
+                <div className="flex-1">
+                  <Input
+                    type="number"
+                    value={rgb.g}
+                    onChange={(e) => handleRgbChange('g', e.target.value)}
+                    min="0"
+                    max="255"
+                    className="w-full text-center"
+                  />
+                  <p className="text-xs text-center mt-1 text-gray-500">G</p>
+                </div>
+                <div className="flex-1">
+                  <Input
+                    type="number"
+                    value={rgb.b}
+                    onChange={(e) => handleRgbChange('b', e.target.value)}
+                    min="0"
+                    max="255"
+                    className="w-full text-center"
+                  />
+                  <p className="text-xs text-center mt-1 text-gray-500">B</p>
+                </div>
+              </div>
+
+              {/* Hex Input */}
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-16 h-12 rounded-lg border-2 border-gray-300"
+                  style={{ backgroundColor: customColor }}
+                />
+                <Input
+                  value={customColor.toUpperCase()}
+                  onChange={(e) => handleHexChange(e.target.value)}
+                  placeholder="#00ACC1"
+                  className="flex-1"
+                />
+              </div>
+            </div>
+          ) : null}
+          
           <div className="p-4">
             <h3 className="font-semibold mb-3">Preset Colors</h3>
             <div className="grid grid-cols-6 gap-3 mb-4">
@@ -241,7 +333,7 @@ export function ColorPicker({ value, onChange, predefinedColors = [] }: ColorPic
             </div>
             <div className="flex items-center gap-3">
               <div
-                className="w-16 h-12 rounded-lg border-2 border-gray-300"
+                className="w-16 h-12 rounded-lg border-2 border-gray-300 cursor-pointer"
                 style={{ backgroundColor: customColor }}
                 onClick={() => setShowCustomPicker(true)}
               />
@@ -254,95 +346,7 @@ export function ColorPicker({ value, onChange, predefinedColors = [] }: ColorPic
               />
             </div>
           </div>
-        ) : (
-          <div className="p-4 relative">
-            <button
-              type="button"
-              onClick={() => setShowCustomPicker(false)}
-              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-[#00ACC1] text-white flex items-center justify-center hover:bg-[#0097A7] transition-colors z-10"
-            >
-              ✓
-            </button>
-
-            <h3 className="font-semibold mb-3">Color</h3>
-
-            {/* Color Gradient Canvas */}
-            <div className="mb-4 relative">
-              <canvas
-                ref={canvasRef}
-                onClick={handleCanvasClick}
-                className="w-full h-48 rounded-lg cursor-crosshair border border-gray-300"
-                style={{ maxWidth: '400px', height: '200px' }}
-              />
-            </div>
-
-            {/* Hue Slider */}
-            <div
-              ref={hueRef}
-              onClick={handleHueClick}
-              className="w-full h-6 rounded-full cursor-pointer mb-4 relative"
-              style={{
-                background: 'linear-gradient(to right, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%)'
-              }}
-            >
-              <div
-                className="absolute w-5 h-5 bg-white border-2 border-gray-400 rounded-full top-1/2 transform -translate-y-1/2 -translate-x-1/2 shadow-md"
-                style={{ left: `${(hue / 360) * 100}%` }}
-              />
-            </div>
-
-            {/* RGB Inputs */}
-            <div className="flex gap-3 mb-4">
-              <div className="flex-1">
-                <Input
-                  type="number"
-                  value={rgb.r}
-                  onChange={(e) => handleRgbChange('r', e.target.value)}
-                  min="0"
-                  max="255"
-                  className="w-full text-center"
-                />
-                <p className="text-xs text-center mt-1 text-gray-500">R</p>
-              </div>
-              <div className="flex-1">
-                <Input
-                  type="number"
-                  value={rgb.g}
-                  onChange={(e) => handleRgbChange('g', e.target.value)}
-                  min="0"
-                  max="255"
-                  className="w-full text-center"
-                />
-                <p className="text-xs text-center mt-1 text-gray-500">G</p>
-              </div>
-              <div className="flex-1">
-                <Input
-                  type="number"
-                  value={rgb.b}
-                  onChange={(e) => handleRgbChange('b', e.target.value)}
-                  min="0"
-                  max="255"
-                  className="w-full text-center"
-                />
-                <p className="text-xs text-center mt-1 text-gray-500">B</p>
-              </div>
-            </div>
-
-            {/* Hex Input */}
-            <div className="flex items-center gap-3">
-              <div
-                className="w-16 h-12 rounded-lg border-2 border-gray-300"
-                style={{ backgroundColor: customColor }}
-              />
-              <Input
-                value={customColor.toUpperCase()}
-                onChange={(e) => handleHexChange(e.target.value)}
-                placeholder="#00ACC1"
-                className="flex-1"
-              />
-            </div>
-          </div>
-        )}
+        </div>
       </PopoverContent>
     </Popover>
   )

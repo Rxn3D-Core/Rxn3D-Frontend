@@ -10,6 +10,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { ColorPicker } from "@/components/ui/color-picker"
 import {
   useTeethShades,
   type TeethShadeBrandPayload,
@@ -48,11 +49,12 @@ export function CreateTeethShadeModal({
     system_name: "",
     sequence: "",
     status: "Active",
+    brand_color: "#1162a8",
     shades: [],
   }
 
   const [formData, setFormData] = useState<
-    TeethShadeBrandPayload & { sequence: string; shades: (ShadePayload & { enabled: boolean })[] }
+    TeethShadeBrandPayload & { sequence: string; brand_color: string; shades: (ShadePayload & { enabled: boolean })[] }
   >(defaultFormData)
   const [initialFormData, setInitialFormData] = useState(defaultFormData)
 
@@ -109,6 +111,7 @@ export function CreateTeethShadeModal({
           system_name: teethShadeBrand.system_name || "",
           sequence: teethShadeBrand.sequence?.toString() || "",
           status: teethShadeBrand.status || "Active",
+          brand_color: teethShadeBrand.brand_color || "#1162a8",
           shades: (teethShadeBrand.shades || []).map((shade: any) => ({
             name: shade.name,
             sequence: shade.sequence,
@@ -121,6 +124,7 @@ export function CreateTeethShadeModal({
           system_name: teethShadeBrand.system_name || "",
           sequence: teethShadeBrand.sequence?.toString() || "",
           status: teethShadeBrand.status || "Active",
+          brand_color: teethShadeBrand.brand_color || "#1162a8",
           shades: (teethShadeBrand.shades || []).map((shade: any) => ({
             name: shade.name,
             sequence: shade.sequence,
@@ -135,6 +139,7 @@ export function CreateTeethShadeModal({
           system_name: teethShadeBrand.system_name || "",
           sequence: teethShadeBrand.sequence?.toString() || "",
           status: teethShadeBrand.status || "Active",
+          brand_color: teethShadeBrand.brand_color || "#1162a8",
           shades: (teethShadeBrand.shades || []).map((shade: any) => ({
             name: shade.name,
             sequence: shade.sequence,
@@ -147,6 +152,7 @@ export function CreateTeethShadeModal({
           system_name: teethShadeBrand.system_name || "",
           sequence: teethShadeBrand.sequence?.toString() || "",
           status: teethShadeBrand.status || "Active",
+          brand_color: teethShadeBrand.brand_color || "#1162a8",
           shades: (teethShadeBrand.shades || []).map((shade: any) => ({
             name: shade.name,
             sequence: shade.sequence,
@@ -210,6 +216,7 @@ export function CreateTeethShadeModal({
       formData.system_name !== initialFormData.system_name ||
       formData.sequence !== initialFormData.sequence ||
       formData.status !== initialFormData.status ||
+      formData.brand_color !== initialFormData.brand_color ||
       JSON.stringify(currentShadesForComparison) !== JSON.stringify(initialShadesForComparison)
 
     setHasChanges(changed)
@@ -360,6 +367,7 @@ export function CreateTeethShadeModal({
       system_name: formData.system_name,
       sequence: Number.parseInt(formData.sequence),
       status: formData.status,
+      brand_color: formData.brand_color,
       shades: formData.shades.map((shade) => ({
         name: shade.name,
         sequence: shade.sequence,
@@ -469,6 +477,17 @@ export function CreateTeethShadeModal({
                   onChange={(e) => handleInputChange("system_name", e.target.value)}
                   validationState={formData.system_name.trim() ? "valid" : "default"}
                 />
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-medium text-gray-700">
+                    Brand Color
+                  </label>
+                  <ColorPicker
+                    value={formData.brand_color || "#1162a8"}
+                    onChange={(color) => handleInputChange("brand_color", color)}
+                    side="top"
+                    align="start"
+                  />
+                </div>
                 <Input
                   placeholder="Sequence *"
                   type="number"

@@ -5095,12 +5095,21 @@ export default function CaseDesignCenterPage() {
                                         </span>
 
                                         {/* Trash Icon */}
-                                        <button
+                                        <div
                                           onClick={(e) => {
                                             e.stopPropagation()
                                             handleClearCurrentProduct()
                                           }}
                                           className="hover:text-red-600 transition-colors"
+                                          role="button"
+                                          tabIndex={0}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter' || e.key === ' ') {
+                                              e.preventDefault()
+                                              e.stopPropagation()
+                                              handleClearCurrentProduct()
+                                            }
+                                          }}
                                           style={{
                                             width: '16px',
                                             height: '16px',
@@ -5117,7 +5126,7 @@ export default function CaseDesignCenterPage() {
                                           }}
                                         >
                                           <Trash2 className="w-full h-full" />
-                                        </button>
+                                        </div>
                                       </div>
                                     </div>
                                   </div>
@@ -6344,12 +6353,21 @@ export default function CaseDesignCenterPage() {
                                                 </span>
 
                                                 {/* Trash Icon */}
-                                                <button
+                                                <div
                                                   onClick={(e) => {
                                                     e.stopPropagation()
                                                     handleDeleteProduct(savedProduct.id)
                                                   }}
                                                   className="hover:text-red-600 transition-colors"
+                                                  role="button"
+                                                  tabIndex={0}
+                                                  onKeyDown={(e) => {
+                                                    if (e.key === 'Enter' || e.key === ' ') {
+                                                      e.preventDefault()
+                                                      e.stopPropagation()
+                                                      handleDeleteProduct(savedProduct.id)
+                                                    }
+                                                  }}
                                                   style={{
                                                     width: '16px',
                                                     height: '16px',
@@ -6366,7 +6384,7 @@ export default function CaseDesignCenterPage() {
                                                   }}
                                                 >
                                                   <Trash2 className="w-full h-full" />
-                                                </button>
+                                                </div>
                                               </div>
                                             </div>
                                           </div>
@@ -9384,12 +9402,21 @@ export default function CaseDesignCenterPage() {
                                                 </span>
 
                                                 {/* Trash Icon */}
-                                                <button
+                                                <div
                                                   onClick={(e) => {
                                                     e.stopPropagation()
                                                     handleDeleteProduct(savedProduct.id)
                                                   }}
                                                   className="hover:text-red-600 transition-colors"
+                                                  role="button"
+                                                  tabIndex={0}
+                                                  onKeyDown={(e) => {
+                                                    if (e.key === 'Enter' || e.key === ' ') {
+                                                      e.preventDefault()
+                                                      e.stopPropagation()
+                                                      handleDeleteProduct(savedProduct.id)
+                                                    }
+                                                  }}
                                                   style={{
                                                     width: '16px',
                                                     height: '16px',
@@ -9406,7 +9433,7 @@ export default function CaseDesignCenterPage() {
                                                   }}
                                                 >
                                                   <Trash2 className="w-full h-full" />
-                                                </button>
+                                                </div>
                                               </div>
                                             </div>
                                           </div>

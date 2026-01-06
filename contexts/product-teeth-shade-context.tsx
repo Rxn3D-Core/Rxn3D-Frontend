@@ -23,6 +23,7 @@ export interface TeethShadeBrand {
   system_name: string
   status: string
   sequence: number
+  brand_color?: string
   created_at: string
   updated_at: string
   shades: Shade[]
@@ -48,6 +49,7 @@ export interface TeethShadeBrandPayload {
   system_name: string
   sequence: number
   status: string
+  brand_color?: string
   shades: ShadePayload[]
 }
 
