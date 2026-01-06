@@ -56,6 +56,7 @@ interface OverviewTabProps {
     stateId?: number | null
     countryName?: string
     countryId?: number | null
+    release_casepan?: string
   }
   onLogoUpdate?: (logoUrl: string) => void
   onProfileUpdate?: () => void
@@ -66,6 +67,8 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
   const [isUploading, setIsUploading] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [isLoadingProfile, setIsLoadingProfile] = useState(false)
+  const [originalFormData, setOriginalFormData] = useState<any>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
   const { updateCustomerProfile } = useCustomer()
@@ -128,6 +131,7 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
       country_id: labData.countryId ?? null,
       state: labData.stateName || "",
       state_id: labData.stateId ?? null,
+      release_casepan: labData.release_casepan || "",
     }
   })
 
@@ -145,6 +149,7 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
       country_id: labData.countryId ?? null,
       state: labData.stateName || "",
       state_id: labData.stateId ?? null,
+      release_casepan: labData.release_casepan || "",
     })
   }, [labData])
 
@@ -330,11 +335,73 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
     fileInputRef.current?.click()
   }
 
-  const handleEditClick = () => {
+  const fetchCustomerData = async (customerId: number) => {
+    setIsLoadingProfile(true)
+    try {
+      const token = localStorage.getItem('token')
+      if (!token) {
+        throw new Error("Authentication token not found")
+      }
+
+      const response = await fetch(`${API_BASE_URL}/customers/${customerId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (response.status === 401) {
+        window.location.href = '/login'
+        return null
+      }
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch customer data: ${response.status}`)
+      }
+
+      const result = await response.json()
+      const customerData = result.data
+
+      // Populate form with fetched data
+      const fetchedFormData = {
+        name: customerData.name || "",
+        email: customerData.email || "",
+        website: customerData.website || "",
+        address: customerData.address || "",
+        city: customerData.city || "",
+        postal_code: customerData.postal_code || "",
+        country: customerData.country?.name || "",
+        country_id: customerData.country?.id ?? null,
+        state: customerData.state?.name || "",
+        state_id: customerData.state?.id ?? null,
+        release_casepan: customerData.release_casepan || "",
+      }
+      
+      setFormData(fetchedFormData)
+      // Store original values for comparison
+      setOriginalFormData({ ...fetchedFormData })
+
+      return customerData
+    } catch (error: any) {
+      console.error("Error fetching customer data:", error)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to fetch customer data. Please try again.",
+        variant: "destructive",
+      })
+      return null
+    } finally {
+      setIsLoadingProfile(false)
+    }
+  }
+
+  const handleEditClick = async () => {
     setIsEditModalOpen(true)
-    // Initialize form with current data
+    
+    // Initialize form with current data first (for immediate display)
     const parsed = parseAddress(labData.address)
-    setFormData({
+    const initialFormData = {
       name: labData.name,
       email: labData.email,
       website: labData.website || "",
@@ -345,7 +412,18 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
       country_id: labData.countryId ?? null,
       state: labData.stateName || "",
       state_id: labData.stateId ?? null,
-    })
+      release_casepan: labData.release_casepan || "",
+    }
+    
+    setFormData(initialFormData)
+    // Store original values for comparison (will be updated after API fetch)
+    setOriginalFormData({ ...initialFormData })
+
+    // Fetch latest data from API
+    const customerId = Number(labData.id)
+    if (customerId) {
+      await fetchCustomerData(customerId)
+    }
   }
 
   const handleCountrySelect = (value: string) => {
@@ -393,41 +471,77 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
   const handleSave = async () => {
     setIsSaving(true)
     try {
-      // Send address fields separately as the API expects
-      const updateData: any = {
-        name: formData.name,
-        email: formData.email,
+      if (!originalFormData) {
+        toast({
+          title: "Error",
+          description: "Original data not found. Please try again.",
+          variant: "destructive",
+        })
+        setIsSaving(false)
+        return
       }
 
-      // Only include optional fields if they have values
-      if (formData.website) {
+      const updateData: any = {}
+
+      // Only include fields that have changed
+      if (formData.name !== originalFormData.name) {
+        updateData.name = formData.name
+      }
+
+      if (formData.email !== originalFormData.email) {
+        updateData.email = formData.email
+      }
+
+      if (formData.website !== originalFormData.website) {
         updateData.website = formData.website
       }
-      if (formData.address) {
+
+      if (formData.address !== originalFormData.address) {
         updateData.address = formData.address
       }
-      if (formData.city) {
+
+      if (formData.city !== originalFormData.city) {
         updateData.city = formData.city
       }
-      if (formData.postal_code) {
+
+      if (formData.postal_code !== originalFormData.postal_code) {
         updateData.postal_code = formData.postal_code
       }
-      if (formData.country_id !== null && formData.country_id !== undefined) {
-        updateData.country = {
-          id: formData.country_id,
-          name: formData.country || "",
+
+      // Compare country_id
+      if (formData.country_id !== originalFormData.country_id) {
+        updateData.country_id = formData.country_id
+      }
+
+      // Compare state_id
+      if (formData.state_id !== originalFormData.state_id) {
+        updateData.state_id = formData.state_id
+      }
+
+      // Compare release_casepan
+      if (formData.release_casepan !== originalFormData.release_casepan) {
+        // Only include if it has a value
+        if (formData.release_casepan && formData.release_casepan !== "") {
+          updateData.release_casepan = formData.release_casepan
         }
       }
-      if (formData.state_id !== null && formData.state_id !== undefined) {
-        updateData.state = {
-          id: formData.state_id,
-          name: formData.state || "",
-        }
+
+      // If no fields have changed, show a message and return
+      if (Object.keys(updateData).length === 0) {
+        toast({
+          title: "No changes",
+          description: "No fields have been modified.",
+        })
+        setIsSaving(false)
+        return
       }
+
+      console.log("Update payload (only changed fields):", JSON.stringify(updateData, null, 2)) // Debug log
 
       const result = await updateCustomerProfile(Number(labData.id), updateData)
       
       if (result) {
+        setOriginalFormData(null) // Reset original data
         setIsEditModalOpen(false)
         if (onProfileUpdate) {
           onProfileUpdate()
@@ -571,49 +685,97 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
                 <label className="text-sm text-gray-500">Position:</label>
                 <p className="font-medium text-sm">{labData.position}</p>
               </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <label className="text-sm text-gray-500">Release Casepan:</label>
+                <p className="font-medium text-sm">{labData.release_casepan || "—"}</p>
+              </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Edit Modal */}
-      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <Dialog 
+        open={isEditModalOpen} 
+        onOpenChange={(open) => {
+          setIsEditModalOpen(open)
+          if (!open) {
+            // Reset original data when modal closes
+            setOriginalFormData(null)
+          }
+        }}
+      >
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Lab Information</DialogTitle>
           </DialogHeader>
           
-          <div className="space-y-4 mt-4">
-            <div>
-              <Label htmlFor="name">Lab Name *</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Enter lab name"
-              />
-            </div>
+          <div className="space-y-6 mt-4 relative">
+            {isLoadingProfile && (
+              <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center rounded-lg">
+                <div className="flex items-center gap-3">
+                  <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+                  <span className="text-gray-700 font-medium">Loading latest data...</span>
+                </div>
+              </div>
+            )}
+            
+            <div className={isLoadingProfile ? "opacity-50 pointer-events-none" : ""}>
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <Label htmlFor="name">Lab Name *</Label>
+                  <Input
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="Enter lab name"
+                    disabled={isLoadingProfile}
+                  />
+                </div>
 
-            <div>
-              <Label htmlFor="email">Email *</Label>
-              <Input
-                id="email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                placeholder="Enter email"
-              />
-            </div>
+                <div>
+                  <Label htmlFor="email">Email *</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    placeholder="Enter email"
+                    disabled={isLoadingProfile}
+                  />
+                </div>
+              </div>
 
-            <div>
-              <Label htmlFor="website">Website</Label>
-              <Input
-                id="website"
-                type="url"
-                value={formData.website}
-                onChange={(e) => setFormData({ ...formData, website: e.target.value })}
-                placeholder="https://example.com"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="website">Website</Label>
+                <Input
+                  id="website"
+                  type="url"
+                  value={formData.website}
+                  onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                  placeholder="https://example.com"
+                  disabled={isLoadingProfile}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="release-casepan-select">Release Casepan</Label>
+                <Select
+                  value={formData.release_casepan}
+                  onValueChange={(value) => setFormData({ ...formData, release_casepan: value })}
+                  disabled={isLoadingProfile}
+                >
+                  <SelectTrigger id="release-casepan-select" className="w-full h-11">
+                    <SelectValue placeholder="Select release casepan" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="After Stage">After Stage</SelectItem>
+                    <SelectItem value="After Product">After Product</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div>
@@ -623,10 +785,11 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
                 value={formData.address}
                 onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                 placeholder="Enter street address"
+                disabled={isLoadingProfile}
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-6">
               <div>
                 <Label htmlFor="city">City</Label>
                 <Input
@@ -634,6 +797,7 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
                   value={formData.city}
                   onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                   placeholder="Enter city"
+                  disabled={isLoadingProfile}
                 />
               </div>
 
@@ -644,16 +808,18 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
                   value={formData.postal_code}
                   onChange={(e) => setFormData({ ...formData, postal_code: e.target.value })}
                   placeholder="Enter postal code"
+                  disabled={isLoadingProfile}
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-6">
               <div>
                 <Label htmlFor="country-select">Country</Label>
                 <Select
                   value={formData.country_id ? formData.country_id.toString() : ""}
                   onValueChange={handleCountrySelect}
+                  disabled={isLoadingProfile}
                 >
                   <SelectTrigger id="country-select" className="w-full h-11">
                     <SelectValue placeholder="Select country" />
@@ -684,7 +850,7 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
                   value={formData.state_id ? formData.state_id.toString() : ""}
                   onValueChange={handleStateSelect}
                   placeholder="Select state"
-                  disabled={!formData.country_id}
+                  disabled={!formData.country_id || isLoadingProfile}
                   className="h-11"
                   options={
                     isStateLoading
@@ -709,18 +875,19 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
                 />
               </div>
             </div>
+            </div>
 
             <div className="flex justify-end gap-3 pt-4">
               <Button
                 variant="outline"
                 onClick={() => setIsEditModalOpen(false)}
-                disabled={isSaving}
+                disabled={isSaving || isLoadingProfile}
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleSave}
-                disabled={isSaving || !formData.name || !formData.email}
+                disabled={isSaving || isLoadingProfile || !formData.name || !formData.email}
                 className="bg-blue-600 text-white hover:bg-blue-700"
               >
                 {isSaving ? (
@@ -739,3 +906,4 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
     </div>
   )
 }
+

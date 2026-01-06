@@ -326,8 +326,21 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         if (data.city !== undefined) updateData.city = data.city
         if (data.postal_code !== undefined) updateData.postal_code = data.postal_code
         if (data.email !== undefined) updateData.email = data.email
-        if (data.state?.id !== undefined) updateData.state_id = data.state.id
-        if (data.country?.id !== undefined) updateData.country_id = data.country.id
+        // Support direct state_id and country_id (preferred) or nested structure
+        if ((data as any).state_id !== undefined) {
+          updateData.state_id = (data as any).state_id
+        } else if (data.state?.id !== undefined) {
+          updateData.state_id = data.state.id
+        }
+        if ((data as any).country_id !== undefined) {
+          updateData.country_id = (data as any).country_id
+        } else if (data.country?.id !== undefined) {
+          updateData.country_id = data.country.id
+        }
+        // Support release_casepan
+        if ((data as any).release_casepan !== undefined) {
+          updateData.release_casepan = (data as any).release_casepan
+        }
 
         const response = await fetch(`${API_BASE_URL}/customers/${customerId}`, {
           method: "PUT",
