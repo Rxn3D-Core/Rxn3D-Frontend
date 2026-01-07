@@ -238,6 +238,8 @@ export function AddLabProductModal({
     office_stage_pricing: [],
     office_stage_grade_pricing: [],
     base_price: "", // <-- add this field to initial values
+    extractions: [],
+    opposite_extractions: [],
     apply_same_status_to_opposing: true,
     min_days_to_process: null,
     max_days_to_process: null,
@@ -620,6 +622,17 @@ export function AddLabProductModal({
         }))
       }
 
+      // Special mapping function for opposite extractions (only extraction_id, sequence, status, is_default)
+      function mapOppositeExtractions(arr: any[]) {
+        if (!Array.isArray(arr)) return []
+        return arr.map((item, idx) => ({
+          extraction_id: item.extraction_id ?? item.id,
+          sequence: item.sequence && item.sequence >= 1 ? item.sequence : idx + 1,
+          status: (item.status === "Inactive" ? "Inactive" : "Active") as "Active" | "Inactive",
+          is_default: (item.is_default === "Yes" ? "Yes" : "No") as "Yes" | "No",
+        }))
+      }
+
       // Special mapping function for addons with quantity and is_default fields
       function mapAddons(arr: any[]) {
         if (!Array.isArray(arr)) return []
@@ -781,6 +794,7 @@ export function AddLabProductModal({
         is_teeth_based_price: editingProduct.is_teeth_based_price || "No",
         base_price: basePrice, // <-- use grade price if available, else response price
         extractions: mapExtractions(editingProduct.extractions || []),
+        opposite_extractions: mapOppositeExtractions(editingProduct.opposite_extractions || []),
         apply_same_status_to_opposing: editingProduct.apply_same_status_to_opposing ?? true,
         min_days_to_process: editingProduct.min_days_to_process ?? null,
         max_days_to_process: editingProduct.max_days_to_process ?? null,
@@ -1037,6 +1051,19 @@ export function AddLabProductModal({
       })).filter(item => item.extraction_id) // Remove any items without extraction_id
     }
 
+    // Special handler for opposite extractions - only includes extraction_id, sequence, status, is_default
+    function ensureOppositeExtractions(arr: any[]) {
+      if (!Array.isArray(arr)) return []
+      return arr.map((item, idx) => ({
+        extraction_id: item.extraction_id ?? item.id,
+        // Ensure sequence is at least 1 (fix for 0 values)
+        sequence: (item.sequence && item.sequence >= 1) ? item.sequence : idx + 1,
+        status: item.status || "Active",
+        // Only is_default field for opposite extractions
+        is_default: item.is_default === "Yes" || item.is_default === true ? "Yes" : "No",
+      })).filter(item => item.extraction_id) // Remove any items without extraction_id
+    }
+
     let payload: any = { ...data }
     
     // Remove category_id from payload (it's UI-only for filtering subcategories)
@@ -1077,6 +1104,12 @@ export function AddLabProductModal({
       return currentValue.length > 0 || originalArray.length > 0
     }
 
+    // Handle apply_same_status_to_opposing checkbox logic
+    // If checked, send empty array for opposite_extractions
+    if (data.apply_same_status_to_opposing === true) {
+      payload.opposite_extractions = []
+    }
+
     // Only process and include array fields that have meaningful changes
     const arrayFields = [
       { key: 'grades', idKey: 'grade_id', processor: ensureSequenceAndStatus },
@@ -1088,13 +1121,27 @@ export function AddLabProductModal({
       { key: 'retentions', idKey: 'retention_id', processor: ensureSequenceAndStatus },
       { key: 'addons', idKey: 'addon_id', processor: ensureSequenceAndStatus },
       { key: 'extractions', idKey: 'extraction_id', processor: ensureExtractions },
+      { key: 'opposite_extractions', idKey: 'extraction_id', processor: ensureOppositeExtractions },
     ]
 
     arrayFields.forEach(({ key, idKey, processor }) => {
+      // Special handling for opposite_extractions when apply_same_status_to_opposing is true
+      if (key === 'opposite_extractions' && data.apply_same_status_to_opposing === true) {
+        // Already set to empty array above, ensure it stays in payload
+        payload.opposite_extractions = []
+        return
+      }
+      
       const currentValue = payload[key] ?? []
-      const processedValue = processor === ensureExtractions 
-        ? ensureExtractions(currentValue)
-        : ensureSequenceAndStatus(currentValue, idKey)
+      let processedValue: any[]
+      
+      if (processor === ensureExtractions) {
+        processedValue = ensureExtractions(currentValue)
+      } else if (processor === ensureOppositeExtractions) {
+        processedValue = ensureOppositeExtractions(currentValue)
+      } else {
+        processedValue = ensureSequenceAndStatus(currentValue, idKey)
+      }
       
       if (shouldIncludeArray(key, processedValue)) {
         payload[key] = processedValue

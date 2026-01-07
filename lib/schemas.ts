@@ -390,6 +390,55 @@ export const ProductCreateFormSchema = z
           : arr
       ),
 
+    opposite_extractions: z
+      .array(
+        z.object({
+          extraction_id: z.number(),
+          sequence: z.number().optional(),
+          status: z.enum(["Active", "Inactive"]).default("Active").optional(),
+          is_default: z.enum(["Yes", "No"]).default("No").optional(),
+          is_required: z.enum(["Yes", "No"]).default("No").optional(),
+          is_optional: z.enum(["Yes", "No"]).default("No").optional(),
+          min_teeth: z.number().min(0).max(16).nullable().optional(),
+          max_teeth: z.number().min(0).max(16).nullable().optional(),
+        })
+          .refine(
+            (data) => {
+              // If min_teeth is 16, max_teeth can only be 0, 16, or null
+              if (data.min_teeth === 16 && data.max_teeth !== null) {
+                return data.max_teeth === 0 || data.max_teeth === 16;
+              }
+              return true;
+            },
+            {
+              message: "When minimum teeth is 16, maximum teeth must be 0 or 16 only",
+              path: ["max_teeth"],
+            }
+          )
+          .refine(
+            (data) => {
+              // If both min_teeth and max_teeth are provided (and not the special case), max_teeth must be >= min_teeth
+              if (data.min_teeth !== null && data.max_teeth !== null && data.min_teeth !== 16) {
+                return data.max_teeth >= data.min_teeth;
+              }
+              return true;
+            },
+            {
+              message: "Maximum teeth must be greater than or equal to minimum teeth",
+              path: ["max_teeth"],
+            }
+          ),
+      )
+      .optional()
+      .transform((arr) =>
+        Array.isArray(arr)
+          ? arr.map((item) => ({
+              ...item,
+              status: item.status || "Active",
+            }))
+          : arr
+      ),
+
     has_grade_based_pricing: z.enum(["Yes", "No"]).default("No"),
     default_grade_id: z.number().nullable().optional(),
     enable_auto_billing: z.enum(["Yes", "No"]).default("No"),
