@@ -119,6 +119,28 @@ export function ProductDetailsSection({
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [showPreviewModal, setShowPreviewModal] = useState(false)
+  
+  // Track focus state for fields that need orange/red/green validation
+  const [focusedFields, setFocusedFields] = useState<{
+    base_price: boolean
+    min_days_to_process: boolean
+    max_days_to_process: boolean
+  }>({
+    base_price: false,
+    min_days_to_process: false,
+    max_days_to_process: false,
+  })
+  
+  // Track if fields have been touched (blurred at least once)
+  const [touchedFields, setTouchedFields] = useState<{
+    base_price: boolean
+    min_days_to_process: boolean
+    max_days_to_process: boolean
+  }>({
+    base_price: false,
+    min_days_to_process: false,
+    max_days_to_process: false,
+  })
 
   // Initialize image preview with existing image when editing
   useEffect(() => {
@@ -172,6 +194,37 @@ export function ProductDetailsSection({
   }
 
   const hasErrors = getValidationError("name") || getValidationError("code") || getValidationError("category_id") || getValidationError("subcategory_id") || getValidationError("base_price")
+
+  // Helper function to determine validation state based on focus and value
+  const getValidationState = (
+    fieldName: "base_price" | "min_days_to_process" | "max_days_to_process",
+    value: any,
+    isRequired: boolean = true
+  ): "default" | "valid" | "warning" | "error" => {
+    const hasValue = value !== null && value !== undefined && value !== ""
+    const isFocused = focusedFields[fieldName]
+    const isTouched = touchedFields[fieldName]
+    const hasError = getValidationError(fieldName)
+
+    // If has value and no error, show green (valid)
+    if (hasValue && !hasError) {
+      return "valid"
+    }
+
+    // If focused and empty, show orange (warning)
+    if (isFocused && !hasValue) {
+      return "warning"
+    }
+
+    // If blurred (touched) and empty and required, show red (error)
+    // Also show error if there's a validation error
+    if ((!isFocused && isTouched && !hasValue && isRequired) || hasError) {
+      return "error"
+    }
+
+    // Default state
+    return "default"
+  }
 
   return (
     <div className="px-4 sm:px-6 py-6 bg-white rounded-lg border border-gray-100">
@@ -449,8 +502,10 @@ export function ProductDetailsSection({
                   control={control}
                   render={({ field }) => {
                     const currentValue = sections.grades ? defaultGradePrice : (field.value || "")
-                    const hasValue = currentValue !== "" && currentValue !== null && currentValue !== undefined
                     const hasError = getValidationError("base_price")
+                    const validationState = sections.grades 
+                      ? "disabled" 
+                      : getValidationState("base_price", currentValue, true)
                     
                     return (
                       <div className="relative">
@@ -467,16 +522,20 @@ export function ProductDetailsSection({
                           min="0"
                           value={currentValue}
                           onChange={(e) => field.onChange(e.target.value)}
+                          onFocus={() => {
+                            if (!sections.grades) {
+                              setFocusedFields(prev => ({ ...prev, base_price: true }))
+                            }
+                          }}
+                          onBlur={(e) => {
+                            if (!sections.grades) {
+                              setFocusedFields(prev => ({ ...prev, base_price: false }))
+                              setTouchedFields(prev => ({ ...prev, base_price: true }))
+                            }
+                            field.onBlur()
+                          }}
                           disabled={sections.grades}
-                          validationState={
-                            sections.grades 
-                              ? "disabled" 
-                              : hasError
-                                ? "error"
-                                : hasValue
-                                  ? "valid"
-                                  : "default"
-                          }
+                          validationState={validationState}
                           errorMessage={hasError ? getValidationError("base_price") : undefined}
                           required
                         />
@@ -539,18 +598,31 @@ export function ProductDetailsSection({
                 <Controller
                   name="min_days_to_process"
                   control={control}
-                  render={({ field }) => (
-                    <Input
-                      label="Min Days to Process"
-                      placeholder="Enter minimum days"
-                      className="h-14"
-                      type="number"
-                      min="1"
-                      value={field.value !== null && field.value !== undefined ? field.value : ""}
-                      onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
-                      validationState={getValidationError("min_days_to_process") ? "error" : (field.value ? "valid" : "default")}
-                    />
-                  )}
+                  render={({ field }) => {
+                    const validationState = getValidationState("min_days_to_process", field.value, true)
+                    return (
+                      <Input
+                        label="Min Days to Process *"
+                        placeholder="Enter minimum days"
+                        className="h-14"
+                        type="number"
+                        min="1"
+                        value={field.value !== null && field.value !== undefined ? field.value : ""}
+                        onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                        onFocus={() => {
+                          setFocusedFields(prev => ({ ...prev, min_days_to_process: true }))
+                        }}
+                        onBlur={(e) => {
+                          setFocusedFields(prev => ({ ...prev, min_days_to_process: false }))
+                          setTouchedFields(prev => ({ ...prev, min_days_to_process: true }))
+                          field.onBlur()
+                        }}
+                        validationState={validationState}
+                        errorMessage={getValidationError("min_days_to_process") || undefined}
+                        required
+                      />
+                    )
+                  }}
                 />
               </div>
 
@@ -570,18 +642,31 @@ export function ProductDetailsSection({
                   <Controller
                     name="max_days_to_process"
                     control={control}
-                    render={({ field }) => (
-                      <Input
-                        label="Max Days to Process"
-                        placeholder="Enter maximum days"
-                        className="h-14"
-                        type="number"
-                        min="1"
-                        value={field.value !== null && field.value !== undefined ? field.value : ""}
-                        onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
-                        validationState={getValidationError("max_days_to_process") ? "error" : (field.value ? "valid" : "default")}
-                      />
-                    )}
+                    render={({ field }) => {
+                      const validationState = getValidationState("max_days_to_process", field.value, true)
+                      return (
+                        <Input
+                          label="Max Days to Process *"
+                          placeholder="Enter maximum days"
+                          className="h-14"
+                          type="number"
+                          min="1"
+                          value={field.value !== null && field.value !== undefined ? field.value : ""}
+                          onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                          onFocus={() => {
+                            setFocusedFields(prev => ({ ...prev, max_days_to_process: true }))
+                          }}
+                          onBlur={(e) => {
+                            setFocusedFields(prev => ({ ...prev, max_days_to_process: false }))
+                            setTouchedFields(prev => ({ ...prev, max_days_to_process: true }))
+                            field.onBlur()
+                          }}
+                          validationState={validationState}
+                          errorMessage={getValidationError("max_days_to_process") || undefined}
+                          required
+                        />
+                      )
+                    }}
                   />
                 </div>
               </div>

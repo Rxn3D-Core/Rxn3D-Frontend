@@ -234,8 +234,8 @@ export function GradesSection({
       </div>
       {expandedSections.grades && (
         <div className="px-2 sm:px-6 pb-6"> {/* Add px-2 for mobile, sm:px-6 for desktop */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-2">
-            <Label htmlFor="grade-based-pricing">Does this product have grade-based pricing?</Label>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-4">
+            <Label htmlFor="grade-based-pricing" className="whitespace-nowrap">Does this product have grade-based pricing?</Label>
             <Controller
               name="has_grade_based_pricing"
               control={control}

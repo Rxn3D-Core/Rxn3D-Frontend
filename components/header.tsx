@@ -40,6 +40,10 @@ import { useSlipContext } from "../app/lab-case-management/SlipContext"
 import DriverHistoryModal from "./driver-history-modal"
 import { CustomerLogo } from "@/components/customer-logo"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { getUserAvatar } from "@/utils/avatar-utils"
+import { UserProfileModal } from "@/components/user-profile-modal"
+import { fetchUserProfile, type UserProfileData } from "@/services/user-profile-service"
+import { User as UserIcon } from "lucide-react"
 
 interface HeaderProps {
   toggleSidebar?: () => void
@@ -96,6 +100,9 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
   const [isDecoding, setIsDecoding] = useState(false)
   const [showDriverHistoryModal, setShowDriverHistoryModal] = useState(false)
   const [qrScanData, setQrScanData] = useState<any>(null)
+  const [showUserProfileModal, setShowUserProfileModal] = useState(false)
+  const [userProfileData, setUserProfileData] = useState<UserProfileData | null>(null)
+  const [isLoadingProfile, setIsLoadingProfile] = useState(false)
   const { t } = useTranslation()
   // Use Location type for selectedLocation and setSelectedLocation
   const { locations, selectedLocation, setSelectedLocation } = useLocation(); // selectedLocation is a number (id)
@@ -758,23 +765,29 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
             {/* Enhanced Left Section */}
             <div className="flex items-center gap-1 sm:gap-1.5 md:gap-2 lg:gap-3 flex-wrap min-w-0 flex-1 sm:flex-initial">
               
-              <button
-                className="bg-[#1162a8] hover:bg-blue-700 text-white px-2 sm:px-2.5 md:px-3 lg:px-4 py-1.5 sm:py-1.5 md:py-2 rounded-md sm:rounded-lg text-[10px] sm:text-xs md:text-sm font-medium transition-colors shadow-sm whitespace-nowrap flex-shrink-0"
-                onClick={() => {
-                  // Remove caseDesignCache from localStorage when starting a new slip
-                  localStorage.removeItem("caseDesignCache");
-                  // Navigate to choose-doctor page
-                  router.replace("/choose-lab");
-                  // Call onNewSlip callback if provided
-                  if (onNewSlip) {
-                    onNewSlip();
-                  }
-                }}
-              >
-                <span className="hidden md:inline">{t("header.newSlip", "+ New slip")}</span>
-                <span className="hidden sm:inline md:hidden">+ Slip</span>
-                <span className="sm:hidden">+ Slip</span>
-              </button>
+              {!isSuperAdmin && (
+                <button
+                  className="bg-[#1162a8] hover:bg-blue-700 text-white px-2 sm:px-2.5 md:px-3 lg:px-4 py-1.5 sm:py-1.5 md:py-2 rounded-md sm:rounded-lg text-[10px] sm:text-xs md:text-sm font-medium transition-colors shadow-sm whitespace-nowrap flex-shrink-0"
+                  onClick={() => {
+                    // Remove caseDesignCache from localStorage when starting a new slip
+                    localStorage.removeItem("caseDesignCache");
+                    // Navigate to choose-doctor page if office_admin, otherwise choose-lab
+                    if (isOfficeAdmin) {
+                      router.replace("/choose-doctor");
+                    } else {
+                      router.replace("/choose-lab");
+                    }
+                    // Call onNewSlip callback if provided
+                    if (onNewSlip) {
+                      onNewSlip();
+                    }
+                  }}
+                >
+                  <span className="hidden md:inline">{t("header.newSlip", "+ New slip")}</span>
+                  <span className="hidden sm:inline md:hidden">+ Slip</span>
+                  <span className="sm:hidden">+ Slip</span>
+                </button>
+              )}
               {!isOfficeAdmin && (
                 <button className="bg-[#1162a8] hover:bg-blue-700 text-white px-2 sm:px-2.5 md:px-3 lg:px-4 py-1.5 sm:py-1.5 md:py-2 rounded-md sm:rounded-lg text-[10px] sm:text-xs md:text-sm font-medium transition-colors shadow-sm whitespace-nowrap flex-shrink-0">
                   <span className="hidden md:inline">{t("header.newOffice", "+ New Office")}</span>
@@ -857,7 +870,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                   <Button variant="ghost" className="relative h-7 w-7 md:h-8 md:w-8 lg:h-10 lg:w-10 xl:h-11 xl:w-11 rounded-full hover:bg-gray-100 flex-shrink-0 p-0">
                     <Avatar className="h-7 w-7 md:h-8 md:w-8 lg:h-10 lg:w-10 xl:h-11 xl:w-11 ring-2 ring-gray-200">
                       <AvatarImage
-                        src={user?.image || "/images/default-lab-avatar.png"}
+                        src={getUserAvatar(user?.image, user?.email || user?.id || user?.first_name)}
                         alt={user?.first_name || t("header.user")}
                       />
                       <AvatarFallback className="bg-[#1162a8] text-white font-medium text-[10px] sm:text-xs md:text-sm lg:text-base">
@@ -873,6 +886,31 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                       <p className="text-xs lg:text-sm text-muted-foreground truncate">{user?.email || "user@example.com"}</p>
                     </div>
                   </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onClick={async () => {
+                      if (!user?.id) return
+                      setIsLoadingProfile(true)
+                      setShowUserProfileModal(true)
+                      try {
+                        const profileData = await fetchUserProfile(user.id)
+                        setUserProfileData(profileData)
+                      } catch (error) {
+                        console.error("Failed to fetch user profile:", error)
+                        toast({
+                          title: "Error",
+                          description: "Failed to load user profile",
+                          variant: "destructive",
+                        })
+                      } finally {
+                        setIsLoadingProfile(false)
+                      }
+                    }}
+                    className="hover:bg-blue-50 text-sm lg:text-base cursor-pointer"
+                  >
+                    <UserIcon className="w-4 h-4 mr-2" />
+                    Profile
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={logout} className="hover:bg-red-50 text-red-600 text-sm lg:text-base">
                     {t("header.signOut")}
@@ -1104,6 +1142,17 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
           qrScanData={qrScanData.data}
         />
       )}
+
+      {/* User Profile Modal */}
+      <UserProfileModal
+        isOpen={showUserProfileModal}
+        onClose={() => {
+          setShowUserProfileModal(false);
+          setUserProfileData(null);
+        }}
+        userData={userProfileData}
+        isLoading={isLoadingProfile}
+      />
 
     </>
   )

@@ -82,31 +82,37 @@ export function StagesSection({
         []) as any[]
 
     // Merge watchedGrades with master grades to get name, including custom grades
-    const selectedGradesWithNames = watchedGrades.map((g: any) => {
-        const gradeId = g.grade_id || g.id
-        
-        // Check if it's a custom grade (negative ID) and has a name in customGradeNames
-        if (typeof gradeId === "number" && gradeId < 0 && customGradeNames[gradeId]) {
+    const selectedGradesWithNames = watchedGrades
+        .map((g: any) => {
+            const gradeId = g.grade_id || g.id
+            
+            // Check if it's a custom grade (negative ID) and has a name in customGradeNames
+            if (typeof gradeId === "number" && gradeId < 0 && customGradeNames[gradeId]) {
+                return {
+                    ...g,
+                    name: customGradeNames[gradeId],
+                    grade_id: gradeId,
+                    id: gradeId,
+                }
+            }
+            
+            // Otherwise, try to find in master grades
+            const found = masterGrades.find((mg: any) =>
+                mg.id === gradeId || mg.grade_id === gradeId || mg.id === g.id
+            )
+            
             return {
                 ...g,
-                name: customGradeNames[gradeId],
+                name: found?.name || g.name || g.label || g.grade_name || (typeof gradeId === "number" && gradeId < 0 ? customGradeNames[gradeId] : undefined) || gradeId || g.id,
                 grade_id: gradeId,
                 id: gradeId,
             }
-        }
-        
-        // Otherwise, try to find in master grades
-        const found = masterGrades.find((mg: any) =>
-            mg.id === gradeId || mg.grade_id === gradeId || mg.id === g.id
-        )
-        
-        return {
-            ...g,
-            name: found?.name || g.name || g.label || g.grade_name || (typeof gradeId === "number" && gradeId < 0 ? customGradeNames[gradeId] : undefined) || gradeId || g.id,
-            grade_id: gradeId,
-            id: gradeId,
-        }
-    })
+        })
+        .filter((grade: any) => {
+            // Filter out grades with "Extract Blank" or "Blank" in the name
+            const gradeName = grade.name?.toLowerCase() || ""
+            return !gradeName.includes("extract blank") && !gradeName.includes("blank")
+        })
 
     // State to control price suggestion banner visibility
     const [showPriceSuggestion, setShowPriceSuggestion] = useState(true)
@@ -533,7 +539,7 @@ export function StagesSection({
                                         gridTemplateColumns: userRole === "superadmin"
                                             ? "minmax(120px,1fr) minmax(80px,1fr) minmax(70px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px"
                                             : hasSelectedGrades
-                                                ? `minmax(120px,1fr) minmax(80px,1fr) repeat(${watchedGrades.length}, minmax(120px,1fr)) minmax(70px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px`
+                                                ? `minmax(120px,1fr) minmax(80px,1fr) repeat(${selectedGradesWithNames.length}, minmax(120px,1fr)) minmax(70px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px`
                                                 : "minmax(120px,1fr) minmax(80px,1fr) minmax(100px,1fr) minmax(70px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px"
                                     }}
                                 >
@@ -543,7 +549,7 @@ export function StagesSection({
                                     {userRole !== "superadmin" && (
                                       hasSelectedGrades
                                         ? selectedGradesWithNames.map((grade: any, idx: number) => {
-                                            const hasManyGrades = watchedGrades.length > 4
+                                            const hasManyGrades = selectedGradesWithNames.length > 4
                                             return (
                                                 <div
                                                     key={grade.grade_id || grade.id || idx}
@@ -571,7 +577,7 @@ export function StagesSection({
                                         <span className="whitespace-nowrap text-xs">Use as Default</span>
                                     </div>
                                     <div className="text-center px-1">
-                                        <span className="whitespace-nowrap text-xs">Release Stage</span>
+                                        <span className="whitespace-nowrap text-xs">Releasing Stage</span>
                                     </div>
                                     <div></div>
                                 </div>
@@ -589,7 +595,7 @@ export function StagesSection({
                                                 gridTemplateColumns: userRole === "superadmin"
                                                     ? "minmax(120px,1fr) minmax(80px,1fr) minmax(70px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px"
                                                     : hasSelectedGrades
-                                                        ? `minmax(120px,1fr) minmax(80px,1fr) repeat(${watchedGrades.length}, minmax(120px,1fr)) minmax(70px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px`
+                                                        ? `minmax(120px,1fr) minmax(80px,1fr) repeat(${selectedGradesWithNames.length}, minmax(120px,1fr)) minmax(70px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px`
                                                         : "minmax(120px,1fr) minmax(80px,1fr) minmax(100px,1fr) minmax(70px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px"
                                             }}
                                             draggable={true}

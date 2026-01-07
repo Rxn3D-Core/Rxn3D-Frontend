@@ -310,6 +310,15 @@ export default function ChooseDoctorPage() {
     // Store selected doctor in localStorage for the next step
     localStorage.setItem("selectedDoctor", JSON.stringify(doctor))
     
+    // Get user role
+    const role = localStorage.getItem("role") || ""
+    
+    // If role is office_admin, always redirect to choose-lab page
+    if (role === "office_admin") {
+      router.push(`/choose-lab?doctorId=${doctor.id}`)
+      return
+    }
+    
     // Check if lab is already selected (from URL param)
     const labId = searchParams.get("labId")
     if (labId && selectedLab) {
@@ -427,6 +436,22 @@ export default function ChooseDoctorPage() {
                   </div>
                   <p className="text-sm font-semibold text-gray-900 text-center">
                     {doctor.first_name} {doctor.last_name}, DDS
+                  </p>
+                  <p 
+                    className="opacity-0 group-hover:opacity-100 transition-opacity text-center"
+                    style={{
+                      fontFamily: 'Verdana',
+                      fontStyle: 'normal',
+                      fontWeight: 400,
+                      fontSize: '14px',
+                      lineHeight: '22px',
+                      letterSpacing: '-0.02em',
+                      color: '#7F7F7F',
+                      width: '106px',
+                      height: '22px',
+                    }}
+                  >
+                    Click and select
                   </p>
                 </div>
               ))}

@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from "react"
+import React, { useState, useEffect, useRef, useMemo, Suspense } from "react"
 import { useRouter } from "next/navigation"
 import dynamic from "next/dynamic"
 import { useQuery } from "@tanstack/react-query"
@@ -264,30 +264,6 @@ export default function CaseDesignCenterPage() {
 
   const { fetchLabProducts, labProducts, fetchProductDetails } = useSlipCreation()
 
-  // Step state for role-based flow
-  // Initialize step and role based on localStorage immediately
-  const getInitialState = () => {
-    if (typeof window === "undefined") return { step: 1, role: null }
-    const role = localStorage.getItem("role")
-    if (role === "lab_admin") {
-      const storedOffice = localStorage.getItem("selectedOffice")
-      return { step: storedOffice ? 2 : 1, role }
-    } else if (role === "office_admin") {
-      const storedDoctor = localStorage.getItem("selectedDoctor")
-      return { step: storedDoctor ? 2 : 1, role }
-    }
-    return { step: 2, role } // Other roles skip step 1
-  }
-  
-  const initialState = getInitialState()
-  const [currentStep, setCurrentStep] = useState<number>(initialState.step)
-  const [userRole, setUserRole] = useState<string | null>(initialState.role)
-  const [offices, setOffices] = useState<any[]>([])
-  const [doctors, setDoctors] = useState<Doctor[]>([])
-  const [isLoadingOffices, setIsLoadingOffices] = useState(false)
-  const [isLoadingDoctors, setIsLoadingDoctors] = useState(false)
-  const [selectedOffice, setSelectedOffice] = useState<any | null>(null)
-
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null)
   const [selectedLab, setSelectedLab] = useState<Lab | null>(null)
   const [patientData, setPatientData] = useState<PatientData | null>(null)
@@ -428,6 +404,34 @@ export default function CaseDesignCenterPage() {
     }
     // Default order (fallback)
     return ["product_material", "retention", "stage"]
+  }
+
+  // Helper function to get the correct customer_id based on role
+  // For office_admin, use selectedLab.id; for others, use the user's customerId
+  const getCustomerIdForApi = (): number | undefined => {
+    if (typeof window === "undefined") return undefined
+    const role = localStorage.getItem("role")
+    if (role === "office_admin") {
+      // For office_admin, use the selected lab's ID as customer_id
+      // Check state first, then localStorage as fallback
+      const lab = selectedLab || (() => {
+        const storedLab = localStorage.getItem("selectedLab")
+        if (storedLab) {
+          try {
+            return JSON.parse(storedLab)
+          } catch {
+            return null
+          }
+        }
+        return null
+      })()
+      if (lab) {
+        return lab.id || lab.customer_id || undefined
+      }
+    }
+    // For other roles, use the user's customerId
+    const customerId = localStorage.getItem("customerId")
+    return customerId ? Number(customerId) : undefined
   }
 
   // Helper to check if any tooth in the saved product has a retention type selected from popover
@@ -1372,8 +1376,8 @@ export default function CaseDesignCenterPage() {
     }
 
     // Fetch categories
-    const customerId = typeof window !== "undefined" ? localStorage.getItem("customerId") : null
-    const customerIdNum = customerId ? Number(customerId) : undefined
+    // For office_admin, use selectedLab.id; for others, use customerId
+    const customerIdNum = getCustomerIdForApi()
     fetchAllCategories("en", customerIdNum)
 
     // Load saved products from localStorage
@@ -1408,186 +1412,7 @@ export default function CaseDesignCenterPage() {
         console.error("Error parsing selected product:", error)
       }
     }
-
-    // Check user role and load saved selections
-    if (typeof window !== "undefined") {
-      const role = localStorage.getItem("role")
-      setUserRole(role)
-      
-      // If lab_admin, check if office is selected
-      if (role === "lab_admin") {
-        const storedOffice = localStorage.getItem("selectedOffice")
-        if (storedOffice) {
-          try {
-            const office = JSON.parse(storedOffice)
-            setSelectedOffice(office)
-            setSelectedLab({ id: office.id, name: office.name, customer_id: office.id } as Lab)
-            setCurrentStep(2) // Move to next step if office is already selected
-          } catch (error) {
-            console.error("Error parsing selected office:", error)
-            setCurrentStep(1) // Show office selection on error
-          }
-        } else {
-          setCurrentStep(1) // Show office selection
-        }
-      } else if (role === "office_admin") {
-        // For office_admin, ALWAYS show doctor list on step 1 (NEVER show lab selection)
-        // Clear any lab selection that might exist
-        const storedDoctor = localStorage.getItem("selectedDoctor")
-        if (storedDoctor) {
-          try {
-            const doctor = JSON.parse(storedDoctor)
-            setSelectedDoctor(doctor)
-            setCurrentStep(2) // Move to next step if doctor is already selected
-          } catch (error) {
-            console.error("Error parsing selected doctor:", error)
-            setCurrentStep(1) // Show doctor list on error
-          }
-        } else {
-          // Force step 1 for office_admin - they must select a doctor first
-          setCurrentStep(1)
-        }
-      } else {
-        // For other roles, skip step 1
-        setCurrentStep(2)
-      }
-    }
   }, [fetchAllCategories])
-
-  // Additional safeguard: Ensure office_admin always shows doctors on step 1
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const role = localStorage.getItem("role")
-      if (role === "office_admin" && currentStep === 1 && userRole !== "office_admin") {
-        // If we're on step 1 but userRole wasn't set yet, ensure it's set
-        setUserRole("office_admin")
-      }
-      // Force step 1 if office_admin and no doctor selected
-      if (role === "office_admin" && !localStorage.getItem("selectedDoctor") && currentStep !== 1) {
-        setCurrentStep(1)
-      }
-    }
-  }, [currentStep, userRole])
-
-  // Fetch offices for lab_admin
-  const fetchOffices = useCallback(async () => {
-    setIsLoadingOffices(true)
-    try {
-      const token = localStorage.getItem("token")
-      if (!token) {
-        throw new Error("No authentication token found")
-      }
-
-      const url = new URL("/v1/slip/connected-offices", process.env.NEXT_PUBLIC_API_BASE_URL)
-      const response = await fetch(url.toString(), {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      })
-
-      if (response.status === 401) {
-        window.location.href = "/login"
-        throw new Error("Unauthorized")
-      }
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch offices: ${response.status}`)
-      }
-
-      const data = await response.json()
-      const officesList = (data.data || []).map((item: any) => item.office || item)
-      setOffices(officesList)
-    } catch (error) {
-      console.error("Error fetching offices:", error)
-      toast({
-        title: "Error",
-        description: "Failed to load offices. Please try again.",
-        variant: "destructive",
-      })
-    } finally {
-      setIsLoadingOffices(false)
-    }
-  }, [toast])
-
-  // Fetch doctors for office_admin
-  const fetchDoctorsForOffice = useCallback(async () => {
-    setIsLoadingDoctors(true)
-    try {
-      const token = localStorage.getItem("token")
-      if (!token) {
-        throw new Error("No authentication token found")
-      }
-
-      // For office_admin, use customerId as officeId
-      const customerId = localStorage.getItem("customerId")
-      if (!customerId) {
-        throw new Error("No customer ID found")
-      }
-
-      const url = new URL(`/v1/slip/office/${customerId}/doctors`, process.env.NEXT_PUBLIC_API_BASE_URL)
-      const response = await fetch(url.toString(), {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      })
-
-      if (response.status === 401) {
-        window.location.href = "/login"
-        throw new Error("Unauthorized")
-      }
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch doctors: ${response.status}`)
-      }
-
-      const data = await response.json()
-      setDoctors(data.data || [])
-    } catch (error) {
-      console.error("Error fetching doctors:", error)
-      toast({
-        title: "Error",
-        description: "Failed to load doctors. Please try again.",
-        variant: "destructive",
-      })
-    } finally {
-      setIsLoadingDoctors(false)
-    }
-  }, [toast])
-
-  // Fetch offices when lab_admin and on step 1
-  useEffect(() => {
-    if (userRole === "lab_admin" && currentStep === 1) {
-      fetchOffices()
-    }
-  }, [userRole, currentStep, fetchOffices])
-
-  // Fetch doctors when office_admin and on step 1
-  useEffect(() => {
-    if (userRole === "office_admin" && currentStep === 1) {
-      fetchDoctorsForOffice()
-    }
-  }, [userRole, currentStep, fetchDoctorsForOffice])
-
-  // Handle office selection for lab_admin
-  const handleOfficeSelect = (office: any) => {
-    setSelectedOffice(office)
-    const labData = { id: office.id, name: office.name, customer_id: office.id } as Lab
-    setSelectedLab(labData)
-    localStorage.setItem("selectedOffice", JSON.stringify(office))
-    localStorage.setItem("selectedLab", JSON.stringify(labData))
-    setCurrentStep(2) // Move to next step
-  }
-
-  // Handle doctor selection for office_admin
-  const handleDoctorSelect = (doctor: Doctor) => {
-    setSelectedDoctor(doctor)
-    localStorage.setItem("selectedDoctor", JSON.stringify(doctor))
-    setCurrentStep(2) // Move to next step
-  }
 
   // Save products to localStorage whenever savedProducts changes
   useEffect(() => {
@@ -1903,8 +1728,8 @@ export default function CaseDesignCenterPage() {
     localStorage.setItem("selectedCategory", category.name)
 
     // Fetch subcategories for the selected category
-    const customerId = typeof window !== "undefined" ? localStorage.getItem("customerId") : null
-    const customerIdNum = customerId ? Number(customerId) : undefined
+    // For office_admin, use selectedLab.id; for others, use customerId
+    const customerIdNum = getCustomerIdForApi()
     fetchSubcategoriesByCategory(category.id, "en", customerIdNum)
   }
 
@@ -2386,7 +2211,9 @@ export default function CaseDesignCenterPage() {
           // Fetch subcategories for this category if not already loaded
           if (subcategoriesByCategory.length === 0 ||
             !subcategoriesByCategory.some(sc => sc.parent_id === matchedCategory.id)) {
-            await fetchSubcategoriesByCategory(matchedCategory.id)
+            // For office_admin, use selectedLab.id; for others, use customerId
+            const customerIdNum = getCustomerIdForApi()
+            await fetchSubcategoriesByCategory(matchedCategory.id, "en", customerIdNum)
           }
           // Find subcategories for this category
           const subcats = subcategoriesByCategory.filter(sc => sc.parent_id === matchedCategory.id)
@@ -4470,104 +4297,8 @@ export default function CaseDesignCenterPage() {
         }}
       />
 
-      {/* Step 1: Office Selection (for lab_admin) or Doctor List (for office_admin) */}
-      {currentStep === 1 && (() => {
-        // Get role directly from localStorage as fallback
-        const role = userRole || (typeof window !== "undefined" ? localStorage.getItem("role") : null)
-        return (
-          <div className="min-h-screen bg-[#fdfdfd]">
-            {/* Only show office selection for lab_admin */}
-            {role === "lab_admin" && (
-            <div className="container mx-auto px-5 py-8">
-              <div className="max-w-4xl mx-auto">
-                <h2 className="text-2xl font-bold text-center mb-6">Choose an Office</h2>
-                {isLoadingOffices ? (
-                  <div className="flex justify-center items-center py-12">
-                    <Loader2 className="animate-spin h-8 w-8 text-[#1162a8]" />
-                  </div>
-                ) : offices.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {offices.map((office) => (
-                      <Card
-                        key={office.id}
-                        className="cursor-pointer hover:shadow-lg transition-shadow p-4"
-                        onClick={() => handleOfficeSelect(office)}
-                      >
-                        <div className="flex flex-col items-center text-center">
-                          <div className="w-16 h-16 rounded-full bg-[#1162a8] flex items-center justify-center mb-3">
-                            <span className="text-white text-xl font-bold">
-                              {office.name?.charAt(0)?.toUpperCase() || "O"}
-                            </span>
-                          </div>
-                          <h3 className="font-semibold text-lg mb-1">{office.name}</h3>
-                          {office.email && (
-                            <p className="text-sm text-gray-600">{office.email}</p>
-                          )}
-                        </div>
-                      </Card>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <p className="text-gray-600">No offices available</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-            {/* Only show doctor list for office_admin - NEVER show lab selection */}
-            {role === "office_admin" && (
-              <div className="container mx-auto px-5 py-8">
-                <div className="max-w-4xl mx-auto">
-                  <h2 className="text-2xl font-bold text-center mb-6">Choose a Doctor</h2>
-                {isLoadingDoctors ? (
-                  <div className="flex justify-center items-center py-12">
-                    <Loader2 className="animate-spin h-8 w-8 text-[#1162a8]" />
-                  </div>
-                ) : doctors.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {doctors.map((doctor) => (
-                      <Card
-                        key={doctor.id}
-                        className="cursor-pointer hover:shadow-lg transition-shadow p-4"
-                        onClick={() => handleDoctorSelect(doctor)}
-                      >
-                        <div className="flex flex-col items-center text-center">
-                          <Avatar className="w-16 h-16 mb-3">
-                            <AvatarImage
-                              src={doctor.image || "/images/doctor-image.png"}
-                              alt={`${doctor.first_name} ${doctor.last_name}`}
-                            />
-                            <AvatarFallback className="bg-[#1162a8] text-white text-xl font-bold">
-                              {doctor.first_name?.charAt(0)}{doctor.last_name?.charAt(0)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <h3 className="font-semibold text-lg mb-1">
-                            {doctor.first_name} {doctor.last_name}
-                          </h3>
-                          {doctor.email && (
-                            <p className="text-sm text-gray-600">{doctor.email}</p>
-                          )}
-                        </div>
-                      </Card>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <p className="text-gray-600">No doctors available</p>
-                  </div>
-                )}
-                </div>
-              </div>
-            )}
-          </div>
-        )
-      })()}
-
       {/* Case Design Center Label */}
-      {currentStep !== 1 && (
-        <div className="bg-[#fdfdfd] h-[37px] grid grid-cols-3 items-center px-5">
+      <div className="bg-[#fdfdfd] h-[37px] grid grid-cols-3 items-center px-5">
         <div className="flex items-center">
           {showProducts && !showProductDetails ? (
             <Button
@@ -4592,11 +4323,9 @@ export default function CaseDesignCenterPage() {
         </div>
         <div></div>
       </div>
-      )}
 
-      {/* Main Content - Only show after step 1 is complete */}
-      {currentStep !== 1 && (
-        <div className="bg-[#fdfdfd] min-h-full" style={{ paddingBottom: "20px" }}>
+      {/* Main Content */}
+      <div className="bg-[#fdfdfd] min-h-full" style={{ paddingBottom: "20px" }}>
         <div className="container mx-auto px-5 py-5" style={{ paddingBottom: "20px" }}>
           {/* Search and Category Selection */}
           <div className="flex flex-col items-center">
@@ -11069,7 +10798,6 @@ export default function CaseDesignCenterPage() {
           />
         </div>
       </div>
-      )}
 
       {/* Modals */}
       {/* Add Ons Modal */}

@@ -58,6 +58,18 @@ export default function ChooseLabPage() {
   // Debounce search query to avoid excessive API calls
   const debouncedSearchQuery = useDebounce(searchQuery, 500)
 
+  // Redirect office_admin directly to case-design-center (only if no doctorId in URL)
+  // If doctorId is present, allow them to select a lab after selecting a doctor
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const role = localStorage.getItem("role")
+      const doctorId = searchParams.get("doctorId")
+      if (role === "office_admin" && !doctorId) {
+        router.replace("/case-design-center")
+      }
+    }
+  }, [router, searchParams])
+
   // Get doctor from URL or localStorage
   useEffect(() => {
     const doctorId = searchParams.get("doctorId")
@@ -206,7 +218,17 @@ export default function ChooseLabPage() {
       setCustomerLogo(lab.id, lab.logo)
     }
     
-    // Navigate to choose doctor page
+    // Get user role
+    const role = typeof window !== "undefined" ? localStorage.getItem("role") || "" : ""
+    
+    // If role is office_admin, redirect to patient-input page
+    // office_admin has already selected a doctor, so they go to patient input next
+    if (role === "office_admin") {
+      router.push(`/patient-input?labId=${lab.id}`)
+      return
+    }
+    
+    // Navigate to choose doctor page (for other roles)
     router.push(`/choose-doctor?labId=${lab.id}`)
   }
 
@@ -369,6 +391,25 @@ export default function ChooseLabPage() {
                       <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
                     </div>
                   )}
+
+                  {/* Click and select label - appears on hover */}
+                  <p 
+                    className="opacity-0 group-hover:opacity-100 transition-opacity absolute top-3 right-3"
+                    style={{
+                      fontFamily: 'Verdana',
+                      fontStyle: 'normal',
+                      fontWeight: 400,
+                      fontSize: '14px',
+                      lineHeight: '22px',
+                      textAlign: 'center',
+                      letterSpacing: '-0.02em',
+                      color: '#7F7F7F',
+                      width: '106px',
+                      height: '22px',
+                    }}
+                  >
+                    Click and select
+                  </p>
 
                   {/* Lab Logo */}
                   <div className="flex-1 flex items-center justify-center w-full py-4">

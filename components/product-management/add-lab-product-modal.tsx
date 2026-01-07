@@ -163,10 +163,15 @@ export function AddLabProductModal({
   const isLastTab = currentTabIndex === tabs.length - 1
 
   // Get required fields for each step
-  const getRequiredFieldsForStep = (stepId: string): (keyof ProductCreateForm)[] => {
+  const getRequiredFieldsForStep = (stepId: string, isSingleStage?: string): (keyof ProductCreateForm)[] => {
     switch (stepId) {
       case "details":
-        return ["name", "code", "subcategory_id", "base_price"]
+        const baseFields: (keyof ProductCreateForm)[] = ["name", "code", "subcategory_id", "base_price"]
+        // If is_single_stage is "Yes", also require min_days_to_process and max_days_to_process
+        if (isSingleStage === "Yes") {
+          return [...baseFields, "min_days_to_process", "max_days_to_process"]
+        }
+        return baseFields
       default:
         return []
     }
@@ -268,10 +273,16 @@ export function AddLabProductModal({
   const watchedCode = watch("code")
   const watchedSubcategoryId = watch("subcategory_id")
   const watchedBasePrice = watch("base_price")
+  const watchedIsSingleStage = watch("is_single_stage")
+  const watchedMinDays = watch("min_days_to_process")
+  const watchedMaxDays = watch("max_days_to_process")
+  const watchedStages = watch("stages") || []
+  const watchedGrades = watch("grades") || []
+  const watchedHasGradeBasedPricing = watch("has_grade_based_pricing")
 
   // Check if current step has errors
   const hasCurrentStepErrors = useMemo(() => {
-    const requiredFields = getRequiredFieldsForStep(activeTab)
+    const requiredFields = getRequiredFieldsForStep(activeTab, watchedIsSingleStage)
     if (requiredFields.length === 0) return false
 
     // Check if any required field has an error
@@ -279,12 +290,95 @@ export function AddLabProductModal({
       const fieldError = errors[field]
       return fieldError !== undefined
     })
-  }, [activeTab, errors])
+  }, [activeTab, errors, watchedIsSingleStage])
+
+  // Check if stages are selected and all have valid prices (> 0)
+  const areStagesPriced = useMemo(() => {
+    // Only check when on stages tab
+    if (activeTab !== "stages") {
+      return true // Not on stages tab, so validation passes
+    }
+
+    // If no stages are selected, validation fails
+    if (!watchedStages || watchedStages.length === 0) {
+      return false
+    }
+
+    const hasGradeBasedPricing = String(watchedHasGradeBasedPricing || "") === "Yes"
+    const hasSelectedGrades = watchedGrades.length > 0
+
+    // Check each stage
+    return watchedStages.every((stage: any) => {
+      if (hasGradeBasedPricing && hasSelectedGrades) {
+        // For grade-based pricing, check if all grades have prices > 0
+        const gradePrices = stage.grade_prices || {}
+        // Check if all selected grades have prices > 0
+        return watchedGrades.every((grade: any) => {
+          const gradeId = grade.grade_id || grade.id
+          const price = gradePrices[gradeId] || gradePrices[gradeId?.toString()] || ""
+          const numPrice = typeof price === "string" ? parseFloat(price) : price
+          return !isNaN(numPrice) && numPrice > 0
+        })
+      } else {
+        // For non-grade-based pricing, check economy_price or standard_price
+        const price = stage.economy_price || stage.standard_price || ""
+        const numPrice = typeof price === "string" ? parseFloat(price) : price
+        return !isNaN(numPrice) && numPrice > 0
+      }
+    })
+  }, [activeTab, watchedStages, watchedGrades, watchedHasGradeBasedPricing])
 
   // Check if current step is valid (no errors and all required fields filled)
   const isCurrentStepValid = useMemo(() => {
-    const requiredFields = getRequiredFieldsForStep(activeTab)
-    if (requiredFields.length === 0) return true
+    const requiredFields = getRequiredFieldsForStep(activeTab, watchedIsSingleStage)
+    
+    // For stages tab, always check if stages are selected and have valid prices
+    if (activeTab === "stages") {
+      // First check if there are any errors
+      if (hasCurrentStepErrors) return false
+      
+      // If there are required fields, validate them first
+      if (requiredFields.length > 0) {
+        const requiredFieldsValid = requiredFields.every((field) => {
+          let value: any
+          if (field === "name") value = watchedName
+          else if (field === "code") value = watchedCode
+          else if (field === "subcategory_id") value = watchedSubcategoryId
+          else if (field === "base_price") value = watchedBasePrice
+          else if (field === "min_days_to_process") value = watchedMinDays
+          else if (field === "max_days_to_process") value = watchedMaxDays
+
+          if (field === "subcategory_id") {
+            return value !== null && value !== undefined && value !== 0
+          }
+          if (field === "base_price") {
+            if (value === null || value === undefined || value === "") {
+              return false
+            }
+            const numValue = typeof value === "string" ? parseFloat(value) : value
+            return !isNaN(numValue) && numValue >= 0
+          }
+          if (field === "min_days_to_process" || field === "max_days_to_process") {
+            if (value === null || value === undefined || value === "") {
+              return false
+            }
+            const numValue = typeof value === "number" ? value : parseInt(value, 10)
+            return !isNaN(numValue) && numValue >= 1
+          }
+          return value !== null && value !== undefined && value !== ""
+        })
+        // Both required fields and stages must be valid
+        return requiredFieldsValid && areStagesPriced
+      }
+      
+      // No required fields, but still need to check stages
+      return areStagesPriced
+    }
+    
+    // For other tabs, use standard validation
+    if (requiredFields.length === 0) {
+      return true
+    }
 
     // First check if there are any errors
     if (hasCurrentStepErrors) return false
@@ -296,6 +390,8 @@ export function AddLabProductModal({
       else if (field === "code") value = watchedCode
       else if (field === "subcategory_id") value = watchedSubcategoryId
       else if (field === "base_price") value = watchedBasePrice
+      else if (field === "min_days_to_process") value = watchedMinDays
+      else if (field === "max_days_to_process") value = watchedMaxDays
 
       if (field === "subcategory_id") {
         return value !== null && value !== undefined && value !== 0
@@ -309,14 +405,22 @@ export function AddLabProductModal({
         const numValue = typeof value === "string" ? parseFloat(value) : value
         return !isNaN(numValue) && numValue >= 0
       }
+      if (field === "min_days_to_process" || field === "max_days_to_process") {
+        // Check if the value is a valid number >= 1
+        if (value === null || value === undefined || value === "") {
+          return false
+        }
+        const numValue = typeof value === "number" ? value : parseInt(value, 10)
+        return !isNaN(numValue) && numValue >= 1
+      }
       return value !== null && value !== undefined && value !== ""
     })
-  }, [activeTab, watchedName, watchedCode, watchedSubcategoryId, watchedBasePrice, hasCurrentStepErrors])
+  }, [activeTab, watchedName, watchedCode, watchedSubcategoryId, watchedBasePrice, watchedIsSingleStage, watchedMinDays, watchedMaxDays, hasCurrentStepErrors, areStagesPriced])
 
   const handleNext = async () => {
     if (isLastTab) return
 
-    const requiredFields = getRequiredFieldsForStep(activeTab)
+    const requiredFields = getRequiredFieldsForStep(activeTab, watchedIsSingleStage)
     
     // Validate required fields for current step
     if (requiredFields.length > 0) {
@@ -1334,24 +1438,20 @@ export function AddLabProductModal({
                     {tabs.map((tab) => {
                       const isActive = activeTab === tab.id
                       const isVisible = visibleTabs.has(tab.id)
+                      // Only render tabs that are visible
+                      if (!isVisible) return null
                       return (
                         <button
                           key={tab.id}
                           type="button"
                           onClick={() => {
-                            // Only allow navigation to visible tabs
-                            if (isVisible) {
-                              setActiveTab(tab.id)
-                            }
+                            setActiveTab(tab.id)
                           }}
-                          disabled={!isVisible}
                           className={`
                             px-6 py-4 text-sm font-medium border-b-2 transition-colors relative
                             ${isActive
                               ? "border-[#1162a8] text-[#1162a8]"
-                              : isVisible
-                              ? "border-transparent text-gray-600 hover:text-gray-800 cursor-pointer"
-                              : "border-transparent text-gray-300 cursor-not-allowed opacity-50"
+                              : "border-transparent text-gray-600 hover:text-gray-800 cursor-pointer"
                             }
                           `}
                         >

@@ -6,6 +6,7 @@ import { BellIcon, MenuIcon, SearchIcon, LogOut } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import Image from "next/image"
 import { useAuth } from "@/contexts/auth-context"
+import { getUserAvatar } from "@/utils/avatar-utils"
 
 export function DashboardHeader({ toggleSidebar }: { toggleSidebar: () => void }) {
   const { user, logout } = useAuth()
@@ -97,7 +98,10 @@ export function DashboardHeader({ toggleSidebar }: { toggleSidebar: () => void }
               <div className="text-xs text-gray-500">Today is {formattedDate}</div>
             </div>
             <Avatar className="h-9 w-9 border border-gray-200">
-              <AvatarImage src={user?.avatar || "/placeholder.svg?height=36&width=36"} alt="User" />
+              <AvatarImage 
+                src={getUserAvatar(user?.avatar || user?.image, user?.email || user?.id || user?.name)} 
+                alt="User" 
+              />
               <AvatarFallback>
                 {user?.name
                   ?.split(" ")
