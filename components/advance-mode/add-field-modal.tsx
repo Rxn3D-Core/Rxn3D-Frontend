@@ -877,9 +877,12 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
                     error.message.includes('Failed to fetch') ||
                     error.message.includes('Access-Control-Allow-Origin')
                   )
-                  const isUnchangedExistingImage = !hasChanged && initialOpt && opt.originalId
+                  // Check if the image itself hasn't changed (not just if any field changed)
+                  const imageChanged = initialOpt ? (opt.image !== initialOpt.image) : false
+                  const isUnchangedExistingImage = !imageChanged && initialOpt && opt.originalId
                   
                   // For unchanged existing images with CORS errors, skip the image (backend will keep existing)
+                  // This applies even if other fields (like isDefault) changed
                   if (isCorsError && isUnchangedExistingImage) {
                     console.warn(`Skipping image conversion for option ${idx + 1} due to CORS error (image unchanged):`, imageToProcess)
                     imageBase64 = null // Don't include image in payload, backend will keep existing
