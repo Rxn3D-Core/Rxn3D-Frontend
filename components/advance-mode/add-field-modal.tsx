@@ -93,6 +93,10 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
   const [showPreviewModal, setShowPreviewModal] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   
+  // Track initial values for edit mode to only send changes
+  const [initialFormValues, setInitialFormValues] = useState<AddFieldFormValues | null>(null)
+  const [initialOptions, setInitialOptions] = useState<FieldOption[]>([])
+  
   // Mutations
   const createFieldMutation = useCreateAdvanceField()
   const updateFieldMutation = useUpdateAdvanceField()
@@ -161,6 +165,9 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
 
   const selectedCategoryId = form.watch("category")
   const selectedFieldType = form.watch("fieldType")
+  
+  // Check if a valid category is selected (non-empty string that can be parsed to a number)
+  const hasValidCategory = selectedCategoryId && selectedCategoryId !== "" && !isNaN(parseInt(selectedCategoryId, 10))
 
   // Helper function to check if field type requires options
   const requiresOptions = (fieldType: string): boolean => {
@@ -215,6 +222,8 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
 
   // Track which field ID we've already populated to prevent infinite loops
   const populatedFieldIdRef = useRef<number | null>(null)
+  // Track if form has been initialized for new field mode
+  const formInitializedRef = useRef<boolean>(false)
 
   // Reset subcategory when category changes (user interaction, not initial load)
   useEffect(() => {
@@ -244,6 +253,76 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
       }
     }
   }, [isOpen, form])
+
+  // Helper function to check if string is a URL
+  const isImageUrl = (str: string | null | undefined): boolean => {
+    if (!str) return false
+    return str.startsWith('http://') || str.startsWith('https://')
+  }
+
+  // Helper function to convert image URL to base64
+  const urlToBase64 = async (url: string): Promise<string> => {
+    // If it's already a data URL (base64), return it as-is
+    if (url.startsWith('data:image/')) {
+      return url
+    }
+    
+    try {
+      const response = await fetch(url)
+      if (!response.ok) {
+        throw new Error(`Failed to fetch image: ${response.statusText}`)
+      }
+      const blob = await response.blob()
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.readAsDataURL(blob)
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = error => reject(error)
+      })
+    } catch (error) {
+      throw new Error(`Failed to convert image URL to base64: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  // Helper function to validate base64 image
+  const validateBase64Image = (base64: string | null | undefined): { valid: boolean; error?: string } => {
+    if (!base64) {
+      return { valid: true } // Empty is valid
+    }
+    
+    // Check if it's a valid base64 data URL
+    if (!base64.startsWith('data:image/')) {
+      return { valid: false, error: 'Invalid base64 image format. Must start with data:image/' }
+    }
+    
+    // Extract image type and data
+    const match = base64.match(/^data:image\/([a-zA-Z]*);base64,(.+)$/)
+    if (!match) {
+      return { valid: false, error: 'Invalid base64 image format' }
+    }
+    
+    const imageType = match[1].toLowerCase()
+    const allowedTypes = ['jpg', 'jpeg', 'png', 'gif', 'webp']
+    if (!allowedTypes.includes(imageType)) {
+      return { valid: false, error: `Invalid image type. Allowed types: ${allowedTypes.join(', ')}` }
+    }
+    
+    // Decode and check size
+    try {
+      const base64Data = match[2]
+      const imageData = atob(base64Data)
+      const fileSizeKB = imageData.length / 1024
+      const maxSizeKB = 5120 // 5MB
+      
+      if (fileSizeKB > maxSizeKB) {
+        return { valid: false, error: `Image size (${fileSizeKB.toFixed(2)}KB) exceeds maximum allowed size (${maxSizeKB}KB)` }
+      }
+    } catch (error) {
+      return { valid: false, error: 'Invalid base64 image data' }
+    }
+    
+    return { valid: true }
+  }
 
   // Image handling functions
   const handleImageClick = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -283,8 +362,11 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
   // Populate form when React Query data is ready (single useEffect using React Query state)
   useEffect(() => {
     if (!isOpen) {
-      // Reset ref when modal closes
+      // Reset refs when modal closes
       populatedFieldIdRef.current = null
+      formInitializedRef.current = false
+      setInitialFormValues(null)
+      setInitialOptions([])
       return
     }
 
@@ -297,14 +379,36 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
     // Only populate once per field ID to prevent infinite loops
     // Also wait for categories to be loaded before populating
     if (isEditing && fieldData && !isLoadingField && fetchedFieldData && fieldId > 0 && categories.length > 0) {
-      // Skip if we've already populated this field (unless categories just loaded)
       const categoryId = fieldData.advance_category_id?.toString() || ""
       const currentCategory = form.getValues("category")
-      const needsRepopulation = populatedFieldIdRef.current !== fieldId || 
-                                (categoryId && !currentCategory && categories.length > 0)
       
-      if (populatedFieldIdRef.current === fieldId && currentCategory) {
-        // Already populated and category is set, skip
+      // Only populate if we haven't populated this field yet
+      if (populatedFieldIdRef.current === fieldId) {
+        // Already populated this field - preserve user changes, only update if truly missing
+        const subCategoryId = fieldData.advance_subcategory_id?.toString() || ""
+        const currentSubCategory = form.getValues("subCategory")
+        
+        // First, ensure category is set if it's missing
+        if (categoryId && !currentCategory && categories.length > 0) {
+          const categoryExists = categories.find(cat => cat.id.toString() === categoryId)
+          if (categoryExists) {
+            form.setValue("category", categoryId, { shouldDirty: false })
+          }
+        }
+        
+        // Get the current category value (after potentially setting it above)
+        const currentCat = form.getValues("category")
+        
+        // Update subcategory if: it exists in data, subcategories are loaded, category matches, and subcategory is missing or wrong
+        if (subCategoryId && subcategories.length > 0 && currentCat === categoryId) {
+          const subCategoryExists = subcategories.find(sub => sub.id.toString() === subCategoryId)
+          if (subCategoryExists) {
+            // Only update if subcategory is empty or doesn't match the expected value
+            if (currentSubCategory !== subCategoryId) {
+              form.setValue("subCategory", subCategoryId, { shouldDirty: false })
+            }
+          }
+        }
         return
       }
       // Map API field types to form field types (handles legacy values)
@@ -329,10 +433,13 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
       const finalCategoryValue = categoryExists ? categoryId : ""
       
       // Find subcategory in loaded list (only if category is selected)
-      // Wait for subcategories to load if category exists but subcategories aren't loaded yet
+      // If subcategories aren't loaded yet, we'll set it to empty and update it later when subcategories load
+      // This ensures the subcategory gets populated even if subcategories load after the form is initially populated
       const subCategoryExists = finalCategoryValue && subCategoryId && subcategories.length > 0
         ? subcategories.find(sub => sub.id.toString() === subCategoryId)
         : null
+      // Set subcategory value if it exists in loaded subcategories, otherwise set to empty
+      // (will be populated later when subcategories load via the update logic above)
       const finalSubCategoryValue = subCategoryExists ? subCategoryId : ""
       
       console.log("Populating form for editing:", {
@@ -347,8 +454,8 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
         subcategoriesLength: subcategories.length
       })
       
-      // Reset form with field data
-      form.reset({
+      // Prepare initial form values
+      const initialValues: AddFieldFormValues = {
         fieldName: fieldData.name || "",
         category: finalCategoryValue,
         subCategory: finalSubCategoryValue,
@@ -372,7 +479,13 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
           // Default fallback
           return "per-case"
         })() as "per-case" | "per-unit",
-      })
+      }
+      
+      // Reset form with field data
+      form.reset(initialValues)
+      
+      // Store initial values for comparison
+      setInitialFormValues(initialValues)
       
       form.clearErrors()
       
@@ -388,19 +501,21 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
       }
       
       // Map options from API format
-      if (fieldData.options && fieldData.options.length > 0) {
-        setOptions(fieldData.options.map((opt: any, idx: number) => ({
-          id: opt.id ? String(opt.id) : String(idx + 1),
-          originalId: opt.id,
-          image: opt.image_url || null,
-          label: opt.name,
-          isDefault: opt.is_default === 'Yes',
-          status: opt.status === 'Active',
-          price: opt.price?.toString() || "0.00",
-        })))
-      } else {
-        setOptions([])
-      }
+      const mappedOptions = fieldData.options && fieldData.options.length > 0
+        ? fieldData.options.map((opt: any, idx: number) => ({
+            id: opt.id ? String(opt.id) : String(idx + 1),
+            originalId: opt.id,
+            image: opt.image_url || null,
+            label: opt.name,
+            isDefault: opt.is_default === 'Yes',
+            status: opt.status === 'Active',
+            price: opt.price?.toString() || "0.00",
+          }))
+        : []
+      
+      setOptions(mappedOptions)
+      // Store initial options for comparison
+      setInitialOptions(mappedOptions)
       
       // Set initial tab based on field type
       const mappedFieldType = fieldTypeMap[fieldData.field_type] || "text"
@@ -409,30 +524,36 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
       // Mark this field as populated
       populatedFieldIdRef.current = fieldId
     } else if (!isEditing) {
-      // Reset to empty form for new field
-      form.reset({
-        fieldName: "",
-        category: "",
-        subCategory: "",
-        fieldType: "dropdown",
-        requiredField: false,
-        isSystemDefault: false,
-        description: "",
-        fieldDetails: true,
-        canAddAdditionalCharges: false,
-        chargeType: "once",
-        additionalCharge: "0.00",
-        chargeScope: "per-case",
-      })
-      form.clearErrors()
-      setOptions([])
-      setImageBase64(null)
-      setImagePreview(null)
-      setInitialImageBase64(null)
-      setActiveTab("options")
-      populatedFieldIdRef.current = null
+      // Only reset to empty form for new field if we haven't already initialized
+      // This prevents resetting when categories/subcategories load
+      if (!formInitializedRef.current) {
+        // Reset to empty form for new field (only on first open)
+        form.reset({
+          fieldName: "",
+          category: "",
+          subCategory: "",
+          fieldType: "dropdown",
+          requiredField: false,
+          isSystemDefault: false,
+          description: "",
+          fieldDetails: true,
+          canAddAdditionalCharges: false,
+          chargeType: "once",
+          additionalCharge: "0.00",
+          chargeScope: "per-case",
+        })
+        form.clearErrors()
+        setOptions([])
+        setImageBase64(null)
+        setImagePreview(null)
+        setInitialImageBase64(null)
+        setInitialFormValues(null)
+        setInitialOptions([])
+        setActiveTab("options")
+        formInitializedRef.current = true // Mark as initialized
+      }
     }
-  }, [isOpen, isEditing, fieldData, isLoadingField, fetchedFieldData, categories, subcategories, fieldId])
+  }, [isOpen, isEditing, fieldData, isLoadingField, fetchedFieldData, fieldId, form, categories, subcategories])
 
   if (!isOpen) return null
 
@@ -622,77 +743,382 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
         'implant_library': 'implant_library',
       }
 
-      const payload: any = {
-        name: data.fieldName,
-        description: data.description || undefined,
-        advance_category_id: parseInt(data.category, 10),
-        advance_subcategory_id: data.subCategory ? parseInt(data.subCategory, 10) : undefined,
-        field_type: fieldTypeMap[data.fieldType],
-        is_required: data.requiredField ? 'Yes' : 'No',
-        is_system_default: data.isSystemDefault ? 'Yes' : 'No',
-        has_additional_pricing: data.canAddAdditionalCharges ? 'Yes' : 'No',
-        charge_type: data.canAddAdditionalCharges 
+      // Build payload - only include changed fields when editing
+      const payload: any = {}
+      
+      if (!isEditing || !initialFormValues) {
+        // For new fields, include all fields
+        payload.name = data.fieldName
+        payload.description = data.description || undefined
+        payload.advance_category_id = parseInt(data.category, 10)
+        payload.advance_subcategory_id = data.subCategory ? parseInt(data.subCategory, 10) : undefined
+        payload.field_type = fieldTypeMap[data.fieldType]
+        payload.is_required = data.requiredField ? 'Yes' : 'No'
+        payload.is_system_default = data.isSystemDefault ? 'Yes' : 'No'
+        payload.has_additional_pricing = data.canAddAdditionalCharges ? 'Yes' : 'No'
+        payload.charge_type = data.canAddAdditionalCharges 
           ? (data.chargeType === 'per-option' ? 'per_selected_option' : 'once_per_field')
-          : undefined,
-        price: data.canAddAdditionalCharges && data.chargeType === 'once' && data.additionalCharge
+          : undefined
+        payload.price = data.canAddAdditionalCharges && data.chargeType === 'once' && data.additionalCharge
           ? parseFloat(data.additionalCharge)
-          : undefined,
-        charge_scope: data.canAddAdditionalCharges ? data.chargeScope : undefined,
+          : undefined
+        payload.charge_scope = data.canAddAdditionalCharges ? data.chargeScope : undefined
+      } else {
+        // For editing, only include changed fields
+        if (data.fieldName !== initialFormValues.fieldName) {
+          payload.name = data.fieldName
+        }
+        if (data.description !== initialFormValues.description) {
+          payload.description = data.description || undefined
+        }
+        if (data.category !== initialFormValues.category) {
+          payload.advance_category_id = parseInt(data.category, 10)
+        }
+        if (data.subCategory !== initialFormValues.subCategory) {
+          payload.advance_subcategory_id = data.subCategory ? parseInt(data.subCategory, 10) : undefined
+        }
+        if (data.fieldType !== initialFormValues.fieldType) {
+          payload.field_type = fieldTypeMap[data.fieldType]
+        }
+        if (data.requiredField !== initialFormValues.requiredField) {
+          payload.is_required = data.requiredField ? 'Yes' : 'No'
+        }
+        if (data.isSystemDefault !== initialFormValues.isSystemDefault) {
+          payload.is_system_default = data.isSystemDefault ? 'Yes' : 'No'
+        }
+        if (data.canAddAdditionalCharges !== initialFormValues.canAddAdditionalCharges) {
+          payload.has_additional_pricing = data.canAddAdditionalCharges ? 'Yes' : 'No'
+        }
+        if (data.canAddAdditionalCharges !== initialFormValues.canAddAdditionalCharges || 
+            data.chargeType !== initialFormValues.chargeType) {
+          payload.charge_type = data.canAddAdditionalCharges 
+            ? (data.chargeType === 'per-option' ? 'per_selected_option' : 'once_per_field')
+            : undefined
+        }
+        if (data.canAddAdditionalCharges && data.chargeType === 'once') {
+          const currentPrice = data.additionalCharge ? parseFloat(data.additionalCharge) : 0
+          const initialPrice = initialFormValues.additionalCharge ? parseFloat(initialFormValues.additionalCharge) : 0
+          if (currentPrice !== initialPrice) {
+            payload.price = currentPrice
+          }
+        }
+        if (data.canAddAdditionalCharges && data.chargeScope !== initialFormValues.chargeScope) {
+          payload.charge_scope = data.chargeScope
+        }
       }
 
       // Only include options for field types that require them
       if (requiresOptions(data.fieldType)) {
-        payload.options = options.map((opt, idx) => {
-          const optionPayload: any = {
-            name: opt.label,
-            image: opt.image || undefined,
-            status: opt.status ? 'Active' : 'Inactive',
-            is_default: opt.isDefault ? 'Yes' : 'No',
-            sequence: idx + 1,
+        // First, determine which options/images changed (before converting)
+        const optionsToProcess: Array<{ opt: FieldOption; needsImageConversion: boolean; hasChanged: boolean }> = []
+        
+        if (isEditing && initialOptions.length > 0) {
+          // For editing, check which options changed
+          for (const opt of options) {
+            const initialOpt = opt.originalId 
+              ? initialOptions.find(o => o.originalId === opt.originalId)
+              : null
+            
+            if (!initialOpt) {
+              // New option - needs processing
+              optionsToProcess.push({ opt, needsImageConversion: !!opt.image, hasChanged: true })
+            } else {
+              // Existing option - check if changed
+              const imageChanged = opt.image !== initialOpt.image
+              const hasChanged: boolean = 
+                opt.label !== initialOpt.label ||
+                opt.status !== initialOpt.status ||
+                opt.isDefault !== initialOpt.isDefault ||
+                opt.price !== initialOpt.price ||
+                imageChanged
+              
+              // For existing options, convert image to base64 if:
+              // 1. Image changed and is a URL, OR
+              // 2. Image didn't change but is a URL (need to convert existing URL images to base64)
+              const currentImageIsUrl = !!opt.image && isImageUrl(opt.image)
+              const initialImageIsUrl = !!initialOpt.image && isImageUrl(initialOpt.image)
+              const needsImageConversion = (imageChanged && currentImageIsUrl) || (!imageChanged && initialImageIsUrl)
+              
+              optionsToProcess.push({ opt, needsImageConversion, hasChanged })
+            }
+          }
+        } else {
+          // For new fields, process all options
+          optionsToProcess.push(...options.map(opt => ({ 
+            opt, 
+            needsImageConversion: !!opt.image && isImageUrl(opt.image),
+            hasChanged: true 
+          })))
+        }
+        
+        // Convert URL images to base64 and validate all images
+        // For editing, we need to convert ALL existing option images (URLs) to base64
+        const processedOptions = await Promise.all(
+          optionsToProcess.map(async ({ opt, needsImageConversion, hasChanged }, idx) => {
+            // Find initial option for existing options
+            const initialOpt = isEditing && opt.originalId 
+              ? initialOptions.find(o => o.originalId === opt.originalId)
+              : null
+            
+            // Determine which image to use: current form value or initial value
+            let imageToProcess = opt.image || initialOpt?.image || null
+            
+            // Convert URL images to base64
+            let imageBase64: string | null = null
+            if (imageToProcess) {
+              // Check if image is a URL and needs conversion
+              if (isImageUrl(imageToProcess)) {
+                try {
+                  imageBase64 = await urlToBase64(imageToProcess)
+                } catch (error) {
+                  // Check if it's a CORS error for an existing unchanged image
+                  const isCorsError = error instanceof Error && (
+                    error.message.includes('CORS') || 
+                    error.message.includes('Failed to fetch') ||
+                    error.message.includes('Access-Control-Allow-Origin')
+                  )
+                  const isUnchangedExistingImage = !hasChanged && initialOpt && opt.originalId
+                  
+                  // For unchanged existing images with CORS errors, skip the image (backend will keep existing)
+                  if (isCorsError && isUnchangedExistingImage) {
+                    console.warn(`Skipping image conversion for option ${idx + 1} due to CORS error (image unchanged):`, imageToProcess)
+                    imageBase64 = null // Don't include image in payload, backend will keep existing
+                  } else {
+                    // For changed/new images or non-CORS errors, show error
+                    const errorMessage = error instanceof Error ? error.message : 'Failed to convert image URL to base64'
+                    form.setError("fieldType", {
+                      type: "manual",
+                      message: `Option ${idx + 1} (${opt.label || 'unnamed'}): ${errorMessage}`,
+                    })
+                    setActiveTab("options")
+                    toast({
+                      title: "Validation Error",
+                      description: `Option ${idx + 1} (${opt.label || 'unnamed'}): ${errorMessage}. Please ensure the image URL is accessible or upload the image directly.`,
+                      variant: "destructive",
+                    })
+                    throw error
+                  }
+                }
+              } else {
+                // Already base64 or data URL
+                imageBase64 = imageToProcess
+              }
+              
+              // Validate base64 image format
+              const validation = validateBase64Image(imageBase64)
+              if (!validation.valid) {
+                form.setError("fieldType", {
+                  type: "manual",
+                  message: `Option ${idx + 1} (${opt.label || 'unnamed'}): ${validation.error}`,
+                })
+                setActiveTab("options")
+                toast({
+                  title: "Validation Error",
+                  description: `Option ${idx + 1} (${opt.label || 'unnamed'}): ${validation.error}`,
+                  variant: "destructive",
+                })
+                throw new Error(validation.error || 'Invalid image')
+              }
+            }
+            
+            return {
+              ...opt,
+              image: imageBase64,
+              _hasChanged: hasChanged,
+            }
+          })
+        )
+        
+        if (!isEditing || !initialOptions.length) {
+          // For new fields or if no initial options, send all options
+          payload.options = processedOptions
+            .filter(opt => {
+              // Filter out options without labels to avoid API errors
+              const hasLabel = (opt.label || '').trim()
+              if (!hasLabel) {
+                console.warn("Skipping option without label:", opt)
+              }
+              return !!hasLabel
+            })
+            .map((opt, idx) => {
+            const optionPayload: any = {
+              name: (opt.label || '').trim(), // Ensure name is always a non-empty string
+              image: (opt.image && !isImageUrl(opt.image)) ? opt.image : undefined, // Only include if base64
+              status: opt.status ? 'Active' : 'Inactive',
+              is_default: opt.isDefault ? 'Yes' : 'No',
+              sequence: idx + 1,
+            }
+            
+            // Set price - use 0 if not per-option or if price is not set
+            if (data.chargeType === 'per-option' && opt.price) {
+              optionPayload.price = parseFloat(opt.price)
+            } else {
+              optionPayload.price = 0
+            }
+            
+            // Only include id for existing options (those that came from the API)
+            if (opt.originalId && !isNaN(opt.originalId) && opt.originalId > 0) {
+              optionPayload.id = opt.originalId
+            }
+            
+            return optionPayload
+          })
+        } else {
+          // For editing, send ALL options (both existing and new) to prevent data loss
+          // The API needs all options to properly update the field
+          const changedOptions: any[] = []
+          
+          // Process ALL options (not just changed ones)
+          for (const opt of processedOptions) {
+            // Include all options, not just changed ones
+            
+            // Debug: Log option being processed
+            console.log("Processing changed option:", {
+              label: opt.label,
+              originalId: opt.originalId,
+              hasImage: !!opt.image,
+              imageType: opt.image ? (isImageUrl(opt.image) ? 'URL' : 'base64') : 'none'
+            })
+            
+            // Find the initial option to merge with (for existing options)
+            const initialOpt = opt.originalId 
+              ? initialOptions.find(o => o.originalId === opt.originalId)
+              : null
+            
+            // Always include required fields - name is mandatory
+            const optionName = (opt.label || '').trim()
+            if (!optionName && !initialOpt?.label) {
+              console.warn("Option missing label:", opt)
+              // Skip options without labels to avoid API errors
+              // The form validation should prevent this, but handle it gracefully
+              continue
+            }
+            
+            // For existing options (those with originalId), always include them with all their data
+            // This ensures the API doesn't remove existing options when new ones are added
+            if (initialOpt && opt.originalId) {
+              // Existing option - merge initial data with current form data
+              const optionPayload: any = {
+                // Always include id for existing options
+                id: opt.originalId,
+                
+                // Use current form values, fall back to initial values
+                name: optionName || initialOpt.label || '',
+                status: opt.status !== undefined 
+                  ? (opt.status ? 'Active' : 'Inactive')
+                  : (initialOpt.status ? 'Active' : 'Inactive'),
+                is_default: opt.isDefault !== undefined
+                  ? (opt.isDefault ? 'Yes' : 'No')
+                  : (initialOpt.isDefault ? 'Yes' : 'No'),
+                sequence: opt.id 
+                  ? parseInt(opt.id) 
+                  : (initialOpt.id ? parseInt(initialOpt.id) : changedOptions.length + 1),
+              }
+              
+              // Include image - only include if it's base64 (converted successfully)
+              // The image in processedOptions is base64 if conversion succeeded, or null if it failed
+              // Don't include URL images - if conversion failed due to CORS and image hasn't changed,
+              // skip it and let backend keep the existing image
+              if (opt.image && !isImageUrl(opt.image)) {
+                // Image is base64 - include it
+                optionPayload.image = opt.image
+              }
+              // If opt.image is null or still a URL, don't include it in payload
+              // Backend will keep existing image if we don't send it
+              
+              // Set price - use current if set, otherwise use initial, otherwise default to 0
+              if (data.chargeType === 'per-option' && opt.price) {
+                optionPayload.price = parseFloat(opt.price)
+              } else if (initialOpt.price && data.chargeType === 'per-option') {
+                optionPayload.price = parseFloat(initialOpt.price)
+              } else {
+                optionPayload.price = 0
+              }
+              
+              changedOptions.push(optionPayload)
+            } else {
+              // New option - use current form values only
+              const optionPayload: any = {
+                name: optionName,
+                status: opt.status ? 'Active' : 'Inactive',
+                is_default: opt.isDefault ? 'Yes' : 'No',
+                sequence: opt.id ? parseInt(opt.id) : changedOptions.length + 1,
+              }
+              
+              // Include image if present and it's base64 (not a URL)
+              // For new options, image should already be base64 from processing
+              if (opt.image && !isImageUrl(opt.image)) {
+                optionPayload.image = opt.image
+              }
+              
+              // Set price
+              if (data.chargeType === 'per-option' && opt.price) {
+                optionPayload.price = parseFloat(opt.price)
+              } else {
+                optionPayload.price = 0
+              }
+              
+              changedOptions.push(optionPayload)
+            }
           }
           
-          // Set price - use 0 if not per-option or if price is not set
-          if (data.chargeType === 'per-option' && opt.price) {
-            optionPayload.price = parseFloat(opt.price)
-          } else {
-            optionPayload.price = 0
+          // Always include all options when editing (both existing and new)
+          // This ensures existing options aren't removed when new ones are added
+          if (changedOptions.length > 0) {
+            // Ensure all options have required fields and filter out any without names
+            payload.options = changedOptions
+              .filter(opt => {
+                const hasName = (opt.name || '').trim()
+                if (!hasName) {
+                  console.warn("Skipping option without name:", opt)
+                }
+                return !!hasName
+              })
+              .map(opt => ({
+                ...opt,
+                name: (opt.name || '').trim(), // Ensure name is always a non-empty string
+              }))
           }
-          
-          // Only include id for existing options (those that came from the API)
-          if (opt.originalId && !isNaN(opt.originalId) && opt.originalId > 0) {
-            optionPayload.id = opt.originalId
-          }
-          
-          return optionPayload
-        })
+        }
       }
+      
+      // Debug: Log final payload
+      console.log("Final payload for save:", JSON.stringify(payload, null, 2))
 
-      // Add image if present and changed
-      if (imageBase64 && imageBase64 !== initialImageBase64) {
-        payload.image = imageBase64
+      // Add image only if it changed (for editing) or if it's new (for creating)
+      if (isEditing) {
+        // Only include image if it changed
+        if (imageBase64 && imageBase64 !== initialImageBase64) {
+          payload.image = imageBase64
+        }
+      } else {
+        // For new fields, include image if present
+        if (imageBase64) {
+          payload.image = imageBase64
+        }
       }
 
       // Call onSave callback - let the parent handle the mutation to avoid double submission
       if (onSave) {
-        const { canAddAdditionalCharges, chargeType, additionalCharge, chargeScope, ...formFields } = data
+        // For onSave callback, pass the payload we built (which only contains changes when editing)
         const saveData = {
-          ...formFields,
-          options,
-          pricing: {
-            canAddAdditionalCharges,
-            chargeType,
-            additionalCharge,
-            chargeScope,
-          },
-          image: imageBase64 && imageBase64 !== initialImageBase64 ? imageBase64 : undefined,
+          ...payload,
+          // Include options if they exist in payload
+          // Include image if it exists in payload
         }
-        console.log("Calling onSave with data:", saveData)
-        await onSave(saveData)
-        toast({
-          title: "Success",
-          description: isEditing ? "Field updated successfully" : "Field created successfully",
-        })
-        onClose()
+        console.log("Calling onSave with data (only changes):", saveData)
+        try {
+          await onSave(saveData)
+          // Don't show success toast here - let the parent component handle all toasts
+          // The parent will show success/error toasts based on the API response
+          onClose()
+        } catch (saveError: any) {
+          // Re-throw error so it's caught by the outer catch block
+          // The parent's onSave should handle errors, but if it doesn't re-throw,
+          // we'll catch it here and show an error toast
+          console.error("Error in onSave callback:", saveError)
+          throw saveError
+        }
       } else {
         // Fallback: if no onSave callback, handle mutation here
         if (isEditing && fieldData && fieldData.id) {
@@ -716,9 +1142,36 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
         onClose()
       }
     } catch (error: any) {
+      console.error("Error saving field:", error)
+      
+      // Extract error message from API response
+      let errorMessage = "Failed to save field"
+      let errorTitle = "Error"
+      
+      if (error?.response?.data) {
+        const errorData = error.response.data
+        // Handle validation errors (422)
+        if (errorData.errors && typeof errorData.errors === 'object') {
+          // Get first error message from validation errors
+          const firstErrorKey = Object.keys(errorData.errors)[0]
+          const firstError = errorData.errors[firstErrorKey]
+          if (Array.isArray(firstError) && firstError.length > 0) {
+            errorMessage = firstError[0]
+          } else if (typeof firstError === 'string') {
+            errorMessage = firstError
+          }
+        } else if (errorData.error_description) {
+          errorMessage = errorData.error_description
+        } else if (errorData.message) {
+          errorMessage = errorData.message
+        }
+      } else if (error?.message) {
+        errorMessage = error.message
+      }
+      
       toast({
-        title: "Error",
-        description: error.message || "Failed to save field",
+        title: errorTitle,
+        description: errorMessage,
         variant: "destructive",
       })
     } finally {
@@ -955,25 +1408,24 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
                           <FormLabel className="text-sm font-medium text-gray-700">
                             Category
                           </FormLabel>
-                          <Select
-                            value={field.value}
-                            onValueChange={field.onChange}
-                          >
-                            <FormControl>
+                          <FormControl>
+                            <Select
+                              value={field.value || ""}
+                              onValueChange={field.onChange}
+                            >
                               <SelectTrigger className="mt-1">
                                 <SelectValue placeholder="Select category" />
                               </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {categories.length > 0 ? (
-                                categories.map((category) => (
-                                  <SelectItem key={category.id} value={category.id.toString()}>
-                                    {category.name}
-                                  </SelectItem>
-                                ))
-                              ) : null}
-                            </SelectContent>
-                          </Select>
+                              <SelectContent>
+                                {categories.length > 0 &&
+                                  categories.map((category) => (
+                                    <SelectItem key={category.id} value={category.id.toString()}>
+                                      {category.name}
+                                    </SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
+                          </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -987,26 +1439,25 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
                           <FormLabel className="text-sm font-medium text-gray-700">
                             Sub Category
                           </FormLabel>
-                          <Select
-                            value={field.value}
-                            onValueChange={field.onChange}
-                            disabled={!selectedCategoryId}
-                          >
-                            <FormControl>
+                          <FormControl>
+                            <Select
+                              value={field.value || ""}
+                              onValueChange={field.onChange}
+                              disabled={!hasValidCategory}
+                            >
                               <SelectTrigger className="mt-1">
-                                <SelectValue placeholder={selectedCategoryId ? "Select sub category" : "Select category first"} />
+                                <SelectValue placeholder={hasValidCategory ? "Select sub category" : "Select category first"} />
                               </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {subcategories.length > 0 ? (
-                                subcategories.map((subcategory) => (
-                                  <SelectItem key={subcategory.id} value={subcategory.id.toString()}>
-                                    {subcategory.name}
-                                  </SelectItem>
-                                ))
-                              ) : null}
-                            </SelectContent>
-                          </Select>
+                              <SelectContent>
+                                {subcategories.length > 0 &&
+                                  subcategories.map((subcategory) => (
+                                    <SelectItem key={subcategory.id} value={subcategory.id.toString()}>
+                                      {subcategory.name}
+                                    </SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
+                          </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -1201,7 +1652,7 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
                               <img
                                 src={option.image}
                                 alt={option.label || "Option image"}
-                                className="w-full h-full object-cover"
+                                className="w-full h-full object-contain"
                               />
                             ) : (
                               <div className="w-full h-full bg-gray-100"></div>

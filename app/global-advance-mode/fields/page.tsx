@@ -537,16 +537,36 @@ export default function FieldsPage() {
               'implant_library': 'implant_library',
             }
 
-            // Map options - include id for existing options when editing (use originalId for API ID)
-            const options = data.options?.map((option, index) => ({
-              ...(editingField && option.originalId && !isNaN(option.originalId) && option.originalId > 0 ? { id: option.originalId } : {}),
-              name: option.label,
-              image: option.image || undefined,
-              status: option.status ? 'Active' as const : 'Inactive' as const,
-              is_default: option.isDefault ? 'Yes' as const : 'No' as const,
-              price: option.price ? parseFloat(option.price) : undefined,
-              sequence: index + 1,
-            })) || []
+            // Map options - handle both modal format (label, status boolean) and API format (name, status string)
+            // The modal now sends API format directly, so we need to handle both
+            const options = data.options?.map((option: any, index: number) => {
+              // Check if option is already in API format (has 'name' and 'status' as string)
+              const isApiFormat = option.name !== undefined && (option.status === 'Active' || option.status === 'Inactive')
+              
+              if (isApiFormat) {
+                // Already in API format, use it directly (but ensure all required fields are present)
+                return {
+                  ...(option.id ? { id: option.id } : {}),
+                  name: option.name || '', // Ensure name is always present
+                  image: option.image || undefined,
+                  status: option.status || 'Active',
+                  is_default: option.is_default || 'No',
+                  price: option.price !== undefined ? (typeof option.price === 'number' ? option.price : parseFloat(option.price)) : undefined,
+                  sequence: option.sequence || index + 1,
+                }
+              } else {
+                // Modal format - transform to API format
+                return {
+                  ...(editingField && option.originalId && !isNaN(option.originalId) && option.originalId > 0 ? { id: option.originalId } : {}),
+                  name: option.label || '', // Ensure name is always present
+                  image: option.image || undefined,
+                  status: option.status ? 'Active' as const : 'Inactive' as const,
+                  is_default: option.isDefault ? 'Yes' as const : 'No' as const,
+                  price: option.price ? parseFloat(option.price) : undefined,
+                  sequence: index + 1,
+                }
+              }
+            }) || []
 
             // Prepare API payload
             const payload: any = {
@@ -607,22 +627,50 @@ export default function FieldsPage() {
                 title: "Success",
                 description: "Field updated successfully",
               })
+              setIsAddFieldModalOpen(false)
+              setEditingField(null)
             } else {
               await createFieldMutation.mutateAsync(payload)
               toast({
                 title: "Success",
                 description: "Field created successfully",
               })
+              setIsAddFieldModalOpen(false)
+              setEditingField(null)
+            }
+          } catch (error: any) {
+            console.error("Error saving field:", error)
+            
+            // Extract error message from API response
+            let errorMessage = `Failed to ${editingField ? 'update' : 'create'} field`
+            
+            if (error?.response?.data) {
+              const errorData = error.response.data
+              // Handle validation errors (422)
+              if (errorData.errors && typeof errorData.errors === 'object') {
+                // Get first error message from validation errors
+                const firstErrorKey = Object.keys(errorData.errors)[0]
+                const firstError = errorData.errors[firstErrorKey]
+                if (Array.isArray(firstError) && firstError.length > 0) {
+                  errorMessage = firstError[0]
+                } else if (typeof firstError === 'string') {
+                  errorMessage = firstError
+                }
+              } else if (errorData.error_description) {
+                errorMessage = errorData.error_description
+              } else if (errorData.message) {
+                errorMessage = errorData.message
+              }
+            } else if (error?.message) {
+              errorMessage = error.message
             }
             
-            setIsAddFieldModalOpen(false)
-            setEditingField(null)
-          } catch (error: any) {
             toast({
               title: "Error",
-              description: error.message || `Failed to ${editingField ? 'update' : 'create'} field`,
+              description: errorMessage,
               variant: "destructive",
             })
+            // Don't close modal on error so user can fix the issue
           }
         }}
       />

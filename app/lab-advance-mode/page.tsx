@@ -8,7 +8,7 @@ export default function LabAdvanceModePage() {
 
   useEffect(() => {
     // Redirect to category as the default page
-    router.replace("/lab-advance-mode/category")
+    router.replace("/lab-advance-mode/fields")
   }, [router])
 
   return null
