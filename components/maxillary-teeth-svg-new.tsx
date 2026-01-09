@@ -10,6 +10,7 @@ interface MaxillaryTeethSVGProps {
   showRetentionPopover?: boolean
   retentionPopoverTooth?: number | null
   onSelectRetentionType?: (toothNumber: number, type: 'Implant' | 'Prep' | 'Pontic') => void
+  onClosePopover?: () => void
 }
 
 export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
@@ -20,7 +21,8 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
   retentionTypesByTooth = {},
   showRetentionPopover = false,
   retentionPopoverTooth = null,
-  onSelectRetentionType
+  onSelectRetentionType,
+  onClosePopover
 }) => {
   const isToothSelected = (toothNumber: number) => selectedTeeth.includes(toothNumber)
 
@@ -170,6 +172,7 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
             <RetentionTypePopover
               onSelectRetentionType={(type) => onSelectRetentionType(retentionPopoverTooth, type)}
               selectedType={selectedType || undefined}
+              onClose={onClosePopover}
             />
           </div>
         )

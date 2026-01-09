@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Search } from "lucide-react"
+import { Search, Filter } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -12,11 +12,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
 import { SlipCreationHeader } from "@/components/slip-creation-header"
 import { AddDoctorModal } from "@/components/add-doctor-modal"
 import { clearSlipCreationStorage } from "@/utils/slip-creation-storage"
+import CancelSlipCreationModal from "@/components/cancel-slip-creation-modal"
 
 interface Doctor {
   id: number
@@ -55,6 +57,8 @@ export default function ChooseDoctorPage() {
   const [selectedLab, setSelectedLab] = useState<Lab | null>(null)
   const [createdBy, setCreatedBy] = useState<string>("")
   const [showAddDoctorModal, setShowAddDoctorModal] = useState(false)
+  const [showCancelModal, setShowCancelModal] = useState(false)
+  const [sortPopoverOpen, setSortPopoverOpen] = useState(false)
 
   // Get lab from URL or localStorage
   useEffect(() => {
@@ -331,9 +335,7 @@ export default function ChooseDoctorPage() {
   }
 
   const handleCancel = () => {
-    // Clear all slip creation storage when canceling
-    clearSlipCreationStorage()
-    router.back()
+    setShowCancelModal(true)
   }
 
   const getInitials = (firstName: string, lastName: string) => {
@@ -385,18 +387,44 @@ export default function ChooseDoctorPage() {
           {/* Sort By and Results Count */}
           <div className="flex items-center justify-between mb-8 max-w-5xl mx-auto">
             {/* Sort By */}
-            <div className="flex items-center gap-2">
-              <label className="text-sm text-gray-700">Sort By:</label>
-              <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="w-[130px] h-9 text-sm border-gray-300 rounded-md">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="name-asc">Name A-Z</SelectItem>
-                  <SelectItem value="name-desc">Name Z-A</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <Popover open={sortPopoverOpen} onOpenChange={setSortPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="h-9 w-9 p-0 border-gray-300 rounded-md hover:bg-gray-50"
+                  aria-label="Sort options"
+                >
+                  <Filter className="h-4 w-4 text-gray-700" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-48 p-2" align="start">
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold text-gray-700 mb-2 px-2">Sort By</p>
+                  <button
+                    onClick={() => {
+                      setSortBy("name-asc")
+                      setSortPopoverOpen(false)
+                    }}
+                    className={`w-full text-left px-2 py-1.5 text-sm rounded hover:bg-gray-100 ${
+                      sortBy === "name-asc" ? "bg-gray-100 font-medium" : ""
+                    }`}
+                  >
+                    Name A-Z
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSortBy("name-desc")
+                      setSortPopoverOpen(false)
+                    }}
+                    className={`w-full text-left px-2 py-1.5 text-sm rounded hover:bg-gray-100 ${
+                      sortBy === "name-desc" ? "bg-gray-100 font-medium" : ""
+                    }`}
+                  >
+                    Name Z-A
+                  </button>
+                </div>
+              </PopoverContent>
+            </Popover>
 
             {/* Results Count */}
             <p className="text-sm text-gray-400">
@@ -468,9 +496,9 @@ export default function ChooseDoctorPage() {
             background: "#FFFFFF",
           }}
         >
-          <div className="flex justify-end items-center h-full px-6">
+          <div className="flex justify-end items-center gap-3 h-full px-6">
             <Button
-              onClick={handleCancel}
+              onClick={() => router.back()}
               variant="outline"
               style={{
                 display: "flex",
@@ -496,6 +524,35 @@ export default function ChooseDoctorPage() {
               className="hover:opacity-90"
             >
               Previous
+            </Button>
+            <Button
+              onClick={handleCancel}
+              variant="outline"
+              style={{
+                boxSizing: "border-box",
+                display: "flex",
+                flexDirection: "row",
+                justifyContent: "center",
+                alignItems: "center",
+                padding: "12px 16px",
+                gap: "10px",
+                minWidth: "111px",
+                height: "27px",
+                border: "2px solid #9BA5B7",
+                borderRadius: "6px",
+                fontFamily: "Verdana",
+                fontStyle: "normal",
+                fontWeight: 700,
+                fontSize: "12px",
+                lineHeight: "22px",
+                letterSpacing: "-0.02em",
+                color: "#9BA5B7",
+                background: "transparent",
+                whiteSpace: "nowrap",
+              }}
+              className="hover:opacity-80"
+            >
+              Cancel
             </Button>
           </div>
         </div>
@@ -528,6 +585,20 @@ export default function ChooseDoctorPage() {
           }
         }}
       />
+
+      {/* Cancel Slip Creation Modal */}
+      {showCancelModal && (
+        <CancelSlipCreationModal
+          open={showCancelModal}
+          onCancel={() => setShowCancelModal(false)}
+          onConfirm={() => {
+            setShowCancelModal(false)
+            setTimeout(() => {
+              router.replace("/dashboard")
+            }, 100)
+          }}
+        />
+      )}
     </div>
   )
 }

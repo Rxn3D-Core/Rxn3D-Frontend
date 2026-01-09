@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
 import { SlipCreationHeader } from "@/components/slip-creation-header"
 import { clearSlipCreationStorage } from "@/utils/slip-creation-storage"
+import CancelSlipCreationModal from "@/components/cancel-slip-creation-modal"
 
 interface Doctor {
   id: number
@@ -31,6 +32,7 @@ export default function PatientInputPage() {
   const [createdBy, setCreatedBy] = useState<string>("")
   const [patientName, setPatientName] = useState<string>("")
   const [gender, setGender] = useState<string>("")
+  const [showCancelModal, setShowCancelModal] = useState(false)
 
   // Load selected doctor and lab from localStorage
   useEffect(() => {
@@ -90,9 +92,7 @@ export default function PatientInputPage() {
   }, [patientName, gender, router])
 
   const handleCancel = () => {
-    // Clear all slip creation storage when canceling
-    clearSlipCreationStorage()
-    router.back()
+    setShowCancelModal(true)
   }
 
   const handleContinue = () => {
@@ -157,9 +157,9 @@ export default function PatientInputPage() {
           background: "#FFFFFF",
         }}
       >
-        <div className="flex justify-end items-center h-full px-6">
+        <div className="flex justify-end items-center gap-3 h-full px-6">
           <Button
-            onClick={handleCancel}
+            onClick={() => router.back()}
             variant="outline"
             style={{
               display: "flex",
@@ -186,8 +186,51 @@ export default function PatientInputPage() {
           >
             Previous
           </Button>
+          <Button
+            onClick={handleCancel}
+            variant="outline"
+            style={{
+              boxSizing: "border-box",
+              display: "flex",
+              flexDirection: "row",
+              justifyContent: "center",
+              alignItems: "center",
+              padding: "12px 16px",
+              gap: "10px",
+              minWidth: "111px",
+              height: "27px",
+              border: "2px solid #9BA5B7",
+              borderRadius: "6px",
+              fontFamily: "Verdana",
+              fontStyle: "normal",
+              fontWeight: 700,
+              fontSize: "12px",
+              lineHeight: "22px",
+              letterSpacing: "-0.02em",
+              color: "#9BA5B7",
+              background: "transparent",
+              whiteSpace: "nowrap",
+            }}
+            className="hover:opacity-80"
+          >
+            Cancel
+          </Button>
         </div>
       </div>
+
+      {/* Cancel Slip Creation Modal */}
+      {showCancelModal && (
+        <CancelSlipCreationModal
+          open={showCancelModal}
+          onCancel={() => setShowCancelModal(false)}
+          onConfirm={() => {
+            setShowCancelModal(false)
+            setTimeout(() => {
+              router.replace("/dashboard")
+            }, 100)
+          }}
+        />
+      )}
     </div>
   )
 }

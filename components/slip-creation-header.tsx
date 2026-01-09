@@ -21,6 +21,7 @@ interface Lab {
   name: string
   customer_id?: number
   logo?: string
+  role?: string
 }
 
 interface PatientData {
@@ -103,12 +104,12 @@ const CustomerLogoFromStorage = ({ size = "default" }: { size?: "default" | "lar
 
   if (size === "large") {
     return (
-      <div className="w-[343.75px] h-[75px] flex items-center justify-center">
+      <div className="w-[500px] h-[75px] flex items-center justify-center">
         {customerId ? (
           <CustomerLogo
             customerId={customerId}
             alt="Customer Logo"
-            className="max-w-full max-h-full object-contain"
+            className="max-w-full max-h-[120px] object-contain"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
@@ -125,7 +126,7 @@ const CustomerLogoFromStorage = ({ size = "default" }: { size?: "default" | "lar
         <CustomerLogo
           customerId={customerId}
           alt="Customer Logo"
-          className="max-h-[75px] max-w-[300px] object-contain"
+          className="max-h-[120px] max-w-[450px] object-contain"
         />
       ) : (
         <div className="w-full h-full flex items-center justify-center">
@@ -210,16 +211,19 @@ const SendingToSection = ({ lab }: { lab: Lab }) => {
   const hasDirectLogo = lab?.logo && typeof lab.logo === 'string'
   
   return (
-    <div className="flex items-center gap-[7px] w-[350px] h-[75px]">
-      <p className="text-[15.9926px] font-bold leading-[22px] tracking-[-0.02em] text-[#080808]">Sending to</p>
+    <div className="flex items-center gap-[7px] w-[350px] h-[75px] overflow-visible">
+      <p className="text-[15.9926px] font-bold leading-[22px] tracking-[-0.02em] text-[#080808]">
+        {typeof window !== "undefined" && localStorage.getItem("role") === "lab_admin" ? "Creating To" : "Sending To"}
+      </p>
       {customerId && (
-        <div className="relative flex items-center h-[33.24px]">
-          <div className="h-[33.24px] flex items-center">
+        <div className="relative flex items-center min-h-[33.24px] overflow-visible">
+          <div className="flex items-center justify-center overflow-visible">
             {hasDirectLogo ? (
               <img
                 src={lab.logo}
                 alt={lab.name}
-                className="max-w-[83.61px] max-h-[100px] h-[100px] object-contain"
+                className="max-w-[150px] max-h-[120px] w-auto h-auto object-contain"
+                style={{ display: 'block', maxWidth: '150px', maxHeight: '120px' }}
                 onError={(e) => {
                   // Fallback to CustomerLogo if direct logo fails
                   const target = e.target as HTMLImageElement
@@ -229,19 +233,25 @@ const SendingToSection = ({ lab }: { lab: Lab }) => {
                     fallback.style.display = 'flex'
                   }
                 }}
+                onLoad={(e) => {
+                  // Ensure image is visible when loaded
+                  const target = e.target as HTMLImageElement
+                  target.style.display = 'block'
+                  target.style.visibility = 'visible'
+                }}
               />
             ) : null}
             <div style={{ display: hasDirectLogo ? 'none' : 'flex' }} className="items-center">
               <CustomerLogo
                 customerId={customerId}
                 alt={lab.name}
-                className="max-w-[83.61px] max-h-[100px] h-[100px] object-contain"
+                className="max-w-[150px] max-h-[120px] object-contain"
               />
             </div>
           </div>
           <button
             onClick={handleEditClick}
-            className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 border border-gray-200 hover:bg-gray-50 cursor-pointer transition-colors"
+            className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 border border-gray-200 hover:bg-gray-50 cursor-pointer transition-colors z-10"
             aria-label="Edit lab or office"
           >
             <Pencil className="w-[18px] h-[18px] text-[#B4B0B0]" />
@@ -450,28 +460,17 @@ const PatientInfoSection = ({
   // Determine border color based on focus and validation state
   const getNameBorderColor = () => {
     if (hasNameValue) {
-      const nameParts = name.trim().split(/\s+/).filter(part => part.length > 0)
-      
-      // Red: First name is incomplete (< 2 characters)
-      if (nameParts.length === 0 || nameParts[0].length < 2) {
-        return "border-red-500"
-      }
-      
-      // Orange: First name is complete but no last name entered
-      if (nameParts.length === 1) {
-        return "border-orange-500"
-      }
-      
       // Green: Both first name and last name are valid
       if (isNameValid) {
         return "border-[#119933]"
       }
       
-      // Red: Has last name but it's incomplete (< 2 characters)
+      // Red: Has value but invalid (incomplete name)
       return "border-red-500"
     }
-    if (isNameFocused) return "border-[#1162A8]" // focus state
-    return "border-[#7F7F7F]" // default
+    // No value
+    if (isNameFocused) return "border-orange-500" // focus state - orange
+    return "border-red-500" // no value, no focus - red
   }
 
   const getGenderBorderColor = () => {
@@ -484,28 +483,17 @@ const PatientInfoSection = ({
   // Determine label color
   const getNameLabelColor = () => {
     if (hasNameValue) {
-      const nameParts = name.trim().split(/\s+/).filter(part => part.length > 0)
-      
-      // Red: First name is incomplete (< 2 characters)
-      if (nameParts.length === 0 || nameParts[0].length < 2) {
-        return "text-red-500"
-      }
-      
-      // Orange: First name is complete but no last name entered
-      if (nameParts.length === 1) {
-        return "text-orange-500"
-      }
-      
       // Green: Both first name and last name are valid
       if (isNameValid) {
         return "text-[#119933]"
       }
       
-      // Red: Has last name but it's incomplete (< 2 characters)
+      // Red: Has value but invalid (incomplete name)
       return "text-red-500"
     }
-    if (isNameFocused) return "text-[#1162A8]"
-    return "text-[#7F7F7F]"
+    // No value
+    if (isNameFocused) return "text-orange-500" // focus state - orange
+    return "text-red-500" // no value, no focus - red
   }
 
   const getGenderLabelColor = () => {
@@ -518,30 +506,19 @@ const PatientInfoSection = ({
   // Determine ring/glow effect
   const getNameRingEffect = () => {
     if (hasNameValue) {
-      const nameParts = name.trim().split(/\s+/).filter(part => part.length > 0)
-      
-      // Red: First name is incomplete (< 2 characters)
-      if (nameParts.length === 0 || nameParts[0].length < 2) {
-        return "ring-2 ring-red-500 ring-opacity-20 shadow-[0_0_0_4px_rgba(239,68,68,0.15)]"
-      }
-      
-      // Orange: First name is complete but no last name entered
-      if (nameParts.length === 1) {
-        return "ring-2 ring-orange-500 ring-opacity-20 shadow-[0_0_0_4px_rgba(249,115,22,0.15)]"
-      }
-      
       // Green: Both first name and last name are valid
       if (isNameValid) {
         return "ring-2 ring-[#119933] ring-opacity-20 shadow-[0_0_0_4px_rgba(17,153,51,0.15)]"
       }
       
-      // Red: Has last name but it's incomplete (< 2 characters)
+      // Red: Has value but invalid (incomplete name)
       return "ring-2 ring-red-500 ring-opacity-20 shadow-[0_0_0_4px_rgba(239,68,68,0.15)]"
     }
+    // No value
     if (isNameFocused) {
-      return "ring-2 ring-[#1162A8] ring-opacity-20 shadow-[0_0_0_4px_rgba(17,98,168,0.15)]"
+      return "ring-2 ring-orange-500 ring-opacity-20 shadow-[0_0_0_4px_rgba(249,115,22,0.15)]"
     }
-    return ""
+    return "ring-2 ring-red-500 ring-opacity-20 shadow-[0_0_0_4px_rgba(239,68,68,0.15)]"
   }
 
   const getGenderRingEffect = () => {
@@ -596,7 +573,7 @@ const PatientInfoSection = ({
             style={{
               left: "9.23px",
               top: "-6.15px",
-              width: "83px",
+              width: hasNameValue && isNameValid ? "83px" : "120px",
               height: "14px",
               fontFamily: "Arial",
               fontStyle: "normal",
@@ -605,7 +582,7 @@ const PatientInfoSection = ({
               lineHeight: "14px",
             }}
           >
-            Patient name
+            {hasNameValue && isNameValid ? "Patient name" : "Type patient name"}
           </label>
           {/* Validation Icon */}
           {isNameValid && (

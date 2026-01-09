@@ -17,6 +17,7 @@ interface FooterSectionProps {
   onConfirmDetailsChange: (checked: boolean) => void
   onShowSubmitPopoverChange: (show: boolean) => void
   hidePreviousButton?: boolean
+  hasProductAccordions?: boolean
 }
 
 export function FooterSection({
@@ -32,6 +33,7 @@ export function FooterSection({
   onConfirmDetailsChange,
   onShowSubmitPopoverChange,
   hidePreviousButton = false,
+  hasProductAccordions = false,
 }: FooterSectionProps) {
   return (
     <div 
@@ -43,8 +45,8 @@ export function FooterSection({
     >
       <div className="flex justify-between items-center h-full px-6 relative">
         {!showProductDetails ? (
-          // Regular footer with Previous button on right (hidden in list views)
-          <div className="flex justify-end w-full">
+          // Regular footer with Previous and Cancel buttons on right
+          <div className="flex justify-end w-full gap-3">
             {!hidePreviousButton && (
               <Button
                 onClick={onCancel}
@@ -75,13 +77,8 @@ export function FooterSection({
                 Previous
               </Button>
             )}
-          </div>
-        ) : (
-          // Teeth selection page footer: Preview on left, Cancel and Submit on right
-          <>
-            {/* Preview button on left */}
             <Button
-              onClick={onPreview}
+              onClick={onCancel}
               variant="outline"
               style={{
                 boxSizing: "border-box",
@@ -92,7 +89,7 @@ export function FooterSection({
                 padding: "12px 16px",
                 gap: "10px",
                 minWidth: "111px",
-                height: "34px",
+                height: "27px",
                 border: "2px solid #9BA5B7",
                 borderRadius: "6px",
                 fontFamily: "Verdana",
@@ -107,28 +104,66 @@ export function FooterSection({
               }}
               className="hover:opacity-80"
             >
-              <Eye 
-                style={{
-                  width: "24px",
-                  height: "24px",
-                  flex: "none",
-                  order: 0,
-                  flexGrow: 0,
-                }}
-              />
-              <span
-                style={{
-                  height: "22px",
-                  display: "flex",
-                  alignItems: "center",
-                  flex: "none",
-                  order: 1,
-                  flexGrow: 0,
-                }}
-              >
-                Preview
-              </span>
+              Cancel
             </Button>
+          </div>
+        ) : (
+          // Teeth selection page footer: Preview on left, Cancel and Submit on right
+          <div className="flex justify-between items-center w-full">
+            {/* Preview button on left - Only show if there are product accordions */}
+            <div>
+              {hasProductAccordions && (
+                <Button
+                  onClick={onPreview}
+                  variant="outline"
+                  style={{
+                    boxSizing: "border-box",
+                    display: "flex",
+                    flexDirection: "row",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    padding: "12px 16px",
+                    gap: "10px",
+                    minWidth: "111px",
+                    height: "34px",
+                    border: "2px solid #9BA5B7",
+                    borderRadius: "6px",
+                    fontFamily: "Verdana",
+                    fontStyle: "normal",
+                    fontWeight: 700,
+                    fontSize: "12px",
+                    lineHeight: "22px",
+                    letterSpacing: "-0.02em",
+                    color: "#9BA5B7",
+                    background: "transparent",
+                    whiteSpace: "nowrap",
+                  }}
+                  className="hover:opacity-80"
+                >
+                  <Eye 
+                    style={{
+                      width: "24px",
+                      height: "24px",
+                      flex: "none",
+                      order: 0,
+                      flexGrow: 0,
+                    }}
+                  />
+                  <span
+                    style={{
+                      height: "22px",
+                      display: "flex",
+                      alignItems: "center",
+                      flex: "none",
+                      order: 1,
+                      flexGrow: 0,
+                    }}
+                  >
+                    Preview
+                  </span>
+                </Button>
+              )}
+            </div>
             
             {/* Cancel and Submit buttons on right */}
             <div className="flex items-center gap-3">
@@ -269,7 +304,7 @@ export function FooterSection({
               </div>
               )}
             </div>
-          </>
+          </div>
         )}
       </div>
     </div>

@@ -1,16 +1,36 @@
-import React from 'react'
+import React, { useEffect, useRef } from 'react'
 
 interface RetentionTypePopoverProps {
   onSelectRetentionType: (type: 'Implant' | 'Prep' | 'Pontic') => void
   selectedType?: 'Implant' | 'Prep' | 'Pontic' | null
+  onClose?: () => void
 }
 
 export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({
   onSelectRetentionType,
-  selectedType
+  selectedType,
+  onClose
 }) => {
+  const popoverRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
+        onClose?.()
+      }
+    }
+
+    // Add event listener when component mounts
+    document.addEventListener('click', handleClickOutside)
+
+    // Cleanup event listener when component unmounts
+    return () => {
+      document.removeEventListener('click', handleClickOutside)
+    }
+  }, [onClose])
+
   return (
-    <div className="absolute z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-2 flex gap-2">
+    <div ref={popoverRef} className="absolute z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-2 flex gap-2">
       {/* Implant Option */}
       <button
         onClick={() => onSelectRetentionType('Implant')}

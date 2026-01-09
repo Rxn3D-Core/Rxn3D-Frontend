@@ -433,16 +433,6 @@ export function SavedProductsSection({
                                     </div>
                                   </div>
                                 </div>
-
-                                {/* Chevron */}
-                                <div style={{ position: 'absolute', width: '21.6px', height: '21.6px', right: '8px', top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}>
-                                  <ChevronDown
-                                    className="w-full h-full transition-transform duration-200 text-black"
-                                    style={{
-                                      transform: openAccordion === savedProduct.id ? 'rotate(0deg)' : 'rotate(-180deg)'
-                                    }}
-                                  />
-                                </div>
                               </AccordionTrigger>
                             </div>
 

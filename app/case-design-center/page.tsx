@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import dynamic from "next/dynamic"
 import { useQuery } from "@tanstack/react-query"
 import { useDebounce } from "@/lib/performance-utils"
-import { Search, Pencil, Eye, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Loader2, Trash2, Plus, Paperclip, Zap, Maximize2 } from "lucide-react"
+import { Search, Pencil, Eye, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Loader2, Trash2, Plus, Paperclip, Zap, Maximize2, Info } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -37,6 +37,7 @@ import { clearSlipCreationStorage } from "@/utils/slip-creation-storage"
 import { DynamicProductFields } from "@/components/case-design-center/dynamic-product-fields"
 import { ImplantPartsPopover } from "@/components/implant-parts-popover"
 import { FooterSection } from "./sections/footer-section"
+import { ProductSelectionBadge } from "./components/product-selection-badge"
 import type { ProductCategoryApi, Doctor, Lab, PatientData, Product, SavedProduct } from "./sections/types"
 
 const SavedProductsSection = dynamic(
@@ -269,9 +270,6 @@ export default function CaseDesignCenterPage() {
   const [patientData, setPatientData] = useState<PatientData | null>(null)
   const [createdBy, setCreatedBy] = useState<string>("")
   const [searchQuery, setSearchQuery] = useState<string>("")
-  const [productSearchQuery, setProductSearchQuery] = useState<string>("")
-  const [subcategorySearchQuery, setSubcategorySearchQuery] = useState<string>("")
-  const [productListSearchQuery, setProductListSearchQuery] = useState<string>("")
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null)
   const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null)
@@ -287,6 +285,13 @@ export default function CaseDesignCenterPage() {
   // Use productDetails.extractions as the basis for extraction functionality
   const [productDetails, setProductDetails] = useState<any | null>(null)
   const [isLoadingProductDetails, setIsLoadingProductDetails] = useState(false)
+
+  // Arch selection state - track which arch user wants to configure
+  const [selectedArchForProduct, setSelectedArchForProduct] = useState<"maxillary" | "mandibular" | null>(null)
+  const [showMaxillaryChart, setShowMaxillaryChart] = useState<boolean>(false)
+  const [showMandibularChart, setShowMandibularChart] = useState<boolean>(false)
+  const [selectedProductForMaxillary, setSelectedProductForMaxillary] = useState<Product | null>(null)
+  const [selectedProductForMandibular, setSelectedProductForMandibular] = useState<Product | null>(null)
 
   // Dental chart states
   const [maxillaryTeeth, setMaxillaryTeeth] = useState<number[]>([])
@@ -1182,10 +1187,40 @@ export default function CaseDesignCenterPage() {
 
   // Case summary notes expansion state
   const [isCaseSummaryExpanded, setIsCaseSummaryExpanded] = useState<boolean>(false)
+  const [showCaseSummaryNotes, setShowCaseSummaryNotes] = useState<boolean>(false)
 
   // Track previous notes value to prevent unnecessary parsing
   const previousNotesRef = useRef<string>("")
   const isParsingRef = useRef<boolean>(false)
+  
+  // Refs for scrolling to sections
+  const maxillarySectionRef = useRef<HTMLDivElement>(null)
+  const mandibularSectionRef = useRef<HTMLDivElement>(null)
+  
+  // State for info popover - show when product is selected but no arch chosen
+  const [showInfoPopover, setShowInfoPopover] = useState<boolean>(false)
+  
+  // Auto-show and auto-close info popover when product is selected but no arch is chosen
+  useEffect(() => {
+    if (showProductDetails && selectedProduct && !showMaxillaryChart && !showMandibularChart && !isLoadingProductDetails) {
+      // Show popover after a short delay
+      const showTimer = setTimeout(() => {
+        setShowInfoPopover(true)
+      }, 500)
+      
+      // Auto-close popover after 5 seconds
+      const closeTimer = setTimeout(() => {
+        setShowInfoPopover(false)
+      }, 5500) // 500ms delay + 5 seconds
+      
+      return () => {
+        clearTimeout(showTimer)
+        clearTimeout(closeTimer)
+      }
+    } else {
+      setShowInfoPopover(false)
+    }
+  }, [showProductDetails, selectedProduct, showMaxillaryChart, showMandibularChart, isLoadingProductDetails])
 
   // Handler to toggle accordion - only opens/closes on click
   const handleAccordionChange = (value: string) => {
@@ -1546,32 +1581,40 @@ export default function CaseDesignCenterPage() {
     }
   }
 
-  // Debounce search queries
-  const debouncedProductSearchQuery = useDebounce(productSearchQuery, 500)
-  const debouncedSubcategorySearchQuery = useDebounce(subcategorySearchQuery, 300)
-  const debouncedProductListSearchQuery = useDebounce(productListSearchQuery, 300)
+  // Debounce unified search query
+  const debouncedSearchQuery = useDebounce(searchQuery, 300)
 
   // Filtered subcategories based on search query
+  // Only show subcategories that belong to the currently selected category
   const filteredSubcategories = useMemo(() => {
-    if (!debouncedSubcategorySearchQuery.trim()) {
-      return subcategoriesByCategory
+    // First, ensure we only show subcategories for the selected category
+    let categoryFilteredSubcategories = subcategoriesByCategory
+    if (selectedCategoryId) {
+      categoryFilteredSubcategories = subcategoriesByCategory.filter(
+        (subcategory: ProductCategory) => subcategory.parent_id === selectedCategoryId
+      )
     }
-    const query = debouncedSubcategorySearchQuery.toLowerCase().trim()
-    return subcategoriesByCategory.filter((subcategory: ProductCategory) =>
+
+    // Then apply search filter if there's a search query
+    if (!debouncedSearchQuery.trim()) {
+      return categoryFilteredSubcategories
+    }
+    const query = debouncedSearchQuery.toLowerCase().trim()
+    return categoryFilteredSubcategories.filter((subcategory: ProductCategory) =>
       subcategory.sub_name?.toLowerCase().includes(query)
     )
-  }, [subcategoriesByCategory, debouncedSubcategorySearchQuery])
+  }, [subcategoriesByCategory, debouncedSearchQuery, selectedCategoryId])
 
   // Filtered products based on search query
   const filteredProducts = useMemo(() => {
-    if (!debouncedProductListSearchQuery.trim()) {
+    if (!debouncedSearchQuery.trim()) {
       return products
     }
-    const query = debouncedProductListSearchQuery.toLowerCase().trim()
+    const query = debouncedSearchQuery.toLowerCase().trim()
     return products.filter((product: Product) =>
       product.name?.toLowerCase().includes(query)
     )
-  }, [products, debouncedProductListSearchQuery])
+  }, [products, debouncedSearchQuery])
 
   // Update arrow visibility when subcategories change
   useEffect(() => {
@@ -1601,10 +1644,10 @@ export default function CaseDesignCenterPage() {
     return () => window.removeEventListener('resize', handleResize)
   }, [showSubcategories, showProducts, filteredSubcategories, filteredProducts])
 
-  // Product search with React Query
+  // Product search with React Query - always search products when there's a search query
   const labId = selectedLab?.id || selectedLab?.customer_id
-  const searchTerm = debouncedProductSearchQuery.trim()
-  const shouldSearch = !showSubcategories && !showProducts && !showProductDetails && !!searchTerm && !!labId
+  const searchTerm = debouncedSearchQuery.trim()
+  const shouldSearch = !showProductDetails && !!searchTerm && !!labId
 
   const {
     data: productSearchResults = [],
@@ -1627,13 +1670,6 @@ export default function CaseDesignCenterPage() {
     staleTime: 2 * 60 * 1000, // 2 minutes
     gcTime: 5 * 60 * 1000, // 5 minutes
   })
-
-  // Clear search query when navigating away from categories view
-  useEffect(() => {
-    if (showSubcategories || showProducts || showProductDetails) {
-      setProductSearchQuery("")
-    }
-  }, [showSubcategories, showProducts, showProductDetails])
 
   // Scroll to bottom when tooth selection is shown
   useEffect(() => {
@@ -1786,11 +1822,19 @@ export default function CaseDesignCenterPage() {
 
   const handleProductSelect = async (product: Product) => {
     setSelectedProduct(product)
-    setShowProductDetails(true)
+    // Don't show product details/charts immediately - wait for user to choose upper/lower
+    setShowProductDetails(true) // Keep this true for other UI elements, but charts will be controlled by showMaxillaryChart/showMandibularChart
     setShowProducts(false)
     setIsLoadingProductDetails(true)
     setProductDetails(null)
-    setProductListSearchQuery("")
+    // Keep search query for when user navigates back
+
+    // Reset arch selection state when selecting a new product
+    setSelectedArchForProduct(null)
+    setShowMaxillaryChart(false)
+    setShowMandibularChart(false)
+    setSelectedProductForMaxillary(null)
+    setSelectedProductForMandibular(null)
 
     // Reset missing teeth card clicked state when selecting a new product
     if (isFixedRestoration) {
@@ -1883,12 +1927,97 @@ export default function CaseDesignCenterPage() {
     setMissingTeethCardClicked(true)
   }
 
+  // Handler for adding upper product
+  const handleAddUpperProduct = () => {
+    if (!selectedProduct) return
+    setSelectedArchForProduct("maxillary")
+    setShowMaxillaryChart(true)
+    setSelectedProductForMaxillary(selectedProduct)
+    // Reset maxillary teeth when starting fresh
+    setMaxillaryTeeth([])
+    setMaxillaryRetentionTypes({})
+    
+    // Scroll to maxillary section after state update
+    setTimeout(() => {
+      maxillarySectionRef.current?.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'start' 
+      })
+    }, 100)
+  }
+
+  // Handler for adding lower product
+  const handleAddLowerProduct = () => {
+    if (!selectedProduct) return
+    setSelectedArchForProduct("mandibular")
+    setShowMandibularChart(true)
+    setSelectedProductForMandibular(selectedProduct)
+    // Reset mandibular teeth when starting fresh
+    setMandibularTeeth([])
+    setMandibularRetentionTypes({})
+    
+    // Scroll to mandibular section after state update
+    setTimeout(() => {
+      mandibularSectionRef.current?.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'start' 
+      })
+    }, 100)
+  }
+
+  // Handler for deleting upper product
+  const handleDeleteUpperProduct = () => {
+    setShowMaxillaryChart(false)
+    setSelectedProductForMaxillary(null)
+    setMaxillaryTeeth([])
+    setMaxillaryRetentionTypes({})
+    setMaxillaryMaterial("")
+    setMaxillaryStumpShade("")
+    setMaxillaryRetention("")
+    setMaxillaryNotes("")
+    setMaxillaryMaterialId(undefined)
+    setMaxillaryRetentionId(undefined)
+    setMaxillaryRetentionOptionId(undefined)
+    setMaxillaryGumShadeId(undefined)
+    setMaxillaryShadeId(undefined)
+    setMaxillaryStageId(undefined)
+    setMaxillaryToothShade("")
+    setMaxillaryStage("")
+    // If no arch is selected anymore, reset selectedArchForProduct
+    if (!showMandibularChart) {
+      setSelectedArchForProduct(null)
+    }
+  }
+
+  // Handler for deleting lower product
+  const handleDeleteLowerProduct = () => {
+    setShowMandibularChart(false)
+    setSelectedProductForMandibular(null)
+    setMandibularTeeth([])
+    setMandibularRetentionTypes({})
+    setMandibularMaterial("")
+    setMandibularRetention("")
+    setMandibularImplantDetails("")
+    setMandibularMaterialId(undefined)
+    setMandibularRetentionId(undefined)
+    setMandibularRetentionOptionId(undefined)
+    setMandibularGumShadeId(undefined)
+    setMandibularShadeId(undefined)
+    setMandibularStageId(undefined)
+    setMandibularToothShade("")
+    setMandibularStage("")
+    // If no arch is selected anymore, reset selectedArchForProduct
+    if (!showMaxillaryChart) {
+      setSelectedArchForProduct(null)
+    }
+  }
+
   const handleBackToSubcategories = () => {
     setShowProducts(false)
     setShowSubcategories(true)
     setSelectedProduct(null)
     setProducts([])
-    setProductListSearchQuery("")
+    // Keep search query for filtering subcategories
   }
 
   const handleBackToProducts = () => {
@@ -1896,6 +2025,12 @@ export default function CaseDesignCenterPage() {
     setShowProducts(true)
     setSelectedProduct(null)
     setMissingTeethCardClicked(false)
+    // Reset arch selection state
+    setSelectedArchForProduct(null)
+    setShowMaxillaryChart(false)
+    setShowMandibularChart(false)
+    setSelectedProductForMaxillary(null)
+    setSelectedProductForMandibular(null)
   }
 
   const handleBackToCategories = () => {
@@ -1904,8 +2039,7 @@ export default function CaseDesignCenterPage() {
     setShowProductDetails(false)
     setSelectedCategory(null)
     setSelectedCategoryId(null)
-    setSubcategorySearchQuery("")
-    setProductListSearchQuery("")
+    setSearchQuery("") // Clear search when going back to categories
     setSelectedSubcategory(null)
     setSelectedSubcategoryId(null)
     setSelectedProduct(null)
@@ -3228,8 +3362,11 @@ export default function CaseDesignCenterPage() {
 
   // Auto-save product without resetting form - keeps user on current product details
   const handleAutoSaveProduct = (type: "maxillary" | "mandibular") => {
-    // Validate that we have a product selected
-    if (!selectedProduct) {
+    // Use the appropriate product based on arch selection
+    const productToUse = type === "maxillary" ? selectedProductForMaxillary : selectedProductForMandibular
+    
+    // Validate that we have a product selected for this arch
+    if (!productToUse) {
       return
     }
 
@@ -3246,14 +3383,14 @@ export default function CaseDesignCenterPage() {
 
     // Create a unique key that includes the arch type and teeth
     const teethForTypeSorted = [...teethForType].sort()
-    const currentProductKey = `${selectedProduct.id}-${selectedCategoryId}-${selectedSubcategoryId}-${type}-${JSON.stringify(teethForTypeSorted)}`
+    const currentProductKey = `${productToUse.id}-${selectedCategoryId}-${selectedSubcategoryId}-${type}-${JSON.stringify(teethForTypeSorted)}`
 
     // Mark that we're processing this product configuration
     autoAddedProductRef.current = currentProductKey
 
     // Auto-populate product name and retention type if not already set
-    const finalMaxillaryMaterial = maxillaryMaterial || (type === "maxillary" ? selectedProduct.name : "")
-    const finalMandibularMaterial = mandibularMaterial || (type === "mandibular" ? selectedProduct.name : "")
+    const finalMaxillaryMaterial = maxillaryMaterial || (type === "maxillary" ? productToUse.name : "")
+    const finalMandibularMaterial = mandibularMaterial || (type === "mandibular" ? productToUse.name : "")
     const finalMaxillaryRetention = maxillaryRetention
     const finalMandibularRetention = mandibularRetention
 
@@ -3261,7 +3398,7 @@ export default function CaseDesignCenterPage() {
     setSavedProducts((prevProducts) => {
       // Find existing auto-saved product in the CURRENT state
       const existingIndex = [...prevProducts].reverse().findIndex(p =>
-        p.product.id === selectedProduct.id &&
+        p.product.id === productToUse.id &&
         p.categoryId === selectedCategoryId &&
         p.subcategoryId === selectedSubcategoryId &&
         p.addedFrom === type
@@ -3301,7 +3438,7 @@ export default function CaseDesignCenterPage() {
       // Create saved product configuration
       const savedProduct: SavedProduct = {
         id: productId,
-        product: selectedProduct,
+        product: productToUse,
         productDetails: productDetails,
         category: selectedCategory,
         categoryId: selectedCategoryId,
@@ -3377,11 +3514,11 @@ export default function CaseDesignCenterPage() {
 
         if (productDetails?.advance_fields && Array.isArray(productDetails.advance_fields)) {
           setProductAdvanceFields(prev => ({ ...prev, [savedProduct.id]: productDetails.advance_fields }))
-        } else if (selectedProduct?.id) {
+        } else if (productToUse?.id) {
           const fetchAdvanceFields = async () => {
             try {
               const labId = selectedLab?.id || selectedLab?.customer_id
-              const details = await fetchProductDetails(selectedProduct.id, labId)
+              const details = await fetchProductDetails(productToUse.id, labId)
               if (details?.advance_fields && Array.isArray(details.advance_fields)) {
                 setProductAdvanceFields(prev => ({ ...prev, [savedProduct.id]: details.advance_fields }))
               }
@@ -3414,11 +3551,25 @@ export default function CaseDesignCenterPage() {
 
   // Handler for Add Product button - saves current product and resets to categories
   const handleAddProduct = (type: "maxillary" | "mandibular") => {
-    // Validate that we have a product selected
-    if (!selectedProduct) {
+    // Use the appropriate product based on arch selection
+    const productToUse = type === "maxillary" ? selectedProductForMaxillary : selectedProductForMandibular
+    
+    // Validate that we have a product selected for this arch
+    if (!productToUse) {
       toast({
         title: "No Product Selected",
-        description: "Please select a product first",
+        description: `Please add a product for ${type === "maxillary" ? "upper" : "lower"} arch first`,
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Validate that the chart is visible for this arch
+    const chartVisible = type === "maxillary" ? showMaxillaryChart : showMandibularChart
+    if (!chartVisible) {
+      toast({
+        title: "Chart Not Visible",
+        description: `Please click "Add ${type === "maxillary" ? "Upper" : "Lower"} Product" first`,
         variant: "destructive",
       })
       return
@@ -3447,8 +3598,8 @@ export default function CaseDesignCenterPage() {
 
     // Auto-populate product name and retention type if not already set
     // Material: Use product name if not set
-    const finalMaxillaryMaterial = maxillaryMaterial || (type === "maxillary" ? selectedProduct.name : "")
-    const finalMandibularMaterial = mandibularMaterial || (type === "mandibular" ? selectedProduct.name : "")
+    const finalMaxillaryMaterial = maxillaryMaterial || (type === "maxillary" ? productToUse.name : "")
+    const finalMandibularMaterial = mandibularMaterial || (type === "mandibular" ? productToUse.name : "")
     // Retention: Keep existing value or leave empty (user will select it)
     const finalMaxillaryRetention = maxillaryRetention
     const finalMandibularRetention = mandibularRetention
@@ -3500,7 +3651,7 @@ export default function CaseDesignCenterPage() {
     // Create saved product configuration
     const savedProduct: SavedProduct = {
       id: productId,
-      product: selectedProduct,
+      product: productToUse,
       productDetails: productDetails, // Include full product details with extractions
       category: selectedCategory,
       categoryId: selectedCategoryId,
@@ -3626,7 +3777,7 @@ export default function CaseDesignCenterPage() {
 
     toast({
       title: "Product Added",
-      description: `${selectedProduct.name} has been added to your case`,
+      description: `${productToUse.name} has been added to your case`,
     })
 
     // Update case summary notes when product is added
@@ -3701,6 +3852,24 @@ export default function CaseDesignCenterPage() {
     setSelectedCategoryId(savedProduct.categoryId)
     setSelectedSubcategory(savedProduct.subcategory)
     setSelectedSubcategoryId(savedProduct.subcategoryId)
+    
+    // Set arch-specific products and show charts based on which arch has teeth
+    const hasMaxillaryTeeth = Array.isArray(savedProduct.maxillaryTeeth) && savedProduct.maxillaryTeeth.length > 0
+    const hasMandibularTeeth = Array.isArray(savedProduct.mandibularTeeth) && savedProduct.mandibularTeeth.length > 0
+    
+    if (hasMaxillaryTeeth) {
+      setSelectedProductForMaxillary(savedProduct.product)
+      setShowMaxillaryChart(true)
+      setSelectedArchForProduct("maxillary")
+    }
+    
+    if (hasMandibularTeeth) {
+      setSelectedProductForMandibular(savedProduct.product)
+      setShowMandibularChart(true)
+      if (!hasMaxillaryTeeth) {
+        setSelectedArchForProduct("mandibular")
+      }
+    }
     
     // Update teeth selection to show the teeth from the saved product
     // Always set the arrays to ensure proper state updates, even if empty
@@ -4300,7 +4469,15 @@ export default function CaseDesignCenterPage() {
       {/* Case Design Center Label */}
       <div className="bg-[#fdfdfd] h-[37px] grid grid-cols-3 items-center px-5">
         <div className="flex items-center">
-          {showProducts && !showProductDetails ? (
+          {showProductDetails ? (
+            <Button
+              onClick={handleBackToProducts}
+              variant="ghost"
+              className="text-[#1162a8] hover:text-[#0d4d87] hover:bg-[#dfeefb]"
+            >
+              ← Back to Products
+            </Button>
+          ) : showProducts && !showProductDetails ? (
             <Button
               onClick={handleBackToSubcategories}
               variant="ghost"
@@ -4318,308 +4495,146 @@ export default function CaseDesignCenterPage() {
             </Button>
           ) : null}
         </div>
-        <div className="flex items-center justify-center">
+        <div className="flex items-center justify-center gap-2">
           <p className="text-base font-bold text-black">CASE DESIGN CENTER</p>
+          {/* Info Popover - Show when product is selected but no arch chosen */}
+          {showProductDetails && selectedProduct && !showMaxillaryChart && !showMandibularChart && !isLoadingProductDetails && (
+            <Popover open={showInfoPopover} onOpenChange={setShowInfoPopover}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="flex items-center justify-center animate-pulse"
+                  style={{
+                    width: "24px",
+                    height: "24px",
+                    cursor: "pointer",
+                    background: "transparent",
+                    border: "none",
+                    borderRadius: "50%",
+                    padding: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                  aria-label="Information about product selection"
+                >
+                  <Info className="w-5 h-5 text-[#1162A8]" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent 
+                side="top" 
+                align="center"
+                className="w-96 p-4"
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  boxShadow: "none",
+                  padding: 0,
+                }}
+              >
+                <div className="relative bg-orange-100 border border-orange-200 rounded-lg px-4 py-3 shadow-lg max-w-sm">
+                  <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-orange-100 border-r border-b border-orange-200 transform rotate-45"></div>
+                  <p className="text-sm text-orange-800">
+                    Please click <strong>"Add Upper Product"</strong> or <strong>"Add Lower Product"</strong> to proceed with tooth selection for the selected product.
+                  </p>
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
         </div>
-        <div></div>
       </div>
 
       {/* Main Content */}
-      <div className="bg-[#fdfdfd] min-h-full" style={{ paddingBottom: "20px" }}>
+      <div className="min-h-full" style={{ paddingBottom: "20px" }}>
         <div className="container mx-auto px-5 py-5" style={{ paddingBottom: "20px" }}>
           {/* Search and Category Selection */}
           <div className="flex flex-col items-center">
             {/* Search and Labels Row */}
             <div className="flex items-center w-full max-w-[1400px] gap-4">
-              {/* Two Column Layout for Labels */}
-              <div className="grid grid-cols-2 flex-1 gap-4">
-                {/* MAXILLARY Column */}
-                <div className="flex items-center justify-center gap-3">
-                  {showProductDetails && (
-                    <p className="text-base font-bold text-black text-center" style={{ fontWeight: 700, letterSpacing: "0.01em" }}>MAXILLARY</p>
-                  )}
-                  {/* Only show Add Product button when in tooth selection step */}
-                  {showProductDetails && selectedProduct && (
-                    <div
-                      style={{
-                        position: "relative",
-                        width: "96.22px",
-                        height: "22px",
-                        flex: "none",
-                        order: 1,
-                        flexGrow: 0,
-                      }}
-                    >
-                      {/* Background Rectangle */}
-                      <div
-                        style={{
-                          position: "absolute",
-                          width: "96.22px",
-                          height: "18.53px",
-                          left: "0px",
-                          top: "1.74px",
-                          background: "#1162A8",
-                          boxShadow: "1px 1px 3.5px rgba(0, 0, 0, 0.25)",
-                          borderRadius: "6px",
-                          zIndex: 1,
-                        }}
-                      />
-                      {/* Add icon (+) */}
-                      <span
-                        style={{
-                          position: "absolute",
-                          width: "13px",
-                          height: "13px",
-                          left: "9.18px", // 143.07 - 133.89
-                          top: "4.5px",
-                          zIndex: 2,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center"
-                        }}
-                      >
-                        <svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M6.5 4.875V8.125M8.125 6.5H4.875M11.375 6.5C11.375 7.14019 11.2489 7.77412 11.0039 8.36558C10.7589 8.95704 10.3998 9.49446 9.94715 9.94715C9.49446 10.3998 8.95704 10.7589 8.36558 11.0039C7.77412 11.2489 7.14019 11.375 6.5 11.375C5.85981 11.375 5.22588 11.2489 4.63442 11.0039C4.04296 10.7589 3.50554 10.3998 3.05285 9.94715C2.60017 9.49446 2.24108 8.95704 1.99609 8.36558C1.7511 7.77412 1.625 7.14019 1.625 6.5C1.625 5.20707 2.13861 3.96709 3.05285 3.05285C3.96709 2.13861 5.20707 1.625 6.5 1.625C7.79293 1.625 9.03291 2.13861 9.94715 3.05285C10.8614 3.96709 11.375 5.20707 11.375 6.5Z" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-
-                      </span>
-                      {/* Add Product Label */}
-                      <button
-                        type="button"
-                        onClick={() => handleAddProduct("maxillary")}
-                        style={{
-                          all: "unset",
-                          cursor: "pointer",
-                          position: "absolute",
-                          width: "96.22px",
-                          height: "22px",
-                          left: "0px",
-                          top: "0px",
-                          zIndex: 3,
-                        }}
-                      >
-                        <span
-                          style={{
-                            position: "absolute",
-                            width: "59px",
-                            height: "22px",
-                            left: "26.08px", // 159.97 - 133.89
-                            top: "0px",
-                            fontFamily: "Verdana",
-                            fontStyle: "normal",
-                            fontWeight: 400,
-                            fontSize: "10px",
-                            lineHeight: "22px",
-                            textAlign: "center",
-                            letterSpacing: "-0.02em",
-                            color: "#FFFFFF",
-                            userSelect: "none",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center"
-                          }}
-                        >
-                          Add Product
-                        </span>
-                      </button>
-                    </div>
-                  )}
+              {/* Product Selection Badge - Show when product is selected and details are loaded */}
+              {showProductDetails && selectedProduct && !isLoadingProductDetails && productDetails && (
+                <div className="w-full">
+                  <ProductSelectionBadge
+                    product={selectedProduct}
+                    onAddUpper={handleAddUpperProduct}
+                    onAddLower={handleAddLowerProduct}
+                    onDeleteUpper={handleDeleteUpperProduct}
+                    onDeleteLower={handleDeleteLowerProduct}
+                    hasMaxillaryProduct={!!selectedProductForMaxillary}
+                    hasMandibularProduct={!!selectedProductForMandibular}
+                    showMaxillaryChart={showMaxillaryChart}
+                    showMandibularChart={showMandibularChart}
+                  />
                 </div>
-
-                {/* MANDIBULAR Column */}
-                <div className="flex items-center justify-center gap-3">
-                  {showProductDetails && (
-                    <p className="text-base font-bold text-black text-center" style={{ fontWeight: 700, letterSpacing: "0.01em" }}>MANDIBULAR</p>
-                  )}
-                  {/* Only show Add Product button when in tooth selection step */}
-                  {showProductDetails && selectedProduct && (
-                    <div
-                      style={{
-                        position: "relative",
-                        width: "96.22px",
-                        height: "22px",
-                        flex: "none",
-                        order: 1,
-                        flexGrow: 0,
-                      }}
-                    >
-                      {/* Background Rectangle */}
-                      <div
-                        style={{
-                          position: "absolute",
-                          width: "96.22px",
-                          height: "18.53px",
-                          left: "0px",
-                          top: "1.74px",
-                          background: "#1162A8",
-                          boxShadow: "1px 1px 3.5px rgba(0, 0, 0, 0.25)",
-                          borderRadius: "6px",
-                          zIndex: 1,
-                        }}
-                      />
-                      {/* Add icon (+) */}
-                      <span
-                        style={{
-                          position: "absolute",
-                          width: "13px",
-                          height: "13px",
-                          left: "9.18px", // 143.07 - 133.89
-                          top: "4.5px",
-                          zIndex: 2,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center"
-                        }}
-                      >
-                        <svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M6.5 4.875V8.125M8.125 6.5H4.875M11.375 6.5C11.375 7.14019 11.2489 7.77412 11.0039 8.36558C10.7589 8.95704 10.3998 9.49446 9.94715 9.94715C9.49446 10.3998 8.95704 10.7589 8.36558 11.0039C7.77412 11.2489 7.14019 11.375 6.5 11.375C5.85981 11.375 5.22588 11.2489 4.63442 11.0039C4.04296 10.7589 3.50554 10.3998 3.05285 9.94715C2.60017 9.49446 2.24108 8.95704 1.99609 8.36558C1.7511 7.77412 1.625 7.14019 1.625 6.5C1.625 5.20707 2.13861 3.96709 3.05285 3.05285C3.96709 2.13861 5.20707 1.625 6.5 1.625C7.79293 1.625 9.03291 2.13861 9.94715 3.05285C10.8614 3.96709 11.375 5.20707 11.375 6.5Z" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-
-                      </span>
-                      {/* Add Product Label */}
-                      <button
-                        type="button"
-                        onClick={() => handleAddProduct("mandibular")}
-                        style={{
-                          all: "unset",
-                          cursor: "pointer",
-                          position: "absolute",
-                          width: "96.22px",
-                          height: "22px",
-                          left: "0px",
-                          top: "0px",
-                          zIndex: 3,
-                        }}
-                      >
-                        <span
-                          style={{
-                            position: "absolute",
-                            width: "59px",
-                            height: "22px",
-                            left: "26.08px", // 159.97 - 133.89
-                            top: "0px",
-                            fontFamily: "Verdana",
-                            fontStyle: "normal",
-                            fontWeight: 400,
-                            fontSize: "10px",
-                            lineHeight: "22px",
-                            textAlign: "center",
-                            letterSpacing: "-0.02em",
-                            color: "#FFFFFF",
-                            userSelect: "none",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center"
-                          }}
-                        >
-                          Add Product
-                        </span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
+              )}
+              
             </div>
 
-            {/* Product Category Cards - Show when no subcategories, products, or product details are shown */}
-            {!showSubcategories && !showProducts && !showProductDetails && (
-              <div className="w-full flex flex-col gap-4 mb-6">
-                {/* Search Bar for Products */}
-                <div className="flex justify-center">
-                  <div className="relative max-w-[373px] w-full">
-                    <Input
-                      type="text"
-                      placeholder="Search Products"
-                      value={productSearchQuery}
-                      onChange={(e) => setProductSearchQuery(e.target.value)}
-                      className="h-[34px] pl-3 pr-10 border-[#b4b0b0] rounded"
-                    />
-                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-3 w-3 text-[#b4b0b0]" />
-                  </div>
+            {/* Unified Search Bar - Show in all views */}
+            {!showProductDetails && (
+              <div className="flex justify-center mb-4">
+                <div className="relative max-w-[373px] w-full">
+                  <Input
+                    type="text"
+                    placeholder="Search Products"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="h-[34px] pl-3 pr-10 border-[#b4b0b0] rounded"
+                  />
+                  <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-3 w-3 text-[#b4b0b0]" />
                 </div>
+              </div>
+            )}
 
-                {/* Product Search Results */}
-                {productSearchQuery.trim() && (
-                  <div className="w-full">
-                    {isSearchingProducts ? (
-                      <div className="flex items-center justify-center py-20">
-                        <div className="text-gray-500">Searching products...</div>
-                      </div>
-                    ) : productSearchResults.length === 0 ? (
-                      <div className="flex items-center justify-center py-10">
-                        <div className="text-center">
-                          <p className="text-gray-600">No products found matching "{productSearchQuery}"</p>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex gap-4 justify-center flex-wrap">
-                        {productSearchResults.map((product: Product) => {
-                          const isSelected = selectedProduct?.id === product.id
-                          return (
-                            <div
-                              key={product.id}
-                              onClick={() => handleProductSelect(product)}
-                              className={`bg-white border-2 ${isSelected ? "border-[#1162a8] shadow-lg" : "border-[#b4b0b0] hover:border-[#1162A8]"
-                                } rounded-lg h-[210px] w-[155px] p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:shadow-md transition-all`}
-                            >
-                              <div className="w-[117px] h-[117px] rounded overflow-hidden">
-                                <img
-                                  src={product.image_url || "/images/product-default.png"}
-                                  alt={product.name}
-                                  className="w-full h-full object-cover"
-                                  onError={(e) => {
-                                    e.currentTarget.src = "/images/product-default.png"
-                                  }}
-                                />
-                              </div>
-                              <p className="text-[11px] text-black text-center">
-                                {product.name}
-                              </p>
-                              <div className="flex flex-col gap-1 items-start w-[87px]">
-                                <div className="bg-[rgba(17,98,168,0.2)] border border-[#1162a8] rounded-[10px] h-[15px] flex items-center justify-center w-full">
-                                  <p className="text-[#1162a8] text-[9.5px]">
-                                    ${product.price || 999}
-                                  </p>
-                                </div>
-                                <div className="bg-[rgba(146,147,147,0.2)] border border-[#929393] rounded-[10px] h-[15px] flex items-center justify-center w-full">
-                                  <p className="text-[#929393] text-[9.5px]">
-                                    est {product.estimated_days || 14} days
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
+            {/* Product Search Results - Show when there's a search query, regardless of view */}
+            {!showProductDetails && searchQuery.trim() && (
+              <div className="w-full mb-6">
+                {isSearchingProducts ? (
+                  <div className="flex items-center justify-center py-20">
+                    <div className="text-gray-500">Searching products...</div>
                   </div>
-                )}
-
-                {/* Category Cards - Show when no search query */}
-                {!productSearchQuery.trim() && (
-                  <div className="flex gap-4 justify-center">
-                    {mainCategories.map((category: ProductCategoryApi) => {
-                      const isSelected = selectedCategory === category.name
+                ) : productSearchResults.length === 0 ? (
+                  <div className="flex items-center justify-center py-10">
+                    <div className="text-center">
+                      <p className="text-gray-600">No products found matching "{searchQuery}"</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-4 justify-center flex-wrap">
+                    {productSearchResults.map((product: Product) => {
+                      const isSelected = selectedProduct?.id === product.id
                       return (
                         <div
-                          key={category.id}
-                          onClick={() => handleCategorySelect(category)}
+                          key={product.id}
+                          onClick={() => handleProductSelect(product)}
                           className={`bg-white border-2 ${isSelected ? "border-[#1162a8] shadow-lg" : "border-[#b4b0b0] hover:border-[#1162A8]"
-                            } rounded-lg h-[220px] w-[200px] p-4 flex flex-col items-center justify-center gap-4 cursor-pointer hover:shadow-md transition-all`}
+                            } rounded-lg h-[210px] w-[155px] p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:shadow-md transition-all`}
                         >
-                          <div className="w-[150px] h-[150px] rounded overflow-hidden">
+                          <div className="w-[117px] h-[117px] rounded overflow-hidden">
                             <img
-                              src={category.image_url || getCategoryImage(category.name)}
-                              alt={category.name}
+                              src={product.image_url || "/images/product-default.png"}
+                              alt={product.name}
                               className="w-full h-full object-cover"
                               onError={(e) => {
-                                e.currentTarget.src = getCategoryImage(category.name)
+                                e.currentTarget.src = "/images/product-default.png"
                               }}
                             />
                           </div>
-                          <p className="text-base text-black text-center">
-                            {category.name}
+                          <p className="text-[11px] text-black text-center">
+                            {product.name}
                           </p>
+                          <div className="flex flex-col gap-1 items-start w-[87px]">
+                            <div className="bg-[rgba(17,98,168,0.2)] border border-[#1162a8] rounded-[10px] h-[15px] flex items-center justify-center w-full">
+                              <p className="text-[#1162a8] text-[9.5px]">
+                                ${product.price || 999}
+                              </p>
+                            </div>
+                            <div className="bg-[rgba(146,147,147,0.2)] border border-[#929393] rounded-[10px] h-[15px] flex items-center justify-center w-full">
+                              <p className="text-[#929393] text-[9.5px]">
+                                est {product.estimated_days || 14} days
+                              </p>
+                            </div>
+                          </div>
                         </div>
                       )
                     })}
@@ -4628,23 +4643,43 @@ export default function CaseDesignCenterPage() {
               </div>
             )}
 
-            {/* Subcategory Cards - Show when category is selected */}
-            {showSubcategories && !showProducts && !showProductDetails && (
-              <div className="w-full flex flex-col gap-4">
-                {/* Search Bar for Subcategories */}
-                <div className="flex justify-center">
-                  <div className="relative max-w-[373px] w-full">
-                    <Input
-                      type="text"
-                      placeholder="Search Products"
-                      value={subcategorySearchQuery}
-                      onChange={(e) => setSubcategorySearchQuery(e.target.value)}
-                      className="h-[34px] pl-3 pr-10 border-[#b4b0b0] rounded"
-                    />
-                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-3 w-3 text-[#b4b0b0]" />
-                  </div>
+            {/* Product Category Cards - Show when no subcategories, products, or product details are shown, and no search query */}
+            {!showSubcategories && !showProducts && !showProductDetails && !searchQuery.trim() && (
+              <div className="w-full flex flex-col gap-4 mb-6">
+                {/* Category Cards */}
+                <div className="flex gap-4 justify-center">
+                  {mainCategories.map((category: ProductCategoryApi) => {
+                    const isSelected = selectedCategory === category.name
+                    return (
+                      <div
+                        key={category.id}
+                        onClick={() => handleCategorySelect(category)}
+                        className={`bg-white border-2 ${isSelected ? "border-[#1162a8] shadow-lg" : "border-[#b4b0b0] hover:border-[#1162A8]"
+                          } rounded-lg h-[220px] w-[200px] p-4 flex flex-col items-center justify-center gap-4 cursor-pointer hover:shadow-md transition-all`}
+                      >
+                        <div className="w-[150px] h-[150px] rounded overflow-hidden">
+                          <img
+                            src={category.image_url || getCategoryImage(category.name)}
+                            alt={category.name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.src = getCategoryImage(category.name)
+                            }}
+                          />
+                        </div>
+                        <p className="text-base text-black text-center">
+                          {category.name}
+                        </p>
+                      </div>
+                    )
+                  })}
                 </div>
+              </div>
+            )}
 
+            {/* Subcategory Cards - Show when category is selected and no search query */}
+            {showSubcategories && !showProducts && !showProductDetails && !searchQuery.trim() && (
+              <div className="w-full flex flex-col gap-4">
                 {subcategoriesLoading ? (
                   <div className="flex items-center justify-center py-20">
                     <div className="text-gray-500">Loading subcategories...</div>
@@ -4662,8 +4697,8 @@ export default function CaseDesignCenterPage() {
                   <div className="flex items-center justify-center py-20">
                     <div className="text-center">
                       <p className="text-gray-600 mb-4">
-                        {subcategorySearchQuery.trim()
-                          ? `No subcategories found matching "${subcategorySearchQuery}"`
+                        {searchQuery.trim()
+                          ? `No subcategories found matching "${searchQuery}"`
                           : "No subcategories available for this category."}
                       </p>
                       <Button onClick={handleBackToCategories} variant="outline">
@@ -4737,23 +4772,9 @@ export default function CaseDesignCenterPage() {
               </div>
             )}
 
-            {/* Product Cards - Show when subcategory is selected */}
-            {showProducts && !showProductDetails && (
+            {/* Product Cards - Show when subcategory is selected and no search query */}
+            {showProducts && !showProductDetails && !searchQuery.trim() && (
               <div className="w-full flex flex-col gap-4">
-                {/* Search Bar for Products */}
-                <div className="flex justify-center">
-                  <div className="relative max-w-[373px] w-full">
-                    <Input
-                      type="text"
-                      placeholder="Search Products"
-                      value={productListSearchQuery}
-                      onChange={(e) => setProductListSearchQuery(e.target.value)}
-                      className="h-[34px] pl-3 pr-10 border-[#b4b0b0] rounded"
-                    />
-                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-3 w-3 text-[#b4b0b0]" />
-                  </div>
-                </div>
-
                 {isLoadingProducts ? (
                   <div className="flex items-center justify-center py-20">
                     <div className="text-gray-500">Loading products...</div>
@@ -4762,8 +4783,8 @@ export default function CaseDesignCenterPage() {
                   <div className="flex items-center justify-center py-20">
                     <div className="text-center">
                       <p className="text-gray-600 mb-4">
-                        {productListSearchQuery.trim()
-                          ? `No products found matching "${productListSearchQuery}"`
+                        {searchQuery.trim()
+                          ? `No products found matching "${searchQuery}"`
                           : "No products available for this subcategory."}
                       </p>
                       <Button onClick={handleBackToSubcategories} variant="outline">
@@ -4872,7 +4893,7 @@ export default function CaseDesignCenterPage() {
                           } rounded-lg flex items-center justify-center hover:bg-[#DFEEFB] transition-colors`}
                         >
                           <span className="font-bold text-[15.5px] text-center leading-tight">
-                            Set as Stump shade
+                            Set as Stump shades
                           </span>
                         </button>
                       </div>
@@ -4890,15 +4911,39 @@ export default function CaseDesignCenterPage() {
                 )}
 
                 {/* Tooth Selection Interface */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-24 lg:gap-24 mb-8">
-                  {/* MAXILLARY Section */}
-                  <div className="flex flex-col w-full">
+                <div className={`grid gap-24 lg:gap-24 mb-8 ${showMaxillaryChart && showMandibularChart ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
+                  {/* MAXILLARY Section - Only show when maxillary chart is visible */}
+                  {showMaxillaryChart && (
+                  <div ref={maxillarySectionRef} className="flex flex-col w-full">
                     {/* Selected Product Badge */}
-                    {selectedProduct && (
+                    {selectedProductForMaxillary && (
                       <div
                         className="relative flex items-center justify-center"
                         style={{ width: "100%", height: "32px", flex: "none", order: 0, flexGrow: 0 }}
                       >
+                        {/* Delete Button - Left Edge */}
+                        <button
+                          onClick={handleDeleteUpperProduct}
+                          style={{
+                            position: "absolute",
+                            left: "0",
+                            top: "0",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: "32px",
+                            height: "32px",
+                            background: "#DC2626",
+                            borderRadius: "6px",
+                            border: "none",
+                            cursor: "pointer",
+                            zIndex: 10,
+                          }}
+                          aria-label="Delete upper product"
+                        >
+                          <Trash2 className="h-4 w-4 text-white" />
+                        </button>
+                        
                         <div
                           className="absolute left-1/2"
                           style={{
@@ -4923,7 +4968,7 @@ export default function CaseDesignCenterPage() {
                               fontFamily: "Verdana",
                               fontStyle: "normal",
                               fontWeight: 400,
-                              fontSize: "10px",
+                              fontSize: "15px",
                               lineHeight: "22px",
                               textAlign: "center",
                               letterSpacing: "-0.02em",
@@ -4933,10 +4978,9 @@ export default function CaseDesignCenterPage() {
                               textOverflow: "ellipsis"
                             }}
                           >
-                            {selectedProduct.name}
-                            {/* {maxillaryTeeth && maxillaryTeeth.length > 0 && (
+                            {selectedProductForMaxillary.name}
+                            {maxillaryTeeth && maxillaryTeeth.length > 0 && (
                               <>
-                                {"  |  "}
                                 <span>
                                   {maxillaryTeeth.length === 1
                                     ? `#${maxillaryTeeth[0]}`
@@ -4947,11 +4991,16 @@ export default function CaseDesignCenterPage() {
                                       .join(", ")}
                                 </span>
                               </>
-                            )} */}
+                            )}
                           </span>
                         </div>
                       </div>
                     )}
+
+                    {/* MAXILLARY Label - Below Product Badge */}
+                    <div className="flex items-center justify-center gap-3 mt-2 mb-2">
+                      <p className="text-base font-bold text-black text-center" style={{ fontWeight: 700, letterSpacing: "0.01em" }}>MAXILLARY</p>
+                    </div>
 
                     {/* Dental Chart - Outside Card */}
                     <div className="rounded-lg p-3 flex items-center justify-center relative">
@@ -4967,7 +5016,7 @@ export default function CaseDesignCenterPage() {
                           }}
                         />
                       )}
-                      {!currentShadeField && (
+                      {!currentShadeField && showMaxillaryChart && (
                         <MaxillaryTeethSVG
                           key={`maxillary-${maxillaryTeeth.join('-')}`}
                           selectedTeeth={maxillaryTeeth}
@@ -4977,12 +5026,13 @@ export default function CaseDesignCenterPage() {
                           showRetentionPopover={retentionPopoverState.arch === 'maxillary'}
                           retentionPopoverTooth={retentionPopoverState.toothNumber}
                           onSelectRetentionType={(tooth, type) => handleSelectRetentionType('maxillary', tooth, type)}
+                          onClosePopover={() => setRetentionPopoverState({ arch: null, toothNumber: null })}
                         />
                       )}
                     </div>
 
                     {/* Missing Teeth Cards - Show immediately when product has extraction data, but only for Orthodontics or Removable Restoration */}
-                    {selectedProduct && !missingTeethCardClicked && productDetails && isOrthodonticsOrRemovable && (
+                    {showMaxillaryChart && selectedProductForMaxillary && !missingTeethCardClicked && productDetails && isOrthodonticsOrRemovable && (
                       (() => {
                         const hasExtractionData = (productDetails.extractions && Array.isArray(productDetails.extractions) && productDetails.extractions.length > 0) ||
                                                   (productDetails.data?.extractions && Array.isArray(productDetails.data.extractions) && productDetails.data.extractions.length > 0)
@@ -5004,8 +5054,8 @@ export default function CaseDesignCenterPage() {
                               showWillExtract={true}
                               productDetails={productDetails}
                               extractionData={productDetails.extractions || productDetails.data?.extractions}
-                              productId={selectedProduct.id?.toString()}
-                              selectedProduct={selectedProduct.name}
+                              productId={selectedProductForMaxillary.id?.toString()}
+                              selectedProduct={selectedProductForMaxillary.name}
                               onExtractionTypeSelect={(extractionType) => {
                                 // When any extraction type is selected, show the product accordion
                                 if (extractionType) {
@@ -5023,7 +5073,7 @@ export default function CaseDesignCenterPage() {
                     )}
 
                     {/* Summary Card - Single card for all selected teeth */}
-                    {maxillaryTeeth.length > 0 && (
+                    {showMaxillaryChart && maxillaryTeeth.length > 0 && (
                       <Card className="overflow-hidden border border-gray-200 shadow-sm">
                         <Accordion
                           type="single"
@@ -6214,7 +6264,7 @@ export default function CaseDesignCenterPage() {
                     )}
 
                     {/* Saved Maxillary Products - Display below MAXILLARY section */}
-                    {savedProducts.filter(p => p.addedFrom === "maxillary").length > 0 && (
+                    {showMaxillaryChart && savedProducts.filter(p => p.addedFrom === "maxillary").length > 0 && (
                       <div className="w-full mt-1 space-y-1">
                         {savedProducts
                           .filter(p => p.addedFrom === "maxillary")
@@ -7972,15 +8022,40 @@ export default function CaseDesignCenterPage() {
                       </div>
                     )}
                   </div>
+                  )}
 
-                  {/* MANDIBULAR Section */}
-                  <div className="flex flex-col w-full">
+                  {/* MANDIBULAR Section - Only show when mandibular chart is visible */}
+                  {showMandibularChart && (
+                  <div ref={mandibularSectionRef} className="flex flex-col w-full">
                     {/* Selected Product Badge */}
-                    {selectedProduct && (
+                    {selectedProductForMandibular && (
                       <div
                         className="relative flex items-center justify-center"
                         style={{ width: "100%", height: "32px", flex: "none", order: 0, flexGrow: 0 }}
                       >
+                        {/* Delete Button - Right Edge */}
+                        <button
+                          onClick={handleDeleteLowerProduct}
+                          style={{
+                            position: "absolute",
+                            right: "0",
+                            top: "0",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: "32px",
+                            height: "32px",
+                            background: "#DC2626",
+                            borderRadius: "6px",
+                            border: "none",
+                            cursor: "pointer",
+                            zIndex: 10,
+                          }}
+                          aria-label="Delete lower product"
+                        >
+                          <Trash2 className="h-4 w-4 text-white" />
+                        </button>
+                        
                         <div
                           className="absolute left-1/2"
                           style={{
@@ -8005,7 +8080,7 @@ export default function CaseDesignCenterPage() {
                               fontFamily: "Verdana",
                               fontStyle: "normal",
                               fontWeight: 400,
-                              fontSize: "10px",
+                              fontSize: "15px",
                               lineHeight: "22px",
                               textAlign: "center",
                               letterSpacing: "-0.02em",
@@ -8015,10 +8090,9 @@ export default function CaseDesignCenterPage() {
                               textOverflow: "ellipsis"
                             }}
                           >
-                            {selectedProduct.name}
-                            {/* {mandibularTeeth && mandibularTeeth.length > 0 && (
+                            {selectedProductForMandibular.name}
+                            {mandibularTeeth && mandibularTeeth.length > 0 && (
                               <>
-                                {"  |  "}
                                 <span>
                                   {mandibularTeeth.length === 1
                                     ? `#${mandibularTeeth[0]}`
@@ -8029,11 +8103,16 @@ export default function CaseDesignCenterPage() {
                                       .join(", ")}
                                 </span>
                               </>
-                            )} */}
+                            )}
                           </span>
                         </div>
                       </div>
                     )}
+
+                    {/* MANDIBULAR Label - Below Product Badge */}
+                    <div className="flex items-center justify-center gap-3 mt-2 mb-2">
+                      <p className="text-base font-bold text-black text-center" style={{ fontWeight: 700, letterSpacing: "0.01em" }}>MANDIBULAR</p>
+                    </div>
 
                     {/* Dental Chart - Outside Card */}
                     <div className="rounded-lg p-3 flex items-center justify-center relative">
@@ -8049,7 +8128,7 @@ export default function CaseDesignCenterPage() {
                           }}
                         />
                       )}
-                      {!currentShadeField && (
+                      {!currentShadeField && showMandibularChart && (
                         <MandibularTeethSVG
                           key={`mandibular-${mandibularTeeth.join('-')}`}
                           selectedTeeth={mandibularTeeth}
@@ -8059,12 +8138,13 @@ export default function CaseDesignCenterPage() {
                           showRetentionPopover={retentionPopoverState.arch === 'mandibular'}
                           retentionPopoverTooth={retentionPopoverState.toothNumber}
                           onSelectRetentionType={(tooth, type) => handleSelectRetentionType('mandibular', tooth, type)}
+                          onClosePopover={() => setRetentionPopoverState({ arch: null, toothNumber: null })}
                         />
                       )}
                     </div>
 
                     {/* Missing Teeth Cards - Show immediately when product has extraction data, but only for Orthodontics or Removable Restoration */}
-                    {selectedProduct && !missingTeethCardClicked && productDetails && isOrthodonticsOrRemovable && (
+                    {showMandibularChart && selectedProductForMandibular && !missingTeethCardClicked && productDetails && isOrthodonticsOrRemovable && (
                       (() => {
                         const hasExtractionData = (productDetails.extractions && Array.isArray(productDetails.extractions) && productDetails.extractions.length > 0) ||
                                                   (productDetails.data?.extractions && Array.isArray(productDetails.data.extractions) && productDetails.data.extractions.length > 0)
@@ -8086,8 +8166,8 @@ export default function CaseDesignCenterPage() {
                               showWillExtract={true}
                               productDetails={productDetails}
                               extractionData={productDetails.extractions || productDetails.data?.extractions}
-                              productId={selectedProduct.id?.toString()}
-                              selectedProduct={selectedProduct.name}
+                              productId={selectedProductForMandibular.id?.toString()}
+                              selectedProduct={selectedProductForMandibular.name}
                               onExtractionTypeSelect={(extractionType) => {
                                 // When any extraction type is selected, show the product accordion
                                 if (extractionType) {
@@ -8105,7 +8185,7 @@ export default function CaseDesignCenterPage() {
                     )}
 
                     {/* Summary Card - Single card for all selected teeth */}
-                    {mandibularTeeth.length > 0 && (
+                    {showMandibularChart && mandibularTeeth.length > 0 && (
                       <Card className="overflow-hidden border border-gray-200 shadow-sm">
                         <Accordion
                           type="single"
@@ -9255,7 +9335,7 @@ export default function CaseDesignCenterPage() {
                     )}
 
                     {/* Saved Mandibular Products - Display below MANDIBULAR section */}
-                    {savedProducts.filter(p => p.addedFrom === "mandibular").length > 0 && (
+                    {showMandibularChart && savedProducts.filter(p => p.addedFrom === "mandibular").length > 0 && (
                       <div className="w-full mt-1 space-y-1">
                         {savedProducts
                           .filter(p => p.addedFrom === "mandibular")
@@ -10554,10 +10634,12 @@ export default function CaseDesignCenterPage() {
                       </div>
                     )}
                   </div>
+                  )}
                 </div>
 
-                {/* Case Summary Notes - Expandable and Responsive */}
-                <div className="relative bg-white border border-[#7F7F7F] rounded-[7.7px] w-full mx-auto px-2 sm:px-4" style={{ marginBottom: "80px" }}>
+                {/* Case Summary Notes - Expandable and Responsive - Hidden initially */}
+                {showCaseSummaryNotes && (
+                  <div className="relative bg-white border border-[#7F7F7F] rounded-[7.7px] w-full mx-auto px-2 sm:px-4" style={{ marginBottom: "80px" }}>
                   {/* Label positioned absolutely at the top */}
                   <div
                     className="absolute left-[9px] -top-[7px] bg-white px-2 flex items-center gap-[7.7px] z-10"
@@ -10677,7 +10759,8 @@ export default function CaseDesignCenterPage() {
                           : "Enter case notes to automatically populate products, categories, subcategories, and teeth selections. Or add products first to generate notes automatically."}
                     </p>
                   )}
-                </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -10795,6 +10878,11 @@ export default function CaseDesignCenterPage() {
             onSubmit={handleSubmit}
             onConfirmDetailsChange={(checked) => setConfirmDetailsChecked(checked)}
             onShowSubmitPopoverChange={(show) => setShowSubmitPopover(show)}
+            hasProductAccordions={
+              (showMaxillaryChart && maxillaryTeeth.length > 0) ||
+              (showMandibularChart && mandibularTeeth.length > 0) ||
+              savedProducts.length > 0
+            }
           />
         </div>
       </div>

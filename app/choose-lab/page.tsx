@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
-import { Search, Star, Pencil } from "lucide-react"
+import { Search, Star, Pencil, Filter } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
 import { CustomerLogo } from "@/components/customer-logo"
@@ -53,6 +54,7 @@ export default function ChooseLabPage() {
   const [createdBy, setCreatedBy] = useState<string>("")
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [showAddLabModal, setShowAddLabModal] = useState(false)
+  const [sortPopoverOpen, setSortPopoverOpen] = useState(false)
   const { setCustomerLogo } = useCustomerLogoStore()
 
   // Debounce search query to avoid excessive API calls
@@ -333,19 +335,55 @@ export default function ChooseLabPage() {
           {/* Sort By and Results Count */}
           <div className="flex items-center justify-between mb-8 max-w-5xl mx-auto">
             {/* Sort By */}
-            <div className="flex items-center gap-2">
-              <label className="text-sm text-gray-700">Sort By:</label>
-              <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="w-[130px] h-9 text-sm border-gray-300 rounded-md">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="name-asc">Name A-Z</SelectItem>
-                  <SelectItem value="name-desc">Name Z-A</SelectItem>
-                  <SelectItem value="location-asc">Location</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <Popover open={sortPopoverOpen} onOpenChange={setSortPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="h-9 w-9 p-0 border-gray-300 rounded-md hover:bg-gray-50"
+                  aria-label="Sort options"
+                >
+                  <Filter className="h-4 w-4 text-gray-700" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-48 p-2" align="start">
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold text-gray-700 mb-2 px-2">Sort By</p>
+                  <button
+                    onClick={() => {
+                      setSortBy("name-asc")
+                      setSortPopoverOpen(false)
+                    }}
+                    className={`w-full text-left px-2 py-1.5 text-sm rounded hover:bg-gray-100 ${
+                      sortBy === "name-asc" ? "bg-gray-100 font-medium" : ""
+                    }`}
+                  >
+                    Name A-Z
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSortBy("name-desc")
+                      setSortPopoverOpen(false)
+                    }}
+                    className={`w-full text-left px-2 py-1.5 text-sm rounded hover:bg-gray-100 ${
+                      sortBy === "name-desc" ? "bg-gray-100 font-medium" : ""
+                    }`}
+                  >
+                    Name Z-A
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSortBy("location-asc")
+                      setSortPopoverOpen(false)
+                    }}
+                    className={`w-full text-left px-2 py-1.5 text-sm rounded hover:bg-gray-100 ${
+                      sortBy === "location-asc" ? "bg-gray-100 font-medium" : ""
+                    }`}
+                  >
+                    Location
+                  </button>
+                </div>
+              </PopoverContent>
+            </Popover>
 
             {/* Results Count */}
             <p className="text-sm text-gray-400">

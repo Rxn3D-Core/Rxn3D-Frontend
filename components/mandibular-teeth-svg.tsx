@@ -10,6 +10,7 @@ interface MandibularTeethSVGProps {
   showRetentionPopover?: boolean
   retentionPopoverTooth?: number | null
   onSelectRetentionType?: (toothNumber: number, type: 'Implant' | 'Prep' | 'Pontic') => void
+  onClosePopover?: () => void
 }
 
 export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
@@ -19,7 +20,8 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
   retentionTypesByTooth = {},
   showRetentionPopover = false,
   retentionPopoverTooth = null,
-  onSelectRetentionType
+  onSelectRetentionType,
+  onClosePopover
 }) => {
   const svgRef = React.useRef<SVGSVGElement>(null)
   const isToothSelected = (toothNumber: number) => selectedTeeth.includes(toothNumber)
@@ -271,6 +273,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             <RetentionTypePopover
               onSelectRetentionType={(type) => onSelectRetentionType(retentionPopoverTooth, type)}
               selectedType={selectedType || undefined}
+              onClose={onClosePopover}
             />
           </div>,
           document.body
