@@ -364,6 +364,14 @@ export default function CaseDesignCenterPage() {
   const [currentShadeArch, setCurrentShadeArch] = useState<"maxillary" | "mandibular">("maxillary")
   const [selectedShadesForSVG, setSelectedShadesForSVG] = useState<string[]>([])
   const [selectedShadeOption, setSelectedShadeOption] = useState<"custom" | "stump" | null>(null)
+  const [selectedShadeGuide, setSelectedShadeGuide] = useState<string>("Vita Classical")
+  
+  // Shade guide options
+  const shadeGuideOptions = [
+    "Vita Classical",
+    "Chromascop",
+    "Trubyte Bioform IPN"
+  ]
 
   // Helper function to get field order based on category
   const getFieldOrder = (category: string): string[] => {
@@ -2737,8 +2745,21 @@ export default function CaseDesignCenterPage() {
     setCurrentShadeField(shadeFieldType)
     setCurrentShadeArch(actualArch)
     setSelectedShadesForSVG([]) // Reset selected shades
+    // Automatically open the accordion for the current arch
+    const accordionId = actualArch === "maxillary" ? "maxillary-card" : "mandibular-card"
+    setOpenAccordion(accordionId)
     // No longer opening modal - just setting the field to show SVG inline
   }
+
+  // Keep accordion open when shade selection is active
+  useEffect(() => {
+    if (currentShadeField) {
+      const accordionId = currentShadeArch === "maxillary" ? "maxillary-card" : "mandibular-card"
+      if (openAccordion !== accordionId) {
+        setOpenAccordion(accordionId)
+      }
+    }
+  }, [currentShadeField, currentShadeArch])
 
   const handleShadeSelect = (shadeId: number, shadeName: string, brandId?: number) => {
     if (!currentShadeField) return
@@ -4879,43 +4900,6 @@ export default function CaseDesignCenterPage() {
             {/* Product Details Split View - Show when product is selected */}
             {showProductDetails && selectedProduct && (
               <div ref={toothSelectionRef} className="w-full max-w-[1400px] mx-auto">
-                {/* Tooth Shade Selection - Shows in the middle when active */}
-                {currentShadeField && (
-                  <div className="w-full mb-8">
-                    <div className="flex items-center gap-4 w-full justify-center">
-                      {/* Left side buttons */}
-                      <div className="flex flex-col gap-5">
-                        <button
-                          onClick={() => {
-                            console.log("Set as Stump shade")
-                            setSelectedShadeOption("stump")
-                            setCurrentShadeField(null)
-                            setSelectedShadesForSVG([])
-                          }}
-                          className={`w-[224px] h-[78px] ${
-                            selectedShadeOption === "stump"
-                              ? "bg-[#DFEEFB] shadow-[0_1px_4px_rgba(17,98,168,0.7)]"
-                              : "bg-white shadow-md"
-                          } rounded-lg flex items-center justify-center hover:bg-[#DFEEFB] transition-colors`}
-                        >
-                          <span className="font-bold text-[15.5px] text-center leading-tight">
-                            Set as Stump shades
-                          </span>
-                        </button>
-                      </div>
-
-                      {/* Shade guide SVG */}
-                      <div className="bg-white">
-                        <ToothShadeSelectionSVG
-                          selectedShades={selectedShadesForSVG}
-                          onShadeClick={handleShadeClickFromSVG}
-                          className="max-w-full"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-
                 {/* Tooth Selection Interface */}
                 <div className={`grid gap-24 lg:gap-24 mb-8 ${showMaxillaryChart && showMandibularChart ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
                   {/* MAXILLARY Section - Only show when maxillary chart is visible */}
@@ -5089,7 +5073,7 @@ export default function CaseDesignCenterPage() {
                           onValueChange={handleAccordionChange}
                         >
                           <AccordionItem value="maxillary-card" className="border-0">
-                            {/* Header */}
+                            {/* Header - Hide when shade selection is active */}
                             <div
                               className="w-full"
                               style={{
@@ -5098,7 +5082,7 @@ export default function CaseDesignCenterPage() {
                                 background: openAccordion === "maxillary-card" ? '#DFEEFB' : '#F5F5F5',
                                 boxShadow: '0.9px 0.9px 3.6px rgba(0, 0, 0, 0.25)',
                                 borderRadius: openAccordion === "maxillary-card" ? '5.4px 5.4px 0px 0px' : '5.4px',
-                                display: 'flex',
+                                display: currentShadeField ? 'none' : 'flex',
                                 flexDirection: 'column',
                                 alignItems: 'flex-start',
                                 padding: '14px 8px',
@@ -5106,122 +5090,158 @@ export default function CaseDesignCenterPage() {
                               }}
                             >
                               <AccordionTrigger
-                                className="hover:no-underline w-full group"
-                                style={{
-                                  padding: '0px',
-                                  gap: '10px',
-                                  width: '100%',
-                                  height: '100%',
-                                  background: 'transparent',
-                                  boxShadow: 'none',
-                                  borderRadius: '0px'
-                                }}
-                              >
-                                {/* Frame 2395 */}
-                                <div style={{ width: '697.74px', height: '42.69px', flex: 'none', order: 0, flexGrow: 0, position: 'relative' }}>
-                                  {/* Frame 2388 */}
-                                  <div style={{ position: 'absolute', width: '639.14px', height: '42.69px', left: '0px', top: '0px' }}>
-                                    {/* Product Image */}
-                                    <div
-                                      style={{
-                                        position: 'absolute',
-                                        width: '64.04px',
-                                        height: '42.69px',
-                                        left: '0px',
-                                        top: '0px',
-                                        background: `url(${selectedProduct?.image_url || "/images/tooth-icon.png"}), #FFFFFF`,
-                                        backgroundSize: 'contain',
-                                        backgroundPosition: 'center',
-                                        backgroundRepeat: 'no-repeat',
-                                        borderRadius: '5.4px'
-                                      }}
-                                    />
+                                  className="hover:no-underline w-full group"
+                                  style={{
+                                    padding: '0px',
+                                    gap: '10px',
+                                    width: '100%',
+                                    height: '100%',
+                                    background: 'transparent',
+                                    boxShadow: 'none',
+                                    borderRadius: '0px'
+                                  }}
+                                >
+                                  {/* Frame 2395 */}
+                                  <div style={{ width: '697.74px', height: '42.69px', flex: 'none', order: 0, flexGrow: 0, position: 'relative' }}>
+                                    {/* Frame 2388 */}
+                                    <div style={{ position: 'absolute', width: '639.14px', height: '42.69px', left: '0px', top: '0px' }}>
+                                      {/* Product Image */}
+                                      <div
+                                        style={{
+                                          position: 'absolute',
+                                          width: '64.04px',
+                                          height: '42.69px',
+                                          left: '0px',
+                                          top: '0px',
+                                          background: `url(${selectedProduct?.image_url || "/images/tooth-icon.png"}), #FFFFFF`,
+                                          backgroundSize: 'contain',
+                                          backgroundPosition: 'center',
+                                          backgroundRepeat: 'no-repeat',
+                                          borderRadius: '5.4px'
+                                        }}
+                                      />
 
-                                    {/* Frame 2387 - Content Area */}
-                                    <div style={{ position: 'absolute', width: '565.1px', height: '42px', left: '74.04px', top: '0.34px' }}>
-                                      {/* Group 1433 - Tooth Numbers */}
-                                      <div style={{ position: 'absolute', width: 'auto', height: '20px', left: '0px', top: '0px' }}>
-                                        <span
-                                          style={{
-                                            fontFamily: 'Verdana',
-                                            fontStyle: 'normal',
-                                            fontWeight: 400,
-                                            fontSize: '14.4px',
-                                            lineHeight: '20px',
-                                            letterSpacing: '-0.02em',
-                                            color: '#000000'
-                                          }}
-                                        >
-                                          {(() => {
-                                            const sortedTeeth = [...maxillaryTeeth].sort((a, b) => a - b);
-                                            return sortedTeeth.length > 0 ? sortedTeeth.join(', ') : '';
-                                          })()}
-                                        </span>
-                                      </div>
+                                      {/* Frame 2387 - Content Area */}
+                                      <div style={{ position: 'absolute', width: '565.1px', height: '42px', left: '74.04px', top: '0.34px' }}>
+                                        {/* Group 1433 - Tooth Numbers */}
+                                        <div style={{ position: 'absolute', width: 'auto', height: '20px', left: '0px', top: '0px' }}>
+                                          <span
+                                            style={{
+                                              fontFamily: 'Verdana',
+                                              fontStyle: 'normal',
+                                              fontWeight: 400,
+                                              fontSize: '14.4px',
+                                              lineHeight: '20px',
+                                              letterSpacing: '-0.02em',
+                                              color: '#000000'
+                                            }}
+                                          >
+                                            {(() => {
+                                              const sortedTeeth = [...maxillaryTeeth].sort((a, b) => a - b);
+                                              return sortedTeeth.length > 0 ? sortedTeeth.join(', ') : '';
+                                            })()}
+                                          </span>
+                                        </div>
 
-                                      {/* Frame 2386 - Badges and Info Row */}
-                                      <div style={{ position: 'absolute', width: '565.1px', height: '22px', left: '0px', top: '20px', display: 'flex', flexDirection: 'row', alignItems: 'center', padding: '0px', gap: '5px' }}>
-                                        {/* Badge - Category */}
-                                        {selectedCategory && (
-                                          <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '0px 10px', gap: '10px', width: 'fit-content', height: '17px', background: '#F9F9F9', boxShadow: '1px 1px 3.5px rgba(0, 0, 0, 0.25)', borderRadius: '6px', flex: 'none', order: 0, flexGrow: 0 }}>
-                                            <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', flex: 'none', order: 0, flexGrow: 0, whiteSpace: 'nowrap' }}>{selectedCategory}</span>
-                                          </div>
-                                        )}
+                                        {/* Frame 2386 - Badges and Info Row */}
+                                        <div style={{ position: 'absolute', width: '565.1px', height: '22px', left: '0px', top: '20px', display: 'flex', flexDirection: 'row', alignItems: 'center', padding: '0px', gap: '5px' }}>
+                                          {/* Badge - Category */}
+                                          {selectedCategory && (
+                                            <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '0px 10px', gap: '10px', width: 'fit-content', height: '17px', background: '#F9F9F9', boxShadow: '1px 1px 3.5px rgba(0, 0, 0, 0.25)', borderRadius: '6px', flex: 'none', order: 0, flexGrow: 0 }}>
+                                              <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', flex: 'none', order: 0, flexGrow: 0, whiteSpace: 'nowrap' }}>{selectedCategory}</span>
+                                            </div>
+                                          )}
 
-                                        {/* Badge - Subcategory */}
-                                        {selectedSubcategory && (
-                                          <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '0px 10px', gap: '10px', width: 'fit-content', height: '17px', background: '#F9F9F9', boxShadow: '1px 1px 3.5px rgba(0, 0, 0, 0.25)', borderRadius: '6px', flex: 'none', order: 1, flexGrow: 0 }}>
-                                            <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', flex: 'none', order: 0, flexGrow: 0, whiteSpace: 'nowrap' }}>{selectedSubcategory}</span>
-                                          </div>
-                                        )}
+                                          {/* Badge - Subcategory */}
+                                          {selectedSubcategory && (
+                                            <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '0px 10px', gap: '10px', width: 'fit-content', height: '17px', background: '#F9F9F9', boxShadow: '1px 1px 3.5px rgba(0, 0, 0, 0.25)', borderRadius: '6px', flex: 'none', order: 1, flexGrow: 0 }}>
+                                              <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', flex: 'none', order: 0, flexGrow: 0, whiteSpace: 'nowrap' }}>{selectedSubcategory}</span>
+                                            </div>
+                                          )}
 
-                                        {/* Est days */}
-                                        <span style={{ width: 'auto', height: '22px', fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', letterSpacing: '-0.02em', color: '#B4B0B0', flex: 'none', order: 4, flexGrow: 0 }}>
-                                          Est days: {selectedProduct?.estimated_days || 10} work days after submission
-                                        </span>
+                                          {/* Est days */}
+                                          <span style={{ width: 'auto', height: '22px', fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', letterSpacing: '-0.02em', color: '#B4B0B0', flex: 'none', order: 4, flexGrow: 0 }}>
+                                            Est days: {selectedProduct?.estimated_days || 10} work days after submission
+                                          </span>
+                                        </div>
                                       </div>
                                     </div>
                                   </div>
-                                </div>
 
-                                {/* Chevron - Positioned relative to header */}
-                                <div style={{ position: 'absolute', width: '21.6px', height: '21.6px', right: '8px', top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}>
-                                  <ChevronDown
-                                    className="w-full h-full transition-transform duration-200 text-black"
-                                    style={{
-                                      transform: openAccordion === "maxillary-card" ? 'rotate(0deg)' : 'rotate(-180deg)'
-                                    }}
-                                  />
-                                </div>
-                              </AccordionTrigger>
-                              {/* Delete Button - Moved outside AccordionTrigger to avoid nested buttons */}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleClearCurrentProduct()
-                                }}
-                                className="hover:text-red-600 transition-colors"
-                                style={{
-                                  position: 'absolute',
-                                  width: '16px',
-                                  height: '16px',
-                                  color: '#999999',
-                                  background: 'transparent',
-                                  border: 'none',
-                                  cursor: 'pointer',
-                                  right: '34px',
-                                  top: '50%',
-                                  transform: 'translateY(-50%)',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  zIndex: 11
-                                }}
-                              >
-                                <Trash2 className="w-full h-full" />
-                              </button>
-                            </div>
+                                  {/* Chevron - Positioned relative to header */}
+                                  <div style={{ position: 'absolute', width: '21.6px', height: '21.6px', right: '8px', top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}>
+                                    <ChevronDown
+                                      className="w-full h-full transition-transform duration-200 text-black"
+                                      style={{
+                                        transform: openAccordion === "maxillary-card" ? 'rotate(0deg)' : 'rotate(-180deg)'
+                                      }}
+                                    />
+                                  </div>
+                                </AccordionTrigger>
+                                {/* Delete Button - Moved outside AccordionTrigger to avoid nested buttons */}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleClearCurrentProduct()
+                                  }}
+                                  className="hover:text-red-600 transition-colors"
+                                  style={{
+                                    position: 'absolute',
+                                    width: '16px',
+                                    height: '16px',
+                                    color: '#999999',
+                                    background: 'transparent',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    right: '34px',
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    zIndex: 11
+                                  }}
+                                >
+                                  <Trash2 className="w-full h-full" />
+                                </button>
+                              </div>
                             <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto' }}>
+                              {/* Tooth Shade Selection - Shows at the top when active */}
+                              {currentShadeField && currentShadeArch === "maxillary" && (
+                                <div className="w-full mb-8 pt-4">
+                                  <div className="flex flex-col items-center gap-4 w-full">
+                                    {/* Shade Guide Dropdown - Top Right */}
+                                    <div className="w-full flex justify-end pr-4">
+                                      <div className="flex items-center gap-2">
+                                        <label className="text-sm text-gray-600" style={{ fontFamily: 'Verdana', fontSize: '14px' }}>
+                                          Shade guide selected
+                                        </label>
+                                        <Select value={selectedShadeGuide} onValueChange={setSelectedShadeGuide}>
+                                          <SelectTrigger className="w-[200px] h-[32px] text-sm">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            {shadeGuideOptions.map((guide) => (
+                                              <SelectItem key={guide} value={guide}>
+                                                {guide}
+                                              </SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                    </div>
+
+                                    {/* Shade guide SVG */}
+                                    <div className="bg-white w-full flex justify-center">
+                                      <ToothShadeSelectionSVG
+                                        selectedShades={selectedShadesForSVG}
+                                        onShadeClick={handleShadeClickFromSVG}
+                                        className="max-w-full"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                               {/* Summary detail */}
                               <div
                                 className="bg-white w-full"
@@ -8203,7 +8223,7 @@ export default function CaseDesignCenterPage() {
                           onValueChange={handleAccordionChange}
                         >
                           <AccordionItem value="mandibular-card" className="border-0">
-                            {/* Header */}
+                            {/* Header - Hide when shade selection is active */}
                             <div
                               className="w-full"
                               style={{
@@ -8212,7 +8232,7 @@ export default function CaseDesignCenterPage() {
                                 background: openAccordion === "mandibular-card" ? '#DFEEFB' : '#F5F5F5',
                                 boxShadow: '0.9px 0.9px 3.6px rgba(0, 0, 0, 0.25)',
                                 borderRadius: openAccordion === "mandibular-card" ? '5.4px 5.4px 0px 0px' : '5.4px',
-                                display: 'flex',
+                                display: currentShadeField ? 'none' : 'flex',
                                 flexDirection: 'column',
                                 alignItems: 'flex-start',
                                 padding: '14px 8px',
@@ -8336,6 +8356,42 @@ export default function CaseDesignCenterPage() {
                               </button>
                             </div>
                             <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto' }}>
+                              {/* Tooth Shade Selection - Shows at the top when active */}
+                              {currentShadeField && currentShadeArch === "mandibular" && (
+                                <div className="w-full mb-8 pt-4">
+                                  <div className="flex flex-col items-center gap-4 w-full">
+                                    {/* Shade Guide Dropdown - Top Right */}
+                                    <div className="w-full flex justify-end pr-4">
+                                      <div className="flex items-center gap-2">
+                                        <label className="text-sm text-gray-600" style={{ fontFamily: 'Verdana', fontSize: '14px' }}>
+                                          Shade guide selected
+                                        </label>
+                                        <Select value={selectedShadeGuide} onValueChange={setSelectedShadeGuide}>
+                                          <SelectTrigger className="w-[200px] h-[32px] text-sm">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            {shadeGuideOptions.map((guide) => (
+                                              <SelectItem key={guide} value={guide}>
+                                                {guide}
+                                              </SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                    </div>
+
+                                    {/* Shade guide SVG */}
+                                    <div className="bg-white w-full flex justify-center">
+                                      <ToothShadeSelectionSVG
+                                        selectedShades={selectedShadesForSVG}
+                                        onShadeClick={handleShadeClickFromSVG}
+                                        className="max-w-full"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                               {/* Summary detail */}
                               <div
                                 className="bg-white w-full"
