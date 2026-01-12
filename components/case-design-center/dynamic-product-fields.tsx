@@ -103,6 +103,24 @@ export function DynamicProductFields({
     return hasSelection
   }
 
+  // Helper to check if stage field is visible (used by impression field check)
+  const isStageFieldVisible = (): boolean => {
+    const toothShadeValue = getFieldValueByKey("tooth_shade")
+    const stages = productDetails?.stages
+    
+    // Stage field is not visible if:
+    // 1. Tooth shade doesn't have a value
+    // 2. Stages don't exist in productDetails
+    if (!hasValue(toothShadeValue)) {
+      return false
+    }
+    if (!stages || !Array.isArray(stages) || stages.length === 0) {
+      return false
+    }
+    
+    return true
+  }
+
   // Helper to check if a field should be visible based on progressive disclosure
   const isFieldVisibleProgressive = (config: FieldConfig): boolean => {
     // Always show material (sequence 1) initially
@@ -140,13 +158,18 @@ export function DynamicProductFields({
       }
     }
 
-    // stage (sequence 6) - show after tooth_shade has value
+    // stage (sequence 6) - show after tooth_shade has value and stages exist
     if (config.key === "stage") {
-      const toothShadeValue = getFieldValueByKey("tooth_shade")
-      return hasValue(toothShadeValue)
+      return isStageFieldVisible()
     }
 
-    // impression (sequence 7) and other fields - show after stage has value
+    // impression (sequence 7) - show ONLY if stage field is visible in the UI
+    if (config.key === "impression" || config.key === "impressions") {
+      // Only show impression if stage field is actually visible
+      return isStageFieldVisible()
+    }
+
+    // Other fields (sequence >= 7) - show after stage has value
     if (config.sequence >= 7) {
       const stageValue = getFieldValueByKey("stage")
       return hasValue(stageValue)
@@ -355,6 +378,9 @@ export function DynamicProductFields({
             }}
           >
             {config.label}
+            {isFieldRequired(config) && (
+              <span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>
+            )}
           </label>
         </div>
       )
@@ -445,6 +471,9 @@ export function DynamicProductFields({
             {config.key === "retention" 
               ? (hasValidRetentionValue(value) ? 'Retention type' : 'Select Retention type')
               : config.label}
+            {isFieldRequired(config) && (
+              <span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>
+            )}
           </label>
         </div>
       )
@@ -624,6 +653,9 @@ export function DynamicProductFields({
             }}
           >
             {value && value !== "Not specified" ? `${config.label} - ${value}` : config.label}
+            {isFieldRequired(config) && (
+              <span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>
+            )}
           </label>
         </div>
       )

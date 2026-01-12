@@ -944,29 +944,6 @@ export function SavedProductsSection({
                                         <span style={{ width: 'auto', height: '22px', fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', letterSpacing: '-0.02em', color: '#B4B0B0', flex: 'none', order: 4, flexGrow: 0 }}>
                                           Est days: {savedProduct.product.estimated_days || 10} work days after submission
                                         </span>
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation()
-                                            handleDeleteProduct(savedProduct.id)
-                                          }}
-                                          className="hover:text-red-600 transition-colors"
-                                          style={{
-                                            width: '16px',
-                                            height: '16px',
-                                            color: '#999999',
-                                            background: 'transparent',
-                                            border: 'none',
-                                            cursor: 'pointer',
-                                            flex: 'none',
-                                            order: 5,
-                                            flexGrow: 0,
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center'
-                                          }}
-                                        >
-                                          <Trash2 className="w-full h-full" />
-                                        </button>
                                       </div>
                                     </div>
                                   </div>
@@ -982,6 +959,32 @@ export function SavedProductsSection({
                                   />
                                 </div>
                               </AccordionTrigger>
+                              {/* Delete Button - Moved outside AccordionTrigger to avoid nested buttons */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleDeleteProduct(savedProduct.id)
+                                }}
+                                className="hover:text-red-600 transition-colors"
+                                style={{
+                                  position: 'absolute',
+                                  width: '16px',
+                                  height: '16px',
+                                  color: '#999999',
+                                  background: 'transparent',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  right: '34px',
+                                  top: '50%',
+                                  transform: 'translateY(-50%)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  zIndex: 11
+                                }}
+                              >
+                                <Trash2 className="w-full h-full" />
+                              </button>
                             </div>
 
                             <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto' }}>

@@ -30,14 +30,14 @@ export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({
   }, [onClose])
 
   return (
-    <div ref={popoverRef} className="absolute z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-2 flex gap-2">
+    <div ref={popoverRef} className="absolute z-50 bg-white border border-gray-200 hover:border-blue-500 rounded-lg shadow-lg p-2 flex gap-2 -mt-2 transition-colors">
       {/* Implant Option */}
       <button
         onClick={() => onSelectRetentionType('Implant')}
         className={`flex flex-col items-center justify-center p-2 border rounded transition-all group ${
           selectedType === 'Implant' 
-            ? 'border-primary bg-primary/10' 
-            : 'border-transparent hover:border-primary hover:bg-gray-50'
+            ? 'border-blue-500 bg-blue-500/10' 
+            : 'border-transparent hover:border-blue-500 hover:bg-gray-50'
         }`}
         title="Implant"
       >
@@ -56,8 +56,8 @@ export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({
         onClick={() => onSelectRetentionType('Prep')}
         className={`flex flex-col items-center justify-center p-2 border rounded transition-all group ${
           selectedType === 'Prep' 
-            ? 'border-primary bg-primary/10' 
-            : 'border-transparent hover:border-primary hover:bg-gray-50'
+            ? 'border-blue-500 bg-blue-500/10' 
+            : 'border-transparent hover:border-blue-500 hover:bg-gray-50'
         }`}
         title="Prep"
       >
@@ -76,8 +76,8 @@ export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({
         onClick={() => onSelectRetentionType('Pontic')}
         className={`flex flex-col items-center justify-center p-2 border rounded transition-all group ${
           selectedType === 'Pontic' 
-            ? 'border-primary bg-primary/10' 
-            : 'border-transparent hover:border-primary hover:bg-gray-50'
+            ? 'border-blue-500 bg-blue-500/10' 
+            : 'border-transparent hover:border-blue-500 hover:bg-gray-50'
         }`}
         title="Pontic"
       >

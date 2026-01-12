@@ -189,11 +189,12 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
 
     // Convert SVG coordinates to viewport coordinates
     const viewportX = svgRect.left + (centerX * scaleX)
-    const viewportY = svgRect.top + (centerY * scaleY)
+    // Position at the top of the SVG viewBox (y=0 in SVG coordinates)
+    const topOfSvg = svgRect.top
 
     return {
       left: viewportX,
-      top: viewportY - 60 // 60px above the center of selected teeth
+      top: topOfSvg - 10 // 10px above the top of the SVG (at the top of teeth selection)
     }
   }
 

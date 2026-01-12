@@ -955,39 +955,13 @@ export default function CaseDesignCenterPage() {
     }
   }
 
-  // Helper function to check if a field should be visible (progressive disclosure)
-  const isFieldVisible = (
-    fieldName: string, 
-    productId: string, 
-    savedProduct: SavedProduct, 
+  // Core visibility check without special cases (used internally)
+  const checkFieldVisibilityCore = (
+    fieldName: string,
+    savedProduct: SavedProduct,
     productDetails: any,
     archType: "maxillary" | "mandibular"
   ): boolean => {
-    // Special case: impression field should ONLY show if stage field is visible
-    // Check this FIRST - impression is initially hidden and only shows when stage is visible
-    if (fieldName === "impression" || fieldName === "impressions") {
-      // Helper to check if a value is actually set (not empty, not "Not specified", not undefined, not null)
-      const hasValue = (value: string | undefined | null): boolean => {
-        if (!value) return false
-        const trimmed = String(value).trim()
-        return trimmed !== "" && trimmed.toLowerCase() !== "not specified" && trimmed.toLowerCase() !== "finish" && trimmed.toLowerCase() !== "select"
-      }
-      
-      // Get tooth shade value - stage is visible only when tooth shade has a value
-      const toothShade = archType === "maxillary" ? savedProduct.maxillaryToothShade : savedProduct.mandibularToothShade
-      
-      // Impression field is initially hidden - only show if stage field is visible
-      // Stage field is visible only when tooth shade has a real value
-      if (!hasValue(toothShade)) {
-        return false // Initially hidden - tooth shade not set
-      }
-      
-      // Also verify using isAccordionFieldVisible for consistency
-      if (!isAccordionFieldVisible("stage", savedProduct, archType)) {
-        return false // Stage field is not visible
-      }
-    }
-    
     const fieldOrder = getFieldOrder(savedProduct.category)
     const currentFieldIndex = fieldOrder.indexOf(fieldName)
     
@@ -1011,6 +985,38 @@ export default function CaseDesignCenterPage() {
     }
     
     return true
+  }
+
+  // Helper function to check if a field should be visible (progressive disclosure)
+  const isFieldVisible = (
+    fieldName: string, 
+    productId: string, 
+    savedProduct: SavedProduct, 
+    productDetails: any,
+    archType: "maxillary" | "mandibular"
+  ): boolean => {
+    // Special case: impression field should ONLY show if stage field is visible in the UI
+    // Check this FIRST before other visibility checks
+    if (fieldName === "impression" || fieldName === "impressions") {
+      // Directly check if stage field is visible using the core visibility logic
+      // This ensures impression only shows when stage is actually rendered in the UI
+      if (!checkFieldVisibilityCore("stage", savedProduct, productDetails, archType)) {
+        return false
+      }
+      
+      // Also verify using isAccordionFieldVisible for consistency (tooth shade must have value)
+      if (!isAccordionFieldVisible("stage", savedProduct, archType)) {
+        return false // Stage field is not visible (tooth shade not set)
+      }
+      
+      // Explicitly check if stages exist in productDetails (isFieldConfigured returns true by default for stage)
+      if (!productDetails || !productDetails.stages || !Array.isArray(productDetails.stages) || productDetails.stages.length === 0) {
+        return false
+      }
+    }
+    
+    // Use core visibility check for all fields
+    return checkFieldVisibilityCore(fieldName, savedProduct, productDetails, archType)
   }
 
   // Helper function to check if all required fields are filled (for showing advance fields)
@@ -5173,31 +5179,6 @@ export default function CaseDesignCenterPage() {
                                         <span style={{ width: 'auto', height: '22px', fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', letterSpacing: '-0.02em', color: '#B4B0B0', flex: 'none', order: 4, flexGrow: 0 }}>
                                           Est days: {selectedProduct?.estimated_days || 10} work days after submission
                                         </span>
-
-                                        {/* Trash Icon */}
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation()
-                                            handleClearCurrentProduct()
-                                          }}
-                                          className="hover:text-red-600 transition-colors"
-                                          style={{
-                                            width: '16px',
-                                            height: '16px',
-                                            color: '#999999',
-                                            background: 'transparent',
-                                            border: 'none',
-                                            cursor: 'pointer',
-                                            flex: 'none',
-                                            order: 5,
-                                            flexGrow: 0,
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center'
-                                          }}
-                                        >
-                                          <Trash2 className="w-full h-full" />
-                                        </button>
                                       </div>
                                     </div>
                                   </div>
@@ -5213,6 +5194,32 @@ export default function CaseDesignCenterPage() {
                                   />
                                 </div>
                               </AccordionTrigger>
+                              {/* Delete Button - Moved outside AccordionTrigger to avoid nested buttons */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleClearCurrentProduct()
+                                }}
+                                className="hover:text-red-600 transition-colors"
+                                style={{
+                                  position: 'absolute',
+                                  width: '16px',
+                                  height: '16px',
+                                  color: '#999999',
+                                  background: 'transparent',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  right: '34px',
+                                  top: '50%',
+                                  transform: 'translateY(-50%)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  zIndex: 11
+                                }}
+                              >
+                                <Trash2 className="w-full h-full" />
+                              </button>
                             </div>
                             <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto' }}>
                               {/* Summary detail */}
@@ -6422,31 +6429,6 @@ export default function CaseDesignCenterPage() {
                                                 <span style={{ width: 'auto', height: '22px', fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', letterSpacing: '-0.02em', color: '#B4B0B0', flex: 'none', order: 4, flexGrow: 0 }}>
                                                   Est days: {savedProduct.product.estimated_days || 10} work days after submission
                                                 </span>
-
-                                                {/* Trash Icon */}
-                                                <button
-                                                  onClick={(e) => {
-                                                    e.stopPropagation()
-                                                    handleDeleteProduct(savedProduct.id)
-                                                  }}
-                                                  className="hover:text-red-600 transition-colors"
-                                                  style={{
-                                                    width: '16px',
-                                                    height: '16px',
-                                                    color: '#999999',
-                                                    background: 'transparent',
-                                                    border: 'none',
-                                                    cursor: 'pointer',
-                                                    flex: 'none',
-                                                    order: 5,
-                                                    flexGrow: 0,
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center'
-                                                  }}
-                                                >
-                                                  <Trash2 className="w-full h-full" />
-                                                </button>
                                               </div>
                                             </div>
                                           </div>
@@ -6462,6 +6444,32 @@ export default function CaseDesignCenterPage() {
                                           />
                                         </div>
                                       </AccordionTrigger>
+                                      {/* Delete Button - Moved outside AccordionTrigger to avoid nested buttons */}
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          handleDeleteProduct(savedProduct.id)
+                                        }}
+                                        className="hover:text-red-600 transition-colors"
+                                        style={{
+                                          position: 'absolute',
+                                          width: '16px',
+                                          height: '16px',
+                                          color: '#999999',
+                                          background: 'transparent',
+                                          border: 'none',
+                                          cursor: 'pointer',
+                                          right: '34px',
+                                          top: '50%',
+                                          transform: 'translateY(-50%)',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          zIndex: 11
+                                        }}
+                                      >
+                                        <Trash2 className="w-full h-full" />
+                                      </button>
                                     </div>
 
                                     <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto' }}>
@@ -8285,31 +8293,6 @@ export default function CaseDesignCenterPage() {
                                         <span style={{ width: 'auto', height: '22px', fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', letterSpacing: '-0.02em', color: '#B4B0B0', flex: 'none', order: 4, flexGrow: 0 }}>
                                           Est days: {selectedProduct?.estimated_days || 10} work days after submission
                                         </span>
-
-                                        {/* Trash Icon */}
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation()
-                                            handleClearCurrentProduct()
-                                          }}
-                                          className="hover:text-red-600 transition-colors"
-                                          style={{
-                                            width: '16px',
-                                            height: '16px',
-                                            color: '#999999',
-                                            background: 'transparent',
-                                            border: 'none',
-                                            cursor: 'pointer',
-                                            flex: 'none',
-                                            order: 5,
-                                            flexGrow: 0,
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center'
-                                          }}
-                                        >
-                                          <Trash2 className="w-full h-full" />
-                                        </button>
                                       </div>
                                     </div>
                                   </div>
@@ -8325,6 +8308,32 @@ export default function CaseDesignCenterPage() {
                                   />
                                 </div>
                               </AccordionTrigger>
+                              {/* Delete Button - Moved outside AccordionTrigger to avoid nested buttons */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleClearCurrentProduct()
+                                }}
+                                className="hover:text-red-600 transition-colors"
+                                style={{
+                                  position: 'absolute',
+                                  width: '16px',
+                                  height: '16px',
+                                  color: '#999999',
+                                  background: 'transparent',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  right: '34px',
+                                  top: '50%',
+                                  transform: 'translateY(-50%)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  zIndex: 11
+                                }}
+                              >
+                                <Trash2 className="w-full h-full" />
+                              </button>
                             </div>
                             <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto' }}>
                               {/* Summary detail */}
@@ -9492,31 +9501,6 @@ export default function CaseDesignCenterPage() {
                                                 <span style={{ width: 'auto', height: '22px', fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', letterSpacing: '-0.02em', color: '#B4B0B0', flex: 'none', order: 4, flexGrow: 0 }}>
                                                   Est days: {savedProduct.product.estimated_days || 10} work days after submission
                                                 </span>
-
-                                                {/* Trash Icon */}
-                                                <button
-                                                  onClick={(e) => {
-                                                    e.stopPropagation()
-                                                    handleDeleteProduct(savedProduct.id)
-                                                  }}
-                                                  className="hover:text-red-600 transition-colors"
-                                                  style={{
-                                                    width: '16px',
-                                                    height: '16px',
-                                                    color: '#999999',
-                                                    background: 'transparent',
-                                                    border: 'none',
-                                                    cursor: 'pointer',
-                                                    flex: 'none',
-                                                    order: 5,
-                                                    flexGrow: 0,
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center'
-                                                  }}
-                                                >
-                                                  <Trash2 className="w-full h-full" />
-                                                </button>
                                               </div>
                                             </div>
                                           </div>
@@ -9532,6 +9516,32 @@ export default function CaseDesignCenterPage() {
                                           />
                                         </div>
                                       </AccordionTrigger>
+                                      {/* Delete Button - Moved outside AccordionTrigger to avoid nested buttons */}
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          handleDeleteProduct(savedProduct.id)
+                                        }}
+                                        className="hover:text-red-600 transition-colors"
+                                        style={{
+                                          position: 'absolute',
+                                          width: '16px',
+                                          height: '16px',
+                                          color: '#999999',
+                                          background: 'transparent',
+                                          border: 'none',
+                                          cursor: 'pointer',
+                                          right: '34px',
+                                          top: '50%',
+                                          transform: 'translateY(-50%)',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          zIndex: 11
+                                        }}
+                                      >
+                                        <Trash2 className="w-full h-full" />
+                                      </button>
                                     </div>
 
                                     <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto' }}>

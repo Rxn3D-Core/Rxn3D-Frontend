@@ -165,7 +165,7 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
             className="absolute z-50"
             style={{
               left: `${circlePositions[retentionPopoverTooth]?.cx || 0}px`,
-              top: `${(circlePositions[retentionPopoverTooth]?.cy || 0) - 60}px`,
+              top: `10px`, // Position at the top of the SVG
               transform: 'translateX(-50%)'
             }}
           >
