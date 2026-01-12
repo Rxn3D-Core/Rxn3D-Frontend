@@ -44,6 +44,7 @@ import { getUserAvatar } from "@/utils/avatar-utils"
 import { UserProfileModal } from "@/components/user-profile-modal"
 import { fetchUserProfile, type UserProfileData } from "@/services/user-profile-service"
 import { User as UserIcon } from "lucide-react"
+import { clearSlipCreationStorage } from "@/utils/slip-creation-storage"
 
 interface HeaderProps {
   toggleSidebar?: () => void
@@ -769,8 +770,8 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                 <button
                   className="bg-[#1162a8] hover:bg-blue-700 text-white px-2 sm:px-2.5 md:px-3 lg:px-4 py-1.5 sm:py-1.5 md:py-2 rounded-md sm:rounded-lg text-[10px] sm:text-xs md:text-sm font-medium transition-colors shadow-sm whitespace-nowrap flex-shrink-0"
                   onClick={() => {
-                    // Remove caseDesignCache from localStorage when starting a new slip
-                    localStorage.removeItem("caseDesignCache");
+                    // Clear all slip creation cache data when starting a new slip
+                    clearSlipCreationStorage();
                     // Navigate to choose-doctor page if office_admin, otherwise choose-lab
                     if (isOfficeAdmin) {
                       router.replace("/choose-doctor");
