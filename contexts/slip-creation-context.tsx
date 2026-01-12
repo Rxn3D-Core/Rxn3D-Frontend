@@ -463,17 +463,39 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
         url.searchParams.append('customer_id', effectiveCustomerId.toString());
       }
 
-      const res = await fetch(url.toString(), { 
-        headers: token ? { Authorization: `Bearer ${token}` } : {} 
-      });
-      
-      if (res.status === 401) { 
-        window.location.href = '/login'; 
+      // Create AbortController for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
+      try {
+        const res = await fetch(url.toString(), { 
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (res.status === 401) { 
+          window.location.href = '/login'; 
+          return null;
+        }
+        
+        if (!res.ok) {
+          console.error(`API error: ${res.status} ${res.statusText}`);
+          return null;
+        }
+        
+        const json = await res.json();
+        return json.data || json; // Return the product data
+      } catch (e: any) {
+        clearTimeout(timeoutId);
+        if (e.name === 'AbortError') {
+          console.error('Request timeout: Product details fetch took too long');
+        } else {
+          console.error('Error fetching product details:', e);
+        }
         return null;
       }
-      
-      const json = await res.json();
-      return json.data || json; // Return the product data
     } catch (e) {
       console.error('Error fetching product details:', e);
       return null;

@@ -38,6 +38,7 @@ import { DynamicProductFields } from "@/components/case-design-center/dynamic-pr
 import { ImplantPartsPopover } from "@/components/implant-parts-popover"
 import { FooterSection } from "./sections/footer-section"
 import { ProductSelectionBadge } from "./components/product-selection-badge"
+import { LoadingOverlay } from "@/components/ui/loading-overlay"
 import type { ProductCategoryApi, Doctor, Lab, PatientData, Product, SavedProduct } from "./sections/types"
 
 const SavedProductsSection = dynamic(
@@ -1276,6 +1277,9 @@ export default function CaseDesignCenterPage() {
   
   // Saved products state - array of product configurations
   const [savedProducts, setSavedProducts] = useState<SavedProduct[]>([])
+  
+  // Initial loading state - tracks when page is first loading to determine button visibility
+  const [isInitialLoading, setIsInitialLoading] = useState<boolean>(true)
 
   // Helper function to calculate total add-ons count across all saved products
   const getTotalAddOnsCount = useMemo(() => {
@@ -1378,6 +1382,59 @@ export default function CaseDesignCenterPage() {
   const [currentProductForModal, setCurrentProductForModal] = useState<SavedProduct | null>(null)
   const [currentArchForModal, setCurrentArchForModal] = useState<"maxillary" | "mandibular" | null>(null)
 
+  // Helper function to fetch product details on initial load
+  const fetchProductDetailsOnInitialLoad = async (product: Product) => {
+    setIsLoadingProductDetails(true)
+    try {
+      // Get lab from localStorage to ensure it's available
+      const storedLab = localStorage.getItem("selectedLab")
+      let labId: number | undefined
+      if (storedLab) {
+        try {
+          const lab = JSON.parse(storedLab)
+          labId = lab?.id || lab?.customer_id
+        } catch (error) {
+          console.error("Error parsing stored lab:", error)
+        }
+      }
+      
+      const details = await fetchProductDetails(product.id, labId)
+      
+      if (details) {
+        setProductDetails(details)
+        // Store in localStorage for future use
+        try {
+          const essentialData = {
+            id: details.id,
+            name: details.name,
+            code: details.code,
+            extractions: details.extractions || details.data?.extractions,
+          }
+          localStorage.setItem(`productDetails_${product.id}`, JSON.stringify(essentialData))
+        } catch (storageError) {
+          console.warn("Could not store product details in localStorage:", storageError)
+        }
+      } else {
+        // If API call failed or timed out, show error to user
+        toast({
+          title: "Loading Error",
+          description: "Failed to load product details. Please try again.",
+          variant: "destructive",
+        })
+      }
+    } catch (error: any) {
+      console.error("Error fetching product details on initial load:", error)
+      toast({
+        title: "Loading Error",
+        description: error.message || "Failed to load product details. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoadingProductDetails(false)
+      setIsInitialLoading(false)
+    }
+  }
+
   // Load data from localStorage
   useEffect(() => {
     // Get selected doctor
@@ -1446,6 +1503,7 @@ export default function CaseDesignCenterPage() {
       try {
         const product = JSON.parse(storedProduct)
         setSelectedProduct(product)
+        setShowProductDetails(true)
 
         // Try to load product details from localStorage
         const storedDetails = localStorage.getItem(`productDetails_${product.id}`)
@@ -1453,15 +1511,27 @@ export default function CaseDesignCenterPage() {
           try {
             const details = JSON.parse(storedDetails)
             setProductDetails(details)
+            // Mark initial loading as complete since we have product details
+            setIsInitialLoading(false)
           } catch (error) {
             console.error("Error parsing stored product details:", error)
+            // If parsing fails, fetch from API
+            fetchProductDetailsOnInitialLoad(product)
           }
+        } else {
+          // If product details are not in localStorage, fetch from API
+          fetchProductDetailsOnInitialLoad(product)
         }
       } catch (error) {
         console.error("Error parsing selected product:", error)
+        setIsInitialLoading(false)
       }
+    } else {
+      // No selected product, mark initial loading as complete
+      setIsInitialLoading(false)
     }
-  }, [fetchAllCategories])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Only run once on mount - fetchAllCategories and fetchProductDetails are stable from context
 
   // Save products to localStorage whenever savedProducts changes
   useEffect(() => {
@@ -4579,7 +4649,7 @@ export default function CaseDesignCenterPage() {
             {/* Search and Labels Row */}
             <div className="flex items-center w-full max-w-[1400px] gap-4">
               {/* Product Selection Badge - Show when product is selected and details are loaded */}
-              {showProductDetails && selectedProduct && !isLoadingProductDetails && productDetails && (
+              {showProductDetails && selectedProduct && !isInitialLoading && !isLoadingProductDetails && productDetails && (
                 <div className="w-full">
                   <ProductSelectionBadge
                     product={selectedProduct}
@@ -4596,6 +4666,13 @@ export default function CaseDesignCenterPage() {
               )}
               
             </div>
+            
+            {/* Loading Overlay - Show during initial load or when product details are loading */}
+            <LoadingOverlay
+              isLoading={Boolean(showProductDetails && selectedProduct && (isInitialLoading || isLoadingProductDetails))}
+              title="Loading Case design center"
+              message="Please wait while we load the product information..."
+            />
 
             {/* Unified Search Bar - Show in all views */}
             {!showProductDetails && (
