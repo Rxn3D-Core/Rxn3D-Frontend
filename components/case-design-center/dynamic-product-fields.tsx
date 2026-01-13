@@ -163,10 +163,9 @@ export function DynamicProductFields({
       return isStageFieldVisible()
     }
 
-    // impression (sequence 7) - show ONLY if stage field is visible in the UI
+    // impression (sequence 7) - exclude from DynamicProductFields, will be rendered separately after advanced fields
     if (config.key === "impression" || config.key === "impressions") {
-      // Only show impression if stage field is actually visible
-      return isStageFieldVisible()
+      return false // Don't render impression here, it will be rendered after advanced fields
     }
 
     // Other fields (sequence >= 7) - show after stage has value
@@ -652,7 +651,7 @@ export function DynamicProductFields({
               color: '#7F7F7F'
             }}
           >
-            {value && value !== "Not specified" ? `${config.label} - ${value}` : config.label}
+            {config.label}
             {isFieldRequired(config) && (
               <span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>
             )}

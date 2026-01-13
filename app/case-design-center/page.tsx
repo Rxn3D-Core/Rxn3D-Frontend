@@ -74,6 +74,14 @@ const ToothShadeSelectionSVG = dynamic(
   }
 )
 
+const TrubyteBioformIPNShadeSelectionSVG = dynamic(
+  () => import("@/components/trubye-bioform-ipn-shade-selection-svg").then((mod) => ({ default: mod.TrubyeBioformIPNShadeSelectionSVG })),
+  { 
+    ssr: false,
+    loading: () => <div className="flex items-center justify-center h-64"><Loader2 className="animate-spin" /></div>
+  }
+)
+
 const AddOnsModal = dynamic(
   () => import("@/components/add-ons-modal"),
   { 
@@ -568,8 +576,16 @@ export default function CaseDesignCenterPage() {
     
     // For stump shade, check if we have a value in maxillaryStumpShade and sync it
     const isStumpShade = field.name?.toLowerCase().includes("stump") && field.name?.toLowerCase().includes("shade")
+    const isToothShade = field.name?.toLowerCase().includes("tooth") && field.name?.toLowerCase().includes("shade")
     const stumpShadeValue = archType === "maxillary" ? savedProduct.maxillaryStumpShade : ""
-    const displayValue = isStumpShade && stumpShadeValue ? stumpShadeValue : fieldValue
+    const toothShadeValue = archType === "maxillary" 
+      ? (savedProducts.find(p => p.maxillaryTeeth.length > 0)?.maxillaryToothShade || "")
+      : (savedProducts.find(p => p.mandibularTeeth.length > 0)?.mandibularToothShade || "")
+    const displayValue = isStumpShade && stumpShadeValue 
+      ? stumpShadeValue 
+      : isToothShade && toothShadeValue 
+        ? toothShadeValue 
+        : fieldValue
     
     // Check if field is required and value is empty
     const isFieldRequired = field.is_required === "Yes" || field.is_required === true
@@ -655,7 +671,7 @@ export default function CaseDesignCenterPage() {
               color: '#7F7F7F'
             }}
           >
-            {field.name || "Advanced Field"}
+            {isStumpShade ? "Stump Shade" : isToothShade ? "Tooth Shade" : (field.name || "Advanced Field")}
             {isFieldRequired && (
               <span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>
             )}
@@ -705,7 +721,7 @@ export default function CaseDesignCenterPage() {
               color: '#7F7F7F'
             }}
           >
-            {field.name || "Advanced Field"}
+            {isStumpShade ? "Stump Shade" : isToothShade ? "Tooth Shade" : (field.name || "Advanced Field")}
             {isFieldRequired && (
               <span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>
             )}
@@ -1029,19 +1045,43 @@ export default function CaseDesignCenterPage() {
   }
 
   // Helper function to check if all required fields are filled (for showing advance fields)
+  // Helper to check if a value is actually set
+  const hasValue = (value: string | undefined | null): boolean => {
+    if (!value) return false
+    const trimmed = String(value).trim()
+    return trimmed !== "" && trimmed.toLowerCase() !== "not specified" && trimmed.toLowerCase() !== "finish"
+  }
+
+  // Helper to check if stage field is visible in UI (for showing advanced fields)
+  const isStageFieldVisible = (archType: "maxillary" | "mandibular"): boolean => {
+    const toothShade = archType === "maxillary" ? maxillaryToothShade : mandibularToothShade
+    const stages = productDetails?.stages
+    
+    // Stage field is visible if:
+    // 1. Tooth shade has a value
+    // 2. Stages exist in productDetails
+    if (!hasValue(toothShade)) {
+      return false
+    }
+    if (!stages || !Array.isArray(stages) || stages.length === 0) {
+      return false
+    }
+    
+    return true
+  }
+
+  // Helper to check if stage is filled (for showing advanced fields)
+  const isStageFilled = (archType: "maxillary" | "mandibular"): boolean => {
+    const stage = archType === "maxillary" ? maxillaryStage : mandibularStage
+    return hasValue(stage)
+  }
+
   const areAllRequiredFieldsFilled = (archType: "maxillary" | "mandibular"): boolean => {
     const material = archType === "maxillary" ? maxillaryMaterial : mandibularMaterial
     const retention = archType === "maxillary" ? maxillaryRetention : mandibularRetention
     const stumpShade = archType === "maxillary" ? maxillaryStumpShade : ""
     const toothShade = archType === "maxillary" ? maxillaryToothShade : mandibularToothShade
     const stage = archType === "maxillary" ? maxillaryStage : mandibularStage
-
-    // Helper to check if a value is actually set
-    const hasValue = (value: string | undefined | null): boolean => {
-      if (!value) return false
-      const trimmed = String(value).trim()
-      return trimmed !== "" && trimmed.toLowerCase() !== "not specified" && trimmed.toLowerCase() !== "finish"
-    }
 
     // Check all required fields
     const hasMaterial = hasValue(material)
@@ -1053,18 +1093,108 @@ export default function CaseDesignCenterPage() {
     return hasMaterial && hasRetention && hasStumpShade && hasToothShade && hasStage
   }
 
-  // Helper function to check if product accordion is complete
-  const isAccordionComplete = (): boolean => {
-    // If there are no saved products, accordion is not complete
+  // Helper function to check if all fields in current product have values
+  const areAllCurrentProductFieldsFilled = (archType: "maxillary" | "mandibular"): boolean => {
+    const material = archType === "maxillary" ? maxillaryMaterial : mandibularMaterial
+    const retention = archType === "maxillary" ? maxillaryRetention : mandibularRetention
+    const stumpShade = archType === "maxillary" ? maxillaryStumpShade : ""
+    const toothShade = archType === "maxillary" ? maxillaryToothShade : mandibularToothShade
+    const stage = archType === "maxillary" ? maxillaryStage : mandibularStage
+
+    // Check basic required fields
+    const hasMaterial = hasValue(material)
+    const hasRetention = hasValue(retention)
+    const hasStumpShade = archType === "maxillary" ? hasValue(stumpShade) : true // Mandibular doesn't have stump shade
+    const hasToothShade = hasValue(toothShade)
+    const hasStage = hasValue(stage)
+
+    // Check impression - at least one should be selected
+    let hasImpression = false
+    if (selectedProduct && productDetails?.impressions) {
+      const productId = selectedProduct.id.toString()
+      const impressionCount = productDetails.impressions.reduce((sum: number, impression: any) => {
+        const key = `${productId}_${archType}_${impression.value || impression.name}`
+        return sum + (selectedImpressions[key] || 0)
+      }, 0)
+      hasImpression = impressionCount > 0
+    }
+
+    // Check advanced fields if they exist and are required
+    let hasRequiredAdvanceFields = true
+    if (productDetails?.advance_fields && Array.isArray(productDetails.advance_fields)) {
+      // Filter out stump shade from advanced fields check (we use main stump shade field)
+      const filteredAdvanceFields = productDetails.advance_fields.filter((field: any) => {
+        const fieldNameLower = (field.name || "").toLowerCase()
+        return !(fieldNameLower.includes("stump") && fieldNameLower.includes("shade"))
+      })
+
+      // Check if any required advanced fields are missing
+      const requiredAdvanceFields = filteredAdvanceFields.filter((field: any) => 
+        field.is_required === "Yes" || field.is_required === true
+      )
+
+      if (requiredAdvanceFields.length > 0) {
+        hasRequiredAdvanceFields = requiredAdvanceFields.every((field: any) => {
+          const fieldKey = `advance_${field.id}`
+          const currentValue = advanceFieldValues[fieldKey]
+          
+          if (!currentValue) return false
+          
+          // For checkbox fields, check if at least one option is selected
+          if (field.field_type === "checkbox") {
+            const currentSelectedIds = typeof currentValue === "object" 
+              ? (Array.isArray(currentValue?.option_ids) ? currentValue.option_ids : 
+                 currentValue?.option_id ? [currentValue.option_id] : [])
+              : []
+            return currentSelectedIds.length > 0
+          }
+          
+          // For other fields, check if value is not empty or "Not specified"
+          const displayValue = typeof currentValue === "object" 
+            ? currentValue?.advance_field_value || ""
+            : currentValue || ""
+          return displayValue && 
+                 displayValue.trim() !== "" && 
+                 displayValue.trim().toLowerCase() !== "not specified" &&
+                 (field.field_type !== "dropdown" || displayValue !== `Select ${field.name}`)
+        })
+      }
+    }
+
+    return hasMaterial && hasRetention && hasStumpShade && hasToothShade && hasStage && hasImpression && hasRequiredAdvanceFields
+  }
+
+  // Helper function to check if at least one accordion product is complete (for submit button)
+  const hasAtLeastOneCompleteProduct = (): boolean => {
+    // If there are no saved products, no product is complete
     if (savedProducts.length === 0) {
       return false
     }
 
-    // Helper to check if a value is actually set
-    const hasValue = (value: string | undefined | null): boolean => {
-      if (!value) return false
-      const trimmed = String(value).trim()
-      return trimmed !== "" && trimmed.toLowerCase() !== "not specified" && trimmed.toLowerCase() !== "finish"
+    // Check if at least one saved product has all required fields filled
+    return savedProducts.some((product) => {
+      const hasMaterial = product.addedFrom === "maxillary" 
+        ? hasValue(product.maxillaryMaterial)
+        : hasValue(product.mandibularMaterial)
+      const hasRetention = product.addedFrom === "maxillary"
+        ? hasValue(product.maxillaryRetention)
+        : hasValue(product.mandibularRetention)
+      const hasToothShade = product.addedFrom === "maxillary"
+        ? hasValue(product.maxillaryToothShade)
+        : hasValue(product.mandibularToothShade)
+      const hasStage = product.addedFrom === "maxillary"
+        ? hasValue(product.maxillaryStage)
+        : hasValue(product.mandibularStage)
+
+      return hasMaterial && hasRetention && hasToothShade && hasStage
+    })
+  }
+
+  // Helper function to check if product accordion is complete (all products complete)
+  const isAccordionComplete = (): boolean => {
+    // If there are no saved products, accordion is not complete
+    if (savedProducts.length === 0) {
+      return false
     }
 
     // Check if all saved products have required fields filled
@@ -1215,9 +1345,9 @@ export default function CaseDesignCenterPage() {
   // State for info popover - show when product is selected but no arch chosen
   const [showInfoPopover, setShowInfoPopover] = useState<boolean>(false)
   
-  // Auto-show and auto-close info popover when product is selected but no arch is chosen
+  // Auto-show and auto-close info popover when charts are automatically displayed
   useEffect(() => {
-    if (showProductDetails && selectedProduct && !showMaxillaryChart && !showMandibularChart && !isLoadingProductDetails) {
+    if (showProductDetails && selectedProduct && showMaxillaryChart && showMandibularChart && productDetails && !isLoadingProductDetails) {
       // Show popover after a short delay
       const showTimer = setTimeout(() => {
         setShowInfoPopover(true)
@@ -1235,7 +1365,40 @@ export default function CaseDesignCenterPage() {
     } else {
       setShowInfoPopover(false)
     }
-  }, [showProductDetails, selectedProduct, showMaxillaryChart, showMandibularChart, isLoadingProductDetails])
+  }, [showProductDetails, selectedProduct, showMaxillaryChart, showMandibularChart, productDetails, isLoadingProductDetails])
+
+  // Show case summary notes when all fields have values in current product
+  useEffect(() => {
+    if (showProductDetails && selectedProduct && productDetails) {
+      // Check if maxillary or mandibular has all fields filled
+      const maxillaryComplete = showMaxillaryChart && maxillaryTeeth.length > 0 && areAllCurrentProductFieldsFilled("maxillary")
+      const mandibularComplete = showMandibularChart && mandibularTeeth.length > 0 && areAllCurrentProductFieldsFilled("mandibular")
+      
+      // Show case summary notes if either arch has all fields filled
+      setShowCaseSummaryNotes(maxillaryComplete || mandibularComplete)
+    } else {
+      setShowCaseSummaryNotes(false)
+    }
+  }, [
+    showProductDetails,
+    selectedProduct,
+    productDetails,
+    showMaxillaryChart,
+    showMandibularChart,
+    maxillaryTeeth,
+    mandibularTeeth,
+    maxillaryMaterial,
+    maxillaryRetention,
+    maxillaryStumpShade,
+    maxillaryToothShade,
+    maxillaryStage,
+    mandibularMaterial,
+    mandibularRetention,
+    mandibularToothShade,
+    mandibularStage,
+    selectedImpressions,
+    advanceFieldValues
+  ])
 
   // Handler to toggle accordion - only opens/closes on click
   const handleAccordionChange = (value: string) => {
@@ -1382,6 +1545,29 @@ export default function CaseDesignCenterPage() {
   const [currentProductForModal, setCurrentProductForModal] = useState<SavedProduct | null>(null)
   const [currentArchForModal, setCurrentArchForModal] = useState<"maxillary" | "mandibular" | null>(null)
 
+  // Helper function to automatically show both maxillary and mandibular charts
+  const showChartsAutomatically = (product: Product) => {
+    setSelectedArchForProduct("maxillary")
+    setShowMaxillaryChart(true)
+    setSelectedProductForMaxillary(product)
+    setMaxillaryTeeth([])
+    setMaxillaryRetentionTypes({})
+    
+    setSelectedArchForProduct("mandibular")
+    setShowMandibularChart(true)
+    setSelectedProductForMandibular(product)
+    setMandibularTeeth([])
+    setMandibularRetentionTypes({})
+    
+    // Scroll to maxillary section after state update
+    setTimeout(() => {
+      maxillarySectionRef.current?.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'start' 
+      })
+    }, 100)
+  }
+
   // Helper function to fetch product details on initial load
   const fetchProductDetailsOnInitialLoad = async (product: Product) => {
     setIsLoadingProductDetails(true)
@@ -1402,6 +1588,8 @@ export default function CaseDesignCenterPage() {
       
       if (details) {
         setProductDetails(details)
+        // Automatically show both maxillary and mandibular tooth selection charts
+        showChartsAutomatically(product)
         // Store in localStorage for future use
         try {
           const essentialData = {
@@ -1511,6 +1699,8 @@ export default function CaseDesignCenterPage() {
           try {
             const details = JSON.parse(storedDetails)
             setProductDetails(details)
+            // Automatically show both maxillary and mandibular tooth selection charts
+            showChartsAutomatically(product)
             // Mark initial loading as complete since we have product details
             setIsInitialLoading(false)
           } catch (error) {
@@ -1987,6 +2177,9 @@ export default function CaseDesignCenterPage() {
             console.error('Error storing product details in localStorage:', storageError)
           }
         }
+        
+        // Automatically show both maxillary and mandibular tooth selection charts
+        showChartsAutomatically(product)
       } else {
         toast({
           title: "Warning",
@@ -2862,8 +3055,14 @@ export default function CaseDesignCenterPage() {
   const handleShadeClickFromSVG = (shade: string) => {
     if (!currentShadeField) return
 
+    // For stump shade and tooth shade, concatenate shade guide name with shade code
+    let shadeValue = shade
+    if (currentShadeField === "stump_shade" || currentShadeField === "tooth_shade") {
+      shadeValue = `${selectedShadeGuide} - ${shade}`
+    }
+
     // Update the field with selected shade
-    handleFieldChange(currentShadeField, shade, undefined, undefined, currentShadeArch)
+    handleFieldChange(currentShadeField, shadeValue, undefined, undefined, currentShadeArch)
 
     // Clear the shade selection mode to show teeth again
     setCurrentShadeField(null)
@@ -3124,6 +3323,21 @@ export default function CaseDesignCenterPage() {
               break
             case "stump_shade":
               setMaxillaryStumpShade(value)
+              // Sync stump shade value to advanced fields if stump shade exists in advanced fields
+              if (productDetails?.advance_fields && selectedProduct) {
+                const stumpShadeField = getAdvanceFieldByName("stump_shade", productDetails.advance_fields)
+                if (stumpShadeField) {
+                  const fieldKey = `advance_${stumpShadeField.id}`
+                  setAdvanceFieldValues(prev => ({
+                    ...prev,
+                    [fieldKey]: {
+                      advance_field_id: stumpShadeField.id,
+                      advance_field_value: value,
+                      option_id: id // If stump shade has options, use the id
+                    }
+                  }))
+                }
+              }
               break
             case "tooth_shade":
               setMaxillaryToothShade(value)
@@ -3222,6 +3436,24 @@ export default function CaseDesignCenterPage() {
               break
             case "stump_shade":
               setMaxillaryGumShadeId(id)
+              // Sync stump shade ID to advanced fields if stump shade exists in advanced fields
+              if (productDetails?.advance_fields && selectedProduct && id !== undefined) {
+                const stumpShadeField = getAdvanceFieldByName("stump_shade", productDetails.advance_fields)
+                if (stumpShadeField) {
+                  const fieldKey = `advance_${stumpShadeField.id}`
+                  setAdvanceFieldValues(prev => {
+                    const currentValue = prev[fieldKey]
+                    return {
+                      ...prev,
+                      [fieldKey]: {
+                        advance_field_id: stumpShadeField.id,
+                        advance_field_value: currentValue?.advance_field_value || maxillaryStumpShade || "",
+                        option_id: id
+                      }
+                    }
+                  })
+                }
+              }
               break
             case "tooth_shade":
               setMaxillaryShadeId(id)
@@ -4594,13 +4826,13 @@ export default function CaseDesignCenterPage() {
         </div>
         <div className="flex items-center justify-center gap-2">
           <p className="text-base font-bold text-black">CASE DESIGN CENTER</p>
-          {/* Info Popover - Show when product is selected but no arch chosen */}
-          {showProductDetails && selectedProduct && !showMaxillaryChart && !showMandibularChart && !isLoadingProductDetails && (
+          {/* Info Popover - Show when product is selected and details are loaded */}
+          {showProductDetails && selectedProduct && !isInitialLoading && !isLoadingProductDetails && productDetails && (
             <Popover open={showInfoPopover} onOpenChange={setShowInfoPopover}>
               <PopoverTrigger asChild>
                 <button
                   type="button"
-                  className="flex items-center justify-center animate-pulse"
+                  className="flex items-center justify-center"
                   style={{
                     width: "24px",
                     height: "24px",
@@ -4632,7 +4864,7 @@ export default function CaseDesignCenterPage() {
                 <div className="relative bg-orange-100 border border-orange-200 rounded-lg px-4 py-3 shadow-lg max-w-sm">
                   <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-orange-100 border-r border-b border-orange-200 transform rotate-45"></div>
                   <p className="text-sm text-orange-800">
-                    Please click <strong>"Add Upper Product"</strong> or <strong>"Add Lower Product"</strong> to proceed with tooth selection for the selected product.
+                    The maxillary and mandibular tooth selection charts are displayed automatically. Please select teeth for each arch to proceed.
                   </p>
                 </div>
               </PopoverContent>
@@ -4648,22 +4880,7 @@ export default function CaseDesignCenterPage() {
           <div className="flex flex-col items-center">
             {/* Search and Labels Row */}
             <div className="flex items-center w-full max-w-[1400px] gap-4">
-              {/* Product Selection Badge - Show when product is selected and details are loaded */}
-              {showProductDetails && selectedProduct && !isInitialLoading && !isLoadingProductDetails && productDetails && (
-                <div className="w-full">
-                  <ProductSelectionBadge
-                    product={selectedProduct}
-                    onAddUpper={handleAddUpperProduct}
-                    onAddLower={handleAddLowerProduct}
-                    onDeleteUpper={handleDeleteUpperProduct}
-                    onDeleteLower={handleDeleteLowerProduct}
-                    hasMaxillaryProduct={!!selectedProductForMaxillary}
-                    hasMandibularProduct={!!selectedProductForMandibular}
-                    showMaxillaryChart={showMaxillaryChart}
-                    showMandibularChart={showMandibularChart}
-                  />
-                </div>
-              )}
+              {/* Product Selection Badge removed - charts now show directly */}
               
             </div>
             
@@ -4983,34 +5200,11 @@ export default function CaseDesignCenterPage() {
                   {showMaxillaryChart && (
                   <div ref={maxillarySectionRef} className="flex flex-col w-full">
                     {/* Selected Product Badge */}
-                    {selectedProductForMaxillary && (
+                    {selectedProductForMaxillary && maxillaryTeeth.length > 0 && (
                       <div
                         className="relative flex items-center justify-center"
                         style={{ width: "100%", height: "32px", flex: "none", order: 0, flexGrow: 0 }}
                       >
-                        {/* Delete Button - Left Edge */}
-                        <button
-                          onClick={handleDeleteUpperProduct}
-                          style={{
-                            position: "absolute",
-                            left: "0",
-                            top: "0",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            width: "32px",
-                            height: "32px",
-                            background: "#DC2626",
-                            borderRadius: "6px",
-                            border: "none",
-                            cursor: "pointer",
-                            zIndex: 10,
-                          }}
-                          aria-label="Delete upper product"
-                        >
-                          <Trash2 className="h-4 w-4 text-white" />
-                        </button>
-                        
                         <div
                           className="absolute left-1/2"
                           style={{
@@ -5255,32 +5449,6 @@ export default function CaseDesignCenterPage() {
                                     />
                                   </div>
                                 </AccordionTrigger>
-                                {/* Delete Button - Moved outside AccordionTrigger to avoid nested buttons */}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleClearCurrentProduct()
-                                  }}
-                                  className="hover:text-red-600 transition-colors"
-                                  style={{
-                                    position: 'absolute',
-                                    width: '16px',
-                                    height: '16px',
-                                    color: '#999999',
-                                    background: 'transparent',
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                    right: '34px',
-                                    top: '50%',
-                                    transform: 'translateY(-50%)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    zIndex: 11
-                                  }}
-                                >
-                                  <Trash2 className="w-full h-full" />
-                                </button>
                               </div>
                             <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto' }}>
                               {/* Tooth Shade Selection - Shows at the top when active */}
@@ -5310,11 +5478,19 @@ export default function CaseDesignCenterPage() {
 
                                     {/* Shade guide SVG */}
                                     <div className="bg-white w-full flex justify-center">
-                                      <ToothShadeSelectionSVG
-                                        selectedShades={selectedShadesForSVG}
-                                        onShadeClick={handleShadeClickFromSVG}
-                                        className="max-w-full"
-                                      />
+                                      {selectedShadeGuide === "Trubyte Bioform IPN" ? (
+                                        <TrubyteBioformIPNShadeSelectionSVG
+                                          selectedShades={selectedShadesForSVG}
+                                          onShadeClick={handleShadeClickFromSVG}
+                                          className="max-w-full"
+                                        />
+                                      ) : (
+                                        <ToothShadeSelectionSVG
+                                          selectedShades={selectedShadesForSVG}
+                                          onShadeClick={handleShadeClickFromSVG}
+                                          className="max-w-full"
+                                        />
+                                      )}
                                     </div>
                                   </div>
                                 </div>
@@ -5403,12 +5579,27 @@ export default function CaseDesignCenterPage() {
                                       }}
                                     />
                                     
-                                    {/* Advance Fields - Shown only after all required fields are filled */}
+                                    {/* Advance Fields - Shown after stage field is visible in UI */}
                                     {productDetails && 
                                      productDetails.advance_fields && 
                                      Array.isArray(productDetails.advance_fields) && 
                                      productDetails.advance_fields.length > 0 &&
-                                     areAllRequiredFieldsFilled("maxillary") && (
+                                     isStageFieldVisible("maxillary") && (() => {
+                                       // Filter out stump shade from advanced fields - use existing stump shade field instead
+                                       const stumpShadeField = getAdvanceFieldByName("stump_shade", productDetails.advance_fields)
+                                       const filteredAdvanceFields = stumpShadeField
+                                         ? productDetails.advance_fields.filter((field: any) => {
+                                             const fieldNameLower = (field.name || "").toLowerCase()
+                                             return !(fieldNameLower.includes("stump") && fieldNameLower.includes("shade"))
+                                           })
+                                         : productDetails.advance_fields
+                                       
+                                       // If no fields remain after filtering, don't render the section
+                                       if (filteredAdvanceFields.length === 0) {
+                                         return null
+                                       }
+                                       
+                                       return (
                                       <div
                                         className="flex flex-col gap-5"
                                   style={{
@@ -5425,7 +5616,7 @@ export default function CaseDesignCenterPage() {
                                       >
                                         <div className="w-full">
                                           <div className="flex flex-wrap gap-4" style={{ gap: '16px' }}>
-                                            {productDetails.advance_fields.map((field: any) => {
+                                            {filteredAdvanceFields.map((field: any) => {
                                               const fieldKey = `advance_${field.id}`
                                               const currentValue = advanceFieldValues[fieldKey] || ""
                                               
@@ -6016,7 +6207,101 @@ export default function CaseDesignCenterPage() {
                                 </div>
                                         </div>
                                       </div>
-                                    )}
+                                       )
+                                     })()}
+                                    
+                                    {/* Impression Field - Shown after advanced fields (or after stage field is visible if no advanced fields) */}
+                                    {productDetails && 
+                                     productDetails.impressions && 
+                                     Array.isArray(productDetails.impressions) && 
+                                     productDetails.impressions.length > 0 &&
+                                     isStageFieldVisible("maxillary") && (() => {
+                                       const impressionCount = selectedProduct && productDetails?.impressions
+                                         ? productDetails.impressions.reduce((sum: number, impression: any) => {
+                                             const key = `${selectedProduct.id.toString()}_maxillary_${impression.value || impression.name}`
+                                             return sum + (selectedImpressions[key] || 0)
+                                           }, 0)
+                                         : 0
+                                       const displayText = impressionCount > 0
+                                         ? `${impressionCount} impression${impressionCount > 1 ? "s" : ""} selected`
+                                         : "Not specified"
+                                       
+                                       // Show red border when there's no value or only placeholder
+                                       const showRedBorder = impressionCount === 0 || displayText === "Not specified"
+                                       
+                                       return (
+                                         <div className="relative" style={{ minHeight: '43px', width: '100%' }}>
+                                           <div
+                                             className="flex items-center cursor-pointer"
+                                             onClick={() => {
+                                               if (selectedProduct) {
+                                                 const tempProduct: SavedProduct = {
+                                                   id: selectedProduct.id.toString(),
+                                                   product: selectedProduct,
+                                                   productDetails: productDetails,
+                                                   category: selectedCategory || "",
+                                                   categoryId: selectedCategoryId || 0,
+                                                   subcategory: selectedSubcategory || "",
+                                                   subcategoryId: selectedSubcategoryId || 0,
+                                                   maxillaryTeeth: maxillaryTeeth,
+                                                   mandibularTeeth: mandibularTeeth,
+                                                   maxillaryMaterial: maxillaryMaterial,
+                                                   maxillaryStumpShade: maxillaryStumpShade,
+                                                   maxillaryRetention: maxillaryRetention,
+                                                   maxillaryNotes: maxillaryNotes,
+                                                   mandibularMaterial: mandibularMaterial,
+                                                   mandibularRetention: mandibularRetention,
+                                                   mandibularImplantDetails: mandibularImplantDetails,
+                                                   createdAt: Date.now(),
+                                                   addedFrom: "maxillary",
+                                                 }
+                                                 handleOpenImpressionModal(tempProduct, "maxillary")
+                                               }
+                                             }}
+                                             style={{
+                                               padding: '12px 15px 5px 15px',
+                                               gap: '5px',
+                                               width: '100%',
+                                               height: '37px',
+                                               position: 'relative',
+                                               marginTop: '5.27px',
+                                               background: '#FFFFFF',
+                                               border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
+                                               borderRadius: '7.7px',
+                                               boxSizing: 'border-box'
+                                             }}
+                                           >
+                                             <span style={{
+                                               fontFamily: 'Verdana',
+                                               fontStyle: 'normal',
+                                               fontWeight: 400,
+                                               fontSize: '14.4px',
+                                               lineHeight: '20px',
+                                               letterSpacing: '-0.02em',
+                                               color: '#000000',
+                                               whiteSpace: 'nowrap'
+                                             }}>{displayText}</span>
+                                           </div>
+                                           <label
+                                             className="absolute bg-white"
+                                             style={{
+                                               padding: '0px',
+                                               height: '14px',
+                                               left: '8.9px',
+                                               top: '0px',
+                                               fontFamily: 'Arial',
+                                               fontStyle: 'normal',
+                                               fontWeight: 400,
+                                               fontSize: '14px',
+                                               lineHeight: '14px',
+                                               color: '#7F7F7F'
+                                             }}
+                                           >
+                                             Impression
+                                           </label>
+                                         </div>
+                                       )
+                                     })()}
                                   </>
                                 )}
 
@@ -6084,12 +6369,9 @@ export default function CaseDesignCenterPage() {
                                 )}
                               </div>
 
-                              {/* Action Buttons - Only show if advance fields are showing */}
+                              {/* Action Buttons - Show when all fields have values */}
                               {productDetails && 
-                               productDetails.advance_fields && 
-                               Array.isArray(productDetails.advance_fields) && 
-                               productDetails.advance_fields.length > 0 &&
-                               areAllRequiredFieldsFilled("maxillary") && (
+                               areAllCurrentProductFieldsFilled("maxillary") && (
                               <div
                                 className="flex flex-wrap justify-center items-center w-full"
                                 style={{
@@ -8133,34 +8415,11 @@ export default function CaseDesignCenterPage() {
                   {showMandibularChart && (
                   <div ref={mandibularSectionRef} className="flex flex-col w-full">
                     {/* Selected Product Badge */}
-                    {selectedProductForMandibular && (
+                    {selectedProductForMandibular && mandibularTeeth.length > 0 && (
                       <div
                         className="relative flex items-center justify-center"
                         style={{ width: "100%", height: "32px", flex: "none", order: 0, flexGrow: 0 }}
                       >
-                        {/* Delete Button - Right Edge */}
-                        <button
-                          onClick={handleDeleteLowerProduct}
-                          style={{
-                            position: "absolute",
-                            right: "0",
-                            top: "0",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            width: "32px",
-                            height: "32px",
-                            background: "#DC2626",
-                            borderRadius: "6px",
-                            border: "none",
-                            cursor: "pointer",
-                            zIndex: 10,
-                          }}
-                          aria-label="Delete lower product"
-                        >
-                          <Trash2 className="h-4 w-4 text-white" />
-                        </button>
-                        
                         <div
                           className="absolute left-1/2"
                           style={{
@@ -8405,32 +8664,6 @@ export default function CaseDesignCenterPage() {
                                   />
                                 </div>
                               </AccordionTrigger>
-                              {/* Delete Button - Moved outside AccordionTrigger to avoid nested buttons */}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleClearCurrentProduct()
-                                }}
-                                className="hover:text-red-600 transition-colors"
-                                style={{
-                                  position: 'absolute',
-                                  width: '16px',
-                                  height: '16px',
-                                  color: '#999999',
-                                  background: 'transparent',
-                                  border: 'none',
-                                  cursor: 'pointer',
-                                  right: '34px',
-                                  top: '50%',
-                                  transform: 'translateY(-50%)',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  zIndex: 11
-                                }}
-                              >
-                                <Trash2 className="w-full h-full" />
-                              </button>
                             </div>
                             <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto' }}>
                               {/* Tooth Shade Selection - Shows at the top when active */}
@@ -8460,11 +8693,19 @@ export default function CaseDesignCenterPage() {
 
                                     {/* Shade guide SVG */}
                                     <div className="bg-white w-full flex justify-center">
-                                      <ToothShadeSelectionSVG
-                                        selectedShades={selectedShadesForSVG}
-                                        onShadeClick={handleShadeClickFromSVG}
-                                        className="max-w-full"
-                                      />
+                                      {selectedShadeGuide === "Trubyte Bioform IPN" ? (
+                                        <TrubyteBioformIPNShadeSelectionSVG
+                                          selectedShades={selectedShadesForSVG}
+                                          onShadeClick={handleShadeClickFromSVG}
+                                          className="max-w-full"
+                                        />
+                                      ) : (
+                                        <ToothShadeSelectionSVG
+                                          selectedShades={selectedShadesForSVG}
+                                          onShadeClick={handleShadeClickFromSVG}
+                                          className="max-w-full"
+                                        />
+                                      )}
                                     </div>
                                   </div>
                                 </div>
@@ -9199,12 +9440,9 @@ export default function CaseDesignCenterPage() {
                                 )}
                               </div>
 
-                              {/* Action Buttons - Only show if advance fields are showing */}
+                              {/* Action Buttons - Show when all fields have values */}
                               {productDetails && 
-                               productDetails.advance_fields && 
-                               Array.isArray(productDetails.advance_fields) && 
-                               productDetails.advance_fields.length > 0 &&
-                               areAllRequiredFieldsFilled("mandibular") && (
+                               areAllCurrentProductFieldsFilled("mandibular") && (
                               <div
                                 className="flex flex-wrap justify-center items-center w-full"
                                 style={{
@@ -11014,7 +11252,7 @@ export default function CaseDesignCenterPage() {
             isSubmitting={isSubmitting}
             confirmDetailsChecked={confirmDetailsChecked}
             showSubmitPopover={showSubmitPopover}
-            isAccordionComplete={isAccordionComplete}
+            isAccordionComplete={hasAtLeastOneCompleteProduct}
             onCancel={handleCancel}
             onPreview={handlePreview}
             onShowCancelModal={() => setShowCancelModal(true)}

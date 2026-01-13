@@ -646,7 +646,7 @@ const PatientInfoSection = ({
                 }}
               >
                 <div
-                  className="px-3 py-2 hover:bg-[#F3F4F6] cursor-pointer text-[#1F2937] transition-colors"
+                  className="px-3 py-2 hover:bg-[#DFEEFB] cursor-pointer text-[#1F2937] transition-colors"
                   style={{
                     fontFamily: "Arial",
                     fontSize: "17px",
@@ -657,7 +657,7 @@ const PatientInfoSection = ({
                   Male
                 </div>
                 <div
-                  className="px-3 py-2 hover:bg-[#F3F4F6] cursor-pointer text-[#1F2937] transition-colors"
+                  className="px-3 py-2 hover:bg-[#DFEEFB] cursor-pointer text-[#1F2937] transition-colors"
                   style={{
                     fontFamily: "Arial",
                     fontSize: "17px",

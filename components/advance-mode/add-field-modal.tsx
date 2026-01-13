@@ -764,10 +764,11 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
           : undefined
         payload.charge_scope = data.canAddAdditionalCharges ? data.chargeScope : undefined
       } else {
-        // For editing, only include changed fields
-        if (data.fieldName !== initialFormValues.fieldName) {
-          payload.name = data.fieldName
-        }
+        // For editing, always include required fields (name and field_type) even if unchanged
+        // Other fields are only included if they changed
+        payload.name = data.fieldName
+        payload.field_type = fieldTypeMap[data.fieldType]
+        
         if (data.description !== initialFormValues.description) {
           payload.description = data.description || undefined
         }
@@ -776,9 +777,6 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
         }
         if (data.subCategory !== initialFormValues.subCategory) {
           payload.advance_subcategory_id = data.subCategory ? parseInt(data.subCategory, 10) : undefined
-        }
-        if (data.fieldType !== initialFormValues.fieldType) {
-          payload.field_type = fieldTypeMap[data.fieldType]
         }
         if (data.requiredField !== initialFormValues.requiredField) {
           payload.is_required = data.requiredField ? 'Yes' : 'No'
@@ -1103,13 +1101,35 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
 
       // Call onSave callback - let the parent handle the mutation to avoid double submission
       if (onSave) {
-        // For onSave callback, pass the payload we built (which only contains changes when editing)
-        const saveData = {
-          ...payload,
-          // Include options if they exist in payload
-          // Include image if it exists in payload
+        // For onSave callback, pass form-formatted data (not API-formatted)
+        // The parent component will transform it to API format
+        const saveData: any = {
+          fieldName: data.fieldName,
+          fieldType: data.fieldType,
+          description: data.description,
+          requiredField: data.requiredField,
+          isSystemDefault: data.isSystemDefault,
+          category: data.category,
+          subCategory: data.subCategory,
+          pricing: {
+            canAddAdditionalCharges: data.canAddAdditionalCharges,
+            chargeType: data.chargeType,
+            additionalCharge: data.additionalCharge,
+            chargeScope: data.chargeScope,
+          },
         }
-        console.log("Calling onSave with data (only changes):", saveData)
+        
+        // Include options if they exist in payload
+        if (payload.options) {
+          saveData.options = payload.options
+        }
+        
+        // Include image if it exists in payload
+        if (payload.image) {
+          saveData.image = payload.image
+        }
+        
+        console.log("Calling onSave with form data:", saveData)
         try {
           await onSave(saveData)
           // Don't show success toast here - let the parent component handle all toasts
