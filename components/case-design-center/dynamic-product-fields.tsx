@@ -139,23 +139,16 @@ export function DynamicProductFields({
       return hasValue(retentionValue)
     }
 
-    // stump_shade (sequence 4) - show after retention has value (only for maxillary)
+    // stump_shade (sequence 4) - show after retention has value (for both maxillary and mandibular)
     if (config.key === "stump_shade") {
-      if (arch === "mandibular") return false // Mandibular doesn't have stump shade
       const retentionValue = getFieldValueByKey("retention")
       return hasValue(retentionValue)
     }
 
-    // tooth_shade (sequence 5) - show after stump_shade has value (maxillary) or retention has value (mandibular)
+    // tooth_shade (sequence 5) - show after stump_shade has value (for both maxillary and mandibular)
     if (config.key === "tooth_shade") {
-      if (arch === "maxillary") {
-        const stumpShadeValue = getFieldValueByKey("stump_shade")
-        return hasValue(stumpShadeValue)
-      } else {
-        // For mandibular, show after retention has value
-        const retentionValue = getFieldValueByKey("retention")
-        return hasValue(retentionValue)
-      }
+      const stumpShadeValue = getFieldValueByKey("stump_shade")
+      return hasValue(stumpShadeValue)
     }
 
     // stage (sequence 6) - show after tooth_shade has value and stages exist
@@ -196,7 +189,7 @@ export function DynamicProductFields({
     // Check all required fields
     const hasMaterial = hasValue(materialValue)
     const hasRetention = hasValue(retentionValue)
-    const hasStumpShade = arch === "maxillary" ? hasValue(stumpShadeValue) : true // Mandibular doesn't have stump shade
+    const hasStumpShade = hasValue(stumpShadeValue) // Both maxillary and mandibular have stump shade
     const hasToothShade = hasValue(toothShadeValue)
     const hasStage = hasValue(stageValue)
 

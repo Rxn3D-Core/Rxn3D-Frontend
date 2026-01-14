@@ -394,7 +394,20 @@ export default function ChooseLabPage() {
           {/* Loading State */}
           {isLoading ? (
             <div className="flex items-center justify-center py-20">
-              <div className="text-gray-500">Loading labs...</div>
+              <div className="text-gray-500">
+                {typeof window !== "undefined"
+                  ? (() => {
+                      const role = window.localStorage.getItem("role");
+                      if (role === "lab_admin") {
+                        return "Loading Offices...";
+                      }
+                      if (role === "office_admin") {
+                        return "Loading Labs...";
+                      }
+                      return "Loading...";
+                    })()
+                  : "Loading..."}
+              </div>
             </div>
           ) : sortedAndFilteredLabs.length === 0 ? (
             <div className="flex items-center justify-center py-20">

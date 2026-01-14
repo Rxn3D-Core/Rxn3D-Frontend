@@ -320,7 +320,7 @@ export default function CaseDesignCenterPage() {
   const [maxillaryMaterial, setMaxillaryMaterial] = useState<string>("")
   const [maxillaryStumpShade, setMaxillaryStumpShade] = useState<string>("")
   const [maxillaryRetention, setMaxillaryRetention] = useState<string>("")
-  const [maxillaryNotes, setMaxillaryNotes] = useState<string>("")
+  const [maxillaryImplantDetails, setMaxillaryImplantDetails] = useState<string>("")
   const [maxillaryMaterialId, setMaxillaryMaterialId] = useState<number | undefined>(undefined)
   const [maxillaryRetentionId, setMaxillaryRetentionId] = useState<number | undefined>(undefined)
   const [maxillaryRetentionOptionId, setMaxillaryRetentionOptionId] = useState<number | undefined>(undefined)
@@ -333,6 +333,7 @@ export default function CaseDesignCenterPage() {
   // Form states for MANDIBULAR
   const [mandibularMaterial, setMandibularMaterial] = useState<string>("")
   const [mandibularRetention, setMandibularRetention] = useState<string>("")
+  const [mandibularStumpShade, setMandibularStumpShade] = useState<string>("")
   const [mandibularImplantDetails, setMandibularImplantDetails] = useState<string>("")
   const [mandibularMaterialId, setMandibularMaterialId] = useState<number | undefined>(undefined)
   const [mandibularRetentionId, setMandibularRetentionId] = useState<number | undefined>(undefined)
@@ -577,7 +578,7 @@ export default function CaseDesignCenterPage() {
     // For stump shade, check if we have a value in maxillaryStumpShade and sync it
     const isStumpShade = field.name?.toLowerCase().includes("stump") && field.name?.toLowerCase().includes("shade")
     const isToothShade = field.name?.toLowerCase().includes("tooth") && field.name?.toLowerCase().includes("shade")
-    const stumpShadeValue = archType === "maxillary" ? savedProduct.maxillaryStumpShade : ""
+    const stumpShadeValue = archType === "maxillary" ? savedProduct.maxillaryStumpShade : savedProduct.mandibularStumpShade
     const toothShadeValue = archType === "maxillary" 
       ? (savedProducts.find(p => p.maxillaryTeeth.length > 0)?.maxillaryToothShade || "")
       : (savedProducts.find(p => p.mandibularTeeth.length > 0)?.mandibularToothShade || "")
@@ -936,7 +937,7 @@ export default function CaseDesignCenterPage() {
     const occlusalContact = archType === "maxillary" ? savedProduct.maxillaryOcclusalContact : savedProduct.mandibularOcclusalContact
     const proximalContact = archType === "maxillary" ? savedProduct.maxillaryProximalContact : savedProduct.mandibularProximalContact
     const gap = archType === "maxillary" ? savedProduct.maxillaryGap : savedProduct.mandibularGap
-    const stumpShade = archType === "maxillary" ? savedProduct.maxillaryStumpShade : ""
+    const stumpShade = archType === "maxillary" ? savedProduct.maxillaryStumpShade : savedProduct.mandibularStumpShade
 
     switch (fieldName) {
       case "product_material":
@@ -1086,7 +1087,7 @@ export default function CaseDesignCenterPage() {
     // Check all required fields
     const hasMaterial = hasValue(material)
     const hasRetention = hasValue(retention)
-    const hasStumpShade = archType === "maxillary" ? hasValue(stumpShade) : true // Mandibular doesn't have stump shade
+    const hasStumpShade = hasValue(stumpShade) // Both arches have stump shade
     const hasToothShade = hasValue(toothShade)
     const hasStage = hasValue(stage)
 
@@ -1104,7 +1105,7 @@ export default function CaseDesignCenterPage() {
     // Check basic required fields
     const hasMaterial = hasValue(material)
     const hasRetention = hasValue(retention)
-    const hasStumpShade = archType === "maxillary" ? hasValue(stumpShade) : true // Mandibular doesn't have stump shade
+    const hasStumpShade = hasValue(stumpShade) // Both arches have stump shade
     const hasToothShade = hasValue(toothShade)
     const hasStage = hasValue(stage)
 
@@ -1274,12 +1275,12 @@ export default function CaseDesignCenterPage() {
   // Helper function to check if accordion field should be visible (progressive disclosure for accordion)
   // Fields are hidden initially and shown automatically when the previous field has a value
   const isAccordionFieldVisible = (
-    fieldName: "stump_shade" | "tooth_shade" | "stage" | "notes" | "implant_details",
+    fieldName: "stump_shade" | "tooth_shade" | "stage" | "implant_details",
     savedProduct: SavedProduct,
     archType: "maxillary" | "mandibular"
   ): boolean => {
     const retention = archType === "maxillary" ? savedProduct.maxillaryRetention : savedProduct.mandibularRetention
-    const stumpShade = archType === "maxillary" ? savedProduct.maxillaryStumpShade : ""
+    const stumpShade = archType === "maxillary" ? savedProduct.maxillaryStumpShade : savedProduct.mandibularStumpShade
     const toothShade = archType === "maxillary" ? savedProduct.maxillaryToothShade : savedProduct.mandibularToothShade
     const stage = archType === "maxillary" ? savedProduct.maxillaryStage : savedProduct.mandibularStage
 
@@ -1292,30 +1293,21 @@ export default function CaseDesignCenterPage() {
 
     switch (fieldName) {
       case "stump_shade":
-        // Show stump shade ONLY after retention has a real value (only for maxillary)
+        // Show stump shade ONLY after retention has a real value (for both arches)
         // Initially hidden, shows automatically when retention is filled
-        return archType === "maxillary" && hasValue(retention)
+        return hasValue(retention)
       case "tooth_shade":
-        // For maxillary: show tooth shade ONLY after stump shade has a real value
-        // For mandibular: show tooth shade ONLY after retention has a real value
-        // Initially hidden, shows automatically when previous field is filled
-        if (archType === "maxillary") {
-          return hasValue(stumpShade)
-        } else {
-          return hasValue(retention)
-        }
+        // Show tooth shade ONLY after stump shade has a real value (for both arches)
+        // Initially hidden, shows automatically when stump shade is filled
+        return hasValue(stumpShade)
       case "stage":
         // Show stage ONLY after tooth shade has a real value
         // Initially hidden, shows automatically when tooth shade is filled
         return hasValue(toothShade)
-      case "notes":
-        // Show notes ONLY after stage has a real value (for maxillary)
-        // Initially hidden, shows automatically when stage is filled
-        return archType === "maxillary" && hasValue(stage)
       case "implant_details":
-        // Show implant details ONLY after stage has a real value (for mandibular)
+        // Show implant details ONLY after stage has a real value (for both arches)
         // Initially hidden, shows automatically when stage is filled
-        return archType === "mandibular" && hasValue(stage)
+        return hasValue(stage)
       default:
         return false
     }
@@ -2251,7 +2243,7 @@ export default function CaseDesignCenterPage() {
     setMaxillaryMaterial("")
     setMaxillaryStumpShade("")
     setMaxillaryRetention("")
-    setMaxillaryNotes("")
+    setMaxillaryImplantDetails("")
     setMaxillaryMaterialId(undefined)
     setMaxillaryRetentionId(undefined)
     setMaxillaryRetentionOptionId(undefined)
@@ -2274,6 +2266,7 @@ export default function CaseDesignCenterPage() {
     setMandibularRetentionTypes({})
     setMandibularMaterial("")
     setMandibularRetention("")
+    setMandibularStumpShade("")
     setMandibularImplantDetails("")
     setMandibularMaterialId(undefined)
     setMandibularRetentionId(undefined)
@@ -2646,9 +2639,10 @@ export default function CaseDesignCenterPage() {
             maxillaryMaterial: currentSection === "maxillary" ? productName : "",
             maxillaryStumpShade: currentSection === "maxillary" ? stumpShade : "",
             maxillaryRetention: currentSection === "maxillary" ? retention : "",
-            maxillaryNotes: "",
+            maxillaryImplantDetails: "",
             mandibularMaterial: currentSection === "mandibular" ? productName : "",
             mandibularRetention: currentSection === "mandibular" ? retention : "",
+            mandibularStumpShade: currentSection === "mandibular" ? stumpShade : "",
             mandibularImplantDetails: currentSection === "mandibular" ? implantDetails : "",
             createdAt: Date.now(),
             addedFrom: currentSection as "maxillary" | "mandibular",
@@ -2838,7 +2832,7 @@ export default function CaseDesignCenterPage() {
           notes += `Fabricate a ${grade} ${productName} replacing teeth ${teeth}, in the ${stage} stage. Use ${teethShade} denture teeth with ${gumShade} gingiva. Impression: ${impressionText}. Add-ons ${addOns}.${advanceFieldsSection}`
         } else if (isOrthodontic) {
           const productName = product.product.name || "orthodontic appliance"
-          const instructions = product.maxillaryNotes || "Standard specifications"
+          const instructions = product.maxillaryImplantDetails || "Standard specifications"
 
           notes += `Fabricate a ${productName} with the following details: ${instructions}`
         }
@@ -2940,7 +2934,7 @@ export default function CaseDesignCenterPage() {
           notes += `Fabricate a ${grade} ${productName} replacing teeth ${teeth}, in the ${stage} stage. Use ${teethShade} denture teeth with ${gumShade} gingiva. Impression: ${impressionText}. Add-ons ${addOns}.${advanceFieldsSection}`
         } else if (isOrthodontic) {
           const productName = product.product.name || "orthodontic appliance"
-          const instructions = product.maxillaryNotes || "Standard specifications"
+          const instructions = product.maxillaryImplantDetails || "Standard specifications"
 
           notes += `Fabricate a ${productName} with the following details: ${instructions}`
         }
@@ -2950,7 +2944,7 @@ export default function CaseDesignCenterPage() {
     return notes.trim()
   }
 
-  // Initialize maxillaryNotes with generated notes when empty and we have products
+  // Initialize maxillaryImplantDetails with generated notes when empty and we have products
   // Also update when products are added or modified
   useEffect(() => {
     if (savedProducts.length > 0) {
@@ -2958,16 +2952,16 @@ export default function CaseDesignCenterPage() {
       if (generatedNotes) {
         // Only update if notes are empty or if we're adding the first product
         // This preserves user edits while auto-updating when products change
-        if (!maxillaryNotes || savedProducts.length === 1) {
-          setMaxillaryNotes(generatedNotes)
+        if (!maxillaryImplantDetails || savedProducts.length === 1) {
+          setMaxillaryImplantDetails(generatedNotes)
         } else {
           // If user has edited notes, only update if the generated notes are significantly different
           // This is a simple check - you might want to make it more sophisticated
-          const currentNotesLength = maxillaryNotes.length
+          const currentNotesLength = maxillaryImplantDetails.length
           const generatedNotesLength = generatedNotes.length
           // If generated notes are much longer (new product added), update them
           if (generatedNotesLength > currentNotesLength * 1.5) {
-            setMaxillaryNotes(generatedNotes)
+            setMaxillaryImplantDetails(generatedNotes)
           }
         }
       }
@@ -3120,7 +3114,7 @@ export default function CaseDesignCenterPage() {
       } else {
         const currentValue = stateKey === "mandibularMaterial" ? mandibularMaterial :
                            stateKey === "mandibularRetention" ? mandibularRetention :
-                           stateKey === "mandibularStumpShade" ? "" : // Mandibular doesn't have stump shade in SavedProduct
+                           stateKey === "mandibularStumpShade" ? mandibularStumpShade :
                            stateKey === "mandibularToothShade" ? mandibularToothShade :
                            stateKey === "mandibularStage" ? mandibularStage : ""
         return !currentValue || currentValue.trim() === ""
@@ -3179,18 +3173,30 @@ export default function CaseDesignCenterPage() {
         if (config.mandibularStateKey && shouldAutoSelect(config.key, "mandibular")) {
           const apiData = productDetails[config.apiProperty]
           if (apiData && Array.isArray(apiData) && apiData.length > 0) {
+            // For material field: copy from maxillary if it has a value
+            if (config.key === "material" && maxillaryMaterial && maxillaryMaterialId) {
+              // Find the same material option in the API data
+              const matchingOption = apiData.find((opt: any) =>
+                opt.id === maxillaryMaterialId || opt.name === maxillaryMaterial
+              )
+              if (matchingOption) {
+                handleFieldChange(config.key, matchingOption.name, matchingOption.id, undefined, "mandibular")
+                return // Skip the default auto-select logic for material
+              }
+            }
+
             // For stages, filter by status if it exists, otherwise include all
             // For other fields, filter active options only
-            const activeOptions = config.key === "stage" 
+            const activeOptions = config.key === "stage"
               ? apiData.filter((opt: any) => opt.status === "Active" || opt.status === undefined || !opt.hasOwnProperty("status"))
               : apiData.filter((opt: any) => opt.status === "Active" || opt.status === undefined)
-            
+
             // If only one option, auto-select it
             if (activeOptions.length === 1) {
               const singleOption = activeOptions[0]
               // For retention_options, check if it matches selected retention
               if (config.key === "retention_option") {
-                const selectedRetentionId = mandibularRetentionId || 
+                const selectedRetentionId = mandibularRetentionId ||
                   (productDetails.retentions?.find((r: any) => r.is_default === "Yes" || r.is_default === true)?.id)
                 if (singleOption.retention_id === selectedRetentionId) {
                   handleFieldChange(config.key, singleOption.name, singleOption.id, undefined, "mandibular")
@@ -3204,7 +3210,7 @@ export default function CaseDesignCenterPage() {
               if (defaultOption) {
                 // For retention_options, check if it matches selected retention
                 if (config.key === "retention_option") {
-                  const selectedRetentionId = mandibularRetentionId || 
+                  const selectedRetentionId = mandibularRetentionId ||
                     (productDetails.retentions?.find((r: any) => r.is_default === "Yes" || r.is_default === true)?.id)
                   if (defaultOption.retention_id === selectedRetentionId) {
                     handleFieldChange(config.key, defaultOption.name, defaultOption.id, undefined, "mandibular")
@@ -3778,7 +3784,7 @@ export default function CaseDesignCenterPage() {
         maxillaryMaterial: finalMaxillaryMaterial,
         maxillaryStumpShade,
         maxillaryRetention: finalMaxillaryRetention,
-        maxillaryNotes,
+        maxillaryImplantDetails,
         mandibularMaterial: finalMandibularMaterial,
         mandibularRetention: finalMandibularRetention,
         mandibularImplantDetails,
@@ -3874,7 +3880,7 @@ export default function CaseDesignCenterPage() {
     // Update case summary notes when product is auto-saved
     const updatedNotes = generateCaseNotes()
     if (updatedNotes) {
-      setMaxillaryNotes(updatedNotes)
+      setMaxillaryImplantDetails(updatedNotes)
     }
   }
 
@@ -3991,7 +3997,7 @@ export default function CaseDesignCenterPage() {
       maxillaryMaterial: finalMaxillaryMaterial,
       maxillaryStumpShade,
       maxillaryRetention: finalMaxillaryRetention,
-      maxillaryNotes,
+      maxillaryImplantDetails,
       mandibularMaterial: finalMandibularMaterial,
       mandibularRetention: finalMandibularRetention,
       mandibularImplantDetails,
@@ -4095,9 +4101,10 @@ export default function CaseDesignCenterPage() {
     setMaxillaryMaterial("")
     setMaxillaryStumpShade("")
     setMaxillaryRetention("")
-    setMaxillaryNotes("")
+    setMaxillaryImplantDetails("")
     setMandibularMaterial("")
     setMandibularRetention("")
+    setMandibularStumpShade("")
     setMandibularImplantDetails("")
     setMissingTeethCardClicked(false)
     setOpenAccordion("maxillary-card")
@@ -4112,7 +4119,7 @@ export default function CaseDesignCenterPage() {
     // Update case summary notes when product is added
     const updatedNotes = generateCaseNotes()
     if (updatedNotes) {
-      setMaxillaryNotes(updatedNotes)
+      setMaxillaryImplantDetails(updatedNotes)
     }
   }
 
@@ -4135,9 +4142,10 @@ export default function CaseDesignCenterPage() {
     setMaxillaryMaterial("")
     setMaxillaryStumpShade("")
     setMaxillaryRetention("")
-    setMaxillaryNotes("")
+    setMaxillaryImplantDetails("")
     setMandibularMaterial("")
     setMandibularRetention("")
+    setMandibularStumpShade("")
     setMandibularImplantDetails("")
     setMissingTeethCardClicked(false)
 
@@ -4231,14 +4239,17 @@ export default function CaseDesignCenterPage() {
     if (savedProduct.maxillaryRetention) {
       setMaxillaryRetention(savedProduct.maxillaryRetention)
     }
-    if (savedProduct.maxillaryNotes) {
-      setMaxillaryNotes(savedProduct.maxillaryNotes)
+    if (savedProduct.maxillaryImplantDetails) {
+      setMaxillaryImplantDetails(savedProduct.maxillaryImplantDetails)
     }
     if (savedProduct.mandibularMaterial) {
       setMandibularMaterial(savedProduct.mandibularMaterial)
     }
     if (savedProduct.mandibularRetention) {
       setMandibularRetention(savedProduct.mandibularRetention)
+    }
+    if (savedProduct.mandibularStumpShade) {
+      setMandibularStumpShade(savedProduct.mandibularStumpShade)
     }
     if (savedProduct.mandibularImplantDetails) {
       setMandibularImplantDetails(savedProduct.mandibularImplantDetails)
@@ -4262,10 +4273,11 @@ export default function CaseDesignCenterPage() {
     setMaxillaryMaterial("")
     setMaxillaryStumpShade("")
     setMaxillaryRetention("")
-    setMaxillaryNotes("")
+    setMaxillaryImplantDetails("")
     setMandibularMaterial("")
     setMandibularRetention("")
     setMandibularImplantDetails("")
+    setMandibularStumpShade("")
     setMissingTeethCardClicked(false)
     setProductDetails(null)
 
@@ -4340,9 +4352,10 @@ export default function CaseDesignCenterPage() {
         maxillaryMaterial: finalMaxillaryMaterial,
         maxillaryStumpShade,
         maxillaryRetention: maxillaryRetention,
-        maxillaryNotes,
+        maxillaryImplantDetails,
         mandibularMaterial: finalMandibularMaterial,
         mandibularRetention: mandibularRetention,
+                                            mandibularStumpShade: mandibularStumpShade,
         mandibularImplantDetails,
         createdAt: Date.now(),
         addedFrom,
@@ -4718,7 +4731,7 @@ export default function CaseDesignCenterPage() {
           addOn: a.name || "",
           qty: a.qty || a.quantity || 1,
         })) || [],
-        stageNotesContent: maxillaryTeeth.length > 0 ? sp.maxillaryNotes : sp.mandibularImplantDetails || "",
+        stageNotesContent: maxillaryTeeth.length > 0 ? sp.maxillaryImplantDetails : sp.mandibularImplantDetails || "",
         rushRequest: sp.rushData ? {
           date: sp.rushData.targetDate,
         } : undefined,
@@ -5556,9 +5569,10 @@ export default function CaseDesignCenterPage() {
                                             maxillaryMaterial: maxillaryMaterial,
                                             maxillaryStumpShade: maxillaryStumpShade,
                                             maxillaryRetention: maxillaryRetention,
-                                            maxillaryNotes: maxillaryNotes,
+                                            maxillaryImplantDetails: maxillaryImplantDetails,
                                             mandibularMaterial: mandibularMaterial,
                                             mandibularRetention: mandibularRetention,
+                                            mandibularStumpShade: mandibularStumpShade,
                                             mandibularImplantDetails: mandibularImplantDetails,
                                             createdAt: Date.now(),
                                             addedFrom: "maxillary",
@@ -6248,9 +6262,10 @@ export default function CaseDesignCenterPage() {
                                                    maxillaryMaterial: maxillaryMaterial,
                                                    maxillaryStumpShade: maxillaryStumpShade,
                                                    maxillaryRetention: maxillaryRetention,
-                                                   maxillaryNotes: maxillaryNotes,
+                                                   maxillaryImplantDetails: maxillaryImplantDetails,
                                                    mandibularMaterial: mandibularMaterial,
                                                    mandibularRetention: mandibularRetention,
+                                            mandibularStumpShade: mandibularStumpShade,
                                                    mandibularImplantDetails: mandibularImplantDetails,
                                                    createdAt: Date.now(),
                                                    addedFrom: "maxillary",
@@ -6306,7 +6321,7 @@ export default function CaseDesignCenterPage() {
                                 )}
 
                                 {/* Notes if available */}
-                                {maxillaryNotes && (
+                                {maxillaryImplantDetails && (
                                   <div
                                     className="flex flex-col sm:flex-row flex-wrap gap-5"
                                     style={{
@@ -6345,7 +6360,7 @@ export default function CaseDesignCenterPage() {
                                           lineHeight: '20px',
                                           letterSpacing: '-0.02em',
                                           color: '#000000'
-                                        }}>{maxillaryNotes}</span>
+                                        }}>{maxillaryImplantDetails}</span>
                                       </div>
                                       <label
                                         className="absolute bg-white"
@@ -6455,9 +6470,10 @@ export default function CaseDesignCenterPage() {
                                       maxillaryMaterial: maxillaryMaterial,
                                       maxillaryStumpShade: maxillaryStumpShade,
                                       maxillaryRetention: maxillaryRetention,
-                                      maxillaryNotes: maxillaryNotes,
+                                      maxillaryImplantDetails: maxillaryImplantDetails,
                                       mandibularMaterial: mandibularMaterial,
                                       mandibularRetention: mandibularRetention,
+                                            mandibularStumpShade: mandibularStumpShade,
                                       mandibularImplantDetails: mandibularImplantDetails,
                                       createdAt: Date.now(),
                                       addedFrom: arch,
@@ -6585,9 +6601,10 @@ export default function CaseDesignCenterPage() {
                                       maxillaryMaterial: maxillaryMaterial,
                                       maxillaryStumpShade: maxillaryStumpShade,
                                       maxillaryRetention: maxillaryRetention,
-                                      maxillaryNotes: maxillaryNotes,
+                                      maxillaryImplantDetails: maxillaryImplantDetails,
                                       mandibularMaterial: mandibularMaterial,
                                       mandibularRetention: mandibularRetention,
+                                            mandibularStumpShade: mandibularStumpShade,
                                       mandibularImplantDetails: mandibularImplantDetails,
                                       createdAt: Date.now(),
                                       addedFrom: maxillaryTeeth.length > 0 ? "maxillary" : "mandibular",
@@ -7904,7 +7921,7 @@ export default function CaseDesignCenterPage() {
                                         )}
 
                                         {/* Notes if available */}
-                                        {savedProduct.maxillaryNotes && (
+                                        {savedProduct.maxillaryImplantDetails && (
                                         <div
                                           className="flex flex-col sm:flex-row flex-wrap gap-5"
                                           style={{
@@ -8105,7 +8122,7 @@ export default function CaseDesignCenterPage() {
                                         )}
 
                                         {/* Notes if available */}
-                                        {savedProduct.maxillaryNotes && (
+                                        {savedProduct.maxillaryImplantDetails && (
                                           <div
                                             className="flex flex-col sm:flex-row flex-wrap gap-5"
                                             style={{
@@ -8144,7 +8161,7 @@ export default function CaseDesignCenterPage() {
                                                   lineHeight: '20px',
                                                   letterSpacing: '-0.02em',
                                                   color: '#000000'
-                                                }}>{savedProduct.maxillaryNotes}</span>
+                                                }}>{savedProduct.maxillaryImplantDetails}</span>
                                               </div>
                                               <label
                                                 className="absolute bg-white"
@@ -8729,23 +8746,55 @@ export default function CaseDesignCenterPage() {
                                   boxSizing: 'border-box'
                                 }}
                               >
-                                {/* Row 1: Product - Material and Retention Type */}
-                                <div
-                                  className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                  style={{
-                                    display: 'flex',
-                                    flexDirection: 'row',
-                                    alignItems: 'flex-start',
-                                    padding: '0px',
-                                    gap: '20px',
-                                    flex: 'none',
-                                    order: 0,
-                                    alignSelf: 'stretch',
-                                    flexGrow: 0
-                                  }}
-                                >
-                                  {/* Product - Material */}
-                                  <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
+                                {/* Create temporary saved product for field visibility checks */}
+                                {(() => {
+                                  const tempProduct: SavedProduct = {
+                                    id: "mandibular-card",
+                                    product: selectedProduct || { id: 0, name: "" },
+                                    productDetails: productDetails,
+                                    category: selectedCategory || "",
+                                    categoryId: selectedCategoryId || 0,
+                                    subcategory: selectedSubcategory || "",
+                                    subcategoryId: selectedSubcategoryId || 0,
+                                    maxillaryTeeth: [],
+                                    mandibularTeeth: mandibularTeeth,
+                                    maxillaryMaterial: "",
+                                    maxillaryStumpShade: "",
+                                    maxillaryToothShade: "",
+                                    maxillaryRetention: "",
+                                    maxillaryImplantDetails: "",
+                                    maxillaryStage: "",
+                                    mandibularMaterial: mandibularMaterial || "",
+                                    mandibularRetention: mandibularRetention || "",
+                                    mandibularStumpShade: mandibularStumpShade || "",
+                                    mandibularToothShade: mandibularToothShade || "",
+                                    mandibularImplantDetails: "",
+                                    mandibularStage: mandibularStage || "",
+                                    createdAt: Date.now(),
+                                    addedFrom: "mandibular"
+                                  }
+                                  const archType = "mandibular"
+                                  const isFixedRestoration = selectedCategory === "Fixed Restoration"
+
+                                  return (
+                                    <>
+                                      {/* Field 1: Product - Material (always visible) */}
+                                      {isFieldVisible("product_material", tempProduct.id, tempProduct, productDetails, archType) && (
+                                        <div
+                                          className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                          style={{
+                                            display: 'flex',
+                                            flexDirection: 'row',
+                                            alignItems: 'flex-start',
+                                            padding: '0px',
+                                            gap: '20px',
+                                            flex: 'none',
+                                            order: 0,
+                                            alignSelf: 'stretch',
+                                            flexGrow: 0
+                                          }}
+                                        >
+                                          <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
                                     <div
                                       className="flex items-center"
                                       style={{
@@ -8790,32 +8839,25 @@ export default function CaseDesignCenterPage() {
                                       Product - Material
                                     </label>
                                   </div>
+                                        </div>
+                                      )}
 
-                                  {/* Retention Type - Only show if retention type selected from popover */}
-                                  {(() => {
-                                    // Create a temporary saved product object to check retention types
-                                    const tempProduct: SavedProduct = {
-                                      id: "mandibular-card",
-                                      product: selectedProduct || { id: 0, name: "" },
-                                      productDetails: productDetails,
-                                      category: selectedCategory || "",
-                                      categoryId: selectedCategoryId || 0,
-                                      subcategory: selectedSubcategory || "",
-                                      subcategoryId: selectedSubcategoryId || 0,
-                                      maxillaryTeeth: [],
-                                      mandibularTeeth: mandibularTeeth,
-                                      maxillaryMaterial: "",
-                                      maxillaryStumpShade: "",
-                                      maxillaryRetention: "",
-                                      maxillaryNotes: "",
-                                      mandibularMaterial: "",
-                                      mandibularRetention: "",
-                                      mandibularImplantDetails: "",
-                                      createdAt: Date.now(),
-                                      addedFrom: "mandibular"
-                                    }
-                                    return hasRetentionTypeSelected(tempProduct, "mandibular")
-                                  })() && (
+                                      {/* Field 2: Retention Type (Fixed Restoration only, visible after Product/Material) */}
+                                      {isFixedRestoration && isFieldVisible("retention", tempProduct.id, tempProduct, productDetails, archType) && (
+                                        <div
+                                          className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                          style={{
+                                            display: 'flex',
+                                            flexDirection: 'row',
+                                            alignItems: 'flex-start',
+                                            padding: '0px',
+                                            gap: '20px',
+                                            flex: 'none',
+                                            order: 1,
+                                            alignSelf: 'stretch',
+                                            flexGrow: 0
+                                          }}
+                                        >
                                     <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
                                       <div
                                         className="flex items-center"
@@ -8860,26 +8902,26 @@ export default function CaseDesignCenterPage() {
                                         {hasValidRetentionValue(mandibularRetention) ? 'Retention type' : 'Select Retention type'}
                                       </label>
                                     </div>
-                                  )}
-                                </div>
+                                        </div>
+                                      )}
 
-                                {/* Row 2: Stump Shade, Tooth Shade, Stage */}
-                                <div
-                                  className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                  style={{
-                                    display: 'flex',
-                                    flexDirection: 'row',
-                                    alignItems: 'flex-start',
-                                    padding: '0px',
-                                    gap: '20px',
-                                    flex: 'none',
-                                    order: 1,
-                                    alignSelf: 'stretch',
-                                    flexGrow: 0
-                                  }}
-                                >
-                                  {/* Stump Shade */}
-                                  <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                      {/* Field 3: Stump Shade (Fixed Restoration only, visible after retention) */}
+                                      {isFixedRestoration && isFieldVisible("stump_shade", tempProduct.id, tempProduct, productDetails, archType) && (
+                                        <div
+                                          className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                          style={{
+                                            display: 'flex',
+                                            flexDirection: 'row',
+                                            alignItems: 'flex-start',
+                                            padding: '0px',
+                                            gap: '20px',
+                                            flex: 'none',
+                                            order: 2,
+                                            alignSelf: 'stretch',
+                                            flexGrow: 0
+                                          }}
+                                        >
+                                          <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
                                     <div
                                       className="flex items-center justify-between"
                                       style={{
@@ -8946,8 +8988,9 @@ export default function CaseDesignCenterPage() {
                                     </label>
                                   </div>
 
-                                  {/* Tooth Shade */}
-                                  <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                          {/* Tooth Shade in same row */}
+                                          {isFieldVisible(isFixedRestoration ? "tooth_shade" : "teeth_shade", tempProduct.id, tempProduct, productDetails, archType) && (
+                                            <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
                                     <div
                                       className="flex items-center justify-between"
                                       style={{
@@ -9013,9 +9056,11 @@ export default function CaseDesignCenterPage() {
                                       Tooth Shade
                                     </label>
                                   </div>
+                                          )}
 
-                                  {/* Stage */}
-                                  <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                          {/* Stage in same row */}
+                                          {isFieldVisible("stage", tempProduct.id, tempProduct, productDetails, archType) && (
+                                            <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
                                     <div
                                       className="flex items-center"
                                       style={{
@@ -9059,296 +9104,13 @@ export default function CaseDesignCenterPage() {
                                       Stage
                                     </label>
                                   </div>
-                                </div>
+                                          )}
+                                        </div>
+                                      )}
 
-                                {/* Row 3: Pontic Design, Embrasures, Occlusal Contact, Interproximal Contact, Gap */}
-                                <div
-                                  className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                  style={{
-                                    display: 'flex',
-                                    flexDirection: 'row',
-                                    alignItems: 'flex-start',
-                                    padding: '0px',
-                                    gap: '20px',
-                                    flex: 'none',
-                                    order: 2,
-                                    alignSelf: 'stretch',
-                                    flexGrow: 0
-                                  }}
-                                >
-                                  {/* Pontic Design */}
-                                  <div className="relative flex-1 min-w-[150px] max-w-[19%]" style={{ minHeight: '43px' }}>
-                                    <div
-                                      className="flex items-center"
-                                      style={{
-                                        padding: '12px 15px 5px 15px',
-                                        gap: '5px',
-                                        width: '100%',
-                                        height: '37px',
-                                        background: '#FFFFFF',
-                                        border: '0.740384px solid #7F7F7F',
-                                        borderRadius: '7.7px',
-                                        boxSizing: 'border-box',
-                                        position: 'relative',
-                                        marginTop: '5.27px'
-                                      }}
-                                    >
-                                      <span style={{
-                                        fontFamily: 'Verdana',
-                                        fontStyle: 'normal',
-                                        fontWeight: 400,
-                                        fontSize: '14.4px',
-                                        lineHeight: '20px',
-                                        letterSpacing: '-0.02em',
-                                        color: '#000000',
-                                        whiteSpace: 'nowrap'
-                                      }}>Modified Ridge</span>
-                                      <div style={{ width: '20px', height: '20px', flexShrink: 0, marginLeft: '5px' }}>
-                                        <svg width="21" height="21" viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                          <path d="M14.6974 4.49056C13.7369 3.36755 12.0449 1.76287 9.55154 0.956543C8.20286 0.520113 6.61529 0.00917103 4.91327 0.751634C4.00751 1.14815 3.1988 2.51598 1.54654 5.16915C1.16333 5.78388 0.737824 6.50772 0.528803 7.54823C0.401897 8.18158 0.205318 9.17419 0.655708 10.063C1.05882 10.8587 1.53907 10.6911 1.98946 11.4894C2.45478 12.3144 2.1089 12.7801 2.37018 14.0707C2.43487 14.3874 2.75089 15.8085 3.64172 16.7212C4.37081 17.4664 5.2268 17.6101 6.81934 17.8096C11.0396 18.3339 13.1771 18.584 14.4436 18.0146C15.9043 17.3573 16.8548 16.33 17.3027 15.8404C17.9621 15.1166 18.9276 14.0814 19.4004 12.3756C19.7015 11.2872 19.2984 10.9545 19.592 9.3179C19.801 8.15497 19.9901 8.16295 20.1643 7.14373C20.3709 5.94089 20.6247 4.44798 19.8458 3.40747C18.9724 2.23922 17.2928 2.30043 16.7329 2.31905C15.9018 2.34833 13.7369 2.66501 13.3239 2.86193" fill="white" />
-                                          <path d="M14.6974 4.49056C13.7369 3.36755 12.0449 1.76287 9.55154 0.956543C8.20286 0.520113 6.61529 0.00917103 4.91327 0.751634C4.00751 1.14815 3.1988 2.51598 1.54654 5.16915C1.16333 5.78388 0.737824 6.50772 0.528803 7.54823C0.401897 8.18158 0.205318 9.17419 0.655708 10.063C1.05882 10.8587 1.53907 10.6911 1.98946 11.4894C2.45478 12.3144 2.1089 12.7801 2.37018 14.0707C2.43487 14.3874 2.75089 15.8085 3.64172 16.7212C4.37081 17.4664 5.2268 17.6101 6.81934 17.8096C11.0396 18.3339 13.1771 18.584 14.4436 18.0146C15.9043 17.3573 16.8548 16.33 17.3027 15.8404C17.9621 15.1166 18.9276 14.0814 19.4004 12.3756C19.7015 11.2872 19.2984 10.9545 19.592 9.3179C19.801 8.15497 19.9901 8.16295 20.1643 7.14373C20.3709 5.94089 20.6247 4.44798 19.8458 3.40747C18.9724 2.23922 17.2928 2.30043 16.7329 2.31905C15.9018 2.34833 13.7369 2.66501 13.3239 2.86193" stroke="black" strokeWidth="0.75" strokeMiterlimit="10" />
-                                          <path d="M1.59131 20.3749C1.59131 20.3749 2.79069 19.8666 4.48276 18.1262C5.98324 16.5828 5.87375 15.7418 7.12041 15.002C8.6383 14.0999 10.2856 14.4592 10.7409 14.5603C12.0424 14.845 12.7167 15.5449 14.0131 16.5987C17.7382 19.6218 19.159 20.3749 19.159 20.3749H1.59131Z" fill="#1063AB" />
-                                        </svg>
-                                      </div>
-                                    </div>
-                                    <label
-                                      className="absolute bg-white"
-                                      style={{
-                                        padding: '0px',
-                                        height: '14px',
-                                        left: '8.9px',
-                                        top: '0px',
-                                        fontFamily: 'Arial',
-                                        fontStyle: 'normal',
-                                        fontWeight: 400,
-                                        fontSize: '14px',
-                                        lineHeight: '14px',
-                                        color: '#7F7F7F'
-                                      }}
-                                    >
-                                      Pontic Design
-                                    </label>
-                                  </div>
-
-                                  {/* Embrasures */}
-                                  <div className="relative flex-1 min-w-[150px] max-w-[19%]" style={{ minHeight: '43px' }}>
-                                    <div
-                                      className="flex items-center"
-                                      style={{
-                                        padding: '12px 15px 5px 15px',
-                                        gap: '5px',
-                                        width: '100%',
-                                        height: '37px',
-                                        background: '#FFFFFF',
-                                        border: '0.740384px solid #7F7F7F',
-                                        borderRadius: '7.7px',
-                                        boxSizing: 'border-box',
-                                        position: 'relative',
-                                        marginTop: '5.27px'
-                                      }}
-                                    >
-                                      <span style={{
-                                        fontFamily: 'Verdana',
-                                        fontStyle: 'normal',
-                                        fontWeight: 400,
-                                        fontSize: '14.4px',
-                                        lineHeight: '20px',
-                                        letterSpacing: '-0.02em',
-                                        color: '#000000',
-                                        whiteSpace: 'nowrap'
-                                      }}>Type II</span>
-                                      <div style={{ width: '31.21px', height: '20px', flexShrink: 0, marginLeft: '5px' }}>
-                                        <svg width="32" height="21" viewBox="0 0 32 21" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                          <path d="M23.5384 11.8866C22.6561 11.6436 21.7738 11.2207 20.8725 11.3588C20.1572 11.4689 19.5229 11.9233 18.8219 12.1155C17.0144 12.6119 15.1688 11.3133 13.3089 11.4584C11.6875 11.586 10.0581 12.7954 8.55269 12.1243C7.83257 11.8027 7.22532 11.0704 6.44957 11.1019C5.8773 11.1263 5.40517 11.5667 4.93304 11.9215C4.46091 12.2763 3.84413 12.5699 3.33544 12.2833C2.71706 11.9338 2.67255 11.0092 2.54697 10.256C2.29262 8.74245 1.40719 7.46837 0.74907 6.1104C0.0909533 4.75243 -0.336664 3.05365 0.348477 1.71141C0.950957 0.531708 2.27355 -0.0170728 3.50553 0.000404325C4.73751 0.0178814 5.91863 0.498501 7.08861 0.924942C8.2586 1.35138 9.4874 1.73238 10.7067 1.54363C11.6938 1.39158 12.6174 0.872511 13.611 0.788621C15.1259 0.659291 16.5502 1.54363 18.0477 1.82327C19.7788 2.14659 21.537 1.65549 23.2618 1.3007C24.9865 0.945915 26.8496 0.739685 28.4313 1.57684C29.347 2.06095 30.1911 2.89461 31.2069 2.85966C30.9016 4.62135 29.5822 5.91465 28.4154 7.16776C27.3058 8.3597 26.8735 9.50969 26.2201 10.9848C25.7098 12.1382 24.6161 12.1854 23.5384 11.8883V11.8866Z" fill="#1063AB" />
-                                          <path d="M4.38445 19.3241C4.06493 19.1773 3.78197 18.9396 3.83443 18.5342C3.92981 17.7966 4.17938 16.381 4.82001 13.714C4.96308 13.1145 6.0202 8.80467 7.10753 8.49183C7.48428 8.38347 7.88487 8.38871 7.88487 8.38871C7.88487 8.38871 8.33315 8.3957 8.74805 8.54251C9.85445 8.93575 10.7049 12.0589 10.8814 13.2736C11.2422 15.7536 11.1468 18.5516 11.1309 19.1441C11.123 19.4272 10.9163 19.5793 10.6827 19.6335C8.9865 20.0302 5.81037 19.983 4.38445 19.3241Z" fill="white" stroke="black" strokeWidth="0.501636" strokeMiterlimit="10" />
-                                          <path d="M11.778 19.6135C11.4473 19.4964 11.1469 19.3164 11.1691 18.9476C11.2423 17.7627 11.1326 14.3949 11.3106 13.4808C11.5586 12.2067 12.2151 10.4678 13.0163 9.4803C13.3899 9.02065 14.5106 8.42643 15.0829 8.43168C15.6551 8.43692 16.8378 9.04862 17.1923 9.54671C17.9236 10.5761 18.162 12.2679 18.4768 13.5088C18.693 14.3564 18.4291 17.6404 18.4752 18.7449C18.4895 19.1067 18.2145 19.278 17.9013 19.4265C16.3975 20.1413 13.3327 20.1623 11.778 19.6118V19.6135Z" fill="white" stroke="black" strokeWidth="0.501636" strokeMiterlimit="10" />
-                                          <path d="M19.2783 19.6451C18.8253 19.5123 18.4533 19.168 18.5169 18.6349C18.6075 17.8852 18.5359 15.3562 18.811 13.3936C19.1909 10.6829 19.3832 10.7877 20.2766 9.41403C20.5834 8.9404 21.1811 8.04732 22.0872 7.96692C22.8646 7.89702 23.4782 8.45803 23.7119 8.67824C24.8437 9.74434 24.831 11.1792 25.5018 15.538C25.7466 17.1302 25.8452 18.1491 25.8817 18.773C25.9104 19.2449 25.5686 19.5036 25.1775 19.6434C23.7882 20.1397 20.8314 20.0978 19.2783 19.6434V19.6451Z" fill="white" stroke="black" strokeWidth="0.501636" strokeMiterlimit="10" />
-                                        </svg>
-                                      </div>
-                                    </div>
-                                    <label
-                                      className="absolute bg-white"
-                                      style={{
-                                        padding: '0px',
-                                        height: '14px',
-                                        left: '8.9px',
-                                        top: '0px',
-                                        fontFamily: 'Arial',
-                                        fontStyle: 'normal',
-                                        fontWeight: 400,
-                                        fontSize: '14px',
-                                        lineHeight: '14px',
-                                        color: '#7F7F7F'
-                                      }}
-                                    >
-                                      Embrasures
-                                    </label>
-                                  </div>
-
-                                  {/* Occlusal Contact */}
-                                  <div className="relative flex-1 min-w-[150px] max-w-[19%]" style={{ minHeight: '43px' }}>
-                                    <div
-                                      className="flex items-center"
-                                      style={{
-                                        padding: '12px 15px 5px 15px',
-                                        gap: '5px',
-                                        width: '100%',
-                                        height: '37px',
-                                        background: '#FFFFFF',
-                                        border: '0.740384px solid #7F7F7F',
-                                        borderRadius: '7.7px',
-                                        boxSizing: 'border-box',
-                                        position: 'relative',
-                                        marginTop: '5.27px'
-                                      }}
-                                    >
-                                      <span style={{
-                                        fontFamily: 'Verdana',
-                                        fontStyle: 'normal',
-                                        fontWeight: 400,
-                                        fontSize: '14.4px',
-                                        lineHeight: '20px',
-                                        letterSpacing: '-0.02em',
-                                        color: '#000000',
-                                        whiteSpace: 'nowrap'
-                                      }}>POS</span>
-                                      <div style={{ width: '13.12px', height: '20px', flexShrink: 0, marginLeft: '5px' }}>
-                                        <svg width="14" height="20" viewBox="0 0 14 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                          <g clipPath="url(#clip0_58_14491)">
-                                            <path d="M3.49812 19.9226C3.49812 19.9226 1.68128 15.4909 1.59438 14.6613C1.53484 14.1007 1.25644 11.4417 2.93971 10.3139C3.87468 9.68685 5.01886 9.80027 5.09932 9.81C5.89911 9.89912 5.96026 10.2378 6.72626 10.3139C7.61457 10.403 7.86722 9.98175 9.19806 9.68361C10.1379 9.47296 10.9618 9.28824 11.6393 9.62041C12.6579 10.1195 12.8961 11.5665 13.0168 12.3621C13.4851 15.4683 10.3261 19.9242 10.3261 19.9242C9.84659 19.7201 8.26148 19.234 6.82604 19.2534C5.15242 19.2777 3.49973 19.9242 3.49973 19.9242L3.49812 19.9226Z" fill="white" stroke="black" strokeWidth="0.46875" strokeMiterlimit="10" />
-                                            <path d="M1.68948 0.0844727C1.68948 0.0844727 0.176792 4.51613 0.104376 5.34575C0.0560987 5.9064 -0.177242 8.56539 1.22441 9.69316C2.00328 10.3202 2.75158 10.2975 2.81595 10.2749C3.52241 10.0415 3.80403 9.73205 4.41876 9.74015C5.16384 9.75149 5.33281 9.85357 6.43997 10.1517C7.22207 10.3624 8.00899 10.0253 8.57383 9.69316C9.4219 9.19409 9.51202 8.43901 9.61179 7.64503C10.0028 4.53882 7.37173 0.0844727 7.37173 0.0844727C6.97263 0.288637 5.65305 0.774742 4.45738 0.755298C3.06539 0.729373 1.68948 0.0844727 1.68948 0.0844727Z" fill="white" stroke="black" strokeWidth="0.46875" strokeMiterlimit="10" />
-                                          </g>
-                                          <defs>
-                                            <clipPath id="clip0_58_14491">
-                                              <rect width="13.125" height="20" fill="white" />
-                                            </clipPath>
-                                          </defs>
-                                        </svg>
-                                      </div>
-                                    </div>
-                                    <label
-                                      className="absolute bg-white"
-                                      style={{
-                                        padding: '0px',
-                                        height: '14px',
-                                        left: '8.9px',
-                                        top: '0px',
-                                        fontFamily: 'Arial',
-                                        fontStyle: 'normal',
-                                        fontWeight: 400,
-                                        fontSize: '14px',
-                                        lineHeight: '14px',
-                                        color: '#7F7F7F'
-                                      }}
-                                    >
-                                      Occlusal Contact
-                                    </label>
-                                  </div>
-
-                                  {/* Interproximal Contact */}
-                                  <div className="relative flex-1 min-w-[150px] max-w-[19%]" style={{ minHeight: '43px' }}>
-                                    <div
-                                      className="flex items-center"
-                                      style={{
-                                        padding: '12px 15px 5px 15px',
-                                        gap: '5px',
-                                        width: '100%',
-                                        height: '37px',
-                                        background: '#FFFFFF',
-                                        border: '0.740384px solid #7F7F7F',
-                                        borderRadius: '7.7px',
-                                        boxSizing: 'border-box',
-                                        position: 'relative',
-                                        marginTop: '5.27px'
-                                      }}
-                                    >
-                                      <span style={{
-                                        fontFamily: 'Verdana',
-                                        fontStyle: 'normal',
-                                        fontWeight: 400,
-                                        fontSize: '14.4px',
-                                        lineHeight: '20px',
-                                        letterSpacing: '-0.02em',
-                                        color: '#000000',
-                                        whiteSpace: 'nowrap'
-                                      }}>Open Contact</span>
-                                      <div style={{ width: '26.21px', height: '20px', flexShrink: 0, marginLeft: '5px' }}>
-                                        <svg width="27" height="20" viewBox="0 0 27 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                          <path d="M0.103027 2.50471L1.79407 0.781732C2.0659 0.50248 2.3692 0.209266 2.75834 0.150623C3.2419 0.0752254 3.69399 0.385195 4.07455 0.686786C5.65114 1.94063 7.0675 3.38715 8.2807 4.98447C8.73851 4.49299 9.19633 4.0015 9.65414 3.51002" stroke="black" strokeWidth="0.689655" strokeMiterlimit="10" />
-                                          <path d="M5.97998 2.12788C5.99143 1.71738 6.44065 1.43255 6.86127 1.42138C7.28188 1.41021 7.67389 1.5973 8.06303 1.75369C8.45217 1.91007 8.88137 2.04131 9.28481 1.92403C9.49083 1.86259 9.67395 1.73972 9.87997 1.6727C10.5495 1.45768 11.2505 1.90727 11.7227 2.41272C12.7098 3.47108 13.2478 4.87013 13.4852 6.28594C13.7227 7.70174 13.677 9.14268 13.634 10.5725C13.5854 12.1167 13.0103 14.0799 12.3207 15.4705C11.3278 17.4756 10.7098 18.7824 9.9515 19.5783" stroke="black" strokeWidth="0.689655" strokeMiterlimit="10" />
-                                          <path d="M18.9333 19.9302C16.896 16.3949 14.8988 11.6029 15.0676 7.02041C15.1105 5.86431 15.4367 3.74758 16.3237 2.97964C17.2107 2.2117 18.7788 2.10558 19.4798 3.03828" stroke="black" strokeWidth="0.689655" strokeMiterlimit="10" />
-                                          <path d="M19.0538 2.68895L18.9336 3.51833C19.9494 2.7811 20.988 2.07739 22.0467 1.40719C22.4816 1.13352 22.9652 0.854267 23.4774 0.918495C23.9953 0.985515 24.3901 1.38485 24.7764 1.72832C25.1627 2.0718 25.6634 2.39853 26.1728 2.27566" stroke="black" strokeWidth="0.689655" strokeMiterlimit="10" />
-                                        </svg>
-                                      </div>
-                                    </div>
-                                    <label
-                                      className="absolute bg-white"
-                                      style={{
-                                        padding: '0px',
-                                        height: '14px',
-                                        left: '8.9px',
-                                        top: '0px',
-                                        fontFamily: 'Arial',
-                                        fontStyle: 'normal',
-                                        fontWeight: 400,
-                                        fontSize: '14px',
-                                        lineHeight: '14px',
-                                        color: '#7F7F7F'
-                                      }}
-                                    >
-                                      Interproximal Contact
-                                    </label>
-                                  </div>
-
-                                  {/* Gap */}
-                                  {selectedProduct && isFieldVisible("gap", String(selectedProduct.id), {} as SavedProduct, productDetails, currentShadeArch) && (
-                                    <div className="relative flex-1 min-w-[150px] max-w-[19%]" style={{ minHeight: '43px' }}>
-                                      <div
-                                        className="flex items-center"
-                                        style={{
-                                          padding: '12px 15px 5px 15px',
-                                          gap: '5px',
-                                          width: '100%',
-                                          height: '37px',
-                                          background: '#FFFFFF',
-                                          border: '0.740384px solid #7F7F7F',
-                                          borderRadius: '7.7px',
-                                          boxSizing: 'border-box',
-                                          position: 'relative',
-                                          marginTop: '5.27px'
-                                        }}
-                                      >
-                                        <span style={{
-                                          fontFamily: 'Verdana',
-                                          fontStyle: 'normal',
-                                          fontWeight: 400,
-                                          fontSize: '14.4px',
-                                          lineHeight: '20px',
-                                          letterSpacing: '-0.02em',
-                                          color: '#000000',
-                                          whiteSpace: 'nowrap'
-                                        }}>{currentShadeArch === "maxillary" ? (savedProducts.find(p => String(p.id) === String(selectedProduct.id))?.maxillaryGap || "Not specified") : (savedProducts.find(p => String(p.id) === String(selectedProduct.id))?.mandibularGap || "Not specified")}</span>
-                                      </div>
-                                      <label
-                                        className="absolute bg-white"
-                                        style={{
-                                          padding: '0px',
-                                          height: '14px',
-                                          left: '8.9px',
-                                          top: '0px',
-                                          fontFamily: 'Arial',
-                                          fontStyle: 'normal',
-                                          fontWeight: 400,
-                                          fontSize: '14px',
-                                          lineHeight: '14px',
-                                          color: '#7F7F7F'
-                                        }}
-                                      >
-                                        Gap
-                                      </label>
-                                    </div>
-                                  )}
-                                </div>
+                                    </>
+                                  )
+                                })()}
 
                                 {/* Row 4: Impression */}
                                 {(() => {
@@ -9366,9 +9128,10 @@ export default function CaseDesignCenterPage() {
                                     maxillaryMaterial: "",
                                     maxillaryStumpShade: "",
                                     maxillaryRetention: "",
-                                    maxillaryNotes: "",
+                                    maxillaryImplantDetails: "",
                                     mandibularMaterial: mandibularMaterial,
                                     mandibularRetention: mandibularRetention,
+                                            mandibularStumpShade: mandibularStumpShade,
                                     mandibularImplantDetails: "",
                                     mandibularToothShade: mandibularToothShade,
                                     mandibularStage: mandibularStage,
@@ -9519,9 +9282,10 @@ export default function CaseDesignCenterPage() {
                                       maxillaryMaterial: maxillaryMaterial,
                                       maxillaryStumpShade: maxillaryStumpShade,
                                       maxillaryRetention: maxillaryRetention,
-                                      maxillaryNotes: maxillaryNotes,
+                                      maxillaryImplantDetails: maxillaryImplantDetails,
                                       mandibularMaterial: mandibularMaterial,
                                       mandibularRetention: mandibularRetention,
+                                            mandibularStumpShade: mandibularStumpShade,
                                       mandibularImplantDetails: mandibularImplantDetails,
                                       createdAt: Date.now(),
                                       addedFrom: "mandibular",
@@ -9650,9 +9414,10 @@ export default function CaseDesignCenterPage() {
                                       maxillaryMaterial: maxillaryMaterial,
                                       maxillaryStumpShade: maxillaryStumpShade,
                                       maxillaryRetention: maxillaryRetention,
-                                      maxillaryNotes: maxillaryNotes,
+                                      maxillaryImplantDetails: maxillaryImplantDetails,
                                       mandibularMaterial: mandibularMaterial,
                                       mandibularRetention: mandibularRetention,
+                                            mandibularStumpShade: mandibularStumpShade,
                                       mandibularImplantDetails: mandibularImplantDetails,
                                       createdAt: Date.now(),
                                       addedFrom: "mandibular",
@@ -10584,8 +10349,16 @@ export default function CaseDesignCenterPage() {
                                                   fontSize: '14.4px',
                                                   lineHeight: '20px',
                                                   letterSpacing: '-0.02em',
-                                                  color: '#000000'
+                                                  color: '#000000',
+                                                  whiteSpace: 'nowrap'
                                                 }}>{savedProduct.mandibularPonticDesign || 'Not specified'}</span>
+                                                <div style={{ width: '20px', height: '20px', flexShrink: 0, marginLeft: '5px' }}>
+                                                  <svg width="21" height="21" viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                    <path d="M14.6974 4.49056C13.7369 3.36755 12.0449 1.76287 9.55154 0.956543C8.20286 0.520113 6.61529 0.00917103 4.91327 0.751634C4.00751 1.14815 3.1988 2.51598 1.54654 5.16915C1.16333 5.78388 0.737824 6.50772 0.528803 7.54823C0.401897 8.18158 0.205318 9.17419 0.655708 10.063C1.05882 10.8587 1.53907 10.6911 1.98946 11.4894C2.45478 12.3144 2.1089 12.7801 2.37018 14.0707C2.43487 14.3874 2.75089 15.8085 3.64172 16.7212C4.37081 17.4664 5.2268 17.6101 6.81934 17.8096C11.0396 18.3339 13.1771 18.584 14.4436 18.0146C15.9043 17.3573 16.8548 16.33 17.3027 15.8404C17.9621 15.1166 18.9276 14.0814 19.4004 12.3756C19.7015 11.2872 19.2984 10.9545 19.592 9.3179C19.801 8.15497 19.9901 8.16295 20.1643 7.14373C20.3709 5.94089 20.6247 4.44798 19.8458 3.40747C18.9724 2.23922 17.2928 2.30043 16.7329 2.31905C15.9018 2.34833 13.7369 2.66501 13.3239 2.86193" fill="white" />
+                                                    <path d="M14.6974 4.49056C13.7369 3.36755 12.0449 1.76287 9.55154 0.956543C8.20286 0.520113 6.61529 0.00917103 4.91327 0.751634C4.00751 1.14815 3.1988 2.51598 1.54654 5.16915C1.16333 5.78388 0.737824 6.50772 0.528803 7.54823C0.401897 8.18158 0.205318 9.17419 0.655708 10.063C1.05882 10.8587 1.53907 10.6911 1.98946 11.4894C2.45478 12.3144 2.1089 12.7801 2.37018 14.0707C2.43487 14.3874 2.75089 15.8085 3.64172 16.7212C4.37081 17.4664 5.2268 17.6101 6.81934 17.8096C11.0396 18.3339 13.1771 18.584 14.4436 18.0146C15.9043 17.3573 16.8548 16.33 17.3027 15.8404C17.9621 15.1166 18.9276 14.0814 19.4004 12.3756C19.7015 11.2872 19.2984 10.9545 19.592 9.3179C19.801 8.15497 19.9901 8.16295 20.1643 7.14373C20.3709 5.94089 20.6247 4.44798 19.8458 3.40747C18.9724 2.23922 17.2928 2.30043 16.7329 2.31905C15.9018 2.34833 13.7369 2.66501 13.3239 2.86193" stroke="black" strokeWidth="0.75" strokeMiterlimit="10" />
+                                                    <path d="M1.59131 20.3749C1.59131 20.3749 2.79069 19.8666 4.48276 18.1262C5.98324 16.5828 5.87375 15.7418 7.12041 15.002C8.6383 14.0999 10.2856 14.4592 10.7409 14.5603C12.0424 14.845 12.7167 15.5449 14.0131 16.5987C17.7382 19.6218 19.159 20.3749 19.159 20.3749H1.59131Z" fill="#1063AB" />
+                                                  </svg>
+                                                </div>
                                               </div>
                                               <label
                                                 className="absolute bg-white"
@@ -10647,8 +10420,17 @@ export default function CaseDesignCenterPage() {
                                                   fontSize: '14.4px',
                                                   lineHeight: '20px',
                                                   letterSpacing: '-0.02em',
-                                                  color: '#000000'
+                                                  color: '#000000',
+                                                  whiteSpace: 'nowrap'
                                                 }}>{savedProduct.mandibularEmbrasure || 'Not specified'}</span>
+                                                <div style={{ width: '31.21px', height: '20px', flexShrink: 0, marginLeft: '5px' }}>
+                                                  <svg width="32" height="21" viewBox="0 0 32 21" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                    <path d="M23.5384 11.8866C22.6561 11.6436 21.7738 11.2207 20.8725 11.3588C20.1572 11.4689 19.5229 11.9233 18.8219 12.1155C17.0144 12.6119 15.1688 11.3133 13.3089 11.4584C11.6875 11.586 10.0581 12.7954 8.55269 12.1243C7.83257 11.8027 7.22532 11.0704 6.44957 11.1019C5.8773 11.1263 5.40517 11.5667 4.93304 11.9215C4.46091 12.2763 3.84413 12.5699 3.33544 12.2833C2.71706 11.9338 2.67255 11.0092 2.54697 10.256C2.29262 8.74245 1.40719 7.46837 0.74907 6.1104C0.0909533 4.75243 -0.336664 3.05365 0.348477 1.71141C0.950957 0.531708 2.27355 -0.0170728 3.50553 0.000404325C4.73751 0.0178814 5.91863 0.498501 7.08861 0.924942C8.2586 1.35138 9.4874 1.73238 10.7067 1.54363C11.6938 1.39158 12.6174 0.872511 13.611 0.788621C15.1259 0.659291 16.5502 1.54363 18.0477 1.82327C19.7788 2.14659 21.537 1.65549 23.2618 1.3007C24.9865 0.945915 26.8496 0.739685 28.4313 1.57684C29.347 2.06095 30.1911 2.89461 31.2069 2.85966C30.9016 4.62135 29.5822 5.91465 28.4154 7.16776C27.3058 8.3597 26.8735 9.50969 26.2201 10.9848C25.7098 12.1382 24.6161 12.1854 23.5384 11.8883V11.8866Z" fill="#1063AB" />
+                                                    <path d="M4.38445 19.3241C4.06493 19.1773 3.78197 18.9396 3.83443 18.5342C3.92981 17.7966 4.17938 16.381 4.82001 13.714C4.96308 13.1145 6.0202 8.80467 7.10753 8.49183C7.48428 8.38347 7.88487 8.38871 7.88487 8.38871C7.88487 8.38871 8.33315 8.3957 8.74805 8.54251C9.85445 8.93575 10.7049 12.0589 10.8814 13.2736C11.2422 15.7536 11.1468 18.5516 11.1309 19.1441C11.123 19.4272 10.9163 19.5793 10.6827 19.6335C8.9865 20.0302 5.81037 19.983 4.38445 19.3241Z" fill="white" stroke="black" strokeWidth="0.501636" strokeMiterlimit="10" />
+                                                    <path d="M11.778 19.6135C11.4473 19.4964 11.1469 19.3164 11.1691 18.9476C11.2423 17.7627 11.1326 14.3949 11.3106 13.4808C11.5586 12.2067 12.2151 10.4678 13.0163 9.4803C13.3899 9.02065 14.5106 8.42643 15.0829 8.43168C15.6551 8.43692 16.8378 9.04862 17.1923 9.54671C17.9236 10.5761 18.162 12.2679 18.4768 13.5088C18.693 14.3564 18.4291 17.6404 18.4752 18.7449C18.4895 19.1067 18.2145 19.278 17.9013 19.4265C16.3975 20.1413 13.3327 20.1623 11.778 19.6118V19.6135Z" fill="white" stroke="black" strokeWidth="0.501636" strokeMiterlimit="10" />
+                                                    <path d="M19.2783 19.6451C18.8253 19.5123 18.4533 19.168 18.5169 18.6349C18.6075 17.8852 18.5359 15.3562 18.811 13.3936C19.1909 10.6829 19.3832 10.7877 20.2766 9.41403C20.5834 8.9404 21.1811 8.04732 22.0872 7.96692C22.8646 7.89702 23.4782 8.45803 23.7119 8.67824C24.8437 9.74434 24.831 11.1792 25.5018 15.538C25.7466 17.1302 25.8452 18.1491 25.8817 18.773C25.9104 19.2449 25.5686 19.5036 25.1775 19.6434C23.7882 20.1397 20.8314 20.0978 19.2783 19.6434V19.6451Z" fill="white" stroke="black" strokeWidth="0.501636" strokeMiterlimit="10" />
+                                                  </svg>
+                                                </div>
                                               </div>
                                               <label
                                                 className="absolute bg-white"
@@ -10710,8 +10492,22 @@ export default function CaseDesignCenterPage() {
                                                   fontSize: '14.4px',
                                                   lineHeight: '20px',
                                                   letterSpacing: '-0.02em',
-                                                  color: '#000000'
+                                                  color: '#000000',
+                                                  whiteSpace: 'nowrap'
                                                 }}>{savedProduct.mandibularOcclusalContact || 'Not specified'}</span>
+                                                <div style={{ width: '13.12px', height: '20px', flexShrink: 0, marginLeft: '5px' }}>
+                                                  <svg width="14" height="20" viewBox="0 0 14 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                    <g clipPath="url(#clip0_58_14491)">
+                                                      <path d="M3.49812 19.9226C3.49812 19.9226 1.68128 15.4909 1.59438 14.6613C1.53484 14.1007 1.25644 11.4417 2.93971 10.3139C3.87468 9.68685 5.01886 9.80027 5.09932 9.81C5.89911 9.89912 5.96026 10.2378 6.72626 10.3139C7.61457 10.403 7.86722 9.98175 9.19806 9.68361C10.1379 9.47296 10.9618 9.28824 11.6393 9.62041C12.6579 10.1195 12.8961 11.5665 13.0168 12.3621C13.4851 15.4683 10.3261 19.9242 10.3261 19.9242C9.84659 19.7201 8.26148 19.234 6.82604 19.2534C5.15242 19.2777 3.49973 19.9242 3.49973 19.9242L3.49812 19.9226Z" fill="white" stroke="black" strokeWidth="0.46875" strokeMiterlimit="10" />
+                                                      <path d="M1.68948 0.0844727C1.68948 0.0844727 0.176792 4.51613 0.104376 5.34575C0.0560987 5.9064 -0.177242 8.56539 1.22441 9.69316C2.00328 10.3202 2.75158 10.2975 2.81595 10.2749C3.52241 10.0415 3.80403 9.73205 4.41876 9.74015C5.16384 9.75149 5.33281 9.85357 6.43997 10.1517C7.22207 10.3624 8.00899 10.0253 8.57383 9.69316C9.4219 9.19409 9.51202 8.43901 9.61179 7.64503C10.0028 4.53882 7.37173 0.0844727 7.37173 0.0844727C6.97263 0.288637 5.65305 0.774742 4.45738 0.755298C3.06539 0.729373 1.68948 0.0844727 1.68948 0.0844727Z" fill="white" stroke="black" strokeWidth="0.46875" strokeMiterlimit="10" />
+                                                    </g>
+                                                    <defs>
+                                                      <clipPath id="clip0_58_14491">
+                                                        <rect width="13.125" height="20" fill="white" />
+                                                      </clipPath>
+                                                    </defs>
+                                                  </svg>
+                                                </div>
                                               </div>
                                               <label
                                                 className="absolute bg-white"
@@ -10773,8 +10569,17 @@ export default function CaseDesignCenterPage() {
                                                   fontSize: '14.4px',
                                                   lineHeight: '20px',
                                                   letterSpacing: '-0.02em',
-                                                  color: '#000000'
+                                                  color: '#000000',
+                                                  whiteSpace: 'nowrap'
                                                 }}>{savedProduct.mandibularProximalContact || 'Not specified'}</span>
+                                                <div style={{ width: '26.21px', height: '20px', flexShrink: 0, marginLeft: '5px' }}>
+                                                  <svg width="27" height="20" viewBox="0 0 27 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                    <path d="M0.103027 2.50471L1.79407 0.781732C2.0659 0.50248 2.3692 0.209266 2.75834 0.150623C3.2419 0.0752254 3.69399 0.385195 4.07455 0.686786C5.65114 1.94063 7.0675 3.38715 8.2807 4.98447C8.73851 4.49299 9.19633 4.0015 9.65414 3.51002" stroke="black" strokeWidth="0.689655" strokeMiterlimit="10" />
+                                                    <path d="M5.97998 2.12788C5.99143 1.71738 6.44065 1.43255 6.86127 1.42138C7.28188 1.41021 7.67389 1.5973 8.06303 1.75369C8.45217 1.91007 8.88137 2.04131 9.28481 1.92403C9.49083 1.86259 9.67395 1.73972 9.87997 1.6727C10.5495 1.45768 11.2505 1.90727 11.7227 2.41272C12.7098 3.47108 13.2478 4.87013 13.4852 6.28594C13.7227 7.70174 13.677 9.14268 13.634 10.5725C13.5854 12.1167 13.0103 14.0799 12.3207 15.4705C11.3278 17.4756 10.7098 18.7824 9.9515 19.5783" stroke="black" strokeWidth="0.689655" strokeMiterlimit="10" />
+                                                    <path d="M18.9333 19.9302C16.896 16.3949 14.8988 11.6029 15.0676 7.02041C15.1105 5.86431 15.4367 3.74758 16.3237 2.97964C17.2107 2.2117 18.7788 2.10558 19.4798 3.03828" stroke="black" strokeWidth="0.689655" strokeMiterlimit="10" />
+                                                    <path d="M19.0538 2.68895L18.9336 3.51833C19.9494 2.7811 20.988 2.07739 22.0467 1.40719C22.4816 1.13352 22.9652 0.854267 23.4774 0.918495C23.9953 0.985515 24.3901 1.38485 24.7764 1.72832C25.1627 2.0718 25.6634 2.39853 26.1728 2.27566" stroke="black" strokeWidth="0.689655" strokeMiterlimit="10" />
+                                                  </svg>
+                                                </div>
                                               </div>
                                               <label
                                                 className="absolute bg-white"
@@ -11050,10 +10855,10 @@ export default function CaseDesignCenterPage() {
                         const willExpand = !isCaseSummaryExpanded
                         setIsCaseSummaryExpanded(willExpand)
                         // Initialize notes when expanding if empty and we have products
-                        if (willExpand && !maxillaryNotes && savedProducts.length > 0) {
+                        if (willExpand && !maxillaryImplantDetails && savedProducts.length > 0) {
                           const generatedNotes = generateCaseNotes()
                           if (generatedNotes) {
-                            setMaxillaryNotes(generatedNotes)
+                            setMaxillaryImplantDetails(generatedNotes)
                           }
                         }
                       }}
@@ -11074,10 +10879,10 @@ export default function CaseDesignCenterPage() {
                     isCaseSummaryExpanded ? "max-h-[500px] sm:max-h-[600px]" : "max-h-[74px]"
                   )}>
                     <Textarea
-                      value={maxillaryNotes}
+                      value={maxillaryImplantDetails}
                       onChange={(e) => {
                         const newValue = e.target.value
-                        setMaxillaryNotes(newValue)
+                        setMaxillaryImplantDetails(newValue)
                       }}
                       onBlur={async (e) => {
                         const notes = e.target.value
@@ -11110,13 +10915,13 @@ export default function CaseDesignCenterPage() {
                       }}
                       onFocus={() => {
                         // Store the current notes value when focusing to track changes
-                        previousNotesRef.current = maxillaryNotes
+                        previousNotesRef.current = maxillaryImplantDetails
                       }}
                       onKeyDown={(e) => {
                         // Allow user to explicitly trigger parsing with Ctrl+Enter or Cmd+Enter
                         if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
                           e.preventDefault()
-                          parseCaseNotes(maxillaryNotes)
+                          parseCaseNotes(maxillaryImplantDetails)
                         }
                       }}
                       className={cn(
@@ -11133,9 +10938,9 @@ export default function CaseDesignCenterPage() {
                   {/* Helper text when expanded - Responsive */}
                   {isCaseSummaryExpanded && (
                     <p className="text-[10px] sm:text-xs text-gray-500 px-[15px] pb-3 sm:pb-4">
-                      {generateCaseNotes().length > 0 && !maxillaryNotes
+                      {generateCaseNotes().length > 0 && !maxillaryImplantDetails
                         ? "Case notes are automatically generated from your products. Edit to customize, and changes will update your product selections."
-                        : maxillaryNotes
+                        : maxillaryImplantDetails
                           ? "Editing case notes will update your products, categories, subcategories, and teeth selections based on the content."
                           : "Enter case notes to automatically populate products, categories, subcategories, and teeth selections. Or add products first to generate notes automatically."}
                     </p>

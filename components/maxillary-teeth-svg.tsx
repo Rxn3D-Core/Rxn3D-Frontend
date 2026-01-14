@@ -117,32 +117,6 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
       top: topOfSvg - 10 // 10px above the top of the SVG (at the top of teeth selection)
     }
   }
-  // Maxillary teeth mapping: pattern0 = tooth 1, pattern1 = tooth 2, ..., pattern15 = tooth 16
-  const toothNumbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
-  const patternIds = [
-    'pattern0_0_1', 'pattern1_0_1', 'pattern2_0_1', 'pattern3_0_1',
-    'pattern4_0_1', 'pattern5_0_1', 'pattern6_0_1', 'pattern7_0_1',
-    'pattern8_0_1', 'pattern9_0_1', 'pattern10_0_1', 'pattern11_0_1',
-    'pattern12_0_1', 'pattern13_0_1', 'pattern14_0_1', 'pattern15_0_1'
-  ]
-  const rectPositions = [
-    { x: 0, width: 44 },
-    { x: 44, width: 50 },
-    { x: 94, width: 54 },
-    { x: 148, width: 37 },
-    { x: 185, width: 37 },
-    { x: 222, width: 40 },
-    { x: 262, width: 36 },
-    { x: 298, width: 49 },
-    { x: 347, width: 49 },
-    { x: 396, width: 36 },
-    { x: 432, width: 40 },
-    { x: 472, width: 37 },
-    { x: 509, width: 38 },
-    { x: 547, width: 54 },
-    { x: 601, width: 50 },
-    { x: 651, width: 44 }
-  ]
 
   // Maxillary teeth mapping: pattern0 = tooth 1 (rightmost), pattern15 = tooth 16 (leftmost)
   const toothMapping = [
@@ -163,26 +137,6 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
     { tooth: 2, x: 44, width: 50, pattern: 'pattern14_0_1' },
     { tooth: 1, x: 0, width: 44, pattern: 'pattern15_0_1' }
   ]
-
-  // Number positions - center x coordinates for each tooth number (estimated from path positions)
-  const numberPositions: Record<number, { cx: number; cy: number }> = {
-    1: { cx: 673, cy: 159 },
-    2: { cx: 626, cy: 159 },
-    3: { cx: 574, cy: 159 },
-    4: { cx: 528, cy: 159 },
-    5: { cx: 491, cy: 159 },
-    6: { cx: 452, cy: 159 },
-    7: { cx: 414, cy: 159 },
-    8: { cx: 371.5, cy: 159 },
-    9: { cx: 322.5, cy: 159 },
-    10: { cx: 280, cy: 159 },
-    11: { cx: 242, cy: 159 },
-    12: { cx: 203.5, cy: 159 },
-    13: { cx: 166.5, cy: 159 },
-    14: { cx: 121, cy: 159 },
-    15: { cx: 69, cy: 159 },
-    16: { cx: 22, cy: 159 }
-  }
 
   // SVG Components for each retention type
   const ImplantIndicator = () => (
