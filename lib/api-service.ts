@@ -1,3 +1,5 @@
+import { clearSessionStorage } from './clear-session-storage'
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
 // Helper function to get auth headers
@@ -13,10 +15,8 @@ const getAuthHeaders = () => {
 // Handle 401 responses and redirect to login
 const handleUnauthorized = () => {
   if (typeof window !== 'undefined') {
-    // Clear auth data
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
-    localStorage.removeItem('customerId')
+    // Clear all session data
+    clearSessionStorage()
     
     // Redirect to login
     window.location.href = '/login'

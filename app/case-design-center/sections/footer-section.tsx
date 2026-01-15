@@ -117,9 +117,9 @@ export function FooterSection({
         ) : (
           // Teeth selection page footer: Preview on left, Cancel and Submit on right
           <div className="flex justify-between items-center w-full">
-            {/* Preview button on left - Only show if there are product accordions */}
+            {/* Preview button on left - Show if there are product accordions */}
             <div>
-              {hasProductAccordions && (
+              {hasProductAccordions ? (
                 <Button
                   onClick={onPreview}
                   variant="outline"
@@ -169,6 +169,8 @@ export function FooterSection({
                     Preview
                   </span>
                 </Button>
+              ) : (
+                <div style={{ width: "111px" }}></div>
               )}
             </div>
             
@@ -203,8 +205,8 @@ export function FooterSection({
               >
                 Cancel
               </Button>
-              {/* Submit Case button with tooltip - Only show if accordion is complete */}
-              {isAccordionComplete() && (
+              {/* Submit Case button with tooltip - Show if accordion is complete */}
+              {isAccordionComplete() ? (
               <div className="relative">
                 <Button
                   onClick={(e) => {
@@ -309,7 +311,7 @@ export function FooterSection({
                   </div>
                 )}
               </div>
-              )}
+              ) : null}
             </div>
           </div>
         )}

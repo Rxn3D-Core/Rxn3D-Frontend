@@ -8737,12 +8737,10 @@ export default function CaseDesignCenterPage() {
                                         const productDetails = savedProduct.productDetails
                                         const advanceFields = productDetails?.advance_fields || productAdvanceFields[savedProduct.id] || []
                                         const hasAdvanceFields = advanceFields && Array.isArray(advanceFields) && advanceFields.length > 0
-                                        // Show advance fields if they exist and either:
-                                        // 1. All required fields are filled (material, retention, tooth shade, stage), OR
-                                        // 2. Material and retention are filled (minimum requirement)
-                                        const allFieldsFilled = savedProduct.maxillaryMaterial && savedProduct.maxillaryRetention && savedProduct.maxillaryToothShade && savedProduct.maxillaryStage
+                                        // Show advance fields if they exist and material/retention are filled
                                         const minFieldsFilled = savedProduct.maxillaryMaterial && savedProduct.maxillaryRetention
-                                        return hasAdvanceFields && (allFieldsFilled || minFieldsFilled) && (showAdvanceFields[savedProduct.id] || minFieldsFilled)
+                                        // Always show if material and retention are set
+                                        return hasAdvanceFields && minFieldsFilled
                                       })() && (
                                       <div
                                         className="flex flex-wrap justify-center items-center w-full"

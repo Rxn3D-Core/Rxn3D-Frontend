@@ -1406,15 +1406,13 @@ export function SavedProductsSection({
 
                                 {/* Action Buttons - Only show if advance fields are showing */}
                                 {(() => {
-                                  const productDetails = savedProduct.productDetails
-                                  const advanceFields = productDetails?.advance_fields || productAdvanceFields[savedProduct.id] || []
+                                  const productDetailsData = savedProduct.productDetails
+                                  const advanceFields = productDetailsData?.advance_fields || productAdvanceFields[savedProduct.id] || []
                                   const hasAdvanceFields = advanceFields && Array.isArray(advanceFields) && advanceFields.length > 0
-                                  // Show advance fields if they exist and either:
-                                  // 1. All required fields are filled (material, retention, tooth shade, stage), OR
-                                  // 2. Material and retention are filled (minimum requirement)
-                                  const allFieldsFilled = savedProduct.mandibularMaterial && savedProduct.mandibularRetention && savedProduct.mandibularToothShade && savedProduct.mandibularStage
+                                  // Show advance fields if they exist and material/retention are filled
                                   const minFieldsFilled = savedProduct.mandibularMaterial && savedProduct.mandibularRetention
-                                  return hasAdvanceFields && (allFieldsFilled || minFieldsFilled) && (showAdvanceFields[savedProduct.id] || minFieldsFilled)
+                                  // Always show if material and retention are set, or if explicitly enabled
+                                  return hasAdvanceFields && minFieldsFilled
                                 })() && (
                                 <div
                                   className="flex flex-wrap justify-center items-center w-full"

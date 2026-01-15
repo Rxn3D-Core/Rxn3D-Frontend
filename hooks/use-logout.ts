@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
+import { clearSessionStorage } from "@/lib/clear-session-storage"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
@@ -20,14 +21,8 @@ const logoutUser = async (): Promise<void> => {
     // So we don't throw an error here
   }
 
-  // Clear all localStorage data
-  localStorage.removeItem("user")
-  localStorage.removeItem("token")
-  localStorage.removeItem("selectedLocation")
-  localStorage.removeItem("customerId")
-  localStorage.removeItem("customerType")
-  localStorage.removeItem("library_token")
-  localStorage.removeItem("role")
+  // Clear all session-related localStorage data
+  clearSessionStorage()
 }
 
 export function useLogoutMutation() {

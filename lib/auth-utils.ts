@@ -1,16 +1,9 @@
 import { getAuthToken, clearAuthData } from './auth-storage'
+import { clearSessionStorage } from './clear-session-storage'
 
 export { getAuthToken }
 
 export const redirectToLogin = () => {
-  clearAuthData()
-  // Also clear additional items that might be stored
-  if (typeof window !== "undefined") {
-    localStorage.removeItem("library_token")
-    localStorage.removeItem("customerId")
-    localStorage.removeItem("customerid")
-    localStorage.removeItem("customerType")
-    localStorage.removeItem("selectedLabId")
-  }
+  clearSessionStorage()
   window.location.href = "/login"
 }

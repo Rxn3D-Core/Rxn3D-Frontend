@@ -209,8 +209,6 @@ export function DashboardSidebar({ onClose, isMobileOverlay = false }: Dashboard
             "flex flex-col items-center justify-center flex-1 py-1.5 sm:py-2 px-0.5 sm:px-1 text-[#666666] active:bg-gray-50 transition-colors rounded-lg mx-0.5 sm:mx-1 min-w-0 disabled:opacity-50"
           )}
           onClick={() => {
-            localStorage.removeItem("library_token");
-            localStorage.removeItem("labAdminHistory");
             logoutMutation.mutate()
           }}
           disabled={logoutMutation.isPending}
@@ -340,8 +338,6 @@ export function DashboardSidebar({ onClose, isMobileOverlay = false }: Dashboard
             logoutMutation.isPending && 'opacity-60 cursor-wait'
           )}
           onClick={() => {
-            localStorage.removeItem("library_token");
-            localStorage.removeItem("labAdminHistory");
             logoutMutation.mutate()
             if (isMobileOverlay && onClose) onClose();
           }}

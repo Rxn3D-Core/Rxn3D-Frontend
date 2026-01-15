@@ -3,6 +3,7 @@
 import type React from "react"
 import { useRouter } from "next/navigation"
 import { getAuthToken, getTokenExpiresAt } from "@/lib/auth-storage"
+import { clearSessionStorage } from "@/lib/clear-session-storage"
 
 import { useEffect, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
@@ -29,8 +30,7 @@ export function ClientLayout({
     const expiresAt = getTokenExpiresAt()
     const now = Date.now()
     if (!token || (expiresAt && now > expiresAt)) {
-      localStorage.removeItem("user")
-      localStorage.removeItem("token")
+      clearSessionStorage()
       router.replace("/login")
     }
   }, [router])
@@ -58,9 +58,8 @@ export function ClientLayout({
 
         // Wait for animation to complete before clearing data and redirecting
         setTimeout(() => {
-          // Clear auth data
-          localStorage.removeItem("user")
-          localStorage.removeItem("token")
+          // Clear all session data
+          clearSessionStorage()
           // Redirect to login
           router.push("/login")
         }, animationDuration)

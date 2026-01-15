@@ -1,4 +1,5 @@
 import { useRouter } from "next/navigation"
+import { clearSessionStorage } from "./clear-session-storage"
 
 export function setupApiInterceptor() {
   const router = useRouter()
@@ -9,9 +10,8 @@ export function setupApiInterceptor() {
     const response = await originalFetch(...args)
     
     if (response.status === 401) {
-      // Clear auth data
-      localStorage.removeItem("user")
-      localStorage.removeItem("token")
+      // Clear all session data
+      clearSessionStorage()
       // Redirect to login
       router.replace("/login")
       throw new Error("Unauthorized")
@@ -28,9 +28,8 @@ export function setupApiInterceptor() {
     
     xhr.onreadystatechange = function () {
       if (xhr.readyState === 4 && xhr.status === 401) {
-        // Clear auth data
-        localStorage.removeItem("user")
-        localStorage.removeItem("token")
+        // Clear all session data
+        clearSessionStorage()
         // Redirect to login
         router.replace("/login")
       }

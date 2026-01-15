@@ -1,3 +1,5 @@
+import { clearSessionStorage } from "./clear-session-storage"
+
 // Global fetch interceptor for handling 401 responses
 export function setupGlobalFetchInterceptor() {
   if (typeof window === 'undefined') return
@@ -10,10 +12,8 @@ export function setupGlobalFetchInterceptor() {
       
       // Handle 401 Unauthorized responses
       if (response.status === 401) {
-        // Clear all auth data
-        localStorage.removeItem('token')
-        localStorage.removeItem('user')
-        localStorage.removeItem('customerId')
+        // Clear all session data
+        clearSessionStorage()
         
         // Redirect to login page
         window.location.href = '/login'

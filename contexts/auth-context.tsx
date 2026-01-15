@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
 import { redirect, useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
+import { clearSessionStorage } from "@/lib/clear-session-storage"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
@@ -259,17 +260,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const handleUnauthorized = useCallback(() => {
     setUser(null)
     setToken(null)
-    localStorage.removeItem("user")
-    localStorage.removeItem("token")
-    localStorage.removeItem("selectedLocation")
-    localStorage.removeItem("customerId")
-    localStorage.removeItem("customerLogo")
-    // Clear all customer logo caches
-    Object.keys(localStorage).forEach(key => {
-      if (key.startsWith("customerLogo_")) {
-        localStorage.removeItem(key)
-      }
-    })
+    clearSessionStorage()
     router.replace("/login")
     toast({
       title: "Session Expired",
@@ -678,17 +669,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setUser(null)
       setToken(null)
-      localStorage.removeItem("user")
-      localStorage.removeItem("token")
-      localStorage.removeItem("selectedLocation")
-      localStorage.removeItem("customerId")
-      localStorage.removeItem("customerLogo")
-      // Clear all customer logo caches
-      Object.keys(localStorage).forEach(key => {
-        if (key.startsWith("customerLogo_")) {
-          localStorage.removeItem(key)
-        }
-      })
+      clearSessionStorage()
 
       router.replace("/login")
 

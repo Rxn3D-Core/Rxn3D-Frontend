@@ -1,3 +1,5 @@
+import { clearSessionStorage } from '../clear-session-storage'
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
 // Helper function to ensure URL is absolute
@@ -67,8 +69,7 @@ export const apiClient: ApiClient = {
       if (response.status === 401) {
         // Handle unauthorized
         if (typeof window !== 'undefined') {
-          localStorage.removeItem('token')
-          localStorage.removeItem('user')
+          clearSessionStorage()
           window.location.href = '/login'
         }
         throw new Error('Unauthorized')

@@ -115,8 +115,6 @@ export function DashboardHeader({ toggleSidebar }: { toggleSidebar: () => void }
             variant="ghost"
             size="icon"
             onClick={() => {
-              localStorage.removeItem("library_token");
-              localStorage.removeItem("labAdminHistory");
               logout();
             }}
             className="text-gray-500 hover:text-gray-700 hover:bg-gray-100"
