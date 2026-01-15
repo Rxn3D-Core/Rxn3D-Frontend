@@ -5246,8 +5246,8 @@ export default function CaseDesignCenterPage() {
       </div>
 
       {/* Main Content */}
-      <div className="min-h-full" style={{ paddingBottom: "20px" }}>
-        <div className="container mx-auto px-5 py-5" style={{ paddingBottom: "20px" }}>
+      <div className="min-h-full" style={{ paddingBottom: "80px" }}>
+        <div className="container mx-auto px-5 py-5" style={{ paddingBottom: "80px" }}>
           {/* Search and Category Selection */}
           <div className="flex flex-col items-center">
             {/* Search and Labels Row */}
@@ -8737,8 +8737,12 @@ export default function CaseDesignCenterPage() {
                                         const productDetails = savedProduct.productDetails
                                         const advanceFields = productDetails?.advance_fields || productAdvanceFields[savedProduct.id] || []
                                         const hasAdvanceFields = advanceFields && Array.isArray(advanceFields) && advanceFields.length > 0
+                                        // Show advance fields if they exist and either:
+                                        // 1. All required fields are filled (material, retention, tooth shade, stage), OR
+                                        // 2. Material and retention are filled (minimum requirement)
                                         const allFieldsFilled = savedProduct.maxillaryMaterial && savedProduct.maxillaryRetention && savedProduct.maxillaryToothShade && savedProduct.maxillaryStage
-                                        return hasAdvanceFields && allFieldsFilled && (showAdvanceFields[savedProduct.id] || (savedProduct.maxillaryMaterial && savedProduct.maxillaryRetention))
+                                        const minFieldsFilled = savedProduct.maxillaryMaterial && savedProduct.maxillaryRetention
+                                        return hasAdvanceFields && (allFieldsFilled || minFieldsFilled) && (showAdvanceFields[savedProduct.id] || minFieldsFilled)
                                       })() && (
                                       <div
                                         className="flex flex-wrap justify-center items-center w-full"
@@ -12091,27 +12095,28 @@ export default function CaseDesignCenterPage() {
             implants={implants}
           />
 
-          {/* Footer - Consistent across all pages */}
-          <FooterSection
-            showProductDetails={showProductDetails}
-            isSubmitting={isSubmitting}
-            confirmDetailsChecked={confirmDetailsChecked}
-            showSubmitPopover={showSubmitPopover}
-            isAccordionComplete={hasAtLeastOneCompleteProduct}
-            onCancel={handleCancel}
-            onPreview={handlePreview}
-            onShowCancelModal={() => setShowCancelModal(true)}
-            onSubmit={handleSubmit}
-            onConfirmDetailsChange={(checked) => setConfirmDetailsChecked(checked)}
-            onShowSubmitPopoverChange={(show) => setShowSubmitPopover(show)}
-            hasProductAccordions={
-              (showMaxillaryChart && maxillaryTeeth.length > 0) ||
-              (showMandibularChart && mandibularTeeth.length > 0) ||
-              savedProducts.length > 0
-            }
-          />
         </div>
       </div>
+
+      {/* Footer - Outside scrollable container, always visible */}
+      <FooterSection
+        showProductDetails={showProductDetails}
+        isSubmitting={isSubmitting}
+        confirmDetailsChecked={confirmDetailsChecked}
+        showSubmitPopover={showSubmitPopover}
+        isAccordionComplete={hasAtLeastOneCompleteProduct}
+        onCancel={handleCancel}
+        onPreview={handlePreview}
+        onShowCancelModal={() => setShowCancelModal(true)}
+        onSubmit={handleSubmit}
+        onConfirmDetailsChange={(checked) => setConfirmDetailsChecked(checked)}
+        onShowSubmitPopoverChange={(show) => setShowSubmitPopover(show)}
+        hasProductAccordions={
+          (showMaxillaryChart && maxillaryTeeth.length > 0) ||
+          (showMandibularChart && mandibularTeeth.length > 0) ||
+          savedProducts.length > 0
+        }
+      />
 
       {/* Modals */}
       {/* Add Ons Modal */}

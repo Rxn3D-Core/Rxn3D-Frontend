@@ -1409,8 +1409,12 @@ export function SavedProductsSection({
                                   const productDetails = savedProduct.productDetails
                                   const advanceFields = productDetails?.advance_fields || productAdvanceFields[savedProduct.id] || []
                                   const hasAdvanceFields = advanceFields && Array.isArray(advanceFields) && advanceFields.length > 0
+                                  // Show advance fields if they exist and either:
+                                  // 1. All required fields are filled (material, retention, tooth shade, stage), OR
+                                  // 2. Material and retention are filled (minimum requirement)
                                   const allFieldsFilled = savedProduct.mandibularMaterial && savedProduct.mandibularRetention && savedProduct.mandibularToothShade && savedProduct.mandibularStage
-                                  return hasAdvanceFields && allFieldsFilled && (showAdvanceFields[savedProduct.id] || (savedProduct.mandibularMaterial && savedProduct.mandibularRetention))
+                                  const minFieldsFilled = savedProduct.mandibularMaterial && savedProduct.mandibularRetention
+                                  return hasAdvanceFields && (allFieldsFilled || minFieldsFilled) && (showAdvanceFields[savedProduct.id] || minFieldsFilled)
                                 })() && (
                                 <div
                                   className="flex flex-wrap justify-center items-center w-full"

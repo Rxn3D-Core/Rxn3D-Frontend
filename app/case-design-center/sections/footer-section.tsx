@@ -37,10 +37,17 @@ export function FooterSection({
 }: FooterSectionProps) {
   return (
     <div 
-      className="bg-white flex-shrink-0 sticky bottom-0 left-0 right-0 z-10"
+      className="bg-white flex-shrink-0 z-50"
       style={{
         height: "59.94px",
         background: "#FFFFFF",
+        boxShadow: "0 -2px 8px rgba(0, 0, 0, 0.1)",
+        position: "fixed",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        width: "100%",
+        zIndex: 9999,
       }}
     >
       <div className="flex justify-between items-center h-full px-6 relative">
