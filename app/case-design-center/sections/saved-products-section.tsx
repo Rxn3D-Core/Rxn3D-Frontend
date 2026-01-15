@@ -5,6 +5,7 @@ import { ChevronDown, Trash2, Zap, Paperclip } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ImplantDetailForm } from "@/components/implant-detail-form"
 import type { SavedProduct } from "./types"
 
 // Helper function to get shade display text with brand and code
@@ -60,6 +61,111 @@ const getShadeDisplayText = (
   } else {
     return shadeName
   }
+}
+
+// Helper to check if retention value is valid (not empty, not placeholder)
+const hasValidRetentionValue = (retentionValue: string | undefined | null): boolean => {
+  if (!retentionValue) return false
+  const trimmed = String(retentionValue).trim()
+  return trimmed !== '' && 
+         trimmed !== 'Not specified' && 
+         trimmed !== 'Select' && 
+         trimmed !== 'Select Retention type'
+}
+
+// RetentionFieldComponent - dropdown for retention type
+function RetentionFieldComponent({
+  savedProduct,
+  isMaxillary,
+  openRetentionDropdown,
+  setOpenRetentionDropdown,
+  handleFieldChange
+}: {
+  savedProduct: SavedProduct
+  isMaxillary: boolean
+  openRetentionDropdown: Record<string, { maxillary?: boolean; mandibular?: boolean }>
+  setOpenRetentionDropdown: React.Dispatch<React.SetStateAction<Record<string, { maxillary?: boolean; mandibular?: boolean }>>>
+  handleFieldChange: (fieldKey: string, value: string, id?: number, productId?: string, arch?: "maxillary" | "mandibular") => void
+}) {
+  const arch = isMaxillary ? "maxillary" : "mandibular"
+  const retentionValue = isMaxillary ? savedProduct.maxillaryRetention : savedProduct.mandibularRetention
+  
+  return (
+    <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
+      <Select
+        open={openRetentionDropdown[savedProduct.id]?.[arch] || false}
+        onOpenChange={(open) =>
+          setOpenRetentionDropdown((prev) => ({
+            ...prev,
+            [savedProduct.id]: {
+              ...prev[savedProduct.id],
+              [arch]: open
+            }
+          }))
+        }
+        value={retentionValue || ""}
+        onValueChange={(value) => {
+          const productDetails = savedProduct.productDetails
+          const retentions = productDetails?.retentions || []
+          const selectedRetention = retentions.find((r: any) => r.name === value || r.id?.toString() === value)
+          handleFieldChange(
+            "retention",
+            value,
+            selectedRetention?.id,
+            savedProduct.id,
+            arch
+          )
+        }}
+      >
+        <SelectTrigger
+          style={{
+            padding: '12px 15px 5px 15px',
+            gap: '5px',
+            width: '100%',
+            height: '37px',
+            position: 'relative',
+            marginTop: '5.27px',
+            background: '#FFFFFF',
+            border: '0.740384px solid #7F7F7F',
+            borderRadius: '7.7px',
+            boxSizing: 'border-box',
+            fontFamily: 'Arial',
+            fontStyle: 'normal',
+            fontWeight: 400,
+            fontSize: '14px',
+            lineHeight: '14px',
+            color: '#000000'
+          }}
+        >
+          <SelectValue placeholder="Select" />
+        </SelectTrigger>
+        <SelectContent className="z-[50] max-h-[300px] overflow-y-auto">
+          {savedProduct.productDetails?.retentions?.map((retention: any, idx: number) => (
+            <SelectItem key={idx} value={retention.name || retention.id?.toString() || ""}>
+              {retention.name || retention}
+            </SelectItem>
+          )) || []}
+        </SelectContent>
+      </Select>
+      <label
+        className="absolute bg-white"
+        style={{
+          padding: '0px',
+          height: '14px',
+          left: '9.23px',
+          top: '0px',
+          fontFamily: 'Arial',
+          fontStyle: 'normal',
+          fontWeight: 400,
+          fontSize: '14px',
+          lineHeight: '14px',
+          color: '#7F7F7F'
+        }}
+      >
+        {hasValidRetentionValue(retentionValue) ? 'Retention type' : 'Select Retention type'}
+      </label>
+    </div>
+  )
 }
 
 // StageFieldComponent - extracted from main file
@@ -206,6 +312,10 @@ interface SavedProductsSectionProps {
   setShowRushModal: (show: boolean) => void
   maxillaryRetentionTypes: Record<number, Array<'Implant' | 'Prep' | 'Pontic'>>
   mandibularRetentionTypes: Record<number, Array<'Implant' | 'Prep' | 'Pontic'>>
+  handleFieldChange: (fieldKey: string, value: string, id?: number, productId?: string, arch?: "maxillary" | "mandibular") => void
+  openRetentionDropdown: Record<string, { maxillary?: boolean; mandibular?: boolean }>
+  setOpenRetentionDropdown: React.Dispatch<React.SetStateAction<Record<string, { maxillary?: boolean; mandibular?: boolean }>>>
+  implants?: any[]
 }
 
 export function SavedProductsSection({
@@ -232,7 +342,11 @@ export function SavedProductsSection({
   setShowAttachModal,
   setShowRushModal,
   maxillaryRetentionTypes,
-  mandibularRetentionTypes
+  mandibularRetentionTypes,
+  handleFieldChange,
+  openRetentionDropdown,
+  setOpenRetentionDropdown,
+  implants = []
 }: SavedProductsSectionProps) {
   // Helper to check if any tooth in the saved product has a retention type selected from popover
   const hasRetentionTypeSelected = (savedProduct: SavedProduct, arch: "maxillary" | "mandibular"): boolean => {
@@ -254,15 +368,6 @@ export function SavedProductsSection({
     return hasSelection
   }
 
-  // Helper to check if retention value is valid (not empty, not placeholder)
-  const hasValidRetentionValue = (retentionValue: string | undefined | null): boolean => {
-    if (!retentionValue) return false
-    const trimmed = String(retentionValue).trim()
-    return trimmed !== '' && 
-           trimmed !== 'Not specified' && 
-           trimmed !== 'Select' && 
-           trimmed !== 'Select Retention type'
-  }
   if (savedProducts.length === 0 || !selectedCategory || showProductDetails) {
     return null
   }
@@ -517,52 +622,15 @@ export function SavedProductsSection({
                                     </label>
                                   </div>
 
-                                  {/* Retention Type - Only show if retention type selected from popover */}
-                                  {hasRetentionTypeSelected(savedProduct, "maxillary") && (
-                                    <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
-                                      <div
-                                        className="flex items-center"
-                                        style={{
-                                          padding: '12px 15px 5px 15px',
-                                          gap: '5px',
-                                          width: '100%',
-                                          height: '37px',
-                                          position: 'relative',
-                                          marginTop: '5.27px',
-                                          background: '#FFFFFF',
-                                          border: '0.740384px solid #7F7F7F',
-                                          borderRadius: '7.7px',
-                                          boxSizing: 'border-box'
-                                        }}
-                                      >
-                                        <span style={{
-                                          fontFamily: 'Arial',
-                                          fontStyle: 'normal',
-                                          fontWeight: 400,
-                                          fontSize: '14px',
-                                          lineHeight: '14px',
-                                          color: '#000000',
-                                          whiteSpace: 'nowrap'
-                                        }}>{savedProduct.maxillaryRetention || 'Select'}</span>
-                                      </div>
-                                      <label
-                                        className="absolute bg-white"
-                                        style={{
-                                          padding: '0px',
-                                          height: '14px',
-                                          left: '9.23px',
-                                          top: '0px',
-                                          fontFamily: 'Arial',
-                                          fontStyle: 'normal',
-                                          fontWeight: 400,
-                                          fontSize: '14px',
-                                          lineHeight: '14px',
-                                          color: '#7F7F7F'
-                                        }}
-                                      >
-                                        {hasValidRetentionValue(savedProduct.maxillaryRetention) ? 'Retention type' : 'Select Retention type'}
-                                      </label>
-                                    </div>
+                                  {/* Retention Type - Show if retention type selected from popover OR if product has teeth */}
+                                  {(hasRetentionTypeSelected(savedProduct, "maxillary") || (savedProduct.maxillaryTeeth && savedProduct.maxillaryTeeth.length > 0)) && (
+                                    <RetentionFieldComponent
+                                      savedProduct={savedProduct}
+                                      isMaxillary={true}
+                                      openRetentionDropdown={openRetentionDropdown}
+                                      setOpenRetentionDropdown={setOpenRetentionDropdown}
+                                      handleFieldChange={handleFieldChange}
+                                    />
                                   )}
                                 </div>
 
@@ -1068,57 +1136,20 @@ export function SavedProductsSection({
                                     </label>
                                   </div>
 
-                                  {/* Retention Type - Only show if retention type selected from popover */}
-                                  {hasRetentionTypeSelected(savedProduct, "mandibular") && (
-                                    <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
-                                      <div
-                                        className="flex items-center"
-                                        style={{
-                                          padding: '12px 15px 5px 15px',
-                                          gap: '5px',
-                                          width: '100%',
-                                          height: '37px',
-                                          position: 'relative',
-                                          marginTop: '5.27px',
-                                          background: '#FFFFFF',
-                                          border: '0.740384px solid #7F7F7F',
-                                          borderRadius: '7.7px',
-                                          boxSizing: 'border-box'
-                                        }}
-                                      >
-                                        <span style={{
-                                          fontFamily: 'Arial',
-                                          fontStyle: 'normal',
-                                          fontWeight: 400,
-                                          fontSize: '14px',
-                                          lineHeight: '14px',
-                                          color: '#000000',
-                                          whiteSpace: 'nowrap'
-                                        }}>{savedProduct.mandibularRetention || 'Select'}</span>
-                                      </div>
-                                      <label
-                                        className="absolute bg-white"
-                                        style={{
-                                          padding: '0px',
-                                          height: '14px',
-                                          left: '9.23px',
-                                          top: '0px',
-                                          fontFamily: 'Arial',
-                                          fontStyle: 'normal',
-                                          fontWeight: 400,
-                                          fontSize: '14px',
-                                          lineHeight: '14px',
-                                          color: '#7F7F7F'
-                                        }}
-                                      >
-                                        {hasValidRetentionValue(savedProduct.mandibularRetention) ? 'Retention type' : 'Select Retention type'}
-                                      </label>
-                                    </div>
+                                  {/* Retention Type - Show if retention type selected from popover OR if product has teeth */}
+                                  {(hasRetentionTypeSelected(savedProduct, "mandibular") || (savedProduct.mandibularTeeth && savedProduct.mandibularTeeth.length > 0)) && (
+                                    <RetentionFieldComponent
+                                      savedProduct={savedProduct}
+                                      isMaxillary={false}
+                                      openRetentionDropdown={openRetentionDropdown}
+                                      setOpenRetentionDropdown={setOpenRetentionDropdown}
+                                      handleFieldChange={handleFieldChange}
+                                    />
                                   )}
                                 </div>
 
-                                {/* Row 2: Tooth Shade, Stage */}
-                                {isAccordionFieldVisible("tooth_shade", savedProduct, "mandibular") && (
+                                {/* Row 2: Stump Shade, Tooth Shade, Stage */}
+                                {isAccordionFieldVisible("stump_shade", savedProduct, "mandibular") && (
                                 <div
                                   className="flex flex-col sm:flex-row flex-wrap gap-5"
                                   style={{
@@ -1133,7 +1164,96 @@ export function SavedProductsSection({
                                     flexGrow: 0
                                   }}
                                 >
+                                  {/* Stump Shade */}
+                                  {(() => {
+                                    const productDetails = savedProduct.productDetails
+                                    const advanceFields = productDetails?.advance_fields || productAdvanceFields[savedProduct.id] || []
+                                    const stumpShadeField = getAdvanceFieldByName("stump_shade", advanceFields)
+                                    
+                                    if (stumpShadeField) {
+                                      return renderSavedAdvanceField(stumpShadeField, savedProduct, "mandibular")
+                                    }
+                                    
+                                    return (
+                                      <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                        <div
+                                          className="flex items-center justify-between"
+                                          style={{
+                                            padding: '12px 15px 5px 15px',
+                                            gap: '5px',
+                                            width: '100%',
+                                            height: '37px',
+                                            background: '#FFFFFF',
+                                            border: '0.740384px solid #7F7F7F',
+                                            borderRadius: '7.7px',
+                                            boxSizing: 'border-box',
+                                            position: 'relative',
+                                            marginTop: '5.27px'
+                                          }}
+                                        >
+                                          <span style={{
+                                            fontFamily: 'Verdana',
+                                            fontStyle: 'normal',
+                                            fontWeight: 400,
+                                            fontSize: '14.4px',
+                                            lineHeight: '20px',
+                                            letterSpacing: '-0.02em',
+                                            color: '#000000'
+                                          }}>{getShadeDisplayText(
+                                            savedProduct.mandibularStumpShade,
+                                            savedProduct.mandibularGumShadeId,
+                                            savedProduct.mandibularGumShadeBrand,
+                                            "stump_shade",
+                                            savedProduct.productDetails
+                                          )}</span>
+                                          {savedProduct.mandibularStumpShade && (
+                                            <div
+                                              className="flex items-center justify-center"
+                                              style={{
+                                                width: '37.51px',
+                                                height: '41.97px',
+                                                background: 'linear-gradient(0deg, #DED2C7 0.05%, #E3D4C4 7.04%, #EDD9C1 25.04%, #F0DBC0 50.02%, #F0DCC2 76.01%, #F1E0CA 90%, #F3E7D7 100%)',
+                                                borderRadius: '8px',
+                                                position: 'absolute',
+                                                right: '0px',
+                                                top: '-1px'
+                                              }}
+                                            >
+                                              <span style={{
+                                                fontFamily: 'Verdana',
+                                                fontStyle: 'normal',
+                                                fontWeight: 400,
+                                                fontSize: '12.8603px',
+                                                lineHeight: '18px',
+                                                letterSpacing: '-0.02em',
+                                                color: '#000000'
+                                              }}>{savedProduct.mandibularStumpShade}</span>
+                                            </div>
+                                          )}
+                                        </div>
+                                        <label
+                                          className="absolute bg-white"
+                                          style={{
+                                            padding: '0px',
+                                            height: '14px',
+                                            left: '8.9px',
+                                            top: '0px',
+                                            fontFamily: 'Arial',
+                                            fontStyle: 'normal',
+                                            fontWeight: 400,
+                                            fontSize: '14px',
+                                            lineHeight: '14px',
+                                            color: '#7F7F7F'
+                                          }}
+                                        >
+                                          Stump Shade
+                                        </label>
+                                      </div>
+                                    )
+                                  })()}
+
                                   {/* Tooth Shade */}
+                                  {isAccordionFieldVisible("tooth_shade", savedProduct, "mandibular") && (
                                   <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
                                     <div
                                       className="flex items-center"
@@ -1178,6 +1298,7 @@ export function SavedProductsSection({
                                       Tooth Shade
                                     </label>
                                   </div>
+                                  )}
 
                                   {/* Stage */}
                                   {isAccordionFieldVisible("stage", savedProduct, "mandibular") && (
@@ -1193,67 +1314,95 @@ export function SavedProductsSection({
                                 )}
 
                                 {/* Implant Details if available */}
-                                {isAccordionFieldVisible("implant_details", savedProduct, "mandibular") && savedProduct.mandibularImplantDetails && (
-                                  <div
-                                    className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                    style={{
-                                      display: 'flex',
-                                      flexDirection: 'row',
-                                      alignItems: 'flex-start',
-                                      padding: '0px',
-                                      gap: '20px',
-                                      flex: 'none',
-                                      order: 3,
-                                      alignSelf: 'stretch',
-                                      flexGrow: 0
-                                    }}
-                                  >
-                                    <div className="relative flex-1 min-w-[250px] max-w-[100%]" style={{ minHeight: '43px' }}>
-                                      <div
-                                        className="flex items-start"
-                                        style={{
-                                          padding: '12px 15px 5px 15px',
-                                          gap: '5px',
-                                          width: '100%',
-                                          minHeight: '60px',
-                                          background: '#FFFFFF',
-                                          border: '0.740384px solid #7F7F7F',
-                                          borderRadius: '7.7px',
-                                          boxSizing: 'border-box',
-                                          position: 'relative',
-                                          marginTop: '5.27px'
-                                        }}
-                                      >
-                                        <span style={{
-                                          fontFamily: 'Verdana',
-                                          fontStyle: 'normal',
-                                          fontWeight: 400,
-                                          fontSize: '14.4px',
-                                          lineHeight: '20px',
-                                          letterSpacing: '-0.02em',
-                                          color: '#000000'
-                                        }}>{savedProduct.mandibularImplantDetails}</span>
+                                {isAccordionFieldVisible("implant_details", savedProduct, "mandibular") && (savedProduct.mandibularImplantBrand || savedProduct.mandibularImplantDetails) && (() => {
+                                  // Find the selected brand from implants
+                                  const selectedBrand = savedProduct.mandibularImplantBrand 
+                                    ? implants.find((imp: any) => imp.id === savedProduct.mandibularImplantBrand || imp.brand_name === savedProduct.mandibularImplantBrand)
+                                    : null
+                                  
+                                  // Find the selected platform
+                                  const selectedPlatform = selectedBrand && savedProduct.mandibularImplantPlatform
+                                    ? selectedBrand.platforms?.find((p: any) => (p.id || 0) === savedProduct.mandibularImplantPlatform || p.name === savedProduct.mandibularImplantPlatform)
+                                    : null
+                                  
+                                  // Only show form if we have brand data, otherwise show simple text
+                                  if (!selectedBrand) {
+                                    return (
+                                      <div className="w-full" style={{ order: 3, alignSelf: 'stretch', flexGrow: 0 }}>
+                                        <div className="relative flex-1 min-w-[250px] max-w-[100%]" style={{ minHeight: '43px' }}>
+                                          <div
+                                            className="flex items-start"
+                                            style={{
+                                              padding: '12px 15px 5px 15px',
+                                              gap: '5px',
+                                              width: '100%',
+                                              minHeight: '60px',
+                                              background: '#FFFFFF',
+                                              border: '0.740384px solid #7F7F7F',
+                                              borderRadius: '7.7px',
+                                              boxSizing: 'border-box',
+                                              position: 'relative',
+                                              marginTop: '5.27px'
+                                            }}
+                                          >
+                                            <span style={{
+                                              fontFamily: 'Verdana',
+                                              fontStyle: 'normal',
+                                              fontWeight: 400,
+                                              fontSize: '14.4px',
+                                              lineHeight: '20px',
+                                              letterSpacing: '-0.02em',
+                                              color: '#000000'
+                                            }}>{savedProduct.mandibularImplantDetails || 'No implant details'}</span>
+                                          </div>
+                                          <label
+                                            className="absolute bg-white"
+                                            style={{
+                                              padding: '0px',
+                                              height: '14px',
+                                              left: '8.9px',
+                                              top: '0px',
+                                              fontFamily: 'Arial',
+                                              fontStyle: 'normal',
+                                              fontWeight: 400,
+                                              fontSize: '14px',
+                                              lineHeight: '14px',
+                                              color: '#7F7F7F'
+                                            }}
+                                          >
+                                            Implant Details
+                                          </label>
+                                        </div>
                                       </div>
-                                      <label
-                                        className="absolute bg-white"
-                                        style={{
-                                          padding: '0px',
-                                          height: '14px',
-                                          left: '8.9px',
-                                          top: '0px',
-                                          fontFamily: 'Arial',
-                                          fontStyle: 'normal',
-                                          fontWeight: 400,
-                                          fontSize: '14px',
-                                          lineHeight: '14px',
-                                          color: '#7F7F7F'
+                                    )
+                                  }
+                                  
+                                  return (
+                                    <div className="w-full" style={{ order: 3, alignSelf: 'stretch', flexGrow: 0 }}>
+                                      <ImplantDetailForm
+                                        fieldKey={`saved_${savedProduct.id}_mandibular`}
+                                        fieldId={0}
+                                        selectedBrand={selectedBrand}
+                                        selectedPlatform={selectedPlatform}
+                                        selectedSize={savedProduct.mandibularImplantSize || null}
+                                        onSizeChange={(size) => {
+                                          handleFieldChange('mandibularImplantSize', size, undefined, savedProduct.id, 'mandibular')
                                         }}
-                                      >
-                                        Implant Details
-                                      </label>
+                                        onInclusionsChange={(inclusions) => {
+                                          handleFieldChange('mandibularImplantInclusions', inclusions, undefined, savedProduct.id, 'mandibular')
+                                        }}
+                                        onAbutmentDetailChange={(detail) => {
+                                          handleFieldChange('mandibularAbutmentDetail', detail, undefined, savedProduct.id, 'mandibular')
+                                        }}
+                                        onAbutmentTypeChange={(type) => {
+                                          handleFieldChange('mandibularAbutmentType', type, undefined, savedProduct.id, 'mandibular')
+                                        }}
+                                        teethNumbers={savedProduct.mandibularTeeth}
+                                        arch="mandibular"
+                                      />
                                     </div>
-                                  </div>
-                                )}
+                                  )
+                                })()}
 
                                 {/* Action Buttons - Only show if advance fields are showing */}
                                 {(() => {

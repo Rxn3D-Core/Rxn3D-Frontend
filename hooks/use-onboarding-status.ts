@@ -135,10 +135,20 @@ export function useOnboardingStatus(): UseOnboardingStatusReturn {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch onboarding status'
       console.error(`Error fetching onboarding status (attempt ${retryAttempt + 1}):`, err)
       
-      // Retry logic with exponential backoff (only for network errors, not 4xx errors)
-      const isRetryableError = !errorMessage.includes('401') && 
-                               !errorMessage.includes('403') && 
-                               !errorMessage.includes('404') &&
+      // Retry logic with exponential backoff (only for network errors, not 4xx or 5xx errors)
+      // Don't retry on client errors (4xx) or server errors (5xx)
+      const isClientError = errorMessage.includes('401') || 
+                           errorMessage.includes('403') || 
+                           errorMessage.includes('404') ||
+                           errorMessage.includes('400') ||
+                           errorMessage.includes('405') ||
+                           errorMessage.includes('422')
+      const isServerError = errorMessage.includes('500') ||
+                           errorMessage.includes('502') ||
+                           errorMessage.includes('503') ||
+                           errorMessage.includes('504')
+      const isRetryableError = !isClientError && 
+                               !isServerError &&
                                retryAttempt < maxRetries
       
       if (isRetryableError) {

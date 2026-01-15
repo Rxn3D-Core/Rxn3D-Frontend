@@ -54,6 +54,7 @@ export interface SavedProduct {
   maxillaryRetention: string
   maxillaryNotes: string
   mandibularMaterial: string
+  mandibularStumpShade: string
   mandibularRetention: string
   mandibularImplantDetails: string
   createdAt: number // Timestamp

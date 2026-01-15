@@ -34,7 +34,7 @@ interface DynamicProductFieldsProps {
   onFieldChange: (fieldKey: string, value: string, id?: number) => void
   onOpenImpressionModal?: () => void
   getImpressionCount?: () => number
-  onOpenShadeModal?: (fieldKey: string) => void
+  onOpenShadeModal?: (fieldKey: string, arch?: "maxillary" | "mandibular") => void
   shadeColors?: Record<string, string> // Map of shade names to gradient colors
   maxillaryRetentionTypes?: Record<number, Array<'Implant' | 'Prep' | 'Pontic'>>
   mandibularRetentionTypes?: Record<number, Array<'Implant' | 'Prep' | 'Pontic'>>
@@ -520,7 +520,7 @@ export function DynamicProductFields({
               e.preventDefault()
               e.stopPropagation()
               if (onOpenShadeModal) {
-                onOpenShadeModal(config.key)
+                onOpenShadeModal(config.key, arch)
               } else {
                 console.warn("onOpenShadeModal not provided")
               }

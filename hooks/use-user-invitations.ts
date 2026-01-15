@@ -231,6 +231,13 @@ export function useFetchUserInvitations(customerId: number | null) {
       if (error?.message?.includes("405") || error?.message?.includes("404")) {
         return false
       }
+      // Don't retry on 5xx server errors
+      if (error?.message?.includes("500") || 
+          error?.message?.includes("502") || 
+          error?.message?.includes("503") || 
+          error?.message?.includes("504")) {
+        return false
+      }
       if (error?.message === "Unauthorized") {
         // Use setTimeout to avoid calling router during render
         if (typeof window !== "undefined") {

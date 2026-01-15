@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { createContext, useContext, useState, useEffect, useCallback } from "react"
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react"
 import { FolderOpen, CheckCircle, AlertCircle, Trash2, Save } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useTranslation } from "react-i18next"
@@ -709,35 +709,66 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
   const [subcategoriesLoading, setSubcategoriesLoading] = useState(false)
   const [subcategoriesError, setSubcategoriesError] = useState<string | null>(null)
 
+  // Ref to track if a fetch is in progress to prevent duplicate calls
+  const fetchAllCategoriesInProgressRef = useRef<{ lang: string; customerId?: number } | null>(null)
+  // Ref to track the last successful fetch parameters
+  const lastFetchParamsRef = useRef<{ lang: string; customerId?: number } | null>(null)
+  // Ref to track if categories are currently loaded
+  const hasCategoriesLoadedRef = useRef<boolean>(false)
+
   // Fetch all categories (top-level, not subcategories)
   const fetchAllCategories = useCallback(
     async (lang = "en", passedCustomerId?: number) => {
+      // Use passed customerId, or get fresh customerId from context
+      let customerIdToUse = passedCustomerId
+      if (!customerIdToUse) {
+        // Get fresh customerId using the same logic
+        if (typeof window !== "undefined") {
+          if (isLabAdmin || isSuperAdmin) {
+            const storedCustomerId = localStorage.getItem("customerId")
+            if (storedCustomerId) {
+              customerIdToUse = parseInt(storedCustomerId, 10)
+            } else if (user?.customers?.length) {
+              customerIdToUse = user.customers[0]?.id
+            }
+          } else {
+            const storedLabId = localStorage.getItem("selectedLabId")
+            if (storedLabId) {
+              customerIdToUse = parseInt(storedLabId, 10)
+            }
+          }
+        }
+      }
+      
+      // Create a unique key for this fetch request
+      const fetchKey = `${lang}-${customerIdToUse || 'default'}`
+      
+      // Check if the same fetch is already in progress
+      if (fetchAllCategoriesInProgressRef.current) {
+        const currentKey = `${fetchAllCategoriesInProgressRef.current.lang}-${fetchAllCategoriesInProgressRef.current.customerId || 'default'}`
+        if (currentKey === fetchKey) {
+          // Same fetch is already in progress, skip duplicate call
+          return
+        }
+      }
+      
+      // Check if we already have data for these exact parameters
+      if (lastFetchParamsRef.current && hasCategoriesLoadedRef.current) {
+        const lastKey = `${lastFetchParamsRef.current.lang}-${lastFetchParamsRef.current.customerId || 'default'}`
+        if (lastKey === fetchKey) {
+          // We already have the data for these parameters, skip duplicate call
+          return
+        }
+      }
+      
+      // Mark this fetch as in progress
+      fetchAllCategoriesInProgressRef.current = { lang, customerId: customerIdToUse }
+      
       setAllCategoriesLoading(true)
       setAllCategoriesError(null)
       try {
         const token = getAuthToken()
         const params = new URLSearchParams({ lang })
-        
-        // Use passed customerId, or get fresh customerId from context
-        let customerIdToUse = passedCustomerId
-        if (!customerIdToUse) {
-          // Get fresh customerId using the same logic
-          if (typeof window !== "undefined") {
-            if (isLabAdmin || isSuperAdmin) {
-              const storedCustomerId = localStorage.getItem("customerId")
-              if (storedCustomerId) {
-                customerIdToUse = parseInt(storedCustomerId, 10)
-              } else if (user?.customers?.length) {
-                customerIdToUse = user.customers[0]?.id
-              }
-            } else {
-              const storedLabId = localStorage.getItem("selectedLabId")
-              if (storedLabId) {
-                customerIdToUse = parseInt(storedLabId, 10)
-              }
-            }
-          }
-        }
         
         if (customerIdToUse) {
           params.append("customer_id", String(customerIdToUse))
@@ -755,12 +786,19 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
           throw new Error(errData.message || `Failed to fetch all categories (status ${response.status})`)
         }
         const responseData = await response.json()
-        setAllCategories(responseData.data.data || [])
+        const categoriesData = responseData.data.data || []
+        setAllCategories(categoriesData)
+        // Store the successful fetch parameters
+        lastFetchParamsRef.current = { lang, customerId: customerIdToUse }
+        hasCategoriesLoadedRef.current = categoriesData.length > 0
       } catch (err: any) {
         setAllCategories([])
         setAllCategoriesError(err.message)
+        hasCategoriesLoadedRef.current = false
       } finally {
         setAllCategoriesLoading(false)
+        // Clear the in-progress flag
+        fetchAllCategoriesInProgressRef.current = null
       }
     },
     [isLabAdmin, isSuperAdmin, user]

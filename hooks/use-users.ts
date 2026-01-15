@@ -72,7 +72,8 @@ const fetchUsers = async (params?: FetchUsersParams): Promise<UsersResponse> => 
   }
 
   if (!response.ok) {
-    throw new Error("Failed to fetch users")
+    // Include status code in error message for retry logic
+    throw new Error(`Failed to fetch users: ${response.status}`)
   }
 
   const result = await response.json()
@@ -93,6 +94,14 @@ export function useFetchUsersQuery(params?: FetchUsersParams) {
         localStorage.removeItem("token")
         localStorage.removeItem("user")
         router.replace("/login")
+        return false
+      }
+      // Don't retry on 5xx server errors
+      const errorMessage = error?.message || ""
+      if (errorMessage.includes("500") || 
+          errorMessage.includes("502") || 
+          errorMessage.includes("503") || 
+          errorMessage.includes("504")) {
         return false
       }
       return failureCount < 3
