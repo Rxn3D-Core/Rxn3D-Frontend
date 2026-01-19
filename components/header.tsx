@@ -886,7 +886,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
               {/* Enhanced User Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="flex flex-col items-center gap-1 sm:gap-1.5 hover:bg-gray-100 flex-shrink-0 p-2 sm:p-2.5 md:p-3">
+                  <div className="flex flex-col items-center gap-1 sm:gap-1.5 flex-shrink-0 p-2 sm:p-2.5 md:p-3 cursor-pointer">
                     <Avatar className="h-7 w-7 md:h-8 md:w-8 lg:h-10 lg:w-10 xl:h-11 xl:w-11 ring-2 ring-gray-200">
                       <AvatarImage
                         src={getUserAvatar(user?.image, user?.email || user?.id || user?.first_name)}
@@ -899,9 +899,9 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                     <span className="text-[10px] sm:text-xs md:text-sm font-medium text-gray-900 whitespace-nowrap">
                       {getPrimaryRole()}
                     </span>
-                  </Button>
+                  </div>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56 lg:w-64 rounded-lg shadow-lg" align="end" forceMount>
+                <DropdownMenuContent className="w-56 lg:w-64 rounded-lg shadow-lg" align="center" side="bottom" sideOffset={8} forceMount>
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
                       <p className="text-sm lg:text-base font-medium">{user?.first_name || t("header.user")}</p>
