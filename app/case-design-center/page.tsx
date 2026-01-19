@@ -7872,7 +7872,6 @@ export default function CaseDesignCenterPage() {
                                             )
                                           }
                                           
-                                          // Otherwise, render the hardcoded stump shade (backward compatibility)
                                           return (
                                             <div
                                               className="flex flex-col sm:flex-row flex-wrap gap-5"
