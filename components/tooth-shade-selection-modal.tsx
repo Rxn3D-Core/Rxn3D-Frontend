@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import {
   Dialog,
   DialogContent,
@@ -52,6 +52,13 @@ export function ToothShadeSelectionModal({
 }: ToothShadeSelectionModalProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedShades, setSelectedShades] = useState<string[]>([])
+
+  // Reset selected shades when modal opens with no selectedShadeId (for tooth shade after stump shade is selected)
+  useEffect(() => {
+    if (isOpen && fieldType === "tooth_shade" && !selectedShadeId) {
+      setSelectedShades([])
+    }
+  }, [isOpen, fieldType, selectedShadeId])
 
   const handleShadeClick = (shade: string) => {
     if (selectedShades.includes(shade)) {

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo, Suspense } from "react"
 import { useRouter } from "next/navigation"
 import dynamic from "next/dynamic"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useDebounce } from "@/lib/performance-utils"
 import { Search, Pencil, Eye, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Loader2, Trash2, Plus, Paperclip, Zap, Maximize2, Info } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -43,6 +43,7 @@ import { useImplants } from "@/lib/api/advance-mode-query"
 import { FooterSection } from "./sections/footer-section"
 import { ProductSelectionBadge } from "./components/product-selection-badge"
 import { LoadingOverlay } from "@/components/ui/loading-overlay"
+import { useCaseDesignStore } from "@/stores/caseDesignStore"
 import type { ProductCategoryApi, Doctor, Lab, PatientData, Product, SavedProduct } from "./sections/types"
 
 const SavedProductsSection = dynamic(
@@ -266,6 +267,7 @@ function StageFieldComponent({
 export default function CaseDesignCenterPage() {
   const router = useRouter()
   const { toast } = useToast()
+  const queryClient = useQueryClient()
   const {
     allCategories,
     fetchAllCategories,
@@ -889,11 +891,23 @@ export default function CaseDesignCenterPage() {
       rowGroup: 1
     },
     {
+      key: "stage",
+      label: "Stage",
+      apiProperty: "stages",
+      fieldType: "select",
+      sequence: 4,
+      maxillaryStateKey: "maxillaryStage",
+      mandibularStateKey: "mandibularStage",
+      maxillaryIdKey: "maxillaryStageId",
+      mandibularIdKey: "mandibularStageId",
+      rowGroup: 2
+    },
+    {
       key: "stump_shade",
       label: "Stump Shade",
       apiProperty: "gum_shades",
       fieldType: "shade",
-      sequence: 4,
+      sequence: 5,
       maxillaryStateKey: "maxillaryStumpShade",
       mandibularStateKey: "mandibularStumpShade",
       maxillaryIdKey: "maxillaryGumShadeId",
@@ -905,23 +919,11 @@ export default function CaseDesignCenterPage() {
       label: "Tooth Shade",
       apiProperty: "teeth_shades",
       fieldType: "shade",
-      sequence: 5,
+      sequence: 6,
       maxillaryStateKey: "maxillaryToothShade",
       mandibularStateKey: "mandibularToothShade",
       maxillaryIdKey: "maxillaryShadeId",
       mandibularIdKey: "mandibularShadeId",
-      rowGroup: 2
-    },
-    {
-      key: "stage",
-      label: "Stage",
-      apiProperty: "stages",
-      fieldType: "select",
-      sequence: 6,
-      maxillaryStateKey: "maxillaryStage",
-      mandibularStateKey: "mandibularStage",
-      maxillaryIdKey: "maxillaryStageId",
-      mandibularIdKey: "mandibularStageId",
       rowGroup: 2
     },
     {
@@ -1105,6 +1107,19 @@ export default function CaseDesignCenterPage() {
     return trimmed !== "" && trimmed.toLowerCase() !== "not specified" && trimmed.toLowerCase() !== "finish"
   }
 
+  // Helper to check if tooth shade is filled (for showing advance fields)
+  const isToothShadeFilled = (archType: "maxillary" | "mandibular"): boolean => {
+    const toothShade = archType === "maxillary" ? maxillaryToothShade : mandibularToothShade
+    return hasValue(toothShade)
+  }
+
+  // Helper to check if both stump shade and tooth shade are filled (for showing implant details)
+  const areStumpAndToothShadeFilled = (archType: "maxillary" | "mandibular"): boolean => {
+    const stumpShade = archType === "maxillary" ? maxillaryStumpShade : mandibularStumpShade
+    const toothShade = archType === "maxillary" ? maxillaryToothShade : mandibularToothShade
+    return hasValue(stumpShade) && hasValue(toothShade)
+  }
+
   // Helper to check if stage field is visible in UI (for showing advanced fields)
   const isStageFieldVisible = (archType: "maxillary" | "mandibular"): boolean => {
     const toothShade = archType === "maxillary" ? maxillaryToothShade : mandibularToothShade
@@ -1191,6 +1206,28 @@ export default function CaseDesignCenterPage() {
           const fieldKey = `advance_${field.id}`
           const currentValue = advanceFieldValues[fieldKey]
           
+          // For implant_library fields, check if brand, platform, and size are all selected
+          if (field.field_type === "implant_library") {
+            const brandId = selectedImplantBrand[fieldKey]
+            const platformId = selectedImplantPlatform[fieldKey]
+            const size = selectedImplantSize[fieldKey]
+            // Implant is considered filled if brand, platform, and size are all selected
+            // OR if advanceFieldValues has a valid value
+            if (brandId && platformId && size) {
+              return true
+            }
+            // Fallback: check if advanceFieldValues has a value
+            if (currentValue) {
+              const displayValue = typeof currentValue === "object" 
+                ? currentValue?.advance_field_value || ""
+                : currentValue || ""
+              return displayValue && 
+                     displayValue.trim() !== "" && 
+                     displayValue.trim().toLowerCase() !== "not specified"
+            }
+            return false
+          }
+          
           if (!currentValue) return false
           
           // For checkbox fields, check if at least one option is selected
@@ -1219,28 +1256,8 @@ export default function CaseDesignCenterPage() {
 
   // Helper function to check if at least one accordion product is complete (for submit button)
   const hasAtLeastOneCompleteProduct = (): boolean => {
-    // If there are no saved products, no product is complete
-    if (savedProducts.length === 0) {
-      return false
-    }
-
-    // Check if at least one saved product has all required fields filled
-    return savedProducts.some((product) => {
-      const hasMaterial = product.addedFrom === "maxillary" 
-        ? hasValue(product.maxillaryMaterial)
-        : hasValue(product.mandibularMaterial)
-      const hasRetention = product.addedFrom === "maxillary"
-        ? hasValue(product.maxillaryRetention)
-        : hasValue(product.mandibularRetention)
-      const hasToothShade = product.addedFrom === "maxillary"
-        ? hasValue(product.maxillaryToothShade)
-        : hasValue(product.mandibularToothShade)
-      const hasStage = product.addedFrom === "maxillary"
-        ? hasValue(product.maxillaryStage)
-        : hasValue(product.mandibularStage)
-
-      return hasMaterial && hasRetention && hasToothShade && hasStage
-    })
+    // If there are saved products, at least one is complete (they're auto-saved when complete)
+    return savedProducts.length > 0
   }
 
   // Helper function to check if product accordion is complete (all products complete)
@@ -1416,38 +1433,8 @@ export default function CaseDesignCenterPage() {
     }
   }, [showProductDetails, selectedProduct, showMaxillaryChart, showMandibularChart, productDetails, isLoadingProductDetails])
 
-  // Show case summary notes when all fields have values in current product
-  useEffect(() => {
-    if (showProductDetails && selectedProduct && productDetails) {
-      // Check if maxillary or mandibular has all fields filled
-      const maxillaryComplete = showMaxillaryChart && maxillaryTeeth.length > 0 && areAllCurrentProductFieldsFilled("maxillary")
-      const mandibularComplete = showMandibularChart && mandibularTeeth.length > 0 && areAllCurrentProductFieldsFilled("mandibular")
-      
-      // Show case summary notes if either arch has all fields filled
-      setShowCaseSummaryNotes(maxillaryComplete || mandibularComplete)
-    } else {
-      setShowCaseSummaryNotes(false)
-    }
-  }, [
-    showProductDetails,
-    selectedProduct,
-    productDetails,
-    showMaxillaryChart,
-    showMandibularChart,
-    maxillaryTeeth,
-    mandibularTeeth,
-    maxillaryMaterial,
-    maxillaryRetention,
-    maxillaryStumpShade,
-    maxillaryToothShade,
-    maxillaryStage,
-    mandibularMaterial,
-    mandibularRetention,
-    mandibularToothShade,
-    mandibularStage,
-    selectedImpressions,
-    advanceFieldValues
-  ])
+  // Track which arches have been auto-saved to prevent duplicate saves
+  const autoSavedArchesRef = useRef<Set<"maxillary" | "mandibular">>(new Set())
 
   // Handler to toggle accordion - only opens/closes on click
   const handleAccordionChange = (value: string) => {
@@ -1493,14 +1480,27 @@ export default function CaseDesignCenterPage() {
   // Initial loading state - tracks when page is first loading to determine button visibility
   const [isInitialLoading, setIsInitialLoading] = useState<boolean>(true)
 
-  // Helper function to calculate total add-ons count across all saved products
+  // Get add-ons from Zustand store (reactive)
+  const productAddOns = useCaseDesignStore((state) => state.productAddOns)
+  
+  // Helper function to calculate total add-ons count across all saved products and Zustand store
   const getTotalAddOnsCount = useMemo(() => {
-    return savedProducts.reduce((total, product) => {
+    // Count from saved products
+    const savedProductsCount = savedProducts.reduce((total, product) => {
       const maxillaryCount = product.maxillaryAddOnsStructured?.reduce((sum, addon) => sum + (addon.qty || addon.quantity || 1), 0) || 0
       const mandibularCount = product.mandibularAddOnsStructured?.reduce((sum, addon) => sum + (addon.qty || addon.quantity || 1), 0) || 0
       return total + maxillaryCount + mandibularCount
     }, 0)
-  }, [savedProducts])
+    
+    // Count from Zustand store (for unsaved products or products with add-ons added before saving)
+    const zustandCount = Object.values(productAddOns).reduce((total, productAddOn) => {
+      const maxillaryCount = productAddOn.maxillary?.reduce((sum, addon) => sum + (addon.qty || addon.quantity || 1), 0) || 0
+      const mandibularCount = productAddOn.mandibular?.reduce((sum, addon) => sum + (addon.qty || addon.quantity || 1), 0) || 0
+      return total + maxillaryCount + mandibularCount
+    }, 0)
+    
+    return savedProductsCount + zustandCount
+  }, [savedProducts, productAddOns])
 
   // Helper function to calculate add-ons count for a specific product
   const getProductAddOnsCount = (product: SavedProduct) => {
@@ -3254,6 +3254,30 @@ export default function CaseDesignCenterPage() {
     // Map field key to shade field type
     const shadeFieldType: "tooth_shade" | "stump_shade" =
       fieldKey === "tooth_shade" ? "tooth_shade" : "stump_shade"
+    
+    // If opening tooth shade field and stump shade is already selected, reset tooth shade for both arches
+    if (shadeFieldType === "tooth_shade") {
+      const hasMaxillaryStumpShade = maxillaryStumpShade && maxillaryStumpShade.trim() !== ""
+      const hasMandibularStumpShade = mandibularStumpShade && mandibularStumpShade.trim() !== ""
+      
+      if (hasMaxillaryStumpShade || hasMandibularStumpShade) {
+        // Reset tooth shade selections for both arches
+        setMaxillaryShadeId(undefined)
+        setMandibularShadeId(undefined)
+        setMaxillaryToothShade("")
+        setMandibularToothShade("")
+        
+        // Also clear from saved products if they exist
+        setSavedProducts(prev => prev.map(product => ({
+          ...product,
+          maxillaryToothShade: "",
+          mandibularToothShade: "",
+          maxillaryShadeId: undefined,
+          mandibularShadeId: undefined
+        })))
+      }
+    }
+    
     console.log("Opening shade selection:", { fieldKey, shadeFieldType, actualArch, openAccordion, productDetails })
     setCurrentShadeField(shadeFieldType)
     setCurrentShadeArch(actualArch)
@@ -3298,11 +3322,11 @@ export default function CaseDesignCenterPage() {
       }
     }
 
-    // If stump shade is selected, switch to tooth shade selection instead of closing
-    // This allows users to select tooth shade after selecting stump shade
+    // If stump shade is selected, switch to tooth shade selection and reset sticks
+    // Keep the container visible, just reset the sticks
     if (currentShadeField === "stump_shade") {
       setCurrentShadeField("tooth_shade")
-      // Keep modal open to show tooth shade selection
+      setSelectedShadesForSVG([]) // Reset the selected sticks in the SVG, but keep container visible
     } else {
       setShowShadeModal(false)
       setCurrentShadeField(null)
@@ -3318,14 +3342,32 @@ export default function CaseDesignCenterPage() {
       shadeValue = `${selectedShadeGuide} - ${shade}`
     }
 
+    // If stump shade is being selected, reset tooth shade for the current arch first
+    if (currentShadeField === "stump_shade") {
+      if (currentShadeArch === "maxillary") {
+        setMaxillaryShadeId(undefined)
+        setMaxillaryToothShade("")
+      } else {
+        setMandibularShadeId(undefined)
+        setMandibularToothShade("")
+      }
+      // Also clear from saved products
+      setSavedProducts(prev => prev.map(product => ({
+        ...product,
+        ...(currentShadeArch === "maxillary" 
+          ? { maxillaryToothShade: "", maxillaryShadeId: undefined }
+          : { mandibularToothShade: "", mandibularShadeId: undefined })
+      })))
+    }
+
     // Update the field with selected shade
     handleFieldChange(currentShadeField, shadeValue, undefined, undefined, currentShadeArch)
 
-    // If stump shade is selected, switch to tooth shade selection instead of closing
-    // This allows users to select tooth shade after selecting stump shade
+    // If stump shade is selected, switch to tooth shade selection and reset sticks
+    // Keep the container visible, just reset the sticks
     if (currentShadeField === "stump_shade") {
       setCurrentShadeField("tooth_shade")
-      setSelectedShadesForSVG([])
+      setSelectedShadesForSVG([]) // Reset the selected sticks in the SVG, but keep container visible
     } else {
       // Clear the shade selection mode to show teeth again (for tooth_shade)
       setCurrentShadeField(null)
@@ -3599,6 +3641,21 @@ export default function CaseDesignCenterPage() {
               break
             case "stump_shade":
               setMaxillaryStumpShade(value)
+              // Reset tooth shade when stump shade is set
+              if (value && value.trim() !== "") {
+                setMaxillaryShadeId(undefined)
+                setMaxillaryToothShade("")
+                // Reset SVG selection sticks if currently viewing tooth shade for this arch
+                if (currentShadeField === "tooth_shade" && currentShadeArch === "maxillary") {
+                  setSelectedShadesForSVG([]) // Reset the sticks in the tooth shade container
+                }
+                // Also clear from saved products
+                setSavedProducts(prev => prev.map(product => ({
+                  ...product,
+                  maxillaryToothShade: "",
+                  maxillaryShadeId: undefined
+                })))
+              }
               // Sync stump shade value to advanced fields if stump shade exists in advanced fields
               if (productDetails?.advance_fields && selectedProduct) {
                 const stumpShadeField = getAdvanceFieldByName("stump_shade", productDetails.advance_fields)
@@ -3753,6 +3810,21 @@ export default function CaseDesignCenterPage() {
               break
             case "stump_shade":
               setMandibularStumpShade(value)
+              // Reset tooth shade when stump shade is set
+              if (value && value.trim() !== "") {
+                setMandibularShadeId(undefined)
+                setMandibularToothShade("")
+                // Reset SVG selection sticks if currently viewing tooth shade for this arch
+                if (currentShadeField === "tooth_shade" && currentShadeArch === "mandibular") {
+                  setSelectedShadesForSVG([]) // Reset the sticks in the tooth shade container
+                }
+                // Also clear from saved products
+                setSavedProducts(prev => prev.map(product => ({
+                  ...product,
+                  mandibularToothShade: "",
+                  mandibularShadeId: undefined
+                })))
+              }
               // Sync stump shade value to advanced fields if stump shade exists in advanced fields
               if (productDetails?.advance_fields && selectedProduct) {
                 const stumpShadeField = getAdvanceFieldByName("stump_shade", productDetails.advance_fields)
@@ -4187,6 +4259,79 @@ export default function CaseDesignCenterPage() {
     }
   }
 
+  // React Query mutation for auto-saving products
+  const autoSaveProductMutation = useMutation({
+    mutationFn: async (type: "maxillary" | "mandibular") => {
+      // Call the existing handleAutoSaveProduct function
+      handleAutoSaveProduct(type)
+      return type
+    },
+    onSuccess: (type) => {
+      // Mark this arch as auto-saved
+      autoSavedArchesRef.current.add(type)
+    },
+    onError: (error) => {
+      console.error("Error auto-saving product:", error)
+    }
+  })
+
+  // Auto-save product when all fields are complete for maxillary or mandibular using React Query
+  useEffect(() => {
+    if (showProductDetails && selectedProduct && productDetails) {
+      // Check if maxillary or mandibular has all fields filled
+      const maxillaryComplete = showMaxillaryChart && maxillaryTeeth.length > 0 && areAllCurrentProductFieldsFilled("maxillary")
+      const mandibularComplete = showMandibularChart && mandibularTeeth.length > 0 && areAllCurrentProductFieldsFilled("mandibular")
+      
+      // Auto-save maxillary if complete and not already saved
+      if (maxillaryComplete && !autoSavedArchesRef.current.has("maxillary") && !autoSaveProductMutation.isPending) {
+        const productToUse = selectedProductForMaxillary || selectedProduct
+        if (productToUse && maxillaryTeeth.length > 0 && selectedCategory && selectedCategoryId && selectedSubcategory && selectedSubcategoryId) {
+          autoSaveProductMutation.mutate("maxillary")
+        }
+      }
+      
+      // Auto-save mandibular if complete and not already saved
+      if (mandibularComplete && !autoSavedArchesRef.current.has("mandibular") && !autoSaveProductMutation.isPending) {
+        const productToUse = selectedProductForMandibular || selectedProduct
+        if (productToUse && mandibularTeeth.length > 0 && selectedCategory && selectedCategoryId && selectedSubcategory && selectedSubcategoryId) {
+          autoSaveProductMutation.mutate("mandibular")
+        }
+      }
+      
+      // Show case summary notes if either arch has all fields filled
+      setShowCaseSummaryNotes(maxillaryComplete || mandibularComplete)
+    } else {
+      setShowCaseSummaryNotes(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    showProductDetails,
+    selectedProduct,
+    productDetails,
+    showMaxillaryChart,
+    showMandibularChart,
+    maxillaryTeeth,
+    mandibularTeeth,
+    maxillaryMaterial,
+    maxillaryRetention,
+    maxillaryStumpShade,
+    maxillaryToothShade,
+    maxillaryStage,
+    mandibularMaterial,
+    mandibularRetention,
+    mandibularToothShade,
+    mandibularStage,
+    selectedImpressions,
+    selectedProductForMaxillary,
+    selectedProductForMandibular,
+    selectedCategory,
+    selectedCategoryId,
+    selectedSubcategory,
+    selectedSubcategoryId,
+    advanceFieldValues,
+    autoSaveProductMutation
+  ])
+
   // Handler for Add Product button - saves current product and resets to categories
   const handleAddProduct = (type: "maxillary" | "mandibular") => {
     // Use the appropriate product based on arch selection
@@ -4560,6 +4705,11 @@ export default function CaseDesignCenterPage() {
   }
 
   // Handler to clear current product and reset to category selection
+  // Reset auto-saved tracking when product changes
+  useEffect(() => {
+    autoSavedArchesRef.current.clear()
+  }, [selectedProduct?.id, selectedCategoryId, selectedSubcategoryId])
+  
   const handleClearCurrentProduct = () => {
     // Reset to category selection view
     setShowSubcategories(false)
@@ -5027,6 +5177,33 @@ export default function CaseDesignCenterPage() {
     }
   }
 
+  // Force deselection handlers (bypasses the early return logic)
+  const handleMaxillaryToothDeselect = (toothNumber: number) => {
+    setMaxillaryTeeth(prev => prev.filter(t => t !== toothNumber))
+    // Clear retention types for this tooth
+    setMaxillaryRetentionTypes(prev => {
+      const updated = { ...prev }
+      delete updated[toothNumber]
+      return updated
+    })
+    // Close popovers
+    setRetentionPopoverState({ arch: null, toothNumber: null })
+    setImplantPopoverState({ arch: null, toothNumber: null })
+  }
+
+  const handleMandibularToothDeselect = (toothNumber: number) => {
+    setMandibularTeeth(prev => prev.filter(t => t !== toothNumber))
+    // Clear retention types for this tooth
+    setMandibularRetentionTypes(prev => {
+      const updated = { ...prev }
+      delete updated[toothNumber]
+      return updated
+    })
+    // Close popovers
+    setRetentionPopoverState({ arch: null, toothNumber: null })
+    setImplantPopoverState({ arch: null, toothNumber: null })
+  }
+
   // Get subcategory image helper
   const getSubcategoryImage = (name: string) => {
     if (!name) return "/images/product-default.png"
@@ -5198,50 +5375,7 @@ export default function CaseDesignCenterPage() {
         </div>
         <div className="flex items-center justify-center gap-2">
           <p className="text-base font-bold text-black">CASE DESIGN CENTER</p>
-          {/* Info Popover - Show when product is selected and details are loaded */}
-          {showProductDetails && selectedProduct && !isInitialLoading && !isLoadingProductDetails && productDetails && (
-            <Popover open={showInfoPopover} onOpenChange={setShowInfoPopover}>
-              <PopoverTrigger asChild>
-                <button
-                  type="button"
-                  className="flex items-center justify-center"
-                  style={{
-                    width: "24px",
-                    height: "24px",
-                    cursor: "pointer",
-                    background: "transparent",
-                    border: "none",
-                    borderRadius: "50%",
-                    padding: 0,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                  aria-label="Information about product selection"
-                >
-                  <Info className="w-5 h-5 text-[#1162A8]" />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent 
-                side="top" 
-                align="center"
-                className="w-96 p-4"
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  boxShadow: "none",
-                  padding: 0,
-                }}
-              >
-                <div className="relative bg-orange-100 border border-orange-200 rounded-lg px-4 py-3 shadow-lg max-w-sm">
-                  <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-orange-100 border-r border-b border-orange-200 transform rotate-45"></div>
-                  <p className="text-sm text-orange-800">
-                    The maxillary and mandibular tooth selection charts are displayed automatically. Please select teeth for each arch to proceed.
-                  </p>
-                </div>
-              </PopoverContent>
-            </Popover>
-          )}
+       
         </div>
       </div>
 
@@ -5759,6 +5893,7 @@ export default function CaseDesignCenterPage() {
                           retentionPopoverTooth={retentionPopoverState.toothNumber}
                           onSelectRetentionType={(tooth, type) => handleSelectRetentionType('maxillary', tooth, type)}
                           onClosePopover={() => setRetentionPopoverState({ arch: null, toothNumber: null })}
+                          onDeselectTooth={handleMaxillaryToothDeselect}
                         />
                       )}
                     </div>
@@ -6051,12 +6186,12 @@ export default function CaseDesignCenterPage() {
                                       }}
                                     />
                                     
-                                    {/* Advance Fields - Shown after stage field is visible in UI */}
+                                    {/* Advance Fields - Shown after tooth shade is selected */}
                                     {productDetails && 
                                      productDetails.advance_fields && 
                                      Array.isArray(productDetails.advance_fields) && 
                                      productDetails.advance_fields.length > 0 &&
-                                     isStageFieldVisible("maxillary") && (() => {
+                                     isToothShadeFilled("maxillary") && (() => {
                                        // Filter out stump shade from advanced fields - use existing stump shade field instead
                                        const stumpShadeField = getAdvanceFieldByName("stump_shade", productDetails.advance_fields)
                                        const filteredAdvanceFields = stumpShadeField
@@ -7602,7 +7737,30 @@ export default function CaseDesignCenterPage() {
                                                   lineHeight: '20px',
                                                   letterSpacing: '-0.02em',
                                                   color: '#000000'
-                                                }}>Not specified</span>
+                                                }}>
+                                                  {(() => {
+                                                    // Find the selected brand from implants
+                                                    const selectedBrand = savedProduct.maxillaryImplantBrand 
+                                                      ? implants.find((imp: any) => imp.id === savedProduct.maxillaryImplantBrand || imp.brand_name === savedProduct.maxillaryImplantBrand)
+                                                      : null
+                                                    
+                                                    // Build display text with brand and details
+                                                    if (selectedBrand) {
+                                                      const brandName = selectedBrand.brand_name || ''
+                                                      const details = (savedProduct as any).maxillaryImplantDetails || ''
+                                                      if (brandName && details) {
+                                                        return `${brandName} - ${details}`
+                                                      } else if (brandName) {
+                                                        return brandName
+                                                      } else if (details) {
+                                                        return details
+                                                      }
+                                                    }
+                                                    
+                                                    // Fallback to just details or "Not specified"
+                                                    return (savedProduct as any).maxillaryImplantDetails || 'Not specified'
+                                                  })()}
+                                                </span>
                                               </div>
                                               <label
                                                 className="absolute bg-white"
@@ -9069,6 +9227,7 @@ export default function CaseDesignCenterPage() {
                           retentionPopoverTooth={retentionPopoverState.toothNumber}
                           onSelectRetentionType={(tooth, type) => handleSelectRetentionType('mandibular', tooth, type)}
                           onClosePopover={() => setRetentionPopoverState({ arch: null, toothNumber: null })}
+                          onDeselectTooth={handleMandibularToothDeselect}
                         />
                       )}
                     </div>
@@ -9361,12 +9520,12 @@ export default function CaseDesignCenterPage() {
                                       }}
                                     />
                                     
-                                    {/* Advance Fields - Shown after stage field is visible in UI */}
+                                    {/* Advance Fields - Shown after tooth shade is selected */}
                                     {productDetails && 
                                      productDetails.advance_fields && 
                                      Array.isArray(productDetails.advance_fields) && 
                                      productDetails.advance_fields.length > 0 &&
-                                     isStageFieldVisible("mandibular") && (() => {
+                                     isToothShadeFilled("mandibular") && (() => {
                                        // Filter out stump shade from advanced fields - use existing stump shade field instead
                                        const stumpShadeField = getAdvanceFieldByName("stump_shade", productDetails.advance_fields)
                                        const filteredAdvanceFields = stumpShadeField
@@ -10905,7 +11064,30 @@ export default function CaseDesignCenterPage() {
                                                   lineHeight: '20px',
                                                   letterSpacing: '-0.02em',
                                                   color: '#000000'
-                                                }}>{savedProduct.mandibularImplantDetails || 'Not specified'}</span>
+                                                }}>
+                                                  {(() => {
+                                                    // Find the selected brand from implants
+                                                    const selectedBrand = savedProduct.mandibularImplantBrand 
+                                                      ? implants.find((imp: any) => imp.id === savedProduct.mandibularImplantBrand || imp.brand_name === savedProduct.mandibularImplantBrand)
+                                                      : null
+                                                    
+                                                    // Build display text with brand and details
+                                                    if (selectedBrand) {
+                                                      const brandName = selectedBrand.brand_name || ''
+                                                      const details = savedProduct.mandibularImplantDetails || ''
+                                                      if (brandName && details) {
+                                                        return `${brandName} - ${details}`
+                                                      } else if (brandName) {
+                                                        return brandName
+                                                      } else if (details) {
+                                                        return details
+                                                      }
+                                                    }
+                                                    
+                                                    // Fallback to just details or "Not specified"
+                                                    return savedProduct.mandibularImplantDetails || 'Not specified'
+                                                  })()}
+                                                </span>
                                               </div>
                                               <label
                                                 className="absolute bg-white"
@@ -11787,7 +11969,7 @@ export default function CaseDesignCenterPage() {
                                         )}
 
                                         {/* Implant Details if available */}
-                                        {savedProduct.mandibularImplantDetails && (
+                                        {(savedProduct.mandibularImplantDetails || savedProduct.mandibularImplantBrand) && (
                                           <div
                                             className="flex flex-col sm:flex-row flex-wrap gap-5"
                                             style={{
@@ -11826,7 +12008,30 @@ export default function CaseDesignCenterPage() {
                                                   lineHeight: '20px',
                                                   letterSpacing: '-0.02em',
                                                   color: '#000000'
-                                                }}>{savedProduct.mandibularImplantDetails}</span>
+                                                }}>
+                                                  {(() => {
+                                                    // Find the selected brand from implants
+                                                    const selectedBrand = savedProduct.mandibularImplantBrand 
+                                                      ? implants.find((imp: any) => imp.id === savedProduct.mandibularImplantBrand || imp.brand_name === savedProduct.mandibularImplantBrand)
+                                                      : null
+                                                    
+                                                    // Build display text with brand and details
+                                                    if (selectedBrand) {
+                                                      const brandName = selectedBrand.brand_name || ''
+                                                      const details = savedProduct.mandibularImplantDetails || ''
+                                                      if (brandName && details) {
+                                                        return `${brandName} - ${details}`
+                                                      } else if (brandName) {
+                                                        return brandName
+                                                      } else if (details) {
+                                                        return details
+                                                      }
+                                                    }
+                                                    
+                                                    // Fallback to just details
+                                                    return savedProduct.mandibularImplantDetails || 'Not specified'
+                                                  })()}
+                                                </span>
                                               </div>
                                               <label
                                                 className="absolute bg-white"

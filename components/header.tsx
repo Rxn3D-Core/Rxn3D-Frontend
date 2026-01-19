@@ -813,19 +813,37 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
               </button>
             </div>
 
-            {/* Center Section - Search (for SuperAdmin) */}
-            {isSuperAdmin && (
-              <div className="flex-1 sm:flex-initial w-full sm:w-auto min-w-0 max-w-full lg:max-w-lg xl:max-w-xl 2xl:max-w-2xl mx-auto sm:mx-0">
-                <div className="relative w-full">
-                  <Search className="absolute left-2 sm:left-3 lg:left-4 xl:left-5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-5 lg:w-5 xl:h-5 xl:w-5 text-muted-foreground" />
-                  <Input
-                    type="search"
-                    placeholder={t("header.searchLab", "Search Lab")}
-                    className="w-full pl-8 sm:pl-10 lg:pl-12 xl:pl-14 pr-3 sm:pr-4 lg:pr-5 py-1.5 sm:py-2 lg:py-2.5 xl:py-3 border-gray-300 rounded-md sm:rounded-lg lg:rounded-xl focus:ring-2 focus:ring-[#1162a8] focus:border-[#1162a8] text-xs sm:text-sm lg:text-base h-8 sm:h-9 lg:h-10 xl:h-11"
-                  />
+            {/* Center Section - Customer Logo or Search (for SuperAdmin) */}
+            <div className="flex-1 flex items-center justify-center min-w-0">
+              {isSuperAdmin ? (
+                <div className="w-full sm:w-auto min-w-0 max-w-full lg:max-w-lg xl:max-w-xl 2xl:max-w-2xl">
+                  <div className="relative w-full">
+                    <Search className="absolute left-2 sm:left-3 lg:left-4 xl:left-5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-5 lg:w-5 xl:h-5 xl:w-5 text-muted-foreground" />
+                    <Input
+                      type="search"
+                      placeholder={t("header.searchLab", "Search Lab")}
+                      className="w-full pl-8 sm:pl-10 lg:pl-12 xl:pl-14 pr-3 sm:pr-4 lg:pr-5 py-1.5 sm:py-2 lg:py-2.5 xl:py-3 border-gray-300 rounded-md sm:rounded-lg lg:rounded-xl focus:ring-2 focus:ring-[#1162a8] focus:border-[#1162a8] text-xs sm:text-sm lg:text-base h-8 sm:h-9 lg:h-10 xl:h-11"
+                    />
+                  </div>
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="flex items-center justify-center">
+                  {(() => {
+                    const selectedLocationObj = typeof window !== 'undefined'
+                      ? JSON.parse(localStorage.getItem("selectedLocation") || "null")
+                      : null
+                    const customerId = selectedLocation || selectedLocationObj?.id || null
+                    return customerId ? (
+                      <CustomerLogo
+                        customerId={customerId}
+                        alt="Company Logo"
+                        className="h-auto w-auto max-h-12 sm:max-h-14 md:max-h-16 lg:max-h-20 object-contain"
+                      />
+                    ) : null
+                  })()}
+                </div>
+              )}
+            </div>
 
             {/* Enhanced Right Section - Pushed to right edge */}
             <div className="flex items-center gap-1 sm:gap-1.5 md:gap-2 lg:gap-3 xl:gap-4 2xl:gap-5 flex-shrink-0 ml-auto">
@@ -868,7 +886,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
               {/* Enhanced User Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-7 w-7 md:h-8 md:w-8 lg:h-10 lg:w-10 xl:h-11 xl:w-11 rounded-full hover:bg-gray-100 flex-shrink-0 p-0">
+                  <Button variant="ghost" className="flex flex-col items-center gap-1 sm:gap-1.5 hover:bg-gray-100 flex-shrink-0 p-2 sm:p-2.5 md:p-3">
                     <Avatar className="h-7 w-7 md:h-8 md:w-8 lg:h-10 lg:w-10 xl:h-11 xl:w-11 ring-2 ring-gray-200">
                       <AvatarImage
                         src={getUserAvatar(user?.image, user?.email || user?.id || user?.first_name)}
@@ -878,6 +896,9 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                         {getInitials(user?.first_name || "")}
                       </AvatarFallback>
                     </Avatar>
+                    <span className="text-[10px] sm:text-xs md:text-sm font-medium text-gray-900 whitespace-nowrap">
+                      {getPrimaryRole()}
+                    </span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-56 lg:w-64 rounded-lg shadow-lg" align="end" forceMount>
@@ -944,38 +965,6 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
               </Select>
             </div>
           )}
-        </div>
-
-        {/* Enhanced Breadcrumb Section */}
-        <div className="px-2 sm:px-3 md:px-4 lg:px-6 xl:px-8 2xl:px-12 pb-2 sm:pb-3 md:pb-4 lg:pb-5 xl:pb-6 bg-gradient-to-r from-gray-50 to-blue-50 relative">
-          <div className="flex items-center gap-3 sm:gap-4 md:gap-6">
-            {/* Customer Logo */}
-            {(() => {
-                const selectedLocationObj = typeof window !== 'undefined'
-                  ? JSON.parse(localStorage.getItem("selectedLocation") || "null")
-                  : null
-                const customerId = selectedLocation || selectedLocationObj?.id || null
-                return customerId ? (
-                  <div className="flex-shrink-0">
-                    <CustomerLogo
-                      customerId={customerId}
-                      alt="Company Logo"
-                      className="h-auto w-auto max-w-[80px] object-contain"
-                    />
-                  </div>
-                ) : null
-              })()}
-            {/* Role Title */}
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 whitespace-nowrap">
-              {getPrimaryRole()}
-            </h1>
-            {/* Separator */}
-            <div className="h-6 w-px bg-gray-300 mx-2"></div>
-            {/* Breadcrumb */}
-            <div className="flex-shrink-0">
-              <Breadcrumb />
-            </div>
-          </div>
         </div>
       </header>
 

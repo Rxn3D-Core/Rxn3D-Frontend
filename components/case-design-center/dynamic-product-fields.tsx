@@ -139,21 +139,39 @@ export function DynamicProductFields({
       return hasValue(retentionValue)
     }
 
-    // stump_shade (sequence 4) - show after retention has value (for both maxillary and mandibular)
-    if (config.key === "stump_shade") {
+    // stage (sequence 4) - show after retention has value and stages exist
+    if (config.key === "stage") {
       const retentionValue = getFieldValueByKey("retention")
-      return hasValue(retentionValue)
+      if (!hasValue(retentionValue)) {
+        return false
+      }
+      const stages = productDetails?.stages
+      if (!stages || !Array.isArray(stages) || stages.length === 0) {
+        return false
+      }
+      return true
     }
 
-    // tooth_shade (sequence 5) - show after stump_shade has value (for both maxillary and mandibular)
+    // stump_shade (sequence 5) - show after stage field is visible AND has value (for both maxillary and mandibular)
+    if (config.key === "stump_shade") {
+      // First check if stage field is visible (retention filled and stages exist)
+      const retentionValue = getFieldValueByKey("retention")
+      if (!hasValue(retentionValue)) {
+        return false
+      }
+      const stages = productDetails?.stages
+      if (!stages || !Array.isArray(stages) || stages.length === 0) {
+        return false
+      }
+      // Then check if stage has a value
+      const stageValue = getFieldValueByKey("stage")
+      return hasValue(stageValue)
+    }
+
+    // tooth_shade (sequence 6) - show after stump_shade has value (for both maxillary and mandibular)
     if (config.key === "tooth_shade") {
       const stumpShadeValue = getFieldValueByKey("stump_shade")
       return hasValue(stumpShadeValue)
-    }
-
-    // stage (sequence 6) - show after tooth_shade has value and stages exist
-    if (config.key === "stage") {
-      return isStageFieldVisible()
     }
 
     // impression (sequence 7) - exclude from DynamicProductFields, will be rendered separately after advanced fields
@@ -303,6 +321,78 @@ export function DynamicProductFields({
     return trimmed === "" || trimmed === "not specified"
   }
 
+  // Helper to check if all required fields have valid values (for green border)
+  const areAllRequiredFieldsFilledForGreenBorder = (): boolean => {
+    const materialValue = getFieldValueByKey("material")
+    const retentionValue = getFieldValueByKey("retention")
+    const stumpShadeValue = getFieldValueByKey("stump_shade")
+    const toothShadeValue = getFieldValueByKey("tooth_shade")
+    const stageValue = getFieldValueByKey("stage")
+    
+    // Check impression count if getImpressionCount is available
+    const impressionCount = getImpressionCount ? getImpressionCount() : 0
+    const hasImpression = impressionCount > 0
+
+    // Check all required fields
+    const hasMaterial = hasValue(materialValue)
+    const hasRetention = hasValue(retentionValue)
+    const hasStumpShade = hasValue(stumpShadeValue)
+    const hasToothShade = hasValue(toothShadeValue)
+    const hasStage = hasValue(stageValue)
+
+    return hasMaterial && hasRetention && hasStumpShade && hasToothShade && hasStage && hasImpression
+  }
+
+  // Helper to determine border color for a field
+  const getFieldBorderColor = (config: FieldConfig, value: string | undefined, impressionCount?: number): string => {
+    const showRedBorder = shouldShowRedBorder(config, value)
+    
+    // If all required fields are filled, show green border
+    if (areAllRequiredFieldsFilledForGreenBorder() && hasValue(value)) {
+      // For impression field, check impressionCount instead of value
+      if (config.key === "impression") {
+        if (impressionCount !== undefined && impressionCount > 0) {
+          return '#119933' // green
+        }
+      } else if (hasValue(value)) {
+        return '#119933' // green
+      }
+    }
+    
+    // Show red border if invalid
+    if (showRedBorder) {
+      return '#ef4444' // red
+    }
+    
+    // Default gray border
+    return '#7F7F7F' // gray
+  }
+
+  // Helper to determine label color for a field
+  const getFieldLabelColor = (config: FieldConfig, value: string | undefined, impressionCount?: number): string => {
+    const showRedBorder = shouldShowRedBorder(config, value)
+    
+    // If all required fields are filled, show green label
+    if (areAllRequiredFieldsFilledForGreenBorder() && hasValue(value)) {
+      // For impression field, check impressionCount instead of value
+      if (config.key === "impression") {
+        if (impressionCount !== undefined && impressionCount > 0) {
+          return '#119933' // green
+        }
+      } else if (hasValue(value)) {
+        return '#119933' // green
+      }
+    }
+    
+    // Show red label if invalid
+    if (showRedBorder) {
+      return '#ef4444' // red
+    }
+    
+    // Default gray label
+    return '#7F7F7F' // gray
+  }
+
   const renderField = (config: FieldConfig) => {
     const value = getFieldValue(config)
     const currentId = getFieldId(config)
@@ -314,8 +404,9 @@ export function DynamicProductFields({
         ? `${impressionCount} impression${impressionCount > 1 ? "s" : ""} selected`
         : "Not specified"
       
-      // For impression field, show red border only if count is 0 (meaning "Not specified") and field is required
-      const showRedBorder = isFieldRequired(config) && impressionCount === 0
+      // Get border color based on validation state
+      const borderColor = getFieldBorderColor(config, displayText, impressionCount)
+      const labelColor = getFieldLabelColor(config, displayText, impressionCount)
 
       const fieldWidth = getResponsiveFieldWidth(config, displayText)
 
@@ -338,7 +429,7 @@ export function DynamicProductFields({
               position: 'relative',
               marginTop: '5.27px',
               background: '#FFFFFF',
-              border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
+              border: `0.740384px solid ${borderColor}`,
               borderRadius: '7.7px',
               boxSizing: 'border-box'
             }}
@@ -366,7 +457,7 @@ export function DynamicProductFields({
               fontWeight: 400,
               fontSize: '14px',
               lineHeight: '14px',
-              color: '#7F7F7F'
+              color: labelColor
             }}
           >
             {config.label}
@@ -392,7 +483,8 @@ export function DynamicProductFields({
       }
 
       const displayValue = value || "Not specified"
-      const showRedBorder = shouldShowRedBorder(config, value)
+      const borderColor = getFieldBorderColor(config, value)
+      const labelColor = getFieldLabelColor(config, value)
       const fieldWidth = getResponsiveFieldWidth(config, displayValue, options)
 
       return (
@@ -425,7 +517,7 @@ export function DynamicProductFields({
                 position: 'relative',
                 marginTop: '5.27px',
                 background: '#FFFFFF',
-                border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
+                border: `0.740384px solid ${borderColor}`,
                 borderRadius: '7.7px',
                 boxSizing: 'border-box'
               }}
@@ -457,7 +549,7 @@ export function DynamicProductFields({
               fontWeight: 400,
               fontSize: '14px',
               lineHeight: '14px',
-              color: '#7F7F7F'
+              color: labelColor
             }}
           >
             {config.key === "retention" 
@@ -473,7 +565,8 @@ export function DynamicProductFields({
 
     if (config.fieldType === "shade") {
       const shadeValue = value || "Not specified"
-      const showRedBorder = shouldShowRedBorder(config, value)
+      const borderColor = getFieldBorderColor(config, value)
+      const labelColor = getFieldLabelColor(config, value)
       const shadeBrand = arch === "maxillary"
         ? savedProduct.maxillaryShadeBrand
         : savedProduct.mandibularShadeBrand
@@ -493,17 +586,6 @@ export function DynamicProductFields({
       
       // Get gradient colors for the selected shade
       const gradientColors = getShadeGradientColors(shadeName)
-      
-      // Debug logging (can be removed later)
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Shade field render:', {
-          configKey: config.key,
-          value,
-          extractedShadeName: shadeName,
-          gradientColorsCount: gradientColors?.length || 0,
-          firstColor: gradientColors?.[0]?.color || 'none'
-        })
-      }
       
       // Create unique gradient ID for this field based on value to ensure proper updates
       // Replace dots and other special chars with dashes for valid CSS IDs
@@ -531,7 +613,7 @@ export function DynamicProductFields({
               width: '100%',
               height: '37px',
               background: '#FFFFFF',
-              border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
+              border: `0.740384px solid ${borderColor}`,
               borderRadius: '7.7px',
               boxSizing: 'border-box',
               position: 'relative',
@@ -641,7 +723,7 @@ export function DynamicProductFields({
               fontWeight: 400,
               fontSize: '14px',
               lineHeight: '14px',
-              color: '#7F7F7F'
+              color: labelColor
             }}
           >
             {config.label}
@@ -664,7 +746,7 @@ export function DynamicProductFields({
         flexDirection: 'row',
         alignItems: 'flex-start',
         padding: '0px',
-        gap: '20px',
+        gap: '5px',
         width: '100%'
       }}
     >

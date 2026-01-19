@@ -73,6 +73,15 @@ const hasValidRetentionValue = (retentionValue: string | undefined | null): bool
          trimmed !== 'Select Retention type'
 }
 
+// Helper to check if material value is valid (not empty, not placeholder)
+const hasValidMaterialValue = (materialValue: string | undefined | null): boolean => {
+  if (!materialValue) return false
+  const trimmed = String(materialValue).trim()
+  return trimmed !== '' && 
+         trimmed !== 'Not specified' && 
+         trimmed !== 'Select'
+}
+
 // RetentionFieldComponent - dropdown for retention type
 function RetentionFieldComponent({
   savedProduct,
@@ -89,32 +98,47 @@ function RetentionFieldComponent({
 }) {
   const arch = isMaxillary ? "maxillary" : "mandibular"
   const retentionValue = isMaxillary ? savedProduct.maxillaryRetention : savedProduct.mandibularRetention
+  const hasValue = hasValidRetentionValue(retentionValue)
   
   return (
-    <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
-      <Select
-        open={openRetentionDropdown[savedProduct.id]?.[arch] || false}
-        onOpenChange={(open) =>
-          setOpenRetentionDropdown((prev) => ({
-            ...prev,
-            [savedProduct.id]: {
-              ...prev[savedProduct.id],
-              [arch]: open
-            }
-          }))
+    <div 
+      className="relative flex-1 min-w-[250px] max-w-[48%]" 
+      style={{ minHeight: '43px' }}
+      onClick={(e) => {
+        if (hasValue) {
+          e.preventDefault()
+          e.stopPropagation()
         }
+      }}
+    >
+      <Select
+        disabled={hasValue}
+        open={hasValue ? false : (openRetentionDropdown[savedProduct.id]?.[arch] || false)}
+        onOpenChange={(open) => {
+          if (!hasValue) {
+            setOpenRetentionDropdown((prev) => ({
+              ...prev,
+              [savedProduct.id]: {
+                ...prev[savedProduct.id],
+                [arch]: open
+              }
+            }))
+          }
+        }}
         value={retentionValue || ""}
         onValueChange={(value) => {
-          const productDetails = savedProduct.productDetails
-          const retentions = productDetails?.retentions || []
-          const selectedRetention = retentions.find((r: any) => r.name === value || r.id?.toString() === value)
-          handleFieldChange(
-            "retention",
-            value,
-            selectedRetention?.id,
-            savedProduct.id,
-            arch
-          )
+          if (!hasValue) {
+            const productDetails = savedProduct.productDetails
+            const retentions = productDetails?.retentions || []
+            const selectedRetention = retentions.find((r: any) => r.name === value || r.id?.toString() === value)
+            handleFieldChange(
+              "retention",
+              value,
+              selectedRetention?.id,
+              savedProduct.id,
+              arch
+            )
+          }
         }}
       >
         <SelectTrigger
@@ -125,8 +149,8 @@ function RetentionFieldComponent({
             height: '37px',
             position: 'relative',
             marginTop: '5.27px',
-            background: '#FFFFFF',
-            border: '0.740384px solid #7F7F7F',
+            background: hasValue ? '#F5F5F5' : '#FFFFFF',
+            border: hasValue ? '2px solid #22c55e' : '0.740384px solid #7F7F7F',
             borderRadius: '7.7px',
             boxSizing: 'border-box',
             fontFamily: 'Arial',
@@ -134,7 +158,10 @@ function RetentionFieldComponent({
             fontWeight: 400,
             fontSize: '14px',
             lineHeight: '14px',
-            color: '#000000'
+            color: hasValue ? '#999999' : '#000000',
+            cursor: hasValue ? 'not-allowed' : 'pointer',
+            pointerEvents: hasValue ? 'none' : 'auto',
+            userSelect: 'none'
           }}
         >
           <SelectValue placeholder="Select" />
@@ -555,7 +582,7 @@ export function SavedProductsSection({
                                   display: 'flex',
                                   flexDirection: 'column',
                                   alignItems: 'flex-start',
-                                  gap: '20px',
+                                  gap: '10px',
                                   background: '#FFFFFF',
                                   boxSizing: 'border-box'
                                 }}
@@ -568,7 +595,7 @@ export function SavedProductsSection({
                                     flexDirection: 'row',
                                     alignItems: 'flex-start',
                                     padding: '0px',
-                                    gap: '20px',
+                                    gap: '10px',
                                     flex: 'none',
                                     order: 0,
                                     alignSelf: 'stretch',
@@ -576,33 +603,53 @@ export function SavedProductsSection({
                                   }}
                                 >
                                   {/* Product - Material */}
-                                  <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
-                                    <div
-                                      className="flex items-center"
-                                      style={{
-                                        padding: '12px 15px 5px 15px',
-                                        gap: '5px',
-                                        width: '100%',
-                                        height: '37px',
-                                        position: 'relative',
-                                        marginTop: '5.27px',
-                                        background: '#FFFFFF',
-                                        border: '0.740384px solid #7F7F7F',
-                                        borderRadius: '7.7px',
-                                        boxSizing: 'border-box'
-                                      }}
-                                    >
-                                      <span style={{
-                                        fontFamily: 'Verdana',
-                                        fontStyle: 'normal',
-                                        fontWeight: 400,
-                                        fontSize: '14.4px',
-                                        lineHeight: '20px',
-                                        letterSpacing: '-0.02em',
-                                        color: '#000000',
-                                        whiteSpace: 'nowrap'
-                                      }}>{savedProduct.maxillaryMaterial || 'Select'}</span>
-                                    </div>
+                                  <div 
+                                    className="relative flex-1 min-w-[250px] max-w-[48%]" 
+                                    style={{ minHeight: '43px' }}
+                                    onClick={(e) => {
+                                      const materialValue = savedProduct.maxillaryMaterial
+                                      const hasMaterialValue = hasValidMaterialValue(materialValue)
+                                      if (hasMaterialValue) {
+                                        e.preventDefault()
+                                        e.stopPropagation()
+                                      }
+                                    }}
+                                  >
+                                    {(() => {
+                                      const materialValue = savedProduct.maxillaryMaterial
+                                      const hasMaterialValue = hasValidMaterialValue(materialValue)
+                                      return (
+                                        <div
+                                          className="flex items-center"
+                                          style={{
+                                            padding: '12px 15px 5px 15px',
+                                            gap: '5px',
+                                            width: '100%',
+                                            height: '37px',
+                                            position: 'relative',
+                                            marginTop: '5.27px',
+                                            background: hasMaterialValue ? '#F5F5F5' : '#FFFFFF',
+                                            border: hasMaterialValue ? '2px solid #22c55e' : '0.740384px solid #7F7F7F',
+                                            borderRadius: '7.7px',
+                                            boxSizing: 'border-box',
+                                            cursor: hasMaterialValue ? 'not-allowed' : 'default',
+                                            pointerEvents: hasMaterialValue ? 'none' : 'auto',
+                                            userSelect: 'none'
+                                          }}
+                                        >
+                                          <span style={{
+                                            fontFamily: 'Verdana',
+                                            fontStyle: 'normal',
+                                            fontWeight: 400,
+                                            fontSize: '14.4px',
+                                            lineHeight: '20px',
+                                            letterSpacing: '-0.02em',
+                                            color: hasMaterialValue ? '#999999' : '#000000',
+                                            whiteSpace: 'nowrap'
+                                          }}>{materialValue || 'Select'}</span>
+                                        </div>
+                                      )
+                                    })()}
                                     <label
                                       className="absolute bg-white"
                                       style={{
@@ -643,7 +690,7 @@ export function SavedProductsSection({
                                     flexDirection: 'row',
                                     alignItems: 'flex-start',
                                     padding: '0px',
-                                    gap: '20px',
+                                    gap: '10px',
                                     flex: 'none',
                                     order: 1,
                                     alignSelf: 'stretch',
@@ -1090,33 +1137,53 @@ export function SavedProductsSection({
                                   }}
                                 >
                                   {/* Product - Material */}
-                                  <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
-                                    <div
-                                      className="flex items-center"
-                                      style={{
-                                        padding: '12px 15px 5px 15px',
-                                        gap: '5px',
-                                        width: '100%',
-                                        height: '37px',
-                                        position: 'relative',
-                                        marginTop: '5.27px',
-                                        background: '#FFFFFF',
-                                        border: '0.740384px solid #7F7F7F',
-                                        borderRadius: '7.7px',
-                                        boxSizing: 'border-box'
-                                      }}
-                                    >
-                                      <span style={{
-                                        fontFamily: 'Verdana',
-                                        fontStyle: 'normal',
-                                        fontWeight: 400,
-                                        fontSize: '14.4px',
-                                        lineHeight: '20px',
-                                        letterSpacing: '-0.02em',
-                                        color: '#000000',
-                                        whiteSpace: 'nowrap'
-                                      }}>{savedProduct.mandibularMaterial || 'Select'}</span>
-                                    </div>
+                                  <div 
+                                    className="relative flex-1 min-w-[250px] max-w-[48%]" 
+                                    style={{ minHeight: '43px' }}
+                                    onClick={(e) => {
+                                      const materialValue = savedProduct.mandibularMaterial
+                                      const hasMaterialValue = hasValidMaterialValue(materialValue)
+                                      if (hasMaterialValue) {
+                                        e.preventDefault()
+                                        e.stopPropagation()
+                                      }
+                                    }}
+                                  >
+                                    {(() => {
+                                      const materialValue = savedProduct.mandibularMaterial
+                                      const hasMaterialValue = hasValidMaterialValue(materialValue)
+                                      return (
+                                        <div
+                                          className="flex items-center"
+                                          style={{
+                                            padding: '12px 15px 5px 15px',
+                                            gap: '5px',
+                                            width: '100%',
+                                            height: '37px',
+                                            position: 'relative',
+                                            marginTop: '5.27px',
+                                            background: hasMaterialValue ? '#F5F5F5' : '#FFFFFF',
+                                            border: hasMaterialValue ? '2px solid #22c55e' : '0.740384px solid #7F7F7F',
+                                            borderRadius: '7.7px',
+                                            boxSizing: 'border-box',
+                                            cursor: hasMaterialValue ? 'not-allowed' : 'default',
+                                            pointerEvents: hasMaterialValue ? 'none' : 'auto',
+                                            userSelect: 'none'
+                                          }}
+                                        >
+                                          <span style={{
+                                            fontFamily: 'Verdana',
+                                            fontStyle: 'normal',
+                                            fontWeight: 400,
+                                            fontSize: '14.4px',
+                                            lineHeight: '20px',
+                                            letterSpacing: '-0.02em',
+                                            color: hasMaterialValue ? '#999999' : '#000000',
+                                            whiteSpace: 'nowrap'
+                                          }}>{materialValue || 'Select'}</span>
+                                        </div>
+                                      )
+                                    })()}
                                     <label
                                       className="absolute bg-white"
                                       style={{

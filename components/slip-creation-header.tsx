@@ -213,7 +213,7 @@ const SendingToSection = ({ lab }: { lab: Lab }) => {
   return (
     <div className="flex items-center gap-[7px] w-[350px] h-[75px] overflow-visible">
       <p className="text-[15.9926px] font-bold leading-[22px] tracking-[-0.02em] text-[#080808]">
-        {typeof window !== "undefined" && localStorage.getItem("role") === "lab_admin" ? "Creating To" : "Sending To"}
+        {typeof window !== "undefined" && localStorage.getItem("role") === "lab_admin" ? "Creating For" : "Sending To"}
       </p>
       {customerId && (
         <div className="relative flex items-center min-h-[33.24px] overflow-visible">

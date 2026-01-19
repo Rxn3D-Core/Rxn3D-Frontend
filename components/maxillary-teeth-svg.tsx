@@ -11,6 +11,7 @@ interface MaxillaryTeethSVGProps {
   retentionPopoverTooth?: number | null
   onSelectRetentionType?: (toothNumber: number, type: 'Implant' | 'Prep' | 'Pontic') => void
   onClosePopover?: () => void
+  onDeselectTooth?: (toothNumber: number) => void
 }
 
 export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
@@ -21,7 +22,8 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
   showRetentionPopover = false,
   retentionPopoverTooth = null,
   onSelectRetentionType,
-  onClosePopover
+  onClosePopover,
+  onDeselectTooth
 }) => {
   const svgRef = React.useRef<SVGSVGElement>(null)
   const [hoveredTooth, setHoveredTooth] = React.useState<number | null>(null)
@@ -55,9 +57,9 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
   }
 
   // Calculate popover position in viewport coordinates
-  // Position above the center of all selected teeth
+  // Position above the specific tooth that triggered the popover
   const getPopoverPosition = () => {
-    if (!showRetentionPopover) {
+    if (!showRetentionPopover || retentionPopoverTooth === null) {
       return { left: 0, top: 0 }
     }
 
@@ -77,44 +79,24 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
     const scaleX = svgRect.width / svgViewBox.width
     const scaleY = svgRect.height / svgViewBox.height
 
-    // Use selectedTeeth, and ensure retentionPopoverTooth is included if not already in selectedTeeth
-    let teethToConsider = selectedTeeth.length > 0 ? [...selectedTeeth] : []
-
-    // If retentionPopoverTooth is set and not already in the list, add it
-    // This handles the case when a tooth is clicked but selectedTeeth hasn't updated yet
-    if (retentionPopoverTooth && !teethToConsider.includes(retentionPopoverTooth)) {
-      teethToConsider.push(retentionPopoverTooth)
+    // Get the position of the specific tooth that triggered the popover
+    const toothPos = circlePositions[retentionPopoverTooth]
+    if (!toothPos) {
+      return { left: 0, top: 0 }
     }
 
-    if (teethToConsider.length === 0) return { left: 0, top: 0 }
-
-    // Calculate center position of all selected teeth
-    let totalX = 0
-    let totalY = 0
-    let count = 0
-
-    teethToConsider.forEach(toothNumber => {
-      const toothPos = circlePositions[toothNumber]
-      if (toothPos) {
-        totalX += toothPos.cx
-        totalY += toothPos.cy
-        count++
-      }
-    })
-
-    if (count === 0) return { left: 0, top: 0 }
-
-    const centerX = totalX / count
-    const centerY = totalY / count
-
     // Convert SVG coordinates to viewport coordinates
-    const viewportX = svgRect.left + (centerX * scaleX)
-    // Position at the top of the SVG viewBox (y=0 in SVG coordinates)
+    const viewportX = svgRect.left + (toothPos.cx * scaleX)
+    // Position well above the SVG to avoid covering teeth
+    // Popover height is ~60px, so position it higher above the top of SVG for clear spacing
     const topOfSvg = svgRect.top
+    const popoverHeight = 60 // Approximate height of the popover
+    const spacing = 40 // Additional spacing above popover (increased for more clearance)
+    const popoverTop = topOfSvg - popoverHeight - spacing
 
     return {
       left: viewportX,
-      top: topOfSvg - 10 // 10px above the top of the SVG (at the top of teeth selection)
+      top: popoverTop
     }
   }
 
@@ -238,6 +220,23 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
               onSelectRetentionType={(type) => onSelectRetentionType(retentionPopoverTooth, type)}
               selectedType={selectedType || undefined}
               onClose={onClosePopover}
+              onDeselect={() => {
+                // Deselect by calling with the currently selected type (triggers deselection logic)
+                if (selectedType) {
+                  onSelectRetentionType(retentionPopoverTooth, selectedType)
+                }
+              }}
+              onDeselectTooth={() => {
+                // Deselect the tooth directly (bypasses toggle logic)
+                if (retentionPopoverTooth !== null) {
+                  if (onDeselectTooth) {
+                    onDeselectTooth(retentionPopoverTooth)
+                  } else if (onToothClick) {
+                    // Fallback to toggle if onDeselectTooth is not provided
+                    onToothClick(retentionPopoverTooth)
+                  }
+                }
+              }}
             />
           </div>,
           document.body

@@ -73,7 +73,7 @@ export const TrubyeBioformIPNShadeSelectionSVG: React.FC<TrubyeBioformIPNShadeSe
       {/* TODO: Replace this placeholder SVG with your actual Trubye Bioform IPN shade SVG */}
       {/* The SVG should have elements with IDs matching the shade names in shadeMapping (e.g., id="stick-SHADE1") */}
       {/* Make sure to add className="shade-stick" to the interactive elements */}
-      <svg width="100%" height="auto" viewBox="0 0 1000 202" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" style={{ maxWidth: '100%', height: 'auto', width: '100%' }}>
+      <svg width="100%" height="auto" viewBox="0 0 900 202" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" style={{ maxWidth: '100%', height: 'auto', width: '100%' }}>
 <g clip-path="url(#clip0_530_13215)">
 <g clip-path="url(#clip1_530_13215)">
 <path d="M16.4968 64.8921H876.484C885.051 64.8921 892.001 68.2903 892.001 72.479V180.814C892.001 192.112 873.24 201.285 850.135 201.285H41.8892C18.7732 201.285 0.00109863 192.106 0.00109863 180.804V72.9629C0.00109863 68.5108 7.39118 64.8921 16.4968 64.8921Z" fill="#DAD1A3"/>
