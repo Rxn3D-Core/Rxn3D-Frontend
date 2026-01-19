@@ -7849,11 +7849,8 @@ export default function CaseDesignCenterPage() {
 
                                         {/* Field 5: Stump Shade (Fixed Restoration only, advance field, visible after Implant) */}
                                         {isFixedRestoration && isFieldVisible("stump_shade", savedProduct.id, savedProduct, productDetails, archType) && (() => {
-                                          // Check if stump_shade exists as an advance field
                                           const advanceFields = productDetails?.advance_fields || productAdvanceFields[savedProduct.id] || []
                                           const stumpShadeField = getAdvanceFieldByName("stump_shade", advanceFields)
-                                          
-                                          // If stump_shade exists as an advance field, render it using advance field logic
                                           if (stumpShadeField) {
                                             return (
                                               <div
