@@ -3,6 +3,26 @@
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
+// Helper to ensure URL is absolute
+const ensureAbsoluteUrl = (url: string): string => {
+  // If API_BASE_URL is empty, throw an error
+  if (!API_BASE_URL) {
+    console.error('API_BASE_URL is not configured. Please set NEXT_PUBLIC_API_BASE_URL environment variable.')
+    throw new Error('API_BASE_URL is not configured')
+  }
+  
+  // If URL already starts with http:// or https://, return as is
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url
+  }
+  
+  // Ensure API_BASE_URL doesn't end with / and url doesn't start with /
+  const baseUrl = API_BASE_URL.endsWith('/') ? API_BASE_URL.slice(0, -1) : API_BASE_URL
+  const path = url.startsWith('/') ? url : `/${url}`
+  
+  return `${baseUrl}${path}`
+}
+
 // Helper to get token from localStorage
 const getToken = (): string | null => {
   return typeof window !== "undefined" ? localStorage.getItem("token") : null;
@@ -162,7 +182,8 @@ class SlipCreationService {
   private async createSlipJSON(
     payload: SlipCreationPayload
   ): Promise<SlipCreationResponse> {
-    const response = await fetch(`${API_BASE_URL}/slip/create`, {
+    const url = ensureAbsoluteUrl("/slip/create");
+    const response = await fetch(url, {
       method: "POST",
       headers: getAuthHeaders(),
       body: JSON.stringify(payload),
@@ -205,7 +226,8 @@ class SlipCreationService {
       formData.append(`files[${index}]`, file);
     });
 
-    const response = await fetch(`${API_BASE_URL}/slip/create`, {
+    const url = ensureAbsoluteUrl("/slip/create");
+    const response = await fetch(url, {
       method: "POST",
       headers: getMultipartAuthHeaders(),
       body: formData,

@@ -4,8 +4,8 @@
 </g>
 <rect x="0.680664" y="0.100586" width="366.728" height="284.742" fill="url(#pattern0_316_12702)"/>
 <defs>
-<filter id="filter0_di_316_12702" x="46.3652" y="8.89258" width="314.698" height="273.5" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<filter id="filter0_di_316_12702" x="46.3652" y="8.89258" width="314.698" height="273.5" filterUnits="userSpaceOnUse" colorInterpolationFilters="sRGB">
+<feFlood floodOpacity="0" result="BackgroundImageFix"/>
 <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
 <feOffset dx="9" dy="7"/>
 <feGaussianBlur stdDeviation="5.75"/>
