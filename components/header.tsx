@@ -760,7 +760,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
   return (
     <>
       <header className="sticky top-0 z-40 w-full border-b bg-white shadow-sm">
-        <div className="flex flex-col sm:flex-row h-auto min-h-16 lg:min-h-20 items-stretch sm:items-center px-2 sm:px-3 md:px-4 lg:px-6 xl:px-8 2xl:px-12 gap-2 sm:gap-3 md:gap-4 lg:gap-5 xl:gap-6 py-2 sm:py-2.5 md:py-3 lg:py-3.5">
+        <div className="flex flex-col sm:flex-row h-auto min-h-12 lg:min-h-14 items-stretch sm:items-center px-2 sm:px-3 md:px-4 lg:px-6 xl:px-8 2xl:px-12 gap-2 sm:gap-3 md:gap-4 lg:gap-5 xl:gap-6 py-1 sm:py-1.5 md:py-2 lg:py-2">
           {/* Top Row - Main Actions */}
           <div className="flex items-center justify-between gap-2 sm:gap-1 md:gap-2 lg:gap-3 xl:gap-4 flex-1 min-w-0">
             {/* Enhanced Left Section */}

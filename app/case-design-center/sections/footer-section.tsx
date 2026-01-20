@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Eye, Loader2 } from "lucide-react"
+import { Eye, Loader2, TriangleAlert } from "lucide-react"
 
 interface FooterSectionProps {
   showProductDetails: boolean
@@ -285,9 +285,29 @@ export function FooterSection({
                 {/* Tooltip - shown when submit is clicked, stays visible until submit is clicked again */}
                 {showSubmitPopover && (
                   <div className="absolute bottom-full right-0 mb-2 z-50">
-                    <div className="relative bg-orange-100 border border-orange-200 rounded-lg px-4 py-3 shadow-lg">
-                      <div className="absolute -bottom-2 right-6 w-4 h-4 bg-orange-100 border-r border-b border-orange-200 transform rotate-45"></div>
+                    <div className={`relative rounded-lg px-4 py-3 shadow-lg ${
+                      confirmDetailsChecked 
+                        ? "bg-orange-100 border border-orange-200" 
+                        : "bg-white border border-gray-200"
+                    }`}>
+                      <div className={`absolute -bottom-2 right-6 w-4 h-4 transform rotate-45 ${
+                        confirmDetailsChecked 
+                          ? "bg-orange-100 border-r border-b border-orange-200" 
+                          : "bg-white border-r border-b border-gray-200"
+                      }`}></div>
                       <div className="flex items-center gap-3 whitespace-nowrap">
+                        <label
+                          htmlFor="confirm-details-tooltip"
+                          className={`text-sm cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                            confirmDetailsChecked ? "text-orange-800" : "text-gray-700"
+                          }`}
+                        >
+                          <TriangleAlert 
+                            className="h-6 w-6 flex-shrink-0" 
+                            style={{ color: "#fbbf24" }}
+                          />
+                          By clicking this box you acknowledge all information is correct.
+                        </label>
                         <Checkbox
                           id="confirm-details-tooltip"
                           checked={confirmDetailsChecked}
@@ -300,12 +320,6 @@ export function FooterSection({
                             backgroundColor: confirmDetailsChecked ? "#1162a8" : "transparent",
                           }}
                         />
-                        <label
-                          htmlFor="confirm-details-tooltip"
-                          className="text-sm text-orange-800 cursor-pointer whitespace-nowrap"
-                        >
-                          You confirm all details are correct by submitting case.
-                        </label>
                       </div>
                     </div>
                   </div>

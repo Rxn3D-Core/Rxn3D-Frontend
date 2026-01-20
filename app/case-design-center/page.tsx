@@ -421,6 +421,8 @@ export default function CaseDesignCenterPage() {
   const [currentImpressionArch, setCurrentImpressionArch] = useState<"maxillary" | "mandibular">("maxillary")
   const [selectedImpressions, setSelectedImpressions] = useState<Record<string, number>>({}) // key: `${productId}_${arch}_${impressionName}`, value: quantity
   const [currentProductForImpression, setCurrentProductForImpression] = useState<SavedProduct | null>(null)
+  // STL files attached to impressions: key: impressionKey, value: array of files
+  const [stlFilesByImpression, setStlFilesByImpression] = useState<Record<string, Array<{ file: File, url: string, type: "stl" | "image" | "other" }>>>({})
 
   // Shade selection modal state
   const [showShadeModal, setShowShadeModal] = useState<boolean>(false)
@@ -1104,7 +1106,10 @@ export default function CaseDesignCenterPage() {
   const hasValue = (value: string | undefined | null): boolean => {
     if (!value) return false
     const trimmed = String(value).trim()
-    return trimmed !== "" && trimmed.toLowerCase() !== "not specified" && trimmed.toLowerCase() !== "finish"
+    return trimmed !== "" && 
+           trimmed.toLowerCase() !== "not specified" && 
+           trimmed.toLowerCase() !== "select impression" &&
+           trimmed.toLowerCase() !== "finish"
   }
 
   // Helper to check if tooth shade is filled (for showing advance fields)
@@ -1357,11 +1362,14 @@ export default function CaseDesignCenterPage() {
     const toothShade = archType === "maxillary" ? savedProduct.maxillaryToothShade : savedProduct.mandibularToothShade
     const stage = archType === "maxillary" ? savedProduct.maxillaryStage : savedProduct.mandibularStage
 
-    // Helper to check if a value is actually set (not empty, not "Not specified", not undefined, not null)
+    // Helper to check if a value is actually set (not empty, not "Not specified", not "Select impression", not undefined, not null)
     const hasValue = (value: string | undefined | null): boolean => {
       if (!value) return false
       const trimmed = String(value).trim()
-      return trimmed !== "" && trimmed.toLowerCase() !== "not specified" && trimmed.toLowerCase() !== "finish"
+      return trimmed !== "" && 
+             trimmed.toLowerCase() !== "not specified" && 
+             trimmed.toLowerCase() !== "select impression" &&
+             trimmed.toLowerCase() !== "finish"
     }
 
     switch (fieldName) {
@@ -2548,17 +2556,8 @@ export default function CaseDesignCenterPage() {
   }
 
   const handleBackToCategories = () => {
-    setShowSubcategories(false)
-    setShowProducts(false)
-    setShowProductDetails(false)
-    setSelectedCategory(null)
-    setSelectedCategoryId(null)
+    resetAllProductState()
     setSearchQuery("") // Clear search when going back to categories
-    setSelectedSubcategory(null)
-    setSelectedSubcategoryId(null)
-    setSelectedProduct(null)
-    setProducts([])
-    setMissingTeethCardClicked(false)
   }
 
   // Function to format teeth numbers for display
@@ -3392,6 +3391,49 @@ export default function CaseDesignCenterPage() {
     return selections
   }
 
+  // Helper to format impression display text (e.g., "1x STL, 2x alginate, 3x PVS" or "1x STL, 2x alginate, 3x PVS and 2 more")
+  const getImpressionDisplayText = (productId: string, arch: "maxillary" | "mandibular", impressions: any[]): string => {
+    if (!impressions || !Array.isArray(impressions)) return "Select impression"
+    
+    const selections: Array<{ quantity: number, name: string }> = []
+    impressions.forEach(impression => {
+      const key = `${productId}_${arch}_${impression.value || impression.name}`
+      const quantity = selectedImpressions[key] || 0
+      if (quantity > 0) {
+        selections.push({
+          quantity,
+          name: impression.name || impression.value || "Impression"
+        })
+      }
+    })
+    
+    if (selections.length === 0) return "Select impression"
+    
+    // Show maximum 3 impressions, then add "and X more" if there are more
+    const maxDisplay = 3
+    const displayedSelections = selections.slice(0, maxDisplay)
+    const remainingCount = selections.length - maxDisplay
+    
+    // Format as "1x STL, 2x alginate, 3x PVS"
+    let displayText = displayedSelections.map(sel => `${sel.quantity}x ${sel.name}`).join(", ")
+    
+    // Add "and X more" if there are more than 3 selections
+    if (remainingCount > 0) {
+      displayText += ` and ${remainingCount} more`
+    }
+    
+    return displayText
+  }
+
+  // Helper to get impression count for a product and arch
+  const getImpressionCount = (productId: string, arch: "maxillary" | "mandibular", impressions: any[]): number => {
+    if (!impressions || !Array.isArray(impressions)) return 0
+    return impressions.reduce((sum: number, impression: any) => {
+      const key = `${productId}_${arch}_${impression.value || impression.name}`
+      return sum + (selectedImpressions[key] || 0)
+    }, 0)
+  }
+
   // Helper to find default option from API response
   const findDefaultOption = (options: any[]): any | null => {
     if (!options || !Array.isArray(options)) return null
@@ -4070,6 +4112,185 @@ export default function CaseDesignCenterPage() {
     }
   }
 
+  // Auto-save unified product for both arches - creates ONE product instead of separate ones
+  const handleAutoSaveUnifiedProduct = () => {
+    // Use the selected product (prefer maxillary if both are available, otherwise use selectedProduct)
+    const productToUse = selectedProductForMaxillary || selectedProductForMandibular || selectedProduct
+    
+    if (!productToUse) {
+      return
+    }
+
+    // Validate that we have at least one arch with teeth selected
+    if (maxillaryTeeth.length === 0 && mandibularTeeth.length === 0) {
+      return
+    }
+
+    // Validate category and subcategory
+    if (!selectedCategory || !selectedCategoryId || !selectedSubcategory || !selectedSubcategoryId) {
+      return
+    }
+
+    // Auto-populate product name and retention type if not already set
+    const finalMaxillaryMaterial = maxillaryMaterial || (maxillaryTeeth.length > 0 ? productToUse.name : "")
+    const finalMandibularMaterial = mandibularMaterial || (mandibularTeeth.length > 0 ? productToUse.name : "")
+    const finalMaxillaryRetention = maxillaryRetention
+    const finalMandibularRetention = mandibularRetention
+
+    // Update existing product or add new one using functional update to get latest state
+    setSavedProducts((prevProducts) => {
+      // ALWAYS find and update the first existing product with the same product ID, category, and subcategory
+      // This prevents duplicates - we update the first accordion instead of creating new ones
+      const existingIndex = prevProducts.findIndex(p => {
+        return p.product.id === productToUse.id &&
+          p.categoryId === selectedCategoryId &&
+          p.subcategoryId === selectedSubcategoryId
+      })
+
+      // Get impression selections for this product
+      const productId = existingIndex !== -1 ? prevProducts[existingIndex].id : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      const impressions = productDetails?.impressions || []
+      const maxillaryImpressions = maxillaryTeeth.length > 0
+        ? getImpressionSelections(productId, "maxillary", impressions)
+        : []
+      const mandibularImpressions = mandibularTeeth.length > 0
+        ? getImpressionSelections(productId, "mandibular", impressions)
+        : []
+
+      // Determine addedFrom based on which arch has teeth (prefer maxillary if both)
+      const addedFrom: "maxillary" | "mandibular" = maxillaryTeeth.length > 0 ? "maxillary" : "mandibular"
+
+      // Create saved product configuration with both arches' data
+      const savedProduct: SavedProduct = {
+        id: productId,
+        product: productToUse,
+        productDetails: productDetails,
+        category: selectedCategory,
+        categoryId: selectedCategoryId,
+        subcategory: selectedSubcategory,
+        subcategoryId: selectedSubcategoryId,
+        maxillaryTeeth: [...maxillaryTeeth],
+        mandibularTeeth: [...mandibularTeeth],
+        maxillaryMaterial: finalMaxillaryMaterial,
+        maxillaryStumpShade,
+        maxillaryRetention: finalMaxillaryRetention,
+        maxillaryNotes: "",
+        mandibularMaterial: finalMandibularMaterial,
+        mandibularRetention: finalMandibularRetention,
+        mandibularStumpShade,
+        mandibularImplantDetails: "",
+        createdAt: existingIndex !== -1 ? prevProducts[existingIndex].createdAt : Date.now(),
+        addedFrom: addedFrom,
+        maxillaryImpressions: maxillaryImpressions.length > 0 ? maxillaryImpressions : undefined,
+        mandibularImpressions: mandibularImpressions.length > 0 ? mandibularImpressions : undefined,
+        // Include ID fields and additional fields for both arches
+        maxillaryMaterialId: maxillaryMaterialId,
+        maxillaryRetentionId: maxillaryRetentionId,
+        maxillaryRetentionOptionId: maxillaryRetentionOptionId,
+        maxillaryGumShadeId: maxillaryGumShadeId,
+        maxillaryShadeId: maxillaryShadeId,
+        maxillaryStageId: maxillaryStageId,
+        maxillaryToothShade: maxillaryToothShade,
+        maxillaryStage: maxillaryStage,
+        mandibularMaterialId: mandibularMaterialId,
+        mandibularRetentionId: mandibularRetentionId,
+        mandibularRetentionOptionId: mandibularRetentionOptionId,
+        mandibularGumShadeId: mandibularGumShadeId,
+        mandibularShadeId: mandibularShadeId,
+        mandibularStageId: mandibularStageId,
+        mandibularToothShade: mandibularToothShade,
+        mandibularStage: mandibularStage,
+        // Include advance fields if any are set
+        advanceFields: productDetails?.advance_fields && Array.isArray(productDetails.advance_fields)
+          ? productDetails.advance_fields
+              .map((field: any) => {
+                const fieldKey = `advance_${field.id}`
+                const value = advanceFieldValues[fieldKey]
+                if (value) {
+                  const fieldData: any = {
+                    advance_field_id: field.id,
+                    advance_field_value: typeof value === "object" ? value.advance_field_value : value,
+                    teeth_number: null,
+                  }
+
+                  if (typeof value === "object" && value.option_id) {
+                    fieldData.option_id = value.option_id
+                  }
+
+                  if (typeof value === "object" && Array.isArray(value.option_ids)) {
+                    fieldData.option_ids = value.option_ids
+                  }
+
+                  if (typeof value === "object" && value.file) {
+                    fieldData.file = value.file
+                  }
+
+                  return fieldData
+                }
+                return null
+              })
+              .filter((field: any) => field !== null)
+          : undefined,
+      }
+
+      // If both material and retention are set for either arch, show advance fields and fetch them
+      if ((finalMaxillaryMaterial && finalMaxillaryRetention) ||
+          (finalMandibularMaterial && finalMandibularRetention)) {
+        setShowAdvanceFields(prev => ({ ...prev, [savedProduct.id]: true }))
+
+        if (productDetails?.advance_fields && Array.isArray(productDetails.advance_fields)) {
+          setProductAdvanceFields(prev => ({ ...prev, [savedProduct.id]: productDetails.advance_fields }))
+        } else if (productToUse?.id) {
+          const fetchAdvanceFields = async () => {
+            try {
+              const labId = selectedLab?.id || selectedLab?.customer_id
+              const details = await fetchProductDetails(productToUse.id, labId)
+              if (details?.advance_fields && Array.isArray(details.advance_fields)) {
+                setProductAdvanceFields(prev => ({ ...prev, [savedProduct.id]: details.advance_fields }))
+              }
+            } catch (error) {
+              console.error("Error fetching advance fields:", error)
+            }
+          }
+          fetchAdvanceFields()
+        }
+      }
+
+      // ALWAYS update existing product if found, otherwise add new one
+      // This prevents duplicates - we update the first accordion instead of creating new ones
+      if (existingIndex !== -1) {
+        // Update existing product with unified data (merge with existing data to preserve any fields)
+        const updated = [...prevProducts]
+        const existingProduct = prevProducts[existingIndex]
+        // Merge existing product data with new data, preserving existing values where new ones are empty
+        const mergedProduct: SavedProduct = {
+          ...existingProduct,
+          ...savedProduct,
+          // Preserve existing teeth arrays if new ones are empty
+          maxillaryTeeth: savedProduct.maxillaryTeeth.length > 0 ? savedProduct.maxillaryTeeth : existingProduct.maxillaryTeeth,
+          mandibularTeeth: savedProduct.mandibularTeeth.length > 0 ? savedProduct.mandibularTeeth : existingProduct.mandibularTeeth,
+          // Preserve existing material if new one is empty
+          maxillaryMaterial: savedProduct.maxillaryMaterial || existingProduct.maxillaryMaterial,
+          mandibularMaterial: savedProduct.mandibularMaterial || existingProduct.mandibularMaterial,
+          // Preserve existing retention if new one is empty
+          maxillaryRetention: savedProduct.maxillaryRetention || existingProduct.maxillaryRetention,
+          mandibularRetention: savedProduct.mandibularRetention || existingProduct.mandibularRetention,
+        }
+        updated[existingIndex] = mergedProduct
+        return updated
+      } else {
+        // Only add new product if no existing product found with same product ID, category, and subcategory
+        return [...prevProducts, savedProduct]
+      }
+    })
+
+    // Update case summary notes when product is auto-saved
+    const updatedNotes = generateCaseNotes()
+    if (updatedNotes) {
+      setMaxillaryImplantDetails(updatedNotes)
+    }
+  }
+
   // Auto-save product without resetting form - keeps user on current product details
   const handleAutoSaveProduct = (type: "maxillary" | "mandibular") => {
     // Use the appropriate product based on arch selection
@@ -4106,37 +4327,53 @@ export default function CaseDesignCenterPage() {
 
     // Update existing product or add new one using functional update to get latest state
     setSavedProducts((prevProducts) => {
-      // Find existing auto-saved product in the CURRENT state
-      const existingIndex = [...prevProducts].reverse().findIndex(p =>
-        p.product.id === productToUse.id &&
-        p.categoryId === selectedCategoryId &&
-        p.subcategoryId === selectedSubcategoryId &&
-        p.addedFrom === type
-      )
-
-      // Convert reversed index back to original array index
-      const actualIndex = existingIndex !== -1
-        ? prevProducts.length - 1 - existingIndex
-        : -1
-
-      // If we found an existing product, check if teeth are exactly the same
-      if (actualIndex !== -1) {
-        const existingProduct = prevProducts[actualIndex]
+      // Get current teeth for comparison
+      const currentTeeth = type === "maxillary"
+        ? [...maxillaryTeeth].sort()
+        : [...mandibularTeeth].sort()
+      
+      // Find existing product with the same configuration (product, category, subcategory, arch, AND same teeth)
+      const existingIndex = prevProducts.findIndex(p => {
+        // Check basic matching criteria
+        const matchesBasic = p.product.id === productToUse.id &&
+          p.categoryId === selectedCategoryId &&
+          p.subcategoryId === selectedSubcategoryId &&
+          p.addedFrom === type
+        
+        if (!matchesBasic) return false
+        
+        // Check if teeth are exactly the same
         const existingTeeth = type === "maxillary"
-          ? [...(existingProduct.maxillaryTeeth || [])].sort()
-          : [...(existingProduct.mandibularTeeth || [])].sort()
-        const currentTeeth = type === "maxillary"
-          ? [...maxillaryTeeth].sort()
-          : [...mandibularTeeth].sort()
+          ? [...(p.maxillaryTeeth || [])].sort()
+          : [...(p.mandibularTeeth || [])].sort()
+        
+        return JSON.stringify(existingTeeth) === JSON.stringify(currentTeeth)
+      })
 
-        // If teeth are exactly the same, no need to update
-        if (JSON.stringify(existingTeeth) === JSON.stringify(currentTeeth)) {
-          return prevProducts // No changes
+      // If we found an existing product with the same configuration, update it instead of adding a duplicate
+      if (existingIndex !== -1) {
+        const existingProduct = prevProducts[existingIndex]
+        // Check if the existing product needs updating (compare all relevant fields)
+        const needsUpdate = 
+          existingProduct.maxillaryMaterial !== (type === "maxillary" ? finalMaxillaryMaterial : existingProduct.maxillaryMaterial) ||
+          existingProduct.mandibularMaterial !== (type === "mandibular" ? finalMandibularMaterial : existingProduct.mandibularMaterial) ||
+          existingProduct.maxillaryRetention !== (type === "maxillary" ? finalMaxillaryRetention : existingProduct.maxillaryRetention) ||
+          existingProduct.mandibularRetention !== (type === "mandibular" ? finalMandibularRetention : existingProduct.mandibularRetention) ||
+          existingProduct.maxillaryStumpShade !== (type === "maxillary" ? maxillaryStumpShade : existingProduct.maxillaryStumpShade) ||
+          existingProduct.mandibularStumpShade !== (type === "mandibular" ? mandibularStumpShade : existingProduct.mandibularStumpShade) ||
+          existingProduct.maxillaryToothShade !== (type === "maxillary" ? maxillaryToothShade : existingProduct.maxillaryToothShade) ||
+          existingProduct.mandibularToothShade !== (type === "mandibular" ? mandibularToothShade : existingProduct.mandibularToothShade) ||
+          existingProduct.maxillaryStage !== (type === "maxillary" ? maxillaryStage : existingProduct.maxillaryStage) ||
+          existingProduct.mandibularStage !== (type === "mandibular" ? mandibularStage : existingProduct.mandibularStage)
+        
+        // If no changes needed, return existing array to prevent unnecessary updates
+        if (!needsUpdate) {
+          return prevProducts
         }
       }
 
       // Get impression selections for this product
-      const productId = actualIndex !== -1 ? prevProducts[actualIndex].id : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      const productId = existingIndex !== -1 ? prevProducts[existingIndex].id : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
       const impressions = productDetails?.impressions || []
       const maxillaryImpressions = type === "maxillary"
         ? getImpressionSelections(productId, "maxillary", impressions)
@@ -4163,7 +4400,7 @@ export default function CaseDesignCenterPage() {
         mandibularMaterial: finalMandibularMaterial,
         mandibularRetention: finalMandibularRetention,
         mandibularImplantDetails,
-        createdAt: actualIndex !== -1 ? prevProducts[actualIndex].createdAt : Date.now(),
+        createdAt: existingIndex !== -1 ? prevProducts[existingIndex].createdAt : Date.now(),
         addedFrom: type,
         maxillaryImpressions: maxillaryImpressions.length > 0 ? maxillaryImpressions : undefined,
         mandibularImpressions: mandibularImpressions.length > 0 ? mandibularImpressions : undefined,
@@ -4241,13 +4478,13 @@ export default function CaseDesignCenterPage() {
       }
 
       // Update existing product or add new one
-      if (actualIndex !== -1) {
-        // Update existing auto-saved product with new teeth selection
+      if (existingIndex !== -1) {
+        // Update existing product with same configuration
         const updated = [...prevProducts]
-        updated[actualIndex] = savedProduct
+        updated[existingIndex] = savedProduct
         return updated
       } else {
-        // Add to saved products array
+        // Add new product to saved products array
         return [...prevProducts, savedProduct]
       }
     })
@@ -4275,26 +4512,33 @@ export default function CaseDesignCenterPage() {
     }
   })
 
-  // Auto-save product when all fields are complete for maxillary or mandibular using React Query
+  // Auto-save product when all fields are complete - create ONE product for both arches
   useEffect(() => {
     if (showProductDetails && selectedProduct && productDetails) {
       // Check if maxillary or mandibular has all fields filled
       const maxillaryComplete = showMaxillaryChart && maxillaryTeeth.length > 0 && areAllCurrentProductFieldsFilled("maxillary")
       const mandibularComplete = showMandibularChart && mandibularTeeth.length > 0 && areAllCurrentProductFieldsFilled("mandibular")
       
-      // Auto-save maxillary if complete and not already saved
-      if (maxillaryComplete && !autoSavedArchesRef.current.has("maxillary") && !autoSaveProductMutation.isPending) {
-        const productToUse = selectedProductForMaxillary || selectedProduct
-        if (productToUse && maxillaryTeeth.length > 0 && selectedCategory && selectedCategoryId && selectedSubcategory && selectedSubcategoryId) {
-          autoSaveProductMutation.mutate("maxillary")
-        }
-      }
+      // Determine which product to use (prefer the one that's complete, or use selectedProduct)
+      const productToUse = maxillaryComplete 
+        ? (selectedProductForMaxillary || selectedProduct)
+        : (mandibularComplete ? (selectedProductForMandibular || selectedProduct) : selectedProduct)
       
-      // Auto-save mandibular if complete and not already saved
-      if (mandibularComplete && !autoSavedArchesRef.current.has("mandibular") && !autoSaveProductMutation.isPending) {
-        const productToUse = selectedProductForMandibular || selectedProduct
-        if (productToUse && mandibularTeeth.length > 0 && selectedCategory && selectedCategoryId && selectedSubcategory && selectedSubcategoryId) {
-          autoSaveProductMutation.mutate("mandibular")
+      // Only auto-save if at least one arch is complete and we haven't already saved this product configuration
+      const hasTeeth = (maxillaryTeeth.length > 0 || mandibularTeeth.length > 0)
+      const isComplete = maxillaryComplete || mandibularComplete
+      
+      // Create a unique key for this product configuration (without arch type to allow merging)
+      const maxillaryTeethSorted = [...maxillaryTeeth].sort()
+      const mandibularTeethSorted = [...mandibularTeeth].sort()
+      const productKey = `${productToUse?.id}-${selectedCategoryId}-${selectedSubcategoryId}-${JSON.stringify(maxillaryTeethSorted)}-${JSON.stringify(mandibularTeethSorted)}`
+      
+      if (isComplete && hasTeeth && selectedCategory && selectedCategoryId && selectedSubcategory && selectedSubcategoryId && productToUse) {
+        // Check if we've already saved this exact configuration
+        if (!autoSavedArchesRef.current.has(productKey)) {
+          // Save as a unified product (not arch-specific)
+          handleAutoSaveUnifiedProduct()
+          autoSavedArchesRef.current.add(productKey)
         }
       }
       
@@ -4710,8 +4954,9 @@ export default function CaseDesignCenterPage() {
     autoSavedArchesRef.current.clear()
   }, [selectedProduct?.id, selectedCategoryId, selectedSubcategoryId])
   
-  const handleClearCurrentProduct = () => {
-    // Reset to category selection view
+  // Comprehensive reset function for all product-related state
+  const resetAllProductState = () => {
+    // Reset product selection
     setShowSubcategories(false)
     setShowProducts(false)
     setShowProductDetails(false)
@@ -4721,24 +4966,125 @@ export default function CaseDesignCenterPage() {
     setSelectedSubcategoryId(null)
     setSelectedProduct(null)
     setProducts([])
+    setProductDetails(null)
+    
+    // Reset arch selection
+    setSelectedArchForProduct(null)
+    setShowMaxillaryChart(false)
+    setShowMandibularChart(false)
+    setSelectedProductForMaxillary(null)
+    setSelectedProductForMandibular(null)
+    
+    // Reset teeth selections
     setMaxillaryTeeth([])
     setMandibularTeeth([])
+    setMissingTeethCardClicked(false)
+    
+    // Reset retention types
+    setMaxillaryRetentionTypes({})
+    setMandibularRetentionTypes({})
+    
+    // Reset maxillary fields
     setMaxillaryMaterial("")
     setMaxillaryStumpShade("")
     setMaxillaryRetention("")
     setMaxillaryImplantDetails("")
+    setMaxillaryMaterialId(undefined)
+    setMaxillaryRetentionId(undefined)
+    setMaxillaryRetentionOptionId(undefined)
+    setMaxillaryGumShadeId(undefined)
+    setMaxillaryShadeId(undefined)
+    setMaxillaryStageId(undefined)
+    setMaxillaryToothShade("")
+    setMaxillaryStage("")
+    
+    // Reset mandibular fields
     setMandibularMaterial("")
     setMandibularRetention("")
     setMandibularImplantDetails("")
     setMandibularStumpShade("")
-    setMissingTeethCardClicked(false)
-    setProductDetails(null)
-
+    setMandibularMaterialId(undefined)
+    setMandibularRetentionId(undefined)
+    setMandibularRetentionOptionId(undefined)
+    setMandibularGumShadeId(undefined)
+    setMandibularShadeId(undefined)
+    setMandibularStageId(undefined)
+    setMandibularToothShade("")
+    setMandibularStage("")
+    
+    // Reset advance fields
+    setShowAdvanceFields({})
+    setProductAdvanceFields({})
+    setAdvanceFieldValues({})
+    setCompletedFields({})
+    
+    // Reset implant selections
+    setSelectedImplantIds({})
+    setImplantSelectionStep({})
+    setSelectedImplantBrand({})
+    setSelectedImplantPlatform({})
+    setSelectedImplantPlatformData({})
+    setSelectedImplantSize({})
+    setShowImplantCards(false)
+    setActiveImplantFieldKey(null)
+    
+    // Reset accordion and dropdowns
+    setOpenAccordion(null)
+    setOpenStageDropdown({})
+    setOpenRetentionDropdown({})
+    
+    // Reset impressions
+    setShowImpressionModal(false)
+    setCurrentImpressionArch("maxillary")
+    setSelectedImpressions({})
+    setCurrentProductForImpression(null)
+    setStlFilesByImpression({})
+    
+    // Reset shade selection
+    setShowShadeModal(false)
+    setCurrentShadeField(null)
+    setCurrentShadeArch("maxillary")
+    setSelectedShadesForSVG([])
+    setSelectedShadeOption(null)
+    setSelectedShadeGuide("Vita Classical")
+    
+    // Reset saved products
+    setSavedProducts([])
+    
+    // Reset auto-saved tracking
+    autoSavedArchesRef.current.clear()
+    autoAddedProductRef.current = null
+  }
+  
+  const handleClearCurrentProduct = () => {
+    resetAllProductState()
     toast({
       title: "Product Cleared",
       description: "Current product selection has been cleared",
     })
   }
+  
+  // Reset on page refresh/unload - clear localStorage cache
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      // Clear localStorage cache on refresh
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.removeItem('caseDesignCache')
+          // Clear stashed attachments
+          delete (window as any).__caseDesignAttachments
+        } catch (error) {
+          console.error('Error clearing cache on unload:', error)
+        }
+      }
+    }
+    
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [])
 
   const handleSubmit = async () => {
     // Check confirmation checkbox
@@ -4921,6 +5267,13 @@ export default function CaseDesignCenterPage() {
 
       // Extract files from advance fields if any
       const files = extractFilesFromAdvanceFields(productsToSubmit)
+      
+      // Also extract STL files from impressions
+      Object.values(stlFilesByImpression).forEach((stlFiles) => {
+        stlFiles.forEach(({ file }) => {
+          files.push(file)
+        })
+      })
 
       // Call API
       const response = await slipCreationService.createSlip(payload, files.length > 0 ? files : undefined)
@@ -4936,14 +5289,19 @@ export default function CaseDesignCenterPage() {
         // Clear slip creation storage
         clearSlipCreationStorage()
 
-        // Navigate to dashboard or case detail page
-        if (response.data?.case_id) {
-          // Optionally navigate to case detail page
-          // router.push(`/cases/${response.data.case_id}`)
-          router.push("/dashboard")
+        // Navigate based on user role
+        const role = typeof window !== "undefined" ? localStorage.getItem("role") : null
+        let redirectPath = "/case-management" // default
+        
+        if (role === "lab_admin") {
+          redirectPath = "/lab-case-management"
+        } else if (role === "office_admin") {
+          redirectPath = "/case-management"
         } else {
-          router.push("/dashboard")
+          redirectPath = "/case-management"
         }
+
+        router.push(redirectPath)
       } else {
         throw new Error(response.message || "Failed to submit case")
       }
@@ -6176,10 +6534,12 @@ export default function CaseDesignCenterPage() {
                                       getImpressionCount={() => {
                                         if (!selectedProduct || !productDetails?.impressions) return 0
                                         const productId = selectedProduct.id.toString()
-                                        return productDetails.impressions.reduce((sum: number, impression: any) => {
-                                          const key = `${productId}_maxillary_${impression.value || impression.name}`
-                                          return sum + (selectedImpressions[key] || 0)
-                                        }, 0)
+                                        return getImpressionCount(productId, "maxillary", productDetails.impressions)
+                                      }}
+                                      getImpressionDisplayText={() => {
+                                        if (!selectedProduct || !productDetails?.impressions) return "Select impression"
+                                        const productId = selectedProduct.id.toString()
+                                        return getImpressionDisplayText(productId, "maxillary", productDetails.impressions)
                                       }}
                                       onOpenShadeModal={(fieldKey) => {
                                         handleOpenShadeModal(fieldKey, "maxillary")
@@ -6912,18 +7272,21 @@ export default function CaseDesignCenterPage() {
                                      Array.isArray(productDetails.impressions) && 
                                      productDetails.impressions.length > 0 &&
                                      isStageFieldVisible("maxillary") && (() => {
-                                       const impressionCount = selectedProduct && productDetails?.impressions
-                                         ? productDetails.impressions.reduce((sum: number, impression: any) => {
-                                             const key = `${selectedProduct.id.toString()}_maxillary_${impression.value || impression.name}`
-                                             return sum + (selectedImpressions[key] || 0)
-                                           }, 0)
-                                         : 0
-                                       const displayText = impressionCount > 0
-                                         ? `${impressionCount} impression${impressionCount > 1 ? "s" : ""} selected`
-                                         : "Not specified"
+                                       const productId = selectedProduct?.id?.toString() || ""
+                                       const impressionCount = getImpressionCount(productId, "maxillary", productDetails.impressions)
+                                       const displayText = getImpressionDisplayText(productId, "maxillary", productDetails.impressions)
                                        
-                                       // Show red border when there's no value or only placeholder
-                                       const showRedBorder = impressionCount === 0 || displayText === "Not specified"
+                                       // Determine border color: green if all required fields filled and impression selected, red if no impression, gray otherwise
+                                       let borderColor = '#7F7F7F' // default gray
+                                       let labelColor = '#7F7F7F' // default gray
+                                       
+                                       if (impressionCount === 0 || displayText === "Select impression") {
+                                         borderColor = '#ef4444' // red
+                                         labelColor = '#ef4444' // red
+                                       } else if (areAllCurrentProductFieldsFilled("maxillary")) {
+                                         borderColor = '#119933' // green
+                                         labelColor = '#119933' // green
+                                       }
                                        
                                        return (
                                          <div className="relative" style={{ minHeight: '43px', width: '100%' }}>
@@ -6963,7 +7326,7 @@ export default function CaseDesignCenterPage() {
                                                position: 'relative',
                                                marginTop: '5.27px',
                                                background: '#FFFFFF',
-                                               border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
+                                               border: `0.740384px solid ${borderColor}`,
                                                borderRadius: '7.7px',
                                                boxSizing: 'border-box'
                                              }}
@@ -6991,7 +7354,7 @@ export default function CaseDesignCenterPage() {
                                                fontWeight: 400,
                                                fontSize: '14px',
                                                lineHeight: '14px',
-                                               color: '#7F7F7F'
+                                               color: labelColor
                                              }}
                                            >
                                              Impression
@@ -9506,10 +9869,12 @@ export default function CaseDesignCenterPage() {
                                       getImpressionCount={() => {
                                         if (!selectedProduct || !productDetails?.impressions) return 0
                                         const productId = selectedProduct.id.toString()
-                                        return productDetails.impressions.reduce((sum: number, impression: any) => {
-                                          const key = `${productId}_mandibular_${impression.value || impression.name}`
-                                          return sum + (selectedImpressions[key] || 0)
-                                        }, 0)
+                                        return getImpressionCount(productId, "mandibular", productDetails.impressions)
+                                      }}
+                                      getImpressionDisplayText={() => {
+                                        if (!selectedProduct || !productDetails?.impressions) return "Select impression"
+                                        const productId = selectedProduct.id.toString()
+                                        return getImpressionDisplayText(productId, "mandibular", productDetails.impressions)
                                       }}
                                       onOpenShadeModal={(fieldKey) => {
                                         handleOpenShadeModal(fieldKey, "mandibular")
@@ -10242,18 +10607,21 @@ export default function CaseDesignCenterPage() {
                                      Array.isArray(productDetails.impressions) && 
                                      productDetails.impressions.length > 0 &&
                                      isStageFieldVisible("mandibular") && (() => {
-                                       const impressionCount = selectedProduct && productDetails?.impressions
-                                         ? productDetails.impressions.reduce((sum: number, impression: any) => {
-                                             const key = `${selectedProduct.id.toString()}_mandibular_${impression.value || impression.name}`
-                                             return sum + (selectedImpressions[key] || 0)
-                                           }, 0)
-                                         : 0
-                                       const displayText = impressionCount > 0
-                                         ? `${impressionCount} impression${impressionCount > 1 ? "s" : ""} selected`
-                                         : "Not specified"
+                                       const productId = selectedProduct?.id?.toString() || ""
+                                       const impressionCount = getImpressionCount(productId, "mandibular", productDetails.impressions)
+                                       const displayText = getImpressionDisplayText(productId, "mandibular", productDetails.impressions)
                                        
-                                       // Show red border when there's no value or only placeholder
-                                       const showRedBorder = impressionCount === 0 || displayText === "Not specified"
+                                       // Determine border color: green if all required fields filled and impression selected, red if no impression, gray otherwise
+                                       let borderColor = '#7F7F7F' // default gray
+                                       let labelColor = '#7F7F7F' // default gray
+                                       
+                                       if (impressionCount === 0 || displayText === "Select impression") {
+                                         borderColor = '#ef4444' // red
+                                         labelColor = '#ef4444' // red
+                                       } else if (areAllCurrentProductFieldsFilled("mandibular")) {
+                                         borderColor = '#119933' // green
+                                         labelColor = '#119933' // green
+                                       }
                                        
                                        return (
                                          <div className="relative" style={{ minHeight: '43px', width: '100%' }}>
@@ -10293,7 +10661,7 @@ export default function CaseDesignCenterPage() {
                                                position: 'relative',
                                                marginTop: '5.27px',
                                                background: '#FFFFFF',
-                                               border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
+                                               border: `0.740384px solid ${borderColor}`,
                                                borderRadius: '7.7px',
                                                boxSizing: 'border-box'
                                              }}
@@ -10321,7 +10689,7 @@ export default function CaseDesignCenterPage() {
                                                fontWeight: 400,
                                                fontSize: '14px',
                                                lineHeight: '14px',
-                                               color: '#7F7F7F'
+                                               color: labelColor
                                              }}
                                            >
                                              Impression
@@ -12436,47 +12804,51 @@ export default function CaseDesignCenterPage() {
           onClose={() => {
             setShowImpressionModal(false)
             setCurrentProductForImpression(null)
-            // Update saved product with impression selections when modal closes
-            if (currentProductForImpression && productDetails?.impressions) {
-              const impressions = productDetails.impressions || []
-              const maxillaryImpressions = getImpressionSelections(
-                currentProductForImpression.id,
-                "maxillary",
-                impressions
-              )
-              const mandibularImpressions = getImpressionSelections(
-                currentProductForImpression.id,
-                "mandibular",
-                impressions
-              )
-              
-              setSavedProducts((prev) =>
-                prev.map((product) =>
-                  product.id === currentProductForImpression.id
-                    ? {
-                        ...product,
-                        maxillaryImpressions: maxillaryImpressions.length > 0 ? maxillaryImpressions : undefined,
-                        mandibularImpressions: mandibularImpressions.length > 0 ? mandibularImpressions : undefined,
-                      }
-                    : product
-                )
-              )
-            }
           }}
-          impressions={(productDetails.impressions || []).map((imp: any) => ({
-            id: imp.id,
-            name: imp.name,
-            code: imp.code,
-            description: imp.description,
-            image_url: imp.image_url,
-            value: imp.value || imp.name,
-            label: imp.label || imp.name,
-          }))}
+          onSTLFilesAttached={(files, impressionKey) => {
+            // Store STL files for this impression
+            // Convert STLFile[] to the format expected by stlFilesByImpression
+            const convertedFiles = files.map(f => ({
+              file: f.file,
+              url: f.url,
+              type: "stl" as const,
+              description: f.description
+            }))
+            setStlFilesByImpression((prev) => ({
+              ...prev,
+              [impressionKey]: convertedFiles
+            }))
+          }}
+          impressions={productDetails?.impressions || []}
           selectedImpressions={selectedImpressions}
           onUpdateQuantity={handleImpressionQuantityUpdate}
-          onRemoveImpression={handleImpressionRemove}
-          productId={currentProductForImpression.id}
+          onRemoveImpression={(impressionKey) => {
+            setSelectedImpressions((prev) => {
+              const updated = { ...prev }
+              delete updated[impressionKey]
+              return updated
+            })
+            // Also remove STL files for this impression
+            setStlFilesByImpression((prev) => {
+              const updated = { ...prev }
+              delete updated[impressionKey]
+              return updated
+            })
+          }}
+          productId={currentProductForImpression?.id || selectedProduct?.id?.toString() || ""}
           arch={currentImpressionArch}
+          stlFilesByImpression={Object.fromEntries(
+            Object.entries(stlFilesByImpression).map(([key, files]) => [
+              key,
+              files
+                .filter(f => f.type === "stl")
+                .map(f => ({
+                  file: f.file,
+                  url: f.url,
+                  description: (f as any).description || ""
+                }))
+            ])
+          )}
         />
       )}
 

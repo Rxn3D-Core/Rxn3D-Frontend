@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Trash2, Plus, Minus } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { STLFileSelectionModal } from "./stl-file-selection-modal"
 
 interface ImpressionOption {
   id: number
@@ -21,6 +22,12 @@ interface ImpressionOption {
   label: string
 }
 
+interface STLFile {
+  file: File
+  url: string
+  description?: string
+}
+
 interface ImpressionSelectionModalProps {
   isOpen: boolean
   onClose: () => void
@@ -28,8 +35,10 @@ interface ImpressionSelectionModalProps {
   selectedImpressions: Record<string, number> // key: impression name, value: quantity
   onUpdateQuantity: (impressionKey: string, quantity: number) => void
   onRemoveImpression: (impressionKey: string) => void
+  onSTLFilesAttached?: (files: STLFile[], impressionKey: string) => void
   productId: string
   arch: "maxillary" | "mandibular"
+  stlFilesByImpression?: Record<string, STLFile[]>
 }
 
 export function ImpressionSelectionModal({
@@ -39,41 +48,86 @@ export function ImpressionSelectionModal({
   selectedImpressions,
   onUpdateQuantity,
   onRemoveImpression,
+  onSTLFilesAttached,
   productId,
   arch,
+  stlFilesByImpression = {},
 }: ImpressionSelectionModalProps) {
-  const getImpressionKey = (impressionName: string) => {
-    return `${productId}_${arch}_${impressionName}`
+  const [showSTLModal, setShowSTLModal] = useState(false)
+  const [selectedSTLImpression, setSelectedSTLImpression] = useState<ImpressionOption | null>(null)
+  const getImpressionKey = (impression: ImpressionOption) => {
+    const identifier = impression.value || impression.name
+    return `${productId}_${arch}_${identifier}`
   }
 
-  const getQuantity = (impressionName: string) => {
-    const key = getImpressionKey(impressionName)
+  const getQuantity = (impression: ImpressionOption) => {
+    const key = getImpressionKey(impression)
     return selectedImpressions[key] || 0
   }
 
-  const handleIncrement = (impressionName: string) => {
-    const key = getImpressionKey(impressionName)
-    const currentQty = getQuantity(impressionName)
+  const handleIncrement = (impression: ImpressionOption) => {
+    const key = getImpressionKey(impression)
+    const currentQty = getQuantity(impression)
     onUpdateQuantity(key, currentQty + 1)
   }
 
-  const handleDecrement = (impressionName: string) => {
-    const key = getImpressionKey(impressionName)
-    const currentQty = getQuantity(impressionName)
+  const handleDecrement = (impression: ImpressionOption) => {
+    const key = getImpressionKey(impression)
+    const currentQty = getQuantity(impression)
     if (currentQty > 0) {
       onUpdateQuantity(key, currentQty - 1)
     }
   }
 
-  const handleDelete = (impressionName: string) => {
-    const key = getImpressionKey(impressionName)
+  const handleDelete = (impression: ImpressionOption) => {
+    const key = getImpressionKey(impression)
     onRemoveImpression(key)
+  }
+
+  // Check if impression is STL file type
+  const isSTLImpression = (impression: ImpressionOption): boolean => {
+    const name = impression.name.toLowerCase()
+    const code = impression.code?.toLowerCase() || ""
+    return name.includes("stl") || code === "stl" || name === "stl file"
+  }
+
+  // Handle impression click - open STL modal if STL, otherwise increment
+  const handleImpressionClick = (impression: ImpressionOption) => {
+    if (isSTLImpression(impression)) {
+      setSelectedSTLImpression(impression)
+      setShowSTLModal(true)
+    } else {
+      handleIncrement(impression)
+    }
+  }
+
+  // Handle STL files confirmation
+  const handleSTLFilesConfirmed = (files: STLFile[]) => {
+    if (!selectedSTLImpression || !onSTLFilesAttached) return
+    
+    const key = getImpressionKey(selectedSTLImpression)
+    
+    // Update quantity to match number of STL files
+    const fileCount = files.length
+    onUpdateQuantity(key, fileCount)
+    
+    // Attach STL files (even if empty, to clear existing files)
+    onSTLFilesAttached(files, key)
+    
+    setShowSTLModal(false)
+    setSelectedSTLImpression(null)
+  }
+
+  // Get existing STL files for an impression
+  const getExistingSTLFiles = (impression: ImpressionOption): STLFile[] => {
+    const key = getImpressionKey(impression)
+    return stlFilesByImpression[key] || []
   }
 
   // Sort impressions: selected ones first, then alphabetically
   const sortedImpressions = [...impressions].sort((a, b) => {
-    const qtyA = getQuantity(a.value)
-    const qtyB = getQuantity(b.value)
+    const qtyA = getQuantity(a)
+    const qtyB = getQuantity(b)
 
     if (qtyA > 0 && qtyB === 0) return -1
     if (qtyA === 0 && qtyB > 0) return 1
@@ -83,7 +137,7 @@ export function ImpressionSelectionModal({
 
   // Count only selections relevant to this modal's product and arch
   const modalSelectedCount = impressions.reduce((sum, impression) => {
-    return sum + getQuantity(impression.value)
+    return sum + getQuantity(impression)
   }, 0)
 
   // Function to get dental impression image from API
@@ -114,7 +168,7 @@ export function ImpressionSelectionModal({
         <div className="px-6 py-4 overflow-y-auto max-h-[70vh]">
           <div className="grid grid-cols-6 gap-3">
             {sortedImpressions.map((impression) => {
-              const qty = getQuantity(impression.value)
+              const qty = getQuantity(impression)
               const isSelected = qty > 0
 
               return (
@@ -177,7 +231,7 @@ export function ImpressionSelectionModal({
                               size="sm"
                               variant="outline"
                               className="h-8 w-8 p-0 rounded-md border-2 hover:bg-gray-100"
-                              onClick={() => handleDecrement(impression.value)}
+                              onClick={() => handleDecrement(impression)}
                             >
                               <Minus className="h-4 w-4" />
                             </Button>
@@ -188,24 +242,37 @@ export function ImpressionSelectionModal({
                               size="sm"
                               variant="outline"
                               className="h-8 w-8 p-0 rounded-md border-2 hover:bg-gray-100"
-                              onClick={() => handleIncrement(impression.value)}
+                              onClick={() => handleIncrement(impression)}
                             >
                               <Plus className="h-4 w-4" />
                             </Button>
-                            <Button
-                              size="sm"
-                              className="h-8 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-semibold text-xs"
-                              onClick={onClose}
-                            >
-                              Done
-                            </Button>
+                            {isSTLImpression(impression) ? (
+                              <Button
+                                size="sm"
+                                className="h-8 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-semibold text-xs"
+                                onClick={() => {
+                                  setSelectedSTLImpression(impression)
+                                  setShowSTLModal(true)
+                                }}
+                              >
+                                Files
+                              </Button>
+                            ) : (
+                              <Button
+                                size="sm"
+                                className="h-8 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-semibold text-xs"
+                                onClick={onClose}
+                              >
+                                Done
+                              </Button>
+                            )}
                           </div>
                           {/* Delete button */}
                           <Button
                             size="sm"
                             variant="destructive"
                             className="h-8 w-8 p-0 rounded-md"
-                            onClick={() => handleDelete(impression.value)}
+                            onClick={() => handleDelete(impression)}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -214,7 +281,7 @@ export function ImpressionSelectionModal({
                         <Button
                           size="sm"
                           className="w-full h-8 text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-md"
-                          onClick={() => handleIncrement(impression.value)}
+                          onClick={() => handleImpressionClick(impression)}
                         >
                           <Plus className="h-4 w-4 mr-1" />
                           Add
@@ -253,6 +320,22 @@ export function ImpressionSelectionModal({
           )}
         </div>
       </DialogContent>
+
+      {/* STL File Selection Modal */}
+      {selectedSTLImpression && (
+        <STLFileSelectionModal
+          isOpen={showSTLModal}
+          onClose={() => {
+            setShowSTLModal(false)
+            setSelectedSTLImpression(null)
+          }}
+          onConfirm={handleSTLFilesConfirmed}
+          productId={productId}
+          arch={arch}
+          impressionName={selectedSTLImpression.name}
+          existingFiles={getExistingSTLFiles(selectedSTLImpression)}
+        />
+      )}
     </Dialog>
   )
 }

@@ -123,57 +123,40 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
             }}
           >
             {/* Implant Brand */}
-            <div className="flex-1 min-w-[180px] sm:min-w-[220px]" style={{ minHeight: '42.27px', flex: '1 1 auto', order: 0, position: 'relative' }}>
-              <Input
-                type="text"
-                value={selectedBrand?.brand_name || ""}
-                readOnly
-                className="w-full"
-                style={{
-                  boxSizing: 'border-box',
-                  display: 'flex',
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  padding: '12px 39px 5px 15px',
-                  gap: '5px',
-                  position: 'absolute',
-                  width: '100%',
-                  height: '37px',
-                  left: '0px',
-                  top: '5.27px',
-                  background: '#FFFFFF',
-                  border: '0.740384px solid #7F7F7F',
-                  borderRadius: '7.7px',
-                  fontFamily: 'Verdana',
-                  fontStyle: 'normal',
-                  fontWeight: 400,
-                  fontSize: '14.4px',
-                  lineHeight: '20px',
-                  letterSpacing: '-0.02em',
-                  color: '#000000'
-                }}
-              />
-              <label
-                style={{
-                  display: 'flex',
-                  flexDirection: 'row',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  padding: '0px',
-                  gap: '7.7px',
-                  position: 'absolute',
-                  width: '88px',
-                  height: '14px',
-                  left: '8.9px',
-                  top: '0px',
-                  background: '#FFFFFF',
-                  borderRadius: '0px'
-                }}
-              >
-                <span
+            <div className="relative flex-1 min-w-[180px] sm:min-w-[220px]" style={{ minHeight: '43px', flex: '1 1 auto', order: 0 }}>
+              <div className="relative" style={{ minHeight: '43px', width: '100%' }}>
+                <Input
+                  type="text"
+                  value={selectedBrand?.brand_name || ""}
+                  readOnly
+                  className="w-full"
                   style={{
-                    width: '88px',
+                    padding: '12px 15px 5px 15px',
+                    gap: '5px',
+                    width: '100%',
+                    height: '37px',
+                    position: 'relative',
+                    marginTop: '5.27px',
+                    background: '#FFFFFF',
+                    border: '0.740384px solid #7F7F7F',
+                    borderRadius: '7.7px',
+                    boxSizing: 'border-box',
+                    fontFamily: 'Verdana',
+                    fontStyle: 'normal',
+                    fontWeight: 400,
+                    fontSize: '14.4px',
+                    lineHeight: '20px',
+                    letterSpacing: '-0.02em',
+                    color: '#000000'
+                  }}
+                />
+                <label
+                  className="absolute bg-white"
+                  style={{
+                    padding: '0px',
                     height: '14px',
+                    left: '8.9px',
+                    top: '0px',
                     fontFamily: 'Arial',
                     fontStyle: 'normal',
                     fontWeight: 400,
@@ -183,78 +166,59 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
                   }}
                 >
                   Implant Brand
-                </span>
-              </label>
+                </label>
+              </div>
             </div>
             
             {/* Implant Platform */}
-            <div className="flex-1 min-w-[180px] sm:min-w-[220px]" style={{ minHeight: '42.27px', flex: '1 1 auto', order: 1, position: 'relative' }}>
-              <Input
-                type="text"
-                value={selectedPlatform?.name || ""}
-                readOnly
-                onClick={(e) => {
-                  e.stopPropagation()
-                  e.preventDefault()
-                  // Trigger platform card selection at the top level
-                  if (onPlatformFieldClick) {
-                    onPlatformFieldClick()
-                  }
-                }}
-                onFocus={(e) => {
-                  e.stopPropagation()
-                  // Trigger platform card selection at the top level
-                  if (onPlatformFieldClick) {
-                    onPlatformFieldClick()
-                  }
-                }}
-                className="w-full cursor-pointer"
-                style={{
-                  boxSizing: 'border-box',
-                  display: 'flex',
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  padding: '12px 39px 5px 15px',
-                  gap: '5px',
-                  position: 'absolute',
-                  width: '100%',
-                  height: '37px',
-                  left: '0px',
-                  top: '5.27px',
-                  background: '#FFFFFF',
-                  border: '0.740384px solid #7F7F7F',
-                  borderRadius: '7.7px',
-                  fontFamily: 'Verdana',
-                  fontStyle: 'normal',
-                  fontWeight: 400,
-                  fontSize: '14.4px',
-                  lineHeight: '20px',
-                  letterSpacing: '-0.02em',
-                  color: '#000000'
-                }}
-                placeholder="Select Platform"
-              />
-              <label
-                style={{
-                  display: 'flex',
-                  flexDirection: 'row',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  padding: '0px',
-                  gap: '7.7px',
-                  position: 'absolute',
-                  width: '103px',
-                  height: '14px',
-                  left: '8.9px',
-                  top: '0px',
-                  background: '#FFFFFF',
-                  borderRadius: '0px'
-                }}
-              >
-                <span
+            <div className="relative flex-1 min-w-[180px] sm:min-w-[220px]" style={{ minHeight: '43px', flex: '1 1 auto', order: 1 }}>
+              <div className="relative" style={{ minHeight: '43px', width: '100%' }}>
+                <Input
+                  type="text"
+                  value={selectedPlatform?.name || ""}
+                  readOnly
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    e.preventDefault()
+                    if (onPlatformFieldClick) {
+                      onPlatformFieldClick()
+                    }
+                  }}
+                  onFocus={(e) => {
+                    e.stopPropagation()
+                    if (onPlatformFieldClick) {
+                      onPlatformFieldClick()
+                    }
+                  }}
+                  className="w-full cursor-pointer"
                   style={{
-                    width: '103px',
+                    padding: '12px 15px 5px 15px',
+                    gap: '5px',
+                    width: '100%',
+                    height: '37px',
+                    position: 'relative',
+                    marginTop: '5.27px',
+                    background: '#FFFFFF',
+                    border: '0.740384px solid #7F7F7F',
+                    borderRadius: '7.7px',
+                    boxSizing: 'border-box',
+                    fontFamily: 'Verdana',
+                    fontStyle: 'normal',
+                    fontWeight: 400,
+                    fontSize: '14.4px',
+                    lineHeight: '20px',
+                    letterSpacing: '-0.02em',
+                    color: '#000000'
+                  }}
+                  placeholder="Select Platform"
+                />
+                <label
+                  className="absolute bg-white"
+                  style={{
+                    padding: '0px',
                     height: '14px',
+                    left: '8.9px',
+                    top: '0px',
                     fontFamily: 'Arial',
                     fontStyle: 'normal',
                     fontWeight: 400,
@@ -264,75 +228,58 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
                   }}
                 >
                   Implant Platform
-                </span>
-              </label>
+                </label>
+              </div>
             </div>
             
             {/* Implant Size */}
-            <div className="flex-1 min-w-[180px] sm:min-w-[220px]" style={{ minHeight: '42.27px', flex: '1 1 auto', order: 2, position: 'relative' }}>
-              <Select
-                value={selectedSize || ""}
-                onValueChange={(value) => {
-                  onSizeChange(value)
-                }}
-              >
-                <SelectTrigger
-                  className="w-full"
-                  style={{
-                    boxSizing: 'border-box',
-                    display: 'flex',
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    padding: '12px 39px 5px 15px',
-                    gap: '5px',
-                    position: 'absolute',
-                    width: '100%',
-                    height: '37px',
-                    left: '0px',
-                    top: '5.27px',
-                    background: '#FFFFFF',
-                    border: '0.740384px solid #7F7F7F',
-                    borderRadius: '7.7px',
-                    fontFamily: 'Verdana',
-                    fontStyle: 'normal',
-                    fontWeight: 400,
-                    fontSize: '14.4px',
-                    lineHeight: '20px',
-                    letterSpacing: '-0.02em',
-                    color: '#000000'
+            <div className="relative flex-1 min-w-[180px] sm:min-w-[220px]" style={{ minHeight: '43px', flex: '1 1 auto', order: 2 }}>
+              <div className="relative" style={{ minHeight: '43px', width: '100%' }}>
+                <Select
+                  value={selectedSize || ""}
+                  onValueChange={(value) => {
+                    onSizeChange(value)
                   }}
                 >
-                  <SelectValue placeholder="Select Implant size" />
-                </SelectTrigger>
-                <SelectContent>
-                  {implantSizes.map((size) => (
-                    <SelectItem key={size} value={size}>
-                      {size}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <label
-                style={{
-                  display: 'flex',
-                  flexDirection: 'row',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  padding: '0px',
-                  gap: '7.7px',
-                  position: 'absolute',
-                  width: '78px',
-                  height: '14px',
-                  left: '8.9px',
-                  top: '0px',
-                  background: '#FFFFFF',
-                  borderRadius: '0px'
-                }}
-              >
-                <span
+                  <SelectTrigger
+                    className="w-full"
+                    style={{
+                      padding: '12px 15px 5px 15px',
+                      gap: '5px',
+                      width: '100%',
+                      height: '37px',
+                      position: 'relative',
+                      marginTop: '5.27px',
+                      background: '#FFFFFF',
+                      border: '0.740384px solid #7F7F7F',
+                      borderRadius: '7.7px',
+                      boxSizing: 'border-box',
+                      fontFamily: 'Verdana',
+                      fontStyle: 'normal',
+                      fontWeight: 400,
+                      fontSize: '14.4px',
+                      lineHeight: '20px',
+                      letterSpacing: '-0.02em',
+                      color: '#000000'
+                    }}
+                  >
+                    <SelectValue placeholder="Select Implant size" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {implantSizes.map((size) => (
+                      <SelectItem key={size} value={size}>
+                        {size}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <label
+                  className="absolute bg-white"
                   style={{
-                    width: '78px',
+                    padding: '0px',
                     height: '14px',
+                    left: '8.9px',
+                    top: '0px',
                     fontFamily: 'Arial',
                     fontStyle: 'normal',
                     fontWeight: 400,
@@ -342,58 +289,44 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
                   }}
                 >
                   Implant Size
-                </span>
-              </label>
+                </label>
+              </div>
             </div>
           </div>
           
           {/* Row 2: Implant inclusions */}
-          <div
-            className="w-full"
-            style={{
-              width: '100%',
-              minHeight: '43px',
-              flex: 'none',
-              order: 1,
-              flexGrow: 0,
-              position: 'relative'
-            }}
-          >
-              <Select
-                value={inclusions}
-                onValueChange={(value) => {
-                  setInclusions(value)
-                  onInclusionsChange(value)
+          <div className="relative w-full" style={{ minHeight: '43px', flex: 'none', order: 1, flexGrow: 0 }}>
+            <Select
+              value={inclusions}
+              onValueChange={(value) => {
+                setInclusions(value)
+                onInclusionsChange(value)
+              }}
+            >
+              <SelectTrigger
+                className="w-full"
+                style={{
+                  padding: '12px 15px 5px 15px',
+                  gap: '5px',
+                  width: '100%',
+                  height: '37px',
+                  position: 'relative',
+                  marginTop: '5.27px',
+                  background: '#FFFFFF',
+                  border: '0.740384px solid #7F7F7F',
+                  borderRadius: '7.7px',
+                  boxSizing: 'border-box',
+                  fontFamily: 'Verdana',
+                  fontStyle: 'normal',
+                  fontWeight: 400,
+                  fontSize: '14.4px',
+                  lineHeight: '20px',
+                  letterSpacing: '-0.02em',
+                  color: '#000000'
                 }}
               >
-                <SelectTrigger
-                  className="w-full"
-                  style={{
-                    boxSizing: 'border-box',
-                    display: 'flex',
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    padding: '12px 39px 5px 15px',
-                    gap: '5px',
-                    position: 'absolute',
-                    width: '100%',
-                    height: '37px',
-                    left: '0px',
-                    top: '5.6px',
-                    background: '#FFFFFF',
-                    border: '0.740384px solid #7F7F7F',
-                    borderRadius: '7.7px',
-                    fontFamily: 'Verdana',
-                    fontStyle: 'normal',
-                    fontWeight: 400,
-                    fontSize: '14.4px',
-                    lineHeight: '20px',
-                    letterSpacing: '-0.02em',
-                    color: '#000000'
-                  }}
-                >
-                  <SelectValue placeholder="Select Inclusions" />
-                </SelectTrigger>
+                <SelectValue placeholder="Select Inclusions" />
+              </SelectTrigger>
               <SelectContent>
                 {inclusionOptions.map((option) => (
                   <SelectItem key={option} value={option}>
@@ -403,36 +336,21 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
               </SelectContent>
             </Select>
             <label
+              className="absolute bg-white"
               style={{
-                display: 'flex',
-                flexDirection: 'row',
-                justifyContent: 'center',
-                alignItems: 'center',
                 padding: '0px',
-                gap: '7.7px',
-                position: 'absolute',
-                width: '112px',
                 height: '14px',
                 left: '8.9px',
                 top: '0px',
-                background: '#FFFFFF',
-                borderRadius: '0px'
+                fontFamily: 'Arial',
+                fontStyle: 'normal',
+                fontWeight: 400,
+                fontSize: '14px',
+                lineHeight: '14px',
+                color: '#7F7F7F'
               }}
             >
-              <span
-                style={{
-                  width: '112px',
-                  height: '14px',
-                  fontFamily: 'Arial',
-                  fontStyle: 'normal',
-                  fontWeight: 400,
-                  fontSize: '14px',
-                  lineHeight: '14px',
-                  color: '#7F7F7F'
-                }}
-              >
-                Implant inclusions
-              </span>
+              Implant inclusions
             </label>
           </div>
           
@@ -453,71 +371,54 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
             }}
           >
             {/* Abutment Detail */}
-            <div className="flex-1 min-w-[180px] sm:min-w-[220px]" style={{ minHeight: '42.27px', flex: '1 1 auto', order: 0, position: 'relative' }}>
-              <Select
-                value={abutmentDetail}
-                onValueChange={(value) => {
-                  setAbutmentDetail(value)
-                  onAbutmentDetailChange(value)
-                }}
-              >
-                <SelectTrigger
-                  className="w-full"
-                  style={{
-                    boxSizing: 'border-box',
-                    display: 'flex',
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    padding: '12px 39px 5px 15px',
-                    gap: '5px',
-                    position: 'absolute',
-                    width: '100%',
-                    height: '37px',
-                    left: '0px',
-                    top: '5.27px',
-                    background: '#FFFFFF',
-                    border: '0.740384px solid #7F7F7F',
-                    borderRadius: '7.7px',
-                    fontFamily: 'Verdana',
-                    fontStyle: 'normal',
-                    fontWeight: 400,
-                    fontSize: '14.4px',
-                    lineHeight: '20px',
-                    letterSpacing: '-0.02em',
-                    color: '#000000'
+            <div className="relative flex-1 min-w-[180px] sm:min-w-[220px]" style={{ minHeight: '43px', flex: '1 1 auto', order: 0 }}>
+              <div className="relative" style={{ minHeight: '43px', width: '100%' }}>
+                <Select
+                  value={abutmentDetail}
+                  onValueChange={(value) => {
+                    setAbutmentDetail(value)
+                    onAbutmentDetailChange(value)
                   }}
                 >
-                  <SelectValue placeholder="Office provided" />
-                </SelectTrigger>
-                <SelectContent>
-                  {abutmentDetailOptions.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <label
-                style={{
-                  display: 'flex',
-                  flexDirection: 'row',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  padding: '0px',
-                  gap: '7.7px',
-                  position: 'absolute',
-                  width: '100px',
-                  height: '14px',
-                  left: '8.9px',
-                  top: '0px',
-                  background: '#FFFFFF',
-                  borderRadius: '0px'
-                }}
-              >
-                <span
+                  <SelectTrigger
+                    className="w-full"
+                    style={{
+                      padding: '12px 15px 5px 15px',
+                      gap: '5px',
+                      width: '100%',
+                      height: '37px',
+                      position: 'relative',
+                      marginTop: '5.27px',
+                      background: '#FFFFFF',
+                      border: '0.740384px solid #7F7F7F',
+                      borderRadius: '7.7px',
+                      boxSizing: 'border-box',
+                      fontFamily: 'Verdana',
+                      fontStyle: 'normal',
+                      fontWeight: 400,
+                      fontSize: '14.4px',
+                      lineHeight: '20px',
+                      letterSpacing: '-0.02em',
+                      color: '#000000'
+                    }}
+                  >
+                    <SelectValue placeholder="Office provided" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {abutmentDetailOptions.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <label
+                  className="absolute bg-white"
                   style={{
-                    width: '100px',
+                    padding: '0px',
                     height: '14px',
+                    left: '8.9px',
+                    top: '0px',
                     fontFamily: 'Arial',
                     fontStyle: 'normal',
                     fontWeight: 400,
@@ -527,76 +428,59 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
                   }}
                 >
                   Abutment Detail
-                </span>
-              </label>
+                </label>
+              </div>
             </div>
             
             {/* Abutment type */}
-            <div className="flex-1 min-w-[180px] sm:min-w-[220px]" style={{ minHeight: '42.27px', flex: '1 1 auto', order: 1, position: 'relative' }}>
-              <Select
-                value={abutmentType}
-                onValueChange={(value) => {
-                  setAbutmentType(value)
-                  onAbutmentTypeChange(value)
-                }}
-              >
-                <SelectTrigger
-                  className="w-full"
-                  style={{
-                    boxSizing: 'border-box',
-                    display: 'flex',
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    padding: '12px 39px 5px 15px',
-                    gap: '5px',
-                    position: 'absolute',
-                    width: '100%',
-                    height: '37px',
-                    left: '0px',
-                    top: '5.27px',
-                    background: '#FFFFFF',
-                    border: '0.740384px solid #7F7F7F',
-                    borderRadius: '7.7px',
-                    fontFamily: 'Verdana',
-                    fontStyle: 'normal',
-                    fontWeight: 400,
-                    fontSize: '14.4px',
-                    lineHeight: '20px',
-                    letterSpacing: '-0.02em',
-                    color: '#000000'
+            <div className="relative flex-1 min-w-[180px] sm:min-w-[220px]" style={{ minHeight: '43px', flex: '1 1 auto', order: 1 }}>
+              <div className="relative" style={{ minHeight: '43px', width: '100%' }}>
+                <Select
+                  value={abutmentType}
+                  onValueChange={(value) => {
+                    setAbutmentType(value)
+                    onAbutmentTypeChange(value)
                   }}
                 >
-                  <SelectValue placeholder="Select Abutment type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {abutmentTypeOptions.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <label
-                style={{
-                  display: 'flex',
-                  flexDirection: 'row',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  padding: '0px',
-                  gap: '7.7px',
-                  position: 'absolute',
-                  width: '91px',
-                  height: '14px',
-                  left: '8.9px',
-                  top: '0px',
-                  background: '#FFFFFF',
-                  borderRadius: '0px'
-                }}
-              >
-                <span
+                  <SelectTrigger
+                    className="w-full"
+                    style={{
+                      padding: '12px 15px 5px 15px',
+                      gap: '5px',
+                      width: '100%',
+                      height: '37px',
+                      position: 'relative',
+                      marginTop: '5.27px',
+                      background: '#FFFFFF',
+                      border: '0.740384px solid #7F7F7F',
+                      borderRadius: '7.7px',
+                      boxSizing: 'border-box',
+                      fontFamily: 'Verdana',
+                      fontStyle: 'normal',
+                      fontWeight: 400,
+                      fontSize: '14.4px',
+                      lineHeight: '20px',
+                      letterSpacing: '-0.02em',
+                      color: '#000000'
+                    }}
+                  >
+                    <SelectValue placeholder="Select Abutment type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {abutmentTypeOptions.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <label
+                  className="absolute bg-white"
                   style={{
-                    width: '91px',
+                    padding: '0px',
                     height: '14px',
+                    left: '8.9px',
+                    top: '0px',
                     fontFamily: 'Arial',
                     fontStyle: 'normal',
                     fontWeight: 400,
@@ -606,8 +490,8 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
                   }}
                 >
                   Abutment type
-                </span>
-              </label>
+                </label>
+              </div>
             </div>
           </div>
         </div>

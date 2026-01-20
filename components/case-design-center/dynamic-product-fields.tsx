@@ -34,6 +34,7 @@ interface DynamicProductFieldsProps {
   onFieldChange: (fieldKey: string, value: string, id?: number) => void
   onOpenImpressionModal?: () => void
   getImpressionCount?: () => number
+  getImpressionDisplayText?: () => string
   onOpenShadeModal?: (fieldKey: string, arch?: "maxillary" | "mandibular") => void
   shadeColors?: Record<string, string> // Map of shade names to gradient colors
   maxillaryRetentionTypes?: Record<number, Array<'Implant' | 'Prep' | 'Pontic'>>
@@ -50,6 +51,7 @@ export function DynamicProductFields({
   onFieldChange,
   onOpenImpressionModal,
   getImpressionCount,
+  getImpressionDisplayText,
   onOpenShadeModal,
   shadeColors = {},
   maxillaryRetentionTypes = {},
@@ -313,12 +315,12 @@ export function DynamicProductFields({
     return requiredFields.includes(config.key)
   }
 
-  // Helper to check if field should show red border (value is "Not specified" and field is required)
+  // Helper to check if field should show red border (value is "Not specified" or "Select impression" and field is required)
   const shouldShowRedBorder = (config: FieldConfig, value: string | undefined): boolean => {
     if (!isFieldRequired(config)) return false
     if (!value) return true
     const trimmed = String(value).trim().toLowerCase()
-    return trimmed === "" || trimmed === "not specified"
+    return trimmed === "" || trimmed === "not specified" || trimmed === "select impression"
   }
 
   // Helper to check if all required fields have valid values (for green border)
@@ -400,9 +402,11 @@ export function DynamicProductFields({
 
     if (config.fieldType === "modal" && config.key === "impression") {
       const impressionCount = getImpressionCount ? getImpressionCount() : 0
-      const displayText = impressionCount > 0
-        ? `${impressionCount} impression${impressionCount > 1 ? "s" : ""} selected`
-        : "Not specified"
+      const displayText = getImpressionDisplayText 
+        ? getImpressionDisplayText()
+        : (impressionCount > 0
+          ? `${impressionCount} impression${impressionCount > 1 ? "s" : ""} selected`
+          : "Select impression")
       
       // Get border color based on validation state
       const borderColor = getFieldBorderColor(config, displayText, impressionCount)
