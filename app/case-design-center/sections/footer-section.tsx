@@ -115,218 +115,154 @@ export function FooterSection({
             </Button>
           </div>
         ) : (
-          // Teeth selection page footer: Preview on left, Cancel and Submit on right
+          // Teeth selection page footer: Cancel Slip on left, Submit and Popover on right
           <div className="flex justify-between items-center w-full">
-            {/* Preview button on left - Show if there are product accordions */}
-            <div>
-              {hasProductAccordions ? (
-                <Button
-                  onClick={onPreview}
-                  variant="outline"
-                  style={{
-                    boxSizing: "border-box",
-                    display: "flex",
-                    flexDirection: "row",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    padding: "12px 16px",
-                    gap: "10px",
-                    minWidth: "111px",
-                    height: "34px",
-                    border: "2px solid #9BA5B7",
-                    borderRadius: "6px",
-                    fontFamily: "Verdana",
-                    fontStyle: "normal",
-                    fontWeight: 700,
-                    fontSize: "12px",
-                    lineHeight: "22px",
-                    letterSpacing: "-0.02em",
-                    color: "#9BA5B7",
-                    background: "transparent",
-                    whiteSpace: "nowrap",
-                  }}
-                  className="hover:opacity-80"
-                >
-                  <Eye 
-                    style={{
-                      width: "24px",
-                      height: "24px",
-                      flex: "none",
-                      order: 0,
-                      flexGrow: 0,
-                    }}
+            {/* Cancel Slip button on left */}
+            <Button
+              onClick={onShowCancelModal}
+              variant="outline"
+              style={{
+                boxSizing: "border-box",
+                display: "flex",
+                flexDirection: "row",
+                justifyContent: "center",
+                alignItems: "center",
+                padding: "12px 16px",
+                gap: "10px",
+                minWidth: "111px",
+                height: "27px",
+                border: "2px solid #EF4444",
+                borderRadius: "6px",
+                fontFamily: "Verdana",
+                fontStyle: "normal",
+                fontWeight: 700,
+                fontSize: "12px",
+                lineHeight: "22px",
+                letterSpacing: "-0.02em",
+                color: "#EF4444",
+                background: "transparent",
+                whiteSpace: "nowrap",
+              }}
+              className="hover:opacity-80"
+            >
+              Cancel Slip
+            </Button>
+            
+            {/* Warning, Checkbox, and Submit button on right */}
+            {isAccordionComplete() && (
+              <div className="flex items-center gap-3">
+                {/* Popover (checkbox with warning) */}
+                <div className="flex items-center gap-2">
+                  <TriangleAlert 
+                    className="h-6 w-6 flex-shrink-0" 
+                    style={{ color: "#fbbf24" }}
                   />
-                  <span
+                  <label
+                    htmlFor="confirm-details-footer"
+                    className="text-sm cursor-pointer whitespace-nowrap"
                     style={{
-                      height: "22px",
-                      display: "flex",
-                      alignItems: "center",
-                      flex: "none",
-                      order: 1,
-                      flexGrow: 0,
+                      fontFamily: "Arial",
+                      fontStyle: "normal",
+                      fontWeight: 400,
+                      fontSize: "14px",
+                      lineHeight: "20px",
+                      color: "#000000",
                     }}
                   >
-                    Preview
-                  </span>
-                </Button>
-              ) : (
-                <div style={{ width: "111px" }}></div>
-              )}
-            </div>
-            
-            {/* Cancel and Submit buttons on right */}
-            <div className="flex items-center gap-3">
-              <Button
-                onClick={onShowCancelModal}
-                variant="outline"
-                style={{
-                  boxSizing: "border-box",
-                  display: "flex",
-                  flexDirection: "row",
-                  justifyContent: "center",
-                  alignItems: "center",
-                  padding: "12px 16px",
-                  gap: "10px",
-                  minWidth: "111px",
-                  height: "27px",
-                  border: "2px solid #9BA5B7",
-                  borderRadius: "6px",
-                  fontFamily: "Verdana",
-                  fontStyle: "normal",
-                  fontWeight: 700,
-                  fontSize: "12px",
-                  lineHeight: "22px",
-                  letterSpacing: "-0.02em",
-                  color: "#9BA5B7",
-                  background: "transparent",
-                  whiteSpace: "nowrap",
-                }}
-                className="hover:opacity-80"
-              >
-                Cancel
-              </Button>
-              {/* Submit Case button with tooltip - Show if accordion is complete */}
-              {isAccordionComplete() ? (
-              <div className="relative">
-                <Button
-                  onClick={(e) => {
-                    e.preventDefault()
-                    if (!confirmDetailsChecked) {
-                      onShowSubmitPopoverChange(true)
-                    } else {
+                    By clicking this box you acknowledge all information is correct.
+                  </label>
+                  <Checkbox
+                    id="confirm-details-footer"
+                    checked={confirmDetailsChecked}
+                    onCheckedChange={(checked) => {
+                      onConfirmDetailsChange(checked === true)
+                      // Hide popover when checkbox is checked
+                      if (checked === true) {
+                        onShowSubmitPopoverChange(false)
+                      }
+                    }}
+                    className="flex-shrink-0"
+                    style={{
+                      borderColor: "#1162a8",
+                      backgroundColor: confirmDetailsChecked ? "#1162a8" : "transparent",
+                    }}
+                  />
+                </div>
+                
+                {/* Submit Case button - Only show when checkbox is checked */}
+                {confirmDetailsChecked && (
+                  <Button
+                    onClick={(e) => {
+                      e.preventDefault()
                       onShowSubmitPopoverChange(false)
                       onSubmit()
-                    }
-                  }}
-                  disabled={isSubmitting}
-                  style={{
-                    display: "flex",
-                    flexDirection: "row",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    padding: "12px 16px",
-                    gap: "10px",
-                    minWidth: "111px",
-                    height: "27px",
-                    background: isSubmitting ? "#9BA5B7" : "#1162A8",
-                    borderRadius: "6px",
-                    border: "none",
-                    fontFamily: "Verdana",
-                    fontStyle: "normal",
-                    fontWeight: 700,
-                    fontSize: "12px",
-                    lineHeight: "22px",
-                    letterSpacing: "-0.02em",
-                    color: "#FFFFFF",
-                    opacity: isSubmitting ? 0.5 : 1,
-                    cursor: isSubmitting ? "not-allowed" : "pointer",
-                    whiteSpace: "nowrap",
-                  }}
-                  className="hover:opacity-90 disabled:opacity-50"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 
-                        style={{
-                          width: "24px",
-                          height: "24px",
-                          flex: "none",
-                          order: 0,
-                          flexGrow: 0,
-                        }}
-                        className="animate-spin" 
-                      />
+                    }}
+                    disabled={isSubmitting}
+                    style={{
+                      display: "flex",
+                      flexDirection: "row",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      padding: "12px 16px",
+                      gap: "10px",
+                      minWidth: "111px",
+                      height: "27px",
+                      background: isSubmitting ? "#9BA5B7" : "#1162A8",
+                      borderRadius: "6px",
+                      border: "none",
+                      fontFamily: "Verdana",
+                      fontStyle: "normal",
+                      fontWeight: 700,
+                      fontSize: "12px",
+                      lineHeight: "22px",
+                      letterSpacing: "-0.02em",
+                      color: "#FFFFFF",
+                      opacity: isSubmitting ? 0.5 : 1,
+                      cursor: isSubmitting ? "not-allowed" : "pointer",
+                      whiteSpace: "nowrap",
+                    }}
+                    className="hover:opacity-90 disabled:opacity-50"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 
+                          style={{
+                            width: "24px",
+                            height: "24px",
+                            flex: "none",
+                            order: 0,
+                            flexGrow: 0,
+                          }}
+                          className="animate-spin" 
+                        />
+                        <span
+                          style={{
+                            flex: "none",
+                            order: 1,
+                            flexGrow: 0,
+                          }}
+                        >
+                          Submitting...
+                        </span>
+                      </>
+                    ) : (
                       <span
                         style={{
+                          height: "22px",
+                          display: "flex",
+                          alignItems: "center",
                           flex: "none",
                           order: 1,
                           flexGrow: 0,
                         }}
                       >
-                        Submitting...
+                        Submit Case
                       </span>
-                    </>
-                  ) : (
-                    <span
-                      style={{
-                        height: "22px",
-                        display: "flex",
-                        alignItems: "center",
-                        flex: "none",
-                        order: 1,
-                        flexGrow: 0,
-                      }}
-                    >
-                      Submit Case
-                    </span>
-                  )}
-                </Button>
-                
-                {/* Tooltip - shown when submit is clicked, stays visible until submit is clicked again */}
-                {showSubmitPopover && (
-                  <div className="absolute bottom-full right-0 mb-2 z-50">
-                    <div className={`relative rounded-lg px-4 py-3 shadow-lg ${
-                      confirmDetailsChecked 
-                        ? "bg-orange-100 border border-orange-200" 
-                        : "bg-white border border-gray-200"
-                    }`}>
-                      <div className={`absolute -bottom-2 right-6 w-4 h-4 transform rotate-45 ${
-                        confirmDetailsChecked 
-                          ? "bg-orange-100 border-r border-b border-orange-200" 
-                          : "bg-white border-r border-b border-gray-200"
-                      }`}></div>
-                      <div className="flex items-center gap-3 whitespace-nowrap">
-                        <label
-                          htmlFor="confirm-details-tooltip"
-                          className={`text-sm cursor-pointer whitespace-nowrap flex items-center gap-2 ${
-                            confirmDetailsChecked ? "text-orange-800" : "text-gray-700"
-                          }`}
-                        >
-                          <TriangleAlert 
-                            className="h-6 w-6 flex-shrink-0" 
-                            style={{ color: "#fbbf24" }}
-                          />
-                          By clicking this box you acknowledge all information is correct.
-                        </label>
-                        <Checkbox
-                          id="confirm-details-tooltip"
-                          checked={confirmDetailsChecked}
-                          onCheckedChange={(checked) => {
-                            onConfirmDetailsChange(checked === true)
-                          }}
-                          className="flex-shrink-0"
-                          style={{
-                            borderColor: "#1162a8",
-                            backgroundColor: confirmDetailsChecked ? "#1162a8" : "transparent",
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </div>
+                    )}
+                  </Button>
                 )}
               </div>
-              ) : null}
-            </div>
+            )}
           </div>
         )}
       </div>

@@ -32,7 +32,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
-import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogOverlay, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { clearSlipCreationStorage } from "@/utils/slip-creation-storage"
 import { DynamicProductFields } from "@/components/case-design-center/dynamic-product-fields"
 import { ImplantPartsPopover } from "@/components/implant-parts-popover"
@@ -321,6 +321,11 @@ export default function CaseDesignCenterPage() {
     arch: 'maxillary' | 'mandibular' | null
     toothNumber: number | null
   }>({ arch: null, toothNumber: null })
+
+  // Arch selection popover state for removable restoration + complete denture
+  const [showArchSelectionPopover, setShowArchSelectionPopover] = useState<boolean>(false)
+  const [pendingProductForArchSelection, setPendingProductForArchSelection] = useState<Product | null>(null)
+  const [archSelectionPopoverAnchor, setArchSelectionPopoverAnchor] = useState<{ x: number; y: number } | null>(null)
 
   // Form states for MAXILLARY
   const [maxillaryMaterial, setMaxillaryMaterial] = useState<string>("")
@@ -1108,8 +1113,7 @@ export default function CaseDesignCenterPage() {
     const trimmed = String(value).trim()
     return trimmed !== "" && 
            trimmed.toLowerCase() !== "not specified" && 
-           trimmed.toLowerCase() !== "select impression" &&
-           trimmed.toLowerCase() !== "finish"
+           trimmed.toLowerCase() !== "select impression"
   }
 
   // Helper to check if tooth shade is filled (for showing advance fields)
@@ -1368,8 +1372,7 @@ export default function CaseDesignCenterPage() {
       const trimmed = String(value).trim()
       return trimmed !== "" && 
              trimmed.toLowerCase() !== "not specified" && 
-             trimmed.toLowerCase() !== "select impression" &&
-             trimmed.toLowerCase() !== "finish"
+             trimmed.toLowerCase() !== "select impression"
     }
 
     switch (fieldName) {
@@ -1481,6 +1484,9 @@ export default function CaseDesignCenterPage() {
   // Modal states
   const [showCancelModal, setShowCancelModal] = useState<boolean>(false)
   const [showPreviewModal, setShowPreviewModal] = useState<boolean>(false)
+  const [showRefreshWarningModal, setShowRefreshWarningModal] = useState<boolean>(false)
+  const [pendingNavigation, setPendingNavigation] = useState<boolean>(false)
+  const allowNavigationRef = useRef<boolean>(false)
   
   // Saved products state - array of product configurations
   const [savedProducts, setSavedProducts] = useState<SavedProduct[]>([])
@@ -1726,7 +1732,30 @@ export default function CaseDesignCenterPage() {
       }
     }
 
-    // Fetch categories
+    // Load cached categories and subcategories from localStorage first
+    const cachedCategories = localStorage.getItem("cachedAllCategories")
+    const cachedSubcategories = localStorage.getItem("cachedSubcategoriesByCategory")
+    
+    // Restore from caseDesignCenterState if available (more complete)
+    const savedState = localStorage.getItem("caseDesignCenterState")
+    if (savedState) {
+      try {
+        const state = JSON.parse(savedState)
+        if (state.allCategories && Array.isArray(state.allCategories) && state.allCategories.length > 0) {
+          localStorage.setItem("cachedAllCategories", JSON.stringify(state.allCategories))
+        }
+        if (state.subcategoriesByCategory && Array.isArray(state.subcategoriesByCategory) && state.subcategoriesByCategory.length > 0) {
+          localStorage.setItem("cachedSubcategoriesByCategory", JSON.stringify(state.subcategoriesByCategory))
+        }
+        if (state.products && Array.isArray(state.products) && state.products.length > 0) {
+          setProducts(state.products)
+        }
+      } catch (error) {
+        console.error("Error loading cached data from state:", error)
+      }
+    }
+    
+    // Fetch categories (will use cache if available in context, otherwise fetch fresh)
     // For office_admin, use selectedLab.id; for others, use customerId
     const customerIdNum = getCustomerIdForApi()
     fetchAllCategories("en", customerIdNum)
@@ -1934,6 +1963,11 @@ export default function CaseDesignCenterPage() {
         selectedSubcategoryId,
         showSubcategories,
         showProducts,
+        // Categories and subcategories data
+        allCategories: allCategories || [],
+        subcategoriesByCategory: subcategoriesByCategory || [],
+        // Products data
+        products: products || [],
         // Product selection
         selectedProduct: selectedProduct ? {
           id: selectedProduct.id,
@@ -1980,6 +2014,9 @@ export default function CaseDesignCenterPage() {
             selectedSubcategoryId,
             showSubcategories,
             showProducts,
+            allCategories: allCategories || [],
+            subcategoriesByCategory: subcategoriesByCategory || [],
+            products: products || [],
             selectedProduct: selectedProduct ? { id: selectedProduct.id, name: selectedProduct.name } : null,
             openAccordion
           }
@@ -1999,7 +2036,20 @@ export default function CaseDesignCenterPage() {
       if (savedState) {
         const state = JSON.parse(savedState)
         
-        // Restore category and subcategory
+        // Restore categories and subcategories data first (before restoring selections)
+        if (state.allCategories && Array.isArray(state.allCategories) && state.allCategories.length > 0) {
+          // Store in a way that can be used - we'll need to work with the context
+          // For now, save to a separate key that can be checked
+          localStorage.setItem("cachedAllCategories", JSON.stringify(state.allCategories))
+        }
+        if (state.subcategoriesByCategory && Array.isArray(state.subcategoriesByCategory) && state.subcategoriesByCategory.length > 0) {
+          localStorage.setItem("cachedSubcategoriesByCategory", JSON.stringify(state.subcategoriesByCategory))
+        }
+        if (state.products && Array.isArray(state.products) && state.products.length > 0) {
+          setProducts(state.products)
+        }
+        
+        // Restore category and subcategory selections
         if (state.selectedCategory) setSelectedCategory(state.selectedCategory)
         if (state.selectedCategoryId) setSelectedCategoryId(state.selectedCategoryId)
         if (state.selectedSubcategory) setSelectedSubcategory(state.selectedSubcategory)
@@ -2012,7 +2062,27 @@ export default function CaseDesignCenterPage() {
           // We'll need to find the full product from products array or fetch it
           // For now, just restore the basic info
           setSelectedProduct(state.selectedProduct as Product)
-          if (state.showProductDetails) setShowProductDetails(true)
+          // Only show product details if it was explicitly set to true in saved state
+          if (typeof state.showProductDetails === 'boolean') {
+            setShowProductDetails(state.showProductDetails)
+          }
+        } else {
+          // If no product is selected, ensure product details are not shown
+          setShowProductDetails(false)
+        }
+        
+        // If products are showing and we have a selected subcategory, ensure showSubcategories is true
+        // This ensures the "Back to Subcategories" button appears correctly
+        // Do this after restoring product selection to avoid conflicts
+        if (state.showProducts && state.selectedSubcategoryId) {
+          // Only set showSubcategories to true if it wasn't already set, or if we need it for navigation
+          if (!state.showSubcategories) {
+            setShowSubcategories(true)
+          }
+          // Ensure showProductDetails is false if we're just viewing the product list
+          if (!state.selectedProduct && state.showProductDetails) {
+            setShowProductDetails(false)
+          }
         }
         
         // Restore UI state
@@ -2044,6 +2114,9 @@ export default function CaseDesignCenterPage() {
     selectedSubcategoryId,
     showSubcategories,
     showProducts,
+    allCategories,
+    subcategoriesByCategory,
+    products,
     selectedProduct,
     showProductDetails,
     openAccordion,
@@ -2064,6 +2137,71 @@ export default function CaseDesignCenterPage() {
     
     return () => clearTimeout(timeoutId)
   }, []) // Only run once on mount
+
+  // Restore products from cache early if available
+  useEffect(() => {
+    const savedState = localStorage.getItem("caseDesignCenterState")
+    if (savedState) {
+      try {
+        const state = JSON.parse(savedState)
+        if (state.products && Array.isArray(state.products) && state.products.length > 0 && products.length === 0) {
+          setProducts(state.products)
+        }
+      } catch (error) {
+        console.error("Error restoring products from cache:", error)
+      }
+    }
+  }, []) // Run once on mount
+
+  // Check if there's unsaved work
+  const hasUnsavedWork = useMemo(() => {
+    return (
+      savedProducts.length > 0 ||
+      selectedProduct !== null ||
+      selectedCategoryId !== null ||
+      selectedSubcategoryId !== null ||
+      (advanceFieldValues && Object.keys(advanceFieldValues).length > 0) ||
+      (selectedImpressions && Object.keys(selectedImpressions).length > 0)
+    )
+  }, [savedProducts.length, selectedProduct, selectedCategoryId, selectedSubcategoryId, advanceFieldValues, selectedImpressions])
+
+  // Handle page refresh/navigation warning
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedWork && !allowNavigationRef.current) {
+        // Show browser's default confirmation
+        e.preventDefault()
+        e.returnValue = '' // Required for Chrome
+        return '' // Required for Safari
+      }
+    }
+
+    // Add event listener
+    window.addEventListener('beforeunload', handleBeforeUnload)
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [hasUnsavedWork])
+
+  // Handle refresh button click (F5 or Ctrl+R / Cmd+R) - show custom modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Detect F5 or Ctrl+R / Cmd+R
+      if (e.key === 'F5' || (e.key === 'r' && (e.ctrlKey || e.metaKey))) {
+        if (hasUnsavedWork && !allowNavigationRef.current) {
+          e.preventDefault()
+          setShowRefreshWarningModal(true)
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [hasUnsavedWork])
 
   // Sync products from context when labProducts changes
   useEffect(() => {
@@ -2329,7 +2467,33 @@ export default function CaseDesignCenterPage() {
     }
   }
 
-  const handleProductSelect = async (product: Product) => {
+  const handleProductSelect = async (product: Product, event?: React.MouseEvent<HTMLDivElement>) => {
+    // Check if category is "removable restoration" and subcategory is "complete denture"
+    const isRemovableRestoration = selectedCategory?.toLowerCase().includes("removable") || false
+    const isCompleteDenture = selectedSubcategory?.toLowerCase().includes("complete denture") || 
+                              selectedSubcategory?.toLowerCase().includes("complete dentures") || false
+
+    // If conditions are met, show popover instead of directly selecting
+    if (isRemovableRestoration && isCompleteDenture) {
+      setPendingProductForArchSelection(product)
+      // Get the position of the clicked element for popover positioning
+      if (event?.currentTarget) {
+        const rect = event.currentTarget.getBoundingClientRect()
+        setArchSelectionPopoverAnchor({
+          x: rect.left + rect.width / 2,
+          y: rect.bottom + 10
+        })
+      }
+      setShowArchSelectionPopover(true)
+      return
+    }
+
+    // Otherwise, proceed with normal product selection
+    await proceedWithProductSelection(product)
+  }
+
+  // Separate function to proceed with product selection after arch is chosen
+  const proceedWithProductSelection = async (product: Product, archSelection?: "maxillary" | "mandibular" | "both") => {
     setSelectedProduct(product)
     // Don't show product details/charts immediately - wait for user to choose upper/lower
     setShowProductDetails(true) // Keep this true for other UI elements, but charts will be controlled by showMaxillaryChart/showMandibularChart
@@ -2344,6 +2508,22 @@ export default function CaseDesignCenterPage() {
     setShowMandibularChart(false)
     setSelectedProductForMaxillary(null)
     setSelectedProductForMandibular(null)
+
+    // If arch selection was provided (from popover), set the appropriate charts
+    if (archSelection === "maxillary") {
+      setShowMaxillaryChart(true)
+      setSelectedProductForMaxillary(product)
+      setSelectedArchForProduct("maxillary")
+    } else if (archSelection === "mandibular") {
+      setShowMandibularChart(true)
+      setSelectedProductForMandibular(product)
+      setSelectedArchForProduct("mandibular")
+    } else if (archSelection === "both") {
+      setShowMaxillaryChart(true)
+      setShowMandibularChart(true)
+      setSelectedProductForMaxillary(product)
+      setSelectedProductForMandibular(product)
+    }
 
     // Reset missing teeth card clicked state when selecting a new product
     if (isFixedRestoration) {
@@ -2422,8 +2602,11 @@ export default function CaseDesignCenterPage() {
           }
         }
         
-        // Automatically show both maxillary and mandibular tooth selection charts
-        showChartsAutomatically(product)
+        // Only automatically show charts if arch selection wasn't already set from popover
+        if (!archSelection) {
+          // Automatically show both maxillary and mandibular tooth selection charts
+          showChartsAutomatically(product)
+        }
       } else {
         toast({
           title: "Warning",
@@ -2441,6 +2624,16 @@ export default function CaseDesignCenterPage() {
     } finally {
       setIsLoadingProductDetails(false)
     }
+  }
+
+  // Handler for arch selection from popover
+  const handleArchSelection = async (arch: "maxillary" | "mandibular" | "both") => {
+    if (!pendingProductForArchSelection) return
+    
+    setShowArchSelectionPopover(false)
+    await proceedWithProductSelection(pendingProductForArchSelection, arch)
+    setPendingProductForArchSelection(null)
+    setArchSelectionPopoverAnchor(null)
   }
 
   // Handler for when a missing teeth card is clicked (for fixed restoration flow)
@@ -5788,11 +5981,12 @@ export default function CaseDesignCenterPage() {
                   <div className="flex gap-4 justify-center flex-wrap">
                     {productSearchResults.map((product: Product) => {
                       const isSelected = selectedProduct?.id === product.id
+                      const isPending = pendingProductForArchSelection?.id === product.id
                       return (
                         <div
                           key={product.id}
-                          onClick={() => handleProductSelect(product)}
-                          className={`bg-white border-2 ${isSelected ? "border-[#1162a8] shadow-lg" : "border-[#b4b0b0] hover:border-[#1162A8]"
+                          onClick={(e) => handleProductSelect(product, e)}
+                          className={`bg-white border-2 ${isSelected || isPending ? "border-[#1162a8] shadow-lg" : "border-[#b4b0b0] hover:border-[#1162A8]"
                             } rounded-lg h-[210px] w-[155px] p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:shadow-md transition-all`}
                         >
                           <div className="w-[117px] h-[117px] rounded overflow-hidden">
@@ -5831,34 +6025,49 @@ export default function CaseDesignCenterPage() {
             {/* Product Category Cards - Show when no subcategories, products, or product details are shown, and no search query */}
             {!showSubcategories && !showProducts && !showProductDetails && !searchQuery.trim() && (
               <div className="w-full flex flex-col gap-4 mb-6">
-                {/* Category Cards */}
-                <div className="flex gap-4 justify-center">
-                  {mainCategories.map((category: ProductCategoryApi) => {
-                    const isSelected = selectedCategory === category.name
-                    return (
-                      <div
-                        key={category.id}
-                        onClick={() => handleCategorySelect(category)}
-                        className={`bg-white border-2 ${isSelected ? "border-[#1162a8] shadow-lg" : "border-[#b4b0b0] hover:border-[#1162A8]"
-                          } rounded-lg h-[220px] w-[200px] p-4 flex flex-col items-center justify-center gap-4 cursor-pointer hover:shadow-md transition-all`}
-                      >
-                        <div className="w-[150px] h-[150px] rounded overflow-hidden">
-                          <img
-                            src={category.image_url || getCategoryImage(category.name)}
-                            alt={category.name}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              e.currentTarget.src = getCategoryImage(category.name)
-                            }}
-                          />
+                {allCategoriesLoading ? (
+                  <div className="flex items-center justify-center py-20">
+                    <div className="flex flex-col items-center gap-3">
+                      <Loader2 className="h-8 w-8 animate-spin text-[#1162a8]" />
+                      <div className="text-gray-500 text-sm">Loading categories...</div>
+                    </div>
+                  </div>
+                ) : mainCategories.length === 0 ? (
+                  <div className="flex items-center justify-center py-20">
+                    <div className="text-center">
+                      <p className="text-gray-600">No categories available.</p>
+                    </div>
+                  </div>
+                ) : (
+                  /* Category Cards */
+                  <div className="flex gap-4 justify-center">
+                    {mainCategories.map((category: ProductCategoryApi) => {
+                      const isSelected = selectedCategory === category.name
+                      return (
+                        <div
+                          key={category.id}
+                          onClick={() => handleCategorySelect(category)}
+                          className={`bg-white border-2 ${isSelected ? "border-[#1162a8] shadow-lg" : "border-[#b4b0b0] hover:border-[#1162A8]"
+                            } rounded-lg h-[220px] w-[200px] p-4 flex flex-col items-center justify-center gap-4 cursor-pointer hover:shadow-md transition-all`}
+                        >
+                          <div className="w-[150px] h-[150px] rounded overflow-hidden">
+                            <img
+                              src={category.image_url || getCategoryImage(category.name)}
+                              alt={category.name}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.currentTarget.src = getCategoryImage(category.name)
+                              }}
+                            />
+                          </div>
+                          <p className="text-base text-black text-center">
+                            {category.name}
+                          </p>
                         </div>
-                        <p className="text-base text-black text-center">
-                          {category.name}
-                        </p>
-                      </div>
-                    )
-                  })}
-                </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             )}
 
@@ -6003,11 +6212,12 @@ export default function CaseDesignCenterPage() {
                     >
                       {filteredProducts.map((product: Product) => {
                         const isSelected = selectedProduct?.id === product.id
+                        const isPending = pendingProductForArchSelection?.id === product.id
                         return (
                           <div
                             key={product.id}
-                            onClick={() => handleProductSelect(product)}
-                            className={`bg-white border-2 ${isSelected ? "border-[#1162a8] shadow-lg" : "border-[#b4b0b0] hover:border-[#1162A8]"
+                            onClick={(e) => handleProductSelect(product, e)}
+                            className={`bg-white border-2 ${isSelected || isPending ? "border-[#1162a8] shadow-lg" : "border-[#b4b0b0] hover:border-[#1162A8]"
                               } rounded-lg h-[250px] w-[200px] p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:shadow-md transition-all flex-shrink-0`}
                           >
                             <div className="w-[150px] h-[150px] rounded overflow-hidden">
@@ -6128,8 +6338,8 @@ export default function CaseDesignCenterPage() {
                     )
                   }
                   
-                  // Show platform cards when platform step is active
-                  if (currentStep === 'platform') {
+                  // Show platform cards when platform step is active OR when form is active and user wants to change platform
+                  if (currentStep === 'platform' || (currentStep === 'form' && selectedBrandId)) {
                     // Use mapped platforms if available, otherwise empty array (component will use static platforms)
                     const platformsToShow = mappedPlatforms.length > 0 ? mappedPlatforms : []
                     
@@ -6143,7 +6353,7 @@ export default function CaseDesignCenterPage() {
                               setSelectedImplantPlatform(prev => ({ ...prev, [fieldKey]: platform.id }))
                               // Store full platform data for display
                               setSelectedImplantPlatformData(prev => ({ ...prev, [fieldKey]: { id: platform.id, name: platform.name } }))
-                              // After platform selection, go to form
+                              // After platform selection, go to form and keep form visible
                               setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'form' as const }))
                               setShowImplantCards(false)
                             }}
@@ -7173,14 +7383,16 @@ export default function CaseDesignCenterPage() {
                                                             }}
                                                             onPlatformFieldClick={() => {
                                                               // Show platform cards at the top when platform field is clicked
+                                                              // Keep the form visible by not changing the step
                                                               if (selectedBrand) {
                                                                 setShowImplantCards(true)
                                                                 setActiveImplantFieldKey(fieldKey)
-                                                                setImplantSelectionStep(prev => {
-                                                                  const newState = { ...prev }
-                                                                  newState[fieldKey] = 'platform'
-                                                                  return newState
-                                                                })
+                                                                // Don't change step to 'platform' - keep it as 'form' so form stays visible
+                                                                // setImplantSelectionStep(prev => {
+                                                                //   const newState = { ...prev }
+                                                                //   newState[fieldKey] = 'platform'
+                                                                //   return newState
+                                                                // })
                                                               }
                                                             }}
                                                             teethNumbers={maxillaryTeeth}
@@ -10508,14 +10720,16 @@ export default function CaseDesignCenterPage() {
                                                             }}
                                                             onPlatformFieldClick={() => {
                                                               // Show platform cards at the top when platform field is clicked
+                                                              // Keep the form visible by not changing the step
                                                               if (selectedBrand) {
                                                                 setShowImplantCards(true)
                                                                 setActiveImplantFieldKey(fieldKey)
-                                                                setImplantSelectionStep(prev => {
-                                                                  const newState = { ...prev }
-                                                                  newState[fieldKey] = 'platform'
-                                                                  return newState
-                                                                })
+                                                                // Don't change step to 'platform' - keep it as 'form' so form stays visible
+                                                                // setImplantSelectionStep(prev => {
+                                                                //   const newState = { ...prev }
+                                                                //   newState[fieldKey] = 'platform'
+                                                                //   return newState
+                                                                // })
                                                               }
                                                             }}
                                                             teethNumbers={mandibularTeeth}
@@ -12790,6 +13004,44 @@ export default function CaseDesignCenterPage() {
         }}
       />
 
+      {/* Refresh Warning Modal */}
+      {showRefreshWarningModal && (
+        <Dialog open={showRefreshWarningModal} onOpenChange={(open) => {
+          if (!open) setShowRefreshWarningModal(false)
+        }}>
+          <DialogOverlay className="fixed inset-0 z-[100000] bg-black/50 backdrop-blur-sm" />
+          <DialogContent className="sm:max-w-[425px] p-6 rounded-lg shadow-lg" style={{ zIndex: 100001 }}>
+            <DialogHeader className="text-center">
+              <DialogTitle className="text-2xl font-bold text-gray-900">Refresh Page?</DialogTitle>
+              <DialogDescription className="text-black-500 mt-2">
+                Are you sure you want to refresh the page? All unsaved changes will be lost. Your work is saved in the browser, but refreshing will reset your current session.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-center gap-4 mt-6">
+              <Button 
+                variant="outline" 
+                onClick={() => setShowRefreshWarningModal(false)} 
+                className="px-6 py-2 rounded-lg bg-transparent"
+              >
+                Stay on Page
+              </Button>
+              <Button 
+                onClick={() => {
+                  // Allow navigation and refresh
+                  allowNavigationRef.current = true
+                  setShowRefreshWarningModal(false)
+                  // Trigger page refresh
+                  window.location.reload()
+                }} 
+                className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg"
+              >
+                Yes, Refresh
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
       {/* Print Preview Modal */}
       <PrintPreviewModal
         isOpen={showPreviewModal}
@@ -12886,6 +13138,52 @@ export default function CaseDesignCenterPage() {
           productId={selectedProduct?.id}
           arch={currentShadeArch}
         />
+      )}
+
+      {/* Arch Selection Popover for Removable Restoration + Complete Denture */}
+      {showArchSelectionPopover && archSelectionPopoverAnchor && (
+        <>
+          {/* Backdrop to close popover on outside click */}
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => {
+              setShowArchSelectionPopover(false)
+              setPendingProductForArchSelection(null)
+              setArchSelectionPopoverAnchor(null)
+            }}
+          />
+          {/* Popover Content */}
+          <div
+            className="fixed z-50 bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden"
+            style={{
+              left: `${archSelectionPopoverAnchor.x}px`,
+              top: `${archSelectionPopoverAnchor.y}px`,
+              transform: 'translateX(-50%)',
+              minWidth: '180px'
+            }}
+          >
+            <div className="flex flex-col">
+              <button
+                onClick={() => handleArchSelection("maxillary")}
+                className="px-4 py-3 text-sm text-black hover:bg-[rgba(17,98,168,0.1)] transition-colors text-center border-b border-gray-200"
+              >
+                Upper arch only
+              </button>
+              <button
+                onClick={() => handleArchSelection("both")}
+                className="px-4 py-3 text-sm text-black hover:bg-[rgba(17,98,168,0.1)] transition-colors text-center border-b border-gray-200"
+              >
+                Both arches
+              </button>
+              <button
+                onClick={() => handleArchSelection("mandibular")}
+                className="px-4 py-3 text-sm text-black hover:bg-[rgba(17,98,168,0.1)] transition-colors text-center"
+              >
+                Lower arch only
+              </button>
+            </div>
+          </div>
+        </>
       )}
 
     </div>

@@ -1,6 +1,6 @@
 "use client"
 
-import React from "react"
+import React, { useState, useEffect } from "react"
 import {
   Select,
   SelectContent,
@@ -8,6 +8,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { getShadeGradientColors } from "@/utils/teeth-shade-utils"
@@ -43,6 +49,149 @@ interface DynamicProductFieldsProps {
   mandibularTeeth?: number[]
 }
 
+// Stage Selection Modal Component
+interface StageSelectionModalProps {
+  stages: any[]
+  selectedStage?: string
+  onSelect: (stageName: string, stageId?: number) => void
+  onClose: () => void
+}
+
+function StageSelectionModal({ stages, selectedStage, onSelect, onClose }: StageSelectionModalProps) {
+  // Stage names mapping (based on the image description)
+  const stageNames = [
+    "Custom tray",
+    "Bite Block",
+    "Bite block with metal / mesh",
+    "Duplicate denture",
+    "Try in with teeth",
+    "Finish"
+  ]
+
+  return (
+    <Dialog open={true} onOpenChange={onClose}>
+      <DialogContent className="w-screen max-w-[100vw] max-h-[100vh] sm:max-w-[100vw] overflow-hidden flex flex-col p-0">
+        <DialogHeader className="p-4">
+          <DialogTitle className="text-xl font-semibold" style={{
+            fontFamily: 'Verdana',
+            fontWeight: 700,
+            fontSize: '30px',
+            letterSpacing: '-0.02em'
+          }}>
+            Select stage
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="px-6 py-4 overflow-y-auto max-h-[70vh]">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            {stages.slice(0, 6).map((stage, index) => {
+              const stageName = stage.name || stageNames[index] || `Stage ${index + 1}`
+              const isSelected = selectedStage === stageName || selectedStage === stage.id?.toString()
+              const stageId = stage.id
+
+              return (
+                <div
+                  key={stage.id || stage.name || index}
+                  onClick={() => onSelect(stageName, stageId)}
+                  className={cn(
+                    "relative border-2 rounded-xl overflow-hidden transition-all duration-200 bg-white flex flex-col cursor-pointer",
+                    isSelected
+                      ? "border-blue-500 shadow-xl"
+                      : "border-gray-300 hover:border-blue-500 hover:shadow-lg"
+                  )}
+                  style={{
+                    minHeight: '280px',
+                    padding: '8.19608px 26.2275px',
+                    gap: '10px'
+                  }}
+                >
+                  {/* Stage image */}
+                  <div
+                    className="w-full bg-gray-50 overflow-hidden relative flex items-center justify-center"
+                    style={{
+                      height: '201.62px',
+                      borderRadius: '8.19608px',
+                      border: '1px solid #E0E0E0'
+                    }}
+                  >
+                    {stage.image_url ? (
+                      <img
+                        src={stage.image_url}
+                        alt={stageName}
+                        className="max-w-full max-h-full object-contain object-center"
+                        style={{
+                          borderRadius: '8.19608px'
+                        }}
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement
+                          target.style.display = "none"
+                          const parent = target.parentElement
+                          if (parent && !parent.querySelector('.fallback-letter')) {
+                            const fallbackDiv = document.createElement('div')
+                            fallbackDiv.className = 'fallback-letter text-gray-400 text-2xl font-bold flex items-center justify-center absolute inset-0'
+                            fallbackDiv.textContent = stageName.charAt(0).toUpperCase()
+                            parent.appendChild(fallbackDiv)
+                          }
+                        }}
+                      />
+                    ) : (
+                      <div className="text-gray-400 text-2xl font-bold flex items-center justify-center absolute inset-0">
+                        {stageName.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Stage label */}
+                  <div
+                    className="flex items-center justify-center text-center"
+                    style={{
+                      fontFamily: 'Verdana',
+                      fontStyle: 'normal',
+                      fontWeight: 400,
+                      fontSize: '22.949px',
+                      lineHeight: '25px',
+                      letterSpacing: '-0.02em',
+                      color: '#000000',
+                      minHeight: stageName.length > 20 ? '50px' : '25px',
+                      paddingTop: '10px'
+                    }}
+                  >
+                    {stageName}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {stages.length === 0 && (
+            <div className="text-center py-12 text-gray-500">
+              No stages available
+            </div>
+          )}
+        </div>
+
+        {/* Footer with action button */}
+        <div className="border-t p-4 flex justify-end gap-2">
+          <Button 
+            variant="outline" 
+            onClick={onClose}
+            style={{
+              border: '2px solid #9BA5B7',
+              borderRadius: '6px',
+              fontFamily: 'Verdana',
+              fontWeight: 700,
+              fontSize: '12px',
+              color: '#9BA5B7'
+            }}
+          >
+            Cancel
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export function DynamicProductFields({
   productDetails,
   savedProduct,
@@ -59,11 +208,14 @@ export function DynamicProductFields({
   maxillaryTeeth = [],
   mandibularTeeth = [],
 }: DynamicProductFieldsProps) {
+  // State for stage selection modal
+  const [isStageModalOpen, setIsStageModalOpen] = useState(false)
+
   // Helper to check if a value is actually set (not empty, not "Not specified", not undefined, not null)
   const hasValue = (value: string | undefined | null): boolean => {
     if (!value) return false
     const trimmed = String(value).trim()
-    return trimmed !== "" && trimmed.toLowerCase() !== "not specified" && trimmed.toLowerCase() !== "finish"
+    return trimmed !== "" && trimmed.toLowerCase() !== "not specified"
   }
 
   // Helper to check if retention value is valid (not empty, not placeholder)
@@ -197,6 +349,31 @@ export function DynamicProductFields({
 
     return true
   }
+
+  // Auto-open stage modal when stage field becomes visible and value is "Not specified"
+  useEffect(() => {
+    const stageConfig = fieldConfigs.find(f => f.key === "stage")
+    if (!stageConfig) return
+
+    const stageValue = getFieldValueByKey("stage")
+    const stages = productDetails?.stages
+    
+    // Check if stage field should be visible
+    const isVisible = isFieldVisibleProgressive(stageConfig)
+    
+    // Check if value is "Not specified" or empty
+    const isNotSpecified = !hasValue(stageValue)
+    
+    // Auto-open modal if field is visible and value is not specified
+    if (isVisible && isNotSpecified && stages && Array.isArray(stages) && stages.length > 0) {
+      // Small delay to ensure the component is ready
+      const timer = setTimeout(() => {
+        setIsStageModalOpen(true)
+      }, 100)
+      
+      return () => clearTimeout(timer)
+    }
+  }, [productDetails, savedProduct, arch, fieldConfigs])
 
   // Helper to check if all required fields are filled (for showing advance fields)
   const areAllRequiredFieldsFilled = (): boolean => {
@@ -474,6 +651,88 @@ export function DynamicProductFields({
     }
 
     if (config.fieldType === "select") {
+      // Special handling for stage field - use modal instead of dropdown
+      if (config.key === "stage") {
+        const displayValue = value || "Not specified"
+        const borderColor = getFieldBorderColor(config, value)
+        const labelColor = getFieldLabelColor(config, value)
+        const fieldWidth = getResponsiveFieldWidth(config, displayValue, options)
+        const stages = productDetails?.stages || []
+
+        return (
+          <>
+            <div 
+              className="relative" 
+              style={{ 
+                minHeight: '43px',
+                ...fieldWidth
+              }}
+            >
+              <div
+                className="flex items-center cursor-pointer"
+                onClick={() => setIsStageModalOpen(true)}
+                style={{
+                  padding: '12px 15px 5px 15px',
+                  gap: '5px',
+                  width: '100%',
+                  height: '37px',
+                  position: 'relative',
+                  marginTop: '5.27px',
+                  background: '#FFFFFF',
+                  border: `0.740384px solid ${borderColor}`,
+                  borderRadius: '7.7px',
+                  boxSizing: 'border-box'
+                }}
+              >
+                <span style={{
+                  fontFamily: 'Verdana',
+                  fontStyle: 'normal',
+                  fontWeight: 400,
+                  fontSize: '14.4px',
+                  lineHeight: '20px',
+                  letterSpacing: '-0.02em',
+                  color: '#000000',
+                  whiteSpace: 'nowrap'
+                }}>{displayValue}</span>
+              </div>
+              <label
+                className="absolute bg-white"
+                style={{
+                  padding: '0px',
+                  height: '14px',
+                  left: '8.9px',
+                  top: '0px',
+                  fontFamily: 'Arial',
+                  fontStyle: 'normal',
+                  fontWeight: 400,
+                  fontSize: '14px',
+                  lineHeight: '14px',
+                  color: labelColor
+                }}
+              >
+                {config.label}
+                {isFieldRequired(config) && (
+                  <span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>
+                )}
+              </label>
+            </div>
+            
+            {/* Stage Selection Modal */}
+            {isStageModalOpen && (
+              <StageSelectionModal
+                stages={stages}
+                selectedStage={value}
+                onSelect={(stageName: string, stageId?: number) => {
+                  onFieldChange(config.key, stageName, stageId)
+                  setIsStageModalOpen(false)
+                }}
+                onClose={() => setIsStageModalOpen(false)}
+              />
+            )}
+          </>
+        )
+      }
+
       // Determine the selected value - prefer ID, then value, then find by name
       let selectedValue = currentId?.toString() || ""
       if (!selectedValue && value) {

@@ -298,7 +298,7 @@ export const isFieldVisible = (
     const hasValue = (value: string | undefined | null): boolean => {
       if (!value) return false
       const trimmed = String(value).trim()
-      return trimmed !== "" && trimmed.toLowerCase() !== "not specified" && trimmed.toLowerCase() !== "finish" && trimmed.toLowerCase() !== "select"
+      return trimmed !== "" && trimmed.toLowerCase() !== "not specified" && trimmed.toLowerCase() !== "select"
     }
     
     // Get tooth shade value - stage is visible only when tooth shade has a value
@@ -359,7 +359,7 @@ export const isAccordionFieldVisible = (
   const hasValue = (value: string | undefined | null): boolean => {
     if (!value) return false
     const trimmed = String(value).trim()
-    return trimmed !== "" && trimmed.toLowerCase() !== "not specified" && trimmed.toLowerCase() !== "finish"
+    return trimmed !== "" && trimmed.toLowerCase() !== "not specified"
   }
 
   switch (fieldName) {

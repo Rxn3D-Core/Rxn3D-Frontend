@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Search, Filter } from "lucide-react"
@@ -21,6 +21,7 @@ import { AddDoctorModal } from "@/components/add-doctor-modal"
 import { clearSlipCreationStorage } from "@/utils/slip-creation-storage"
 import CancelSlipCreationModal from "@/components/cancel-slip-creation-modal"
 import { useDebounce } from "@/lib/performance-utils"
+import { Dialog, DialogContent, DialogOverlay, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 
 interface Doctor {
   id: number
@@ -57,8 +58,10 @@ export default function ChooseDoctorPage() {
   const [createdBy, setCreatedBy] = useState<string>("")
   const [showAddDoctorModal, setShowAddDoctorModal] = useState(false)
   const [showCancelModal, setShowCancelModal] = useState(false)
+  const [showRefreshWarningModal, setShowRefreshWarningModal] = useState(false)
   const [sortPopoverOpen, setSortPopoverOpen] = useState(false)
   const [hasAutoSelected, setHasAutoSelected] = useState(false)
+  const allowNavigationRef = useRef<boolean>(false)
 
   // Debounce search query
   const debouncedSearchQuery = useDebounce(searchQuery, 500)
@@ -309,6 +312,49 @@ export default function ChooseDoctorPage() {
       handleDoctorSelect(doctors[0])
     }
   }, [isLoading, doctors, hasAutoSelected, handleDoctorSelect])
+
+  // Check if there's unsaved work (selected lab or doctor)
+  const hasUnsavedWork = useMemo(() => {
+    return selectedLab !== null
+  }, [selectedLab])
+
+  // Handle page refresh/navigation warning
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedWork && !allowNavigationRef.current) {
+        // Show browser's default confirmation
+        e.preventDefault()
+        e.returnValue = '' // Required for Chrome
+        return '' // Required for Safari
+      }
+    }
+
+    // Add event listener
+    window.addEventListener('beforeunload', handleBeforeUnload)
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [hasUnsavedWork])
+
+  // Handle refresh button click (F5 or Ctrl+R / Cmd+R) - show custom modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Detect F5 or Ctrl+R / Cmd+R
+      if (e.key === 'F5' || (e.key === 'r' && (e.ctrlKey || e.metaKey))) {
+        if (hasUnsavedWork && !allowNavigationRef.current) {
+          e.preventDefault()
+          setShowRefreshWarningModal(true)
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [hasUnsavedWork])
 
   const handleCancel = () => {
     setShowCancelModal(true)
@@ -574,6 +620,44 @@ export default function ChooseDoctorPage() {
             }, 100)
           }}
         />
+      )}
+
+      {/* Refresh Warning Modal */}
+      {showRefreshWarningModal && (
+        <Dialog open={showRefreshWarningModal} onOpenChange={(open) => {
+          if (!open) setShowRefreshWarningModal(false)
+        }}>
+          <DialogOverlay className="fixed inset-0 z-[100000] bg-black/50 backdrop-blur-sm" />
+          <DialogContent className="sm:max-w-[425px] p-6 rounded-lg shadow-lg" style={{ zIndex: 100001 }}>
+            <DialogHeader className="text-center">
+              <DialogTitle className="text-2xl font-bold text-gray-900">Refresh Page?</DialogTitle>
+              <DialogDescription className="text-gray-500 mt-2">
+                Are you sure you want to refresh the page? All unsaved changes will be lost. Your work is saved in the browser, but refreshing will reset your current session.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-center gap-4 mt-6">
+              <Button 
+                variant="outline" 
+                onClick={() => setShowRefreshWarningModal(false)} 
+                className="px-6 py-2 rounded-lg bg-transparent"
+              >
+                Stay on Page
+              </Button>
+              <Button 
+                onClick={() => {
+                  // Allow navigation and refresh
+                  allowNavigationRef.current = true
+                  setShowRefreshWarningModal(false)
+                  // Trigger page refresh
+                  window.location.reload()
+                }} 
+                className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg"
+              >
+                Yes, Refresh
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   )
