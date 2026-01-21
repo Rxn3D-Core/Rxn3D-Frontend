@@ -86,8 +86,12 @@ function StageSelectionModal({ stages, selectedStage, onSelect, onClose }: Stage
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
             {stages.slice(0, 6).map((stage, index) => {
               const stageName = stage.name || stageNames[index] || `Stage ${index + 1}`
-              const isSelected = selectedStage === stageName || selectedStage === stage.id?.toString()
-              const stageId = stage.id
+              // Check selection by name, id, or stage_id
+              const isSelected = selectedStage === stageName || 
+                                selectedStage === stage.id?.toString() || 
+                                selectedStage === stage.stage_id?.toString()
+              // Use id as primary, fallback to stage_id
+              const stageId = stage.id || stage.stage_id
 
               return (
                 <div
@@ -123,6 +127,7 @@ function StageSelectionModal({ stages, selectedStage, onSelect, onClose }: Stage
                           borderRadius: '8.19608px'
                         }}
                         onError={(e) => {
+                          // Hide image on error and show fallback
                           const target = e.target as HTMLImageElement
                           target.style.display = "none"
                           const parent = target.parentElement
