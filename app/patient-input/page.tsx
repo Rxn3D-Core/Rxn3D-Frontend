@@ -4,9 +4,10 @@ import { useState, useEffect, useMemo, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
+import { useClearCaseDesignCenterStateMutation } from "@/hooks/use-case-design-center-state"
 import { SlipCreationHeader } from "@/components/slip-creation-header"
 import { clearSlipCreationStorage } from "@/utils/slip-creation-storage"
-import CancelSlipCreationModal from "@/components/cancel-slip-creation-modal"
+import { SlipCreationFooter } from "@/components/slip-creation-footer"
 import { Dialog, DialogContent, DialogOverlay, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 
 interface Doctor {
@@ -28,14 +29,20 @@ export default function PatientInputPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
+  const clearCaseDesignCenterStateMutation = useClearCaseDesignCenterStateMutation()
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null)
   const [selectedLab, setSelectedLab] = useState<Lab | null>(null)
   const [createdBy, setCreatedBy] = useState<string>("")
   const [patientName, setPatientName] = useState<string>("")
   const [gender, setGender] = useState<string>("")
-  const [showCancelModal, setShowCancelModal] = useState(false)
   const [showRefreshWarningModal, setShowRefreshWarningModal] = useState(false)
   const allowNavigationRef = useRef<boolean>(false)
+
+  // Remove caseDesignCenterState from localStorage on page load/refresh using React Query
+  useEffect(() => {
+    clearCaseDesignCenterStateMutation.mutate()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Load selected doctor and lab from localStorage
   useEffect(() => {
@@ -137,9 +144,6 @@ export default function PatientInputPage() {
     }
   }, [hasUnsavedWork])
 
-  const handleCancel = () => {
-    setShowCancelModal(true)
-  }
 
   const handleContinue = () => {
     if (!patientName.trim()) {
@@ -196,87 +200,28 @@ export default function PatientInputPage() {
       </div>
 
       {/* Footer - Consistent across all pages */}
-      <div 
-        className="bg-white flex-shrink-0 sticky bottom-0 left-0 right-0 z-10"
-        style={{
-          height: "59.94px",
-          background: "#FFFFFF",
+      <SlipCreationFooter 
+        showPrevious={true}
+        onPrevious={() => {
+          // Get user role to determine previous step
+          const role = typeof window !== "undefined" ? localStorage.getItem("role") || "" : ""
+          const doctorId = searchParams.get("doctorId")
+          const labId = searchParams.get("labId")
+          
+          // If office_admin, go back to choose-lab
+          if (role === "office_admin") {
+            router.push("/choose-lab")
+          } 
+          // If doctorId exists, go back to choose-doctor
+          else if (doctorId) {
+            router.push(`/choose-doctor${labId ? `?labId=${labId}` : ""}`)
+          }
+          // Otherwise go back to choose-lab
+          else {
+            router.push("/choose-lab")
+          }
         }}
-      >
-        <div className="flex justify-end items-center gap-3 h-full px-6">
-          <Button
-            onClick={() => router.back()}
-            variant="outline"
-            style={{
-              display: "flex",
-              flexDirection: "row",
-              justifyContent: "center",
-              alignItems: "center",
-              padding: "12px 16px",
-              gap: "10px",
-              minWidth: "111px",
-              height: "27px",
-              background: "#1162A8",
-              borderRadius: "6px",
-              border: "none",
-              fontFamily: "Verdana",
-              fontStyle: "normal",
-              fontWeight: 700,
-              fontSize: "12px",
-              lineHeight: "22px",
-              letterSpacing: "-0.02em",
-              color: "#FFFFFF",
-              whiteSpace: "nowrap",
-            }}
-            className="hover:opacity-90"
-          >
-            Previous
-          </Button>
-          <Button
-            onClick={handleCancel}
-            variant="outline"
-            style={{
-              boxSizing: "border-box",
-              display: "flex",
-              flexDirection: "row",
-              justifyContent: "center",
-              alignItems: "center",
-              padding: "12px 16px",
-              gap: "10px",
-              minWidth: "111px",
-              height: "27px",
-              border: "2px solid #9BA5B7",
-              borderRadius: "6px",
-              fontFamily: "Verdana",
-              fontStyle: "normal",
-              fontWeight: 700,
-              fontSize: "12px",
-              lineHeight: "22px",
-              letterSpacing: "-0.02em",
-              color: "#9BA5B7",
-              background: "transparent",
-              whiteSpace: "nowrap",
-            }}
-            className="hover:opacity-80"
-          >
-            Cancel
-          </Button>
-        </div>
-      </div>
-
-      {/* Cancel Slip Creation Modal */}
-      {showCancelModal && (
-        <CancelSlipCreationModal
-          open={showCancelModal}
-          onCancel={() => setShowCancelModal(false)}
-          onConfirm={() => {
-            setShowCancelModal(false)
-            setTimeout(() => {
-              router.replace("/dashboard")
-            }, 100)
-          }}
-        />
-      )}
+      />
 
       {/* Refresh Warning Modal */}
       {showRefreshWarningModal && (

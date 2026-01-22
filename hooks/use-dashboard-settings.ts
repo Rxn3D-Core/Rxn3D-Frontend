@@ -3,15 +3,15 @@ import {
   type DashboardWidget,
   type DashboardSettings,
   getDefaultWidgetsForRole,
-  loadDashboardSettings,
-  saveDashboardSettings,
   getEnabledWidgets,
   isWidgetEnabled,
 } from "@/lib/dashboard-widgets"
+import { getDashboardSettings, updateDashboardSettings } from "@/lib/api-dashboard-settings"
 
 export function useDashboardSettings(role: string, userId?: number, customerId?: number | null) {
   const [settings, setSettings] = useState<DashboardSettings | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
 
   // Initialize settings on mount
   useEffect(() => {
@@ -20,29 +20,47 @@ export function useDashboardSettings(role: string, userId?: number, customerId?:
       return
     }
 
-    // Try to load from sessionStorage
-    const stored = loadDashboardSettings(role, userId, customerId)
-    
-    if (stored) {
-      setSettings(stored)
-    } else {
-      // Use defaults
-      const defaultWidgets = getDefaultWidgetsForRole(role)
-      const newSettings: DashboardSettings = {
-        role,
-        widgets: defaultWidgets,
+    // Load settings from API
+    const loadSettings = async () => {
+      try {
+        setIsLoading(true)
+        setError(null)
+        
+        const stored = await getDashboardSettings(customerId ?? undefined)
+        
+        if (stored) {
+          setSettings(stored)
+        } else {
+          // Use defaults if no settings found
+          const defaultWidgets = getDefaultWidgetsForRole(role)
+          const newSettings: DashboardSettings = {
+            role,
+            widgets: defaultWidgets,
+          }
+          setSettings(newSettings)
+        }
+      } catch (err) {
+        console.error("Error loading dashboard settings:", err)
+        setError(err instanceof Error ? err : new Error("Failed to load dashboard settings"))
+        
+        // Fallback to defaults on error
+        const defaultWidgets = getDefaultWidgetsForRole(role)
+        const newSettings: DashboardSettings = {
+          role,
+          widgets: defaultWidgets,
+        }
+        setSettings(newSettings)
+      } finally {
+        setIsLoading(false)
       }
-      setSettings(newSettings)
-      // Save defaults to sessionStorage
-      saveDashboardSettings(newSettings, userId, customerId)
     }
-    
-    setIsLoading(false)
+
+    loadSettings()
   }, [role, userId, customerId])
 
   // Update widget enabled state
   const toggleWidget = useCallback(
-    (widgetId: string, enabled: boolean) => {
+    async (widgetId: string, enabled: boolean) => {
       if (!settings) return
 
       const updatedWidgets = settings.widgets.map((widget) =>
@@ -54,15 +72,25 @@ export function useDashboardSettings(role: string, userId?: number, customerId?:
         widgets: updatedWidgets,
       }
 
+      // Optimistically update UI
       setSettings(updatedSettings)
-      saveDashboardSettings(updatedSettings, userId, customerId)
+      
+      // Save to backend
+      try {
+        await updateDashboardSettings(updatedSettings, customerId ?? undefined)
+      } catch (err) {
+        console.error("Error saving dashboard settings:", err)
+        // Revert on error
+        setSettings(settings)
+        setError(err instanceof Error ? err : new Error("Failed to save dashboard settings"))
+      }
     },
     [settings, userId, customerId]
   )
 
   // Update widget order
   const updateWidgetOrder = useCallback(
-    (widgets: DashboardWidget[]) => {
+    async (widgets: DashboardWidget[]) => {
       if (!settings) return
 
       // Update order numbers based on new array order
@@ -76,31 +104,63 @@ export function useDashboardSettings(role: string, userId?: number, customerId?:
         widgets: updatedWidgets,
       }
 
+      // Optimistically update UI
       setSettings(updatedSettings)
-      saveDashboardSettings(updatedSettings, userId, customerId)
+      
+      // Save to backend
+      try {
+        await updateDashboardSettings(updatedSettings, customerId ?? undefined)
+      } catch (err) {
+        console.error("Error saving dashboard settings:", err)
+        // Revert on error
+        setSettings(settings)
+        setError(err instanceof Error ? err : new Error("Failed to save dashboard settings"))
+      }
     },
     [settings, userId, customerId]
   )
 
   // Save settings
   const saveSettings = useCallback(
-    (newSettings: DashboardSettings) => {
+    async (newSettings: DashboardSettings) => {
+      // Optimistically update UI
       setSettings(newSettings)
-      saveDashboardSettings(newSettings, userId, customerId)
+      
+      // Save to backend
+      try {
+        const saved = await updateDashboardSettings(newSettings, customerId ?? undefined)
+        setSettings(saved)
+      } catch (err) {
+        console.error("Error saving dashboard settings:", err)
+        setError(err instanceof Error ? err : new Error("Failed to save dashboard settings"))
+        throw err
+      }
     },
     [userId, customerId]
   )
 
   // Reset to defaults
-  const resetToDefaults = useCallback(() => {
-    const defaultWidgets = getDefaultWidgetsForRole(role)
-    const defaultSettings: DashboardSettings = {
-      role,
-      widgets: defaultWidgets,
-    }
-    setSettings(defaultSettings)
-    saveDashboardSettings(defaultSettings, userId, customerId)
-  }, [role, userId, customerId])
+  const resetToDefaults = useCallback(
+    async () => {
+      const defaultWidgets = getDefaultWidgetsForRole(role)
+      const defaultSettings: DashboardSettings = {
+        role,
+        widgets: defaultWidgets,
+      }
+      
+      // Optimistically update UI
+      setSettings(defaultSettings)
+      
+      // Save to backend
+      try {
+        await updateDashboardSettings(defaultSettings, customerId ?? undefined)
+      } catch (err) {
+        console.error("Error resetting dashboard settings:", err)
+        setError(err instanceof Error ? err : new Error("Failed to reset dashboard settings"))
+      }
+    },
+    [role, userId, customerId]
+  )
 
   // Get enabled widgets in order
   const enabledWidgets = settings ? getEnabledWidgets(settings) : []
@@ -117,6 +177,7 @@ export function useDashboardSettings(role: string, userId?: number, customerId?:
   return {
     settings,
     isLoading,
+    error,
     enabledWidgets,
     toggleWidget,
     updateWidgetOrder,

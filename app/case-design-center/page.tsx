@@ -412,6 +412,40 @@ export default function CaseDesignCenterPage() {
     }
   }, [showImplantCards])
 
+  // Track previous form state to detect when form is first displayed
+  const prevFormStateRef = useRef<Set<string>>(new Set())
+
+  // Automatically show implant brand cards when implant details form is displayed
+  useEffect(() => {
+    // Get current fields with form step and selected brand
+    const currentFormFields = new Set(
+      Object.entries(implantSelectionStep)
+        .filter(([fieldKey, step]) => 
+          step === 'form' && 
+          selectedImplantBrand[fieldKey] !== null && 
+          selectedImplantBrand[fieldKey] !== undefined
+        )
+        .map(([fieldKey]) => fieldKey)
+    )
+
+    // Check if there's a new form field that wasn't there before
+    const newFormField = Array.from(currentFormFields).find(fieldKey => !prevFormStateRef.current.has(fieldKey))
+
+    if (newFormField) {
+      // Form was just displayed for this field - show brand cards automatically
+      setShowImplantCards(true)
+      setActiveImplantFieldKey(newFormField)
+      
+      // Scroll to top of the page to show the brand cards
+      setTimeout(() => {
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      }, 100)
+    }
+
+    // Update the ref with current state
+    prevFormStateRef.current = currentFormFields
+  }, [implantSelectionStep, selectedImplantBrand])
+
   // Unified accordion state - tracks which accordion is open (only one at a time)
   const [openAccordion, setOpenAccordion] = useState<string | null>(null)
 
@@ -1408,7 +1442,7 @@ export default function CaseDesignCenterPage() {
   const [showProductsRightArrow, setShowProductsRightArrow] = useState(false)
 
   // Case summary notes expansion state
-  const [isCaseSummaryExpanded, setIsCaseSummaryExpanded] = useState<boolean>(false)
+  const [isCaseSummaryExpanded, setIsCaseSummaryExpanded] = useState<boolean>(true)
   const [showCaseSummaryNotes, setShowCaseSummaryNotes] = useState<boolean>(false)
 
   // Track previous notes value to prevent unnecessary parsing
@@ -4332,16 +4366,51 @@ export default function CaseDesignCenterPage() {
 
     // Update existing product or add new one using functional update to get latest state
     setSavedProducts((prevProducts) => {
-      // ALWAYS find and update the first existing product with the same product ID, category, and subcategory
+      // Helper function to check if two products are duplicates
+      const areProductsDuplicate = (p1: SavedProduct, p2: SavedProduct): boolean => {
+        const sameProduct = p1.product.id === p2.product.id
+        const sameCategory = p1.categoryId === p2.categoryId
+        const sameSubcategory = p1.subcategoryId === p2.subcategoryId
+        
+        // Check if teeth arrays are the same (sorted for comparison)
+        const p1MaxTeeth = [...(p1.maxillaryTeeth || [])].sort().join(',')
+        const p2MaxTeeth = [...(p2.maxillaryTeeth || [])].sort().join(',')
+        const p1MandTeeth = [...(p1.mandibularTeeth || [])].sort().join(',')
+        const p2MandTeeth = [...(p2.mandibularTeeth || [])].sort().join(',')
+        
+        const sameMaxTeeth = p1MaxTeeth === p2MaxTeeth
+        const sameMandTeeth = p1MandTeeth === p2MandTeeth
+        
+        return sameProduct && sameCategory && sameSubcategory && sameMaxTeeth && sameMandTeeth
+      }
+
+      // First, remove any existing duplicates from prevProducts (keep the first occurrence of each unique product)
+      const deduplicatedProducts: SavedProduct[] = []
+      const seenProducts = new Set<string>()
+      
+      prevProducts.forEach((product) => {
+        const productKey = `${product.product.id}-${product.categoryId}-${product.subcategoryId}-${[...(product.maxillaryTeeth || [])].sort().join(',')}-${[...(product.mandibularTeeth || [])].sort().join(',')}`
+        
+        if (!seenProducts.has(productKey)) {
+          seenProducts.add(productKey)
+          deduplicatedProducts.push(product)
+        }
+      })
+
+      // ALWAYS find and update the first existing product with the same product ID, category, subcategory, and teeth
       // This prevents duplicates - we update the first accordion instead of creating new ones
-      const existingIndex = prevProducts.findIndex(p => {
-        return p.product.id === productToUse.id &&
-          p.categoryId === selectedCategoryId &&
-          p.subcategoryId === selectedSubcategoryId
+      const existingIndex = deduplicatedProducts.findIndex(p => {
+        return areProductsDuplicate(p, {
+          product: productToUse,
+          categoryId: selectedCategoryId,
+          subcategoryId: selectedSubcategoryId,
+          maxillaryTeeth: maxillaryTeeth,
+          mandibularTeeth: mandibularTeeth,
+        } as SavedProduct)
       })
 
       // Get impression selections for this product
-      const productId = existingIndex !== -1 ? prevProducts[existingIndex].id : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      const productId = existingIndex !== -1 ? deduplicatedProducts[existingIndex].id : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
       const impressions = productDetails?.impressions || []
       const maxillaryImpressions = maxillaryTeeth.length > 0
         ? getImpressionSelections(productId, "maxillary", impressions)
@@ -4372,7 +4441,7 @@ export default function CaseDesignCenterPage() {
         mandibularRetention: finalMandibularRetention,
         mandibularStumpShade,
         mandibularImplantDetails: "",
-        createdAt: existingIndex !== -1 ? prevProducts[existingIndex].createdAt : Date.now(),
+        createdAt: existingIndex !== -1 ? deduplicatedProducts[existingIndex].createdAt : Date.now(),
         addedFrom: addedFrom,
         maxillaryImpressions: maxillaryImpressions.length > 0 ? maxillaryImpressions : undefined,
         mandibularImpressions: mandibularImpressions.length > 0 ? mandibularImpressions : undefined,
@@ -4453,8 +4522,8 @@ export default function CaseDesignCenterPage() {
       // This prevents duplicates - we update the first accordion instead of creating new ones
       if (existingIndex !== -1) {
         // Update existing product with unified data (merge with existing data to preserve any fields)
-        const updated = [...prevProducts]
-        const existingProduct = prevProducts[existingIndex]
+        const updated = [...deduplicatedProducts]
+        const existingProduct = deduplicatedProducts[existingIndex]
         // Merge existing product data with new data, preserving existing values where new ones are empty
         const mergedProduct: SavedProduct = {
           ...existingProduct,
@@ -4472,8 +4541,8 @@ export default function CaseDesignCenterPage() {
         updated[existingIndex] = mergedProduct
         return updated
       } else {
-        // Only add new product if no existing product found with same product ID, category, and subcategory
-        return [...prevProducts, savedProduct]
+        // Only add new product if no existing product found with same product ID, category, subcategory, and teeth
+        return [...deduplicatedProducts, savedProduct]
       }
     })
 
@@ -4520,13 +4589,44 @@ export default function CaseDesignCenterPage() {
 
     // Update existing product or add new one using functional update to get latest state
     setSavedProducts((prevProducts) => {
+      // Helper function to check if two products are duplicates
+      const areProductsDuplicate = (p1: SavedProduct, p2: SavedProduct): boolean => {
+        const sameProduct = p1.product.id === p2.product.id
+        const sameCategory = p1.categoryId === p2.categoryId
+        const sameSubcategory = p1.subcategoryId === p2.subcategoryId
+        
+        // Check if teeth arrays are the same (sorted for comparison)
+        const p1MaxTeeth = [...(p1.maxillaryTeeth || [])].sort().join(',')
+        const p2MaxTeeth = [...(p2.maxillaryTeeth || [])].sort().join(',')
+        const p1MandTeeth = [...(p1.mandibularTeeth || [])].sort().join(',')
+        const p2MandTeeth = [...(p2.mandibularTeeth || [])].sort().join(',')
+        
+        const sameMaxTeeth = p1MaxTeeth === p2MaxTeeth
+        const sameMandTeeth = p1MandTeeth === p2MandTeeth
+        
+        return sameProduct && sameCategory && sameSubcategory && sameMaxTeeth && sameMandTeeth
+      }
+
+      // First, remove any existing duplicates from prevProducts (keep the first occurrence of each unique product)
+      const deduplicatedProducts: SavedProduct[] = []
+      const seenProducts = new Set<string>()
+      
+      prevProducts.forEach((product) => {
+        const productKey = `${product.product.id}-${product.categoryId}-${product.subcategoryId}-${[...(product.maxillaryTeeth || [])].sort().join(',')}-${[...(product.mandibularTeeth || [])].sort().join(',')}`
+        
+        if (!seenProducts.has(productKey)) {
+          seenProducts.add(productKey)
+          deduplicatedProducts.push(product)
+        }
+      })
+
       // Get current teeth for comparison
       const currentTeeth = type === "maxillary"
         ? [...maxillaryTeeth].sort()
         : [...mandibularTeeth].sort()
       
       // Find existing product with the same configuration (product, category, subcategory, arch, AND same teeth)
-      const existingIndex = prevProducts.findIndex(p => {
+      const existingIndex = deduplicatedProducts.findIndex(p => {
         // Check basic matching criteria
         const matchesBasic = p.product.id === productToUse.id &&
           p.categoryId === selectedCategoryId &&
@@ -4545,7 +4645,7 @@ export default function CaseDesignCenterPage() {
 
       // If we found an existing product with the same configuration, update it instead of adding a duplicate
       if (existingIndex !== -1) {
-        const existingProduct = prevProducts[existingIndex]
+        const existingProduct = deduplicatedProducts[existingIndex]
         // Check if the existing product needs updating (compare all relevant fields)
         const needsUpdate = 
           existingProduct.maxillaryMaterial !== (type === "maxillary" ? finalMaxillaryMaterial : existingProduct.maxillaryMaterial) ||
@@ -4559,14 +4659,14 @@ export default function CaseDesignCenterPage() {
           existingProduct.maxillaryStage !== (type === "maxillary" ? maxillaryStage : existingProduct.maxillaryStage) ||
           existingProduct.mandibularStage !== (type === "mandibular" ? mandibularStage : existingProduct.mandibularStage)
         
-        // If no changes needed, return existing array to prevent unnecessary updates
+        // If no changes needed, return deduplicated array to prevent unnecessary updates
         if (!needsUpdate) {
-          return prevProducts
+          return deduplicatedProducts
         }
       }
 
       // Get impression selections for this product
-      const productId = existingIndex !== -1 ? prevProducts[existingIndex].id : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      const productId = existingIndex !== -1 ? deduplicatedProducts[existingIndex].id : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
       const impressions = productDetails?.impressions || []
       const maxillaryImpressions = type === "maxillary"
         ? getImpressionSelections(productId, "maxillary", impressions)
@@ -4593,7 +4693,7 @@ export default function CaseDesignCenterPage() {
         mandibularMaterial: finalMandibularMaterial,
         mandibularRetention: finalMandibularRetention,
         mandibularImplantDetails,
-        createdAt: existingIndex !== -1 ? prevProducts[existingIndex].createdAt : Date.now(),
+        createdAt: existingIndex !== -1 ? deduplicatedProducts[existingIndex].createdAt : Date.now(),
         addedFrom: type,
         maxillaryImpressions: maxillaryImpressions.length > 0 ? maxillaryImpressions : undefined,
         mandibularImpressions: mandibularImpressions.length > 0 ? mandibularImpressions : undefined,
@@ -4673,12 +4773,12 @@ export default function CaseDesignCenterPage() {
       // Update existing product or add new one
       if (existingIndex !== -1) {
         // Update existing product with same configuration
-        const updated = [...prevProducts]
+        const updated = [...deduplicatedProducts]
         updated[existingIndex] = savedProduct
         return updated
       } else {
-        // Add new product to saved products array
-        return [...prevProducts, savedProduct]
+        // Add new product to saved products array (use deduplicated to avoid duplicates)
+        return [...deduplicatedProducts, savedProduct]
       }
     })
 
@@ -6312,34 +6412,12 @@ export default function CaseDesignCenterPage() {
                     image: plat.image_url || plat.image
                   }))
                   
-                  // Show brand cards
-                  if (currentStep === 'brand') {
-                    return (
-                      <div ref={implantCardsRef} className="w-full flex justify-center mb-6 px-4" style={{ width: '100%', maxWidth: '100%' }}>
-                        <div className="w-full" style={{ maxWidth: '100%', width: '100%' }}>
-                          <ImplantBrandCards
-                            implants={mappedImplants}
-                            selectedImplantId={selectedBrandId}
-                            onSelectImplant={(implant: any) => {
-                              setSelectedImplantBrand(prev => ({ ...prev, [fieldKey]: implant.id }))
-                              // If brand has platforms, show platform cards, otherwise go to form
-                              if (implant.platforms && implant.platforms.length > 0) {
-                                setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'platform' }))
-                              } else {
-                                setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'form' }))
-                                setShowImplantCards(false)
-                              }
-                            }}
-                            productId={selectedProduct?.id?.toString()}
-                            arch={showMaxillaryChart ? "maxillary" : "mandibular"}
-                          />
-                        </div>
-                      </div>
-                    )
-                  }
-                  
+                  // Check if we should show platform cards first (priority when platform field is clicked)
                   // Show platform cards when platform step is active OR when form is active and user wants to change platform
-                  if (currentStep === 'platform' || (currentStep === 'form' && selectedBrandId)) {
+                  const shouldShowPlatformCards = currentStep === 'platform' || 
+                    (currentStep === 'form' && selectedBrandId && showImplantCards && activeImplantFieldKey === fieldKey)
+                  
+                  if (shouldShowPlatformCards) {
                     // Use mapped platforms if available, otherwise empty array (component will use static platforms)
                     const platformsToShow = mappedPlatforms.length > 0 ? mappedPlatforms : []
                     
@@ -6355,8 +6433,41 @@ export default function CaseDesignCenterPage() {
                               setSelectedImplantPlatformData(prev => ({ ...prev, [fieldKey]: { id: platform.id, name: platform.name } }))
                               // After platform selection, go to form and keep form visible
                               setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'form' as const }))
-                              setShowImplantCards(false)
+                              // Keep cards visible so user can see the selection, but form will also be visible
+                              setShowImplantCards(true)
+                              setActiveImplantFieldKey(fieldKey)
                             }}
+                            arch={showMaxillaryChart ? "maxillary" : "mandibular"}
+                          />
+                        </div>
+                      </div>
+                    )
+                  }
+                  
+                  // Show brand cards when step is 'brand' OR when form is displayed and cards should be shown (but not when showing platform cards)
+                  const shouldShowBrandCards = currentStep === 'brand' || 
+                    (currentStep === 'form' && showImplantCards && activeImplantFieldKey === fieldKey && selectedBrandId && !shouldShowPlatformCards)
+                  
+                  if (shouldShowBrandCards) {
+                    return (
+                      <div ref={implantCardsRef} className="w-full flex justify-center mb-6 px-4" style={{ width: '100%', maxWidth: '100%' }}>
+                        <div className="w-full" style={{ maxWidth: '100%', width: '100%' }}>
+                          <ImplantBrandCards
+                            implants={mappedImplants}
+                            selectedImplantId={selectedBrandId}
+                            onSelectImplant={(implant: any) => {
+                              setSelectedImplantBrand(prev => ({ ...prev, [fieldKey]: implant.id }))
+                              // If brand has platforms, show platform cards, otherwise go to form
+                              if (implant.platforms && implant.platforms.length > 0) {
+                                setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'platform' }))
+                              } else {
+                                setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'form' }))
+                                // Keep cards visible when going to form
+                                setShowImplantCards(true)
+                                setActiveImplantFieldKey(fieldKey)
+                              }
+                            }}
+                            productId={selectedProduct?.id?.toString()}
                             arch={showMaxillaryChart ? "maxillary" : "mandibular"}
                           />
                         </div>
@@ -7383,16 +7494,16 @@ export default function CaseDesignCenterPage() {
                                                             }}
                                                             onPlatformFieldClick={() => {
                                                               // Show platform cards at the top when platform field is clicked
-                                                              // Keep the form visible by not changing the step
+                                                              // Keep form visible by NOT changing the step
                                                               if (selectedBrand) {
                                                                 setShowImplantCards(true)
                                                                 setActiveImplantFieldKey(fieldKey)
-                                                                // Don't change step to 'platform' - keep it as 'form' so form stays visible
-                                                                // setImplantSelectionStep(prev => {
-                                                                //   const newState = { ...prev }
-                                                                //   newState[fieldKey] = 'platform'
-                                                                //   return newState
-                                                                // })
+                                                                // Keep step as 'form' so the form stays visible
+                                                                // Platform cards will show based on the rendering condition
+                                                                // Scroll to top to show the platform cards
+                                                                setTimeout(() => {
+                                                                  window.scrollTo({ top: 0, behavior: 'smooth' })
+                                                                }, 100)
                                                               }
                                                             }}
                                                             teethNumbers={maxillaryTeeth}
@@ -9397,68 +9508,90 @@ export default function CaseDesignCenterPage() {
                                         </div>
                                         )}
 
-                                        {/* Notes if available */}
-                                        {savedProduct.maxillaryImplantDetails && (
-                                          <div
-                                            className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                            style={{
-                                              display: 'flex',
-                                              flexDirection: 'row',
-                                              alignItems: 'flex-start',
-                                              padding: '0px',
-                                              gap: '20px',
-                                              flex: 'none',
-                                              order: 3,
-                                              alignSelf: 'stretch',
-                                              flexGrow: 0
-                                            }}
-                                          >
-                                            <div className="relative flex-1 min-w-[250px] max-w-[100%]" style={{ minHeight: '43px' }}>
-                                              <div
-                                                className="flex items-start"
-                                                style={{
-                                                  padding: '12px 15px 5px 15px',
-                                                  gap: '5px',
-                                                  width: '100%',
-                                                  minHeight: '60px',
-                                                  background: '#FFFFFF',
-                                                  border: '0.740384px solid #7F7F7F',
-                                                  borderRadius: '7.7px',
-                                                  boxSizing: 'border-box',
-                                                  position: 'relative',
-                                                  marginTop: '5.27px'
-                                                }}
-                                              >
-                                                <span style={{
-                                                  fontFamily: 'Verdana',
-                                                  fontStyle: 'normal',
-                                                  fontWeight: 400,
-                                                  fontSize: '14.4px',
-                                                  lineHeight: '20px',
-                                                  letterSpacing: '-0.02em',
-                                                  color: '#000000'
-                                                }}>{savedProduct.maxillaryImplantDetails}</span>
+                                        {/* Notes if available - Only show if addons exist */}
+                                        {(() => {
+                                          // Check if addons exist (either structured or string array)
+                                          const hasAddons = (savedProduct.maxillaryAddOnsStructured && savedProduct.maxillaryAddOnsStructured.length > 0) ||
+                                                            (savedProduct.maxillaryAddOns && savedProduct.maxillaryAddOns.length > 0)
+                                          
+                                          if (!hasAddons) return null
+                                          
+                                          // Format addons for display
+                                          let addonsText = ""
+                                          if (savedProduct.maxillaryAddOnsStructured && savedProduct.maxillaryAddOnsStructured.length > 0) {
+                                            addonsText = savedProduct.maxillaryAddOnsStructured
+                                              .map(addon => {
+                                                const qty = addon.qty || addon.quantity || 1
+                                                const name = addon.name || `Add-on ${addon.addon_id}`
+                                                return `${qty}x ${name}`
+                                              })
+                                              .join(", ")
+                                          } else if (savedProduct.maxillaryAddOns && savedProduct.maxillaryAddOns.length > 0) {
+                                            addonsText = savedProduct.maxillaryAddOns.join(", ")
+                                          }
+                                          
+                                          return (
+                                            <div
+                                              className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                              style={{
+                                                display: 'flex',
+                                                flexDirection: 'row',
+                                                alignItems: 'flex-start',
+                                                padding: '0px',
+                                                gap: '20px',
+                                                flex: 'none',
+                                                order: 3,
+                                                alignSelf: 'stretch',
+                                                flexGrow: 0
+                                              }}
+                                            >
+                                              <div className="relative flex-1 min-w-[250px] max-w-[100%]" style={{ minHeight: '43px' }}>
+                                                <div
+                                                  className="flex items-start"
+                                                  style={{
+                                                    padding: '12px 15px 5px 15px',
+                                                    gap: '5px',
+                                                    width: '100%',
+                                                    minHeight: '60px',
+                                                    background: '#FFFFFF',
+                                                    border: '0.740384px solid #7F7F7F',
+                                                    borderRadius: '7.7px',
+                                                    boxSizing: 'border-box',
+                                                    position: 'relative',
+                                                    marginTop: '5.27px'
+                                                  }}
+                                                >
+                                                  <span style={{
+                                                    fontFamily: 'Verdana',
+                                                    fontStyle: 'normal',
+                                                    fontWeight: 400,
+                                                    fontSize: '14.4px',
+                                                    lineHeight: '20px',
+                                                    letterSpacing: '-0.02em',
+                                                    color: '#000000'
+                                                  }}>{addonsText}</span>
+                                                </div>
+                                                <label
+                                                  className="absolute bg-white"
+                                                  style={{
+                                                    padding: '0px',
+                                                    height: '14px',
+                                                    left: '8.9px',
+                                                    top: '0px',
+                                                    fontFamily: 'Arial',
+                                                    fontStyle: 'normal',
+                                                    fontWeight: 400,
+                                                    fontSize: '14px',
+                                                    lineHeight: '14px',
+                                                    color: '#7F7F7F'
+                                                  }}
+                                                >
+                                                  Notes
+                                                </label>
                                               </div>
-                                              <label
-                                                className="absolute bg-white"
-                                                style={{
-                                                  padding: '0px',
-                                                  height: '14px',
-                                                  left: '8.9px',
-                                                  top: '0px',
-                                                  fontFamily: 'Arial',
-                                                  fontStyle: 'normal',
-                                                  fontWeight: 400,
-                                                  fontSize: '14px',
-                                                  lineHeight: '14px',
-                                                  color: '#7F7F7F'
-                                                }}
-                                              >
-                                                Notes
-                                              </label>
                                             </div>
-                                          </div>
-                                        )}
+                                          )
+                                        })()}
                                       </div>
 
                                       {/* Action Buttons - Only show if advance fields are showing */}
@@ -10720,16 +10853,16 @@ export default function CaseDesignCenterPage() {
                                                             }}
                                                             onPlatformFieldClick={() => {
                                                               // Show platform cards at the top when platform field is clicked
-                                                              // Keep the form visible by not changing the step
+                                                              // Keep form visible by NOT changing the step
                                                               if (selectedBrand) {
                                                                 setShowImplantCards(true)
                                                                 setActiveImplantFieldKey(fieldKey)
-                                                                // Don't change step to 'platform' - keep it as 'form' so form stays visible
-                                                                // setImplantSelectionStep(prev => {
-                                                                //   const newState = { ...prev }
-                                                                //   newState[fieldKey] = 'platform'
-                                                                //   return newState
-                                                                // })
+                                                                // Keep step as 'form' so the form stays visible
+                                                                // Platform cards will show based on the rendering condition
+                                                                // Scroll to top to show the platform cards
+                                                                setTimeout(() => {
+                                                                  window.scrollTo({ top: 0, behavior: 'smooth' })
+                                                                }, 100)
                                                               }
                                                             }}
                                                             teethNumbers={mandibularTeeth}
@@ -12669,9 +12802,16 @@ export default function CaseDesignCenterPage() {
                       <Maximize2 className="w-[10px] h-[10px] text-[#B4B0B0]" />
                     </button>
 
-                    {/* Chevron up/down - toggle expansion */}
+                    {/* Chevron up/down - toggle expansion - Made more noticeable */}
                     <button
-                      className="w-[14px] h-[14px] flex items-center justify-center hover:bg-gray-100 rounded transition-colors"
+                      className="flex items-center justify-center rounded transition-all duration-200 hover:scale-110 active:scale-95"
+                      style={{
+                        width: "32px",
+                        height: "32px",
+                        border: "2px solid #1162A8",
+                        backgroundColor: isCaseSummaryExpanded ? "#1162A8" : "#FFFFFF",
+                        boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+                      }}
                       onClick={() => {
                         const willExpand = !isCaseSummaryExpanded
                         setIsCaseSummaryExpanded(willExpand)
@@ -12684,11 +12824,12 @@ export default function CaseDesignCenterPage() {
                         }
                       }}
                       aria-label={isCaseSummaryExpanded ? "Collapse notes" : "Expand notes"}
+                      title={isCaseSummaryExpanded ? "Collapse notes" : "Expand notes"}
                     >
                       {isCaseSummaryExpanded ? (
-                        <ChevronUp className="w-[10px] h-[10px] text-[#B4B0B0]" />
+                        <ChevronUp className="w-[18px] h-[18px]" style={{ color: "#FFFFFF" }} />
                       ) : (
-                        <ChevronDown className="w-[10px] h-[10px] text-[#B4B0B0]" />
+                        <ChevronDown className="w-[18px] h-[18px]" style={{ color: "#1162A8" }} />
                       )}
                     </button>
                   </div>
@@ -12886,7 +13027,10 @@ export default function CaseDesignCenterPage() {
         confirmDetailsChecked={confirmDetailsChecked}
         showSubmitPopover={showSubmitPopover}
         isAccordionComplete={hasAtLeastOneCompleteProduct}
-        onCancel={handleCancel}
+        onCancel={() => {
+          // Navigate back to patient-input page
+          router.push("/patient-input")
+        }}
         onPreview={handlePreview}
         onShowCancelModal={() => setShowCancelModal(true)}
         onSubmit={handleSubmit}

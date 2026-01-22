@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Eye, Loader2, TriangleAlert } from "lucide-react"
+import { SlipCreationFooter } from "@/components/slip-creation-footer"
 
 interface FooterSectionProps {
   showProductDetails: boolean
@@ -35,6 +36,17 @@ export function FooterSection({
   hidePreviousButton = false,
   hasProductAccordions = false,
 }: FooterSectionProps) {
+  // When not showing product details, use SlipCreationFooter component
+  if (!showProductDetails) {
+    return (
+      <SlipCreationFooter 
+        showPrevious={!hidePreviousButton}
+        onPrevious={onCancel}
+      />
+    )
+  }
+
+  // When showing product details, use the complex footer with Submit functionality
   return (
     <div 
       className="bg-white flex-shrink-0 z-50"
@@ -51,72 +63,8 @@ export function FooterSection({
       }}
     >
       <div className="flex justify-between items-center h-full px-6 relative">
-        {!showProductDetails ? (
-          // Regular footer with Previous and Cancel buttons on right
-          <div className="flex justify-end w-full gap-3">
-            {!hidePreviousButton && (
-              <Button
-                onClick={onCancel}
-                variant="outline"
-                style={{
-                  display: "flex",
-                  flexDirection: "row",
-                  justifyContent: "center",
-                  alignItems: "center",
-                  padding: "12px 16px",
-                  gap: "10px",
-                  minWidth: "111px",
-                  height: "27px",
-                  background: "#1162A8",
-                  borderRadius: "6px",
-                  border: "none",
-                  fontFamily: "Verdana",
-                  fontStyle: "normal",
-                  fontWeight: 700,
-                  fontSize: "12px",
-                  lineHeight: "22px",
-                  letterSpacing: "-0.02em",
-                  color: "#FFFFFF",
-                  whiteSpace: "nowrap",
-                }}
-                className="hover:opacity-90"
-              >
-                Previous
-              </Button>
-            )}
-            <Button
-              onClick={onCancel}
-              variant="outline"
-              style={{
-                boxSizing: "border-box",
-                display: "flex",
-                flexDirection: "row",
-                justifyContent: "center",
-                alignItems: "center",
-                padding: "12px 16px",
-                gap: "10px",
-                minWidth: "111px",
-                height: "27px",
-                border: "2px solid #9BA5B7",
-                borderRadius: "6px",
-                fontFamily: "Verdana",
-                fontStyle: "normal",
-                fontWeight: 700,
-                fontSize: "12px",
-                lineHeight: "22px",
-                letterSpacing: "-0.02em",
-                color: "#9BA5B7",
-                background: "transparent",
-                whiteSpace: "nowrap",
-              }}
-              className="hover:opacity-80"
-            >
-              Cancel
-            </Button>
-          </div>
-        ) : (
-          // Teeth selection page footer: Cancel Slip on left, Submit and Popover on right
-          <div className="flex justify-between items-center w-full">
+        {/* Teeth selection page footer: Cancel Slip on left, Submit and Popover on right */}
+        <div className="flex justify-between items-center w-full">
             {/* Cancel Slip button on left */}
             <Button
               onClick={onShowCancelModal}
@@ -263,8 +211,7 @@ export function FooterSection({
                 )}
               </div>
             )}
-          </div>
-        )}
+        </div>
       </div>
     </div>
   )

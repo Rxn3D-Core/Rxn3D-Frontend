@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
+import { useClearCaseDesignCenterStateMutation } from "@/hooks/use-case-design-center-state"
 import { Search, Star, Pencil, Filter } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,7 +20,7 @@ import { useToast } from "@/hooks/use-toast"
 import { CustomerLogo } from "@/components/customer-logo"
 import { SlipCreationHeader } from "@/components/slip-creation-header"
 import { useDebounce } from "@/lib/performance-utils"
-import CancelSlipCreationModal from "@/components/cancel-slip-creation-modal"
+import { SlipCreationFooter } from "@/components/slip-creation-footer"
 import { AddNewLabModal } from "@/components/add-new-lab-modal"
 import { useCustomerLogoStore } from "@/stores/customer-logo-store"
 import { Dialog, DialogContent, DialogOverlay, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
@@ -49,11 +50,11 @@ export default function ChooseLabPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
+  const clearCaseDesignCenterStateMutation = useClearCaseDesignCenterStateMutation()
   const [searchQuery, setSearchQuery] = useState("")
   const [sortBy, setSortBy] = useState("name-asc")
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null)
   const [createdBy, setCreatedBy] = useState<string>("")
-  const [showCancelModal, setShowCancelModal] = useState(false)
   const [showRefreshWarningModal, setShowRefreshWarningModal] = useState(false)
   const [showAddLabModal, setShowAddLabModal] = useState(false)
   const [sortPopoverOpen, setSortPopoverOpen] = useState(false)
@@ -62,6 +63,12 @@ export default function ChooseLabPage() {
 
   // Debounce search query to avoid excessive API calls
   const debouncedSearchQuery = useDebounce(searchQuery, 500)
+
+  // Remove caseDesignCenterState from localStorage on page load/refresh using React Query
+  useEffect(() => {
+    clearCaseDesignCenterStateMutation.mutate()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Redirect office_admin directly to case-design-center (only if no doctorId in URL)
   // If doctorId is present, allow them to select a lab after selecting a doctor
@@ -259,9 +266,6 @@ export default function ChooseLabPage() {
     }
   }
 
-  const handleCancel = () => {
-    setShowCancelModal(true)
-  }
 
   // Check if there's unsaved work (selected doctor)
   const hasUnsavedWork = useMemo(() => {
@@ -560,59 +564,19 @@ export default function ChooseLabPage() {
         </div>
 
         {/* Footer - Consistent across all pages */}
-        <div 
-          className="bg-white flex-shrink-0 sticky bottom-0 left-0 right-0 z-10"
-          style={{
-            height: "59.94px",
-            background: "#FFFFFF",
-          }}
-        >
-          <div className="flex justify-end items-center h-full px-6">
-            <Button
-              onClick={handleCancel}
-              variant="outline"
-              style={{
-                boxSizing: "border-box",
-                display: "flex",
-                flexDirection: "row",
-                justifyContent: "center",
-                alignItems: "center",
-                padding: "12px 16px",
-                gap: "10px",
-                minWidth: "111px",
-                height: "27px",
-                border: "2px solid #9BA5B7",
-                borderRadius: "6px",
-                fontFamily: "Verdana",
-                fontStyle: "normal",
-                fontWeight: 700,
-                fontSize: "12px",
-                lineHeight: "22px",
-                letterSpacing: "-0.02em",
-                color: "#9BA5B7",
-                background: "transparent",
-                whiteSpace: "nowrap",
-              }}
-              className="hover:opacity-80"
-            >
-              Cancel
-            </Button>
-          </div>
-        </div>
-
-        {/* Cancel Slip Creation Modal */}
-      {showCancelModal && (
-        <CancelSlipCreationModal
-          open={showCancelModal}
-          onCancel={() => setShowCancelModal(false)}
-          onConfirm={() => {
-            setShowCancelModal(false)
-            setTimeout(() => {
-              router.replace("/dashboard")
-            }, 100)
+        <SlipCreationFooter 
+          showPrevious={true}
+          onPrevious={() => {
+            // Check if we came from choose-doctor (doctorId in URL)
+            const doctorId = searchParams.get("doctorId")
+            if (doctorId) {
+              router.push(`/choose-doctor`)
+            } else {
+              // Otherwise go back to dashboard
+              router.push("/dashboard")
+            }
           }}
         />
-      )}
 
       {/* Refresh Warning Modal */}
       {showRefreshWarningModal && (

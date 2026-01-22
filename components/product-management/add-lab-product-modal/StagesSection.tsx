@@ -537,10 +537,10 @@ export function StagesSection({
                                     className={`grid gap-2 font-medium text-sm text-gray-700 border-b pb-2 bg-white sticky top-0 z-10`}
                                     style={{
                                         gridTemplateColumns: userRole === "superadmin"
-                                            ? "minmax(120px,1fr) minmax(80px,1fr) minmax(70px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px"
+                                            ? "minmax(120px,1fr) minmax(80px,1fr) minmax(100px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px"
                                             : hasSelectedGrades
-                                                ? `minmax(120px,1fr) minmax(80px,1fr) repeat(${selectedGradesWithNames.length}, minmax(120px,1fr)) minmax(70px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px`
-                                                : "minmax(120px,1fr) minmax(80px,1fr) minmax(100px,1fr) minmax(70px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px"
+                                                ? `minmax(120px,1fr) minmax(80px,1fr) repeat(${selectedGradesWithNames.length}, minmax(120px,1fr)) minmax(100px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px`
+                                                : "minmax(120px,1fr) minmax(80px,1fr) minmax(100px,1fr) minmax(100px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px"
                                     }}
                                 >
                                     <div className="px-1">Case Stage</div>
@@ -593,10 +593,10 @@ export function StagesSection({
                                             }`}
                                             style={{
                                                 gridTemplateColumns: userRole === "superadmin"
-                                                    ? "minmax(120px,1fr) minmax(80px,1fr) minmax(70px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px"
+                                                    ? "minmax(120px,1fr) minmax(80px,1fr) minmax(100px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px"
                                                     : hasSelectedGrades
-                                                        ? `minmax(120px,1fr) minmax(80px,1fr) repeat(${selectedGradesWithNames.length}, minmax(120px,1fr)) minmax(70px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px`
-                                                        : "minmax(120px,1fr) minmax(80px,1fr) minmax(100px,1fr) minmax(70px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px"
+                                                        ? `minmax(120px,1fr) minmax(80px,1fr) repeat(${selectedGradesWithNames.length}, minmax(120px,1fr)) minmax(100px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px`
+                                                        : "minmax(120px,1fr) minmax(80px,1fr) minmax(100px,1fr) minmax(100px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px"
                                             }}
                                             draggable={true}
                                             onDragStart={(e) => handleDragStart(e, stageData.stage_id)}
@@ -651,7 +651,7 @@ export function StagesSection({
                                             )}
                                             <Input
                                                 type="number"
-                                                className="h-8 w-16 text-center"
+                                                className="h-8 w-24 text-center"
                                                 value={stageData.days || stageInfo.days_to_process || ""}
                                                 placeholder="0"
                                                 onChange={(e) => {

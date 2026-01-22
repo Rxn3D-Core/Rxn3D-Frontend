@@ -6,7 +6,8 @@ import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
-import { useSlipCreation } from "@/contexts/slip-creation-context"
+import { useQuery } from "@tanstack/react-query"
+import { useAuth } from "@/contexts/auth-context"
 import { useCaseDesignStore } from "@/stores/caseDesignStore"
 
 // Accept labId, productId, and arch as props
@@ -46,38 +47,79 @@ type ApiCategory = {
 
 export default function AddOnsModal({ isOpen, onClose, onAddAddOns, labId, productId, arch }: AddOnsModalProps) {
   const [searchTerm, setSearchTerm] = useState("")
-  const [addOnCategories, setAddOnCategories] = useState<ApiCategory[]>([])
-  const [loading, setLoading] = useState(false)
   const [selectedAddOns, setSelectedAddOns] = useState<
     { addon_id: number; qty: number; category: string; subcategory: string; name: string; price: number; tempId: string }[]
   >([])
-  // Track current selection per subcategory and addon
-  const [currentSelections, setCurrentSelections] = useState<{
-    [subcategoryId: string]: { [addonId: number]: number }
-  }>({})
 
-  const { productAddons, fetchProductAddons, searchedProductAddons, searchProductAddons } = useSlipCreation()
+  const { token } = useAuth()
   
   // Zustand store for add-ons management
   const { 
-    getProductAddOns, 
     addAddOn, 
     removeAddOn,
-    setProductAddOns,
     productAddOns: storeProductAddOns
   } = useCaseDesignStore()
 
-  // Refs for debouncing and request cancellation
+  // Debounced search term for React Query
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("")
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const abortControllerRef = useRef<AbortController | null>(null)
-  const hasLoadedRef = useRef<boolean>(false)
-  const lastLoadedProductIdRef = useRef<string | null>(null)
-  const productIdRef = useRef<string>(productId) // Keep productId in ref for closure safety
-  
-  // Update productId ref when it changes
+
   useEffect(() => {
-    productIdRef.current = productId
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current)
+    }
+    debounceTimeoutRef.current = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm)
+    }, 500)
+    return () => {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current)
+      }
+    }
+  }, [searchTerm])
+
+  // Fetch addons using React Query
+  const productIdNum = useMemo(() => {
+    const parsed = parseInt(productId, 10)
+    return isNaN(parsed) ? null : parsed
   }, [productId])
+
+  // Get the correct lab ID based on user role
+  const effectiveLabId = useMemo(() => {
+    const role = localStorage.getItem("role")
+    return role === "office_admin" || role === "doctor"
+      ? localStorage.getItem("selectedLabId") 
+      : localStorage.getItem("customerId")
+  }, [])
+
+  const fetchAddons = useCallback(async () => {
+    if (!productIdNum || !effectiveLabId) return []
+    
+    const url = new URL(`/v1/slip/lab/${effectiveLabId}/products/${productIdNum}/addons`, process.env.NEXT_PUBLIC_API_BASE_URL)
+    if (debouncedSearchTerm.trim()) {
+      url.searchParams.append("search", debouncedSearchTerm.trim())
+    }
+    
+    const res = await fetch(url.toString(), {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+    
+    if (res.status === 401) {
+      window.location.href = "/login"
+      return []
+    }
+    
+    const json = await res.json()
+    return json.data || []
+  }, [productIdNum, effectiveLabId, debouncedSearchTerm, token])
+
+  const { data: addOnCategories = [], isLoading: loading } = useQuery<ApiCategory[]>({
+    queryKey: ['product-addons', productIdNum, effectiveLabId, debouncedSearchTerm],
+    queryFn: fetchAddons,
+    enabled: isOpen && !!productIdNum && !!effectiveLabId,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
+  })
 
   // Get existing add-ons from Zustand store in real-time
   const existingAddOns = useMemo(() => {
@@ -94,191 +136,78 @@ export default function AddOnsModal({ isOpen, onClose, onAddAddOns, labId, produ
     }))
   }, [storeProductAddOns, productId, arch])
 
-  // Single debounced function to handle all API calls
-  const debouncedFetch = useCallback((searchTerm: string, isInitialLoad: boolean = false) => {
-    console.log(`🚀 debouncedFetch called: searchTerm="${searchTerm}", isInitialLoad=${isInitialLoad}, current productId=${productId}`)
-    
-    // Clear existing timeout
-    if (debounceTimeoutRef.current) {
-      clearTimeout(debounceTimeoutRef.current)
-    }
 
-    // Cancel previous request
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort()
-    }
-
-    // Create new abort controller
-    abortControllerRef.current = new AbortController()
-
-    // Capture productId in a variable for the closure
-    const currentProductId = productIdRef.current
-    console.log(`📌 Captured productId: ${currentProductId}`)
-    
-    // For initial load, call directly without setTimeout to avoid timing issues
-    if (isInitialLoad) {
-      console.log(`🚀 Initial load - calling fetch directly for productId=${currentProductId}`)
-      if (!currentProductId) {
-        console.warn(`⚠️ Cannot fetch addons: productId is ${currentProductId}`)
-        return
-      }
-
-      const productIdNum = parseInt(currentProductId, 10)
-      if (isNaN(productIdNum)) {
-        console.error(`❌ Invalid productId: ${currentProductId} (parsed as ${productIdNum})`)
-        return
-      }
-
-      // Call fetch directly for initial load
-      setLoading(true)
-      fetchProductAddons(productIdNum)
-        .then(() => {
-          console.log(`✅ Successfully fetched addons for product ${productIdNum}`)
-          setLoading(false)
-        })
-        .catch((error) => {
-          if (error instanceof Error && error.name !== 'AbortError') {
-            console.error('Error fetching addons:', error)
+  // Handle incrementing add-on quantity (adds or increments in selectedAddOns)
+  const handleIncrementAddOn = (category: ApiCategory, subcategory: ApiSubcategory, addon: ApiAddon) => {
+    setSelectedAddOns(prev => {
+      const existingIndex = prev.findIndex(
+        item => item.addon_id === addon.id && 
+                item.category === category.name && 
+                item.subcategory === subcategory.name
+      )
+      
+      if (existingIndex >= 0) {
+        // If exists, increment quantity (max 10)
+        const updated = [...prev]
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          qty: Math.min(10, updated[existingIndex].qty + 1)
+        }
+        return updated
+      } else {
+        // If doesn't exist, add new item with qty 1
+        return [
+          ...prev,
+          {
+            addon_id: addon.id,
+            qty: 1,
+            category: category.name,
+            subcategory: subcategory.name,
+            name: addon.name,
+            price: Number(typeof addon.price === "string" ? parseFloat(addon.price) : addon.price),
+            tempId: `${addon.id}-${Date.now()}`
           }
-          setLoading(false)
-        })
-      return
-    }
-
-    // For search, use debounced setTimeout
-    const delay = 500
-    console.log(`⏱️ Setting timeout with delay=${delay}ms for productId=${currentProductId}`)
-    
-    debounceTimeoutRef.current = setTimeout(async () => {
-      console.log(`⏰ Timeout executed! productId=${currentProductId}`)
-      if (!currentProductId) {
-        console.warn(`⚠️ Cannot fetch addons: productId is ${currentProductId}`)
-        return
+        ]
       }
+    })
+  }
 
-      const productIdNum = parseInt(currentProductId, 10)
-      if (isNaN(productIdNum)) {
-        console.error(`❌ Invalid productId: ${currentProductId} (parsed as ${productIdNum})`)
-        return
-      }
-
-      console.log(`🔍 Fetching addons for product ${currentProductId} (${productIdNum}), search: "${searchTerm}"`)
-      setLoading(true)
-      try {
-        if (searchTerm.trim()) {
-          console.log(`🔎 Calling searchProductAddons(${productIdNum}, "${searchTerm}")`)
-          await searchProductAddons(productIdNum, searchTerm)
-        } else {
-          console.log(`📥 Calling fetchProductAddons(${productIdNum})`)
-          await fetchProductAddons(productIdNum)
-        }
-        console.log(`✅ Successfully fetched addons for product ${productIdNum}`)
-      } catch (error) {
-        // Only log error if it's not an abort error
-        if (error instanceof Error && error.name !== 'AbortError') {
-          console.error('Error fetching addons:', error)
-        }
-      } finally {
-        setLoading(false)
-      }
-    }, delay)
-  }, [productId, fetchProductAddons, searchProductAddons])
-
-  // Handle search term changes with debouncing (only after initial load and only if search term changes)
-  useEffect(() => {
-    if (isOpen && productId && hasLoadedRef.current && searchTerm !== "") {
-      debouncedFetch(searchTerm, false)
-    }
-    
-    // Cleanup function
-    return () => {
-      if (debounceTimeoutRef.current) {
-        clearTimeout(debounceTimeoutRef.current)
-      }
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort()
-      }
-    }
-  }, [searchTerm, isOpen, productId, debouncedFetch])
-
-  // Load initial data when modal opens (only if no data exists and not already loaded)
-  useEffect(() => {
-    if (isOpen && productId) {
-      console.log(`📦 AddOnsModal: isOpen=${isOpen}, productId=${productId}, lastLoaded=${lastLoadedProductIdRef.current}`)
+  // Handle decrementing add-on quantity (decrements or removes from selectedAddOns)
+  const handleDecrementAddOn = (category: ApiCategory, subcategory: ApiSubcategory, addon: ApiAddon) => {
+    setSelectedAddOns(prev => {
+      const existingIndex = prev.findIndex(
+        item => item.addon_id === addon.id && 
+                item.category === category.name && 
+                item.subcategory === subcategory.name
+      )
       
-      // Reset loaded flag if productId has changed - always fetch for new product
-      if (lastLoadedProductIdRef.current !== productId) {
-        console.log(`🔄 Product ID changed from ${lastLoadedProductIdRef.current} to ${productId}, resetting and fetching`)
-        hasLoadedRef.current = false
-        lastLoadedProductIdRef.current = productId
-        // Always fetch when productId changes, regardless of existing data
-        hasLoadedRef.current = true
-        console.log(`🎬 About to call debouncedFetch for productId=${productId}`)
-        debouncedFetch("", true) // Initial load with empty search term
-        return
-      }
-      
-      // Only check existing data if we haven't loaded yet and productId hasn't changed
-      if (!hasLoadedRef.current) {
-        const hasData = productAddons && productAddons.length > 0
-        
-        if (!hasData) {
-          console.log(`📥 No existing data, fetching addons for product ${productId}`)
-          hasLoadedRef.current = true
-          debouncedFetch("", true) // Initial load with empty search term
+      if (existingIndex >= 0) {
+        const currentQty = prev[existingIndex].qty
+        if (currentQty > 1) {
+          // If qty > 1, decrement
+          const updated = [...prev]
+          updated[existingIndex] = {
+            ...updated[existingIndex],
+            qty: currentQty - 1
+          }
+          return updated
         } else {
-          console.log(`✅ Using existing data for product ${productId}`)
-          // Data already exists, just set the categories
-          setAddOnCategories(productAddons)
-          hasLoadedRef.current = true
+          // If qty = 1, remove the item
+          return prev.filter((_, index) => index !== existingIndex)
         }
       }
-    }
-  }, [isOpen, productId, productAddons, debouncedFetch])
+      return prev
+    })
+  }
 
-  // Reset loaded flag when modal closes
-  useEffect(() => {
-    if (!isOpen) {
-      hasLoadedRef.current = false
-      lastLoadedProductIdRef.current = null
-    }
-  }, [isOpen])
-
-  // Update categories based on search results
-  useEffect(() => {
-    if (searchTerm && searchedProductAddons) {
-      setAddOnCategories(searchedProductAddons)
-    } else if (!searchTerm && productAddons) {
-      setAddOnCategories(productAddons)
-    }
-  }, [searchTerm, productAddons, searchedProductAddons])
-
-
-  // Allow multiple add-ons per subcategory
-  const handleAddClick = (category: ApiCategory, subcategory: ApiSubcategory, addon: ApiAddon) => {
-    const qty = currentSelections[subcategory.id]?.[addon.id]
-    if (qty) {
-      setSelectedAddOns(prev => [
-        ...prev,
-        {
-          addon_id: addon.id,
-          qty,
-          category: category.name,
-          subcategory: subcategory.name,
-          name: addon.name,
-          price: Number(typeof addon.price === "string" ? parseFloat(addon.price) : addon.price),
-          tempId: `${addon.id}-${Date.now()}`
-        }
-      ])
-      // Reset only this addon's qty selection
-      setCurrentSelections(prev => ({
-        ...prev,
-        [subcategory.id]: {
-          ...prev[subcategory.id],
-          [addon.id]: 0
-        }
-      }))
-    }
+  // Get current quantity for an add-on from selectedAddOns
+  const getCurrentQty = (addonId: number, categoryName: string, subcategoryName: string): number => {
+    const existing = selectedAddOns.find(
+      item => item.addon_id === addonId && 
+              item.category === categoryName && 
+              item.subcategory === subcategoryName
+    )
+    return existing ? existing.qty : 0
   }
 
   const handleRemoveAddOn = (tempId: string) => {
@@ -314,25 +243,31 @@ export default function AddOnsModal({ isOpen, onClose, onAddAddOns, labId, produ
 
   const handleCancel = () => {
     setSelectedAddOns([])
-    setCurrentSelections({})
     onClose()
   }
 
   // Filter categories/subcategories/addons by search term
-  const filteredCategories = addOnCategories
-    .map(category => ({
-      ...category,
-      subcategories: category.subcategories
-        .map(subcat => ({
-          ...subcat,
-          addons: subcat.addons.filter(addon =>
-            addon.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            addon.code.toLowerCase().includes(searchTerm.toLowerCase())
-          )
-        }))
-        .filter(subcat => subcat.addons.length > 0)
-    }))
-    .filter(category => category.subcategories.length > 0)
+  // Note: Search is now handled by the API, but we can still filter client-side if needed
+  const filteredCategories = useMemo(() => {
+    if (!debouncedSearchTerm.trim()) {
+      return addOnCategories
+    }
+    // Client-side filtering as fallback (API should handle this, but keeping for safety)
+    return addOnCategories
+      .map(category => ({
+        ...category,
+        subcategories: category.subcategories
+          .map(subcat => ({
+            ...subcat,
+            addons: subcat.addons.filter(addon =>
+              addon.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+              addon.code.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
+            )
+          }))
+          .filter(subcat => subcat.addons.length > 0)
+      }))
+      .filter(category => category.subcategories.length > 0)
+  }, [addOnCategories, debouncedSearchTerm])
 
   // Calculate totals for all add-ons (existing + selected)
   const totalAddOns = useMemo(() => {
@@ -382,16 +317,15 @@ export default function AddOnsModal({ isOpen, onClose, onAddAddOns, labId, produ
                         {category.subcategories.map((subcat) => (
                           <div key={subcat.id} className="mb-6">
                             <div className="font-semibold mb-2">{subcat.name}</div>
-                            <div className="grid grid-cols-4 gap-4 mb-2 text-sm font-medium text-gray-700">
+                            <div className="grid grid-cols-3 gap-4 mb-2 text-sm font-medium text-gray-700">
                               <div>Add-on</div>
                               <div>Price</div>
                               <div>Qty</div>
-                              <div></div>
                             </div>
                             {subcat.addons.map((addon) => {
-                              const currentQty = currentSelections[subcat.id]?.[addon.id] || 0
+                              const currentQty = getCurrentQty(addon.id, category.name, subcat.name)
                               return (
-                                <div key={addon.id} className="grid grid-cols-4 gap-4 items-center mb-2">
+                                <div key={addon.id} className="grid grid-cols-3 gap-4 items-center mb-2">
                                   <div>{addon.name}</div>
                                   <div>
                                     {`$${Number(typeof addon.price === "string" ? parseFloat(addon.price) : addon.price).toFixed(2)}`}
@@ -401,15 +335,7 @@ export default function AddOnsModal({ isOpen, onClose, onAddAddOns, labId, produ
                                       size="sm"
                                       variant="outline"
                                       className="h-8 w-8 p-0"
-                                      onClick={() =>
-                                        setCurrentSelections(prev => ({
-                                          ...prev,
-                                          [subcat.id]: {
-                                            ...prev[subcat.id],
-                                            [addon.id]: Math.max(0, (prev[subcat.id]?.[addon.id] || 0) - 1)
-                                          }
-                                        }))
-                                      }
+                                      onClick={() => handleDecrementAddOn(category, subcat, addon)}
                                       disabled={currentQty === 0}
                                     >
                                       <Minus className="w-4 h-4" />
@@ -419,28 +345,12 @@ export default function AddOnsModal({ isOpen, onClose, onAddAddOns, labId, produ
                                       size="sm"
                                       variant="outline"
                                       className="h-8 w-8 p-0"
-                                      onClick={() =>
-                                        setCurrentSelections(prev => ({
-                                          ...prev,
-                                          [subcat.id]: {
-                                            ...prev[subcat.id],
-                                            [addon.id]: Math.min(10, (prev[subcat.id]?.[addon.id] || 0) + 1)
-                                          }
-                                        }))
-                                      }
+                                      onClick={() => handleIncrementAddOn(category, subcat, addon)}
                                       disabled={currentQty >= 10}
                                     >
                                       <Plus className="w-4 h-4" />
                                     </Button>
                                   </div>
-                                  <Button
-                                    size="sm"
-                                    className="bg-[#1162a8] hover:bg-[#0f5490] text-white"
-                                    onClick={() => handleAddClick(category, subcat, addon)}
-                                    disabled={currentQty === 0}
-                                  >
-                                    <Plus className="w-4 h-4 mr-1" /> Add
-                                  </Button>
                                 </div>
                               )
                             })}

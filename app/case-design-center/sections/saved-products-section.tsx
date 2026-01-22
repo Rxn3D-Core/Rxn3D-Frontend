@@ -846,68 +846,90 @@ export function SavedProductsSection({
                                 </div>
                                 )}
 
-                                {/* Notes if available */}
-                                {isAccordionFieldVisible("notes", savedProduct, "maxillary") && savedProduct.maxillaryNotes && (
-                                  <div
-                                    className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                    style={{
-                                      display: 'flex',
-                                      flexDirection: 'row',
-                                      alignItems: 'flex-start',
-                                      padding: '0px',
-                                      gap: '20px',
-                                      flex: 'none',
-                                      order: 3,
-                                      alignSelf: 'stretch',
-                                      flexGrow: 0
-                                    }}
-                                  >
-                                    <div className="relative flex-1 min-w-[250px] max-w-[100%]" style={{ minHeight: '43px' }}>
-                                      <div
-                                        className="flex items-start"
-                                        style={{
-                                          padding: '12px 15px 5px 15px',
-                                          gap: '5px',
-                                          width: '100%',
-                                          minHeight: '60px',
-                                          background: '#FFFFFF',
-                                          border: '0.740384px solid #7F7F7F',
-                                          borderRadius: '7.7px',
-                                          boxSizing: 'border-box',
-                                          position: 'relative',
-                                          marginTop: '5.27px'
-                                        }}
-                                      >
-                                        <span style={{
-                                          fontFamily: 'Verdana',
-                                          fontStyle: 'normal',
-                                          fontWeight: 400,
-                                          fontSize: '14.4px',
-                                          lineHeight: '20px',
-                                          letterSpacing: '-0.02em',
-                                          color: '#000000'
-                                        }}>{savedProduct.maxillaryNotes}</span>
+                                {/* Notes if available - Only show if addons exist */}
+                                {(() => {
+                                  // Check if addons exist (either structured or string array)
+                                  const hasAddons = (savedProduct.maxillaryAddOnsStructured && savedProduct.maxillaryAddOnsStructured.length > 0) ||
+                                                    (savedProduct.maxillaryAddOns && savedProduct.maxillaryAddOns.length > 0)
+                                  
+                                  if (!hasAddons) return null
+                                  
+                                  // Format addons for display
+                                  let addonsText = ""
+                                  if (savedProduct.maxillaryAddOnsStructured && savedProduct.maxillaryAddOnsStructured.length > 0) {
+                                    addonsText = savedProduct.maxillaryAddOnsStructured
+                                      .map(addon => {
+                                        const qty = addon.qty || addon.quantity || 1
+                                        const name = addon.name || `Add-on ${addon.addon_id}`
+                                        return `${qty}x ${name}`
+                                      })
+                                      .join(", ")
+                                  } else if (savedProduct.maxillaryAddOns && savedProduct.maxillaryAddOns.length > 0) {
+                                    addonsText = savedProduct.maxillaryAddOns.join(", ")
+                                  }
+                                  
+                                  return (
+                                    <div
+                                      className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                      style={{
+                                        display: 'flex',
+                                        flexDirection: 'row',
+                                        alignItems: 'flex-start',
+                                        padding: '0px',
+                                        gap: '20px',
+                                        flex: 'none',
+                                        order: 3,
+                                        alignSelf: 'stretch',
+                                        flexGrow: 0
+                                      }}
+                                    >
+                                      <div className="relative flex-1 min-w-[250px] max-w-[100%]" style={{ minHeight: '43px' }}>
+                                        <div
+                                          className="flex items-start"
+                                          style={{
+                                            padding: '12px 15px 5px 15px',
+                                            gap: '5px',
+                                            width: '100%',
+                                            minHeight: '60px',
+                                            background: '#FFFFFF',
+                                            border: '0.740384px solid #7F7F7F',
+                                            borderRadius: '7.7px',
+                                            boxSizing: 'border-box',
+                                            position: 'relative',
+                                            marginTop: '5.27px'
+                                          }}
+                                        >
+                                          <span style={{
+                                            fontFamily: 'Verdana',
+                                            fontStyle: 'normal',
+                                            fontWeight: 400,
+                                            fontSize: '14.4px',
+                                            lineHeight: '20px',
+                                            letterSpacing: '-0.02em',
+                                            color: '#000000'
+                                          }}>{addonsText}</span>
+                                        </div>
+                                        <label
+                                          className="absolute bg-white"
+                                          style={{
+                                            padding: '0px',
+                                            height: '14px',
+                                            left: '8.9px',
+                                            top: '0px',
+                                            fontFamily: 'Arial',
+                                            fontStyle: 'normal',
+                                            fontWeight: 400,
+                                            fontSize: '14px',
+                                            lineHeight: '14px',
+                                            color: '#7F7F7F'
+                                          }}
+                                        >
+                                          Notes
+                                        </label>
                                       </div>
-                                      <label
-                                        className="absolute bg-white"
-                                        style={{
-                                          padding: '0px',
-                                          height: '14px',
-                                          left: '8.9px',
-                                          top: '0px',
-                                          fontFamily: 'Arial',
-                                          fontStyle: 'normal',
-                                          fontWeight: 400,
-                                          fontSize: '14px',
-                                          lineHeight: '14px',
-                                          color: '#7F7F7F'
-                                        }}
-                                      >
-                                        Notes
-                                      </label>
                                     </div>
-                                  </div>
-                                )}
+                                  )
+                                })()}
                               </div>
                             </AccordionContent>
                           </AccordionItem>
@@ -1466,6 +1488,9 @@ export function SavedProductsSection({
                                         }}
                                         teethNumbers={savedProduct.mandibularTeeth}
                                         arch="mandibular"
+                                        initialInclusions={savedProduct.mandibularImplantInclusions}
+                                        initialAbutmentDetail={savedProduct.mandibularAbutmentDetail}
+                                        initialAbutmentType={savedProduct.mandibularAbutmentType}
                                       />
                                     </div>
                                   )

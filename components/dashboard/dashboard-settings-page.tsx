@@ -127,7 +127,7 @@ export function DashboardSettingsPage() {
     }
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (settings) {
       // Update order numbers based on new array order
       const updatedWidgets = localWidgets.map((widget, index) => ({
@@ -140,8 +140,13 @@ export function DashboardSettingsPage() {
         widgets: updatedWidgets,
       }
 
-      saveSettings(updatedSettings)
-      router.push("/dashboard")
+      try {
+        await saveSettings(updatedSettings)
+        router.push("/dashboard")
+      } catch (error) {
+        console.error("Failed to save dashboard settings:", error)
+        // Optionally show error message to user
+      }
     }
   }
 
@@ -154,7 +159,7 @@ export function DashboardSettingsPage() {
     router.push("/dashboard")
   }
 
-  const handleSelectAll = () => {
+  const handleSelectAll = async () => {
     if (!settings) return
     
     const updatedWidgets = localWidgets.map((widget) => ({
@@ -173,7 +178,11 @@ export function DashboardSettingsPage() {
       })),
     }
     
-    saveSettings(updatedSettings)
+    try {
+      await saveSettings(updatedSettings)
+    } catch (error) {
+      console.error("Failed to save dashboard settings:", error)
+    }
     
     // Update chat support state
     const chatSupportWidget = updatedWidgets.find(w => w.id === WIDGET_IDS.CHAT_SUPPORT)
@@ -182,7 +191,7 @@ export function DashboardSettingsPage() {
     }
   }
 
-  const handleDeselectAll = () => {
+  const handleDeselectAll = async () => {
     if (!settings) return
     
     const updatedWidgets = localWidgets.map((widget) => ({
@@ -201,7 +210,11 @@ export function DashboardSettingsPage() {
       })),
     }
     
-    saveSettings(updatedSettings)
+    try {
+      await saveSettings(updatedSettings)
+    } catch (error) {
+      console.error("Failed to save dashboard settings:", error)
+    }
     
     // Update chat support state
     const chatSupportWidget = updatedWidgets.find(w => w.id === WIDGET_IDS.CHAT_SUPPORT)
@@ -378,7 +391,7 @@ export function DashboardSettingsPage() {
                       <h4 className="font-semibold text-sm text-blue-900">Note</h4>
                     </div>
                     <p className="text-sm text-blue-800">
-                      Your dashboard settings are saved in your browser session. They will persist until you clear your browser data or log out.
+                      Your dashboard settings are saved to your account and will persist across devices and sessions.
                     </p>
                   </div>
                 </div>

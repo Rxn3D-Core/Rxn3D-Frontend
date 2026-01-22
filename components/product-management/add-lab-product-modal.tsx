@@ -21,6 +21,7 @@ import { useAddOns } from "@/contexts/product-add-on-context"
 import { useTranslation } from "react-i18next"
 import { useCustomer } from "@/contexts/customer-context"
 import { useAuth } from "@/contexts/auth-context" // <-- add this import
+import { getAuthToken, redirectToLogin } from "@/lib/auth-utils"
 import { DiscardChangesDialog } from "./discard-changes-dialog"
 import { LoadingOverlay } from "@/components/ui/loading-overlay"
 
@@ -243,7 +244,6 @@ export function AddLabProductModal({
     office_stage_pricing: [],
     office_stage_grade_pricing: [],
     base_price: "", // <-- add this field to initial values
-    extractions: [],
     opposite_extractions: [],
     apply_same_status_to_opposing: true,
     min_days_to_process: null,
@@ -259,7 +259,7 @@ export function AddLabProductModal({
     watch,
     setValue,
     trigger,
-    formState: { isDirty, isValid, isSubmitting, errors },
+    formState: { isDirty, isValid, isSubmitting, errors, dirtyFields },
   } = useForm<ProductCreateForm>({
     resolver: zodResolver(ProductCreateFormSchema),
     defaultValues: getInitialFormValues(),
@@ -544,7 +544,7 @@ export function AddLabProductModal({
         params.append("customer_id", customerId)
       }
 
-      const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
+      const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
       const response = await fetch(
         `${apiBaseUrl}/library/categories?${params.toString()}`,
         {
@@ -1133,6 +1133,18 @@ export function AddLabProductModal({
           }
         }
         
+        // For stages, explicitly preserve economy_price, standard_price, grade_prices, days, and is_default
+        if (idKey === 'stage_id') {
+          return {
+            ...baseItem,
+            economy_price: item.economy_price !== undefined ? item.economy_price : "",
+            standard_price: item.standard_price !== undefined ? item.standard_price : "",
+            grade_prices: item.grade_prices !== undefined ? item.grade_prices : {},
+            days: item.days !== undefined ? item.days : "",
+            is_default: item.is_default === "Yes" || item.is_default === true ? "Yes" : "No",
+          }
+        }
+        
         return baseItem
       })
     }
@@ -1359,6 +1371,383 @@ export function AddLabProductModal({
       }
     }
   )
+
+  // Map tab IDs to their corresponding form fields
+  const getSectionFields = (tabId: string): string[] => {
+    const fieldMap: Record<string, string[]> = {
+      details: ["name", "code", "subcategory_id", "base_price", "type", "status", "sequence", "description", "is_single_stage", "min_days_to_process", "max_days_to_process", "enable_auto_billing", "auto_billing_days"],
+      grades: ["grades", "has_grade_based_pricing", "default_grade_id"],
+      stages: ["stages"],
+      impressions: ["impressions", "impression_group_id"],
+      gumShade: ["gum_shades", "gum_shade_group_id"],
+      teethShade: ["teeth_shades", "teeth_shade_group_id"],
+      material: ["materials", "material_group_id"],
+      addOns: ["addons", "addon_group_id", "link_all_addons"],
+      retention: ["retentions", "apply_retention_mechanism", "retention_type"],
+      extractions: ["extractions", "opposite_extractions", "apply_same_status_to_opposing"],
+      officePricing: ["office_grade_pricing", "office_stage_pricing", "office_stage_grade_pricing", "is_teeth_based_price"],
+      visibility: ["show_to_all_lab", "office_visibilities"],
+    }
+    return fieldMap[tabId] || []
+  }
+
+  // Watch section fields to ensure reactivity when they change
+  const sectionFields = useMemo(() => getSectionFields(activeTab), [activeTab])
+  const watchedSectionFields = sectionFields.reduce((acc, field) => {
+    acc[field] = watch(field as any)
+    return acc
+  }, {} as Record<string, any>)
+
+  // Check if current section has dirty fields - watch section fields for immediate reactivity
+  const hasSectionChanges = useMemo(() => {
+    if (!editingProduct || !editingProduct.id) return false
+    if (!isDirty) return false
+    return sectionFields.some(field => dirtyFields[field as keyof typeof dirtyFields])
+  }, [activeTab, dirtyFields, editingProduct, isDirty, sectionFields, watchedSectionFields])
+
+  // Generic handler to update any section
+  const handleUpdateSection = async () => {
+    if (!editingProduct || !editingProduct.id) {
+      toast({
+        title: "Error",
+        description: "Cannot update section for a new product. Please save the product first.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!initialFormValues) {
+      toast({
+        title: "Error",
+        description: "Cannot update section. Form not initialized.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      clearValidationErrors()
+      const formData = watch()
+      const sectionFields = getSectionFields(activeTab)
+      
+      // Create a subset of formData with only the section fields
+      const sectionData: any = {}
+      for (const field of sectionFields) {
+        if (formData[field as keyof typeof formData] !== undefined) {
+          sectionData[field] = formData[field as keyof typeof formData]
+        }
+      }
+
+      // Create a subset of initialFormValues with only the section fields for comparison
+      const initialSectionData: any = {}
+      for (const field of sectionFields) {
+        if (initialFormValues[field as keyof typeof initialFormValues] !== undefined) {
+          initialSectionData[field] = initialFormValues[field as keyof typeof initialFormValues]
+        }
+      }
+
+      // Calculate only the changed fields in this section
+      const changes = calculateChanges(initialSectionData, sectionData)
+      
+      // If no changes, show message and return
+      if (Object.keys(changes).length === 0) {
+        toast({
+          title: "No Changes",
+          description: "No changes detected in this section.",
+          variant: "default",
+        })
+        return
+      }
+
+      // Remove category_id from changes (UI-only field)
+      delete changes.category_id
+
+      // Determine if customer_id will be in the final payload (needed for stage formatting)
+      // This must be determined before processing stages
+      const willHaveCustomerId = formData.customer_id !== undefined || 
+                                 formData.customer_id !== null ||
+                                 (user?.role === "lab_admin" && user?.customers?.length > 0)
+
+      // Process array fields similar to onSubmit
+      function ensureSequenceAndStatus(arr: any[], idKey: string) {
+        if (!Array.isArray(arr)) return []
+        return arr.map((item, idx) => {
+          const baseItem = {
+            ...item,
+            [idKey]: item[idKey],
+            sequence: (item.sequence && item.sequence >= 1) ? item.sequence : idx + 1,
+            status: item.status || "Active",
+          }
+          
+          if (idKey === 'grade_id') {
+            return {
+              ...baseItem,
+              is_default: item.is_default === "Yes" || item.is_default === true ? "Yes" : "No",
+              price: item.price !== undefined ? item.price : "",
+            }
+          }
+          
+          if (idKey === 'addon_id') {
+            return {
+              ...baseItem,
+              is_default: item.is_default === "Yes" || item.is_default === true ? "Yes" : "No",
+              price: item.price !== undefined ? item.price : "",
+              quantity: item.quantity !== undefined ? item.quantity : 1,
+            }
+          }
+          
+          if (idKey === 'stage_id') {
+            const stageData: any = {
+              ...baseItem,
+              days: item.days !== undefined && item.days !== null && item.days !== "" ? item.days : undefined,
+              is_default: item.is_default === "Yes" || item.is_default === true ? "Yes" : "No",
+            }
+            
+            // When customer_id is present, backend expects 'price' field, not economy_price/standard_price
+            // Convert economy_price or standard_price to price (similar to buildProductPayload)
+            // Use the willHaveCustomerId variable from outer scope to determine formatting
+            if (willHaveCustomerId) {
+              let stagePrice: number | null = null
+              
+              // Check if grade-based pricing is used
+              const hasGradeBasedPricing = formData.has_grade_based_pricing === "Yes"
+              const hasSelectedGrades = formData.grades && formData.grades.length > 0
+              
+              if (hasGradeBasedPricing && hasSelectedGrades && item.grade_prices) {
+                // For grade-based pricing, use default grade's price from grade_prices
+                const defaultGrade = formData.grades.find((g: any) => g.is_default === "Yes")
+                if (defaultGrade) {
+                  const gradeId = defaultGrade.grade_id || defaultGrade.id
+                  const gradePrice = item.grade_prices[gradeId] || item.grade_prices[gradeId?.toString()]
+                  if (gradePrice !== undefined && gradePrice !== null && gradePrice !== "") {
+                    const parsedPrice = parseFloat(gradePrice)
+                    if (!isNaN(parsedPrice)) {
+                      stagePrice = parsedPrice
+                    }
+                  }
+                }
+                // If no default grade price, try first grade
+                if (stagePrice === null && formData.grades.length > 0) {
+                  const firstGrade = formData.grades[0]
+                  const gradeId = firstGrade.grade_id || firstGrade.id
+                  const gradePrice = item.grade_prices[gradeId] || item.grade_prices[gradeId?.toString()]
+                  if (gradePrice !== undefined && gradePrice !== null && gradePrice !== "") {
+                    const parsedPrice = parseFloat(gradePrice)
+                    if (!isNaN(parsedPrice)) {
+                      stagePrice = parsedPrice
+                    }
+                  }
+                }
+              } else {
+                // Use economy_price or standard_price (they should be the same for non-grade pricing)
+                if (item.economy_price !== undefined && item.economy_price !== null && item.economy_price !== "") {
+                  const parsedPrice = parseFloat(item.economy_price)
+                  if (!isNaN(parsedPrice)) {
+                    stagePrice = parsedPrice
+                  }
+                } else if (item.standard_price !== undefined && item.standard_price !== null && item.standard_price !== "") {
+                  const parsedPrice = parseFloat(item.standard_price)
+                  if (!isNaN(parsedPrice)) {
+                    stagePrice = parsedPrice
+                  }
+                }
+              }
+              
+              // Always include price (even if 0) - this is required for the backend when customer_id is present
+              if (stagePrice !== null && !isNaN(stagePrice)) {
+                stageData.price = stagePrice
+              } else {
+                stageData.price = 0
+              }
+              
+              // Remove grade_prices from the payload - it should only be in stage_grades
+              // The price field above already contains the calculated value
+              // Don't include economy_price or standard_price when customer_id is present
+            } else {
+              // When no customer_id, include economy_price and standard_price
+              stageData.economy_price = item.economy_price !== undefined ? item.economy_price : ""
+              stageData.standard_price = item.standard_price !== undefined ? item.standard_price : ""
+              stageData.grade_prices = item.grade_prices !== undefined ? item.grade_prices : {}
+            }
+            
+            // Note: is_releasing_stage will be handled by releasingStageIds parameter
+            // Don't set it here to avoid conflicts - let useProductMutations handle it
+            return stageData
+          }
+          
+          return baseItem
+        })
+      }
+
+      function ensureExtractions(arr: any[]) {
+        if (!Array.isArray(arr)) return []
+        return arr.map((item, idx) => ({
+          extraction_id: item.extraction_id ?? item.id,
+          sequence: (item.sequence && item.sequence >= 1) ? item.sequence : idx + 1,
+          status: item.status || "Active",
+          is_default: item.is_default === "Yes" || item.is_default === true ? "Yes" : "No",
+          is_required: item.is_required === "Yes" || item.is_required === true ? "Yes" : "No",
+          is_optional: item.is_optional === "Yes" || item.is_optional === true ? "Yes" : "No",
+          min_teeth: item.min_teeth && item.min_teeth >= 1 ? item.min_teeth : undefined,
+          max_teeth: item.max_teeth && item.max_teeth >= 1 ? item.max_teeth : undefined,
+        })).filter(item => item.extraction_id)
+      }
+
+      function ensureOppositeExtractions(arr: any[]) {
+        if (!Array.isArray(arr)) return []
+        return arr.map((item, idx) => ({
+          extraction_id: item.extraction_id ?? item.id,
+          sequence: (item.sequence && item.sequence >= 1) ? item.sequence : idx + 1,
+          status: item.status || "Active",
+          is_default: item.is_default === "Yes" || item.is_default === true ? "Yes" : "No",
+        })).filter(item => item.extraction_id)
+      }
+
+      // Process array fields in changes
+      // Special handling for stages: always send ALL current stages (not just changed ones)
+      // because stage updates need the full array for proper sequencing and relationships
+      const arrayFields = [
+        { key: 'grades', idKey: 'grade_id', processor: ensureSequenceAndStatus },
+        { key: 'stages', idKey: 'stage_id', processor: ensureSequenceAndStatus, useCurrentValue: true }, // Always use current value for stages
+        { key: 'impressions', idKey: 'impression_id', processor: ensureSequenceAndStatus },
+        { key: 'gum_shades', idKey: 'gum_shade_id', processor: ensureSequenceAndStatus },
+        { key: 'teeth_shades', idKey: 'teeth_shade_id', processor: ensureSequenceAndStatus },
+        { key: 'materials', idKey: 'material_id', processor: ensureSequenceAndStatus },
+        { key: 'retentions', idKey: 'retention_id', processor: ensureSequenceAndStatus },
+        { key: 'addons', idKey: 'addon_id', processor: ensureSequenceAndStatus },
+        { key: 'extractions', idKey: 'extraction_id', processor: ensureExtractions },
+        { key: 'opposite_extractions', idKey: 'extraction_id', processor: ensureOppositeExtractions },
+      ]
+
+      const payload: any = { ...changes }
+
+      // Ensure customer_id is included in payload if present in formData (needed for stage price formatting)
+      // This must be done after payload is created so stages can check for customer_id
+      if (formData.customer_id !== undefined && formData.customer_id !== null) {
+        payload.customer_id = formData.customer_id
+      }
+
+      // Special handling for stages tab: always include stages if stages field is dirty
+      if (activeTab === "stages" && dirtyFields.stages) {
+        // Even if changes doesn't have stages (due to comparison issues), include current stages
+        const currentStages = formData.stages || []
+        if (currentStages.length > 0) {
+          // Sort stages by sequence
+          const sortedStages = [...currentStages].sort((a: any, b: any) => {
+            const seqA = a.sequence ?? 0
+            const seqB = b.sequence ?? 0
+            return seqA - seqB
+          })
+          payload.stages = ensureSequenceAndStatus(sortedStages, 'stage_id')
+        }
+      }
+
+      arrayFields.forEach(({ key, idKey, processor, useCurrentValue }) => {
+        if (key === 'opposite_extractions' && formData.apply_same_status_to_opposing === true) {
+          payload.opposite_extractions = []
+          return
+        }
+        
+        // For stages, always use current formData value (all stages) if stages changed
+        // This ensures we send the complete stage array with proper sequencing
+        if (key === 'stages' && changes[key] !== undefined) {
+          // Use current formData stages (all of them) instead of just changed ones
+          const currentStages = formData.stages || []
+          if (currentStages.length > 0) {
+            // Sort stages by sequence
+            const sortedStages = [...currentStages].sort((a: any, b: any) => {
+              const seqA = a.sequence ?? 0
+              const seqB = b.sequence ?? 0
+              return seqA - seqB
+            })
+            payload[key] = processor(sortedStages, idKey)
+          }
+        } else if (changes[key] !== undefined && key !== 'stages') {
+          // Don't process stages here if we already handled them above
+          payload[key] = processor(changes[key] as any[], idKey)
+        }
+      })
+
+      // Handle apply_same_status_to_opposing
+      if (changes.apply_same_status_to_opposing !== undefined && formData.apply_same_status_to_opposing === true) {
+        payload.opposite_extractions = []
+      }
+
+      // Special handling for stages - include releasingStageIds
+      const releasingIds = activeTab === "stages" ? releasingStageIds : undefined
+
+      // Debug logging for stages
+      if (activeTab === "stages") {
+        console.log('🔄 Updating stages - Full Debug:', {
+          payload: JSON.stringify(payload, null, 2),
+          payloadStages: payload.stages,
+          releasingStageIds: releasingIds,
+          currentStages: formData.stages,
+          changes,
+          hasCustomerId: payload.customer_id || formData.customer_id || (user?.role === "lab_admin" && user?.customers?.length > 0),
+          userRole: user?.role,
+          userCustomers: user?.customers
+        })
+      }
+
+      // Use the updateProduct prop function
+      try {
+        await updateProduct(editingProduct.id, payload, releasingIds)
+        
+        // Update initialFormValues to reflect the changes
+        const updatedInitialValues: ProductCreateForm = { ...initialFormValues }
+        for (const field of sectionFields) {
+          if (changes[field] !== undefined) {
+            (updatedInitialValues as any)[field] = formData[field as keyof typeof formData]
+          }
+        }
+        setInitialFormValues(updatedInitialValues)
+        
+        const sectionName = tabs.find(t => t.id === activeTab)?.label || "Section"
+        toast({
+          title: "Success",
+          description: `${sectionName} updated successfully.`,
+          variant: "default",
+        })
+      } catch (updateError: any) {
+        // Re-throw to be caught by outer catch block
+        throw updateError
+      }
+    } catch (error: any) {
+      console.error(`Failed to update ${activeTab}:`, error)
+      
+      // Check for redirect/network errors
+      const errorMessage = error?.message || String(error)
+      if (errorMessage.includes("redirect") || 
+          errorMessage.includes("localhost") || 
+          errorMessage.includes("ERR_SSL") ||
+          errorMessage.includes("Failed to fetch")) {
+        toast({
+          title: "Server Configuration Error",
+          description: "The API server is returning an invalid redirect. This is a server-side issue. Please try using the 'Save Product' button at the bottom of the form instead, or contact your administrator.",
+          variant: "destructive",
+          duration: 10000, // Show for 10 seconds
+        })
+        return
+      }
+      
+      const backendErrors = flattenBackendErrors(error?.errors)
+      if (backendErrors.length > 0) {
+        setServerValidationErrors(backendErrors)
+        toast({
+          title: "Validation Error",
+          description: backendErrors[0]?.message || `Failed to update ${activeTab}.`,
+          variant: "destructive",
+        })
+      } else {
+        toast({
+          title: "Error",
+          description: error?.message || `Failed to update ${activeTab}. Please try using the 'Save Product' button instead.`,
+          variant: "destructive",
+        })
+      }
+    }
+  }
 
   // Alternative submission method that bypasses form validation
   const handleDirectSubmit = async (e: React.FormEvent) => {
@@ -1733,15 +2122,27 @@ export function AddLabProductModal({
                             : t("productModal.saveProduct", "Save Product")}
                       </Button>
                     ) : (
-                      <Button
-                        type="button"
-                        onClick={handleNext}
-                        className="bg-[#1162a8] hover:bg-[#0d4c84] h-10 w-full sm:w-auto sm:px-8 disabled:opacity-50 disabled:cursor-not-allowed"
-                        disabled={!isCurrentStepValid}
-                      >
-                        Next
-                        <ChevronRight className="h-4 w-4 ml-1" />
-                      </Button>
+                      <>
+                        {hasSectionChanges && (
+                          <Button
+                            type="button"
+                            onClick={handleUpdateSection}
+                            className="bg-blue-600 hover:bg-blue-700 h-10 w-full sm:w-auto sm:px-6 disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={isUpdating || isCreating}
+                          >
+                            {isUpdating ? "Updating..." : "Update"}
+                          </Button>
+                        )}
+                        <Button
+                          type="button"
+                          onClick={handleNext}
+                          className="bg-[#1162a8] hover:bg-[#0d4c84] h-10 w-full sm:w-auto sm:px-8 disabled:opacity-50 disabled:cursor-not-allowed"
+                          disabled={!isCurrentStepValid}
+                        >
+                          Next
+                          <ChevronRight className="h-4 w-4 ml-1" />
+                        </Button>
+                      </>
                     )}
                   </div>
                 </div>

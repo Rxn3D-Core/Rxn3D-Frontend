@@ -124,17 +124,6 @@ export function ImpressionSelectionModal({
     return stlFilesByImpression[key] || []
   }
 
-  // Sort impressions: selected ones first, then alphabetically
-  const sortedImpressions = [...impressions].sort((a, b) => {
-    const qtyA = getQuantity(a)
-    const qtyB = getQuantity(b)
-
-    if (qtyA > 0 && qtyB === 0) return -1
-    if (qtyA === 0 && qtyB > 0) return 1
-
-    return a.name.localeCompare(b.name)
-  })
-
   // Count only selections relevant to this modal's product and arch
   const modalSelectedCount = impressions.reduce((sum, impression) => {
     return sum + getQuantity(impression)
@@ -167,7 +156,7 @@ export function ImpressionSelectionModal({
 
         <div className="px-6 py-4 overflow-y-auto max-h-[70vh]">
           <div className="grid grid-cols-6 gap-3">
-            {sortedImpressions.map((impression) => {
+            {impressions.map((impression) => {
               const qty = getQuantity(impression)
               const isSelected = qty > 0
 

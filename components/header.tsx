@@ -45,6 +45,7 @@ import { UserProfileModal } from "@/components/user-profile-modal"
 import { fetchUserProfile, type UserProfileData } from "@/services/user-profile-service"
 import { User as UserIcon } from "lucide-react"
 import { clearSlipCreationStorage } from "@/utils/slip-creation-storage"
+import { useClearCaseDesignCenterStateMutation } from "@/hooks/use-case-design-center-state"
 
 interface HeaderProps {
   toggleSidebar?: () => void
@@ -111,6 +112,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
   const { toast } = useToast();
   const pathname = usePathname() || "";
   const router = useRouter();
+  const clearCaseDesignCenterStateMutation = useClearCaseDesignCenterStateMutation();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const codeReaderRef = useRef<BrowserMultiFormatReader | null>(null);
   const scanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -772,6 +774,8 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                   onClick={() => {
                     // Clear all slip creation cache data when starting a new slip
                     clearSlipCreationStorage();
+                    // Reset caseDesignCenterState in local storage using React Query
+                    clearCaseDesignCenterStateMutation.mutate();
                     // Navigate to choose-doctor page if office_admin, otherwise choose-lab
                     if (isOfficeAdmin) {
                       router.replace("/choose-doctor");

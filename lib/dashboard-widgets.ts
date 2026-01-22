@@ -175,49 +175,8 @@ export function getCustomerId(user?: any): number | null {
   return null
 }
 
-// SessionStorage key generator
-export function getDashboardSettingsKey(role: string, userId?: number, customerId?: number | null): string {
-  const parts = [`dashboard-settings-${role}`]
-  
-  if (userId) {
-    parts.push(`user-${userId}`)
-  }
-  
-  if (customerId) {
-    parts.push(`customer-${customerId}`)
-  }
-  
-  return parts.join("-")
-}
-
-// Load settings from sessionStorage
-export function loadDashboardSettings(role: string, userId?: number, customerId?: number | null): DashboardSettings | null {
-  if (typeof window === "undefined") return null
-  
-  try {
-    const key = getDashboardSettingsKey(role, userId, customerId)
-    const stored = sessionStorage.getItem(key)
-    if (stored) {
-      return JSON.parse(stored) as DashboardSettings
-    }
-  } catch (error) {
-    console.error("Error loading dashboard settings:", error)
-  }
-  
-  return null
-}
-
-// Save settings to sessionStorage
-export function saveDashboardSettings(settings: DashboardSettings, userId?: number, customerId?: number | null): void {
-  if (typeof window === "undefined") return
-  
-  try {
-    const key = getDashboardSettingsKey(settings.role, userId, customerId)
-    sessionStorage.setItem(key, JSON.stringify(settings))
-  } catch (error) {
-    console.error("Error saving dashboard settings:", error)
-  }
-}
+// Note: Dashboard settings are now stored in the backend database.
+// Use the API functions from @/lib/api-dashboard-settings instead of sessionStorage.
 
 // Get enabled widgets in order
 export function getEnabledWidgets(settings: DashboardSettings): DashboardWidget[] {
