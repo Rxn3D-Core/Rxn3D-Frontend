@@ -73,6 +73,29 @@ export function useProductMutations() {
         )
       }
 
+      // CRITICAL: When customer_id is present, backend requires 'price' field
+      // Map base_price to price if customer_id is present and price is not already set
+      if (finalPayload.customer_id && finalPayload.price === undefined) {
+        // Get base_price value
+        const basePriceValue = finalPayload.base_price
+        
+        if (basePriceValue !== undefined && basePriceValue !== null && basePriceValue !== "") {
+          // Convert to number
+          const priceValue = typeof basePriceValue === 'string' 
+            ? parseFloat(String(basePriceValue).trim()) 
+            : Number(basePriceValue)
+          
+          if (!isNaN(priceValue) && isFinite(priceValue) && priceValue >= 0) {
+            finalPayload.price = priceValue
+          } else {
+            finalPayload.price = 0
+          }
+        } else {
+          // Backend requires price field when customer_id is present, even if base_price is empty
+          finalPayload.price = 0
+        }
+      }
+
       // Only remove pricing-related fields for non-lab products (products without customer_id)
       // Lab products (with customer_id) need stage_grades for grade-wise stage pricing
       if (!finalPayload.customer_id) {
@@ -97,9 +120,10 @@ export function useProductMutations() {
           finalPayload.addons = finalPayload.addons.map(({ price, ...rest }) => rest)
         }
       } else {
-        // For lab products (with customer_id), keep stage_grades but remove other pricing fields for non-admin users
+        // For lab products (with customer_id), keep price but remove other pricing fields for non-admin users
         if (!isLabAdmin) {
-          delete finalPayload.price
+          // DO NOT delete price - backend requires it when customer_id is present
+          // delete finalPayload.price  // REMOVED - price is required when customer_id is present
           delete finalPayload.price_type
           delete finalPayload.grade_prices
           delete finalPayload.stage_prices
@@ -111,8 +135,6 @@ export function useProductMutations() {
       }
 
       const apiUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL}/library/products/${id}`
-      
-      console.log('🔄 Updating product:', { id, url: apiUrl, payload: finalPayload })
       
       let response: Response
       try {
@@ -127,7 +149,6 @@ export function useProductMutations() {
         })
       } catch (fetchError: any) {
         // Handle network errors (like SSL errors from redirects)
-        console.error("❌ Fetch error:", fetchError)
         const errorMessage = fetchError.message || String(fetchError)
         
         // Check for SSL errors or localhost redirects
@@ -143,7 +164,6 @@ export function useProductMutations() {
             status: 302,
             raw: { error_description: "API redirect error - server misconfiguration detected" }
           }
-          console.error("🚨 Redirect error detected:", apiError)
           throw apiError
         }
         throw fetchError
@@ -151,7 +171,6 @@ export function useProductMutations() {
 
       // Check if response is valid (status 0 means request failed)
       if (response.status === 0) {
-        console.error("❌ Request failed with status 0 - likely a redirect or network issue")
         // Can't use Response with status 0, so throw a regular error with ApiError structure
         const error: ApiErrorPayload = {
           message: "The request failed due to a network error or server redirect. This is likely a server configuration issue. Please try using the 'Save Product' button instead, or contact your administrator.",
@@ -181,13 +200,11 @@ export function useProductMutations() {
               error_description: `Invalid redirect location: ${location}`
             }
           )
-          console.error("🚨 Invalid redirect detected:", apiError)
           throw apiError
         }
         
         // If we have a valid absolute URL, retry the request
         if (location && location.startsWith("http") && !location.includes("localhost")) {
-          console.log(`Following redirect to: ${location}`)
           try {
             const redirectResponse = await fetch(location, {
               method: "PUT",
@@ -239,11 +256,9 @@ export function useProductMutations() {
       const apiResult = await safeParseJson(response)
 
       if (!response.ok) {
-        console.error("❌ API returned error:", response.status, apiResult)
         throw buildApiError(response, apiResult)
       }
 
-      console.log("✅ Product updated successfully:", apiResult)
       return apiResult
     },
     onSuccess: () => {
@@ -251,7 +266,7 @@ export function useProductMutations() {
       queryClient.invalidateQueries({ queryKey: ['products'] })
     },
     onError: (error) => {
-      console.error("❌ Failed to update product:", error)
+      // Error handled by caller
     },
   })
 
@@ -339,7 +354,7 @@ export function useProductMutations() {
       queryClient.invalidateQueries({ queryKey: ['products'] })
     },
     onError: (error) => {
-      console.error("Failed to create product:", error)
+      // Error handled by caller
     },
   })
 
@@ -382,7 +397,7 @@ export function useProductMutations() {
       queryClient.invalidateQueries({ queryKey: ['products'] })
     },
     onError: (error) => {
-      console.error("Failed to delete product:", error)
+      // Error handled by caller
     },
   })
 

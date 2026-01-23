@@ -1625,58 +1625,6 @@ export function AddLabProductModal({
       // This must be done after payload is created so stages can check for customer_id
       if (formData.customer_id !== undefined && formData.customer_id !== null) {
         payload.customer_id = formData.customer_id
-      } else if (user?.role === "lab_admin" && user.customers?.length > 0) {
-        // For lab_admin users, include customer_id if not already present
-        payload.customer_id = user.customers[0]?.id
-      } else if (editingProduct?.customer_id) {
-        // If editing a product that has a customer_id, include it
-        payload.customer_id = editingProduct.customer_id
-      }
-
-      // When customer_id is present, backend requires 'price' field (not 'base_price')
-      // Map base_price to price for details section updates
-      if (payload.customer_id && activeTab === "details") {
-        // Always include price when updating details section with customer_id
-        // Use base_price from changes if available, otherwise from formData
-        const basePriceValue = changes.base_price !== undefined 
-          ? changes.base_price 
-          : formData.base_price
-        
-        if (basePriceValue !== undefined && basePriceValue !== null && basePriceValue !== "") {
-          // Convert to number if it's a string
-          const priceValue = typeof basePriceValue === 'string' 
-            ? parseFloat(basePriceValue) 
-            : basePriceValue
-          
-          if (!isNaN(priceValue) && isFinite(priceValue)) {
-            payload.price = priceValue
-          } else {
-            payload.price = 0
-          }
-        } else {
-          // If base_price is empty/null, set price to 0 (backend requires a numeric value)
-          payload.price = 0
-        }
-        
-        // Remove base_price from payload as backend expects 'price' when customer_id is present
-        delete payload.base_price
-      } else if (payload.customer_id && changes.base_price !== undefined) {
-        // For other sections, if base_price changed and customer_id is present, also map it
-        const basePriceValue = changes.base_price
-        if (basePriceValue !== undefined && basePriceValue !== null && basePriceValue !== "") {
-          const priceValue = typeof basePriceValue === 'string' 
-            ? parseFloat(basePriceValue) 
-            : basePriceValue
-          
-          if (!isNaN(priceValue) && isFinite(priceValue)) {
-            payload.price = priceValue
-          } else {
-            payload.price = 0
-          }
-        } else {
-          payload.price = 0
-        }
-        delete payload.base_price
       }
 
       // Special handling for stages tab: always include stages if stages field is dirty
@@ -1761,6 +1709,9 @@ export function AddLabProductModal({
           description: `${sectionName} updated successfully.`,
           variant: "default",
         })
+        
+        // Close modal after successful update
+        onClose()
       } catch (updateError: any) {
         // Re-throw to be caught by outer catch block
         throw updateError
