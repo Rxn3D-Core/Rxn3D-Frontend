@@ -132,6 +132,7 @@ export const fetchSubcategoriesWithCache = async (categoryId: number, language: 
       parent_id: subcategory.category_id,
       case_pan_id: subcategory.case_pan_id || null,
       color_code: subcategory?.case_pan?.color_code || null,
+      image_url: subcategory.image_url || null,
       created_at: subcategory.created_at,
       updated_at: subcategory.updated_at,
       all_labs: 'All Labs',

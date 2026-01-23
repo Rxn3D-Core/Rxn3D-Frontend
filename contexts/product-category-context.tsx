@@ -851,6 +851,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
           parent_id: subcategory.category_id, // Use category_id from the API response
           case_pan_id: subcategory.case_pan_id || null,
           color_code: subcategory?.case_pan?.color_code || null,
+          image_url: subcategory.image_url || null,
           created_at: subcategory.created_at,
           updated_at: subcategory.updated_at,
           all_labs: 'All Labs',
