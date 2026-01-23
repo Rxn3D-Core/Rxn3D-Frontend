@@ -281,7 +281,7 @@ export function SuperAdminDashboard() {
     t(`superAdminDashboard.${key}`, fallback)
 
   return (
-    <div className="p-3 sm:p-4 md:p-6 lg:p-8 xl:p-12 bg-white min-h-screen">
+    <div className="p-3 sm:p-4 bg-white min-h-screen">
       <div className="space-y-4 sm:space-y-6 lg:space-y-8">
         {/* Header Section */}
         <div className="mb-4 sm:mb-6">

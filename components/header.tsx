@@ -761,77 +761,77 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
 
   return (
     <>
-      <header className="sticky top-0 z-40 w-full border-b bg-white shadow-sm">
-        <div className="flex flex-col sm:flex-row h-auto min-h-12 lg:min-h-14 items-stretch sm:items-center px-2 sm:px-3 md:px-4 lg:px-6 xl:px-8 2xl:px-12 gap-2 sm:gap-3 md:gap-4 lg:gap-5 xl:gap-6 py-1 sm:py-1.5 md:py-2 lg:py-2">
-          {/* Top Row - Main Actions */}
-          <div className="flex items-center justify-between gap-2 sm:gap-1 md:gap-2 lg:gap-3 xl:gap-4 flex-1 min-w-0">
-            {/* Enhanced Left Section */}
-            <div className="flex items-center gap-1 sm:gap-1.5 md:gap-2 lg:gap-3 flex-wrap min-w-0 flex-1 sm:flex-initial">
-              
+      <header className="sticky top-0 z-40 w-full border-b bg-white/95 backdrop-blur-sm shadow-sm dark:bg-gray-900/95 dark:border-gray-800">
+        <div className="container mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
+          {/* Main Header Row */}
+          <div className="flex items-center justify-between gap-3 sm:gap-4 md:gap-6 py-2 sm:py-2.5 md:py-3">
+            {/* Left Section - Action Buttons */}
+            <div className="flex items-center gap-1.5 sm:gap-2 md:gap-2.5 flex-shrink-0">
               {!isSuperAdmin && (
-                <button
-                  className="bg-[#1162a8] hover:bg-blue-700 text-white px-2 sm:px-2.5 md:px-3 lg:px-4 py-1.5 sm:py-1.5 md:py-2 rounded-md sm:rounded-lg text-[10px] sm:text-xs md:text-sm font-medium transition-colors shadow-sm whitespace-nowrap flex-shrink-0"
+                <Button
+                  size="sm"
+                  className="bg-[#1162a8] hover:bg-[#0d4d87] text-white h-8 sm:h-9 md:h-10 px-2.5 sm:px-3 md:px-4 text-xs sm:text-sm font-medium shadow-sm transition-all duration-200 hover:shadow-md"
                   onClick={() => {
-                    // Clear all slip creation cache data when starting a new slip
                     clearSlipCreationStorage();
-                    // Reset caseDesignCenterState in local storage using React Query
                     clearCaseDesignCenterStateMutation.mutate();
-                    // Navigate to choose-doctor page if office_admin, otherwise choose-lab
                     if (isOfficeAdmin) {
                       router.replace("/choose-doctor");
                     } else {
                       router.replace("/choose-lab");
                     }
-                    // Call onNewSlip callback if provided
                     if (onNewSlip) {
                       onNewSlip();
                     }
                   }}
                 >
-                  <span className="hidden md:inline">{t("header.newSlip", "+ New slip")}</span>
-                  <span className="hidden sm:inline md:hidden">+ Slip</span>
-                  <span className="sm:hidden">+ Slip</span>
-                </button>
+                  <span className="hidden lg:inline">{t("header.newSlip", "+ New slip")}</span>
+                  <span className="hidden sm:inline lg:hidden">+ Slip</span>
+                  <span className="sm:hidden">+</span>
+                </Button>
               )}
               {!isOfficeAdmin && (
-                <button className="bg-[#1162a8] hover:bg-blue-700 text-white px-2 sm:px-2.5 md:px-3 lg:px-4 py-1.5 sm:py-1.5 md:py-2 rounded-md sm:rounded-lg text-[10px] sm:text-xs md:text-sm font-medium transition-colors shadow-sm whitespace-nowrap flex-shrink-0">
-                  <span className="hidden md:inline">{t("header.newOffice", "+ New Office")}</span>
-                  <span className="hidden sm:inline md:hidden">+ Office</span>
-                  <span className="sm:hidden">+ Office</span>
-                </button>
+                <Button
+                  size="sm"
+                  className="bg-[#1162a8] hover:bg-[#0d4d87] text-white h-8 sm:h-9 md:h-10 px-2.5 sm:px-3 md:px-4 text-xs sm:text-sm font-medium shadow-sm transition-all duration-200 hover:shadow-md hidden sm:inline-flex"
+                >
+                  <span className="hidden lg:inline">{t("header.newOffice", "+ New Office")}</span>
+                  <span className="lg:hidden">+ Office</span>
+                </Button>
               )}
-              <button
-                className="bg-[#1162a8] hover:bg-blue-700 text-white px-2 sm:px-2.5 md:px-3 lg:px-4 py-1.5 sm:py-1.5 md:py-2 rounded-md sm:rounded-lg text-[10px] sm:text-xs md:text-sm font-medium flex items-center gap-1 sm:gap-1.5 md:gap-2 transition-colors shadow-sm whitespace-nowrap flex-shrink-0"
+              <Button
+                size="sm"
+                className="bg-[#1162a8] hover:bg-[#0d4d87] text-white h-8 sm:h-9 md:h-10 px-2.5 sm:px-3 md:px-4 text-xs sm:text-sm font-medium shadow-sm transition-all duration-200 hover:shadow-md relative"
                 onClick={openScanner}
                 aria-label={t("header.openScanner", "Open QR code scanner")}
               >
-                <QrCode className="text-white w-3 h-3 sm:w-3.5 sm:h-3.5 md:w-4 md:h-4 lg:w-5 lg:h-5 xl:w-5 xl:h-5 flex-shrink-0" />
-                <span className="hidden md:inline">{t("header.scanCode", "Scan Code")}</span>
-                <span className="hidden sm:inline md:hidden">Scan</span>
-                <span className="sm:hidden">Scan</span>
+                <QrCode className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-4.5 md:h-4.5 mr-1 sm:mr-1.5" />
+                <span className="hidden sm:inline">{t("header.scanCode", "Scan")}</span>
                 {scanHistory.length > 0 && (
-                  <Badge variant="secondary" className="ml-0.5 sm:ml-1 lg:ml-1.5 text-[10px] sm:text-xs md:text-sm bg-white text-[#1162a8] flex-shrink-0">
+                  <Badge 
+                    variant="secondary" 
+                    className="ml-1.5 h-4 w-4 sm:h-5 sm:w-5 p-0 flex items-center justify-center text-[10px] sm:text-xs bg-white text-[#1162a8] font-semibold rounded-full"
+                  >
                     {scanHistory.length}
                   </Badge>
                 )}
-              </button>
+              </Button>
             </div>
 
-            {/* Center Section - Customer Logo or Search (for SuperAdmin) */}
-            <div className="flex-1 flex items-center justify-center min-w-0">
+            {/* Center Section - Logo or Search */}
+            <div className="flex-1 flex items-center justify-center min-w-0 mx-2 sm:mx-4 md:mx-6">
               {isSuperAdmin ? (
-                <div className="w-full sm:w-auto min-w-0 max-w-full lg:max-w-lg xl:max-w-xl 2xl:max-w-2xl">
-                  <div className="relative w-full">
-                    <Search className="absolute left-2 sm:left-3 lg:left-4 xl:left-5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-5 lg:w-5 xl:h-5 xl:w-5 text-muted-foreground" />
+                <div className="w-full max-w-md lg:max-w-lg xl:max-w-xl">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <Input
                       type="search"
                       placeholder={t("header.searchLab", "Search Lab")}
-                      className="w-full pl-8 sm:pl-10 lg:pl-12 xl:pl-14 pr-3 sm:pr-4 lg:pr-5 py-1.5 sm:py-2 lg:py-2.5 xl:py-3 border-gray-300 rounded-md sm:rounded-lg lg:rounded-xl focus:ring-2 focus:ring-[#1162a8] focus:border-[#1162a8] text-xs sm:text-sm lg:text-base h-8 sm:h-9 lg:h-10 xl:h-11"
+                      className="w-full pl-10 pr-4 h-8 sm:h-9 md:h-10 text-sm border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1162a8] focus:border-[#1162a8] dark:bg-gray-800 dark:border-gray-700"
                     />
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center justify-center">
+                <div className="flex items-center justify-center max-w-full">
                   {(() => {
                     const selectedLocationObj = typeof window !== 'undefined'
                       ? JSON.parse(localStorage.getItem("selectedLocation") || "null")
@@ -841,7 +841,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                       <CustomerLogo
                         customerId={customerId}
                         alt="Company Logo"
-                        className="h-auto w-auto max-h-12 sm:max-h-14 md:max-h-16 lg:max-h-20 object-contain"
+                        className="h-8 sm:h-10 md:h-12 lg:h-14 w-auto object-contain max-w-[200px] sm:max-w-[250px] md:max-w-[300px]"
                       />
                     ) : null
                   })()}
@@ -849,27 +849,27 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
               )}
             </div>
 
-            {/* Enhanced Right Section - Pushed to right edge */}
-            <div className="flex items-center gap-1 sm:gap-1.5 md:gap-2 lg:gap-3 xl:gap-4 2xl:gap-5 flex-shrink-0 ml-auto">
-              <ThemeToggle />
-              <div className="hidden md:block">
-                <LanguageSwitcher />
-              </div>
-
+            {/* Right Section - Controls & User */}
+            <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 flex-shrink-0">
+              {/* Location Selector - Desktop */}
               {!isSuperAdmin && safeLocations.length > 0 && (
-                <div className="hidden sm:block min-w-0">
+                <div className="hidden md:block min-w-0">
                   <Select
                     value={selectedLocation !== null ? selectedLocation.toString() : ""}
                     onValueChange={handleLocationChange}
                   >
-                    <SelectTrigger className="w-[140px] sm:w-[160px] md:w-[200px] lg:w-[240px] xl:w-[280px] 2xl:w-[320px] border-gray-300 rounded-md sm:rounded-lg lg:rounded-xl focus:ring-2 focus:ring-[#1162a8] focus:border-[#1162a8] text-xs sm:text-sm lg:text-base h-8 sm:h-9 lg:h-10 xl:h-11">
-                      <SelectValue placeholder={t("header.selectLocation", "Select a location")} />
+                    <SelectTrigger className="w-[140px] lg:w-[180px] xl:w-[220px] h-8 sm:h-9 md:h-10 text-xs sm:text-sm border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1162a8] dark:bg-gray-800 dark:border-gray-700">
+                      <SelectValue placeholder={t("header.selectLocation", "Location")} />
                     </SelectTrigger>
                     <SelectContent className="rounded-lg shadow-lg">
                       <SelectGroup>
-                        <SelectLabel className="font-medium text-gray-700">Locations</SelectLabel>
+                        <SelectLabel className="font-medium text-gray-700 dark:text-gray-300">Locations</SelectLabel>
                         {safeLocations.map((location) => (
-                          <SelectItem key={location.id} value={location.id.toString()} className="hover:bg-blue-50">
+                          <SelectItem 
+                            key={location.id} 
+                            value={location.id.toString()} 
+                            className="hover:bg-blue-50 dark:hover:bg-gray-800"
+                          >
                             {location.name}
                           </SelectItem>
                         ))}
@@ -879,37 +879,57 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                 </div>
               )}
 
-              <NotificationDropdown />
-              
-              <div className="sm:hidden">
+              {/* Theme Toggle */}
+              <div className="hidden sm:block">
+                <ThemeToggle />
+              </div>
+
+              {/* Language Switcher - Desktop */}
+              <div className="hidden lg:block">
                 <LanguageSwitcher />
               </div>
-              
-              <Settings className="h-4 w-4 md:h-5 md:w-5 lg:h-6 lg:w-6 xl:h-6 xl:w-6 text-gray-600 hover:text-[#1162a8] cursor-pointer transition-colors flex-shrink-0" />
-              
-              {/* Enhanced User Dropdown */}
+
+              {/* Notifications */}
+              <NotificationDropdown />
+
+              {/* Settings Icon */}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 sm:h-9 sm:w-9 p-0 hidden sm:inline-flex"
+                aria-label="Settings"
+              >
+                <Settings className="h-4 w-4 sm:h-5 sm:w-5 text-gray-600 dark:text-gray-400 hover:text-[#1162a8] dark:hover:text-[#1162a8]" />
+              </Button>
+
+              {/* User Menu */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <div className="flex flex-col items-center gap-1 sm:gap-1.5 flex-shrink-0 p-2 sm:p-2.5 md:p-3 cursor-pointer">
-                    <Avatar className="h-7 w-7 md:h-8 md:w-8 lg:h-10 lg:w-10 xl:h-11 xl:w-11 ring-2 ring-gray-200">
+                  <Button
+                    variant="ghost"
+                    className="h-8 w-8 sm:h-9 sm:w-9 md:h-10 md:w-10 p-0 rounded-full hover:ring-2 hover:ring-[#1162a8] transition-all"
+                  >
+                    <Avatar className="h-full w-full ring-2 ring-gray-200 dark:ring-gray-700">
                       <AvatarImage
                         src={getUserAvatar(user?.image, user?.email || user?.id || user?.first_name)}
                         alt={user?.first_name || t("header.user")}
                       />
-                      <AvatarFallback className="bg-[#1162a8] text-white font-medium text-[10px] sm:text-xs md:text-sm lg:text-base">
+                      <AvatarFallback className="bg-[#1162a8] text-white font-medium text-xs sm:text-sm">
                         {getInitials(user?.first_name || "")}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="text-[10px] sm:text-xs md:text-sm font-medium text-gray-900 whitespace-nowrap">
-                      {getPrimaryRole()}
-                    </span>
-                  </div>
+                  </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56 lg:w-64 rounded-lg shadow-lg" align="center" side="bottom" sideOffset={8} forceMount>
+                <DropdownMenuContent 
+                  className="w-56 rounded-lg shadow-lg border-gray-200 dark:border-gray-700" 
+                  align="end" 
+                  sideOffset={8}
+                >
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
-                      <p className="text-sm lg:text-base font-medium">{user?.first_name || t("header.user")}</p>
-                      <p className="text-xs lg:text-sm text-muted-foreground truncate">{user?.email || "user@example.com"}</p>
+                      <p className="text-sm font-medium">{user?.first_name || t("header.user")}</p>
+                      <p className="text-xs text-muted-foreground truncate">{user?.email || "user@example.com"}</p>
+                      <p className="text-xs text-muted-foreground">{getPrimaryRole()}</p>
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
@@ -932,43 +952,64 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                         setIsLoadingProfile(false)
                       }
                     }}
-                    className="hover:bg-blue-50 text-sm lg:text-base cursor-pointer"
+                    className="cursor-pointer"
                   >
                     <UserIcon className="w-4 h-4 mr-2" />
                     Profile
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={logout} className="hover:bg-red-50 text-red-600 text-sm lg:text-base">
-                    {t("header.signOut")}
+                  <DropdownMenuItem onClick={logout} className="text-red-600 dark:text-red-400 cursor-pointer">
+                    {t("header.signOut", "Sign Out")}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
           </div>
 
-          {/* Location Selector for Mobile (when not SuperAdmin) */}
-          {!isSuperAdmin && safeLocations.length > 0 && (
-            <div className="sm:hidden w-full order-3">
-              <Select
-                value={selectedLocation !== null ? selectedLocation.toString() : ""}
-                onValueChange={handleLocationChange}
+          {/* Secondary Row - Mobile Only Elements */}
+          <div className="flex items-center gap-2 pb-2 sm:hidden border-t border-gray-200 dark:border-gray-800 pt-2">
+            {/* Location Selector - Mobile */}
+            {!isSuperAdmin && safeLocations.length > 0 && (
+              <div className="flex-1 min-w-0">
+                <Select
+                  value={selectedLocation !== null ? selectedLocation.toString() : ""}
+                  onValueChange={handleLocationChange}
+                >
+                  <SelectTrigger className="w-full h-8 text-xs border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1162a8]">
+                    <SelectValue placeholder={t("header.selectLocation", "Select location")} />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-lg shadow-lg">
+                    <SelectGroup>
+                      <SelectLabel className="font-medium text-gray-700">Locations</SelectLabel>
+                      {safeLocations.map((location) => (
+                        <SelectItem 
+                          key={location.id} 
+                          value={location.id.toString()} 
+                          className="hover:bg-blue-50"
+                        >
+                          {location.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            
+            {/* Mobile Theme & Language */}
+            <div className="flex items-center gap-1.5">
+              <ThemeToggle />
+              <LanguageSwitcher />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0"
+                aria-label="Settings"
               >
-                <SelectTrigger className="w-full border-gray-300 rounded-md focus:ring-2 focus:ring-[#1162a8] focus:border-[#1162a8] text-xs h-8">
-                  <SelectValue placeholder={t("header.selectLocation", "Select a location")} />
-                </SelectTrigger>
-                <SelectContent className="rounded-lg shadow-lg">
-                  <SelectGroup>
-                    <SelectLabel className="font-medium text-gray-700">Locations</SelectLabel>
-                    {safeLocations.map((location) => (
-                      <SelectItem key={location.id} value={location.id.toString()} className="hover:bg-blue-50">
-                        {location.name}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
+                <Settings className="h-4 w-4 text-gray-600" />
+              </Button>
             </div>
-          )}
+          </div>
         </div>
       </header>
 

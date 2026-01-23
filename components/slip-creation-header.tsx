@@ -104,12 +104,12 @@ const CustomerLogoFromStorage = ({ size = "default" }: { size?: "default" | "lar
 
   if (size === "large") {
     return (
-      <div className="w-[500px] h-[75px] flex items-center justify-center">
+      <div className="flex items-center justify-center max-w-full">
         {customerId ? (
           <CustomerLogo
             customerId={customerId}
             alt="Customer Logo"
-            className="max-w-full max-h-[120px] object-contain"
+            className="h-8 sm:h-10 md:h-12 lg:h-14 w-auto object-contain max-w-[200px] sm:max-w-[250px] md:max-w-[300px]"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
@@ -211,19 +211,19 @@ const SendingToSection = ({ lab }: { lab: Lab }) => {
   const hasDirectLogo = lab?.logo && typeof lab.logo === 'string'
   
   return (
-    <div className="flex items-center gap-[7px] w-[350px] h-[75px] overflow-visible">
-      <p className="text-[15.9926px] font-bold leading-[22px] tracking-[-0.02em] text-[#080808]">
+    <div className="flex items-center gap-1.5 sm:gap-2 md:gap-[7px] w-full sm:w-auto max-w-full overflow-visible">
+      <p className="text-xs sm:text-sm md:text-[15.9926px] font-bold leading-tight sm:leading-[22px] tracking-[-0.02em] text-[#080808] whitespace-nowrap">
         {typeof window !== "undefined" && localStorage.getItem("role") === "lab_admin" ? "Creating For" : "Sending To"}
       </p>
       {customerId && (
-        <div className="relative flex items-center min-h-[33.24px] overflow-visible">
+        <div className="relative flex items-center min-h-[33.24px] overflow-visible flex-shrink-0">
           <div className="flex items-center justify-center overflow-visible">
             {hasDirectLogo ? (
               <img
                 src={lab.logo}
                 alt={lab.name}
-                className="max-w-[150px] max-h-[120px] w-auto h-auto object-contain"
-                style={{ display: 'block', maxWidth: '150px', maxHeight: '120px' }}
+                className="max-w-[100px] sm:max-w-[120px] md:max-w-[150px] max-h-[60px] sm:max-h-[80px] md:max-h-[120px] w-auto h-auto object-contain"
+                style={{ display: 'block' }}
                 onError={(e) => {
                   // Fallback to CustomerLogo if direct logo fails
                   const target = e.target as HTMLImageElement
@@ -245,7 +245,7 @@ const SendingToSection = ({ lab }: { lab: Lab }) => {
               <CustomerLogo
                 customerId={customerId}
                 alt={lab.name}
-                className="max-w-[150px] max-h-[120px] object-contain"
+                className="max-w-[100px] sm:max-w-[120px] md:max-w-[150px] max-h-[60px] sm:max-h-[80px] md:max-h-[120px] object-contain"
               />
             </div>
           </div>
@@ -254,7 +254,7 @@ const SendingToSection = ({ lab }: { lab: Lab }) => {
             className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 border border-gray-200 hover:bg-gray-50 cursor-pointer transition-colors z-10"
             aria-label="Edit lab or office"
           >
-            <Pencil className="w-[18px] h-[18px] text-[#B4B0B0]" />
+            <Pencil className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-[18px] md:h-[18px] text-[#B4B0B0]" />
           </button>
         </div>
       )}
@@ -770,40 +770,40 @@ export function SlipCreationHeader({
       <>
         {/* Top Header - Frame 2375 */}
         <div className="bg-white border border-[#D9D9D9]">
-          <div className="flex items-center justify-between px-5 py-[10px]">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 px-3 sm:px-4 md:px-5 py-2 sm:py-2.5 md:py-3">
             {/* Left: Sending to */}
-            <div className="w-[350px] h-[75px] flex items-center">
+            <div className="w-full sm:w-auto sm:min-w-[200px] md:min-w-[250px] lg:w-[350px] flex items-center justify-start sm:justify-start">
               {sendingToLab && <SendingToSection lab={sendingToLab} />}
             </div>
 
             {/* Center: Customer Logo */}
             {showLogo && (
-              <div className="flex-1 flex justify-center">
+              <div className="flex-1 flex justify-center items-center min-w-0 px-2">
                 <CustomerLogoFromStorage size="large" />
               </div>
             )}
 
             {/* Right: Empty space */}
-            <div className="w-[350px] h-[75px]"></div>
+            <div className="hidden sm:block w-[200px] md:w-[250px] lg:w-[350px]"></div>
           </div>
         </div>
 
         {/* Second Header - Frame 2381 */}
         {!hideSecondHeader && (
-          <div className="bg-white ">
-            <div className="flex items-center justify-between px-5 py-[10px] h-[154.92px]">
+          <div className="bg-white">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 px-3 sm:px-4 md:px-5 py-3 sm:py-4">
               {/* Left: Doctor Info */}
               {doctor ? (
-                <div className="flex items-center justify-center">
+                <div className="flex items-center justify-center w-full sm:w-auto">
                   <DoctorInfoSection doctor={doctor} variant="full" />
                 </div>
               ) : (
-                <div className="w-[200px]"></div>
+                <div className="hidden sm:block w-[150px] md:w-[200px]"></div>
               )}
 
               {/* Center: Patient Info */}
               {(patientData || editablePatientData) ? (
-                <div className="flex-1 flex items-center justify-center">
+                <div className="flex-1 flex items-center justify-center w-full min-w-0 px-2">
                   <PatientInfoSection 
                     patientData={patientData} 
                     editablePatientData={editablePatientData}
@@ -815,11 +815,11 @@ export function SlipCreationHeader({
 
               {/* Right: Created By */}
               {createdBy ? (
-                <div className="flex items-center justify-center">
+                <div className="flex items-center justify-center w-full sm:w-auto">
                   <CreatedBySection createdBy={createdBy} variant="compact" />
                 </div>
               ) : (
-                <div className="w-[170px]"></div>
+                <div className="hidden sm:block w-[120px] md:w-[170px]"></div>
               )}
             </div>
           </div>
@@ -832,21 +832,21 @@ export function SlipCreationHeader({
   if (variant === "with-sending-to") {
     return (
       <div className="bg-white border border-[#D9D9D9]">
-        <div className="flex items-center justify-between px-5 py-[10px] min-h-[122px]">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 px-3 sm:px-4 md:px-5 py-2 sm:py-2.5 md:py-3">
           {/* Sending to (Left) */}
-          <div className="w-[350px] flex items-center">
+          <div className="w-full sm:w-auto sm:min-w-[200px] md:min-w-[250px] lg:w-[350px] flex items-center justify-start sm:justify-start">
             {sendingToLab && <SendingToSection lab={sendingToLab} />}
           </div>
 
           {/* Center: Customer Logo */}
           {showLogo && (
-            <div className="flex-1 flex justify-center">
+            <div className="flex-1 flex justify-center items-center min-w-0 px-2">
               <CustomerLogoFromStorage size="large" />
             </div>
           )}
 
           {/* Right: Empty space or Created By */}
-          <div className="w-[350px] flex items-center justify-end">
+          <div className="w-full sm:w-auto sm:min-w-[200px] md:min-w-[250px] lg:w-[350px] flex items-center justify-end">
             {createdBy && <CreatedBySection createdBy={createdBy} variant="compact" />}
           </div>
         </div>
