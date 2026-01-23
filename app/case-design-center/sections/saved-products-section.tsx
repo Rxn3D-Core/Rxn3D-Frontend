@@ -343,6 +343,8 @@ interface SavedProductsSectionProps {
   openRetentionDropdown: Record<string, { maxillary?: boolean; mandibular?: boolean }>
   setOpenRetentionDropdown: React.Dispatch<React.SetStateAction<Record<string, { maxillary?: boolean; mandibular?: boolean }>>>
   implants?: any[]
+  onBrandFieldClick?: (productId: string, arch: "maxillary" | "mandibular") => void
+  onPlatformFieldClick?: (productId: string, arch: "maxillary" | "mandibular") => void
 }
 
 export function SavedProductsSection({
@@ -373,7 +375,9 @@ export function SavedProductsSection({
   handleFieldChange,
   openRetentionDropdown,
   setOpenRetentionDropdown,
-  implants = []
+  implants = [],
+  onBrandFieldClick,
+  onPlatformFieldClick
 }: SavedProductsSectionProps) {
   // Helper to check if any tooth in the saved product has a retention type selected from popover
   const hasRetentionTypeSelected = (savedProduct: SavedProduct, arch: "maxillary" | "mandibular"): boolean => {
@@ -1485,6 +1489,16 @@ export function SavedProductsSection({
                                         }}
                                         onAbutmentTypeChange={(type) => {
                                           handleFieldChange('mandibularAbutmentType', type, undefined, savedProduct.id, 'mandibular')
+                                        }}
+                                        onBrandFieldClick={() => {
+                                          if (onBrandFieldClick) {
+                                            onBrandFieldClick(savedProduct.id, 'mandibular')
+                                          }
+                                        }}
+                                        onPlatformFieldClick={() => {
+                                          if (onPlatformFieldClick) {
+                                            onPlatformFieldClick(savedProduct.id, 'mandibular')
+                                          }
                                         }}
                                         teethNumbers={savedProduct.mandibularTeeth}
                                         arch="mandibular"

@@ -17,6 +17,9 @@ import {
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { getShadeGradientColors } from "@/utils/teeth-shade-utils"
+import { Check } from "lucide-react"
+import { ImplantBrandCards } from "@/components/implant-brand-cards"
+import { ImplantPlatformCards } from "@/components/implant-platform-cards"
 
 export interface FieldConfig {
   key: string
@@ -47,6 +50,29 @@ interface DynamicProductFieldsProps {
   mandibularRetentionTypes?: Record<number, Array<'Implant' | 'Prep' | 'Pontic'>>
   maxillaryTeeth?: number[]
   mandibularTeeth?: number[]
+  // Implant brand cards props
+  showImplantBrandCards?: boolean
+  implants?: Array<{
+    id: number
+    brand_name: string
+    system_name: string
+    code: string
+    image_url?: string
+    platforms?: Array<{
+      id: number
+      name: string
+      image?: string
+    }>
+  }>
+  selectedImplantId?: number | null
+  onSelectImplant?: (implant: any) => void
+  onImplantDetailsFieldClick?: () => void
+  // Implant platform cards props
+  selectedImplantPlatformId?: number | null
+  onSelectImplantPlatform?: (platform: any) => void
+  // Callbacks for when brand/platform fields are clicked
+  onBrandFieldClick?: () => void
+  onPlatformFieldClick?: () => void
 }
 
 // Stage Selection Modal Component
@@ -212,25 +238,94 @@ export function DynamicProductFields({
   mandibularRetentionTypes = {},
   maxillaryTeeth = [],
   mandibularTeeth = [],
+  showImplantBrandCards = false,
+  implants = [],
+  selectedImplantId = null,
+  onSelectImplant,
+  onImplantDetailsFieldClick,
+  selectedImplantPlatformId = null,
+  onSelectImplantPlatform,
+  onBrandFieldClick,
+  onPlatformFieldClick,
 }: DynamicProductFieldsProps) {
   // State for stage selection modal
   const [isStageModalOpen, setIsStageModalOpen] = useState(false)
+  
+  // State to track implant selection step: 'brand' | 'platform'
+  const [implantSelectionStep, setImplantSelectionStep] = useState<'brand' | 'platform'>('brand')
+  
+  // Get selected brand to show its platforms
+  const selectedBrand = selectedImplantId ? implants.find((imp: any) => imp.id === selectedImplantId) : null
+  const platforms = selectedBrand?.platforms || []
+  
+  // Map platforms for platform selection
+  const mappedPlatforms = platforms.map((plat: any) => ({
+    id: plat.id || 0,
+    name: plat.name,
+    image: plat.image_url || plat.image
+  }))
+  
+  // Reset to brand step when cards are shown (if no brand selected) or when cards are hidden
+  useEffect(() => {
+    if (showImplantBrandCards && !selectedImplantId) {
+      // When cards are first shown, start with brand selection
+      setImplantSelectionStep('brand')
+    } else if (!showImplantBrandCards) {
+      // When cards are hidden, reset to brand step
+      setImplantSelectionStep('brand')
+    }
+  }, [showImplantBrandCards, selectedImplantId])
 
-  // Helper to check if a value is actually set (not empty, not "Not specified", not undefined, not null)
+  // Notify parent when selection step changes to platform (user clicked platform field or brand with platforms was selected)
+  useEffect(() => {
+    if (showImplantBrandCards && implantSelectionStep === 'platform' && onPlatformFieldClick && selectedImplantId && platforms.length > 0) {
+      // Use a small delay to ensure state is updated
+      const timer = setTimeout(() => {
+        onPlatformFieldClick()
+      }, 50)
+      return () => clearTimeout(timer)
+    }
+  }, [implantSelectionStep, showImplantBrandCards, selectedImplantId, platforms.length, onPlatformFieldClick])
+  
+  // Determine if we should show platform cards or brand cards
+  // Show platform cards if brand is selected, has platforms, and we're on platform step
+  const shouldShowPlatformCards = showImplantBrandCards && 
+    selectedImplantId !== null && 
+    selectedImplantId !== undefined && 
+    platforms.length > 0 && 
+    implantSelectionStep === 'platform'
+  
+  // Show brand cards if cards are shown, implants exist, and (we're on brand step OR no brand selected OR brand has no platforms)
+  const shouldShowBrandCards = showImplantBrandCards && 
+    implants && 
+    implants.length > 0 && 
+    (implantSelectionStep === 'brand' || !selectedImplantId || platforms.length === 0)
+
+  // Helper to get placeholder text for a field
+  const getPlaceholderText = (config: FieldConfig): string => {
+    return `Select ${config.label}`
+  }
+
+  // Helper to check if a value is actually set (not empty, not "Not specified", not "Select...", not undefined, not null)
   const hasValue = (value: string | undefined | null): boolean => {
     if (!value) return false
     const trimmed = String(value).trim()
-    return trimmed !== "" && trimmed.toLowerCase() !== "not specified"
+    const lowerTrimmed = trimmed.toLowerCase()
+    return trimmed !== "" && 
+           lowerTrimmed !== "not specified" && 
+           !lowerTrimmed.startsWith("select")
   }
 
   // Helper to check if retention value is valid (not empty, not placeholder)
   const hasValidRetentionValue = (retentionValue: string | undefined | null): boolean => {
     if (!retentionValue) return false
     const trimmed = String(retentionValue).trim()
+    const lowerTrimmed = trimmed.toLowerCase()
     return trimmed !== '' && 
            trimmed !== 'Not specified' && 
            trimmed !== 'Select' && 
-           trimmed !== 'Select Retention type'
+           trimmed !== 'Select Retention type' &&
+           !lowerTrimmed.startsWith("select")
   }
 
   // Helper to get field value
@@ -355,7 +450,7 @@ export function DynamicProductFields({
     return true
   }
 
-  // Auto-open stage modal when stage field becomes visible and value is "Not specified"
+  // Auto-open stage modal when stage field becomes visible and value is empty or placeholder
   useEffect(() => {
     const stageConfig = fieldConfigs.find(f => f.key === "stage")
     if (!stageConfig) return
@@ -366,7 +461,7 @@ export function DynamicProductFields({
     // Check if stage field should be visible
     const isVisible = isFieldVisibleProgressive(stageConfig)
     
-    // Check if value is "Not specified" or empty
+    // Check if value is empty or placeholder
     const isNotSpecified = !hasValue(stageValue)
     
     // Auto-open modal if field is visible and value is not specified
@@ -497,12 +592,33 @@ export function DynamicProductFields({
     return requiredFields.includes(config.key)
   }
 
-  // Helper to check if field should show red border (value is "Not specified" or "Select impression" and field is required)
+  // Helper to check if field should show red border (value is empty, "Not specified", or "Select..." and field is required)
   const shouldShowRedBorder = (config: FieldConfig, value: string | undefined): boolean => {
     if (!isFieldRequired(config)) return false
     if (!value) return true
     const trimmed = String(value).trim().toLowerCase()
-    return trimmed === "" || trimmed === "not specified" || trimmed === "select impression"
+    return trimmed === "" || trimmed === "not specified" || trimmed.startsWith("select")
+  }
+
+  // Helper to check if impression field has a value
+  const hasImpressionValue = (impressionCount: number | undefined, displayText: string | undefined): boolean => {
+    // If displayText exists and is not empty, check if it's a placeholder
+    if (displayText && displayText.trim() !== "") {
+      const lowerText = displayText.toLowerCase().trim()
+      // If it's not a placeholder text, it has a value
+      const isPlaceholder = lowerText.startsWith("select") || 
+                           lowerText === "not specified" ||
+                           lowerText === "select impression"
+      // If it's not a placeholder, it has a value
+      if (!isPlaceholder) {
+        return true
+      }
+    }
+    // Fallback: check impressionCount
+    if (impressionCount !== undefined && impressionCount > 0) {
+      return true
+    }
+    return false
   }
 
   // Helper to check if all required fields have valid values (for green border)
@@ -529,18 +645,24 @@ export function DynamicProductFields({
 
   // Helper to determine border color for a field
   const getFieldBorderColor = (config: FieldConfig, value: string | undefined, impressionCount?: number): string => {
-    const showRedBorder = shouldShowRedBorder(config, value)
-    
-    // If all required fields are filled, show green border
-    if (areAllRequiredFieldsFilledForGreenBorder() && hasValue(value)) {
-      // For impression field, check impressionCount instead of value
-      if (config.key === "impression") {
-        if (impressionCount !== undefined && impressionCount > 0) {
-          return '#119933' // green
-        }
-      } else if (hasValue(value)) {
+    // For impression field, check impressionCount or displayText
+    if (config.key === "impression" || (config.fieldType === "modal" && config.key === "impression")) {
+      const hasValue = hasImpressionValue(impressionCount, value)
+      if (hasValue) {
         return '#119933' // green
       }
+      // Show red border if required and no impressions selected
+      if (isFieldRequired(config)) {
+        return '#ef4444' // red
+      }
+      return '#7F7F7F' // gray
+    }
+    
+    const showRedBorder = shouldShowRedBorder(config, value)
+    
+    // Show green border if individual field has a value
+    if (hasValue(value)) {
+      return '#119933' // green
     }
     
     // Show red border if invalid
@@ -554,18 +676,24 @@ export function DynamicProductFields({
 
   // Helper to determine label color for a field
   const getFieldLabelColor = (config: FieldConfig, value: string | undefined, impressionCount?: number): string => {
-    const showRedBorder = shouldShowRedBorder(config, value)
-    
-    // If all required fields are filled, show green label
-    if (areAllRequiredFieldsFilledForGreenBorder() && hasValue(value)) {
-      // For impression field, check impressionCount instead of value
-      if (config.key === "impression") {
-        if (impressionCount !== undefined && impressionCount > 0) {
-          return '#119933' // green
-        }
-      } else if (hasValue(value)) {
+    // For impression field, check impressionCount or displayText
+    if (config.key === "impression" || (config.fieldType === "modal" && config.key === "impression")) {
+      const hasValue = hasImpressionValue(impressionCount, value)
+      if (hasValue) {
         return '#119933' // green
       }
+      // Show red label if required and no impressions selected
+      if (isFieldRequired(config)) {
+        return '#ef4444' // red
+      }
+      return '#7F7F7F' // gray
+    }
+    
+    const showRedBorder = shouldShowRedBorder(config, value)
+    
+    // Show green label if individual field has a value
+    if (hasValue(value)) {
+      return '#119933' // green
     }
     
     // Show red label if invalid
@@ -628,8 +756,14 @@ export function DynamicProductFields({
               lineHeight: '20px',
               letterSpacing: '-0.02em',
               color: '#000000',
-              whiteSpace: 'nowrap'
+              whiteSpace: 'nowrap',
+              paddingRight: hasImpressionValue(impressionCount, displayText) ? '30px' : '0px'
             }}>{displayText}</span>
+            {hasImpressionValue(impressionCount, displayText) && (
+              <div className="absolute right-[12.32px] top-1/2 -translate-y-1/2 pointer-events-none">
+                <Check className="h-5 w-5 text-[#119933]" aria-label="Valid" />
+              </div>
+            )}
           </div>
           <label
             className="absolute bg-white"
@@ -658,7 +792,7 @@ export function DynamicProductFields({
     if (config.fieldType === "select") {
       // Special handling for stage field - use modal instead of dropdown
       if (config.key === "stage") {
-        const displayValue = value || "Not specified"
+        const displayValue = value || getPlaceholderText(config)
         const borderColor = getFieldBorderColor(config, value)
         const labelColor = getFieldLabelColor(config, value)
         const fieldWidth = getResponsiveFieldWidth(config, displayValue, options)
@@ -699,6 +833,11 @@ export function DynamicProductFields({
                   color: '#000000',
                   whiteSpace: 'nowrap'
                 }}>{displayValue}</span>
+                {hasValue(value) && (
+                  <div className="absolute right-[12.32px] top-1/2 -translate-y-1/2 pointer-events-none">
+                    <Check className="h-5 w-5 text-[#119933]" aria-label="Valid" />
+                  </div>
+                )}
               </div>
               <label
                 className="absolute bg-white"
@@ -750,7 +889,8 @@ export function DynamicProductFields({
         }
       }
 
-      const displayValue = value || "Not specified"
+      const placeholderText = getPlaceholderText(config)
+      const displayValue = value || placeholderText
       const borderColor = getFieldBorderColor(config, value)
       const labelColor = getFieldLabelColor(config, value)
       const fieldWidth = getResponsiveFieldWidth(config, displayValue, options)
@@ -790,9 +930,14 @@ export function DynamicProductFields({
                 boxSizing: 'border-box'
               }}
             >
-              <SelectValue placeholder="Not specified">
-                {value || "Not specified"}
+              <SelectValue placeholder={placeholderText}>
+                {value || placeholderText}
               </SelectValue>
+              {hasValue(value) && (
+                <div className="absolute right-[12.32px] top-1/2 -translate-y-1/2 pointer-events-none">
+                  <Check className="h-5 w-5 text-[#119933]" aria-label="Valid" />
+                </div>
+              )}
             </SelectTrigger>
             <SelectContent>
               {options.map((option: any) => (
@@ -832,7 +977,8 @@ export function DynamicProductFields({
     }
 
     if (config.fieldType === "shade") {
-      const shadeValue = value || "Not specified"
+      const placeholderText = getPlaceholderText(config)
+      const shadeValue = value || placeholderText
       const borderColor = getFieldBorderColor(config, value)
       const labelColor = getFieldLabelColor(config, value)
       const shadeBrand = arch === "maxillary"
@@ -842,7 +988,7 @@ export function DynamicProductFields({
       
       // Extract shade name from value - handle formats like "Brand - Shade" or just "Shade"
       let shadeName = 'A1' // default
-      if (value && value !== "Not specified") {
+      if (value && hasValue(value)) {
         // If value contains " - ", extract the part after the dash
         if (value.includes(' - ')) {
           const parts = value.split(' - ')
@@ -897,7 +1043,12 @@ export function DynamicProductFields({
               letterSpacing: '-0.02em',
               color: '#000000'
             }}>{brandName || shadeValue}</span>
-            {value && value !== "Not specified" && (
+            {hasValue(value) && (
+              <div className="absolute right-[50px] top-1/2 -translate-y-1/2 pointer-events-none z-10">
+                <Check className="h-5 w-5 text-[#119933]" aria-label="Valid" />
+              </div>
+            )}
+            {hasValue(value) && (
               <div
                 className="flex items-center justify-center pointer-events-none"
                 style={{
@@ -1006,31 +1157,86 @@ export function DynamicProductFields({
     return null
   }
 
+
   return (
-    <div
-      className="flex flex-wrap"
-      style={{
-        display: 'flex',
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        padding: '0px',
-        gap: '5px',
-        width: '100%'
-      }}
-    >
-      {visibleFields.map(field => (
-        <div
-          key={field.key}
-          style={{
-            flex: '1 1 calc(50% - 10px)',
-            minWidth: '200px',
-            maxWidth: 'calc(50% - 10px)'
-          }}
-        >
-          {renderField(field)}
+    <>
+      {/* Implant Brand/Platform Cards - Shows at the top when implant details field is clicked (same position as ToothShadeSelectionSVG) */}
+      {showImplantBrandCards && (
+        <div className="w-full pt-4">
+          <div className="flex flex-col items-center gap-4 w-full">
+            <div className="bg-white w-full flex justify-center">
+              {shouldShowPlatformCards && mappedPlatforms.length > 0 ? (
+                <ImplantPlatformCards
+                  platforms={mappedPlatforms}
+                  selectedPlatformId={selectedImplantPlatformId}
+                  onSelectPlatform={(platform: any) => {
+                    if (onSelectImplantPlatform) {
+                      onSelectImplantPlatform(platform)
+                    }
+                    // After platform selection, go back to brand step
+                    setImplantSelectionStep('brand')
+                  }}
+                  arch={arch}
+                />
+              ) : implants && implants.length > 0 ? (
+                <ImplantBrandCards
+                  implants={implants}
+                  selectedImplantId={selectedImplantId}
+                  onSelectImplant={(implant: any) => {
+                    if (onSelectImplant) {
+                      onSelectImplant(implant)
+                    }
+                    // If brand has platforms, show platform cards, otherwise stay on brand
+                    if (implant.platforms && implant.platforms.length > 0) {
+                      setImplantSelectionStep('platform')
+                      // Notify parent that we're showing platform cards
+                      if (onPlatformFieldClick) {
+                        setTimeout(() => onPlatformFieldClick(), 0)
+                      }
+                    } else {
+                      // If no platforms, notify parent we're on brand step
+                      if (onBrandFieldClick) {
+                        setTimeout(() => onBrandFieldClick(), 0)
+                      }
+                    }
+                  }}
+                  arch={arch}
+                />
+              ) : (
+                <div className="p-4 text-center text-gray-500">
+                  No implants available
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-      ))}
-    </div>
+      )}
+      
+      <div
+        className="flex flex-wrap"
+        style={{
+          display: 'flex',
+          flexDirection: 'row',
+          alignItems: 'flex-start',
+          padding: '0px',
+          gap: '5px',
+          width: '100%'
+        }}
+      >
+        {visibleFields.map(field => (
+          <div
+            key={field.key}
+            style={{
+              flex: '1 1 calc(50% - 10px)',
+              minWidth: '200px',
+              maxWidth: 'calc(50% - 10px)'
+            }}
+          >
+            {renderField(field)}
+          </div>
+        ))}
+      </div>
+    </>
   )
 }
 

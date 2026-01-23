@@ -459,18 +459,16 @@ const PatientInfoSection = ({
 
   // Determine border color based on focus and validation state
   const getNameBorderColor = () => {
-    if (hasNameValue) {
-      // Green: Both first name and last name are valid
-      if (isNameValid) {
-        return "border-[#119933]"
-      }
-      
-      // Red: Has value but invalid (incomplete name)
-      return "border-red-500"
+    if (isNameValid) {
+      // Green: Field is complete and valid (has both first and last name)
+      return "border-[#119933]"
     }
-    // No value
-    if (isNameFocused) return "border-orange-500" // focus state - orange
-    return "border-red-500" // no value, no focus - red
+    if (hasNameValue) {
+      // Orange: Field has a value but is incomplete (only first name or incomplete last name)
+      return "border-[#FF9900]"
+    }
+    // No value - red (required field)
+    return "border-red-500"
   }
 
   const getGenderBorderColor = () => {
@@ -482,18 +480,16 @@ const PatientInfoSection = ({
 
   // Determine label color
   const getNameLabelColor = () => {
-    if (hasNameValue) {
-      // Green: Both first name and last name are valid
-      if (isNameValid) {
-        return "text-[#119933]"
-      }
-      
-      // Red: Has value but invalid (incomplete name)
-      return "text-red-500"
+    if (isNameValid) {
+      // Green: Field is complete and valid (has both first and last name)
+      return "text-[#119933]"
     }
-    // No value
-    if (isNameFocused) return "text-orange-500" // focus state - orange
-    return "text-red-500" // no value, no focus - red
+    if (hasNameValue) {
+      // Orange: Field has a value but is incomplete (only first name or incomplete last name)
+      return "text-[#FF9900]"
+    }
+    // No value - red (required field)
+    return "text-red-500"
   }
 
   const getGenderLabelColor = () => {
@@ -505,19 +501,15 @@ const PatientInfoSection = ({
 
   // Determine ring/glow effect
   const getNameRingEffect = () => {
+    if (isNameValid) {
+      // Green: Field is complete and valid (has both first and last name)
+      return "ring-2 ring-[#119933] ring-opacity-20 shadow-[0_0_0_4px_rgba(17,153,51,0.15)]"
+    }
     if (hasNameValue) {
-      // Green: Both first name and last name are valid
-      if (isNameValid) {
-        return "ring-2 ring-[#119933] ring-opacity-20 shadow-[0_0_0_4px_rgba(17,153,51,0.15)]"
-      }
-      
-      // Red: Has value but invalid (incomplete name)
-      return "ring-2 ring-red-500 ring-opacity-20 shadow-[0_0_0_4px_rgba(239,68,68,0.15)]"
+      // Orange: Field has a value but is incomplete (only first name or incomplete last name)
+      return "ring-2 ring-[#FF9900] ring-opacity-20 shadow-[0_0_0_4px_rgba(255,153,0,0.15)]"
     }
-    // No value
-    if (isNameFocused) {
-      return "ring-2 ring-orange-500 ring-opacity-20 shadow-[0_0_0_4px_rgba(249,115,22,0.15)]"
-    }
+    // No value - red (required field)
     return "ring-2 ring-red-500 ring-opacity-20 shadow-[0_0_0_4px_rgba(239,68,68,0.15)]"
   }
 
@@ -584,7 +576,7 @@ const PatientInfoSection = ({
           >
             {hasNameValue && isNameValid ? "Patient name" : "Type patient name"}
           </label>
-          {/* Validation Icon */}
+          {/* Validation Icon - Only show when name is complete and valid */}
           {isNameValid && (
             <div className="absolute right-[12.32px] top-1/2 -translate-y-1/2">
               <Check className="h-5 w-5 text-[#119933]" aria-label="Valid" />

@@ -14,6 +14,7 @@ interface ImplantDetailFormProps {
   onAbutmentTypeChange: (type: string) => void
   onPlatformChange?: (platform: any) => void
   onPlatformFieldClick?: () => void
+  onBrandFieldClick?: () => void
   teethNumbers: number[]
   arch: "maxillary" | "mandibular"
   initialInclusions?: string
@@ -33,6 +34,7 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
   onAbutmentTypeChange,
   onPlatformChange,
   onPlatformFieldClick,
+  onBrandFieldClick,
   teethNumbers,
   arch,
   initialInclusions,
@@ -222,7 +224,20 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
                   type="text"
                   value={selectedBrand?.brand_name || ""}
                   readOnly
-                  className="w-full"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    e.preventDefault()
+                    if (onBrandFieldClick) {
+                      onBrandFieldClick()
+                    }
+                  }}
+                  onFocus={(e) => {
+                    e.stopPropagation()
+                    if (onBrandFieldClick) {
+                      onBrandFieldClick()
+                    }
+                  }}
+                  className="w-full cursor-pointer"
                   style={{
                     padding: '12px 15px 5px 15px',
                     gap: '5px',

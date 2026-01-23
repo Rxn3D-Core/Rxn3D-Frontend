@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 interface Implant {
@@ -29,45 +29,36 @@ export const ImplantBrandCards: React.FC<ImplantBrandCardsProps> = ({
   productId,
   arch
 }) => {
-  const [scrollPosition, setScrollPosition] = useState(0)
-  const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const [canScrollLeft, setCanScrollLeft] = useState(false)
-  const [canScrollRight, setCanScrollRight] = useState(true)
+  const [currentIndex, setCurrentIndex] = useState(0)
   const [hoveredImplantId, setHoveredImplantId] = useState<number | null>(null)
 
-  const checkScrollability = () => {
-    if (scrollContainerRef.current) {
-      const { scrollLeft, scrollWidth, clientWidth } = scrollContainerRef.current
-      setCanScrollLeft(scrollLeft > 0)
-      setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 10)
-    }
-  }
+  const CARDS_TO_SHOW = 3
+  const CARD_WIDTH = 155
+  const CARD_GAP = 15
 
+  // Calculate max index for navigation
+  const maxIndex = Math.max(0, implants.length - CARDS_TO_SHOW)
+
+  const canScrollLeft = currentIndex > 0
+  const canScrollRight = currentIndex < maxIndex
+
+  // Scroll to selected implant when component mounts or selectedImplantId changes
   useEffect(() => {
-    checkScrollability()
-    const container = scrollContainerRef.current
-    if (container) {
-      container.addEventListener('scroll', checkScrollability)
-      window.addEventListener('resize', checkScrollability)
-      return () => {
-        container.removeEventListener('scroll', checkScrollability)
-        window.removeEventListener('resize', checkScrollability)
+    if (selectedImplantId) {
+      const selectedIndex = implants.findIndex(i => i.id === selectedImplantId)
+      if (selectedIndex !== -1) {
+        // Center the selected card if possible
+        const targetIndex = Math.max(0, Math.min(selectedIndex - 1, maxIndex))
+        setCurrentIndex(targetIndex)
       }
     }
-  }, [implants])
+  }, [selectedImplantId, implants, maxIndex])
 
   const scroll = (direction: 'left' | 'right') => {
-    if (scrollContainerRef.current) {
-      const scrollAmount = 300
-      const newPosition = direction === 'left' 
-        ? scrollPosition - scrollAmount 
-        : scrollPosition + scrollAmount
-      
-      scrollContainerRef.current.scrollTo({
-        left: newPosition,
-        behavior: 'smooth'
-      })
-      setScrollPosition(newPosition)
+    if (direction === 'left' && canScrollLeft) {
+      setCurrentIndex(prev => Math.max(0, prev - 1))
+    } else if (direction === 'right' && canScrollRight) {
+      setCurrentIndex(prev => Math.min(maxIndex, prev + 1))
     }
   }
 
@@ -75,70 +66,54 @@ export const ImplantBrandCards: React.FC<ImplantBrandCardsProps> = ({
     return null
   }
 
+  // Get the visible implants based on current index
+  const visibleImplants = implants.slice(currentIndex, currentIndex + CARDS_TO_SHOW)
+
+  // Container width for 3 cards + gaps
+  const containerWidth = (CARD_WIDTH * CARDS_TO_SHOW) + (CARD_GAP * (CARDS_TO_SHOW - 1))
+
   return (
-    <div className="relative w-full mb-4" style={{ display: 'flex', justifyContent: 'center' }}>
-      {/* Navigation Arrows */}
-      {canScrollLeft && (
-        <button
-          onClick={() => scroll('left')}
-          className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white rounded-full p-2 shadow-md hover:bg-gray-100 transition-colors"
-          style={{
-            width: '32px',
-            height: '32px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}
-        >
-          <ChevronLeft className="w-5 h-5 text-gray-700" />
-        </button>
-      )}
-      
-      {canScrollRight && (
-        <button
-          onClick={() => scroll('right')}
-          className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-white rounded-full p-2 shadow-md hover:bg-gray-100 transition-colors"
-          style={{
-            width: '32px',
-            height: '32px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}
-        >
-          <ChevronRight className="w-5 h-5 text-gray-700" />
-        </button>
-      )}
+    <div className="relative w-full mb-4" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+      {/* Left Navigation Arrow */}
+      <button
+        onClick={() => scroll('left')}
+        disabled={!canScrollLeft}
+        className={`flex-shrink-0 bg-white rounded-full p-2 shadow-md transition-colors ${
+          canScrollLeft ? 'hover:bg-gray-100 cursor-pointer' : 'opacity-30 cursor-not-allowed'
+        }`}
+        style={{
+          width: '32px',
+          height: '32px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginRight: '15px'
+        }}
+      >
+        <ChevronLeft className="w-5 h-5 text-gray-700" />
+      </button>
 
       {/* Brand Cards Container */}
       <div
-        ref={scrollContainerRef}
-        className="flex overflow-x-auto scrollbar-hide"
         style={{
           display: 'flex',
           flexDirection: 'row',
           alignItems: 'center',
-          padding: '0px',
-          gap: '15px',
-          width: '835px',
-          height: '185px',
-          flex: 'none',
-          order: 2,
-          flexGrow: 0,
-          scrollbarWidth: 'none',
-          msOverflowStyle: 'none',
-          paddingLeft: canScrollLeft ? '40px' : '0',
-          paddingRight: canScrollRight ? '40px' : '0'
+          justifyContent: 'center',
+          gap: `${CARD_GAP}px`,
+          width: `${containerWidth}px`,
+          height: '205px',
+          overflow: 'visible'
         }}
-        onScroll={checkScrollability}
       >
-        {implants.map((implant, index) => {
+        {visibleImplants.map((implant) => {
           const isSelected = selectedImplantId === implant.id
           const isHovered = hoveredImplantId === implant.id
-          
+
           return (
             <div
               key={implant.id}
+              data-implant-id={implant.id}
               onClick={() => onSelectImplant(implant)}
               onMouseEnter={() => setHoveredImplantId(implant.id)}
               onMouseLeave={() => setHoveredImplantId(null)}
@@ -151,36 +126,29 @@ export const ImplantBrandCards: React.FC<ImplantBrandCardsProps> = ({
                 alignItems: 'center',
                 padding: '16px',
                 gap: '16px',
-                width: '155px',
+                width: `${CARD_WIDTH}px`,
                 height: '185px',
                 background: '#FFFFFF',
-                border: isSelected 
-                  ? '2px solid #1162A8' 
-                  : isHovered 
-                    ? '1px solid #1162A8' 
+                border: isSelected
+                  ? '2px solid #1162A8'
+                  : isHovered
+                    ? '1px solid #1162A8'
                     : '1px solid #B4B0B0',
                 borderRadius: '7px',
-                boxShadow: isSelected 
-                  ? '9px 7px 21.5px rgba(0, 0, 0, 0.25)' 
-                  : isHovered 
-                    ? '0 2px 8px rgba(17, 98, 168, 0.15)' 
+                boxShadow: isSelected
+                  ? '9px 7px 21.5px rgba(0, 0, 0, 0.25)'
+                  : isHovered
+                    ? '0 2px 8px rgba(17, 98, 168, 0.15)'
                     : 'none',
-                flex: 'none',
-                order: index,
-                flexGrow: 0,
                 transition: 'border-color 0.2s ease, box-shadow 0.2s ease'
               }}
             >
               {/* Brand Logo/Image */}
-              <div 
+              <div
                 style={{
                   width: '123px',
                   height: '123px',
                   borderRadius: '5px',
-                  flex: 'none',
-                  order: 0,
-                  alignSelf: 'stretch',
-                  flexGrow: 0,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -239,10 +207,6 @@ export const ImplantBrandCards: React.FC<ImplantBrandCardsProps> = ({
                   textAlign: 'center',
                   letterSpacing: '-0.02em',
                   color: isHovered || isSelected ? '#1162A8' : '#000000',
-                  flex: 'none',
-                  order: 1,
-                  alignSelf: 'stretch',
-                  flexGrow: 0,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -256,11 +220,24 @@ export const ImplantBrandCards: React.FC<ImplantBrandCardsProps> = ({
         })}
       </div>
 
-      <style jsx>{`
-        .scrollbar-hide::-webkit-scrollbar {
-          display: none;
-        }
-      `}</style>
+      {/* Right Navigation Arrow */}
+      <button
+        onClick={() => scroll('right')}
+        disabled={!canScrollRight}
+        className={`flex-shrink-0 bg-white rounded-full p-2 shadow-md transition-colors ${
+          canScrollRight ? 'hover:bg-gray-100 cursor-pointer' : 'opacity-30 cursor-not-allowed'
+        }`}
+        style={{
+          width: '32px',
+          height: '32px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginLeft: '15px'
+        }}
+      >
+        <ChevronRight className="w-5 h-5 text-gray-700" />
+      </button>
     </div>
   )
 }

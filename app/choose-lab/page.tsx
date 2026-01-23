@@ -54,6 +54,7 @@ export default function ChooseLabPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [sortBy, setSortBy] = useState("name-asc")
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null)
+  const [selectedLab, setSelectedLab] = useState<Lab | null>(null)
   const [createdBy, setCreatedBy] = useState<string>("")
   const [showRefreshWarningModal, setShowRefreshWarningModal] = useState(false)
   const [showAddLabModal, setShowAddLabModal] = useState(false)
@@ -94,6 +95,17 @@ export default function ChooseLabPage() {
         } catch (error) {
           console.error("Error parsing selected doctor:", error)
         }
+      }
+    }
+
+    // Get selected lab from localStorage
+    const storedLab = localStorage.getItem("selectedLab")
+    if (storedLab) {
+      try {
+        const lab = JSON.parse(storedLab)
+        setSelectedLab(lab)
+      } catch (error) {
+        console.error("Error parsing selected lab:", error)
       }
     }
 
@@ -223,6 +235,7 @@ export default function ChooseLabPage() {
   const handleLabSelect = (lab: Lab) => {
     // Store selected lab
     localStorage.setItem("selectedLab", JSON.stringify(lab))
+    setSelectedLab(lab)
     
     // Store logo in the format CustomerLogo component expects (only for "Sending to" section)
     // This does NOT change the center logo, which remains the user's own customer logo
@@ -233,6 +246,23 @@ export default function ChooseLabPage() {
     // Get user role
     const role = typeof window !== "undefined" ? localStorage.getItem("role") || "" : ""
     
+    // Check if doctor is already selected (from URL or localStorage)
+    const doctorId = searchParams.get("doctorId")
+    const storedDoctor = localStorage.getItem("selectedDoctor")
+    let doctorIdToUse: string | null = doctorId
+    
+    // Try to get doctor ID from localStorage if not in URL
+    if (!doctorIdToUse && storedDoctor) {
+      try {
+        const doctor = JSON.parse(storedDoctor)
+        doctorIdToUse = doctor?.id?.toString() || null
+      } catch (error) {
+        console.error("Error parsing selected doctor:", error)
+      }
+    }
+    
+    const hasSelectedDoctor = !!doctorIdToUse
+    
     // If role is office_admin, redirect to patient-input page
     // office_admin has already selected a doctor, so they go to patient input next
     if (role === "office_admin") {
@@ -240,7 +270,14 @@ export default function ChooseLabPage() {
       return
     }
     
-    // Navigate to choose doctor page (for other roles)
+    // If doctor is already selected (user came back to select a different office),
+    // navigate directly to patient-input page
+    if (hasSelectedDoctor && doctorIdToUse) {
+      router.push(`/patient-input?labId=${lab.id}&doctorId=${doctorIdToUse}`)
+      return
+    }
+    
+    // Navigate to choose doctor page (for other roles when no doctor is selected yet)
     router.push(`/choose-doctor?labId=${lab.id}`)
   }
 
@@ -480,11 +517,17 @@ export default function ChooseLabPage() {
           ) : (
             /* Lab Cards Grid */
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12 max-w-6xl mx-auto">
-              {sortedAndFilteredLabs.map((lab: Lab) => (
+              {sortedAndFilteredLabs.map((lab: Lab) => {
+                const isSelected = selectedLab?.id === lab.id
+                return (
                 <div
                   key={lab.id}
                   onClick={() => handleLabSelect(lab)}
-                  className="bg-white border-2 border-gray-300 rounded-lg p-4 flex flex-col items-center justify-between relative group hover:shadow-lg transition-all min-h-[220px] hover:border-[#1162A8] cursor-pointer"
+                  className={`bg-white border-2 rounded-lg p-4 flex flex-col items-center justify-between relative group hover:shadow-lg transition-all min-h-[220px] cursor-pointer ${
+                    isSelected 
+                      ? "border-[#1162A8] shadow-md" 
+                      : "border-gray-300 hover:border-[#1162A8]"
+                  }`}
                 >
                   {/* Favorite Star */}
                   {lab.is_favorite && (
@@ -558,7 +601,8 @@ export default function ChooseLabPage() {
                     </p>
                   )}
                 </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>

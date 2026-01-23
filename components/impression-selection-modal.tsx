@@ -166,7 +166,7 @@ export function ImpressionSelectionModal({
                   className={cn(
                     "relative border-2 rounded-lg overflow-hidden transition-all duration-200 bg-white flex flex-col cursor-pointer h-[280px]",
                     isSelected
-                      ? "border-blue-500 shadow-xl"
+                      ? "border-green-500 shadow-xl"
                       : "border-gray-300 hover:border-blue-500 hover:shadow-xl"
                   )}
                 >
