@@ -302,15 +302,18 @@ export default function ChooseDoctorPage() {
     }
     
     // Check if lab is already selected (from URL param)
+    // Use labId from URL directly instead of relying on selectedLab state
+    // This prevents navigation glitches when auto-select runs before state is set
     const labId = searchParams.get("labId")
-    if (labId && selectedLab) {
-      // If lab is selected, navigate to patient input page
+    if (labId) {
+      // If labId is in URL, navigate to patient input page
+      // This means user came from choose-lab page with a selected lab
       router.push(`/patient-input?labId=${labId}&doctorId=${doctor.id}`)
     } else {
       // Otherwise, navigate to choose-lab page (backward compatibility)
       router.push(`/choose-lab?doctorId=${doctor.id}`)
     }
-  }, [router, searchParams, selectedLab])
+  }, [router, searchParams])
 
   // Auto-select doctor if there's only 1 doctor
   useEffect(() => {
