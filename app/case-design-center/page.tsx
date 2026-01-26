@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useRef, useMemo, Suspense } from "react"
+import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from "react"
 import { useRouter } from "next/navigation"
 import dynamic from "next/dynamic"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
@@ -614,7 +614,45 @@ export default function CaseDesignCenterPage() {
         if (!archType) return false
         return hasRetentionTypeSelected(savedProduct, archType)
       case "implant":
-        const implantDetails = archType === "maxillary" ? "" : savedProduct.mandibularImplantDetails
+        // Only show implant field if retention type is "Implant" (not "Prep" or "Pontic")
+        if (!archType) return false
+        const teeth = archType === "maxillary" ? savedProduct.maxillaryTeeth : savedProduct.mandibularTeeth
+        const retentionTypes = archType === "maxillary" ? maxillaryRetentionTypes : mandibularRetentionTypes
+        
+        // First, check if any tooth in the product has "Implant" as the retention type from state
+        let hasImplantRetentionType = teeth.some(toothNumber => {
+          const types = retentionTypes[toothNumber] || []
+          return types.includes('Implant')
+        })
+        
+        // Fallback: If retentionTypes state is empty, check the retention option's tooth_chart_type
+        // This handles saved products that might not have retentionTypes state populated
+        if (!hasImplantRetentionType && productDetails?.retention_options) {
+          const retentionOptionId = archType === "maxillary" 
+            ? savedProduct.maxillaryRetentionOptionId 
+            : savedProduct.mandibularRetentionOptionId
+          
+          if (retentionOptionId) {
+            const selectedRetentionOption = productDetails.retention_options.find((opt: any) => {
+              return opt.id === retentionOptionId ||
+                     opt.lab_retention_option?.id === retentionOptionId ||
+                     opt.retention_option_id === retentionOptionId
+            })
+            
+            if (selectedRetentionOption) {
+              const toothChartType = selectedRetentionOption.tooth_chart_type ||
+                selectedRetentionOption.lab_retention_option?.tooth_chart_type ||
+                selectedRetentionOption.retention_option?.tooth_chart_type
+              
+              hasImplantRetentionType = toothChartType === "Implant"
+            }
+          }
+        }
+        
+        if (!hasImplantRetentionType) return false
+        
+        // Also check if product has implant configuration
+        const implantDetails = archType === "maxillary" ? savedProduct.maxillaryImplantDetails : savedProduct.mandibularImplantDetails
         return !!(productDetails.implant || implantDetails)
       case "grade":
         return !!(productDetails.grades && Array.isArray(productDetails.grades) && productDetails.grades.length > 0)
@@ -988,15 +1026,9 @@ export default function CaseDesignCenterPage() {
       maxillaryIdKey: "maxillaryShadeId",
       mandibularIdKey: "mandibularShadeId",
       rowGroup: 2
-    },
-    {
-      key: "impression",
-      label: "Impression",
-      apiProperty: "impressions",
-      fieldType: "modal",
-      sequence: 7,
-      rowGroup: 2
     }
+    // Impression field removed - fields should flow left-to-right, top-to-bottom without jumping
+    // Impression is handled separately or removed from this flow to prevent UI confusion
   ]
 
   // Helper to check if field should be displayed based on productDetails
@@ -1156,6 +1188,103 @@ export default function CaseDesignCenterPage() {
       if (!productDetails || !productDetails.stages || !Array.isArray(productDetails.stages) || productDetails.stages.length === 0) {
         return false
       }
+
+      // Check if advance fields exist - if they do, they must be completed before showing impression
+      const advanceFields = productDetails.advance_fields || productAdvanceFields[savedProduct.id] || []
+      // Filter out stump_shade from advance fields check (we use main stump shade field)
+      const filteredAdvanceFields = advanceFields.filter((field: any) => {
+        const fieldNameLower = (field.name || "").toLowerCase()
+        return !(fieldNameLower.includes("stump") && fieldNameLower.includes("shade"))
+      })
+
+      // If advance fields exist, check if they are completed
+      if (filteredAdvanceFields.length > 0) {
+        // Check if this is a saved product (has advanceFields stored) or current form (uses advanceFieldValues state)
+        const isSavedProduct = savedProduct.advanceFields && Array.isArray(savedProduct.advanceFields) && savedProduct.advanceFields.length > 0
+        
+        // Check if all advance fields have values
+        const allAdvanceFieldsCompleted = filteredAdvanceFields.every((field: any) => {
+          let currentValue: any = null
+          
+          if (isSavedProduct) {
+            // For saved products, check savedProduct.advanceFields
+            const savedField = savedProduct.advanceFields?.find((af: any) => af.advance_field_id === field.id)
+            if (savedField) {
+              currentValue = savedField.advance_field_value || null
+            }
+          } else {
+            // For current form, check advanceFieldValues state
+            const fieldKey = `advance_${field.id}`
+            currentValue = advanceFieldValues[fieldKey]
+          }
+
+          // For implant_library fields, check if brand, platform, and size are all selected
+          if (field.field_type === "implant_library") {
+            if (isSavedProduct) {
+              // For saved products, check if value exists and is not empty
+              if (currentValue) {
+                const displayValue = typeof currentValue === "object"
+                  ? currentValue?.advance_field_value || ""
+                  : currentValue || ""
+                return displayValue &&
+                  displayValue.trim() !== "" &&
+                  displayValue.trim().toLowerCase() !== "not specified"
+              }
+              return false
+            } else {
+              // For current form, check state
+              const fieldKey = `advance_${field.id}`
+              const brandId = selectedImplantBrand[fieldKey]
+              const platformId = selectedImplantPlatform[fieldKey]
+              const size = selectedImplantSize[fieldKey]
+              if (brandId && platformId && size) {
+                return true
+              }
+              // Fallback: check if advanceFieldValues has a value
+              if (currentValue) {
+                const displayValue = typeof currentValue === "object"
+                  ? currentValue?.advance_field_value || ""
+                  : currentValue || ""
+                return displayValue &&
+                  displayValue.trim() !== "" &&
+                  displayValue.trim().toLowerCase() !== "not specified"
+              }
+              return false
+            }
+          }
+
+          if (!currentValue) return false
+
+          // For checkbox fields, check if at least one option is selected
+          if (field.field_type === "checkbox") {
+            // For saved products, checkbox values are stored as comma-separated strings
+            if (isSavedProduct) {
+              return currentValue && currentValue.trim() !== ""
+            }
+            // For current form, check option_ids array
+            const currentSelectedIds = typeof currentValue === "object"
+              ? (Array.isArray(currentValue?.option_ids) ? currentValue.option_ids :
+                currentValue?.option_id ? [currentValue.option_id] : [])
+              : []
+            return currentSelectedIds.length > 0
+          }
+
+          // For other fields, check if value is not empty or "Not specified"
+          const displayValue = typeof currentValue === "object"
+            ? currentValue?.advance_field_value || ""
+            : currentValue || ""
+          return displayValue &&
+            displayValue.trim() !== "" &&
+            displayValue.trim().toLowerCase() !== "not specified" &&
+            (field.field_type !== "dropdown" || displayValue !== `Select ${field.name}`)
+        })
+
+        // If advance fields exist but are not all completed, hide impression field
+        if (!allAdvanceFieldsCompleted) {
+          return false
+        }
+      }
+      // If no advance fields exist, impression can be shown (existing behavior)
     }
 
     // Use core visibility check for all fields
@@ -1203,6 +1332,69 @@ export default function CaseDesignCenterPage() {
     return true
   }
 
+  // Helper to check if advance fields are completed (for showing impression field)
+  const areAdvanceFieldsCompleted = (archType: "maxillary" | "mandibular"): boolean => {
+    if (!productDetails) return true // If no product details, allow impression (backward compatibility)
+    
+    const advanceFields = productDetails.advance_fields || productAdvanceFields[selectedProduct?.id?.toString() || ""] || []
+    // Filter out stump_shade from advance fields check (we use main stump shade field)
+    const filteredAdvanceFields = advanceFields.filter((field: any) => {
+      const fieldNameLower = (field.name || "").toLowerCase()
+      return !(fieldNameLower.includes("stump") && fieldNameLower.includes("shade"))
+    })
+
+    // If no advance fields exist, impression can be shown
+    if (filteredAdvanceFields.length === 0) {
+      return true
+    }
+
+    // If advance fields exist, check if they are all completed
+    return filteredAdvanceFields.every((field: any) => {
+      const fieldKey = `advance_${field.id}`
+      const currentValue = advanceFieldValues[fieldKey]
+
+      // For implant_library fields, check if brand, platform, and size are all selected
+      if (field.field_type === "implant_library") {
+        const brandId = selectedImplantBrand[fieldKey]
+        const platformId = selectedImplantPlatform[fieldKey]
+        const size = selectedImplantSize[fieldKey]
+        if (brandId && platformId && size) {
+          return true
+        }
+        // Fallback: check if advanceFieldValues has a value
+        if (currentValue) {
+          const displayValue = typeof currentValue === "object"
+            ? currentValue?.advance_field_value || ""
+            : currentValue || ""
+          return displayValue &&
+            displayValue.trim() !== "" &&
+            displayValue.trim().toLowerCase() !== "not specified"
+        }
+        return false
+      }
+
+      if (!currentValue) return false
+
+      // For checkbox fields, check if at least one option is selected
+      if (field.field_type === "checkbox") {
+        const currentSelectedIds = typeof currentValue === "object"
+          ? (Array.isArray(currentValue?.option_ids) ? currentValue.option_ids :
+            currentValue?.option_id ? [currentValue.option_id] : [])
+          : []
+        return currentSelectedIds.length > 0
+      }
+
+      // For other fields, check if value is not empty or "Not specified"
+      const displayValue = typeof currentValue === "object"
+        ? currentValue?.advance_field_value || ""
+        : currentValue || ""
+      return displayValue &&
+        displayValue.trim() !== "" &&
+        displayValue.trim().toLowerCase() !== "not specified" &&
+        (field.field_type !== "dropdown" || displayValue !== `Select ${field.name}`)
+    })
+  }
+
   // Helper to check if stage is filled (for showing advanced fields)
   const isStageFilled = (archType: "maxillary" | "mandibular"): boolean => {
     const stage = archType === "maxillary" ? maxillaryStage : mandibularStage
@@ -1241,16 +1433,8 @@ export default function CaseDesignCenterPage() {
     const hasToothShade = hasValue(toothShade)
     const hasStage = hasValue(stage)
 
-    // Check impression - at least one should be selected
-    let hasImpression = false
-    if (selectedProduct && productDetails?.impressions) {
-      const productId = selectedProduct.id.toString()
-      const impressionCount = productDetails.impressions.reduce((sum: number, impression: any) => {
-        const key = `${productId}_${archType}_${impression.value || impression.name}`
-        return sum + (selectedImpressions[key] || 0)
-      }, 0)
-      hasImpression = impressionCount > 0
-    }
+    // Impression field removed from UI - no longer required for validation
+    // Fields now flow left-to-right, top-to-bottom without jumping
 
     // Check advanced fields if they exist and are required
     let hasRequiredAdvanceFields = true
@@ -1316,7 +1500,7 @@ export default function CaseDesignCenterPage() {
       }
     }
 
-    return hasMaterial && hasRetention && hasStumpShade && hasToothShade && hasStage && hasImpression && hasRequiredAdvanceFields
+    return hasMaterial && hasRetention && hasStumpShade && hasToothShade && hasStage && hasRequiredAdvanceFields
   }
 
   // Helper function to check if at least one accordion product is complete (for submit button)
@@ -1500,8 +1684,8 @@ export default function CaseDesignCenterPage() {
     }
   }, [showProductDetails, selectedProduct, showMaxillaryChart, showMandibularChart, productDetails, isLoadingProductDetails])
 
-  // Track which arches have been auto-saved to prevent duplicate saves
-  const autoSavedArchesRef = useRef<Set<"maxillary" | "mandibular">>(new Set())
+  // Track which product configurations have been auto-saved to prevent duplicate saves
+  const autoSavedArchesRef = useRef<Set<string>>(new Set())
 
   // Handler to toggle accordion - only opens/closes on click
   const handleAccordionChange = (value: string) => {
@@ -3485,7 +3669,15 @@ export default function CaseDesignCenterPage() {
     setShowImpressionModal(true)
   }
 
+  // Use a ref to track if we're currently setting the accordion to prevent infinite loops
+  const isSettingAccordionRef = useRef(false)
+
   const handleOpenShadeModal = (fieldKey: string, arch?: "maxillary" | "mandibular") => {
+    // Prevent multiple rapid calls
+    if (isSettingAccordionRef.current) {
+      return
+    }
+
     // Determine arch: use provided arch, or check which accordion is open, or fallback to teeth selection
     let actualArch: "maxillary" | "mandibular"
     if (arch) {
@@ -3527,24 +3719,46 @@ export default function CaseDesignCenterPage() {
     }
 
     console.log("Opening shade selection:", { fieldKey, shadeFieldType, actualArch, openAccordion, productDetails })
+    
+    isSettingAccordionRef.current = true
+    
     setCurrentShadeField(shadeFieldType)
     setCurrentShadeArch(actualArch)
     setSelectedShadesForSVG([]) // Reset selected shades
     // Automatically open the accordion for the current arch
     const accordionId = actualArch === "maxillary" ? "maxillary-card" : "mandibular-card"
-    setOpenAccordion(accordionId)
+    // Only set if different to avoid unnecessary updates
+    if (openAccordion !== accordionId) {
+      setOpenAccordion(accordionId)
+    }
+    
+    // Reset the ref after a short delay to allow state updates to complete
+    setTimeout(() => {
+      isSettingAccordionRef.current = false
+    }, 100)
+    
     // No longer opening modal - just setting the field to show SVG inline
   }
 
-  // Keep accordion open when shade selection is active
-  useEffect(() => {
+  // Keep accordion open when shade selection is active - using useMemo to derive accordion state
+  const targetAccordionId = useMemo(() => {
     if (currentShadeField) {
-      const accordionId = currentShadeArch === "maxillary" ? "maxillary-card" : "mandibular-card"
-      if (openAccordion !== accordionId) {
-        setOpenAccordion(accordionId)
-      }
+      return currentShadeArch === "maxillary" ? "maxillary-card" : "mandibular-card"
     }
+    return null
   }, [currentShadeField, currentShadeArch])
+
+  // Update accordion when target changes, but only if different to prevent loops
+  useEffect(() => {
+    if (targetAccordionId && openAccordion !== targetAccordionId && !isSettingAccordionRef.current) {
+      isSettingAccordionRef.current = true
+      setOpenAccordion(targetAccordionId)
+      // Reset ref after state update completes
+      requestAnimationFrame(() => {
+        isSettingAccordionRef.current = false
+      })
+    }
+  }, [targetAccordionId, openAccordion])
 
   const handleShadeSelect = (shadeId: number, shadeName: string, brandId?: number) => {
     if (!currentShadeField) return
@@ -4811,16 +5025,15 @@ export default function CaseDesignCenterPage() {
     }
   }
 
-  // React Query mutation for auto-saving products
+  // React Query mutation for auto-saving products (kept for potential future use)
   const autoSaveProductMutation = useMutation({
     mutationFn: async (type: "maxillary" | "mandibular") => {
       // Call the existing handleAutoSaveProduct function
       handleAutoSaveProduct(type)
       return type
     },
-    onSuccess: (type) => {
-      // Mark this arch as auto-saved
-      autoSavedArchesRef.current.add(type)
+    onSuccess: () => {
+      // Product saving is handled by handleAutoSaveUnifiedProduct which tracks by product key
     },
     onError: (error) => {
       console.error("Error auto-saving product:", error)
@@ -4843,18 +5056,41 @@ export default function CaseDesignCenterPage() {
       const hasTeeth = (maxillaryTeeth.length > 0 || mandibularTeeth.length > 0)
       const isComplete = maxillaryComplete || mandibularComplete
 
-      // Create a unique key for this product configuration (without arch type to allow merging)
+      // Create a unique key for this product configuration (using same format as handleAutoSaveUnifiedProduct)
+      // This ensures we can properly check if a product already exists and update it instead of creating duplicates
       const maxillaryTeethSorted = [...maxillaryTeeth].sort()
       const mandibularTeethSorted = [...mandibularTeeth].sort()
-      const productKey = `${productToUse?.id}-${selectedCategoryId}-${selectedSubcategoryId}-${JSON.stringify(maxillaryTeethSorted)}-${JSON.stringify(mandibularTeethSorted)}`
+      const productKey = `${productToUse?.id}-${selectedCategoryId}-${selectedSubcategoryId}-${maxillaryTeethSorted.join(',')}-${mandibularTeethSorted.join(',')}`
 
       if (isComplete && hasTeeth && selectedCategory && selectedCategoryId && selectedSubcategory && selectedSubcategoryId && productToUse) {
-        // Check if we've already saved this exact configuration
+        // Always call handleAutoSaveUnifiedProduct - it will update existing product or create new one
+        // The function itself handles duplicate prevention by finding and updating existing products
+        // This ensures the initial accordion is saved/updated when completed, not duplicated
+        // handleAutoSaveUnifiedProduct finds products with same product ID, category, subcategory, and teeth
+        // and updates them instead of creating new ones
+        handleAutoSaveUnifiedProduct()
+
+        // Mark this configuration as processed to track that we've handled it
         if (!autoSavedArchesRef.current.has(productKey)) {
-          // Save as a unified product (not arch-specific)
-          handleAutoSaveUnifiedProduct()
           autoSavedArchesRef.current.add(productKey)
         }
+
+        // After auto-save, open the saved product accordion instead of maxillary-card/mandibular-card
+        // This ensures user continues editing in the saved product accordion
+        setTimeout(() => {
+          const archType = maxillaryComplete ? "maxillary" : "mandibular"
+          const teethToMatch = archType === "maxillary" ? maxillaryTeethSorted : mandibularTeethSorted
+          const matchingProduct = savedProducts.find(sp =>
+            sp.addedFrom === archType &&
+            sp.product.id === productToUse.id &&
+            sp.categoryId === selectedCategoryId &&
+            sp.subcategoryId === selectedSubcategoryId &&
+            JSON.stringify([...(archType === "maxillary" ? sp.maxillaryTeeth : sp.mandibularTeeth) || []].sort()) === JSON.stringify(teethToMatch)
+          )
+          if (matchingProduct && openAccordion !== matchingProduct.id) {
+            setOpenAccordion(matchingProduct.id)
+          }
+        }, 100)
       }
 
       // Show case summary notes if either arch has all fields filled
@@ -4887,8 +5123,8 @@ export default function CaseDesignCenterPage() {
     selectedCategoryId,
     selectedSubcategory,
     selectedSubcategoryId,
-    advanceFieldValues,
-    autoSaveProductMutation
+    advanceFieldValues
+    // Note: autoSaveProductMutation removed - useMutation returns new object each render causing infinite loop
   ])
 
   // Handler for Add Product button - saves current product and resets to categories
@@ -6054,7 +6290,7 @@ export default function CaseDesignCenterPage() {
 
       {/* Main Content */}
       <div className="min-h-full" style={{ paddingBottom: "80px" }}>
-        <div className="container mx-auto px-5 py-5" style={{ paddingBottom: "80px" }}>
+        <div className="container mx-auto px-5 py-5">
           {/* Search and Category Selection */}
           <div className="flex flex-col items-center">
             {/* Search and Labels Row */}
@@ -6397,8 +6633,8 @@ export default function CaseDesignCenterPage() {
                   {/* MAXILLARY Section - Only show when maxillary chart is visible */}
                   {showMaxillaryChart && (
                     <div ref={maxillarySectionRef} className="flex flex-col w-full">
-                      {/* Selected Product Badge */}
-                      {selectedProductForMaxillary && maxillaryTeeth.length > 0 && (
+                      {/* Selected Product Badge - Only show when there are multiple products (saved products exist) */}
+                      {selectedProductForMaxillary && maxillaryTeeth.length > 0 && savedProducts.filter(p => p.addedFrom === "maxillary").length > 0 && (
                         <div
                           className="relative flex items-center justify-center"
                           style={{ width: "100%", height: "32px", flex: "none", order: 0, flexGrow: 0 }}
@@ -6462,7 +6698,7 @@ export default function CaseDesignCenterPage() {
                       </div>
 
                       {/* Dental Chart - Outside Card */}
-                      <div className="rounded-lg p-3 flex items-center justify-center relative">
+                      <div className="rounded-lg pt-3 px-3 pb-0 flex items-center justify-center relative">
                         {shouldShowImplantPopover && implantPopoverState.arch === 'maxillary' && implantPopoverState.toothNumber !== null && (
                           <ImplantPartsPopover
                             onImplantPartsIncluded={() => {
@@ -6533,7 +6769,14 @@ export default function CaseDesignCenterPage() {
                       )}
 
                       {/* Summary Card - Single card for all selected teeth */}
-                      {showMaxillaryChart && maxillaryTeeth.length > 0 && (
+                      {/* Hide when savedProducts already contains a product with these teeth - prevents duplicate accordions */}
+                      {showMaxillaryChart && maxillaryTeeth.length > 0 && !savedProducts.some(sp =>
+                        sp.addedFrom === "maxillary" &&
+                        sp.product.id === selectedProduct?.id &&
+                        sp.categoryId === selectedCategoryId &&
+                        sp.subcategoryId === selectedSubcategoryId &&
+                        JSON.stringify([...(sp.maxillaryTeeth || [])].sort()) === JSON.stringify([...maxillaryTeeth].sort())
+                      ) && (
                         <Card className="overflow-hidden border border-gray-200 shadow-sm">
                           <Accordion
                             type="single"
@@ -6548,92 +6791,109 @@ export default function CaseDesignCenterPage() {
                                 className="w-full"
                                 style={{
                                   position: 'relative',
-                                  height: '69.92px',
-                                  background: openAccordion === "maxillary-card" ? '#DFEEFB' : '#F5F5F5',
+                                  minHeight: '70px',
+                                  background: openAccordion === "maxillary-card" ? '#E0EDF8' : '#F5F5F5',
                                   boxShadow: '0.9px 0.9px 3.6px rgba(0, 0, 0, 0.25)',
-                                  borderRadius: openAccordion === "maxillary-card" ? '5.4px 5.4px 0px 0px' : '5.4px',
+                                  borderRadius: openAccordion === "maxillary-card" ? '10px 10px 0px 0px' : '10px',
                                   display: currentShadeField ? 'none' : 'flex',
                                   flexDirection: 'column',
                                   alignItems: 'flex-start',
-                                  padding: '14px 8px',
-                                  gap: '10px'
+                                  padding: '14px 12px',
+                                  gap: '8px',
+                                  borderBottom: openAccordion === "maxillary-card" ? '1px dotted #B0D0F0' : 'none'
                                 }}
                               >
                                 <AccordionTrigger
-                                  className="hover:no-underline w-full group"
+                                  className="hover:no-underline w-full group [&>svg]:hidden"
                                   style={{
                                     padding: '0px',
                                     gap: '10px',
                                     width: '100%',
-                                    height: '100%',
                                     background: 'transparent',
                                     boxShadow: 'none',
                                     borderRadius: '0px'
                                   }}
                                 >
-                                  {/* Frame 2395 */}
-                                  <div style={{ width: '697.74px', height: '42.69px', flex: 'none', order: 0, flexGrow: 0, position: 'relative' }}>
-                                    {/* Frame 2388 */}
-                                    <div style={{ position: 'absolute', width: '639.14px', height: '42.69px', left: '0px', top: '0px' }}>
-                                      {/* Product Image */}
-                                      <div
-                                        style={{
-                                          position: 'absolute',
-                                          width: '64.04px',
-                                          height: '42.69px',
-                                          left: '0px',
-                                          top: '0px',
-                                          background: `url(${selectedProduct?.image_url || "/images/tooth-icon.png"}), #FFFFFF`,
-                                          backgroundSize: 'contain',
-                                          backgroundPosition: 'center',
-                                          backgroundRepeat: 'no-repeat',
-                                          borderRadius: '5.4px'
-                                        }}
-                                      />
+                                  {/* Responsive Content Container */}
+                                  <div style={{ width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: '12px', paddingRight: '30px' }}>
+                                    {/* Product Image */}
+                                    <div
+                                      style={{
+                                        width: '40px',
+                                        minWidth: '40px',
+                                        height: '40px',
+                                        background: `url(${selectedProduct?.image_url || "/images/tooth-icon.png"}), #FFFFFF`,
+                                        backgroundSize: 'contain',
+                                        backgroundPosition: 'center',
+                                        backgroundRepeat: 'no-repeat',
+                                        borderRadius: '5.4px',
+                                        flexShrink: 0
+                                      }}
+                                    />
 
-                                      {/* Frame 2387 - Content Area */}
-                                      <div style={{ position: 'absolute', width: '565.1px', height: '42px', left: '74.04px', top: '0.34px' }}>
-                                        {/* Group 1433 - Tooth Numbers */}
-                                        <div style={{ position: 'absolute', width: 'auto', height: '20px', left: '0px', top: '0px' }}>
-                                          <span
-                                            style={{
-                                              fontFamily: 'Verdana',
-                                              fontStyle: 'normal',
-                                              fontWeight: 400,
-                                              fontSize: '14.4px',
-                                              lineHeight: '20px',
-                                              letterSpacing: '-0.02em',
-                                              color: '#000000'
-                                            }}
-                                          >
-                                            {(() => {
-                                              const sortedTeeth = [...maxillaryTeeth].sort((a, b) => a - b);
-                                              return sortedTeeth.length > 0 ? sortedTeeth.join(', ') : '';
-                                            })()}
-                                          </span>
-                                        </div>
+                                    {/* Content Area - Responsive */}
+                                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0, alignItems: 'flex-start' }}>
+                                      {/* Product Name - Bold, plain text */}
+                                      {selectedProduct?.name && (
+                                        <span
+                                          style={{
+                                            fontFamily: 'Verdana',
+                                            fontStyle: 'normal',
+                                            fontWeight: 600,
+                                            fontSize: '16px',
+                                            lineHeight: '20px',
+                                            letterSpacing: '-0.02em',
+                                            color: '#000000',
+                                            wordBreak: 'break-word',
+                                            overflowWrap: 'break-word',
+                                            textAlign: 'left',
+                                            width: '100%'
+                                          }}
+                                        >
+                                          {selectedProduct.name}
+                                        </span>
+                                      )}
 
-                                        {/* Frame 2386 - Badges and Info Row */}
-                                        <div style={{ position: 'absolute', width: '565.1px', height: '22px', left: '0px', top: '20px', display: 'flex', flexDirection: 'row', alignItems: 'center', padding: '0px', gap: '5px' }}>
-                                          {/* Badge - Category */}
-                                          {selectedCategory && (
-                                            <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '0px 10px', gap: '10px', width: 'fit-content', height: '17px', background: '#F9F9F9', boxShadow: '1px 1px 3.5px rgba(0, 0, 0, 0.25)', borderRadius: '6px', flex: 'none', order: 0, flexGrow: 0 }}>
-                                              <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', flex: 'none', order: 0, flexGrow: 0, whiteSpace: 'nowrap' }}>{selectedCategory}</span>
-                                            </div>
-                                          )}
+                                      {/* Tooth Numbers Row - Formatted as #9 */}
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                        <span
+                                          style={{
+                                            fontFamily: 'Verdana',
+                                            fontStyle: 'normal',
+                                            fontWeight: 400,
+                                            fontSize: '14px',
+                                            lineHeight: '20px',
+                                            letterSpacing: '-0.02em',
+                                            color: '#000000'
+                                          }}
+                                        >
+                                          {(() => {
+                                            const sortedTeeth = [...maxillaryTeeth].sort((a, b) => a - b);
+                                            return sortedTeeth.length > 0 ? sortedTeeth.map(t => `#${t}`).join(', ') : '';
+                                          })()}
+                                        </span>
+                                      </div>
 
-                                          {/* Badge - Subcategory */}
-                                          {selectedSubcategory && (
-                                            <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '0px 10px', gap: '10px', width: 'fit-content', height: '17px', background: '#F9F9F9', boxShadow: '1px 1px 3.5px rgba(0, 0, 0, 0.25)', borderRadius: '6px', flex: 'none', order: 1, flexGrow: 0 }}>
-                                              <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', flex: 'none', order: 0, flexGrow: 0, whiteSpace: 'nowrap' }}>{selectedSubcategory}</span>
-                                            </div>
-                                          )}
+                                      {/* Badges and Info Row - Responsive */}
+                                      <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                                        {/* Badge - Category - Pill shaped */}
+                                        {selectedCategory && (
+                                          <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '4px 12px', background: '#F0F0F0', borderRadius: '20px', flexShrink: 0 }}>
+                                            <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '12px', lineHeight: '16px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{selectedCategory}</span>
+                                          </div>
+                                        )}
 
-                                          {/* Est days */}
-                                          <span style={{ width: 'auto', height: '22px', fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', letterSpacing: '-0.02em', color: '#B4B0B0', flex: 'none', order: 4, flexGrow: 0 }}>
-                                            Est days: {selectedProduct?.estimated_days || 10} work days after submission
-                                          </span>
-                                        </div>
+                                        {/* Badge - Subcategory - Pill shaped */}
+                                        {selectedSubcategory && (
+                                          <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '4px 12px', background: '#F0F0F0', borderRadius: '20px', flexShrink: 0 }}>
+                                            <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '12px', lineHeight: '16px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{selectedSubcategory}</span>
+                                          </div>
+                                        )}
+
+                                        {/* Est days */}
+                                        <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '12px', lineHeight: '16px', letterSpacing: '-0.02em', color: '#B4B0B0', whiteSpace: 'nowrap' }}>
+                                          Est days: {selectedProduct?.estimated_days || 10} work days after submission
+                                        </span>
                                       </div>
                                     </div>
                                   </div>
@@ -6694,94 +6954,6 @@ export default function CaseDesignCenterPage() {
                                     </div>
                                   </div>
                                 )}
-                                {/* Implant Brand/Platform Cards - Shows at the top when implant details field is clicked (same position as ToothShadeSelectionSVG) */}
-                                {showImplantBrandCardsInFields.maxillary && implants && implants.length > 0 && (
-                                  <div className="w-full pt-4">
-                                    <div className="flex flex-col items-center gap-4 w-full">
-                                      <div className="bg-white w-full flex justify-center">
-                                        {(() => {
-                                          const selectedBrandId = selectedImplantBrandForDetails.maxillary
-                                          const selectedBrand = selectedBrandId ? implants.find((imp: any) => imp.id === selectedBrandId) : null
-                                          const platforms = selectedBrand?.platforms || []
-                                          const mappedPlatforms = platforms.map((plat: any) => ({
-                                            id: plat.id || 0,
-                                            name: plat.name,
-                                            image: plat.image_url || plat.image
-                                          }))
-                                          const selectedPlatformId = selectedImplantPlatformForDetails.maxillary
-                                          const clickedFieldType = clickedFieldTypeInImplantDetails.maxillary
-
-                                          // Show platform cards if:
-                                          // 1. Platform field was clicked AND brand is selected (highest priority - show even if no platforms), OR
-                                          // 2. Brand is selected, platform not selected yet, and brand field was NOT clicked (auto-show after brand selection)
-                                          const shouldShowPlatformCards = (clickedFieldType === 'platform' && selectedBrandId) ||
-                                                                         (clickedFieldType !== 'brand' && (clickedFieldType === null || clickedFieldType === undefined) && selectedBrandId && selectedPlatformId === null)
-
-                                          // Show brand cards if:
-                                          // 1. Brand field was clicked, OR
-                                          // 2. No brand selected yet, OR
-                                          // 3. Platform cards should not be shown
-                                          const shouldShowBrandCards = !shouldShowPlatformCards && (clickedFieldType === 'brand' ||
-                                                                      !selectedBrandId)
-
-                                          // Priority: Platform cards take precedence when platform field is clicked
-                                          if (shouldShowPlatformCards) {
-                                            return (
-                                              <ImplantPlatformCards
-                                                platforms={mappedPlatforms}
-                                                selectedPlatformId={selectedPlatformId}
-                                                onSelectPlatform={(platform: any) => {
-                                                  setSelectedImplantPlatformForDetails(prev => ({ ...prev, maxillary: platform.id }))
-                                                  // Reset clicked field type after selection
-                                                  setClickedFieldTypeInImplantDetails(prev => ({ ...prev, maxillary: null }))
-                                                }}
-                                                arch="maxillary"
-                                              />
-                                            )
-                                          }
-
-                                          // Show brand cards only if platform cards are not being shown
-                                          if (shouldShowBrandCards) {
-                                            const mappedImplants = implants.map((imp: any) => ({
-                                              id: imp.id,
-                                              brand_name: imp.brand_name,
-                                              system_name: imp.system_name,
-                                              code: imp.code,
-                                              image_url: imp.image_url,
-                                              platforms: imp.platforms?.map((p: any) => ({
-                                                id: p.id || 0,
-                                                name: p.name,
-                                                image: p.image_url
-                                              }))
-                                            }))
-
-                                            return (
-                                              <ImplantBrandCards
-                                                implants={mappedImplants}
-                                                selectedImplantId={selectedBrandId}
-                                                onSelectImplant={(implant: any) => {
-                                                  setSelectedImplantBrandForDetails(prev => ({ ...prev, maxillary: implant.id }))
-                                                  // If brand has platforms, reset platform selection to show platform cards
-                                                  if (implant.platforms && implant.platforms.length > 0) {
-                                                    setSelectedImplantPlatformForDetails(prev => ({ ...prev, maxillary: null }))
-                                                    // Auto-show platform cards after brand selection
-                                                    setClickedFieldTypeInImplantDetails(prev => ({ ...prev, maxillary: null }))
-                                                  } else {
-                                                    // Reset clicked field type after selection
-                                                    setClickedFieldTypeInImplantDetails(prev => ({ ...prev, maxillary: null }))
-                                                  }
-                                                }}
-                                                arch="maxillary"
-                                              />
-                                            )
-                                          }
-
-                                          return null
-                                        })()}
-                                      </div>
-                                    </div>
-                                  </div>
-                                )}
                                 {/* Summary detail */}
                                 <div
                                   className="bg-white w-full"
@@ -6818,6 +6990,7 @@ export default function CaseDesignCenterPage() {
                                           maxillaryGumShadeId,
                                           maxillaryShadeId,
                                           maxillaryStageId,
+                                          maxillaryImplantDetails,
                                         }}
                                         arch="maxillary"
                                         fieldConfigs={fieldConfigs}
@@ -6903,80 +7076,46 @@ export default function CaseDesignCenterPage() {
                                         }}
                                       />
 
-                                      {/* Implant Brand Cards for Advance Fields - Shows when implant details advance field is clicked */}
-                                      {showImplantCards && activeImplantFieldKey && activeImplantFieldKey.startsWith('advance_') && implants && implants.length > 0 && (
-                                        <div ref={implantCardsRef} className="w-full pt-4">
-                                          <div className="flex flex-col items-center gap-4 w-full">
+                                      {/* Implant Brand/Platform Cards - Shows at the bottom when implant details field is clicked */}
+                                      {showImplantBrandCardsInFields.maxillary && implants && implants.length > 0 && (
+                                        <div className="w-full pt-2">
+                                          <div className="flex flex-col items-center gap-2 w-full">
                                             <div className="bg-white w-full flex justify-center">
                                               {(() => {
-                                                const fieldKey = activeImplantFieldKey
-                                                const currentStep = implantSelectionStep[fieldKey] || 'brand'
-                                                const selectedBrandId = selectedImplantBrand[fieldKey]
-                                                let selectedBrand = selectedBrandId ? implants.find((imp: any) => imp.id === selectedBrandId) : null
-
-                                                // If we're in form mode and selectedBrand is not found, try to get it from the form's selectedBrand prop
-                                                // This handles the case where the brand was selected but the state lookup fails
-                                                if (!selectedBrand && currentStep === 'form') {
-                                                  // Try to find the brand by checking if we have a brand name in advanceFieldValues
-                                                  const currentValue = advanceFieldValues[fieldKey]
-                                                  if (currentValue && typeof currentValue === 'object' && currentValue.advance_field_value) {
-                                                    const brandName = typeof currentValue.advance_field_value === 'string'
-                                                      ? currentValue.advance_field_value.split(' - ')[0]
-                                                      : null
-                                                    if (brandName) {
-                                                      const foundBrand = implants.find((imp: any) => imp.brand_name === brandName)
-                                                      if (foundBrand) {
-                                                        selectedBrand = foundBrand
-                                                        // If found, update the selectedBrandId
-                                                        if (!selectedBrandId) {
-                                                          setSelectedImplantBrand(prev => ({ ...prev, [fieldKey]: foundBrand.id }))
-                                                        }
-                                                      }
-                                                    }
-                                                  }
-                                                }
-
+                                                const selectedBrandId = selectedImplantBrandForDetails.maxillary
+                                                const selectedBrand = selectedBrandId ? implants.find((imp: any) => imp.id === selectedBrandId) : null
                                                 const platforms = selectedBrand?.platforms || []
                                                 const mappedPlatforms = platforms.map((plat: any) => ({
                                                   id: plat.id || 0,
                                                   name: plat.name,
                                                   image: plat.image_url || plat.image
                                                 }))
-                                                const selectedPlatformId = selectedImplantPlatform[fieldKey]
-                                                const clickedFieldType = clickedFieldTypeInForm[fieldKey]
+                                                const selectedPlatformId = selectedImplantPlatformForDetails.maxillary
+                                                const clickedFieldType = clickedFieldTypeInImplantDetails.maxillary
 
                                                 // Show platform cards if:
-                                                // 1. We're on platform step, OR
-                                                // 2. We're in form step and platform field was clicked (hide brand cards when platform is clicked)
-                                                // Then check if we have a brand with platforms
-                                                const shouldShowPlatformCards = currentStep === 'platform' || (currentStep === 'form' && showImplantCards && clickedFieldType === 'platform')
+                                                // 1. Platform field was clicked AND brand is selected (highest priority - show even if no platforms), OR
+                                                // 2. Brand is selected, platform not selected yet, and brand field was NOT clicked (auto-show after brand selection)
+                                                const shouldShowPlatformCards = (clickedFieldType === 'platform' && selectedBrandId) ||
+                                                                               (clickedFieldType !== 'brand' && (clickedFieldType === null || clickedFieldType === undefined) && selectedBrandId && selectedPlatformId === null)
 
                                                 // Show brand cards if:
-                                                // 1. We're on brand step, OR
-                                                // 2. We're in form step and brand field was clicked (hide platform cards when brand is clicked)
-                                                const shouldShowBrandCards = currentStep === 'brand' || (currentStep === 'form' && showImplantCards && clickedFieldType === 'brand')
+                                                // 1. Brand field was clicked, OR
+                                                // 2. No brand selected yet, OR
+                                                // 3. Platform cards should not be shown
+                                                const shouldShowBrandCards = !shouldShowPlatformCards && (clickedFieldType === 'brand' ||
+                                                                                !selectedBrandId)
 
                                                 // Priority: Platform cards take precedence when platform field is clicked
-                                                if (shouldShowPlatformCards && selectedBrand) {
+                                                if (shouldShowPlatformCards) {
                                                   return (
                                                     <ImplantPlatformCards
                                                       platforms={mappedPlatforms}
                                                       selectedPlatformId={selectedPlatformId}
                                                       onSelectPlatform={(platform: any) => {
-                                                        setSelectedImplantPlatform(prev => ({ ...prev, [fieldKey]: platform.id }))
-                                                        // Store full platform data
-                                                        setSelectedImplantPlatformData(prev => ({ ...prev, [fieldKey]: { id: platform.id, name: platform.name } }))
-                                                        // After platform selection, keep form visible and hide the cards
-                                                        setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'form' }))
-                                                        setShowImplantCards(false)
-                                                        setClickedFieldTypeInForm(prev => ({ ...prev, [fieldKey]: null }))
-                                                        // Scroll to the form
-                                                        setTimeout(() => {
-                                                          const formElement = document.querySelector(`[data-implant-field-key="${fieldKey}"]`)
-                                                          if (formElement) {
-                                                            formElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                                                          }
-                                                        }, 100)
+                                                        setSelectedImplantPlatformForDetails(prev => ({ ...prev, maxillary: platform.id }))
+                                                        // Reset clicked field type after selection
+                                                        setClickedFieldTypeInImplantDetails(prev => ({ ...prev, maxillary: null }))
                                                       }}
                                                       arch="maxillary"
                                                     />
@@ -6984,39 +7123,34 @@ export default function CaseDesignCenterPage() {
                                                 }
 
                                                 // Show brand cards only if platform cards are not being shown
-                                                if (shouldShowBrandCards && !shouldShowPlatformCards) {
+                                                if (shouldShowBrandCards) {
+                                                  const mappedImplants = implants.map((imp: any) => ({
+                                                    id: imp.id,
+                                                    brand_name: imp.brand_name,
+                                                    system_name: imp.system_name,
+                                                    code: imp.code,
+                                                    image_url: imp.image_url,
+                                                    platforms: imp.platforms?.map((p: any) => ({
+                                                      id: p.id || 0,
+                                                      name: p.name,
+                                                      image: p.image_url
+                                                    }))
+                                                  }))
+
                                                   return (
                                                     <ImplantBrandCards
-                                                      implants={implants.map((imp: any) => ({
-                                                        id: imp.id,
-                                                        brand_name: imp.brand_name,
-                                                        system_name: imp.system_name,
-                                                        code: imp.code,
-                                                        image_url: imp.image_url,
-                                                        platforms: imp.platforms?.map((p: any) => ({
-                                                          id: p.id || 0,
-                                                          name: p.name,
-                                                          image: p.image_url
-                                                        }))
-                                                      }))}
-                                                      selectedImplantId={selectedBrandId || null}
+                                                      implants={mappedImplants}
+                                                      selectedImplantId={selectedBrandId}
                                                       onSelectImplant={(implant: any) => {
-                                                        setSelectedImplantBrand(prev => ({ ...prev, [fieldKey]: implant.id }))
-                                                        // If brand has platforms, show platform cards, otherwise go directly to form
+                                                        setSelectedImplantBrandForDetails(prev => ({ ...prev, maxillary: implant.id }))
+                                                        // If brand has platforms, reset platform selection to show platform cards
                                                         if (implant.platforms && implant.platforms.length > 0) {
-                                                          setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'platform' }))
+                                                          setSelectedImplantPlatformForDetails(prev => ({ ...prev, maxillary: null }))
+                                                          // Auto-show platform cards after brand selection
+                                                          setClickedFieldTypeInImplantDetails(prev => ({ ...prev, maxillary: null }))
                                                         } else {
-                                                          // No platforms, go directly to form
-                                                          setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'form' }))
-                                                          setShowImplantCards(false)
-                                                          setClickedFieldTypeInForm(prev => ({ ...prev, [fieldKey]: null }))
-                                                          // Scroll to the form
-                                                          setTimeout(() => {
-                                                            const formElement = document.querySelector(`[data-implant-field-key="${fieldKey}"]`)
-                                                            if (formElement) {
-                                                              formElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                                                            }
-                                                          }, 100)
+                                                          // Reset clicked field type after selection
+                                                          setClickedFieldTypeInImplantDetails(prev => ({ ...prev, maxillary: null }))
                                                         }
                                                       }}
                                                       arch="maxillary"
@@ -7024,7 +7158,6 @@ export default function CaseDesignCenterPage() {
                                                   )
                                                 }
 
-                                                // Default: don't show any cards if conditions don't match
                                                 return null
                                               })()}
                                             </div>
@@ -7640,11 +7773,20 @@ export default function CaseDesignCenterPage() {
                                                                   selectedBrand={selectedBrand}
                                                                   selectedPlatform={selectedPlatform}
                                                                   selectedSize={selectedSize}
-                                                                  onSizeChange={(size) => {
+                                                                  onSizeChange={(size: string) => {
                                                                     setSelectedImplantSize(prev => ({ ...prev, [fieldKey]: size }))
+                                                                    // Update maxillaryImplantDetails to trigger impression field visibility in DynamicProductFields
+                                                                    if (selectedBrand && selectedPlatform) {
+                                                                      const implantDetailsStr = `${selectedBrand.brand_name} - ${selectedPlatform.name} - ${size}`
+                                                                      setMaxillaryImplantDetails(implantDetailsStr)
+                                                                    }
                                                                   }}
                                                                   onInclusionsChange={(inclusions) => {
-                                                                    // Handle inclusions change
+                                                                    // Handle inclusions change - update implant details with inclusions
+                                                                    if (selectedBrand && selectedPlatform && selectedSize) {
+                                                                      const implantDetailsStr = `${selectedBrand.brand_name} - ${selectedPlatform.name} - ${selectedSize} - ${inclusions}`
+                                                                      setMaxillaryImplantDetails(implantDetailsStr)
+                                                                    }
                                                                   }}
                                                                   onAbutmentDetailChange={(detail) => {
                                                                     // Handle abutment detail change
@@ -7774,109 +7916,139 @@ export default function CaseDesignCenterPage() {
                                           )
                                         })()}
 
-                                      {/* Impression Field - Shown after advanced fields (or after stage field is visible if no advanced fields) */}
-                                      {productDetails &&
-                                        productDetails.impressions &&
-                                        Array.isArray(productDetails.impressions) &&
-                                        productDetails.impressions.length > 0 &&
-                                        isStageFieldVisible("maxillary") && (() => {
-                                          const productId = selectedProduct?.id?.toString() || ""
-                                          const impressionCount = getImpressionCount(productId, "maxillary", productDetails.impressions)
-                                          const displayText = getImpressionDisplayText(productId, "maxillary", productDetails.impressions)
+                                      {/* Implant Brand Cards for Advance Fields - Shows when implant details advance field is clicked */}
+                                      {showImplantCards && activeImplantFieldKey && activeImplantFieldKey.startsWith('advance_') && implants && implants.length > 0 && (
+                                        <div ref={implantCardsRef} className="w-full pt-2">
+                                          <div className="flex flex-col items-center gap-2 w-full">
+                                            <div className="bg-white w-full flex justify-center">
+                                              {(() => {
+                                                const fieldKey = activeImplantFieldKey
+                                                const currentStep = implantSelectionStep[fieldKey] || 'brand'
+                                                const selectedBrandId = selectedImplantBrand[fieldKey]
+                                                let selectedBrand = selectedBrandId ? implants.find((imp: any) => imp.id === selectedBrandId) : null
 
-                                          // Determine border color: green if impression has value, red if no impression, gray otherwise
-                                          let borderColor = '#7F7F7F' // default gray
-                                          let labelColor = '#7F7F7F' // default gray
-                                          const hasImpressionValue = impressionCount > 0 && displayText !== "Select impression"
-
-                                          if (impressionCount === 0 || displayText === "Select impression") {
-                                            borderColor = '#ef4444' // red
-                                            labelColor = '#ef4444' // red
-                                          } else if (hasImpressionValue) {
-                                            borderColor = '#119933' // green
-                                            labelColor = '#119933' // green
-                                          }
-
-                                          return (
-                                            <div className="relative" style={{ minHeight: '43px', width: '100%' }}>
-                                              <div
-                                                className="flex items-center cursor-pointer"
-                                                onClick={() => {
-                                                  if (selectedProduct) {
-                                                    const tempProduct: SavedProduct = {
-                                                      id: selectedProduct.id.toString(),
-                                                      product: selectedProduct,
-                                                      productDetails: productDetails,
-                                                      category: selectedCategory || "",
-                                                      categoryId: selectedCategoryId || 0,
-                                                      subcategory: selectedSubcategory || "",
-                                                      subcategoryId: selectedSubcategoryId || 0,
-                                                      maxillaryTeeth: maxillaryTeeth,
-                                                      mandibularTeeth: mandibularTeeth,
-                                                      maxillaryMaterial: maxillaryMaterial,
-                                                      maxillaryStumpShade: maxillaryStumpShade,
-                                                      maxillaryRetention: maxillaryRetention,
-                                                      maxillaryImplantDetails: maxillaryImplantDetails,
-                                                      mandibularMaterial: mandibularMaterial,
-                                                      mandibularRetention: mandibularRetention,
-                                                      mandibularStumpShade: mandibularStumpShade,
-                                                      mandibularImplantDetails: mandibularImplantDetails,
-                                                      createdAt: Date.now(),
-                                                      addedFrom: "maxillary",
+                                                // If we're in form mode and selectedBrand is not found, try to get it from the form's selectedBrand prop
+                                                // This handles the case where the brand was selected but the state lookup fails
+                                                if (!selectedBrand && currentStep === 'form') {
+                                                  // Try to find the brand by checking if we have a brand name in advanceFieldValues
+                                                  const currentValue = advanceFieldValues[fieldKey]
+                                                  if (currentValue && typeof currentValue === 'object' && currentValue.advance_field_value) {
+                                                    const brandName = typeof currentValue.advance_field_value === 'string'
+                                                      ? currentValue.advance_field_value.split(' - ')[0]
+                                                      : null
+                                                    if (brandName) {
+                                                      const foundBrand = implants.find((imp: any) => imp.brand_name === brandName)
+                                                      if (foundBrand) {
+                                                        selectedBrand = foundBrand
+                                                        // If found, update the selectedBrandId
+                                                        if (!selectedBrandId) {
+                                                          setSelectedImplantBrand(prev => ({ ...prev, [fieldKey]: foundBrand.id }))
+                                                        }
+                                                      }
                                                     }
-                                                    handleOpenImpressionModal(tempProduct, "maxillary")
                                                   }
-                                                }}
-                                                style={{
-                                                  padding: '12px 15px 5px 15px',
-                                                  gap: '5px',
-                                                  width: '100%',
-                                                  height: '37px',
-                                                  position: 'relative',
-                                                  marginTop: '5.27px',
-                                                  background: '#FFFFFF',
-                                                  border: `0.740384px solid ${borderColor}`,
-                                                  borderRadius: '7.7px',
-                                                  boxSizing: 'border-box'
-                                                }}
-                                              >
-                                                <span style={{
-                                                  fontFamily: 'Verdana',
-                                                  fontStyle: 'normal',
-                                                  fontWeight: 400,
-                                                  fontSize: '14.4px',
-                                                  lineHeight: '20px',
-                                                  letterSpacing: '-0.02em',
-                                                  color: '#000000',
-                                                  whiteSpace: 'nowrap',
-                                                  paddingRight: hasImpressionValue ? '30px' : '0px'
-                                                }}>{displayText}</span>
-                                                {hasImpressionValue && (
-                                                  <div className="absolute right-[12.32px] top-1/2 -translate-y-1/2 pointer-events-none">
-                                                    <Check className="h-5 w-5 text-[#119933]" aria-label="Valid" />
-                                                  </div>
-                                                )}
-                                              </div>
-                                              <label
-                                                className="absolute bg-white"
-                                                style={{
-                                                  padding: '0px',
-                                                  height: '14px',
-                                                  left: '8.9px',
-                                                  top: '0px',
-                                                  fontFamily: 'Arial',
-                                                  fontStyle: 'normal',
-                                                  fontWeight: 400,
-                                                  fontSize: '14px',
-                                                  lineHeight: '14px',
-                                                  color: labelColor
-                                                }}
-                                              >
-                                                Impression
-                                              </label>
+                                                }
+
+                                                const platforms = selectedBrand?.platforms || []
+                                                const mappedPlatforms = platforms.map((plat: any) => ({
+                                                  id: plat.id || 0,
+                                                  name: plat.name,
+                                                  image: plat.image_url || plat.image
+                                                }))
+                                                const selectedPlatformId = selectedImplantPlatform[fieldKey]
+                                                const clickedFieldType = clickedFieldTypeInForm[fieldKey]
+
+                                                // Show platform cards if:
+                                                // 1. We're on platform step, OR
+                                                // 2. We're in form step and platform field was clicked (hide brand cards when platform is clicked)
+                                                // Then check if we have a brand with platforms
+                                                const shouldShowPlatformCards = currentStep === 'platform' || (currentStep === 'form' && showImplantCards && clickedFieldType === 'platform')
+
+                                                // Show brand cards if:
+                                                // 1. We're on brand step, OR
+                                                // 2. We're in form step and brand field was clicked (hide platform cards when brand is clicked)
+                                                const shouldShowBrandCards = currentStep === 'brand' || (currentStep === 'form' && showImplantCards && clickedFieldType === 'brand')
+
+                                                // Priority: Platform cards take precedence when platform field is clicked
+                                                if (shouldShowPlatformCards && selectedBrand) {
+                                                  return (
+                                                    <ImplantPlatformCards
+                                                      platforms={mappedPlatforms}
+                                                      selectedPlatformId={selectedPlatformId}
+                                                      onSelectPlatform={(platform: any) => {
+                                                        setSelectedImplantPlatform(prev => ({ ...prev, [fieldKey]: platform.id }))
+                                                        // Store full platform data
+                                                        setSelectedImplantPlatformData(prev => ({ ...prev, [fieldKey]: { id: platform.id, name: platform.name } }))
+                                                        // After platform selection, keep form visible and hide the cards
+                                                        setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'form' }))
+                                                        setShowImplantCards(false)
+                                                        setClickedFieldTypeInForm(prev => ({ ...prev, [fieldKey]: null }))
+                                                        // Scroll to the form
+                                                        setTimeout(() => {
+                                                          const formElement = document.querySelector(`[data-implant-field-key="${fieldKey}"]`)
+                                                          if (formElement) {
+                                                            formElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                                                          }
+                                                        }, 100)
+                                                      }}
+                                                      arch="maxillary"
+                                                    />
+                                                  )
+                                                }
+
+                                                // Show brand cards only if platform cards are not being shown
+                                                if (shouldShowBrandCards && !shouldShowPlatformCards) {
+                                                  return (
+                                                    <ImplantBrandCards
+                                                      implants={implants.map((imp: any) => ({
+                                                        id: imp.id,
+                                                        brand_name: imp.brand_name,
+                                                        system_name: imp.system_name,
+                                                        code: imp.code,
+                                                        image_url: imp.image_url,
+                                                        platforms: imp.platforms?.map((p: any) => ({
+                                                          id: p.id || 0,
+                                                          name: p.name,
+                                                          image: p.image_url
+                                                        }))
+                                                      }))}
+                                                      selectedImplantId={selectedBrandId || null}
+                                                      onSelectImplant={(implant: any) => {
+                                                        setSelectedImplantBrand(prev => ({ ...prev, [fieldKey]: implant.id }))
+                                                        // If brand has platforms, show platform cards, otherwise go directly to form
+                                                        if (implant.platforms && implant.platforms.length > 0) {
+                                                          setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'platform' }))
+                                                        } else {
+                                                          // No platforms, go directly to form
+                                                          setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'form' }))
+                                                          setShowImplantCards(false)
+                                                          setClickedFieldTypeInForm(prev => ({ ...prev, [fieldKey]: null }))
+                                                          // Scroll to the form
+                                                          setTimeout(() => {
+                                                            const formElement = document.querySelector(`[data-implant-field-key="${fieldKey}"]`)
+                                                            if (formElement) {
+                                                              formElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                                                            }
+                                                          }, 100)
+                                                        }
+                                                      }}
+                                                      arch="maxillary"
+                                                    />
+                                                  )
+                                                }
+
+                                                // Default: don't show any cards if conditions don't match
+                                                return null
+                                              })()}
                                             </div>
-                                          )
-                                        })()}
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      
+
+                                      {/* Impression Field - HIDDEN: Removed to prevent UI jumping (fields should flow left-to-right, top-to-bottom) */}
+                                      {/* Impression field is now handled separately or removed from this flow */}
                                     </>
                                   )}
 
@@ -8269,16 +8441,17 @@ export default function CaseDesignCenterPage() {
                                         className="w-full"
                                         style={{
                                           position: 'relative',
-                                          height: '69.92px',
-                                          background: savedProduct.rushData ? '#FFE2E2' : (openAccordion === savedProduct.id ? '#DFEEFB' : '#F5F5F5'),
+                                          minHeight: '70px',
+                                          background: savedProduct.rushData ? '#FFE2E2' : (openAccordion === savedProduct.id ? '#E0EDF8' : '#F5F5F5'),
                                           boxShadow: savedProduct.rushData ? '0.9px 0.9px 3.6px 0 rgba(0, 0, 0, 0.25)' : '0.9px 0.9px 3.6px rgba(0, 0, 0, 0.25)',
-                                          borderRadius: openAccordion === savedProduct.id ? '5.4px 5.4px 0px 0px' : '10px',
+                                          borderRadius: openAccordion === savedProduct.id ? '10px 10px 0px 0px' : '10px',
                                           border: savedProduct.rushData ? '1px solid #CF0202' : 'none',
                                           display: 'flex',
                                           flexDirection: 'column',
                                           alignItems: 'flex-start',
-                                          padding: '14px 8px',
-                                          gap: '10px'
+                                          padding: '14px 12px',
+                                          gap: '8px',
+                                          borderBottom: openAccordion === savedProduct.id ? '1px dotted #B0D0F0' : 'none'
                                         }}
                                       >
                                         <AccordionTrigger
@@ -8287,105 +8460,119 @@ export default function CaseDesignCenterPage() {
                                             padding: '0px',
                                             gap: '10px',
                                             width: '100%',
-                                            height: '100%',
                                             background: 'transparent',
                                             boxShadow: 'none',
                                             borderRadius: '0px'
                                           }}
                                           onClick={() => handleSavedProductCardClick(savedProduct)}
                                         >
-                                          {/* Frame 2395 */}
-                                          <div style={{ width: '697.74px', height: '42.69px', flex: 'none', order: 0, flexGrow: 0, position: 'relative' }}>
-                                            {/* Frame 2388 */}
-                                            <div style={{ position: 'absolute', width: '639.14px', height: '42.69px', left: '0px', top: '0px' }}>
-                                              {/* Product Image */}
-                                              <div
+                                          {/* Responsive Content Container */}
+                                          <div style={{ width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: '12px', paddingRight: '30px' }}>
+                                            {/* Product Image */}
+                                            <div
+                                              style={{
+                                                width: '40px',
+                                                minWidth: '40px',
+                                                height: '40px',
+                                                background: '#F5F5F5',
+                                                borderRadius: '5.4px',
+                                                overflow: 'hidden',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                flexShrink: 0
+                                              }}
+                                            >
+                                              <img
+                                                src={savedProduct.product.image_url || "/images/product-default.png"}
+                                                alt={savedProduct.product.name}
                                                 style={{
-                                                  position: 'absolute',
-                                                  width: '64.04px',
-                                                  height: '42.69px',
-                                                  left: '0px',
-                                                  top: '0px',
-                                                  background: '#F5F5F5',
-                                                  borderRadius: '5.4px',
-                                                  overflow: 'hidden',
-                                                  display: 'flex',
-                                                  alignItems: 'center',
-                                                  justifyContent: 'center'
+                                                  width: '100%',
+                                                  height: '100%',
+                                                  objectFit: 'contain'
+                                                }}
+                                                onError={(e) => {
+                                                  const target = e.target as HTMLImageElement
+                                                  if (target.src !== window.location.origin + "/images/product-default.png") {
+                                                    target.src = "/images/product-default.png"
+                                                  }
+                                                }}
+                                              />
+                                            </div>
+
+                                            {/* Content Area - Responsive */}
+                                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0, alignItems: 'flex-start' }}>
+                                              {/* Product Name - Bold, plain text */}
+                                              <span
+                                                style={{
+                                                  fontFamily: 'Verdana',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 600,
+                                                  fontSize: '16px',
+                                                  lineHeight: '20px',
+                                                  letterSpacing: '-0.02em',
+                                                  color: '#000000',
+                                                  wordBreak: 'break-word',
+                                                  overflowWrap: 'break-word',
+                                                  textAlign: 'left',
+                                                  width: '100%'
                                                 }}
                                               >
-                                                <img
-                                                  src={savedProduct.product.image_url || "/images/product-default.png"}
-                                                  alt={savedProduct.product.name}
+                                                {savedProduct.product.name}
+                                              </span>
+
+                                              {/* Tooth Numbers Row - Formatted as #9 */}
+                                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                                <span
                                                   style={{
-                                                    width: '100%',
-                                                    height: '100%',
-                                                    objectFit: 'contain'
+                                                    fontFamily: 'Verdana',
+                                                    fontStyle: 'normal',
+                                                    fontWeight: 400,
+                                                    fontSize: '14px',
+                                                    lineHeight: '20px',
+                                                    letterSpacing: '-0.02em',
+                                                    color: '#000000'
                                                   }}
-                                                  onError={(e) => {
-                                                    const target = e.target as HTMLImageElement
-                                                    if (target.src !== window.location.origin + "/images/product-default.png") {
-                                                      target.src = "/images/product-default.png"
-                                                    }
-                                                  }}
-                                                />
+                                                >
+                                                  {teeth.length > 0 ? teeth.map(t => `#${t}`).join(', ') : ''}
+                                                </span>
+                                                {/* Rush Icon Indicator */}
+                                                {savedProduct.rushData && (
+                                                  <Zap
+                                                    style={{
+                                                      width: '16px',
+                                                      height: '16px',
+                                                      color: '#CF0202',
+                                                      fill: '#CF0202',
+                                                      flexShrink: 0
+                                                    }}
+                                                  />
+                                                )}
                                               </div>
 
-                                              {/* Frame 2387 - Content Area */}
-                                              <div style={{ position: 'absolute', width: '565.1px', height: '42px', left: '74.04px', top: '0.34px' }}>
-                                                {/* Group 1433 - Tooth Numbers */}
-                                                <div style={{ position: 'absolute', width: 'auto', height: '20px', left: '0px', top: '0px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                  <span
-                                                    style={{
-                                                      fontFamily: 'Verdana',
-                                                      fontStyle: 'normal',
-                                                      fontWeight: 400,
-                                                      fontSize: '14.4px',
-                                                      lineHeight: '20px',
-                                                      letterSpacing: '-0.02em',
-                                                      color: '#000000'
-                                                    }}
-                                                  >
-                                                    {teeth.length > 0 ? teeth.join(', ') : ''}
-                                                  </span>
-                                                  {/* Rush Icon Indicator */}
-                                                  {savedProduct.rushData && (
-                                                    <Zap
-                                                      style={{
-                                                        width: '16px',
-                                                        height: '16px',
-                                                        color: '#CF0202',
-                                                        fill: '#CF0202',
-                                                        flexShrink: 0
-                                                      }}
-                                                    />
-                                                  )}
+                                              {/* Badges and Info Row - Responsive */}
+                                              <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                                                {/* Badge - Category - Pill shaped */}
+                                                <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '4px 12px', background: '#F0F0F0', borderRadius: '20px', flexShrink: 0 }}>
+                                                  <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '12px', lineHeight: '16px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{savedProduct.category}</span>
                                                 </div>
 
-                                                {/* Frame 2386 - Badges and Info Row */}
-                                                <div style={{ position: 'absolute', width: '565.1px', height: '22px', left: '0px', top: '20px', display: 'flex', flexDirection: 'row', alignItems: 'center', padding: '0px', gap: '5px' }}>
-                                                  {/* Badge - Category */}
-                                                  <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '0px 10px', gap: '10px', width: 'fit-content', height: '17px', background: '#F9F9F9', boxShadow: '1px 1px 3.5px rgba(0, 0, 0, 0.25)', borderRadius: '6px', flex: 'none', order: 0, flexGrow: 0 }}>
-                                                    <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', flex: 'none', order: 0, flexGrow: 0 }}>{savedProduct.category}</span>
-                                                  </div>
-
-                                                  {/* Badge - Subcategory */}
-                                                  <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '0px 10px', gap: '10px', width: 'fit-content', height: '17px', background: '#F9F9F9', boxShadow: '1px 1px 3.5px rgba(0, 0, 0, 0.25)', borderRadius: '6px', flex: 'none', order: 1, flexGrow: 0 }}>
-                                                    <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', flex: 'none', order: 0, flexGrow: 0 }}>{savedProduct.subcategory}</span>
-                                                  </div>
-
-                                                  {/* Badge - Stage */}
-                                                  {savedProduct.maxillaryStage && (
-                                                    <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '0px 10px', gap: '10px', width: 'fit-content', height: '17px', background: '#F9F9F9', boxShadow: '1px 1px 3.5px rgba(0, 0, 0, 0.25)', borderRadius: '6px', flex: 'none', order: 2, flexGrow: 0 }}>
-                                                      <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', flex: 'none', order: 0, flexGrow: 0 }}>{savedProduct.maxillaryStage}</span>
-                                                    </div>
-                                                  )}
-
-                                                  {/* Est days */}
-                                                  <span style={{ width: 'auto', height: '22px', fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', letterSpacing: '-0.02em', color: '#B4B0B0', flex: 'none', order: 4, flexGrow: 0 }}>
-                                                    Est days: {savedProduct.product.estimated_days || 10} work days after submission
-                                                  </span>
+                                                {/* Badge - Subcategory - Pill shaped */}
+                                                <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '4px 12px', background: '#F0F0F0', borderRadius: '20px', flexShrink: 0 }}>
+                                                  <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '12px', lineHeight: '16px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{savedProduct.subcategory}</span>
                                                 </div>
+
+                                                {/* Badge - Stage - Pill shaped */}
+                                                {savedProduct.maxillaryStage && (
+                                                  <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '4px 12px', background: '#F0F0F0', borderRadius: '20px', flexShrink: 0 }}>
+                                                    <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '12px', lineHeight: '16px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{savedProduct.maxillaryStage}</span>
+                                                  </div>
+                                                )}
+
+                                                {/* Est days */}
+                                                <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '12px', lineHeight: '16px', letterSpacing: '-0.02em', color: '#B4B0B0', whiteSpace: 'nowrap' }}>
+                                                  Est days: {savedProduct.product.estimated_days || 10} work days after submission
+                                                </span>
                                               </div>
                                             </div>
                                           </div>
@@ -9559,8 +9746,8 @@ export default function CaseDesignCenterPage() {
                                             </div>
                                           )}
 
-                                          {/* Field 15: Impressions (visible after previous field) */}
-                                          {isFieldVisible(isFixedRestoration ? "impressions" : "impression", savedProduct.id, savedProduct, productDetails, archType) && (
+                                          {/* Field 15: Impressions (always visible per category) */}
+                                          {isFieldVisible("impressions", savedProduct.id, savedProduct, productDetails, archType) && (
                                             <div
                                               className="flex flex-col sm:flex-row flex-wrap gap-5"
                                               style={{
@@ -9616,7 +9803,7 @@ export default function CaseDesignCenterPage() {
                                                     color: '#7F7F7F'
                                                   }}
                                                 >
-                                                  {isFixedRestoration ? "Impressions" : "Impression"}
+                                                  Impressions
                                                 </label>
                                               </div>
                                             </div>
@@ -10177,8 +10364,8 @@ export default function CaseDesignCenterPage() {
                   {/* MANDIBULAR Section - Only show when mandibular chart is visible */}
                   {showMandibularChart && (
                     <div ref={mandibularSectionRef} className="flex flex-col w-full">
-                      {/* Selected Product Badge */}
-                      {selectedProductForMandibular && mandibularTeeth.length > 0 && (
+                      {/* Selected Product Badge - Only show when there are multiple products (saved products exist) */}
+                      {selectedProductForMandibular && mandibularTeeth.length > 0 && savedProducts.filter(p => p.addedFrom === "mandibular").length > 0 && (
                         <div
                           className="relative flex items-center justify-center"
                           style={{ width: "100%", height: "32px", flex: "none", order: 0, flexGrow: 0 }}
@@ -10242,7 +10429,7 @@ export default function CaseDesignCenterPage() {
                       </div>
 
                       {/* Dental Chart - Outside Card */}
-                      <div className="rounded-lg p-3 flex items-center justify-center relative">
+                      <div className="rounded-lg pt-3 px-3 pb-0 flex items-center justify-center relative">
                         {shouldShowImplantPopover && implantPopoverState.arch === 'mandibular' && implantPopoverState.toothNumber !== null && (
                           <ImplantPartsPopover
                             onImplantPartsIncluded={() => {
@@ -10313,7 +10500,14 @@ export default function CaseDesignCenterPage() {
                       )}
 
                       {/* Summary Card - Single card for all selected teeth */}
-                      {showMandibularChart && mandibularTeeth.length > 0 && (
+                      {/* Hide when savedProducts already contains a product with these teeth - prevents duplicate accordions */}
+                      {showMandibularChart && mandibularTeeth.length > 0 && !savedProducts.some(sp =>
+                        sp.addedFrom === "mandibular" &&
+                        sp.product.id === selectedProduct?.id &&
+                        sp.categoryId === selectedCategoryId &&
+                        sp.subcategoryId === selectedSubcategoryId &&
+                        JSON.stringify([...(sp.mandibularTeeth || [])].sort()) === JSON.stringify([...mandibularTeeth].sort())
+                      ) && (
                         <Card className="overflow-hidden border border-gray-200 shadow-sm">
                           <Accordion
                             type="single"
@@ -10328,92 +10522,109 @@ export default function CaseDesignCenterPage() {
                                 className="w-full"
                                 style={{
                                   position: 'relative',
-                                  height: '69.92px',
-                                  background: openAccordion === "mandibular-card" ? '#DFEEFB' : '#F5F5F5',
+                                  minHeight: '70px',
+                                  background: openAccordion === "mandibular-card" ? '#E0EDF8' : '#F5F5F5',
                                   boxShadow: '0.9px 0.9px 3.6px rgba(0, 0, 0, 0.25)',
-                                  borderRadius: openAccordion === "mandibular-card" ? '5.4px 5.4px 0px 0px' : '5.4px',
+                                  borderRadius: openAccordion === "mandibular-card" ? '10px 10px 0px 0px' : '10px',
                                   display: currentShadeField ? 'none' : 'flex',
                                   flexDirection: 'column',
                                   alignItems: 'flex-start',
-                                  padding: '14px 8px',
-                                  gap: '10px'
+                                  padding: '14px 12px',
+                                  gap: '8px',
+                                  borderBottom: openAccordion === "mandibular-card" ? '1px dotted #B0D0F0' : 'none'
                                 }}
                               >
                                 <AccordionTrigger
-                                  className="hover:no-underline w-full group"
+                                  className="hover:no-underline w-full group [&>svg]:hidden"
                                   style={{
                                     padding: '0px',
                                     gap: '10px',
                                     width: '100%',
-                                    height: '100%',
                                     background: 'transparent',
                                     boxShadow: 'none',
                                     borderRadius: '0px'
                                   }}
                                 >
-                                  {/* Frame 2395 */}
-                                  <div style={{ width: '697.74px', height: '42.69px', flex: 'none', order: 0, flexGrow: 0, position: 'relative' }}>
-                                    {/* Frame 2388 */}
-                                    <div style={{ position: 'absolute', width: '639.14px', height: '42.69px', left: '0px', top: '0px' }}>
-                                      {/* Product Image */}
-                                      <div
-                                        style={{
-                                          position: 'absolute',
-                                          width: '64.04px',
-                                          height: '42.69px',
-                                          left: '0px',
-                                          top: '0px',
-                                          background: `url(${selectedProduct?.image_url || "/images/tooth-icon.png"}), #FFFFFF`,
-                                          backgroundSize: 'contain',
-                                          backgroundPosition: 'center',
-                                          backgroundRepeat: 'no-repeat',
-                                          borderRadius: '5.4px'
-                                        }}
-                                      />
+                                  {/* Responsive Content Container */}
+                                  <div style={{ width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: '12px', paddingRight: '30px' }}>
+                                    {/* Product Image */}
+                                    <div
+                                      style={{
+                                        width: '40px',
+                                        minWidth: '40px',
+                                        height: '40px',
+                                        background: `url(${selectedProduct?.image_url || "/images/tooth-icon.png"}), #FFFFFF`,
+                                        backgroundSize: 'contain',
+                                        backgroundPosition: 'center',
+                                        backgroundRepeat: 'no-repeat',
+                                        borderRadius: '5.4px',
+                                        flexShrink: 0
+                                      }}
+                                    />
 
-                                      {/* Frame 2387 - Content Area */}
-                                      <div style={{ position: 'absolute', width: '565.1px', height: '42px', left: '74.04px', top: '0.34px' }}>
-                                        {/* Group 1433 - Tooth Numbers */}
-                                        <div style={{ position: 'absolute', width: 'auto', height: '20px', left: '0px', top: '0px' }}>
-                                          <span
-                                            style={{
-                                              fontFamily: 'Verdana',
-                                              fontStyle: 'normal',
-                                              fontWeight: 400,
-                                              fontSize: '14.4px',
-                                              lineHeight: '20px',
-                                              letterSpacing: '-0.02em',
-                                              color: '#000000'
-                                            }}
-                                          >
-                                            {(() => {
-                                              const sortedTeeth = [...mandibularTeeth].sort((a, b) => a - b);
-                                              return sortedTeeth.length > 0 ? sortedTeeth.join(', ') : '';
-                                            })()}
-                                          </span>
-                                        </div>
+                                    {/* Content Area - Responsive */}
+                                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0, alignItems: 'flex-start' }}>
+                                      {/* Product Name - Bold, plain text */}
+                                      {selectedProduct?.name && (
+                                        <span
+                                          style={{
+                                            fontFamily: 'Verdana',
+                                            fontStyle: 'normal',
+                                            fontWeight: 600,
+                                            fontSize: '16px',
+                                            lineHeight: '20px',
+                                            letterSpacing: '-0.02em',
+                                            color: '#000000',
+                                            wordBreak: 'break-word',
+                                            overflowWrap: 'break-word',
+                                            textAlign: 'left',
+                                            width: '100%'
+                                          }}
+                                        >
+                                          {selectedProduct.name}
+                                        </span>
+                                      )}
 
-                                        {/* Frame 2386 - Badges and Info Row */}
-                                        <div style={{ position: 'absolute', width: '565.1px', height: '22px', left: '0px', top: '20px', display: 'flex', flexDirection: 'row', alignItems: 'center', padding: '0px', gap: '5px' }}>
-                                          {/* Badge - Category */}
-                                          {selectedCategory && (
-                                            <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '0px 10px', gap: '10px', width: 'fit-content', height: '17px', background: '#F9F9F9', boxShadow: '1px 1px 3.5px rgba(0, 0, 0, 0.25)', borderRadius: '6px', flex: 'none', order: 0, flexGrow: 0 }}>
-                                              <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', flex: 'none', order: 0, flexGrow: 0, whiteSpace: 'nowrap' }}>{selectedCategory}</span>
-                                            </div>
-                                          )}
+                                      {/* Tooth Numbers Row - Formatted as #9 */}
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                        <span
+                                          style={{
+                                            fontFamily: 'Verdana',
+                                            fontStyle: 'normal',
+                                            fontWeight: 400,
+                                            fontSize: '14px',
+                                            lineHeight: '20px',
+                                            letterSpacing: '-0.02em',
+                                            color: '#000000'
+                                          }}
+                                        >
+                                          {(() => {
+                                            const sortedTeeth = [...mandibularTeeth].sort((a, b) => a - b);
+                                            return sortedTeeth.length > 0 ? sortedTeeth.map(t => `#${t}`).join(', ') : '';
+                                          })()}
+                                        </span>
+                                      </div>
 
-                                          {/* Badge - Subcategory */}
-                                          {selectedSubcategory && (
-                                            <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '0px 10px', gap: '10px', width: 'fit-content', height: '17px', background: '#F9F9F9', boxShadow: '1px 1px 3.5px rgba(0, 0, 0, 0.25)', borderRadius: '6px', flex: 'none', order: 1, flexGrow: 0 }}>
-                                              <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', flex: 'none', order: 0, flexGrow: 0, whiteSpace: 'nowrap' }}>{selectedSubcategory}</span>
-                                            </div>
-                                          )}
+                                      {/* Badges and Info Row - Responsive */}
+                                      <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                                        {/* Badge - Category - Pill shaped */}
+                                        {selectedCategory && (
+                                          <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '4px 12px', background: '#F0F0F0', borderRadius: '20px', flexShrink: 0 }}>
+                                            <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '12px', lineHeight: '16px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{selectedCategory}</span>
+                                          </div>
+                                        )}
 
-                                          {/* Est days */}
-                                          <span style={{ width: 'auto', height: '22px', fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', letterSpacing: '-0.02em', color: '#B4B0B0', flex: 'none', order: 4, flexGrow: 0 }}>
-                                            Est days: {selectedProduct?.estimated_days || 10} work days after submission
-                                          </span>
-                                        </div>
+                                        {/* Badge - Subcategory - Pill shaped */}
+                                        {selectedSubcategory && (
+                                          <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '4px 12px', background: '#F0F0F0', borderRadius: '20px', flexShrink: 0 }}>
+                                            <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '12px', lineHeight: '16px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{selectedSubcategory}</span>
+                                          </div>
+                                        )}
+
+                                        {/* Est days */}
+                                        <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '12px', lineHeight: '16px', letterSpacing: '-0.02em', color: '#B4B0B0', whiteSpace: 'nowrap' }}>
+                                          Est days: {selectedProduct?.estimated_days || 10} work days after submission
+                                        </span>
                                       </div>
                                     </div>
                                   </div>
@@ -10474,94 +10685,6 @@ export default function CaseDesignCenterPage() {
                                     </div>
                                   </div>
                                 )}
-                                {/* Implant Brand/Platform Cards - Shows at the top when implant details field is clicked (same position as ToothShadeSelectionSVG) */}
-                                {showImplantBrandCardsInFields.mandibular && implants && implants.length > 0 && (
-                                  <div className="w-full pt-4">
-                                    <div className="flex flex-col items-center gap-4 w-full">
-                                      <div className="bg-white w-full flex justify-center">
-                                        {(() => {
-                                          const selectedBrandId = selectedImplantBrandForDetails.mandibular
-                                          const selectedBrand = selectedBrandId ? implants.find((imp: any) => imp.id === selectedBrandId) : null
-                                          const platforms = selectedBrand?.platforms || []
-                                          const mappedPlatforms = platforms.map((plat: any) => ({
-                                            id: plat.id || 0,
-                                            name: plat.name,
-                                            image: plat.image_url || plat.image
-                                          }))
-                                          const selectedPlatformId = selectedImplantPlatformForDetails.mandibular
-                                          const clickedFieldType = clickedFieldTypeInImplantDetails.mandibular
-
-                                          // Show platform cards if:
-                                          // 1. Platform field was clicked AND brand is selected (highest priority - show even if no platforms), OR
-                                          // 2. Brand is selected, platform not selected yet, and brand field was NOT clicked (auto-show after brand selection)
-                                          const shouldShowPlatformCards = (clickedFieldType === 'platform' && selectedBrandId) ||
-                                                                         (clickedFieldType !== 'brand' && (clickedFieldType === null || clickedFieldType === undefined) && selectedBrandId && selectedPlatformId === null)
-
-                                          // Show brand cards if:
-                                          // 1. Brand field was clicked, OR
-                                          // 2. No brand selected yet, OR
-                                          // 3. Platform cards should not be shown
-                                          const shouldShowBrandCards = !shouldShowPlatformCards && (clickedFieldType === 'brand' ||
-                                                                      !selectedBrandId)
-
-                                          // Priority: Platform cards take precedence when platform field is clicked
-                                          if (shouldShowPlatformCards) {
-                                            return (
-                                              <ImplantPlatformCards
-                                                platforms={mappedPlatforms}
-                                                selectedPlatformId={selectedPlatformId}
-                                                onSelectPlatform={(platform: any) => {
-                                                  setSelectedImplantPlatformForDetails(prev => ({ ...prev, mandibular: platform.id }))
-                                                  // Reset clicked field type after selection
-                                                  setClickedFieldTypeInImplantDetails(prev => ({ ...prev, mandibular: null }))
-                                                }}
-                                                arch="mandibular"
-                                              />
-                                            )
-                                          }
-
-                                          // Show brand cards only if platform cards are not being shown
-                                          if (shouldShowBrandCards) {
-                                            const mappedImplants = implants.map((imp: any) => ({
-                                              id: imp.id,
-                                              brand_name: imp.brand_name,
-                                              system_name: imp.system_name,
-                                              code: imp.code,
-                                              image_url: imp.image_url,
-                                              platforms: imp.platforms?.map((p: any) => ({
-                                                id: p.id || 0,
-                                                name: p.name,
-                                                image: p.image_url
-                                              }))
-                                            }))
-
-                                            return (
-                                              <ImplantBrandCards
-                                                implants={mappedImplants}
-                                                selectedImplantId={selectedBrandId}
-                                                onSelectImplant={(implant: any) => {
-                                                  setSelectedImplantBrandForDetails(prev => ({ ...prev, mandibular: implant.id }))
-                                                  // If brand has platforms, reset platform selection to show platform cards
-                                                  if (implant.platforms && implant.platforms.length > 0) {
-                                                    setSelectedImplantPlatformForDetails(prev => ({ ...prev, mandibular: null }))
-                                                    // Auto-show platform cards after brand selection
-                                                    setClickedFieldTypeInImplantDetails(prev => ({ ...prev, mandibular: null }))
-                                                  } else {
-                                                    // Reset clicked field type after selection
-                                                    setClickedFieldTypeInImplantDetails(prev => ({ ...prev, mandibular: null }))
-                                                  }
-                                                }}
-                                                arch="mandibular"
-                                              />
-                                            )
-                                          }
-
-                                          return null
-                                        })()}
-                                      </div>
-                                    </div>
-                                  </div>
-                                )}
                                 {/* Summary detail */}
                                 <div
                                   className="bg-white w-full"
@@ -10598,6 +10721,7 @@ export default function CaseDesignCenterPage() {
                                           mandibularGumShadeId,
                                           mandibularShadeId,
                                           mandibularStageId,
+                                          mandibularImplantDetails,
                                         }}
                                         arch="mandibular"
                                         fieldConfigs={fieldConfigs}
@@ -10683,10 +10807,99 @@ export default function CaseDesignCenterPage() {
                                         }}
                                       />
 
+                                      {/* Implant Brand/Platform Cards - Shows at the bottom when implant details field is clicked */}
+                                      {showImplantBrandCardsInFields.mandibular && implants && implants.length > 0 && (
+                                        <div className="w-full pt-2">
+                                          <div className="flex flex-col items-center gap-2 w-full">
+                                            <div className="bg-white w-full flex justify-center">
+                                              {(() => {
+                                                const selectedBrandId = selectedImplantBrandForDetails.mandibular
+                                                const selectedBrand = selectedBrandId ? implants.find((imp: any) => imp.id === selectedBrandId) : null
+                                                const platforms = selectedBrand?.platforms || []
+                                                const mappedPlatforms = platforms.map((plat: any) => ({
+                                                  id: plat.id || 0,
+                                                  name: plat.name,
+                                                  image: plat.image_url || plat.image
+                                                }))
+                                                const selectedPlatformId = selectedImplantPlatformForDetails.mandibular
+                                                const clickedFieldType = clickedFieldTypeInImplantDetails.mandibular
+
+                                                // Show platform cards if:
+                                                // 1. Platform field was clicked AND brand is selected (highest priority - show even if no platforms), OR
+                                                // 2. Brand is selected, platform not selected yet, and brand field was NOT clicked (auto-show after brand selection)
+                                                const shouldShowPlatformCards = (clickedFieldType === 'platform' && selectedBrandId) ||
+                                                                               (clickedFieldType !== 'brand' && (clickedFieldType === null || clickedFieldType === undefined) && selectedBrandId && selectedPlatformId === null)
+
+                                                // Show brand cards if:
+                                                // 1. Brand field was clicked, OR
+                                                // 2. No brand selected yet, OR
+                                                // 3. Platform cards should not be shown
+                                                const shouldShowBrandCards = !shouldShowPlatformCards && (clickedFieldType === 'brand' ||
+                                                                                !selectedBrandId)
+
+                                                // Priority: Platform cards take precedence when platform field is clicked
+                                                if (shouldShowPlatformCards) {
+                                                  return (
+                                                    <ImplantPlatformCards
+                                                      platforms={mappedPlatforms}
+                                                      selectedPlatformId={selectedPlatformId}
+                                                      onSelectPlatform={(platform: any) => {
+                                                        setSelectedImplantPlatformForDetails(prev => ({ ...prev, mandibular: platform.id }))
+                                                        // Reset clicked field type after selection
+                                                        setClickedFieldTypeInImplantDetails(prev => ({ ...prev, mandibular: null }))
+                                                      }}
+                                                      arch="mandibular"
+                                                    />
+                                                  )
+                                                }
+
+                                                // Show brand cards only if platform cards are not being shown
+                                                if (shouldShowBrandCards) {
+                                                  const mappedImplants = implants.map((imp: any) => ({
+                                                    id: imp.id,
+                                                    brand_name: imp.brand_name,
+                                                    system_name: imp.system_name,
+                                                    code: imp.code,
+                                                    image_url: imp.image_url,
+                                                    platforms: imp.platforms?.map((p: any) => ({
+                                                      id: p.id || 0,
+                                                      name: p.name,
+                                                      image: p.image_url
+                                                    }))
+                                                  }))
+
+                                                  return (
+                                                    <ImplantBrandCards
+                                                      implants={mappedImplants}
+                                                      selectedImplantId={selectedBrandId}
+                                                      onSelectImplant={(implant: any) => {
+                                                        setSelectedImplantBrandForDetails(prev => ({ ...prev, mandibular: implant.id }))
+                                                        // If brand has platforms, reset platform selection to show platform cards
+                                                        if (implant.platforms && implant.platforms.length > 0) {
+                                                          setSelectedImplantPlatformForDetails(prev => ({ ...prev, mandibular: null }))
+                                                          // Auto-show platform cards after brand selection
+                                                          setClickedFieldTypeInImplantDetails(prev => ({ ...prev, mandibular: null }))
+                                                        } else {
+                                                          // Reset clicked field type after selection
+                                                          setClickedFieldTypeInImplantDetails(prev => ({ ...prev, mandibular: null }))
+                                                        }
+                                                      }}
+                                                      arch="mandibular"
+                                                    />
+                                                  )
+                                                }
+
+                                                return null
+                                              })()}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
+
                                       {/* Implant Brand Cards for Advance Fields - Shows when implant details advance field is clicked */}
                                       {showImplantCards && activeImplantFieldKey && activeImplantFieldKey.startsWith('advance_') && implants && implants.length > 0 && (
-                                        <div ref={implantCardsRef} className="w-full pt-4">
-                                          <div className="flex flex-col items-center gap-4 w-full">
+                                        <div ref={implantCardsRef} className="w-full pt-2">
+                                          <div className="flex flex-col items-center gap-2 w-full">
                                             <div className="bg-white w-full flex justify-center">
                                               {(() => {
                                                 const fieldKey = activeImplantFieldKey
@@ -11420,11 +11633,20 @@ export default function CaseDesignCenterPage() {
                                                                   selectedBrand={selectedBrand}
                                                                   selectedPlatform={selectedPlatform}
                                                                   selectedSize={selectedSize}
-                                                                  onSizeChange={(size) => {
+                                                                  onSizeChange={(size: string) => {
                                                                     setSelectedImplantSize(prev => ({ ...prev, [fieldKey]: size }))
+                                                                    // Update mandibularImplantDetails to trigger impression field visibility in DynamicProductFields
+                                                                    if (selectedBrand && selectedPlatform) {
+                                                                      const implantDetailsStr = `${selectedBrand.brand_name} - ${selectedPlatform.name} - ${size}`
+                                                                      setMandibularImplantDetails(implantDetailsStr)
+                                                                    }
                                                                   }}
                                                                   onInclusionsChange={(inclusions) => {
-                                                                    // Handle inclusions change
+                                                                    // Handle inclusions change - update implant details with inclusions
+                                                                    if (selectedBrand && selectedPlatform && selectedSize) {
+                                                                      const implantDetailsStr = `${selectedBrand.brand_name} - ${selectedPlatform.name} - ${selectedSize} - ${inclusions}`
+                                                                      setMandibularImplantDetails(implantDetailsStr)
+                                                                    }
                                                                   }}
                                                                   onAbutmentDetailChange={(detail) => {
                                                                     // Handle abutment detail change
@@ -11554,109 +11776,8 @@ export default function CaseDesignCenterPage() {
                                           )
                                         })()}
 
-                                      {/* Impression Field - Shown after advanced fields (or after stage field is visible if no advanced fields) */}
-                                      {productDetails &&
-                                        productDetails.impressions &&
-                                        Array.isArray(productDetails.impressions) &&
-                                        productDetails.impressions.length > 0 &&
-                                        isStageFieldVisible("mandibular") && (() => {
-                                          const productId = selectedProduct?.id?.toString() || ""
-                                          const impressionCount = getImpressionCount(productId, "mandibular", productDetails.impressions)
-                                          const displayText = getImpressionDisplayText(productId, "mandibular", productDetails.impressions)
-
-                                          // Determine border color: green if impression has value, red if no impression, gray otherwise
-                                          let borderColor = '#7F7F7F' // default gray
-                                          let labelColor = '#7F7F7F' // default gray
-                                          const hasImpressionValue = impressionCount > 0 && displayText !== "Select impression"
-
-                                          if (impressionCount === 0 || displayText === "Select impression") {
-                                            borderColor = '#ef4444' // red
-                                            labelColor = '#ef4444' // red
-                                          } else if (hasImpressionValue) {
-                                            borderColor = '#119933' // green
-                                            labelColor = '#119933' // green
-                                          }
-
-                                          return (
-                                            <div className="relative" style={{ minHeight: '43px', width: '100%' }}>
-                                              <div
-                                                className="flex items-center cursor-pointer"
-                                                onClick={() => {
-                                                  if (selectedProduct) {
-                                                    const tempProduct: SavedProduct = {
-                                                      id: selectedProduct.id.toString(),
-                                                      product: selectedProduct,
-                                                      productDetails: productDetails,
-                                                      category: selectedCategory || "",
-                                                      categoryId: selectedCategoryId || 0,
-                                                      subcategory: selectedSubcategory || "",
-                                                      subcategoryId: selectedSubcategoryId || 0,
-                                                      maxillaryTeeth: maxillaryTeeth,
-                                                      mandibularTeeth: mandibularTeeth,
-                                                      maxillaryMaterial: maxillaryMaterial,
-                                                      maxillaryStumpShade: maxillaryStumpShade,
-                                                      maxillaryRetention: maxillaryRetention,
-                                                      maxillaryImplantDetails: maxillaryImplantDetails,
-                                                      mandibularMaterial: mandibularMaterial,
-                                                      mandibularRetention: mandibularRetention,
-                                                      mandibularStumpShade: mandibularStumpShade,
-                                                      mandibularImplantDetails: mandibularImplantDetails,
-                                                      createdAt: Date.now(),
-                                                      addedFrom: "mandibular",
-                                                    }
-                                                    handleOpenImpressionModal(tempProduct, "mandibular")
-                                                  }
-                                                }}
-                                                style={{
-                                                  padding: '12px 15px 5px 15px',
-                                                  gap: '5px',
-                                                  width: '100%',
-                                                  height: '37px',
-                                                  position: 'relative',
-                                                  marginTop: '5.27px',
-                                                  background: '#FFFFFF',
-                                                  border: `0.740384px solid ${borderColor}`,
-                                                  borderRadius: '7.7px',
-                                                  boxSizing: 'border-box'
-                                                }}
-                                              >
-                                                <span style={{
-                                                  fontFamily: 'Verdana',
-                                                  fontStyle: 'normal',
-                                                  fontWeight: 400,
-                                                  fontSize: '14.4px',
-                                                  lineHeight: '20px',
-                                                  letterSpacing: '-0.02em',
-                                                  color: '#000000',
-                                                  whiteSpace: 'nowrap',
-                                                  paddingRight: hasImpressionValue ? '30px' : '0px'
-                                                }}>{displayText}</span>
-                                                {hasImpressionValue && (
-                                                  <div className="absolute right-[12.32px] top-1/2 -translate-y-1/2 pointer-events-none">
-                                                    <Check className="h-5 w-5 text-[#119933]" aria-label="Valid" />
-                                                  </div>
-                                                )}
-                                              </div>
-                                              <label
-                                                className="absolute bg-white"
-                                                style={{
-                                                  padding: '0px',
-                                                  height: '14px',
-                                                  left: '8.9px',
-                                                  top: '0px',
-                                                  fontFamily: 'Arial',
-                                                  fontStyle: 'normal',
-                                                  fontWeight: 400,
-                                                  fontSize: '14px',
-                                                  lineHeight: '14px',
-                                                  color: labelColor
-                                                }}
-                                              >
-                                                Impression
-                                              </label>
-                                            </div>
-                                          )
-                                        })()}
+                                      {/* Impression Field - HIDDEN: Removed to prevent UI jumping (fields should flow left-to-right, top-to-bottom) */}
+                                      {/* Impression field is now handled separately or removed from this flow */}
                                     </>
                                   )}
 
@@ -12043,16 +12164,17 @@ export default function CaseDesignCenterPage() {
                                         className="w-full"
                                         style={{
                                           position: 'relative',
-                                          height: '69.92px',
-                                          background: savedProduct.rushData ? '#FFE2E2' : (openAccordion === savedProduct.id ? '#DFEEFB' : '#F5F5F5'),
+                                          minHeight: '70px',
+                                          background: savedProduct.rushData ? '#FFE2E2' : (openAccordion === savedProduct.id ? '#E0EDF8' : '#F5F5F5'),
                                           boxShadow: savedProduct.rushData ? '0.9px 0.9px 3.6px 0 rgba(0, 0, 0, 0.25)' : '0.9px 0.9px 3.6px rgba(0, 0, 0, 0.25)',
-                                          borderRadius: openAccordion === savedProduct.id ? '5.4px 5.4px 0px 0px' : '10px',
+                                          borderRadius: openAccordion === savedProduct.id ? '10px 10px 0px 0px' : '10px',
                                           border: savedProduct.rushData ? '1px solid #CF0202' : 'none',
                                           display: 'flex',
                                           flexDirection: 'column',
                                           alignItems: 'flex-start',
-                                          padding: '14px 8px',
-                                          gap: '10px'
+                                          padding: '14px 12px',
+                                          gap: '8px',
+                                          borderBottom: openAccordion === savedProduct.id ? '1px dotted #B0D0F0' : 'none'
                                         }}
                                       >
                                         <AccordionTrigger
@@ -12061,104 +12183,118 @@ export default function CaseDesignCenterPage() {
                                             padding: '0px',
                                             gap: '10px',
                                             width: '100%',
-                                            height: '100%',
                                             background: 'transparent',
                                             boxShadow: 'none',
                                             borderRadius: '0px'
                                           }}
                                         >
-                                          {/* Frame 2395 */}
-                                          <div style={{ width: '697.74px', height: '42.69px', flex: 'none', order: 0, flexGrow: 0, position: 'relative' }}>
-                                            {/* Frame 2388 */}
-                                            <div style={{ position: 'absolute', width: '639.14px', height: '42.69px', left: '0px', top: '0px' }}>
-                                              {/* Product Image */}
-                                              <div
+                                          {/* Responsive Content Container */}
+                                          <div style={{ width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: '12px', paddingRight: '30px' }}>
+                                            {/* Product Image */}
+                                            <div
+                                              style={{
+                                                width: '40px',
+                                                minWidth: '40px',
+                                                height: '40px',
+                                                background: '#F5F5F5',
+                                                borderRadius: '5.4px',
+                                                overflow: 'hidden',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                flexShrink: 0
+                                              }}
+                                            >
+                                              <img
+                                                src={savedProduct.product.image_url || "/images/product-default.png"}
+                                                alt={savedProduct.product.name}
                                                 style={{
-                                                  position: 'absolute',
-                                                  width: '64.04px',
-                                                  height: '42.69px',
-                                                  left: '0px',
-                                                  top: '0px',
-                                                  background: '#F5F5F5',
-                                                  borderRadius: '5.4px',
-                                                  overflow: 'hidden',
-                                                  display: 'flex',
-                                                  alignItems: 'center',
-                                                  justifyContent: 'center'
+                                                  width: '100%',
+                                                  height: '100%',
+                                                  objectFit: 'contain'
+                                                }}
+                                                onError={(e) => {
+                                                  const target = e.target as HTMLImageElement
+                                                  if (target.src !== window.location.origin + "/images/product-default.png") {
+                                                    target.src = "/images/product-default.png"
+                                                  }
+                                                }}
+                                              />
+                                            </div>
+
+                                            {/* Content Area - Responsive */}
+                                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0, alignItems: 'flex-start' }}>
+                                              {/* Product Name - Bold, plain text */}
+                                              <span
+                                                style={{
+                                                  fontFamily: 'Verdana',
+                                                  fontStyle: 'normal',
+                                                  fontWeight: 600,
+                                                  fontSize: '16px',
+                                                  lineHeight: '20px',
+                                                  letterSpacing: '-0.02em',
+                                                  color: '#000000',
+                                                  wordBreak: 'break-word',
+                                                  overflowWrap: 'break-word',
+                                                  textAlign: 'left',
+                                                  width: '100%'
                                                 }}
                                               >
-                                                <img
-                                                  src={savedProduct.product.image_url || "/images/product-default.png"}
-                                                  alt={savedProduct.product.name}
+                                                {savedProduct.product.name}
+                                              </span>
+
+                                              {/* Tooth Numbers Row - Formatted as #9 */}
+                                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                                <span
                                                   style={{
-                                                    width: '100%',
-                                                    height: '100%',
-                                                    objectFit: 'contain'
+                                                    fontFamily: 'Verdana',
+                                                    fontStyle: 'normal',
+                                                    fontWeight: 400,
+                                                    fontSize: '14px',
+                                                    lineHeight: '20px',
+                                                    letterSpacing: '-0.02em',
+                                                    color: '#000000'
                                                   }}
-                                                  onError={(e) => {
-                                                    const target = e.target as HTMLImageElement
-                                                    if (target.src !== window.location.origin + "/images/product-default.png") {
-                                                      target.src = "/images/product-default.png"
-                                                    }
-                                                  }}
-                                                />
+                                                >
+                                                  {teeth.length > 0 ? teeth.map(t => `#${t}`).join(', ') : ''}
+                                                </span>
+                                                {/* Rush Icon Indicator */}
+                                                {savedProduct.rushData && (
+                                                  <Zap
+                                                    style={{
+                                                      width: '16px',
+                                                      height: '16px',
+                                                      color: '#CF0202',
+                                                      fill: '#CF0202',
+                                                      flexShrink: 0
+                                                    }}
+                                                  />
+                                                )}
                                               </div>
 
-                                              {/* Frame 2387 - Content Area */}
-                                              <div style={{ position: 'absolute', width: '565.1px', height: '42px', left: '74.04px', top: '0.34px' }}>
-                                                {/* Group 1433 - Tooth Numbers */}
-                                                <div style={{ position: 'absolute', width: 'auto', height: '20px', left: '0px', top: '0px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                  <span
-                                                    style={{
-                                                      fontFamily: 'Verdana',
-                                                      fontStyle: 'normal',
-                                                      fontWeight: 400,
-                                                      fontSize: '14.4px',
-                                                      lineHeight: '20px',
-                                                      letterSpacing: '-0.02em',
-                                                      color: '#000000'
-                                                    }}
-                                                  >
-                                                    {teeth.length > 0 ? teeth.join(', ') : ''}
-                                                  </span>
-                                                  {/* Rush Icon Indicator */}
-                                                  {savedProduct.rushData && (
-                                                    <Zap
-                                                      style={{
-                                                        width: '16px',
-                                                        height: '16px',
-                                                        color: '#CF0202',
-                                                        fill: '#CF0202',
-                                                        flexShrink: 0
-                                                      }}
-                                                    />
-                                                  )}
+                                              {/* Badges and Info Row - Responsive */}
+                                              <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                                                {/* Badge - Category - Pill shaped */}
+                                                <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '4px 12px', background: '#F0F0F0', borderRadius: '20px', flexShrink: 0 }}>
+                                                  <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '12px', lineHeight: '16px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{savedProduct.category}</span>
                                                 </div>
 
-                                                {/* Frame 2386 - Badges and Info Row */}
-                                                <div style={{ position: 'absolute', width: '565.1px', height: '22px', left: '0px', top: '20px', display: 'flex', flexDirection: 'row', alignItems: 'center', padding: '0px', gap: '5px' }}>
-                                                  {/* Badge - Category */}
-                                                  <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '0px 10px', gap: '10px', width: 'fit-content', height: '17px', background: '#F9F9F9', boxShadow: '1px 1px 3.5px rgba(0, 0, 0, 0.25)', borderRadius: '6px', flex: 'none', order: 0, flexGrow: 0 }}>
-                                                    <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', flex: 'none', order: 0, flexGrow: 0 }}>{savedProduct.category}</span>
-                                                  </div>
-
-                                                  {/* Badge - Subcategory */}
-                                                  <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '0px 10px', gap: '10px', width: 'fit-content', height: '17px', background: '#F9F9F9', boxShadow: '1px 1px 3.5px rgba(0, 0, 0, 0.25)', borderRadius: '6px', flex: 'none', order: 1, flexGrow: 0 }}>
-                                                    <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', flex: 'none', order: 0, flexGrow: 0 }}>{savedProduct.subcategory}</span>
-                                                  </div>
-
-                                                  {/* Badge - Stage */}
-                                                  {savedProduct.mandibularStage && (
-                                                    <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '0px 10px', gap: '10px', width: 'fit-content', height: '17px', background: '#F9F9F9', boxShadow: '1px 1px 3.5px rgba(0, 0, 0, 0.25)', borderRadius: '6px', flex: 'none', order: 2, flexGrow: 0 }}>
-                                                      <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', flex: 'none', order: 0, flexGrow: 0 }}>{savedProduct.mandibularStage}</span>
-                                                    </div>
-                                                  )}
-
-                                                  {/* Est days */}
-                                                  <span style={{ width: 'auto', height: '22px', fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', letterSpacing: '-0.02em', color: '#B4B0B0', flex: 'none', order: 4, flexGrow: 0 }}>
-                                                    Est days: {savedProduct.product.estimated_days || 10} work days after submission
-                                                  </span>
+                                                {/* Badge - Subcategory - Pill shaped */}
+                                                <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '4px 12px', background: '#F0F0F0', borderRadius: '20px', flexShrink: 0 }}>
+                                                  <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '12px', lineHeight: '16px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{savedProduct.subcategory}</span>
                                                 </div>
+
+                                                {/* Badge - Stage - Pill shaped */}
+                                                {savedProduct.mandibularStage && (
+                                                  <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '4px 12px', background: '#F0F0F0', borderRadius: '20px', flexShrink: 0 }}>
+                                                    <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '12px', lineHeight: '16px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{savedProduct.mandibularStage}</span>
+                                                  </div>
+                                                )}
+
+                                                {/* Est days */}
+                                                <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '12px', lineHeight: '16px', letterSpacing: '-0.02em', color: '#B4B0B0', whiteSpace: 'nowrap' }}>
+                                                  Est days: {savedProduct.product.estimated_days || 10} work days after submission
+                                                </span>
                                               </div>
                                             </div>
                                           </div>

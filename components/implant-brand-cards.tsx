@@ -73,7 +73,7 @@ export const ImplantBrandCards: React.FC<ImplantBrandCardsProps> = ({
   const containerWidth = (CARD_WIDTH * CARDS_TO_SHOW) + (CARD_GAP * (CARDS_TO_SHOW - 1))
 
   return (
-    <div className="relative w-full mb-4" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+    <div className="relative w-full mb-2" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
       {/* Left Navigation Arrow */}
       <button
         onClick={() => scroll('left')}

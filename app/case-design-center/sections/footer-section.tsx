@@ -68,7 +68,6 @@ export function FooterSection({
             {/* Cancel Slip button on left */}
             <Button
               onClick={onShowCancelModal}
-              variant="outline"
               style={{
                 boxSizing: "border-box",
                 display: "flex",
@@ -87,8 +86,8 @@ export function FooterSection({
                 fontSize: "12px",
                 lineHeight: "22px",
                 letterSpacing: "-0.02em",
-                color: "#EF4444",
-                background: "transparent",
+                color: "#fff",
+                background: "#EF4444",
                 whiteSpace: "nowrap",
               }}
               className="hover:opacity-80"
@@ -100,9 +99,18 @@ export function FooterSection({
             {isAccordionComplete() && (
               <div className="flex items-center gap-3">
                 {/* Popover (checkbox with warning) */}
-                <div className="flex items-center gap-2">
-                  <TriangleAlert 
-                    className="h-6 w-6 flex-shrink-0" 
+                <div
+                  className="flex items-center gap-2"
+                  style={{
+                    padding: "8px 12px",
+                    border: "1px solid #fbbf24",
+                    borderRadius: "6px",
+                    backgroundColor: confirmDetailsChecked ? "#fef3c7" : "transparent",
+                    transition: "background-color 0.2s ease",
+                  }}
+                >
+                  <TriangleAlert
+                    className="h-6 w-6 flex-shrink-0"
                     style={{ color: "#fbbf24" }}
                   />
                   <label

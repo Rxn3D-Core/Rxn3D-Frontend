@@ -531,8 +531,41 @@ export function SavedProductsSection({
                                         )}
                                       </div>
 
+                                      {/* Product Name */}
+                                      <div style={{ position: 'absolute', width: 'auto', height: 'auto', left: '0px', top: '22px', display: 'flex', alignItems: 'center' }}>
+                                        <div
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            padding: '4px 12px',
+                                            background: '#DFEEFB',
+                                            borderRadius: '6px',
+                                            boxShadow: '0.9px 0.9px 3.6px rgba(0, 0, 0, 0.25)',
+                                            maxWidth: '400px'
+                                          }}
+                                        >
+                                          <span
+                                            style={{
+                                              fontFamily: 'Verdana',
+                                              fontStyle: 'normal',
+                                              fontWeight: 400,
+                                              fontSize: '12px',
+                                              lineHeight: '16px',
+                                              letterSpacing: '-0.02em',
+                                              color: '#000000',
+                                              whiteSpace: 'nowrap',
+                                              overflow: 'hidden',
+                                              textOverflow: 'ellipsis'
+                                            }}
+                                          >
+                                            {savedProduct.product.name}
+                                          </span>
+                                        </div>
+                                      </div>
+
                                       {/* Badges and Info Row */}
-                                      <div style={{ position: 'absolute', width: '565.1px', height: '22px', left: '0px', top: '20px', display: 'flex', flexDirection: 'row', alignItems: 'center', padding: '0px', gap: '5px' }}>
+                                      <div style={{ position: 'absolute', width: '565.1px', height: '22px', left: '0px', top: '44px', display: 'flex', flexDirection: 'row', alignItems: 'center', padding: '0px', gap: '5px' }}>
                                         <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '0px 10px', gap: '10px', width: 'fit-content', height: '17px', background: '#F9F9F9', boxShadow: '1px 1px 3.5px rgba(0, 0, 0, 0.25)', borderRadius: '6px', flex: 'none', order: 0, flexGrow: 0 }}>
                                           <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', flex: 'none', order: 0, flexGrow: 0 }}>{savedProduct.category}</span>
                                         </div>
@@ -1074,8 +1107,41 @@ export function SavedProductsSection({
                                         )}
                                       </div>
 
+                                      {/* Product Name */}
+                                      <div style={{ position: 'absolute', width: 'auto', height: 'auto', left: '0px', top: '22px', display: 'flex', alignItems: 'center' }}>
+                                        <div
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            padding: '4px 12px',
+                                            background: '#DFEEFB',
+                                            borderRadius: '6px',
+                                            boxShadow: '0.9px 0.9px 3.6px rgba(0, 0, 0, 0.25)',
+                                            maxWidth: '400px'
+                                          }}
+                                        >
+                                          <span
+                                            style={{
+                                              fontFamily: 'Verdana',
+                                              fontStyle: 'normal',
+                                              fontWeight: 400,
+                                              fontSize: '12px',
+                                              lineHeight: '16px',
+                                              letterSpacing: '-0.02em',
+                                              color: '#000000',
+                                              whiteSpace: 'nowrap',
+                                              overflow: 'hidden',
+                                              textOverflow: 'ellipsis'
+                                            }}
+                                          >
+                                            {savedProduct.product.name}
+                                          </span>
+                                        </div>
+                                      </div>
+
                                       {/* Badges and Info Row */}
-                                      <div style={{ position: 'absolute', width: '565.1px', height: '22px', left: '0px', top: '20px', display: 'flex', flexDirection: 'row', alignItems: 'center', padding: '0px', gap: '5px' }}>
+                                      <div style={{ position: 'absolute', width: '565.1px', height: '22px', left: '0px', top: '44px', display: 'flex', flexDirection: 'row', alignItems: 'center', padding: '0px', gap: '5px' }}>
                                         <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '0px 10px', gap: '10px', width: 'fit-content', height: '17px', background: '#F9F9F9', boxShadow: '1px 1px 3.5px rgba(0, 0, 0, 0.25)', borderRadius: '6px', flex: 'none', order: 0, flexGrow: 0 }}>
                                           <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', flex: 'none', order: 0, flexGrow: 0 }}>{savedProduct.category}</span>
                                         </div>

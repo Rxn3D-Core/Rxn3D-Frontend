@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
@@ -44,47 +44,113 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
   const [inclusions, setInclusions] = useState<string>(initialInclusions || "")
   const [abutmentDetail, setAbutmentDetail] = useState<string>(initialAbutmentDetail || "")
   const [abutmentType, setAbutmentType] = useState<string>(initialAbutmentType || "")
-  
+
+  // Delayed visibility states to prevent Radix UI ref composition infinite loops
+  // When Select components are conditionally rendered rapidly, Radix's compose-refs can enter an infinite update cycle
+  const [showInclusions, setShowInclusions] = useState<boolean>(!!selectedSize)
+  const [showAbutmentRow, setShowAbutmentRow] = useState<boolean>(!!inclusions)
+  const [showAbutmentType, setShowAbutmentType] = useState<boolean>(!!abutmentDetail)
+
+  // Open states for auto-opening dropdowns when they appear
+  const [sizeOpen, setSizeOpen] = useState<boolean>(false)
+  const [inclusionsOpen, setInclusionsOpen] = useState<boolean>(false)
+  const [abutmentDetailOpen, setAbutmentDetailOpen] = useState<boolean>(false)
+  const [abutmentTypeOpen, setAbutmentTypeOpen] = useState<boolean>(false)
+
+  // Delay showing dependent fields to prevent rapid mounting/unmounting
+  useEffect(() => {
+    if (selectedSize) {
+      const timer = setTimeout(() => setShowInclusions(true), 50)
+      return () => clearTimeout(timer)
+    } else {
+      setShowInclusions(false)
+    }
+  }, [selectedSize])
+
+  useEffect(() => {
+    if (inclusions) {
+      const timer = setTimeout(() => setShowAbutmentRow(true), 50)
+      return () => clearTimeout(timer)
+    } else {
+      setShowAbutmentRow(false)
+    }
+  }, [inclusions])
+
+  useEffect(() => {
+    if (abutmentDetail) {
+      const timer = setTimeout(() => setShowAbutmentType(true), 50)
+      return () => clearTimeout(timer)
+    } else {
+      setShowAbutmentType(false)
+    }
+  }, [abutmentDetail])
+
+  // Auto-open Size dropdown when platform is selected and size is not yet set
+  useEffect(() => {
+    if (selectedPlatform?.name && !selectedSize) {
+      const timer = setTimeout(() => setSizeOpen(true), 100)
+      return () => clearTimeout(timer)
+    }
+  }, [selectedPlatform?.name, selectedSize])
+
+  // Auto-open Inclusions dropdown when it becomes visible and is not yet set
+  useEffect(() => {
+    if (showInclusions && !inclusions) {
+      const timer = setTimeout(() => setInclusionsOpen(true), 100)
+      return () => clearTimeout(timer)
+    }
+  }, [showInclusions, inclusions])
+
+  // Auto-open Abutment Detail dropdown when it becomes visible and is not yet set
+  useEffect(() => {
+    if (showAbutmentRow && !abutmentDetail) {
+      const timer = setTimeout(() => setAbutmentDetailOpen(true), 100)
+      return () => clearTimeout(timer)
+    }
+  }, [showAbutmentRow, abutmentDetail])
+
+  // Auto-open Abutment Type dropdown when it becomes visible and is not yet set
+  useEffect(() => {
+    if (showAbutmentType && !abutmentType) {
+      const timer = setTimeout(() => setAbutmentTypeOpen(true), 100)
+      return () => clearTimeout(timer)
+    }
+  }, [showAbutmentType, abutmentType])
+
+  // Store callbacks in refs to get latest version without triggering re-renders
+  // These refs are updated synchronously during render, not via useEffect
+  const onInclusionsChangeRef = useRef(onInclusionsChange)
+  const onAbutmentDetailChangeRef = useRef(onAbutmentDetailChange)
+  const onAbutmentTypeChangeRef = useRef(onAbutmentTypeChange)
+
+  // Update refs synchronously during render (no useEffect needed)
+  onInclusionsChangeRef.current = onInclusionsChange
+  onAbutmentDetailChangeRef.current = onAbutmentDetailChange
+  onAbutmentTypeChangeRef.current = onAbutmentTypeChange
+
   // Sync local state with props when they change
   useEffect(() => {
     if (initialInclusions !== undefined && initialInclusions !== inclusions) {
       setInclusions(initialInclusions)
     }
   }, [initialInclusions])
-  
+
   useEffect(() => {
     if (initialAbutmentDetail !== undefined && initialAbutmentDetail !== abutmentDetail) {
       setAbutmentDetail(initialAbutmentDetail)
     }
   }, [initialAbutmentDetail])
-  
+
   useEffect(() => {
     if (initialAbutmentType !== undefined && initialAbutmentType !== abutmentType) {
       setAbutmentType(initialAbutmentType)
     }
   }, [initialAbutmentType])
   
-  // Clear subsequent fields when previous fields are cleared
-  useEffect(() => {
-    if (!selectedSize && inclusions) {
-      setInclusions("")
-      onInclusionsChange("")
-    }
-  }, [selectedSize, inclusions, onInclusionsChange])
-  
-  useEffect(() => {
-    if (!inclusions && abutmentDetail) {
-      setAbutmentDetail("")
-      onAbutmentDetailChange("")
-    }
-  }, [inclusions, abutmentDetail, onAbutmentDetailChange])
-  
-  useEffect(() => {
-    if (!abutmentDetail && abutmentType) {
-      setAbutmentType("")
-      onAbutmentTypeChange("")
-    }
-  }, [abutmentDetail, abutmentType, onAbutmentTypeChange])
+  // Removed automatic clearing logic to prevent infinite loops
+  // The useEffect hooks that cleared subsequent fields when previous fields were cleared
+  // were causing "Maximum update depth exceeded" errors due to rapid re-renders.
+  // Fields will now be cleared manually by user or can be handled at parent level if needed.
   
   // Common sizes for implants
   const implantSizes = ["3.5mm", "4mm", "4.5mm", "5mm", "5.5mm", "6mm"]
@@ -348,8 +414,11 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
                 <div className="relative" style={{ minHeight: '43px', width: '100%' }}>
                   <Select
                     value={selectedSize || ""}
-                    onValueChange={(value) => {
+                    open={sizeOpen}
+                    onOpenChange={setSizeOpen}
+                    onValueChange={(value: string) => {
                       onSizeChange(value)
+                      setSizeOpen(false)
                     }}
                   >
                     <SelectTrigger
@@ -407,13 +476,17 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
           </div>
           
           {/* Row 2: Implant inclusions - Show only if Implant Size has value */}
-          {selectedSize && (
+          {/* Using delayed visibility state to prevent Radix UI ref composition infinite loops */}
+          {showInclusions && (
             <div className="relative w-full" style={{ minHeight: '43px', flex: 'none', order: 1, flexGrow: 0 }}>
               <Select
                 value={inclusions}
+                open={inclusionsOpen}
+                onOpenChange={setInclusionsOpen}
                 onValueChange={(value) => {
                   setInclusions(value)
                   onInclusionsChange(value)
+                  setInclusionsOpen(false)
                 }}
               >
                 <SelectTrigger
@@ -467,9 +540,10 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
               </label>
             </div>
           )}
-          
+
           {/* Row 3: Abutment details - Show only if Implant inclusions has value */}
-          {inclusions && (
+          {/* Using delayed visibility state to prevent Radix UI ref composition infinite loops */}
+          {showAbutmentRow && (
             <div
               className="w-full flex flex-col sm:flex-row flex-wrap"
               style={{
@@ -490,9 +564,12 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
                 <div className="relative" style={{ minHeight: '43px', width: '100%' }}>
                   <Select
                     value={abutmentDetail}
+                    open={abutmentDetailOpen}
+                    onOpenChange={setAbutmentDetailOpen}
                     onValueChange={(value) => {
                       setAbutmentDetail(value)
                       onAbutmentDetailChange(value)
+                      setAbutmentDetailOpen(false)
                     }}
                   >
                     <SelectTrigger
@@ -546,16 +623,20 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
                   </label>
                 </div>
               </div>
-              
+
               {/* Abutment type - Show only if Abutment Detail has value */}
-              {abutmentDetail && (
+              {/* Using delayed visibility state to prevent Radix UI ref composition infinite loops */}
+              {showAbutmentType && (
                 <div className="relative flex-1 min-w-[180px] sm:min-w-[220px]" style={{ minHeight: '43px', flex: '1 1 auto', order: 1 }}>
                   <div className="relative" style={{ minHeight: '43px', width: '100%' }}>
                     <Select
                       value={abutmentType}
+                      open={abutmentTypeOpen}
+                      onOpenChange={setAbutmentTypeOpen}
                       onValueChange={(value) => {
                         setAbutmentType(value)
                         onAbutmentTypeChange(value)
+                        setAbutmentTypeOpen(false)
                       }}
                     >
                       <SelectTrigger

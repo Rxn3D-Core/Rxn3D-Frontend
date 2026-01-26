@@ -428,9 +428,69 @@ export function DynamicProductFields({
       return hasValue(stumpShadeValue)
     }
 
-    // impression (sequence 7) - exclude from DynamicProductFields, will be rendered separately after advanced fields
+    // impression (sequence 7) - show after advance fields if they exist, otherwise after tooth_shade
     if (config.key === "impression" || config.key === "impressions") {
-      return false // Don't render impression here, it will be rendered after advanced fields
+      // First check if stage field is visible (required for impression)
+      const retentionValue = getFieldValueByKey("retention")
+      if (!hasValue(retentionValue)) {
+        return false
+      }
+      const stages = productDetails?.stages
+      if (!stages || !Array.isArray(stages) || stages.length === 0) {
+        return false
+      }
+      const stageValue = getFieldValueByKey("stage")
+      if (!hasValue(stageValue)) {
+        return false
+      }
+      
+      // Check if there are any advance fields in productDetails (these are rendered separately, not in fieldConfigs)
+      const advanceFields = productDetails?.advance_fields || []
+      const hasAdvanceFields = Array.isArray(advanceFields) && advanceFields.length > 0
+      
+      // Filter out stump_shade from advance fields check (we use main stump shade field)
+      const filteredAdvanceFields = advanceFields.filter((field: any) => {
+        const fieldNameLower = (field.name || "").toLowerCase()
+        return !(fieldNameLower.includes("stump") && fieldNameLower.includes("shade"))
+      })
+      
+      // If advance fields exist, check if they are completed
+      if (hasAdvanceFields && filteredAdvanceFields.length > 0) {
+        // Check if all advance fields are completed
+        // For implant_library fields, check if brand, platform, and size are selected
+        // For other fields, check if they have values
+        const allAdvanceFieldsCompleted = filteredAdvanceFields.every((field: any) => {
+          // Check if this is an implant_library field (implant details)
+          if (field.field_type === "implant_library") {
+            // Check if implant details are filled
+            const implantDetails = arch === "maxillary" 
+              ? (savedProduct.maxillaryImplantDetails || (savedProduct as any).maxillaryImplantDetails)
+              : (savedProduct.mandibularImplantDetails || (savedProduct as any).mandibularImplantDetails)
+            return hasValue(implantDetails)
+          }
+          
+          // For other advance field types, check if they have values in savedProduct.advanceFields
+          if (savedProduct.advanceFields && Array.isArray(savedProduct.advanceFields)) {
+            const savedField = savedProduct.advanceFields.find((af: any) => af.advance_field_id === field.id)
+            if (savedField) {
+              const fieldValue = savedField.advance_field_value || ""
+              return hasValue(fieldValue)
+            }
+          }
+          
+          // If no saved field found, assume not completed
+          return false
+        })
+        
+        // If advance fields exist, show impression only after they are all completed
+        // Also ensure tooth_shade is filled (required for advance fields to be visible)
+        const toothShadeValue = getFieldValueByKey("tooth_shade")
+        return allAdvanceFieldsCompleted && hasValue(toothShadeValue)
+      }
+      
+      // If no advance fields exist, show impression after tooth_shade
+      const toothShadeValue = getFieldValueByKey("tooth_shade")
+      return hasValue(toothShadeValue)
     }
 
     // Other fields (sequence >= 7) - show after stage has value
@@ -493,9 +553,14 @@ export function DynamicProductFields({
     return hasMaterial && hasRetention && hasStumpShade && hasToothShade && hasStage
   }
 
-  // Filter and sort fields that should be displayed
+  // Filter and sort fields that should be displayed (excluding impression, which will be rendered separately)
   const visibleFields = fieldConfigs
     .filter(config => {
+      // Exclude impression field from main list - it will be rendered separately after advance fields
+      if (config.key === "impression" || config.key === "impressions") {
+        return false
+      }
+      
       if (!productDetails) return false
       const apiData = productDetails[config.apiProperty]
       if (!apiData || !Array.isArray(apiData) || apiData.length === 0) {
@@ -533,6 +598,14 @@ export function DynamicProductFields({
       return true
     })
     .sort((a, b) => a.sequence - b.sequence)
+
+  // Get impression field config separately
+  const impressionConfig = fieldConfigs.find(f => f.key === "impression" || f.key === "impressions")
+  const shouldShowImpression = impressionConfig && 
+    productDetails?.[impressionConfig.apiProperty] &&
+    Array.isArray(productDetails[impressionConfig.apiProperty]) &&
+    productDetails[impressionConfig.apiProperty].length > 0 &&
+    isFieldVisibleProgressive(impressionConfig)
 
   // Group fields by rowGroup
   const fieldsByRow = visibleFields.reduce((acc, field) => {
@@ -587,8 +660,9 @@ export function DynamicProductFields({
 
   // Helper to check if a field is required
   const isFieldRequired = (config: FieldConfig): boolean => {
-    // All standard fields are required (material, retention, stump_shade, tooth_shade, stage, impression)
-    const requiredFields = ["material", "retention", "stump_shade", "tooth_shade", "stage", "impression"]
+    // All standard fields are required (material, retention, stump_shade, tooth_shade, stage)
+    // Impression field removed - fields now flow left-to-right, top-to-bottom without jumping
+    const requiredFields = ["material", "retention", "stump_shade", "tooth_shade", "stage"]
     return requiredFields.includes(config.key)
   }
 
@@ -628,10 +702,8 @@ export function DynamicProductFields({
     const stumpShadeValue = getFieldValueByKey("stump_shade")
     const toothShadeValue = getFieldValueByKey("tooth_shade")
     const stageValue = getFieldValueByKey("stage")
-    
-    // Check impression count if getImpressionCount is available
-    const impressionCount = getImpressionCount ? getImpressionCount() : 0
-    const hasImpression = impressionCount > 0
+
+    // Impression field removed - fields now flow left-to-right, top-to-bottom without jumping
 
     // Check all required fields
     const hasMaterial = hasValue(materialValue)
@@ -640,7 +712,7 @@ export function DynamicProductFields({
     const hasToothShade = hasValue(toothShadeValue)
     const hasStage = hasValue(stageValue)
 
-    return hasMaterial && hasRetention && hasStumpShade && hasToothShade && hasStage && hasImpression
+    return hasMaterial && hasRetention && hasStumpShade && hasToothShade && hasStage
   }
 
   // Helper to determine border color for a field
@@ -1160,10 +1232,49 @@ export function DynamicProductFields({
 
   return (
     <>
-      {/* Implant Brand/Platform Cards - Shows at the top when implant details field is clicked (same position as ToothShadeSelectionSVG) */}
+      <div
+        className="flex flex-wrap"
+        style={{
+          display: 'flex',
+          flexDirection: 'row',
+          alignItems: 'flex-start',
+          padding: '0px',
+          gap: '5px',
+          width: '100%'
+        }}
+      >
+        {visibleFields.map(field => (
+          <div
+            key={field.key}
+            style={{
+              flex: '1 1 calc(50% - 10px)',
+              minWidth: '200px',
+              maxWidth: 'calc(50% - 10px)'
+            }}
+          >
+            {renderField(field)}
+          </div>
+        ))}
+        
+        {/* Render impression field after advance fields (or after main fields if no advance fields) */}
+        {shouldShowImpression && impressionConfig && (
+          <div
+            key={impressionConfig.key}
+            style={{
+              flex: '1 1 calc(50% - 10px)',
+              minWidth: '200px',
+              maxWidth: 'calc(50% - 10px)'
+            }}
+          >
+            {renderField(impressionConfig)}
+          </div>
+        )}
+      </div>
+
+      {/* Implant Brand/Platform Cards - Shows at the bottom when implant details field is clicked */}
       {showImplantBrandCards && (
-        <div className="w-full pt-4">
-          <div className="flex flex-col items-center gap-4 w-full">
+        <div className="w-full pt-2">
+          <div className="flex flex-col items-center gap-2 w-full">
             <div className="bg-white w-full flex justify-center">
               {shouldShowPlatformCards && mappedPlatforms.length > 0 ? (
                 <ImplantPlatformCards
@@ -1211,31 +1322,6 @@ export function DynamicProductFields({
           </div>
         </div>
       )}
-      
-      <div
-        className="flex flex-wrap"
-        style={{
-          display: 'flex',
-          flexDirection: 'row',
-          alignItems: 'flex-start',
-          padding: '0px',
-          gap: '5px',
-          width: '100%'
-        }}
-      >
-        {visibleFields.map(field => (
-          <div
-            key={field.key}
-            style={{
-              flex: '1 1 calc(50% - 10px)',
-              minWidth: '200px',
-              maxWidth: 'calc(50% - 10px)'
-            }}
-          >
-            {renderField(field)}
-          </div>
-        ))}
-      </div>
     </>
   )
 }
