@@ -73,6 +73,10 @@ interface DynamicProductFieldsProps {
   // Callbacks for when brand/platform fields are clicked
   onBrandFieldClick?: () => void
   onPlatformFieldClick?: () => void
+  // Implant selection state (for checking if implant fields are completed)
+  selectedImplantBrand?: { [fieldKey: string]: number | null }
+  selectedImplantPlatform?: { [fieldKey: string]: number | null }
+  selectedImplantSize?: { [fieldKey: string]: string | null }
 }
 
 // Stage Selection Modal Component
@@ -247,6 +251,9 @@ export function DynamicProductFields({
   onSelectImplantPlatform,
   onBrandFieldClick,
   onPlatformFieldClick,
+  selectedImplantBrand = {},
+  selectedImplantPlatform = {},
+  selectedImplantSize = {},
 }: DynamicProductFieldsProps) {
   // State for stage selection modal
   const [isStageModalOpen, setIsStageModalOpen] = useState(false)
@@ -462,11 +469,29 @@ export function DynamicProductFields({
         const allAdvanceFieldsCompleted = filteredAdvanceFields.every((field: any) => {
           // Check if this is an implant_library field (implant details)
           if (field.field_type === "implant_library") {
-            // Check if implant details are filled
+            const fieldKey = `advance_${field.id}`
+            
+            // First, check if brand, platform, and size are all selected (most reliable check)
+            const brandId = selectedImplantBrand[fieldKey]
+            const platformId = selectedImplantPlatform[fieldKey]
+            const size = selectedImplantSize[fieldKey]
+            if (brandId && platformId && size) {
+              return true
+            }
+            
+            // Fallback: check if implant details string is filled
             const implantDetails = arch === "maxillary" 
               ? (savedProduct.maxillaryImplantDetails || (savedProduct as any).maxillaryImplantDetails)
               : (savedProduct.mandibularImplantDetails || (savedProduct as any).mandibularImplantDetails)
-            return hasValue(implantDetails)
+            // Ensure we have a valid string value before checking
+            if (implantDetails && typeof implantDetails === "string" && implantDetails.trim() !== "") {
+              return hasValue(implantDetails)
+            }
+            // Also check if it's an object with a value property
+            if (implantDetails && typeof implantDetails === "object" && implantDetails.value) {
+              return hasValue(String(implantDetails.value))
+            }
+            return false
           }
           
           // For other advance field types, check if they have values in savedProduct.advanceFields

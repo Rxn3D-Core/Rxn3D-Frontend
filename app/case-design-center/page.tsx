@@ -1026,9 +1026,15 @@ export default function CaseDesignCenterPage() {
       maxillaryIdKey: "maxillaryShadeId",
       mandibularIdKey: "mandibularShadeId",
       rowGroup: 2
+    },
+    {
+      key: "impression",
+      label: "Impression",
+      apiProperty: "impressions",
+      fieldType: "modal",
+      sequence: 7,
+      rowGroup: 3
     }
-    // Impression field removed - fields should flow left-to-right, top-to-bottom without jumping
-    // Impression is handled separately or removed from this flow to prevent UI confusion
   ]
 
   // Helper to check if field should be displayed based on productDetails
@@ -7074,6 +7080,9 @@ export default function CaseDesignCenterPage() {
                                           setShowImplantBrandCardsInFields(prev => ({ ...prev, maxillary: true }))
                                           setClickedFieldTypeInImplantDetails(prev => ({ ...prev, maxillary: 'platform' }))
                                         }}
+                                        selectedImplantBrand={selectedImplantBrand}
+                                        selectedImplantPlatform={selectedImplantPlatform}
+                                        selectedImplantSize={selectedImplantSize}
                                       />
 
                                       {/* Implant Brand/Platform Cards - Shows at the bottom when implant details field is clicked */}
@@ -10805,6 +10814,9 @@ export default function CaseDesignCenterPage() {
                                           setShowImplantBrandCardsInFields(prev => ({ ...prev, mandibular: true }))
                                           setClickedFieldTypeInImplantDetails(prev => ({ ...prev, mandibular: 'platform' }))
                                         }}
+                                        selectedImplantBrand={selectedImplantBrand}
+                                        selectedImplantPlatform={selectedImplantPlatform}
+                                        selectedImplantSize={selectedImplantSize}
                                       />
 
                                       {/* Implant Brand/Platform Cards - Shows at the bottom when implant details field is clicked */}
