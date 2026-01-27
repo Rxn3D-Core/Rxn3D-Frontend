@@ -833,7 +833,7 @@ export function SavedProductsSection({
                                         width: '100%',
                                         height: '37px',
                                         background: '#FFFFFF',
-                                        border: '0.740384px solid #7F7F7F',
+                                        border: savedProduct.maxillaryToothShade ? '0.740384px solid #22c55e' : '0.740384px solid #7F7F7F',
                                         borderRadius: '7.7px',
                                         boxSizing: 'border-box',
                                         position: 'relative',
@@ -848,7 +848,13 @@ export function SavedProductsSection({
                                         lineHeight: '20px',
                                         letterSpacing: '-0.02em',
                                         color: '#000000'
-                                      }}>Select</span>
+                                      }}>{getShadeDisplayText(
+                                        savedProduct.maxillaryToothShade,
+                                        savedProduct.maxillaryShadeId,
+                                        savedProduct.maxillaryShadeBrandId,
+                                        "tooth_shade",
+                                        savedProduct.productDetails
+                                      )}</span>
                                     </div>
                                     <label
                                       className="absolute bg-white"
@@ -1208,7 +1214,6 @@ export function SavedProductsSection({
                                   display: 'flex',
                                   flexDirection: 'column',
                                   alignItems: 'flex-start',
-                                  gap: '20px',
                                   background: '#FFFFFF',
                                   boxSizing: 'border-box'
                                 }}
@@ -1422,7 +1427,7 @@ export function SavedProductsSection({
                                         width: '100%',
                                         height: '37px',
                                         background: '#FFFFFF',
-                                        border: '0.740384px solid #7F7F7F',
+                                        border: savedProduct.mandibularToothShade ? '0.740384px solid #22c55e' : '0.740384px solid #7F7F7F',
                                         borderRadius: '7.7px',
                                         boxSizing: 'border-box',
                                         position: 'relative',
@@ -1437,7 +1442,13 @@ export function SavedProductsSection({
                                         lineHeight: '20px',
                                         letterSpacing: '-0.02em',
                                         color: '#000000'
-                                      }}>Select</span>
+                                      }}>{getShadeDisplayText(
+                                        savedProduct.mandibularToothShade,
+                                        savedProduct.mandibularShadeId,
+                                        savedProduct.mandibularShadeBrandId,
+                                        "tooth_shade",
+                                        savedProduct.productDetails
+                                      )}</span>
                                     </div>
                                     <label
                                       className="absolute bg-white"

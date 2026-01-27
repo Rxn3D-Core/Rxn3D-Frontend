@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Button } from "@/components/ui/button"
+import { Plus, Minus } from "lucide-react"
 
 interface ImplantDetailFormProps {
   fieldKey: string
@@ -20,6 +22,8 @@ interface ImplantDetailFormProps {
   initialInclusions?: string
   initialAbutmentDetail?: string
   initialAbutmentType?: string
+  initialInclusionsQuantity?: number
+  onInclusionsQuantityChange?: (quantity: number) => void
 }
 
 export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
@@ -39,11 +43,14 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
   arch,
   initialInclusions,
   initialAbutmentDetail,
-  initialAbutmentType
+  initialAbutmentType,
+  initialInclusionsQuantity,
+  onInclusionsQuantityChange
 }) => {
   const [inclusions, setInclusions] = useState<string>(initialInclusions || "")
   const [abutmentDetail, setAbutmentDetail] = useState<string>(initialAbutmentDetail || "")
   const [abutmentType, setAbutmentType] = useState<string>(initialAbutmentType || "")
+  const [inclusionsQuantity, setInclusionsQuantity] = useState<number>(initialInclusionsQuantity || 1)
 
   // Delayed visibility states to prevent Radix UI ref composition infinite loops
   // When Select components are conditionally rendered rapidly, Radix's compose-refs can enter an infinite update cycle
@@ -146,6 +153,12 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
       setAbutmentType(initialAbutmentType)
     }
   }, [initialAbutmentType])
+
+  useEffect(() => {
+    if (initialInclusionsQuantity !== undefined && initialInclusionsQuantity !== inclusionsQuantity) {
+      setInclusionsQuantity(initialInclusionsQuantity)
+    }
+  }, [initialInclusionsQuantity])
   
   // Removed automatic clearing logic to prevent infinite loops
   // The useEffect hooks that cleared subsequent fields when previous fields were cleared
@@ -261,7 +274,7 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
             flexDirection: 'column',
             alignItems: 'center',
             padding: '10px',
-            gap: '10px',
+            gap: '0px',
             width: 'calc(100% - 90px)',
             marginLeft: '90px',
             minHeight: '167.55px'
@@ -275,7 +288,7 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
               flexDirection: 'row',
               alignItems: 'center',
               padding: '0px',
-              gap: '15px',
+              gap: '0px',
               width: '100%',
               minHeight: '42.27px',
               flex: 'none',
@@ -284,7 +297,7 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
             }}
           >
             {/* Implant Brand */}
-            <div className="relative flex-1 min-w-[180px] sm:min-w-[220px]" style={{ minHeight: '43px', flex: '1 1 auto', order: 0 }}>
+            <div className="relative flex-1" style={{ minHeight: '43px', flex: '1 1 auto', order: 0 }}>
               <div className="relative" style={{ minHeight: '43px', width: '100%' }}>
                 <Input
                   type="text"
@@ -310,7 +323,7 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
                     width: '100%',
                     height: '37px',
                     position: 'relative',
-                    marginTop: '5.27px',
+                    marginTop: '0px',
                     background: '#FFFFFF',
                     border: `0.740384px solid ${getFieldBorderColor(selectedBrand?.brand_name)}`,
                     borderRadius: '7.7px',
@@ -346,7 +359,7 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
             
             {/* Implant Platform - Show only if Implant Brand has value */}
             {selectedBrand?.brand_name && (
-              <div className="relative flex-1 min-w-[180px] sm:min-w-[220px]" style={{ minHeight: '43px', flex: '1 1 auto', order: 1 }}>
+              <div className="relative flex-1" style={{ minHeight: '43px', flex: '1 1 auto', order: 1 }}>
                 <div className="relative" style={{ minHeight: '43px', width: '100%' }}>
                   <Input
                     type="text"
@@ -372,7 +385,7 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
                       width: '100%',
                       height: '37px',
                       position: 'relative',
-                      marginTop: '5.27px',
+                      marginTop: '0px',
                       background: '#FFFFFF',
                       border: `0.740384px solid ${getFieldBorderColor(selectedPlatform?.name)}`,
                       borderRadius: '7.7px',
@@ -410,7 +423,7 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
             
             {/* Implant Size - Show only if Implant Platform has value */}
             {selectedPlatform?.name && (
-              <div className="relative flex-1 min-w-[180px] sm:min-w-[220px]" style={{ minHeight: '43px', flex: '1 1 auto', order: 2 }}>
+              <div className="relative flex-1" style={{ minHeight: '43px', flex: '1 1 auto', order: 2 }}>
                 <div className="relative" style={{ minHeight: '43px', width: '100%' }}>
                   <Select
                     value={selectedSize || ""}
@@ -429,7 +442,7 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
                         width: '100%',
                         height: '37px',
                         position: 'relative',
-                        marginTop: '5.27px',
+                        marginTop: '0px',
                         background: '#FFFFFF',
                         border: `0.740384px solid ${getFieldBorderColor(selectedSize)}`,
                         borderRadius: '7.7px',
@@ -478,66 +491,168 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
           {/* Row 2: Implant inclusions - Show only if Implant Size has value */}
           {/* Using delayed visibility state to prevent Radix UI ref composition infinite loops */}
           {showInclusions && (
-            <div className="relative w-full" style={{ minHeight: '43px', flex: 'none', order: 1, flexGrow: 0 }}>
-              <Select
-                value={inclusions}
-                open={inclusionsOpen}
-                onOpenChange={setInclusionsOpen}
-                onValueChange={(value) => {
-                  setInclusions(value)
-                  onInclusionsChange(value)
-                  setInclusionsOpen(false)
-                }}
-              >
-                <SelectTrigger
-                  className="w-full"
-                  style={{
-                    padding: '12px 15px 5px 15px',
-                    gap: '5px',
-                    width: '100%',
-                    height: '37px',
-                    position: 'relative',
-                    marginTop: '5.27px',
-                    background: '#FFFFFF',
-                    border: `0.740384px solid ${getFieldBorderColor(inclusions)}`,
-                    borderRadius: '7.7px',
-                    boxSizing: 'border-box',
-                    fontFamily: 'Verdana',
-                    fontStyle: 'normal',
-                    fontWeight: 400,
-                    fontSize: '14.4px',
-                    lineHeight: '20px',
-                    letterSpacing: '-0.02em',
-                    color: '#000000'
+            <div 
+              className="relative w-full flex items-center gap-2"
+              style={{ 
+                minHeight: '43px', 
+                flex: 'none', 
+                order: 1, 
+                flexGrow: 0,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+            >
+              <div className="relative flex-1" style={{ flex: '1 1 auto', minHeight: '43px' }}>
+                <Select
+                  value={inclusions}
+                  open={inclusionsOpen}
+                  onOpenChange={setInclusionsOpen}
+                  onValueChange={(value) => {
+                    setInclusions(value)
+                    onInclusionsChange(value)
+                    // Reset quantity to 1 when changing inclusion type
+                    if (value === "Model with Tissue + QTY") {
+                      setInclusionsQuantity(1)
+                      if (onInclusionsQuantityChange) {
+                        onInclusionsQuantityChange(1)
+                      }
+                    } else {
+                      setInclusionsQuantity(1)
+                    }
+                    setInclusionsOpen(false)
                   }}
                 >
-                  <SelectValue placeholder="Select Inclusions" />
-                </SelectTrigger>
-                <SelectContent>
-                  {inclusionOptions.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <label
-                className="absolute bg-white"
-                style={{
-                  padding: '0px',
-                  height: '14px',
-                  left: '8.9px',
-                  top: '0px',
-                  fontFamily: 'Arial',
-                  fontStyle: 'normal',
-                  fontWeight: 400,
-                  fontSize: '14px',
-                  lineHeight: '14px',
-                  color: getFieldLabelColor(inclusions)
-                }}
-              >
-                Implant inclusions
-              </label>
+                  <SelectTrigger
+                    className="w-full"
+                    style={{
+                      padding: '12px 15px 5px 15px',
+                      gap: '5px',
+                      width: '100%',
+                      height: '37px',
+                      position: 'relative',
+                      marginTop: '0px',
+                      background: '#FFFFFF',
+                      border: `0.740384px solid ${getFieldBorderColor(inclusions)}`,
+                      borderRadius: '7.7px',
+                      boxSizing: 'border-box',
+                      fontFamily: 'Verdana',
+                      fontStyle: 'normal',
+                      fontWeight: 400,
+                      fontSize: '14.4px',
+                      lineHeight: '20px',
+                      letterSpacing: '-0.02em',
+                      color: '#000000'
+                    }}
+                  >
+                    <SelectValue placeholder="Select Inclusions" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {inclusionOptions.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <label
+                  className="absolute bg-white"
+                  style={{
+                    padding: '0px',
+                    height: '14px',
+                    left: '8.9px',
+                    top: '0px',
+                    fontFamily: 'Arial',
+                    fontStyle: 'normal',
+                    fontWeight: 400,
+                    fontSize: '14px',
+                    lineHeight: '14px',
+                    color: getFieldLabelColor(inclusions)
+                  }}
+                >
+                  Implant inclusions
+                </label>
+              </div>
+              
+              {/* Quantity controls - Show only when "Model with Tissue + QTY" is selected */}
+              {inclusions === "Model with Tissue + QTY" && (
+                <div
+                  className="flex items-center gap-1"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    flexShrink: 0
+                  }}
+                >
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 w-8 p-0 rounded-md border-2 hover:bg-gray-100"
+                    onClick={() => {
+                      const newQuantity = Math.max(1, inclusionsQuantity - 1)
+                      setInclusionsQuantity(newQuantity)
+                      if (onInclusionsQuantityChange) {
+                        onInclusionsQuantityChange(newQuantity)
+                      }
+                    }}
+                    style={{
+                      height: '37px',
+                      width: '37px',
+                      padding: '0px',
+                      borderRadius: '7.7px',
+                      border: '2px solid #7F7F7F',
+                      background: '#FFFFFF',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <Minus className="h-4 w-4" style={{ height: '16px', width: '16px' }} />
+                  </Button>
+                  <div
+                    style={{
+                      minWidth: '40px',
+                      textAlign: 'center',
+                      fontFamily: 'Verdana',
+                      fontStyle: 'normal',
+                      fontWeight: 400,
+                      fontSize: '14.4px',
+                      lineHeight: '20px',
+                      color: '#000000'
+                    }}
+                  >
+                    {inclusionsQuantity}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 w-8 p-0 rounded-md border-2 hover:bg-gray-100"
+                    onClick={() => {
+                      const newQuantity = inclusionsQuantity + 1
+                      setInclusionsQuantity(newQuantity)
+                      if (onInclusionsQuantityChange) {
+                        onInclusionsQuantityChange(newQuantity)
+                      }
+                    }}
+                    style={{
+                      height: '37px',
+                      width: '37px',
+                      padding: '0px',
+                      borderRadius: '7.7px',
+                      border: '2px solid #7F7F7F',
+                      background: '#FFFFFF',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <Plus className="h-4 w-4" style={{ height: '16px', width: '16px' }} />
+                  </Button>
+                </div>
+              )}
             </div>
           )}
 
@@ -551,7 +666,7 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
                 flexDirection: 'row',
                 alignItems: 'center',
                 padding: '0px',
-                gap: '15px',
+                gap: '0px',
                 width: '100%',
                 minHeight: '42.27px',
                 flex: 'none',
@@ -560,7 +675,7 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
               }}
             >
               {/* Abutment Detail */}
-              <div className="relative flex-1 min-w-[180px] sm:min-w-[220px]" style={{ minHeight: '43px', flex: '1 1 auto', order: 0 }}>
+              <div className="relative flex-1" style={{ minHeight: '43px', flex: '1 1 auto', order: 0 }}>
                 <div className="relative" style={{ minHeight: '43px', width: '100%' }}>
                   <Select
                     value={abutmentDetail}
@@ -580,7 +695,7 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
                         width: '100%',
                         height: '37px',
                         position: 'relative',
-                        marginTop: '5.27px',
+                        marginTop: '0px',
                         background: '#FFFFFF',
                         border: `0.740384px solid ${getFieldBorderColor(abutmentDetail)}`,
                         borderRadius: '7.7px',
@@ -627,7 +742,7 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
               {/* Abutment type - Show only if Abutment Detail has value */}
               {/* Using delayed visibility state to prevent Radix UI ref composition infinite loops */}
               {showAbutmentType && (
-                <div className="relative flex-1 min-w-[180px] sm:min-w-[220px]" style={{ minHeight: '43px', flex: '1 1 auto', order: 1 }}>
+                <div className="relative flex-1" style={{ minHeight: '43px', flex: '1 1 auto', order: 1 }}>
                   <div className="relative" style={{ minHeight: '43px', width: '100%' }}>
                     <Select
                       value={abutmentType}
@@ -647,7 +762,7 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
                           width: '100%',
                           height: '37px',
                           position: 'relative',
-                          marginTop: '5.27px',
+                          marginTop: '0px',
                           background: '#FFFFFF',
                           border: `0.740384px solid ${getFieldBorderColor(abutmentType)}`,
                           borderRadius: '7.7px',

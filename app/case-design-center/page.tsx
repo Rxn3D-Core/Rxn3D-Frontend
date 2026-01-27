@@ -1690,6 +1690,71 @@ export default function CaseDesignCenterPage() {
     }
   }, [showProductDetails, selectedProduct, showMaxillaryChart, showMandibularChart, productDetails, isLoadingProductDetails])
 
+  // Track if we've already auto-shown implant cards for this session to prevent repeated auto-showing
+  const autoShownImplantCardsRef = useRef<{ maxillary?: boolean; mandibular?: boolean }>({})
+
+  // Auto-show implant brand cards when implant_library advance field becomes visible and is empty
+  useEffect(() => {
+    if (!productDetails || !productDetails.advance_fields || !Array.isArray(productDetails.advance_fields)) {
+      return
+    }
+
+    // Find implant_library field in advance fields
+    const implantLibraryField = productDetails.advance_fields.find(
+      (field: any) => field.field_type === "implant_library"
+    )
+
+    if (!implantLibraryField) {
+      return
+    }
+
+    const fieldKey = `advance_${implantLibraryField.id}`
+
+    // Check for maxillary arch
+    if (isToothShadeFilled("maxillary") && !autoShownImplantCardsRef.current.maxillary) {
+      const currentValue = advanceFieldValues[fieldKey]
+      const displayValue = typeof currentValue === "object"
+        ? currentValue?.advance_field_value || ""
+        : currentValue || ""
+      const isEmpty = !displayValue || displayValue.trim() === ""
+
+      if (isEmpty && implants && implants.length > 0) {
+        // Mark as auto-shown to prevent repeated auto-showing
+        autoShownImplantCardsRef.current = { ...autoShownImplantCardsRef.current, maxillary: true }
+
+        const timer = setTimeout(() => {
+          setShowImplantCards(true)
+          setActiveImplantFieldKey(fieldKey)
+          setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'brand' }))
+        }, 200)
+
+        return () => clearTimeout(timer)
+      }
+    }
+
+    // Check for mandibular arch
+    if (isToothShadeFilled("mandibular") && !autoShownImplantCardsRef.current.mandibular) {
+      const currentValue = advanceFieldValues[fieldKey]
+      const displayValue = typeof currentValue === "object"
+        ? currentValue?.advance_field_value || ""
+        : currentValue || ""
+      const isEmpty = !displayValue || displayValue.trim() === ""
+
+      if (isEmpty && implants && implants.length > 0) {
+        // Mark as auto-shown to prevent repeated auto-showing
+        autoShownImplantCardsRef.current = { ...autoShownImplantCardsRef.current, mandibular: true }
+
+        const timer = setTimeout(() => {
+          setShowImplantCards(true)
+          setActiveImplantFieldKey(fieldKey)
+          setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'brand' }))
+        }, 200)
+
+        return () => clearTimeout(timer)
+      }
+    }
+  }, [productDetails, advanceFieldValues, implants, maxillaryToothShade, mandibularToothShade])
+
   // Track which product configurations have been auto-saved to prevent duplicate saves
   const autoSavedArchesRef = useRef<Set<string>>(new Set())
 
@@ -4766,13 +4831,30 @@ export default function CaseDesignCenterPage() {
         // Update existing product with unified data (merge with existing data to preserve any fields)
         const updated = [...deduplicatedProducts]
         const existingProduct = deduplicatedProducts[existingIndex]
+        
+        // Merge teeth arrays: combine existing and new teeth, remove duplicates
+        const existingMaxTeeth = [...(existingProduct.maxillaryTeeth || [])]
+        const existingMandTeeth = [...(existingProduct.mandibularTeeth || [])]
+        const newMaxTeeth = [...maxillaryTeeth]
+        const newMandTeeth = [...mandibularTeeth]
+        
+        // Merge maxillary teeth: combine and remove duplicates
+        const mergedMaxTeeth = savedProduct.maxillaryTeeth.length > 0
+          ? [...new Set([...existingMaxTeeth, ...newMaxTeeth])].sort()
+          : existingMaxTeeth
+        
+        // Merge mandibular teeth: combine and remove duplicates
+        const mergedMandTeeth = savedProduct.mandibularTeeth.length > 0
+          ? [...new Set([...existingMandTeeth, ...newMandTeeth])].sort()
+          : existingMandTeeth
+        
         // Merge existing product data with new data, preserving existing values where new ones are empty
         const mergedProduct: SavedProduct = {
           ...existingProduct,
           ...savedProduct,
-          // Preserve existing teeth arrays if new ones are empty
-          maxillaryTeeth: savedProduct.maxillaryTeeth.length > 0 ? savedProduct.maxillaryTeeth : existingProduct.maxillaryTeeth,
-          mandibularTeeth: savedProduct.mandibularTeeth.length > 0 ? savedProduct.mandibularTeeth : existingProduct.mandibularTeeth,
+          // Use merged teeth arrays
+          maxillaryTeeth: mergedMaxTeeth,
+          mandibularTeeth: mergedMandTeeth,
           // Preserve existing material if new one is empty
           maxillaryMaterial: savedProduct.maxillaryMaterial || existingProduct.maxillaryMaterial,
           mandibularMaterial: savedProduct.mandibularMaterial || existingProduct.mandibularMaterial,
@@ -4783,7 +4865,7 @@ export default function CaseDesignCenterPage() {
         updated[existingIndex] = mergedProduct
         return updated
       } else {
-        // Only add new product if no existing product found with same product ID, category, subcategory, and teeth
+        // Only add new product if no existing product found with same product ID, category, subcategory, and overlapping teeth
         return [...deduplicatedProducts, savedProduct]
       }
     })
@@ -5332,37 +5414,73 @@ export default function CaseDesignCenterPage() {
       }
     }
 
-    // Add to saved products array
-    setSavedProducts((prev) => [...prev, savedProduct])
+    // Add to saved products array as the first product (prepend instead of append)
+    setSavedProducts((prev) => {
+      // Check if this product already exists (same product ID, category, subcategory, and overlapping teeth)
+      const existingIndex = prev.findIndex(p => {
+        const matchesBasic = p.product.id === productToUse.id &&
+          p.categoryId === selectedCategoryId &&
+          p.subcategoryId === selectedSubcategoryId
 
-    // Reset form to categories step
+        if (!matchesBasic) return false
+
+        // Check for overlapping teeth
+        const existingMaxTeeth = [...(p.maxillaryTeeth || [])].sort()
+        const existingMandTeeth = [...(p.mandibularTeeth || [])].sort()
+        const newMaxTeeth = [...maxillaryTeeth].sort()
+        const newMandTeeth = [...mandibularTeeth].sort()
+
+        const maxillaryOverlap = existingMaxTeeth.length > 0 && newMaxTeeth.length > 0 &&
+          (existingMaxTeeth.some(tooth => newMaxTeeth.includes(tooth)) ||
+           newMaxTeeth.some(tooth => existingMaxTeeth.includes(tooth)))
+
+        const mandibularOverlap = existingMandTeeth.length > 0 && newMandTeeth.length > 0 &&
+          (existingMandTeeth.some(tooth => newMandTeeth.includes(tooth)) ||
+           newMandTeeth.some(tooth => existingMandTeeth.includes(tooth)))
+
+        return maxillaryOverlap || mandibularOverlap
+      })
+
+      if (existingIndex !== -1) {
+        // Update existing product with merged teeth and all current fields
+        const updated = [...prev]
+        const existingProduct = prev[existingIndex]
+        
+        // Merge teeth arrays
+        const existingMaxTeeth = [...(existingProduct.maxillaryTeeth || [])]
+        const existingMandTeeth = [...(existingProduct.mandibularTeeth || [])]
+        const mergedMaxTeeth = [...new Set([...existingMaxTeeth, ...maxillaryTeeth])].sort()
+        const mergedMandTeeth = [...new Set([...existingMandTeeth, ...mandibularTeeth])].sort()
+        
+        // Update with all current fields
+        updated[existingIndex] = {
+          ...savedProduct,
+          id: existingProduct.id, // Keep existing ID
+          createdAt: existingProduct.createdAt, // Keep original creation time
+          maxillaryTeeth: mergedMaxTeeth,
+          mandibularTeeth: mergedMandTeeth,
+        }
+        
+        // Move to first position
+        const productToMove = updated.splice(existingIndex, 1)[0]
+        return [productToMove, ...updated]
+      } else {
+        // Add new product as the first item
+        return [savedProduct, ...prev]
+      }
+    })
+
+    // Keep product details visible so DynamicProductFields continues to show
+    // Don't reset form - keep all fields visible for editing
+    // Only reset navigation states
     setShowSubcategories(false)
     setShowProducts(false)
-    setShowProductDetails(false)
-    setSelectedCategory(null)
-    setSelectedCategoryId(null)
-    setSelectedSubcategory(null)
-    setSelectedSubcategoryId(null)
-    setSelectedProduct(null)
-    setProducts([])
-    setMaxillaryTeeth([])
-    setMandibularTeeth([])
-    setMaxillaryMaterial("")
-    setMaxillaryStumpShade("")
-    setMaxillaryRetention("")
-    setMaxillaryImplantDetails("")
-    setMandibularMaterial("")
-    setMandibularRetention("")
-    setMandibularStumpShade("")
-    setMandibularImplantDetails("")
-    setMissingTeethCardClicked(false)
-    setOpenAccordion("maxillary-card")
-    // Clear advance field values
-    setAdvanceFieldValues({})
+    // Keep showProductDetails true so DynamicProductFields remains visible
+    // Keep all product and field states so user can continue editing
 
     toast({
-      title: "Product Added",
-      description: `${productToUse.name} has been added to your case`,
+      title: "Product Saved",
+      description: `${productToUse.name} has been saved. Continue filling in the fields below.`,
     })
 
     // Update case summary notes when product is added
@@ -6717,7 +6835,7 @@ export default function CaseDesignCenterPage() {
                             }}
                           />
                         )}
-                        {!currentShadeField && showMaxillaryChart && (
+                        {showMaxillaryChart && (
                           <MaxillaryTeethSVG
                             key={`maxillary-${maxillaryTeeth.join('-')}`}
                             selectedTeeth={maxillaryTeeth}
@@ -6783,7 +6901,7 @@ export default function CaseDesignCenterPage() {
                         sp.subcategoryId === selectedSubcategoryId &&
                         JSON.stringify([...(sp.maxillaryTeeth || [])].sort()) === JSON.stringify([...maxillaryTeeth].sort())
                       ) && (
-                        <Card className="overflow-hidden border border-gray-200 shadow-sm">
+                        <Card className="overflow-hidden border border-gray-200 shadow-sm -mt-2">
                           <Accordion
                             type="single"
                             collapsible
@@ -6974,7 +7092,6 @@ export default function CaseDesignCenterPage() {
                                     display: 'flex',
                                     flexDirection: 'column',
                                     alignItems: 'flex-start',
-                                    gap: '20px',
                                     background: '#FFFFFF',
                                     boxSizing: 'border-box'
                                   }}
@@ -7083,6 +7200,8 @@ export default function CaseDesignCenterPage() {
                                         selectedImplantBrand={selectedImplantBrand}
                                         selectedImplantPlatform={selectedImplantPlatform}
                                         selectedImplantSize={selectedImplantSize}
+                                        hideFieldsDuringShadeSelection={currentShadeField !== null && currentShadeArch === "maxillary"}
+                                        hideImpression={productDetails?.advance_fields && Array.isArray(productDetails.advance_fields) && productDetails.advance_fields.length > 0}
                                       />
 
                                       {/* Implant Brand/Platform Cards - Shows at the bottom when implant details field is clicked */}
@@ -7182,12 +7301,24 @@ export default function CaseDesignCenterPage() {
                                         isToothShadeFilled("maxillary") && (() => {
                                           // Filter out stump shade from advanced fields - use existing stump shade field instead
                                           const stumpShadeField = getAdvanceFieldByName("stump_shade", productDetails.advance_fields)
-                                          const filteredAdvanceFields = stumpShadeField
-                                            ? productDetails.advance_fields.filter((field: any) => {
-                                              const fieldNameLower = (field.name || "").toLowerCase()
-                                              return !(fieldNameLower.includes("stump") && fieldNameLower.includes("shade"))
-                                            })
-                                            : productDetails.advance_fields
+
+                                          // Check if any tooth has "Implant" retention type for maxillary
+                                          const hasImplantRetention = Object.values(maxillaryRetentionTypes).some(
+                                            (types) => types && types.includes('Implant')
+                                          )
+
+                                          const filteredAdvanceFields = productDetails.advance_fields.filter((field: any) => {
+                                            const fieldNameLower = (field.name || "").toLowerCase()
+                                            // Filter out stump shade fields
+                                            if (stumpShadeField && fieldNameLower.includes("stump") && fieldNameLower.includes("shade")) {
+                                              return false
+                                            }
+                                            // Filter out implant_library fields if no tooth has "Implant" retention type
+                                            if (field.field_type === "implant_library" && !hasImplantRetention) {
+                                              return false
+                                            }
+                                            return true
+                                          })
 
                                           // If no fields remain after filtering, don't render the section
                                           if (filteredAdvanceFields.length === 0) {
@@ -7204,7 +7335,6 @@ export default function CaseDesignCenterPage() {
                                                 flexDirection: 'column',
                                                 alignItems: 'flex-start',
                                                 padding: '0px',
-                                                gap: '20px',
                                                 flex: 'none',
                                                 alignSelf: 'stretch',
                                                 flexGrow: 0,
@@ -7768,7 +7898,6 @@ export default function CaseDesignCenterPage() {
                                                                   width: fieldWidth.width,
                                                                   flex: fieldWidth.flex,
                                                                 }}
-                                                                placeholder="Select Implant"
                                                                 readOnly
                                                               />
                                                             )}
@@ -7911,7 +8040,9 @@ export default function CaseDesignCenterPage() {
                                                             color: '#7F7F7F'
                                                           }}
                                                         >
-                                                          {field.name || "Advanced Field"}
+                                                          {field.field_type === "implant_library" && isEmptyOrNotSpecified
+                                                            ? "Select Implant Details"
+                                                            : (field.name || "Advanced Field")}
                                                           {field.is_required === "Yes" && (
                                                             <span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>
                                                           )}
@@ -8054,75 +8185,125 @@ export default function CaseDesignCenterPage() {
                                         </div>
                                       )}
 
-                                      
 
-                                      {/* Impression Field - HIDDEN: Removed to prevent UI jumping (fields should flow left-to-right, top-to-bottom) */}
-                                      {/* Impression field is now handled separately or removed from this flow */}
+                                      {/* Impression Field - Shown after advance fields are complete */}
+                                      {productDetails?.impressions &&
+                                        Array.isArray(productDetails.impressions) &&
+                                        productDetails.impressions.length > 0 &&
+                                        productDetails?.advance_fields &&
+                                        Array.isArray(productDetails.advance_fields) &&
+                                        productDetails.advance_fields.length > 0 &&
+                                        isToothShadeFilled("maxillary") && (() => {
+                                          // Check if all advance fields are complete
+                                          const filteredAdvanceFields = productDetails.advance_fields.filter((field: any) => {
+                                            const fieldNameLower = (field.name || "").toLowerCase()
+                                            return !(fieldNameLower.includes("stump") && fieldNameLower.includes("shade"))
+                                          })
+
+                                          const allAdvanceFieldsComplete = filteredAdvanceFields.every((field: any) => {
+                                            if (field.field_type === "implant_library") {
+                                              const fieldKey = `advance_${field.id}`
+                                              const brandId = selectedImplantBrand[fieldKey]
+                                              const platformId = selectedImplantPlatform[fieldKey]
+                                              return brandId && platformId
+                                            }
+                                            const fieldKey = `advance_${field.id}`
+                                            const fieldValue = advanceFieldValues[fieldKey]
+                                            return fieldValue && fieldValue.advance_field_value
+                                          })
+
+                                          if (!allAdvanceFieldsComplete) return null
+
+                                          const impressionCount = selectedProduct
+                                            ? getImpressionCount(selectedProduct.id.toString(), "maxillary", productDetails.impressions)
+                                            : 0
+                                          const displayText = selectedProduct
+                                            ? getImpressionDisplayText(selectedProduct.id.toString(), "maxillary", productDetails.impressions)
+                                            : "Select impression"
+                                          const hasImpressionValue = impressionCount > 0 || (displayText && displayText !== "Select impression")
+
+                                          return (
+                                            <div className="flex flex-wrap" style={{ width: '100%', marginTop: '10px' }}>
+                                              <div style={{ flex: '1 1 50%', minWidth: '200px', maxWidth: '50%' }}>
+                                                <div className="relative" style={{ minHeight: '43px', width: '100%' }}>
+                                                  <div
+                                                    className="flex items-center cursor-pointer"
+                                                    onClick={() => {
+                                                      if (selectedProduct) {
+                                                        const tempProduct: SavedProduct = {
+                                                          id: selectedProduct.id.toString(),
+                                                          product: selectedProduct,
+                                                          productDetails: productDetails,
+                                                          category: selectedCategory || "",
+                                                          categoryId: selectedCategoryId || 0,
+                                                          subcategory: selectedSubcategory || "",
+                                                          subcategoryId: selectedSubcategoryId || 0,
+                                                          maxillaryTeeth: maxillaryTeeth,
+                                                          mandibularTeeth: mandibularTeeth,
+                                                          maxillaryMaterial: maxillaryMaterial,
+                                                          maxillaryStumpShade: maxillaryStumpShade,
+                                                          maxillaryRetention: maxillaryRetention,
+                                                          maxillaryImplantDetails: maxillaryImplantDetails,
+                                                          mandibularMaterial: mandibularMaterial,
+                                                          mandibularRetention: mandibularRetention,
+                                                          mandibularStumpShade: mandibularStumpShade,
+                                                          mandibularImplantDetails: mandibularImplantDetails,
+                                                          createdAt: Date.now(),
+                                                          addedFrom: "maxillary",
+                                                        }
+                                                        handleOpenImpressionModal(tempProduct, "maxillary")
+                                                      }
+                                                    }}
+                                                    style={{
+                                                      padding: '12px 15px 5px 15px',
+                                                      gap: '5px',
+                                                      width: '100%',
+                                                      height: '37px',
+                                                      position: 'relative',
+                                                      marginTop: '5.27px',
+                                                      background: '#FFFFFF',
+                                                      border: `0.740384px solid ${hasImpressionValue ? '#119933' : '#ef4444'}`,
+                                                      borderRadius: '7.7px',
+                                                      boxSizing: 'border-box'
+                                                    }}
+                                                  >
+                                                    <span style={{
+                                                      fontFamily: 'Verdana',
+                                                      fontStyle: 'normal',
+                                                      fontWeight: 400,
+                                                      fontSize: '14.4px',
+                                                      lineHeight: '20px',
+                                                      letterSpacing: '-0.02em',
+                                                      color: '#000000',
+                                                      whiteSpace: 'nowrap',
+                                                      paddingRight: hasImpressionValue ? '30px' : '0px'
+                                                    }}>{displayText}</span>
+                                                  </div>
+                                                  <label
+                                                    className="absolute bg-white"
+                                                    style={{
+                                                      padding: '0px',
+                                                      height: '14px',
+                                                      left: '8.9px',
+                                                      top: '0px',
+                                                      fontFamily: 'Arial',
+                                                      fontStyle: 'normal',
+                                                      fontWeight: 400,
+                                                      fontSize: '14px',
+                                                      lineHeight: '14px',
+                                                      color: hasImpressionValue ? '#119933' : '#ef4444'
+                                                    }}
+                                                  >
+                                                    Impression<span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>
+                                                  </label>
+                                                </div>
+                                              </div>
+                                            </div>
+                                          )
+                                        })()}
                                     </>
                                   )}
 
-                                  {/* Notes if available */}
-                                  {maxillaryImplantDetails && (
-                                    <div
-                                      className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                      style={{
-                                        display: 'flex',
-                                        flexDirection: 'row',
-                                        alignItems: 'flex-start',
-                                        padding: '0px',
-                                        gap: '20px',
-                                        flex: 'none',
-                                        order: 3,
-                                        alignSelf: 'stretch',
-                                        flexGrow: 0
-                                      }}
-                                    >
-                                      <div className="relative flex-1 min-w-[250px] max-w-[100%]" style={{ minHeight: '43px' }}>
-                                        <div
-                                          className="flex items-start"
-                                          style={{
-                                            padding: '12px 15px 5px 15px',
-                                            gap: '5px',
-                                            width: '100%',
-                                            minHeight: '60px',
-                                            background: '#FFFFFF',
-                                            border: '0.740384px solid #7F7F7F',
-                                            borderRadius: '7.7px',
-                                            boxSizing: 'border-box',
-                                            position: 'relative',
-                                            marginTop: '5.27px'
-                                          }}
-                                        >
-                                          <span style={{
-                                            fontFamily: 'Verdana',
-                                            fontStyle: 'normal',
-                                            fontWeight: 400,
-                                            fontSize: '14.4px',
-                                            lineHeight: '20px',
-                                            letterSpacing: '-0.02em',
-                                            color: '#000000'
-                                          }}>{maxillaryImplantDetails}</span>
-                                        </div>
-                                        <label
-                                          className="absolute bg-white"
-                                          style={{
-                                            padding: '0px',
-                                            height: '14px',
-                                            left: '8.9px',
-                                            top: '0px',
-                                            fontFamily: 'Arial',
-                                            fontStyle: 'normal',
-                                            fontWeight: 400,
-                                            fontSize: '14px',
-                                            lineHeight: '14px',
-                                            color: '#7F7F7F'
-                                          }}
-                                        >
-                                          Notes
-                                        </label>
-                                      </div>
-                                    </div>
-                                  )}
                                 </div>
 
                                 {/* Action Buttons - Show when all fields have values */}
@@ -8409,7 +8590,7 @@ export default function CaseDesignCenterPage() {
 
                       {/* Saved Maxillary Products - Display below MAXILLARY section */}
                       {showMaxillaryChart && savedProducts.filter(p => p.addedFrom === "maxillary").length > 0 && (
-                        <div className="w-full mt-1 space-y-1">
+                        <div className="w-full -mt-2 space-y-1">
                           {savedProducts
                             .filter(p => p.addedFrom === "maxillary")
                             .map((savedProduct, index) => {
@@ -8639,7 +8820,6 @@ export default function CaseDesignCenterPage() {
                                             display: 'flex',
                                             flexDirection: 'column',
                                             alignItems: 'flex-start',
-                                            gap: '20px',
                                             background: '#FFFFFF',
                                             boxSizing: 'border-box'
                                           }}
@@ -10039,90 +10219,6 @@ export default function CaseDesignCenterPage() {
                                             </div>
                                           )}
 
-                                          {/* Notes if available - Only show if addons exist */}
-                                          {(() => {
-                                            // Check if addons exist (either structured or string array)
-                                            const hasAddons = (savedProduct.maxillaryAddOnsStructured && savedProduct.maxillaryAddOnsStructured.length > 0) ||
-                                              (savedProduct.maxillaryAddOns && savedProduct.maxillaryAddOns.length > 0)
-
-                                            if (!hasAddons) return null
-
-                                            // Format addons for display
-                                            let addonsText = ""
-                                            if (savedProduct.maxillaryAddOnsStructured && savedProduct.maxillaryAddOnsStructured.length > 0) {
-                                              addonsText = savedProduct.maxillaryAddOnsStructured
-                                                .map(addon => {
-                                                  const qty = addon.qty || addon.quantity || 1
-                                                  const name = addon.name || `Add-on ${addon.addon_id}`
-                                                  return `${qty}x ${name}`
-                                                })
-                                                .join(", ")
-                                            } else if (savedProduct.maxillaryAddOns && savedProduct.maxillaryAddOns.length > 0) {
-                                              addonsText = savedProduct.maxillaryAddOns.join(", ")
-                                            }
-
-                                            return (
-                                              <div
-                                                className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                                style={{
-                                                  display: 'flex',
-                                                  flexDirection: 'row',
-                                                  alignItems: 'flex-start',
-                                                  padding: '0px',
-                                                  gap: '20px',
-                                                  flex: 'none',
-                                                  order: 3,
-                                                  alignSelf: 'stretch',
-                                                  flexGrow: 0
-                                                }}
-                                              >
-                                                <div className="relative flex-1 min-w-[250px] max-w-[100%]" style={{ minHeight: '43px' }}>
-                                                  <div
-                                                    className="flex items-start"
-                                                    style={{
-                                                      padding: '12px 15px 5px 15px',
-                                                      gap: '5px',
-                                                      width: '100%',
-                                                      minHeight: '60px',
-                                                      background: '#FFFFFF',
-                                                      border: '0.740384px solid #7F7F7F',
-                                                      borderRadius: '7.7px',
-                                                      boxSizing: 'border-box',
-                                                      position: 'relative',
-                                                      marginTop: '5.27px'
-                                                    }}
-                                                  >
-                                                    <span style={{
-                                                      fontFamily: 'Verdana',
-                                                      fontStyle: 'normal',
-                                                      fontWeight: 400,
-                                                      fontSize: '14.4px',
-                                                      lineHeight: '20px',
-                                                      letterSpacing: '-0.02em',
-                                                      color: '#000000'
-                                                    }}>{addonsText}</span>
-                                                  </div>
-                                                  <label
-                                                    className="absolute bg-white"
-                                                    style={{
-                                                      padding: '0px',
-                                                      height: '14px',
-                                                      left: '8.9px',
-                                                      top: '0px',
-                                                      fontFamily: 'Arial',
-                                                      fontStyle: 'normal',
-                                                      fontWeight: 400,
-                                                      fontSize: '14px',
-                                                      lineHeight: '14px',
-                                                      color: '#7F7F7F'
-                                                    }}
-                                                  >
-                                                    Notes
-                                                  </label>
-                                                </div>
-                                              </div>
-                                            )
-                                          })()}
                                         </div>
 
                                         {/* Action Buttons - Only show if advance fields are showing */}
@@ -10451,7 +10547,7 @@ export default function CaseDesignCenterPage() {
                             }}
                           />
                         )}
-                        {!currentShadeField && showMandibularChart && (
+                        {showMandibularChart && (
                           <MandibularTeethSVG
                             key={`mandibular-${mandibularTeeth.join('-')}`}
                             selectedTeeth={mandibularTeeth}
@@ -10517,7 +10613,7 @@ export default function CaseDesignCenterPage() {
                         sp.subcategoryId === selectedSubcategoryId &&
                         JSON.stringify([...(sp.mandibularTeeth || [])].sort()) === JSON.stringify([...mandibularTeeth].sort())
                       ) && (
-                        <Card className="overflow-hidden border border-gray-200 shadow-sm">
+                        <Card className="overflow-hidden border border-gray-200 shadow-sm -mt-2">
                           <Accordion
                             type="single"
                             collapsible
@@ -10708,7 +10804,6 @@ export default function CaseDesignCenterPage() {
                                     display: 'flex',
                                     flexDirection: 'column',
                                     alignItems: 'flex-start',
-                                    gap: '20px',
                                     background: '#FFFFFF',
                                     boxSizing: 'border-box'
                                   }}
@@ -10817,6 +10912,8 @@ export default function CaseDesignCenterPage() {
                                         selectedImplantBrand={selectedImplantBrand}
                                         selectedImplantPlatform={selectedImplantPlatform}
                                         selectedImplantSize={selectedImplantSize}
+                                        hideFieldsDuringShadeSelection={currentShadeField !== null && currentShadeArch === "mandibular"}
+                                        hideImpression={productDetails?.advance_fields && Array.isArray(productDetails.advance_fields) && productDetails.advance_fields.length > 0}
                                       />
 
                                       {/* Implant Brand/Platform Cards - Shows at the bottom when implant details field is clicked */}
@@ -11045,12 +11142,24 @@ export default function CaseDesignCenterPage() {
                                         isToothShadeFilled("mandibular") && (() => {
                                           // Filter out stump shade from advanced fields - use existing stump shade field instead
                                           const stumpShadeField = getAdvanceFieldByName("stump_shade", productDetails.advance_fields)
-                                          const filteredAdvanceFields = stumpShadeField
-                                            ? productDetails.advance_fields.filter((field: any) => {
-                                              const fieldNameLower = (field.name || "").toLowerCase()
-                                              return !(fieldNameLower.includes("stump") && fieldNameLower.includes("shade"))
-                                            })
-                                            : productDetails.advance_fields
+
+                                          // Check if any tooth has "Implant" retention type for mandibular
+                                          const hasImplantRetention = Object.values(mandibularRetentionTypes).some(
+                                            (types) => types && types.includes('Implant')
+                                          )
+
+                                          const filteredAdvanceFields = productDetails.advance_fields.filter((field: any) => {
+                                            const fieldNameLower = (field.name || "").toLowerCase()
+                                            // Filter out stump shade fields
+                                            if (stumpShadeField && fieldNameLower.includes("stump") && fieldNameLower.includes("shade")) {
+                                              return false
+                                            }
+                                            // Filter out implant_library fields if no tooth has "Implant" retention type
+                                            if (field.field_type === "implant_library" && !hasImplantRetention) {
+                                              return false
+                                            }
+                                            return true
+                                          })
 
                                           // If no fields remain after filtering, don't render the section
                                           if (filteredAdvanceFields.length === 0) {
@@ -11067,7 +11176,6 @@ export default function CaseDesignCenterPage() {
                                                 flexDirection: 'column',
                                                 alignItems: 'flex-start',
                                                 padding: '0px',
-                                                gap: '20px',
                                                 flex: 'none',
                                                 alignSelf: 'stretch',
                                                 flexGrow: 0,
@@ -11631,7 +11739,6 @@ export default function CaseDesignCenterPage() {
                                                                   width: fieldWidth.width,
                                                                   flex: fieldWidth.flex,
                                                                 }}
-                                                                placeholder="Select Implant"
                                                                 readOnly
                                                               />
                                                             )}
@@ -11774,7 +11881,9 @@ export default function CaseDesignCenterPage() {
                                                             color: '#7F7F7F'
                                                           }}
                                                         >
-                                                          {field.name || "Advanced Field"}
+                                                          {field.field_type === "implant_library" && isEmptyOrNotSpecified
+                                                            ? "Select Implant Details"
+                                                            : (field.name || "Advanced Field")}
                                                           {field.is_required === "Yes" && (
                                                             <span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>
                                                           )}
@@ -11788,73 +11897,124 @@ export default function CaseDesignCenterPage() {
                                           )
                                         })()}
 
-                                      {/* Impression Field - HIDDEN: Removed to prevent UI jumping (fields should flow left-to-right, top-to-bottom) */}
-                                      {/* Impression field is now handled separately or removed from this flow */}
+                                      {/* Impression Field - Shown after advance fields are complete */}
+                                      {productDetails?.impressions &&
+                                        Array.isArray(productDetails.impressions) &&
+                                        productDetails.impressions.length > 0 &&
+                                        productDetails?.advance_fields &&
+                                        Array.isArray(productDetails.advance_fields) &&
+                                        productDetails.advance_fields.length > 0 &&
+                                        isToothShadeFilled("mandibular") && (() => {
+                                          // Check if all advance fields are complete
+                                          const filteredAdvanceFields = productDetails.advance_fields.filter((field: any) => {
+                                            const fieldNameLower = (field.name || "").toLowerCase()
+                                            return !(fieldNameLower.includes("stump") && fieldNameLower.includes("shade"))
+                                          })
+
+                                          const allAdvanceFieldsComplete = filteredAdvanceFields.every((field: any) => {
+                                            if (field.field_type === "implant_library") {
+                                              const fieldKey = `advance_${field.id}`
+                                              const brandId = selectedImplantBrand[fieldKey]
+                                              const platformId = selectedImplantPlatform[fieldKey]
+                                              return brandId && platformId
+                                            }
+                                            const fieldKey = `advance_${field.id}`
+                                            const fieldValue = advanceFieldValues[fieldKey]
+                                            return fieldValue && fieldValue.advance_field_value
+                                          })
+
+                                          if (!allAdvanceFieldsComplete) return null
+
+                                          const impressionCount = selectedProduct
+                                            ? getImpressionCount(selectedProduct.id.toString(), "mandibular", productDetails.impressions)
+                                            : 0
+                                          const displayText = selectedProduct
+                                            ? getImpressionDisplayText(selectedProduct.id.toString(), "mandibular", productDetails.impressions)
+                                            : "Select impression"
+                                          const hasImpressionValue = impressionCount > 0 || (displayText && displayText !== "Select impression")
+
+                                          return (
+                                            <div className="flex flex-wrap" style={{ width: '100%', marginTop: '10px' }}>
+                                              <div style={{ flex: '1 1 50%', minWidth: '200px', maxWidth: '50%' }}>
+                                                <div className="relative" style={{ minHeight: '43px', width: '100%' }}>
+                                                  <div
+                                                    className="flex items-center cursor-pointer"
+                                                    onClick={() => {
+                                                      if (selectedProduct) {
+                                                        const tempProduct: SavedProduct = {
+                                                          id: selectedProduct.id.toString(),
+                                                          product: selectedProduct,
+                                                          productDetails: productDetails,
+                                                          category: selectedCategory || "",
+                                                          categoryId: selectedCategoryId || 0,
+                                                          subcategory: selectedSubcategory || "",
+                                                          subcategoryId: selectedSubcategoryId || 0,
+                                                          maxillaryTeeth: maxillaryTeeth,
+                                                          mandibularTeeth: mandibularTeeth,
+                                                          maxillaryMaterial: maxillaryMaterial,
+                                                          maxillaryStumpShade: maxillaryStumpShade,
+                                                          maxillaryRetention: maxillaryRetention,
+                                                          maxillaryImplantDetails: maxillaryImplantDetails,
+                                                          mandibularMaterial: mandibularMaterial,
+                                                          mandibularRetention: mandibularRetention,
+                                                          mandibularStumpShade: mandibularStumpShade,
+                                                          mandibularImplantDetails: mandibularImplantDetails,
+                                                          createdAt: Date.now(),
+                                                          addedFrom: "mandibular",
+                                                        }
+                                                        handleOpenImpressionModal(tempProduct, "mandibular")
+                                                      }
+                                                    }}
+                                                    style={{
+                                                      padding: '12px 15px 5px 15px',
+                                                      gap: '5px',
+                                                      width: '100%',
+                                                      height: '37px',
+                                                      position: 'relative',
+                                                      marginTop: '5.27px',
+                                                      background: '#FFFFFF',
+                                                      border: `0.740384px solid ${hasImpressionValue ? '#119933' : '#ef4444'}`,
+                                                      borderRadius: '7.7px',
+                                                      boxSizing: 'border-box'
+                                                    }}
+                                                  >
+                                                    <span style={{
+                                                      fontFamily: 'Verdana',
+                                                      fontStyle: 'normal',
+                                                      fontWeight: 400,
+                                                      fontSize: '14.4px',
+                                                      lineHeight: '20px',
+                                                      letterSpacing: '-0.02em',
+                                                      color: '#000000',
+                                                      whiteSpace: 'nowrap',
+                                                      paddingRight: hasImpressionValue ? '30px' : '0px'
+                                                    }}>{displayText}</span>
+                                                  </div>
+                                                  <label
+                                                    className="absolute bg-white"
+                                                    style={{
+                                                      padding: '0px',
+                                                      height: '14px',
+                                                      left: '8.9px',
+                                                      top: '0px',
+                                                      fontFamily: 'Arial',
+                                                      fontStyle: 'normal',
+                                                      fontWeight: 400,
+                                                      fontSize: '14px',
+                                                      lineHeight: '14px',
+                                                      color: hasImpressionValue ? '#119933' : '#ef4444'
+                                                    }}
+                                                  >
+                                                    Impression<span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>
+                                                  </label>
+                                                </div>
+                                              </div>
+                                            </div>
+                                          )
+                                        })()}
                                     </>
                                   )}
 
-                                  {/* Notes if available */}
-                                  {mandibularImplantDetails && (
-                                    <div
-                                      className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                      style={{
-                                        display: 'flex',
-                                        flexDirection: 'row',
-                                        alignItems: 'flex-start',
-                                        padding: '0px',
-                                        gap: '20px',
-                                        flex: 'none',
-                                        order: 3,
-                                        alignSelf: 'stretch',
-                                        flexGrow: 0
-                                      }}
-                                    >
-                                      <div className="relative flex-1 min-w-[250px] max-w-[100%]" style={{ minHeight: '43px' }}>
-                                        <div
-                                          className="flex items-start"
-                                          style={{
-                                            padding: '12px 15px 5px 15px',
-                                            gap: '5px',
-                                            width: '100%',
-                                            minHeight: '60px',
-                                            background: '#FFFFFF',
-                                            border: '0.740384px solid #7F7F7F',
-                                            borderRadius: '7.7px',
-                                            boxSizing: 'border-box',
-                                            position: 'relative',
-                                            marginTop: '5.27px'
-                                          }}
-                                        >
-                                          <span style={{
-                                            fontFamily: 'Verdana',
-                                            fontStyle: 'normal',
-                                            fontWeight: 400,
-                                            fontSize: '14.4px',
-                                            lineHeight: '20px',
-                                            letterSpacing: '-0.02em',
-                                            color: '#000000'
-                                          }}>{mandibularImplantDetails}</span>
-                                        </div>
-                                        <label
-                                          className="absolute bg-white"
-                                          style={{
-                                            padding: '0px',
-                                            height: '14px',
-                                            left: '8.9px',
-                                            top: '0px',
-                                            fontFamily: 'Arial',
-                                            fontStyle: 'normal',
-                                            fontWeight: 400,
-                                            fontSize: '14px',
-                                            lineHeight: '14px',
-                                            color: '#7F7F7F'
-                                          }}
-                                        >
-                                          Notes
-                                        </label>
-                                      </div>
-                                    </div>
-                                  )}
                                 </div>
 
                                 {/* Action Buttons - Show when all fields have values */}
@@ -12135,7 +12295,7 @@ export default function CaseDesignCenterPage() {
 
                       {/* Saved Mandibular Products - Display below MANDIBULAR section */}
                       {showMandibularChart && savedProducts.filter(p => p.addedFrom === "mandibular").length > 0 && (
-                        <div className="w-full mt-1 space-y-1">
+                        <div className="w-full -mt-2 space-y-1">
                           {savedProducts
                             .filter(p => p.addedFrom === "mandibular")
                             .map((savedProduct, index) => {
@@ -12364,7 +12524,6 @@ export default function CaseDesignCenterPage() {
                                             display: 'flex',
                                             flexDirection: 'column',
                                             alignItems: 'flex-start',
-                                            gap: '20px',
                                             background: '#FFFFFF',
                                             boxSizing: 'border-box'
                                           }}
@@ -14022,22 +14181,42 @@ export default function CaseDesignCenterPage() {
             setCurrentArchForModal(null)
           }}
           onAddAddOns={(addOns) => {
-            // Handle addons addition - update the saved product
+            // Handle addons addition - save the full product configuration with add-ons
+            // This ensures all product fields (material, retention, shades, stage, impressions, etc.) are preserved
             setSavedProducts((prev) =>
-              prev.map((product) =>
-                product.id === currentProductForModal.id
-                  ? {
-                    ...product,
-                    ...(currentArchForModal === "maxillary"
-                      ? { maxillaryAddOnsStructured: addOns }
-                      : { mandibularAddOnsStructured: addOns }),
-                  }
-                  : product
-              )
+              prev.map((product) => {
+                if (product.id !== currentProductForModal.id) {
+                  return product
+                }
+
+                // Get current product details for impressions
+                const productDetails = product.productDetails || currentProductForModal.productDetails
+                const impressions = productDetails?.impressions || []
+                
+                // Get latest impression selections for this product
+                const maxillaryImpressions = getImpressionSelections(product.id, "maxillary", impressions)
+                const mandibularImpressions = getImpressionSelections(product.id, "mandibular", impressions)
+
+                // Save the complete product configuration with all fields preserved
+                // The product already contains all its configuration from the accordion
+                // We just need to add the new add-ons and ensure impressions are up to date
+                const updatedProduct: SavedProduct = {
+                  ...product, // Preserve all existing configuration (material, retention, shades, stage, etc.)
+                  // Update impressions if we have new selections
+                  ...(maxillaryImpressions.length > 0 && { maxillaryImpressions }),
+                  ...(mandibularImpressions.length > 0 && { mandibularImpressions }),
+                  // Add the new add-ons
+                  ...(currentArchForModal === "maxillary"
+                    ? { maxillaryAddOnsStructured: addOns }
+                    : { mandibularAddOnsStructured: addOns }),
+                }
+
+                return updatedProduct
+              })
             )
             toast({
               title: "Add-ons Added",
-              description: `${addOns.length} add-on(s) have been added to the ${currentArchForModal} product`,
+              description: `${addOns.length} add-on(s) have been added to the ${currentArchForModal} product. Product configuration saved.`,
             })
             setShowAddOnsModal(false)
             setCurrentProductForModal(null)

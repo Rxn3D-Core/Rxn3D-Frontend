@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useRef, useCallback } from "react"
 import {
   Select,
   SelectContent,
@@ -77,6 +77,10 @@ interface DynamicProductFieldsProps {
   selectedImplantBrand?: { [fieldKey: string]: number | null }
   selectedImplantPlatform?: { [fieldKey: string]: number | null }
   selectedImplantSize?: { [fieldKey: string]: string | null }
+  // Hide fields during shade selection (to focus user on shade selection)
+  hideFieldsDuringShadeSelection?: boolean
+  // Hide impression field (to render it separately after advance fields)
+  hideImpression?: boolean
 }
 
 // Stage Selection Modal Component
@@ -254,10 +258,60 @@ export function DynamicProductFields({
   selectedImplantBrand = {},
   selectedImplantPlatform = {},
   selectedImplantSize = {},
+  hideFieldsDuringShadeSelection = false,
+  hideImpression = false,
 }: DynamicProductFieldsProps) {
   // State for stage selection modal
   const [isStageModalOpen, setIsStageModalOpen] = useState(false)
-  
+
+  // State for tracking focused field
+  const [focusedFieldKey, setFocusedFieldKey] = useState<string | null>(null)
+
+  // Refs for field elements to enable auto-focus
+  const fieldRefs = useRef<Record<string, HTMLButtonElement | HTMLDivElement | null>>({})
+
+  // Helper to get the first empty required field key
+  const getFirstEmptyRequiredFieldKey = useCallback((): string | null => {
+    // Order of required fields by sequence
+    const requiredFieldOrder = ["material", "retention", "stump_shade", "tooth_shade", "stage"]
+
+    for (const fieldKey of requiredFieldOrder) {
+      const config = fieldConfigs.find(f => f.key === fieldKey)
+      if (!config) continue
+
+      // Check if the field is visible
+      const stateKey = arch === "maxillary" ? config.maxillaryStateKey : config.mandibularStateKey
+      if (!stateKey) continue
+
+      const fieldValue = savedProduct[stateKey as keyof typeof savedProduct] as string | undefined
+
+      // Check if field is empty
+      if (!fieldValue || fieldValue.trim() === "" || fieldValue.toLowerCase() === "not specified" || fieldValue.toLowerCase().startsWith("select")) {
+        return fieldKey
+      }
+    }
+
+    return null
+  }, [fieldConfigs, savedProduct, arch])
+
+  // Auto-focus the first empty required field
+  useEffect(() => {
+    const firstEmptyField = getFirstEmptyRequiredFieldKey()
+    if (firstEmptyField && firstEmptyField !== focusedFieldKey) {
+      // Small delay to ensure fields are rendered
+      const timer = setTimeout(() => {
+        const fieldRef = fieldRefs.current[firstEmptyField]
+        if (fieldRef) {
+          // For select fields, trigger click to open dropdown
+          // For shade fields, the click handler will open the modal
+          setFocusedFieldKey(firstEmptyField)
+        }
+      }, 150)
+
+      return () => clearTimeout(timer)
+    }
+  }, [getFirstEmptyRequiredFieldKey, focusedFieldKey])
+
   // State to track implant selection step: 'brand' | 'platform'
   const [implantSelectionStep, setImplantSelectionStep] = useState<'brand' | 'platform'>('brand')
   
@@ -308,11 +362,6 @@ export function DynamicProductFields({
     implants.length > 0 && 
     (implantSelectionStep === 'brand' || !selectedImplantId || platforms.length === 0)
 
-  // Helper to get placeholder text for a field
-  const getPlaceholderText = (config: FieldConfig): string => {
-    return `Select ${config.label}`
-  }
-
   // Helper to check if a value is actually set (not empty, not "Not specified", not "Select...", not undefined, not null)
   const hasValue = (value: string | undefined | null): boolean => {
     if (!value) return false
@@ -348,19 +397,25 @@ export function DynamicProductFields({
   const hasRetentionTypeSelected = (): boolean => {
     const teeth = arch === "maxillary" ? maxillaryTeeth : mandibularTeeth
     const retentionTypes = arch === "maxillary" ? maxillaryRetentionTypes : mandibularRetentionTypes
-    
+
+    // If retention already has a saved value, show the field (for saved products)
+    const retentionValue = getFieldValueByKey("retention")
+    if (hasValue(retentionValue)) {
+      return true
+    }
+
     // If no teeth are selected, don't show the field
     if (!teeth || teeth.length === 0) {
       return false
     }
-    
+
     // Check if any tooth in the product has a retention type selected from popover
     const hasSelection = teeth.some(toothNumber => {
       const types = retentionTypes[toothNumber] || []
       // Only return true if there's actually a retention type selected (Implant, Prep, or Pontic)
       return types.length > 0 && (types.includes('Implant') || types.includes('Prep') || types.includes('Pontic'))
     })
-    
+
     return hasSelection
   }
 
@@ -469,28 +524,60 @@ export function DynamicProductFields({
         const allAdvanceFieldsCompleted = filteredAdvanceFields.every((field: any) => {
           // Check if this is an implant_library field (implant details)
           if (field.field_type === "implant_library") {
-            const fieldKey = `advance_${field.id}`
-            
-            // First, check if brand, platform, and size are all selected (most reliable check)
-            const brandId = selectedImplantBrand[fieldKey]
-            const platformId = selectedImplantPlatform[fieldKey]
-            const size = selectedImplantSize[fieldKey]
-            if (brandId && platformId && size) {
-              return true
-            }
-            
-            // Fallback: check if implant details string is filled
+            // First, check if implant details string is filled (this is the most reliable indicator)
+            // This is set when the form is filled and contains all the implant information
             const implantDetails = arch === "maxillary" 
               ? (savedProduct.maxillaryImplantDetails || (savedProduct as any).maxillaryImplantDetails)
               : (savedProduct.mandibularImplantDetails || (savedProduct as any).mandibularImplantDetails)
-            // Ensure we have a valid string value before checking
-            if (implantDetails && typeof implantDetails === "string" && implantDetails.trim() !== "") {
-              return hasValue(implantDetails)
+            
+            // If we have a meaningful implant details string, consider it complete
+            // This handles the case where the form is filled but state variables might not be set yet
+            if (implantDetails) {
+              let detailsStr = ""
+              if (typeof implantDetails === "string") {
+                detailsStr = implantDetails.trim()
+              } else if (typeof implantDetails === "object" && implantDetails.value) {
+                detailsStr = String(implantDetails.value).trim()
+              }
+              
+              // Check if the string contains meaningful content (not empty, not placeholder)
+              // Be lenient - if it exists and is not a placeholder, consider it complete
+              if (detailsStr && detailsStr.length > 0) {
+                const lowerStr = detailsStr.toLowerCase().trim()
+                // Only reject if it's clearly a placeholder or empty
+                const isPlaceholder = lowerStr === "" ||
+                                     lowerStr === "not specified" ||
+                                     lowerStr.startsWith("select") ||
+                                     lowerStr === "none" ||
+                                     lowerStr === "null" ||
+                                     lowerStr === "undefined"
+                
+                if (!isPlaceholder) {
+                  return true
+                }
+              }
             }
-            // Also check if it's an object with a value property
-            if (implantDetails && typeof implantDetails === "object" && implantDetails.value) {
-              return hasValue(String(implantDetails.value))
+            
+            // Fallback: check if brand, platform, and size are all selected via state variables
+            const fieldKey = `advance_${field.id}`
+            const brandId = selectedImplantBrand[fieldKey]
+            const platformId = selectedImplantPlatform[fieldKey]
+            const size = selectedImplantSize[fieldKey]
+            
+            // Check if all three are set (using more robust checks)
+            const hasBrand = brandId !== null && brandId !== undefined && brandId !== 0
+            const hasPlatform = platformId !== null && platformId !== undefined && platformId !== 0
+            const hasSize = size !== null && size !== undefined && size !== "" && size.trim() !== ""
+            
+            if (hasBrand && hasPlatform && hasSize) {
+              return true
             }
+            
+            // If we have at least brand and platform selected, consider it complete (size might be optional in some cases)
+            if (hasBrand && hasPlatform) {
+              return true
+            }
+            
             return false
           }
           
@@ -507,13 +594,12 @@ export function DynamicProductFields({
           return false
         })
         
-        // If advance fields exist, show impression only after they are all completed
-        // Also ensure tooth_shade is filled (required for advance fields to be visible)
-        const toothShadeValue = getFieldValueByKey("tooth_shade")
-        return allAdvanceFieldsCompleted && hasValue(toothShadeValue)
+        // If advance fields exist, show impression as soon as all advance fields are completed
+        // (tooth_shade is already required for advance fields to be visible, so no need to check again)
+        return allAdvanceFieldsCompleted
       }
       
-      // If no advance fields exist, show impression after tooth_shade
+      // If no advance fields exist, show impression directly after tooth_shade
       const toothShadeValue = getFieldValueByKey("tooth_shade")
       return hasValue(toothShadeValue)
     }
@@ -560,6 +646,70 @@ export function DynamicProductFields({
     }
   }, [productDetails, savedProduct, arch, fieldConfigs])
 
+  // Auto-open shade modal when stump_shade or tooth_shade field becomes visible and value is empty
+  useEffect(() => {
+    // Check stump_shade field
+    const stumpShadeConfig = fieldConfigs.find(f => f.key === "stump_shade")
+    if (stumpShadeConfig) {
+      const stumpShadeValue = getFieldValueByKey("stump_shade")
+      const isStumpShadeVisible = isFieldVisibleProgressive(stumpShadeConfig)
+      const isStumpShadeEmpty = !hasValue(stumpShadeValue)
+
+      if (isStumpShadeVisible && isStumpShadeEmpty && onOpenShadeModal) {
+        // Small delay to ensure the component is ready
+        const timer = setTimeout(() => {
+          setFocusedFieldKey("stump_shade")
+          onOpenShadeModal("stump_shade", arch)
+        }, 200)
+
+        return () => clearTimeout(timer)
+      }
+    }
+  }, [productDetails, savedProduct, arch, fieldConfigs, onOpenShadeModal])
+
+  // Auto-open shade modal when tooth_shade field becomes visible and value is empty
+  useEffect(() => {
+    // Check tooth_shade field
+    const toothShadeConfig = fieldConfigs.find(f => f.key === "tooth_shade")
+    if (toothShadeConfig) {
+      const toothShadeValue = getFieldValueByKey("tooth_shade")
+      const isToothShadeVisible = isFieldVisibleProgressive(toothShadeConfig)
+      const isToothShadeEmpty = !hasValue(toothShadeValue)
+
+      if (isToothShadeVisible && isToothShadeEmpty && onOpenShadeModal) {
+        // Small delay to ensure the component is ready
+        const timer = setTimeout(() => {
+          setFocusedFieldKey("tooth_shade")
+          onOpenShadeModal("tooth_shade", arch)
+        }, 200)
+
+        return () => clearTimeout(timer)
+      }
+    }
+  }, [productDetails, savedProduct, arch, fieldConfigs, onOpenShadeModal])
+
+  // Auto-open impression modal when impression field becomes visible and value is empty
+  useEffect(() => {
+    // Check impression field
+    const impressionConfig = fieldConfigs.find(f => f.key === "impression")
+    if (impressionConfig) {
+      const impressionCount = getImpressionCount ? getImpressionCount() : 0
+      const impressionDisplayText = getImpressionDisplayText ? getImpressionDisplayText() : ""
+      const isImpressionVisible = isFieldVisibleProgressive(impressionConfig)
+      const isImpressionEmpty = !hasImpressionValue(impressionCount, impressionDisplayText)
+
+      if (isImpressionVisible && isImpressionEmpty && onOpenImpressionModal) {
+        // Small delay to ensure the component is ready
+        const timer = setTimeout(() => {
+          setFocusedFieldKey("impression")
+          onOpenImpressionModal()
+        }, 200)
+
+        return () => clearTimeout(timer)
+      }
+    }
+  }, [productDetails, savedProduct, arch, fieldConfigs, onOpenImpressionModal, getImpressionCount, getImpressionDisplayText])
+
   // Helper to check if all required fields are filled (for showing advance fields)
   const areAllRequiredFieldsFilled = (): boolean => {
     const materialValue = getFieldValueByKey("material")
@@ -585,7 +735,16 @@ export function DynamicProductFields({
       if (config.key === "impression" || config.key === "impressions") {
         return false
       }
-      
+
+      // Hide material, retention, retention_option, and stage during shade selection
+      // to focus user only on stump shade and tooth shade selection
+      if (hideFieldsDuringShadeSelection) {
+        const hiddenFields = ["material", "retention", "retention_option", "stage"]
+        if (hiddenFields.includes(config.key)) {
+          return false
+        }
+      }
+
       if (!productDetails) return false
       const apiData = productDetails[config.apiProperty]
       if (!apiData || !Array.isArray(apiData) || apiData.length === 0) {
@@ -685,9 +844,8 @@ export function DynamicProductFields({
 
   // Helper to check if a field is required
   const isFieldRequired = (config: FieldConfig): boolean => {
-    // All standard fields are required (material, retention, stump_shade, tooth_shade, stage)
-    // Impression field removed - fields now flow left-to-right, top-to-bottom without jumping
-    const requiredFields = ["material", "retention", "stump_shade", "tooth_shade", "stage"]
+    // All standard fields are required (material, retention, stump_shade, tooth_shade, stage, impression)
+    const requiredFields = ["material", "retention", "stump_shade", "tooth_shade", "stage", "impression"]
     return requiredFields.includes(config.key)
   }
 
@@ -809,29 +967,38 @@ export function DynamicProductFields({
 
     if (config.fieldType === "modal" && config.key === "impression") {
       const impressionCount = getImpressionCount ? getImpressionCount() : 0
-      const displayText = getImpressionDisplayText 
+      const displayText = getImpressionDisplayText
         ? getImpressionDisplayText()
         : (impressionCount > 0
           ? `${impressionCount} impression${impressionCount > 1 ? "s" : ""} selected`
-          : "Select impression")
-      
+          : "") // Show blank instead of placeholder
+
       // Get border color based on validation state
       const borderColor = getFieldBorderColor(config, displayText, impressionCount)
       const labelColor = getFieldLabelColor(config, displayText, impressionCount)
+      // Check if this field should be focused
+      const isFocused = focusedFieldKey === config.key && !hasImpressionValue(impressionCount, displayText)
 
       const fieldWidth = getResponsiveFieldWidth(config, displayText)
 
       return (
-        <div 
-          className="relative" 
-          style={{ 
+        <div
+          className="relative"
+          style={{
             minHeight: '43px',
             ...fieldWidth
           }}
         >
           <div
-            className="flex items-center cursor-pointer"
-            onClick={onOpenImpressionModal}
+            ref={(el) => { fieldRefs.current[config.key] = el }}
+            className={cn(
+              "flex items-center cursor-pointer transition-all duration-200",
+              isFocused && "ring-2 ring-[#1162A8] ring-opacity-50 shadow-[0_0_0_4px_rgba(17,98,168,0.15)]"
+            )}
+            onClick={() => {
+              setFocusedFieldKey(config.key)
+              if (onOpenImpressionModal) onOpenImpressionModal()
+            }}
             style={{
               padding: '12px 15px 5px 15px',
               gap: '5px',
@@ -840,7 +1007,7 @@ export function DynamicProductFields({
               position: 'relative',
               marginTop: '5.27px',
               background: '#FFFFFF',
-              border: `0.740384px solid ${borderColor}`,
+              border: `0.740384px solid ${isFocused ? '#1162A8' : borderColor}`,
               borderRadius: '7.7px',
               boxSizing: 'border-box'
             }}
@@ -863,7 +1030,7 @@ export function DynamicProductFields({
             )}
           </div>
           <label
-            className="absolute bg-white"
+            className="absolute bg-white transition-colors duration-200"
             style={{
               padding: '0px',
               height: '14px',
@@ -874,7 +1041,7 @@ export function DynamicProductFields({
               fontWeight: 400,
               fontSize: '14px',
               lineHeight: '14px',
-              color: labelColor
+              color: isFocused ? '#1162A8' : labelColor
             }}
           >
             {config.label}
@@ -889,33 +1056,42 @@ export function DynamicProductFields({
     if (config.fieldType === "select") {
       // Special handling for stage field - use modal instead of dropdown
       if (config.key === "stage") {
-        const displayValue = value || getPlaceholderText(config)
+        const displayValue = value || "" // Show blank when empty
         const borderColor = getFieldBorderColor(config, value)
         const labelColor = getFieldLabelColor(config, value)
         const fieldWidth = getResponsiveFieldWidth(config, displayValue, options)
         const stages = productDetails?.stages || []
+        // Check if this field should be focused
+        const isFocused = focusedFieldKey === config.key && !hasValue(value)
 
         return (
           <>
-            <div 
-              className="relative" 
-              style={{ 
+            <div
+              className="relative"
+              style={{
                 minHeight: '43px',
                 ...fieldWidth
               }}
             >
               <div
-                className="flex items-center cursor-pointer"
-                onClick={() => setIsStageModalOpen(true)}
+                ref={(el) => { fieldRefs.current[config.key] = el }}
+                className={cn(
+                  "flex items-center cursor-pointer transition-all duration-200",
+                  isFocused && "ring-2 ring-[#1162A8] ring-opacity-50 shadow-[0_0_0_4px_rgba(17,98,168,0.15)]"
+                )}
+                onClick={() => {
+                  setFocusedFieldKey(config.key)
+                  setIsStageModalOpen(true)
+                }}
                 style={{
                   padding: '12px 15px 5px 15px',
                   gap: '5px',
                   width: '100%',
                   height: '37px',
                   position: 'relative',
-                  marginTop: '5.27px',
+                  marginTop: '0px',
                   background: '#FFFFFF',
-                  border: `0.740384px solid ${borderColor}`,
+                  border: `0.740384px solid ${isFocused ? '#1162A8' : borderColor}`,
                   borderRadius: '7.7px',
                   boxSizing: 'border-box'
                 }}
@@ -937,7 +1113,7 @@ export function DynamicProductFields({
                 )}
               </div>
               <label
-                className="absolute bg-white"
+                className="absolute bg-white transition-colors duration-200"
                 style={{
                   padding: '0px',
                   height: '14px',
@@ -948,16 +1124,16 @@ export function DynamicProductFields({
                   fontWeight: 400,
                   fontSize: '14px',
                   lineHeight: '14px',
-                  color: labelColor
+                  color: isFocused ? '#1162A8' : labelColor
                 }}
               >
-                {config.label}
+                {hasValue(value) ? config.label : `Select ${config.label}`}
                 {isFieldRequired(config) && (
                   <span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>
                 )}
               </label>
             </div>
-            
+
             {/* Stage Selection Modal */}
             {isStageModalOpen && (
               <StageSelectionModal
@@ -966,6 +1142,7 @@ export function DynamicProductFields({
                 onSelect={(stageName: string, stageId?: number) => {
                   onFieldChange(config.key, stageName, stageId)
                   setIsStageModalOpen(false)
+                  setFocusedFieldKey(null) // Clear focus after selection
                 }}
                 onClose={() => setIsStageModalOpen(false)}
               />
@@ -986,16 +1163,18 @@ export function DynamicProductFields({
         }
       }
 
-      const placeholderText = getPlaceholderText(config)
-      const displayValue = value || placeholderText
+      const displayValue = value || "" // Show blank when empty
       const borderColor = getFieldBorderColor(config, value)
       const labelColor = getFieldLabelColor(config, value)
       const fieldWidth = getResponsiveFieldWidth(config, displayValue, options)
 
+      // Check if this field should be focused
+      const isFocused = focusedFieldKey === config.key && !hasValue(value)
+
       return (
-        <div 
-          className="relative" 
-          style={{ 
+        <div
+          className="relative"
+          style={{
             minHeight: '43px',
             ...fieldWidth
           }}
@@ -1011,9 +1190,25 @@ export function DynamicProductFields({
               } else {
                 onFieldChange(config.key, selectedValue)
               }
+              // Clear focus after selection
+              setFocusedFieldKey(null)
+            }}
+            onOpenChange={(open) => {
+              if (open) {
+                setFocusedFieldKey(config.key)
+              } else if (!hasValue(value)) {
+                // Keep focus indicator if field is still empty
+              } else {
+                setFocusedFieldKey(null)
+              }
             }}
           >
             <SelectTrigger
+              ref={(el) => { fieldRefs.current[config.key] = el }}
+              className={cn(
+                "transition-all duration-200",
+                isFocused && "ring-2 ring-[#1162A8] ring-opacity-50 shadow-[0_0_0_4px_rgba(17,98,168,0.15)]"
+              )}
               style={{
                 padding: '12px 15px 5px 15px',
                 gap: '5px',
@@ -1022,13 +1217,13 @@ export function DynamicProductFields({
                 position: 'relative',
                 marginTop: '5.27px',
                 background: '#FFFFFF',
-                border: `0.740384px solid ${borderColor}`,
+                border: `0.740384px solid ${isFocused ? '#1162A8' : borderColor}`,
                 borderRadius: '7.7px',
                 boxSizing: 'border-box'
               }}
             >
-              <SelectValue placeholder={placeholderText}>
-                {value || placeholderText}
+              <SelectValue placeholder="">
+                {value || ""} {/* Show blank when empty */}
               </SelectValue>
               {hasValue(value) && (
                 <div className="absolute right-[12.32px] top-1/2 -translate-y-1/2 pointer-events-none">
@@ -1048,7 +1243,7 @@ export function DynamicProductFields({
             </SelectContent>
           </Select>
           <label
-            className="absolute bg-white"
+            className="absolute bg-white transition-colors duration-200"
             style={{
               padding: '0px',
               height: '14px',
@@ -1059,12 +1254,12 @@ export function DynamicProductFields({
               fontWeight: 400,
               fontSize: '14px',
               lineHeight: '14px',
-              color: labelColor
+              color: isFocused ? '#1162A8' : labelColor
             }}
           >
-            {config.key === "retention" 
+            {config.key === "retention"
               ? (hasValidRetentionValue(value) ? 'Retention type' : 'Select Retention type')
-              : config.label}
+              : (hasValue(value) ? config.label : `Select ${config.label}`)}
             {isFieldRequired(config) && (
               <span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>
             )}
@@ -1074,15 +1269,18 @@ export function DynamicProductFields({
     }
 
     if (config.fieldType === "shade") {
-      const placeholderText = getPlaceholderText(config)
-      const shadeValue = value || placeholderText
+      const shadeValue = value || "" // Show blank when empty
       const borderColor = getFieldBorderColor(config, value)
       const labelColor = getFieldLabelColor(config, value)
+      // Check if this field should be focused - use red for empty shade fields
+      const isFocused = focusedFieldKey === config.key && !hasValue(value)
+      // For shade fields, use red color when focused and empty (required field)
+      const focusColor = '#ef4444' // Red for required empty shade fields
       const shadeBrand = arch === "maxillary"
         ? savedProduct.maxillaryShadeBrand
         : savedProduct.mandibularShadeBrand
       const brandName = shadeBrand ? "Vita 3D Master" : ""
-      
+
       // Extract shade name from value - handle formats like "Brand - Shade" or just "Shade"
       let shadeName = 'A1' // default
       if (value && hasValue(value)) {
@@ -1094,10 +1292,10 @@ export function DynamicProductFields({
           shadeName = value.trim()
         }
       }
-      
+
       // Get gradient colors for the selected shade
       const gradientColors = getShadeGradientColors(shadeName)
-      
+
       // Create unique gradient ID for this field based on value to ensure proper updates
       // Replace dots and other special chars with dashes for valid CSS IDs
       const safeShadeName = shadeName.replace(/[^a-zA-Z0-9]/g, '-')
@@ -1108,10 +1306,15 @@ export function DynamicProductFields({
       return (
         <div className="relative" style={{ minHeight: '43px', width: '100%' }}>
           <div
-            className="flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors"
+            ref={(el) => { fieldRefs.current[config.key] = el }}
+            className={cn(
+              "flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-all duration-200",
+              isFocused && "ring-2 ring-red-500 ring-opacity-50 shadow-[0_0_0_4px_rgba(239,68,68,0.15)]"
+            )}
             onClick={(e) => {
               e.preventDefault()
               e.stopPropagation()
+              setFocusedFieldKey(config.key)
               if (onOpenShadeModal) {
                 onOpenShadeModal(config.key, arch)
               } else {
@@ -1124,7 +1327,7 @@ export function DynamicProductFields({
               width: '100%',
               height: '37px',
               background: '#FFFFFF',
-              border: `0.740384px solid ${borderColor}`,
+              border: `0.740384px solid ${isFocused ? focusColor : borderColor}`,
               borderRadius: '7.7px',
               boxSizing: 'border-box',
               position: 'relative',
@@ -1141,11 +1344,6 @@ export function DynamicProductFields({
               color: '#000000'
             }}>{brandName || shadeValue}</span>
             {hasValue(value) && (
-              <div className="absolute right-[50px] top-1/2 -translate-y-1/2 pointer-events-none z-10">
-                <Check className="h-5 w-5 text-[#119933]" aria-label="Valid" />
-              </div>
-            )}
-            {hasValue(value) && (
               <div
                 className="flex items-center justify-center pointer-events-none"
                 style={{
@@ -1153,7 +1351,7 @@ export function DynamicProductFields({
                   height: '41.97px',
                   borderRadius: '8px',
                   position: 'absolute',
-                  right: '0px',
+                  right: '50px',
                   top: '-1px'
                 }}
               >
@@ -1226,9 +1424,14 @@ export function DynamicProductFields({
                 </svg>
               </div>
             )}
+            {hasValue(value) && (
+              <div className="absolute right-[12.32px] top-1/2 -translate-y-1/2 pointer-events-none z-10">
+                <Check className="h-5 w-5 text-[#119933]" aria-label="Valid" />
+              </div>
+            )}
           </div>
           <label
-            className="absolute bg-white"
+            className="absolute bg-white transition-colors duration-200"
             style={{
               padding: '0px',
               height: '14px',
@@ -1239,10 +1442,10 @@ export function DynamicProductFields({
               fontWeight: 400,
               fontSize: '14px',
               lineHeight: '14px',
-              color: labelColor
+              color: isFocused ? focusColor : labelColor
             }}
           >
-            {config.label}
+            {hasValue(value) ? config.label : `Select ${config.label}`}
             {isFieldRequired(config) && (
               <span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>
             )}
@@ -1264,7 +1467,7 @@ export function DynamicProductFields({
           flexDirection: 'row',
           alignItems: 'flex-start',
           padding: '0px',
-          gap: '5px',
+          gap: '0px',
           width: '100%'
         }}
       >
@@ -1272,23 +1475,24 @@ export function DynamicProductFields({
           <div
             key={field.key}
             style={{
-              flex: '1 1 calc(50% - 10px)',
+              flex: '1 1 50%',
               minWidth: '200px',
-              maxWidth: 'calc(50% - 10px)'
+              maxWidth: '50%'
             }}
           >
             {renderField(field)}
           </div>
         ))}
-        
+
         {/* Render impression field after advance fields (or after main fields if no advance fields) */}
-        {shouldShowImpression && impressionConfig && (
+        {/* hideImpression prop allows parent to render impression separately after advance fields */}
+        {!hideImpression && shouldShowImpression && impressionConfig && (
           <div
             key={impressionConfig.key}
             style={{
-              flex: '1 1 calc(50% - 10px)',
+              flex: '1 1 50%',
               minWidth: '200px',
-              maxWidth: 'calc(50% - 10px)'
+              maxWidth: '50%'
             }}
           >
             {renderField(impressionConfig)}
