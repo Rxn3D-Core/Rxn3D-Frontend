@@ -144,25 +144,25 @@ const CreatedBySection = ({ createdBy, variant = "default" }: { createdBy: strin
 
   if (variant === "compact") {
     return (
-      <div className="flex flex-col items-center gap-[15px] w-[170px]">
-        <div className="w-[72.74px] h-[72.74px] rounded-full overflow-hidden">
+      <div className="flex flex-col items-center gap-[10px] w-[150px]">
+        <div className="w-[55px] h-[55px] rounded-full overflow-hidden">
           <Avatar className="w-full h-full">
             <AvatarImage
               src="/images/created-by.png"
               alt="Created By"
             />
-            <AvatarFallback className="bg-gray-200 text-gray-600">
+            <AvatarFallback className="bg-gray-200 text-gray-600 text-sm">
               {getInitials(createdBy)}
             </AvatarFallback>
           </Avatar>
         </div>
-        <div className="relative w-[170px] h-[34px]">
+        <div className="relative w-[150px] h-[30px]">
           <Input
             value={createdBy}
             readOnly
-            className="w-[170px] h-[34px] text-[14px] leading-[17px] text-[#1F2937] border-[#7F7F7F] rounded-[7px] px-[11.2px] py-[8.4px]"
+            className="w-[150px] h-[30px] text-[12px] leading-[15px] text-[#1F2937] border-[#7F7F7F] rounded-[7px] px-[10px] py-[6px]"
           />
-          <label className="absolute -top-[5.59px] left-[8.39px] bg-white px-0 text-[12px] leading-[13px] text-[#7F7F7F]">
+          <label className="absolute -top-[5px] left-[8px] bg-white px-0 text-[11px] leading-[12px] text-[#7F7F7F]">
             Created By
           </label>
         </div>
@@ -277,28 +277,28 @@ const DoctorInfoSection = ({ doctor, variant = "default" }: { doctor: Doctor; va
 
   if (variant === "full") {
     return (
-      <div className="flex flex-col items-center gap-[9px] w-[200px] h-[134.92px]">
-        <div className="flex items-end gap-0 w-[117.92px] h-[103.92px]">
+      <div className="flex flex-col items-center gap-[6px] w-[170px] h-[105px]">
+        <div className="flex items-end gap-0 w-[85px] h-[75px]">
           <div className="relative">
-            <Avatar className="w-[103.92px] h-[103.92px]">
+            <Avatar className="w-[75px] h-[75px]">
               <AvatarImage
                 src={doctor?.image || "/images/doctor-image.png"}
                 alt={`${doctor?.first_name || ""} ${doctor?.last_name || ""}`}
               />
-              <AvatarFallback className="bg-[#1162a8] text-white text-2xl font-bold">
+              <AvatarFallback className="bg-[#1162a8] text-white text-xl font-bold">
                 {getInitials(doctor?.first_name || "", doctor?.last_name || "")}
               </AvatarFallback>
             </Avatar>
             <button
               onClick={handleEditClick}
-              className="absolute -bottom-1 -right-1 bg-white rounded-full p-1 border border-gray-200 hover:bg-gray-50 cursor-pointer transition-colors"
+              className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 border border-gray-200 hover:bg-gray-50 cursor-pointer transition-colors"
               aria-label="Edit doctor"
             >
-              <Pencil className="w-[18px] h-[18px] text-[#B4B0B0]" />
+              <Pencil className="w-[14px] h-[14px] text-[#B4B0B0]" />
             </button>
           </div>
         </div>
-        <p className="w-[200px] h-[22px] text-[17px] font-normal leading-[22px] tracking-[-0.02em] text-black text-center">
+        <p className="w-[170px] h-[18px] text-[14px] font-normal leading-[18px] tracking-[-0.02em] text-black text-center">
           {doctor?.first_name} {doctor?.last_name}, DDS
         </p>
       </div>
@@ -527,9 +527,9 @@ const PatientInfoSection = ({
   }
 
   return (
-    <div className="w-full relative" style={{ height: showGenderField ? "104.9px" : "36.95px" }}>
+    <div className="w-full relative" style={{ height: showGenderField ? "85px" : "32px" }}>
       {/* Patient Name */}
-      <div className="absolute" style={{ left: "10px", top: "10px", width: "330px", height: "36.95px" }}>
+      <div className="absolute" style={{ left: "10px", top: "8px", width: "300px", height: "32px" }}>
         <div className="relative w-full h-full">
           <input
             ref={patientNameInputRef}
@@ -546,13 +546,13 @@ const PatientInfoSection = ({
               !isNameFocused && "hover:shadow-[0_0_8px_rgba(17,98,168,0.2)] transition-shadow duration-150"
             )}
             style={{
-              padding: "25px 12.8px 9.24px 12.32px",
+              padding: "18px 10px 6px 10px",
               borderWidth: "0.740384px",
               fontFamily: "Arial",
               fontStyle: "normal",
               fontWeight: 400,
-              fontSize: "17px",
-              lineHeight: "18px",
+              fontSize: "14px",
+              lineHeight: "16px",
               transitionDuration: isNameFocused ? "250ms" : "150ms",
               transitionTimingFunction: isNameFocused ? "ease-in-out" : "ease-out",
             }}
@@ -563,15 +563,15 @@ const PatientInfoSection = ({
               getNameLabelColor()
             )}
             style={{
-              left: "9.23px",
-              top: "-6.15px",
-              width: hasNameValue && isNameValid ? "83px" : "120px",
-              height: "14px",
+              left: "8px",
+              top: "-5px",
+              width: hasNameValue && isNameValid ? "75px" : "110px",
+              height: "12px",
               fontFamily: "Arial",
               fontStyle: "normal",
               fontWeight: 400,
-              fontSize: "14px",
-              lineHeight: "14px",
+              fontSize: "12px",
+              lineHeight: "12px",
             }}
           >
             {hasNameValue && isNameValid ? "Patient name" : "Type patient name"}
@@ -587,7 +587,7 @@ const PatientInfoSection = ({
 
       {/* Gender - Only show when patient name has a value */}
       {showGenderField && (
-        <div className="absolute" style={{ left: "10px", top: "57.95px", width: "330px", height: "36.95px" }}>
+        <div className="absolute" style={{ left: "10px", top: "48px", width: "300px", height: "32px" }}>
           <div className="relative w-full h-full">
             {/* Custom Gender Dropdown */}
             <div
@@ -599,13 +599,13 @@ const PatientInfoSection = ({
                 !isGenderFocused && "hover:shadow-[0_0_8px_rgba(17,98,168,0.2)] transition-shadow duration-150"
               )}
               style={{
-                padding: "25px 12.8px 9.24px 12.32px",
+                padding: "18px 10px 6px 10px",
                 borderWidth: "0.740384px",
                 fontFamily: "Arial",
                 fontStyle: "normal",
                 fontWeight: 400,
-                fontSize: "17px",
-                lineHeight: "18px",
+                fontSize: "14px",
+                lineHeight: "16px",
                 transitionDuration: isGenderFocused ? "250ms" : "150ms",
                 transitionTimingFunction: isGenderFocused ? "ease-in-out" : "ease-out",
               }}
@@ -638,22 +638,22 @@ const PatientInfoSection = ({
                 }}
               >
                 <div
-                  className="px-3 py-2 hover:bg-[#DFEEFB] cursor-pointer text-[#1F2937] transition-colors"
+                  className="px-2.5 py-1.5 hover:bg-[#DFEEFB] cursor-pointer text-[#1F2937] transition-colors"
                   style={{
                     fontFamily: "Arial",
-                    fontSize: "17px",
-                    lineHeight: "18px",
+                    fontSize: "14px",
+                    lineHeight: "16px",
                   }}
                   onClick={() => handleGenderSelect("male")}
                 >
                   Male
                 </div>
                 <div
-                  className="px-3 py-2 hover:bg-[#DFEEFB] cursor-pointer text-[#1F2937] transition-colors"
+                  className="px-2.5 py-1.5 hover:bg-[#DFEEFB] cursor-pointer text-[#1F2937] transition-colors"
                   style={{
                     fontFamily: "Arial",
-                    fontSize: "17px",
-                    lineHeight: "18px",
+                    fontSize: "14px",
+                    lineHeight: "16px",
                   }}
                   onClick={() => handleGenderSelect("female")}
                 >
@@ -668,15 +668,15 @@ const PatientInfoSection = ({
                 getGenderLabelColor()
               )}
               style={{
-                left: "9.23px",
-                top: "-6.15px",
-                width: "47px",
-                height: "14px",
+                left: "8px",
+                top: "-5px",
+                width: "42px",
+                height: "12px",
                 fontFamily: "Arial",
                 fontStyle: "normal",
                 fontWeight: 400,
-                fontSize: "14px",
-                lineHeight: "14px",
+                fontSize: "12px",
+                lineHeight: "12px",
               }}
             >
               Gender
@@ -791,7 +791,7 @@ export function SlipCreationHeader({
         {/* Second Header - Frame 2381 */}
         {!hideSecondHeader && (
           <div className="bg-white">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 px-3 sm:px-4 md:px-5 py-3 sm:py-4">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-3 px-3 sm:px-4 md:px-5 py-2 sm:py-2.5">
               {/* Left: Doctor Info */}
               {doctor ? (
                 <div className="flex items-center justify-center w-full sm:w-auto">

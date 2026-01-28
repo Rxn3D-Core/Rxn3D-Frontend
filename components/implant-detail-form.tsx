@@ -92,6 +92,17 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
     }
   }, [abutmentDetail])
 
+  // Auto-show platform cards when platform field becomes visible (brand selected) and platform is not yet set
+  useEffect(() => {
+    if (selectedBrand?.brand_name && !selectedPlatform?.name && onPlatformFieldClick) {
+      // Small delay to ensure the component is ready
+      const timer = setTimeout(() => {
+        onPlatformFieldClick()
+      }, 200)
+      return () => clearTimeout(timer)
+    }
+  }, [selectedBrand?.brand_name, selectedPlatform?.name, onPlatformFieldClick])
+
   // Auto-open Size dropdown when platform is selected and size is not yet set
   useEffect(() => {
     if (selectedPlatform?.name && !selectedSize) {

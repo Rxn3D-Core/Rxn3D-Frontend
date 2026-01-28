@@ -63,6 +63,7 @@ export default function ChooseDoctorPage() {
   const [sortPopoverOpen, setSortPopoverOpen] = useState(false)
   const [hasAutoSelected, setHasAutoSelected] = useState(false)
   const allowNavigationRef = useRef<boolean>(false)
+  const isModalOperationRef = useRef<boolean>(false)
 
   // Debounce search query
   const debouncedSearchQuery = useDebounce(searchQuery, 500)
@@ -73,19 +74,54 @@ export default function ChooseDoctorPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Get lab from URL or localStorage
+  // Invalidate doctors query cache on mount to ensure fresh data when navigating back
+  useEffect(() => {
+    queryClient.invalidateQueries({ queryKey: ["doctors"] })
+  }, [queryClient])
+
+  // Get lab and doctor from URL or localStorage
   useEffect(() => {
     const labId = searchParams.get("labId")
+    const doctorId = searchParams.get("doctorId")
+    
+    // If doctorId is in URL but not in localStorage, update localStorage
+    if (doctorId) {
+      const storedDoctor = localStorage.getItem("selectedDoctor")
+      if (storedDoctor) {
+        try {
+          const doctor = JSON.parse(storedDoctor)
+          // Only update if the ID doesn't match
+          if (doctor?.id?.toString() !== doctorId) {
+            // Doctor ID in URL doesn't match stored doctor, keep URL as source of truth
+            // The doctor data will be fetched from API based on labId
+          }
+        } catch (error) {
+          console.error("Error parsing selected doctor:", error)
+        }
+      }
+    }
+    
     if (labId) {
       const storedLab = localStorage.getItem("selectedLab")
       if (storedLab) {
         try {
           const lab = JSON.parse(storedLab)
-          setSelectedLab(lab)
+          // Only update if the lab ID matches the URL labId
+          if (lab.id?.toString() === labId) {
+            setSelectedLab(lab)
+          } else {
+            // Lab ID doesn't match, clear selectedLab to trigger refetch
+            setSelectedLab(null)
+          }
         } catch (error) {
           console.error("Error parsing selected lab:", error)
+          setSelectedLab(null)
         }
+      } else {
+        setSelectedLab(null)
       }
+    } else {
+      setSelectedLab(null)
     }
 
     // Get created by from localStorage (user info)
@@ -99,6 +135,19 @@ export default function ChooseDoctorPage() {
       }
     }
   }, [searchParams])
+
+  // Invalidate and refetch doctors when labId changes in URL
+  useEffect(() => {
+    const labId = searchParams.get("labId")
+    if (labId) {
+      // Invalidate doctors query to force refetch when lab changes
+      queryClient.invalidateQueries({ queryKey: ["doctors"] })
+      // Reset auto-select flag when lab changes (new context)
+      setHasAutoSelected(false)
+      // Reset modal operation flag
+      isModalOperationRef.current = false
+    }
+  }, [searchParams, queryClient])
 
   // Fetch connected offices (for lab_admin role) using React Query
   const {
@@ -142,6 +191,10 @@ export default function ChooseDoctorPage() {
     if (!token) return false
     
     const role = localStorage.getItem("role") || ""
+    const labIdFromUrl = searchParams.get("labId")
+    
+    // If labId is in URL, we can fetch (highest priority)
+    if (labIdFromUrl) return true
     
     // If lab is selected, we can fetch
     if (selectedLab) return true
@@ -155,7 +208,91 @@ export default function ChooseDoctorPage() {
     }
     
     return false
-  }, [selectedLab, connectedOffices])
+  }, [selectedLab, connectedOffices, searchParams])
+
+  // Get doctorId and labId from URL for query key
+  const doctorIdFromUrl = searchParams.get("doctorId")
+  const labIdFromUrl = searchParams.get("labId")
+
+  // Helper function to get office ID
+  const getOfficeId = useCallback(() => {
+    const role = typeof window !== "undefined" ? localStorage.getItem("role") || "" : ""
+    let officeId: number | null = null
+
+    // Priority 1: Use labId from URL if available (most up-to-date)
+    if (labIdFromUrl) {
+      officeId = Number(labIdFromUrl)
+    } else if (selectedLab) {
+      // Priority 2: If lab/office is selected from choose-lab page, use its ID
+      officeId = selectedLab.id
+    } else {
+      // Priority 2: Determine office ID based on role
+      if (role === "office_admin" || role === "doctor") {
+        // For office_admin and doctor roles, use customerId as officeId
+        const customerId = localStorage.getItem("customerId")
+        if (customerId) {
+          officeId = Number(customerId)
+        }
+      } else if (role === "lab_admin") {
+        // For lab_admin, use first connected office
+        if (connectedOffices && connectedOffices.length > 0) {
+          const firstOffice = connectedOffices[0]
+          officeId = firstOffice?.office?.id || null
+        }
+      }
+    }
+
+    return officeId
+  }, [labIdFromUrl, selectedLab, connectedOffices])
+
+  // Fetch total count of doctors WITHOUT search query to get accurate total
+  const {
+    data: totalCountData,
+  } = useQuery<{ total: number }>({
+    queryKey: ["doctors-total", labIdFromUrl, selectedLab?.id, connectedOffices],
+    queryFn: async () => {
+      const token = localStorage.getItem("token")
+      if (!token) {
+        throw new Error("No authentication token found")
+      }
+
+      const officeId = getOfficeId()
+      if (!officeId) {
+        throw new Error("Unable to determine office ID")
+      }
+
+      // Fetch doctors WITHOUT search query to get true total count
+      const url = new URL(`/v1/slip/office/${officeId}/doctors`, API_BASE_URL)
+      
+      const response = await fetch(url.toString(), {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      })
+
+      if (response.status === 401) {
+        window.location.href = "/login"
+        throw new Error("Unauthorized")
+      }
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch doctors total: ${response.status}`)
+      }
+
+      const data = await response.json()
+      return {
+        total: data.pagination?.total ?? (data.data || []).length,
+      }
+    },
+    enabled: shouldFetchDoctors,
+    staleTime: 0,
+    gcTime: 1000 * 60 * 10,
+    retry: 1,
+    refetchOnWindowFocus: false,
+    refetchOnMount: 'always',
+  })
 
   // Fetch doctors using React Query
   const {
@@ -164,45 +301,14 @@ export default function ChooseDoctorPage() {
     error,
     refetch,
   } = useQuery<Doctor[]>({
-    queryKey: ["doctors", selectedLab?.id, debouncedSearchQuery, connectedOffices],
+    queryKey: ["doctors", labIdFromUrl, selectedLab?.id, doctorIdFromUrl, debouncedSearchQuery, connectedOffices],
     queryFn: async () => {
       const token = localStorage.getItem("token")
       if (!token) {
         throw new Error("No authentication token found")
       }
 
-      const role = localStorage.getItem("role") || ""
-      let officeId: number | null = null
-
-      // Priority 1: If lab/office is selected from choose-lab page, use its ID
-      if (selectedLab) {
-        officeId = selectedLab.id
-      } else {
-        // Priority 2: Determine office ID based on role
-        if (role === "office_admin" || role === "doctor") {
-          // For office_admin and doctor roles, use customerId as officeId
-          const customerId = localStorage.getItem("customerId")
-          if (customerId) {
-            officeId = Number(customerId)
-          } else {
-            throw new Error("No customer ID found")
-          }
-        } else if (role === "lab_admin") {
-          // For lab_admin, use first connected office
-          if (connectedOffices && connectedOffices.length > 0) {
-            const firstOffice = connectedOffices[0]
-            officeId = firstOffice?.office?.id || null
-            if (!officeId) {
-              throw new Error("No office ID found in connected offices")
-            }
-          } else {
-            throw new Error("No connected offices found")
-          }
-        } else {
-          throw new Error(`Role ${role} not supported for doctor selection`)
-        }
-      }
-
+      const officeId = getOfficeId()
       if (!officeId) {
         throw new Error("Unable to determine office ID")
       }
@@ -245,10 +351,11 @@ export default function ChooseDoctorPage() {
       return doctorsList
     },
     enabled: shouldFetchDoctors,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 0, // Always refetch to get fresh data from API
     gcTime: 1000 * 60 * 10, // 10 minutes
     retry: 1,
     refetchOnWindowFocus: false,
+    refetchOnMount: 'always', // Always refetch when component mounts
   })
 
   // Show error toast if query fails
@@ -261,6 +368,9 @@ export default function ChooseDoctorPage() {
       })
     }
   }, [error, toast])
+
+  // Get total count from separate query (without search filter)
+  const totalDoctorsCount = totalCountData?.total ?? 0
 
   // Sort doctors (search is handled by API with debounced query)
   const sortedAndFilteredDoctors = useMemo(() => {
@@ -295,7 +405,8 @@ export default function ChooseDoctorPage() {
     // Get user role
     const role = localStorage.getItem("role") || ""
     
-    // If role is office_admin, always redirect to choose-lab page
+    // Always include doctorId in URL
+    // If role is office_admin, always redirect to choose-lab page with doctorId
     if (role === "office_admin") {
       router.push(`/choose-lab?doctorId=${doctor.id}`)
       return
@@ -306,22 +417,42 @@ export default function ChooseDoctorPage() {
     // This prevents navigation glitches when auto-select runs before state is set
     const labId = searchParams.get("labId")
     if (labId) {
-      // If labId is in URL, navigate to patient input page
+      // If labId is in URL, navigate to patient input page with both labId and doctorId
       // This means user came from choose-lab page with a selected lab
       router.push(`/patient-input?labId=${labId}&doctorId=${doctor.id}`)
     } else {
-      // Otherwise, navigate to choose-lab page (backward compatibility)
+      // Otherwise, navigate to choose-lab page with doctorId
       router.push(`/choose-lab?doctorId=${doctor.id}`)
     }
   }, [router, searchParams])
 
-  // Auto-select doctor if there's only 1 doctor
+  // Auto-select doctor if there's only 1 doctor total (from API, not filtered)
+  // Only auto-select when there's NO search query to avoid false positives
+  // Don't auto-select when modal is open or was just closed (to allow editing)
   useEffect(() => {
-    if (!isLoading && doctors.length === 1 && !hasAutoSelected) {
+    // Only auto-select if:
+    // 1. Not loading
+    // 2. Total count from API (without search) is exactly 1
+    // 3. No search query is active (check both searchQuery and debouncedSearchQuery)
+    // 4. Haven't already auto-selected
+    // 5. Doctors array has at least one doctor
+    // 6. Modal is not open (to prevent auto-select during editing)
+    // 7. Not in the middle of a modal operation (to prevent auto-select after editing)
+    const hasActiveSearch = searchQuery.trim().length > 0 || debouncedSearchQuery.trim().length > 0
+    
+    if (
+      !isLoading && 
+      totalDoctorsCount === 1 && 
+      !hasActiveSearch && 
+      !hasAutoSelected && 
+      doctors.length > 0 &&
+      !showAddDoctorModal && // Don't auto-select when modal is open
+      !isModalOperationRef.current // Don't auto-select during/after modal operations
+    ) {
       setHasAutoSelected(true)
       handleDoctorSelect(doctors[0])
     }
-  }, [isLoading, doctors, hasAutoSelected, handleDoctorSelect])
+  }, [isLoading, totalDoctorsCount, searchQuery, debouncedSearchQuery, hasAutoSelected, doctors, handleDoctorSelect, showAddDoctorModal])
 
   // Check if there's unsaved work (selected lab or doctor)
   const hasUnsavedWork = useMemo(() => {
@@ -523,8 +654,15 @@ export default function ChooseDoctorPage() {
           onPrevious={() => {
             // Check if we came from choose-lab (labId in URL)
             const labId = searchParams.get("labId")
+            const doctorId = searchParams.get("doctorId")
+            
             if (labId) {
-              router.push(`/choose-lab`)
+              // Preserve doctorId if it exists when navigating back to choose-lab
+              if (doctorId) {
+                router.push(`/choose-lab?doctorId=${doctorId}`)
+              } else {
+                router.push(`/choose-lab`)
+              }
             } else {
               // Otherwise go back to dashboard
               router.push("/dashboard")
@@ -536,14 +674,40 @@ export default function ChooseDoctorPage() {
       {/* Add Doctor Modal */}
       <AddDoctorModal
         isOpen={showAddDoctorModal}
-        onClose={() => setShowAddDoctorModal(false)}
-        onDoctorConnect={(doctorId: string, doctorData?: any) => {
-          // Refresh the doctors list to show the newly connected doctor
-          refetch()
-          
-          // If doctor data is provided and user wants to auto-select, we can do that
-          // For now, just refresh the list and close the modal
+        onClose={() => {
           setShowAddDoctorModal(false)
+          // Mark that we're in a modal operation to prevent auto-select
+          isModalOperationRef.current = true
+          // Reset auto-select flag when modal closes to allow manual selection
+          setHasAutoSelected(false)
+          
+          // After a delay, allow auto-select again (in case user navigates back)
+          setTimeout(() => {
+            isModalOperationRef.current = false
+          }, 2000) // 2 second buffer to prevent immediate auto-select after modal closes
+        }}
+        onDoctorConnect={(doctorId: string, doctorData?: any) => {
+          // Mark that we're in a modal operation
+          isModalOperationRef.current = true
+          
+          // Close modal first
+          setShowAddDoctorModal(false)
+          
+          // Reset auto-select flag to prevent auto-redirect after editing
+          setHasAutoSelected(false)
+          
+          // Refresh the doctors list to show the newly connected/updated doctor
+          // Use a small delay to ensure modal is fully closed before refetch
+          setTimeout(() => {
+            refetch()
+            // Also refetch the total count
+            queryClient.invalidateQueries({ queryKey: ["doctors-total"] })
+            
+            // After refetch completes, allow auto-select again (with delay)
+            setTimeout(() => {
+              isModalOperationRef.current = false
+            }, 1500) // Additional delay after refetch to prevent auto-select
+          }, 100)
           
           // Show success message
           if (doctorData) {

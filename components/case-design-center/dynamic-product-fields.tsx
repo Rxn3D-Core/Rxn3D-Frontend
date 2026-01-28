@@ -419,6 +419,25 @@ export function DynamicProductFields({
     return hasSelection
   }
 
+  // Helper to check if retention type is "Implant"
+  const isRetentionTypeImplant = (): boolean => {
+    const teeth = arch === "maxillary" ? maxillaryTeeth : mandibularTeeth
+    const retentionTypes = arch === "maxillary" ? maxillaryRetentionTypes : mandibularRetentionTypes
+
+    // If no teeth are selected, return false
+    if (!teeth || teeth.length === 0) {
+      return false
+    }
+
+    // Check if any tooth has "Implant" as retention type
+    const hasImplant = teeth.some(toothNumber => {
+      const types = retentionTypes[toothNumber] || []
+      return types.includes('Implant')
+    })
+
+    return hasImplant
+  }
+
   // Helper to check if stage field is visible (used by impression field check)
   const isStageFieldVisible = (): boolean => {
     const toothShadeValue = getFieldValueByKey("tooth_shade")
@@ -506,6 +525,17 @@ export function DynamicProductFields({
         return false
       }
       
+      // Only check advance fields if retention type is "Implant"
+      // If retention type is NOT "Implant", skip advance fields and show impression directly after tooth_shade
+      const retentionIsImplant = isRetentionTypeImplant()
+      
+      // If retention type is NOT "Implant", show impression directly after tooth_shade (skip advance fields)
+      if (!retentionIsImplant) {
+        const toothShadeValue = getFieldValueByKey("tooth_shade")
+        return hasValue(toothShadeValue)
+      }
+      
+      // If retention type IS "Implant", check advance fields
       // Check if there are any advance fields in productDetails (these are rendered separately, not in fieldConfigs)
       const advanceFields = productDetails?.advance_fields || []
       const hasAdvanceFields = Array.isArray(advanceFields) && advanceFields.length > 0
@@ -517,6 +547,7 @@ export function DynamicProductFields({
       })
       
       // If advance fields exist, check if they are completed
+      // For implant retention type, ALL advance fields (especially implant_library fields) must be completed
       if (hasAdvanceFields && filteredAdvanceFields.length > 0) {
         // Check if all advance fields are completed
         // For implant_library fields, check if brand, platform, and size are selected
@@ -524,60 +555,45 @@ export function DynamicProductFields({
         const allAdvanceFieldsCompleted = filteredAdvanceFields.every((field: any) => {
           // Check if this is an implant_library field (implant details)
           if (field.field_type === "implant_library") {
-            // First, check if implant details string is filled (this is the most reliable indicator)
-            // This is set when the form is filled and contains all the implant information
-            const implantDetails = arch === "maxillary" 
-              ? (savedProduct.maxillaryImplantDetails || (savedProduct as any).maxillaryImplantDetails)
-              : (savedProduct.mandibularImplantDetails || (savedProduct as any).mandibularImplantDetails)
-            
-            // If we have a meaningful implant details string, consider it complete
-            // This handles the case where the form is filled but state variables might not be set yet
-            if (implantDetails) {
-              let detailsStr = ""
-              if (typeof implantDetails === "string") {
-                detailsStr = implantDetails.trim()
-              } else if (typeof implantDetails === "object" && implantDetails.value) {
-                detailsStr = String(implantDetails.value).trim()
-              }
-              
-              // Check if the string contains meaningful content (not empty, not placeholder)
-              // Be lenient - if it exists and is not a placeholder, consider it complete
-              if (detailsStr && detailsStr.length > 0) {
-                const lowerStr = detailsStr.toLowerCase().trim()
-                // Only reject if it's clearly a placeholder or empty
-                const isPlaceholder = lowerStr === "" ||
-                                     lowerStr === "not specified" ||
-                                     lowerStr.startsWith("select") ||
-                                     lowerStr === "none" ||
-                                     lowerStr === "null" ||
-                                     lowerStr === "undefined"
-                
-                if (!isPlaceholder) {
-                  return true
-                }
-              }
-            }
-            
-            // Fallback: check if brand, platform, and size are all selected via state variables
+            // Check if all implant detail form fields are completed
+            // We must check ALL individual fields to ensure the form is fully completed
+            // Do not rely on implantDetails string alone as it may be set before all fields are filled
+            // Check via state variables first (for unsaved products)
             const fieldKey = `advance_${field.id}`
             const brandId = selectedImplantBrand[fieldKey]
             const platformId = selectedImplantPlatform[fieldKey]
             const size = selectedImplantSize[fieldKey]
             
-            // Check if all three are set (using more robust checks)
+            // Check if brand, platform, and size are set (using more robust checks)
             const hasBrand = brandId !== null && brandId !== undefined && brandId !== 0
             const hasPlatform = platformId !== null && platformId !== undefined && platformId !== 0
             const hasSize = size !== null && size !== undefined && size !== "" && size.trim() !== ""
             
-            if (hasBrand && hasPlatform && hasSize) {
+            // Also check inclusions, abutment detail, and abutment type from savedProduct
+            const implantInclusions = arch === "maxillary" 
+              ? savedProduct.maxillaryImplantInclusions 
+              : savedProduct.mandibularImplantInclusions
+            const abutmentDetail = arch === "maxillary"
+              ? savedProduct.maxillaryAbutmentDetail
+              : savedProduct.mandibularAbutmentDetail
+            const abutmentType = arch === "maxillary"
+              ? savedProduct.maxillaryAbutmentType
+              : savedProduct.mandibularAbutmentType
+            
+            // Check if all required fields are filled
+            // Use strict checks - all fields must have valid values (not empty, not "Select...", not placeholder)
+            const hasInclusions = hasValue(implantInclusions)
+            const hasAbutmentDetail = hasValue(abutmentDetail)
+            const hasAbutmentType = hasValue(abutmentType)
+            
+            // All fields must be completed: brand, platform, size, inclusions, abutment detail, and abutment type
+            // This is a strict check - ALL fields must be filled before impression field shows
+            if (hasBrand && hasPlatform && hasSize && hasInclusions && hasAbutmentDetail && hasAbutmentType) {
               return true
             }
             
-            // If we have at least brand and platform selected, consider it complete (size might be optional in some cases)
-            if (hasBrand && hasPlatform) {
-              return true
-            }
-            
+            // If any field is missing, the implant detail form is not complete
+            // Do not show impression field until all fields are filled
             return false
           }
           
@@ -688,27 +704,7 @@ export function DynamicProductFields({
     }
   }, [productDetails, savedProduct, arch, fieldConfigs, onOpenShadeModal])
 
-  // Auto-open impression modal when impression field becomes visible and value is empty
-  useEffect(() => {
-    // Check impression field
-    const impressionConfig = fieldConfigs.find(f => f.key === "impression")
-    if (impressionConfig) {
-      const impressionCount = getImpressionCount ? getImpressionCount() : 0
-      const impressionDisplayText = getImpressionDisplayText ? getImpressionDisplayText() : ""
-      const isImpressionVisible = isFieldVisibleProgressive(impressionConfig)
-      const isImpressionEmpty = !hasImpressionValue(impressionCount, impressionDisplayText)
-
-      if (isImpressionVisible && isImpressionEmpty && onOpenImpressionModal) {
-        // Small delay to ensure the component is ready
-        const timer = setTimeout(() => {
-          setFocusedFieldKey("impression")
-          onOpenImpressionModal()
-        }, 200)
-
-        return () => clearTimeout(timer)
-      }
-    }
-  }, [productDetails, savedProduct, arch, fieldConfigs, onOpenImpressionModal, getImpressionCount, getImpressionDisplayText])
+  // Note: Impression modal auto-open is disabled. It will only open when the user clicks on the impression field.
 
   // Helper to check if all required fields are filled (for showing advance fields)
   const areAllRequiredFieldsFilled = (): boolean => {
@@ -985,7 +981,7 @@ export function DynamicProductFields({
         <div
           className="relative"
           style={{
-            minHeight: '43px',
+            minHeight: '32px',
             ...fieldWidth
           }}
         >
@@ -1000,15 +996,15 @@ export function DynamicProductFields({
               if (onOpenImpressionModal) onOpenImpressionModal()
             }}
             style={{
-              padding: '12px 15px 5px 15px',
-              gap: '5px',
+              padding: '6px 10px 4px 10px',
+              gap: '4px',
               width: '100%',
-              height: '37px',
+              height: '28px',
               position: 'relative',
-              marginTop: '5.27px',
+              marginTop: '4px',
               background: '#FFFFFF',
-              border: `0.740384px solid ${isFocused ? '#1162A8' : borderColor}`,
-              borderRadius: '7.7px',
+              border: `1px solid ${isFocused ? '#1162A8' : borderColor}`,
+              borderRadius: '6px',
               boxSizing: 'border-box'
             }}
           >
@@ -1016,37 +1012,37 @@ export function DynamicProductFields({
               fontFamily: 'Verdana',
               fontStyle: 'normal',
               fontWeight: 400,
-              fontSize: '14.4px',
-              lineHeight: '20px',
+              fontSize: '12px',
+              lineHeight: '16px',
               letterSpacing: '-0.02em',
               color: '#000000',
               whiteSpace: 'nowrap',
-              paddingRight: hasImpressionValue(impressionCount, displayText) ? '30px' : '0px'
+              paddingRight: hasImpressionValue(impressionCount, displayText) ? '24px' : '0px'
             }}>{displayText}</span>
             {hasImpressionValue(impressionCount, displayText) && (
-              <div className="absolute right-[12.32px] top-1/2 -translate-y-1/2 pointer-events-none">
-                <Check className="h-5 w-5 text-[#119933]" aria-label="Valid" />
+              <div className="absolute right-[8px] top-1/2 -translate-y-1/2 pointer-events-none">
+                <Check className="h-3.5 w-3.5 text-[#119933]" aria-label="Valid" />
               </div>
             )}
           </div>
           <label
             className="absolute bg-white transition-colors duration-200"
             style={{
-              padding: '0px',
-              height: '14px',
-              left: '8.9px',
-              top: '0px',
+              padding: '0 2px',
+              height: '11px',
+              left: '8px',
+              top: '-1px',
               fontFamily: 'Arial',
               fontStyle: 'normal',
               fontWeight: 400,
-              fontSize: '14px',
-              lineHeight: '14px',
+              fontSize: '11px',
+              lineHeight: '11px',
               color: isFocused ? '#1162A8' : labelColor
             }}
           >
             {config.label}
             {isFieldRequired(config) && (
-              <span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>
+              <span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>
             )}
           </label>
         </div>
@@ -1069,7 +1065,7 @@ export function DynamicProductFields({
             <div
               className="relative"
               style={{
-                minHeight: '43px',
+                minHeight: '32px',
                 ...fieldWidth
               }}
             >
@@ -1084,15 +1080,15 @@ export function DynamicProductFields({
                   setIsStageModalOpen(true)
                 }}
                 style={{
-                  padding: '12px 15px 5px 15px',
-                  gap: '5px',
+                  padding: '6px 10px 4px 10px',
+                  gap: '4px',
                   width: '100%',
-                  height: '37px',
+                  height: '28px',
                   position: 'relative',
-                  marginTop: '0px',
+                  marginTop: '4px',
                   background: '#FFFFFF',
-                  border: `0.740384px solid ${isFocused ? '#1162A8' : borderColor}`,
-                  borderRadius: '7.7px',
+                  border: `1px solid ${isFocused ? '#1162A8' : borderColor}`,
+                  borderRadius: '6px',
                   boxSizing: 'border-box'
                 }}
               >
@@ -1100,36 +1096,36 @@ export function DynamicProductFields({
                   fontFamily: 'Verdana',
                   fontStyle: 'normal',
                   fontWeight: 400,
-                  fontSize: '14.4px',
-                  lineHeight: '20px',
+                  fontSize: '12px',
+                  lineHeight: '16px',
                   letterSpacing: '-0.02em',
                   color: '#000000',
                   whiteSpace: 'nowrap'
                 }}>{displayValue}</span>
                 {hasValue(value) && (
-                  <div className="absolute right-[12.32px] top-1/2 -translate-y-1/2 pointer-events-none">
-                    <Check className="h-5 w-5 text-[#119933]" aria-label="Valid" />
+                  <div className="absolute right-[8px] top-1/2 -translate-y-1/2 pointer-events-none">
+                    <Check className="h-3.5 w-3.5 text-[#119933]" aria-label="Valid" />
                   </div>
                 )}
               </div>
               <label
                 className="absolute bg-white transition-colors duration-200"
                 style={{
-                  padding: '0px',
-                  height: '14px',
-                  left: '8.9px',
-                  top: '0px',
+                  padding: '0 2px',
+                  height: '11px',
+                  left: '8px',
+                  top: '-1px',
                   fontFamily: 'Arial',
                   fontStyle: 'normal',
                   fontWeight: 400,
-                  fontSize: '14px',
-                  lineHeight: '14px',
+                  fontSize: '11px',
+                  lineHeight: '11px',
                   color: isFocused ? '#1162A8' : labelColor
                 }}
               >
                 {hasValue(value) ? config.label : `Select ${config.label}`}
                 {isFieldRequired(config) && (
-                  <span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>
+                  <span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>
                 )}
               </label>
             </div>
@@ -1175,7 +1171,7 @@ export function DynamicProductFields({
         <div
           className="relative"
           style={{
-            minHeight: '43px',
+            minHeight: '32px',
             ...fieldWidth
           }}
         >
@@ -1210,15 +1206,15 @@ export function DynamicProductFields({
                 isFocused && "ring-2 ring-[#1162A8] ring-opacity-50 shadow-[0_0_0_4px_rgba(17,98,168,0.15)]"
               )}
               style={{
-                padding: '12px 15px 5px 15px',
-                gap: '5px',
+                padding: '6px 10px 4px 10px',
+                gap: '4px',
                 width: '100%',
-                height: '37px',
+                height: '28px',
                 position: 'relative',
-                marginTop: '5.27px',
+                marginTop: '4px',
                 background: '#FFFFFF',
-                border: `0.740384px solid ${isFocused ? '#1162A8' : borderColor}`,
-                borderRadius: '7.7px',
+                border: `1px solid ${isFocused ? '#1162A8' : borderColor}`,
+                borderRadius: '6px',
                 boxSizing: 'border-box'
               }}
             >
@@ -1226,8 +1222,8 @@ export function DynamicProductFields({
                 {value || ""} {/* Show blank when empty */}
               </SelectValue>
               {hasValue(value) && (
-                <div className="absolute right-[12.32px] top-1/2 -translate-y-1/2 pointer-events-none">
-                  <Check className="h-5 w-5 text-[#119933]" aria-label="Valid" />
+                <div className="absolute right-[8px] top-1/2 -translate-y-1/2 pointer-events-none">
+                  <Check className="h-3.5 w-3.5 text-[#119933]" aria-label="Valid" />
                 </div>
               )}
             </SelectTrigger>
@@ -1245,15 +1241,15 @@ export function DynamicProductFields({
           <label
             className="absolute bg-white transition-colors duration-200"
             style={{
-              padding: '0px',
-              height: '14px',
-              left: '8.9px',
-              top: '0px',
+              padding: '0 2px',
+              height: '11px',
+              left: '8px',
+              top: '-1px',
               fontFamily: 'Arial',
               fontStyle: 'normal',
               fontWeight: 400,
-              fontSize: '14px',
-              lineHeight: '14px',
+              fontSize: '11px',
+              lineHeight: '11px',
               color: isFocused ? '#1162A8' : labelColor
             }}
           >
@@ -1261,7 +1257,7 @@ export function DynamicProductFields({
               ? (hasValidRetentionValue(value) ? 'Retention type' : 'Select Retention type')
               : (hasValue(value) ? config.label : `Select ${config.label}`)}
             {isFieldRequired(config) && (
-              <span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>
+              <span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>
             )}
           </label>
         </div>
@@ -1304,7 +1300,7 @@ export function DynamicProductFields({
       const clipId = `clip-shade-${config.key}-${arch}`
 
       return (
-        <div className="relative" style={{ minHeight: '43px', width: '100%' }}>
+        <div className="relative" style={{ minHeight: '32px', width: '100%' }}>
           <div
             ref={(el) => { fieldRefs.current[config.key] = el }}
             className={cn(
@@ -1322,24 +1318,24 @@ export function DynamicProductFields({
               }
             }}
             style={{
-              padding: '12px 15px 5px 15px',
-              gap: '5px',
+              padding: '6px 10px 4px 10px',
+              gap: '4px',
               width: '100%',
-              height: '37px',
+              height: '28px',
               background: '#FFFFFF',
-              border: `0.740384px solid ${isFocused ? focusColor : borderColor}`,
-              borderRadius: '7.7px',
+              border: `1px solid ${isFocused ? focusColor : borderColor}`,
+              borderRadius: '6px',
               boxSizing: 'border-box',
               position: 'relative',
-              marginTop: '5.27px'
+              marginTop: '4px'
             }}
           >
             <span style={{
               fontFamily: 'Verdana',
               fontStyle: 'normal',
               fontWeight: 400,
-              fontSize: '14.4px',
-              lineHeight: '20px',
+              fontSize: '12px',
+              lineHeight: '16px',
               letterSpacing: '-0.02em',
               color: '#000000'
             }}>{brandName || shadeValue}</span>
@@ -1347,21 +1343,21 @@ export function DynamicProductFields({
               <div
                 className="flex items-center justify-center pointer-events-none"
                 style={{
-                  width: '37.51px',
-                  height: '41.97px',
-                  borderRadius: '8px',
+                  width: '26px',
+                  height: '30px',
+                  borderRadius: '4px',
                   position: 'absolute',
-                  right: '50px',
+                  right: '32px',
                   top: '-1px'
                 }}
               >
-                <svg 
+                <svg
                   key={`shade-svg-${shadeName}-${config.key}`}
-                  width="38" 
-                  height="37" 
-                  viewBox="0 0 38 37" 
-                  fill="none" 
-                  xmlns="http://www.w3.org/2000/svg" 
+                  width="26"
+                  height="28"
+                  viewBox="0 0 38 37"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
                   style={{ width: '100%', height: '100%' }}
                 >
                   <defs>
@@ -1425,29 +1421,29 @@ export function DynamicProductFields({
               </div>
             )}
             {hasValue(value) && (
-              <div className="absolute right-[12.32px] top-1/2 -translate-y-1/2 pointer-events-none z-10">
-                <Check className="h-5 w-5 text-[#119933]" aria-label="Valid" />
+              <div className="absolute right-[8px] top-1/2 -translate-y-1/2 pointer-events-none z-10">
+                <Check className="h-3.5 w-3.5 text-[#119933]" aria-label="Valid" />
               </div>
             )}
           </div>
           <label
             className="absolute bg-white transition-colors duration-200"
             style={{
-              padding: '0px',
-              height: '14px',
-              left: '8.9px',
-              top: '0px',
+              padding: '0 2px',
+              height: '11px',
+              left: '8px',
+              top: '-1px',
               fontFamily: 'Arial',
               fontStyle: 'normal',
               fontWeight: 400,
-              fontSize: '14px',
-              lineHeight: '14px',
+              fontSize: '11px',
+              lineHeight: '11px',
               color: isFocused ? focusColor : labelColor
             }}
           >
             {hasValue(value) ? config.label : `Select ${config.label}`}
             {isFieldRequired(config) && (
-              <span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>
+              <span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>
             )}
           </label>
         </div>
@@ -1461,13 +1457,11 @@ export function DynamicProductFields({
   return (
     <>
       <div
-        className="flex flex-wrap"
+        className="grid grid-cols-2"
         style={{
-          display: 'flex',
-          flexDirection: 'row',
-          alignItems: 'flex-start',
-          padding: '0px',
-          gap: '0px',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(2, 1fr)',
+          gap: '4px 8px',
           width: '100%'
         }}
       >
@@ -1475,9 +1469,7 @@ export function DynamicProductFields({
           <div
             key={field.key}
             style={{
-              flex: '1 1 50%',
-              minWidth: '200px',
-              maxWidth: '50%'
+              width: '100%'
             }}
           >
             {renderField(field)}
@@ -1490,9 +1482,7 @@ export function DynamicProductFields({
           <div
             key={impressionConfig.key}
             style={{
-              flex: '1 1 50%',
-              minWidth: '200px',
-              maxWidth: '50%'
+              width: '100%'
             }}
           >
             {renderField(impressionConfig)}

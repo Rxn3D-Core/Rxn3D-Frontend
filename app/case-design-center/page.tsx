@@ -185,7 +185,7 @@ function StageFieldComponent({
   }, []) // Only run on mount
 
   return (
-    <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+    <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
       <Select
         open={openStageDropdown[savedProduct.id]?.[arch] || false}
         onOpenChange={(open) =>
@@ -212,10 +212,10 @@ function StageFieldComponent({
       >
         <SelectTrigger
           style={{
-            padding: '12px 15px 5px 15px',
+            padding: '8px 12px 4px 12px',
             gap: '5px',
             width: '100%',
-            height: '37px',
+            height: '32px',
             position: 'relative',
             marginTop: '5.27px',
             background: '#FFFFFF',
@@ -225,7 +225,7 @@ function StageFieldComponent({
             fontFamily: 'Verdana',
             fontStyle: 'normal',
             fontWeight: 400,
-            fontSize: '14.4px',
+            fontSize: '13px',
             lineHeight: '20px',
             letterSpacing: '-0.02em',
             color: '#000000'
@@ -762,14 +762,14 @@ export default function CaseDesignCenterPage() {
       )
 
       return (
-        <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+        <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
           <div
             className="flex items-center justify-between"
             style={{
-              padding: '12px 15px 5px 15px',
+              padding: '8px 12px 4px 12px',
               gap: '5px',
               width: '100%',
-              height: '37px',
+              height: '32px',
               background: '#FFFFFF',
               border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
               borderRadius: '7.7px',
@@ -782,7 +782,7 @@ export default function CaseDesignCenterPage() {
               fontFamily: 'Verdana',
               fontStyle: 'normal',
               fontWeight: 400,
-              fontSize: '14.4px',
+              fontSize: '13px',
               lineHeight: '20px',
               letterSpacing: '-0.02em',
               color: '#000000'
@@ -836,14 +836,14 @@ export default function CaseDesignCenterPage() {
       )
     } else if (field.field_type === "text") {
       return (
-        <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+        <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
           <div
             className="flex items-center"
             style={{
-              padding: '12px 15px 5px 15px',
+              padding: '8px 12px 4px 12px',
               gap: '5px',
               width: '100%',
-              height: '37px',
+              height: '32px',
               background: '#FFFFFF',
               border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
               borderRadius: '7.7px',
@@ -856,7 +856,7 @@ export default function CaseDesignCenterPage() {
               fontFamily: 'Verdana',
               fontStyle: 'normal',
               fontWeight: 400,
-              fontSize: '14.4px',
+              fontSize: '13px',
               lineHeight: '20px',
               letterSpacing: '-0.02em',
               color: '#000000'
@@ -888,14 +888,14 @@ export default function CaseDesignCenterPage() {
 
     // Default rendering for other field types
     return (
-      <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+      <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
         <div
           className="flex items-center"
           style={{
-            padding: '12px 15px 5px 15px',
+            padding: '8px 12px 4px 12px',
             gap: '5px',
             width: '100%',
-            height: '37px',
+            height: '32px',
             background: '#FFFFFF',
             border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
             borderRadius: '7.7px',
@@ -908,7 +908,7 @@ export default function CaseDesignCenterPage() {
             fontFamily: 'Verdana',
             fontStyle: 'normal',
             fontWeight: 400,
-            fontSize: '14.4px',
+            fontSize: '13px',
             lineHeight: '20px',
             letterSpacing: '-0.02em',
             color: '#000000'
@@ -1757,6 +1757,8 @@ export default function CaseDesignCenterPage() {
 
   // Track which product configurations have been auto-saved to prevent duplicate saves
   const autoSavedArchesRef = useRef<Set<string>>(new Set())
+  // Ref to track when impression modal was just closed to prevent auto-save
+  const impressionModalJustClosedRef = useRef<boolean>(false)
 
   // Handler to toggle accordion - only opens/closes on click
   const handleAccordionChange = (value: string) => {
@@ -5150,7 +5152,9 @@ export default function CaseDesignCenterPage() {
       const mandibularTeethSorted = [...mandibularTeeth].sort()
       const productKey = `${productToUse?.id}-${selectedCategoryId}-${selectedSubcategoryId}-${maxillaryTeethSorted.join(',')}-${mandibularTeethSorted.join(',')}`
 
-      if (isComplete && hasTeeth && selectedCategory && selectedCategoryId && selectedSubcategory && selectedSubcategoryId && productToUse) {
+      // Don't auto-save if impression modal is open (prevents save when modal opens automatically)
+      // Also don't auto-save if impression modal was just closed (prevents save after selecting impressions)
+      if (isComplete && hasTeeth && selectedCategory && selectedCategoryId && selectedSubcategory && selectedSubcategoryId && productToUse && !showImpressionModal && !impressionModalJustClosedRef.current) {
         // Always call handleAutoSaveUnifiedProduct - it will update existing product or create new one
         // The function itself handles duplicate prevention by finding and updating existing products
         // This ensures the initial accordion is saved/updated when completed, not duplicated
@@ -5204,14 +5208,15 @@ export default function CaseDesignCenterPage() {
     mandibularRetention,
     mandibularToothShade,
     mandibularStage,
-    selectedImpressions,
+    // selectedImpressions removed - impressions are not required for validation and shouldn't trigger auto-save
     selectedProductForMaxillary,
     selectedProductForMandibular,
     selectedCategory,
     selectedCategoryId,
     selectedSubcategory,
     selectedSubcategoryId,
-    advanceFieldValues
+    advanceFieldValues,
+    showImpressionModal
     // Note: autoSaveProductMutation removed - useMutation returns new object each render causing infinite loop
   ])
 
@@ -5714,6 +5719,12 @@ export default function CaseDesignCenterPage() {
     setSelectedImpressions({})
     setCurrentProductForImpression(null)
     setStlFilesByImpression({})
+    // Set flag to prevent auto-save immediately after closing impression modal
+    impressionModalJustClosedRef.current = true
+    // Clear the flag after a short delay to allow normal auto-save to resume
+    setTimeout(() => {
+      impressionModalJustClosedRef.current = false
+    }, 1000)
 
     // Reset shade selection
     setShowShadeModal(false)
@@ -6413,8 +6424,8 @@ export default function CaseDesignCenterPage() {
       </div>
 
       {/* Main Content */}
-      <div className="min-h-full" style={{ paddingBottom: "80px" }}>
-        <div className="container mx-auto px-5 py-5">
+      <div className="min-h-full" style={{ paddingBottom: "55px" }}>
+        <div className="container mx-auto px-5 py-3">
           {/* Search and Category Selection */}
           <div className="flex flex-col items-center">
             {/* Search and Labels Row */}
@@ -6432,7 +6443,7 @@ export default function CaseDesignCenterPage() {
 
             {/* Unified Search Bar - Show in all views */}
             {!showProductDetails && (
-              <div className="flex justify-center mb-4">
+              <div className="flex justify-center mb-2">
                 <div className="relative max-w-[373px] w-full">
                   <Input
                     type="text"
@@ -6448,7 +6459,7 @@ export default function CaseDesignCenterPage() {
 
             {/* Product Search Results - Show when there's a search query, regardless of view */}
             {!showProductDetails && searchQuery.trim() && (
-              <div className="w-full mb-6">
+              <div className="w-full mb-4">
                 {isSearchingProducts ? (
                   <div className="flex items-center justify-center py-20">
                     <div className="text-gray-500">Searching products...</div>
@@ -6506,7 +6517,7 @@ export default function CaseDesignCenterPage() {
 
             {/* Product Category Cards - Show when no subcategories, products, or product details are shown, and no search query */}
             {!showSubcategories && !showProducts && !showProductDetails && !searchQuery.trim() && (
-              <div className="w-full flex flex-col gap-4 mb-6">
+              <div className="w-full flex flex-col gap-4 mb-4">
                 {allCategoriesLoading ? (
                   <div className="flex items-center justify-center py-20">
                     <div className="flex flex-col items-center gap-3">
@@ -6753,7 +6764,7 @@ export default function CaseDesignCenterPage() {
                 {/* Implant Selection Cards - REMOVED: Now shown inside DynamicProductFields when implant details field is clicked */}
 
                 {/* Tooth Selection Interface */}
-                <div className={`grid gap-24 lg:gap-24 mb-8 ${showMaxillaryChart && showMandibularChart ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
+                <div className={`grid gap-4 lg:gap-4 mb-2 ${showMaxillaryChart && showMandibularChart ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
                   {/* MAXILLARY Section - Only show when maxillary chart is visible */}
                   {showMaxillaryChart && (
                     <div ref={maxillarySectionRef} className="flex flex-col w-full">
@@ -6761,16 +6772,16 @@ export default function CaseDesignCenterPage() {
                       {selectedProductForMaxillary && maxillaryTeeth.length > 0 && savedProducts.filter(p => p.addedFrom === "maxillary").length > 0 && (
                         <div
                           className="relative flex items-center justify-center"
-                          style={{ width: "100%", height: "32px", flex: "none", order: 0, flexGrow: 0 }}
+                          style={{ width: "100%", height: "22px", flex: "none", order: 0, flexGrow: 0 }}
                         >
                           <div
                             className="absolute left-1/2"
                             style={{
                               width: "auto",
-                              minWidth: "210px",
-                              maxWidth: "390px",
-                              height: "22px",
-                              top: "5px",
+                              minWidth: "129px",
+                              maxWidth: "300px",
+                              height: "18.53px",
+                              top: "2px",
                               transform: "translateX(-50%)",
                               background: "#DFEEFB",
                               boxShadow: "1px 1px 3.5px rgba(0, 0, 0, 0.25)",
@@ -6778,7 +6789,7 @@ export default function CaseDesignCenterPage() {
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
-                              padding: "0 14px",
+                              padding: "0 10px",
                             }}
                           >
                             <span
@@ -6787,7 +6798,7 @@ export default function CaseDesignCenterPage() {
                                 fontFamily: "Verdana",
                                 fontStyle: "normal",
                                 fontWeight: 400,
-                                fontSize: "15px",
+                                fontSize: "10px",
                                 lineHeight: "22px",
                                 textAlign: "center",
                                 letterSpacing: "-0.02em",
@@ -6817,12 +6828,12 @@ export default function CaseDesignCenterPage() {
                       )}
 
                       {/* MAXILLARY Label - Below Product Badge */}
-                      <div className="flex items-center justify-center gap-3 mt-2 mb-2">
-                        <p className="text-base font-bold text-black text-center" style={{ fontWeight: 700, letterSpacing: "0.01em" }}>MAXILLARY</p>
+                      <div className="flex items-center justify-center gap-2 mt-1 mb-1">
+                        <p className="text-sm font-bold text-black text-center" style={{ fontWeight: 700, letterSpacing: "0.01em" }}>MAXILLARY</p>
                       </div>
 
                       {/* Dental Chart - Outside Card */}
-                      <div className="rounded-lg pt-3 px-3 pb-0 flex items-center justify-center relative">
+                      <div className="rounded-lg pt-1 px-2 pb-0 flex items-center justify-center relative">
                         {shouldShowImplantPopover && implantPopoverState.arch === 'maxillary' && implantPopoverState.toothNumber !== null && (
                           <ImplantPartsPopover
                             onImplantPartsIncluded={() => {
@@ -6901,7 +6912,7 @@ export default function CaseDesignCenterPage() {
                         sp.subcategoryId === selectedSubcategoryId &&
                         JSON.stringify([...(sp.maxillaryTeeth || [])].sort()) === JSON.stringify([...maxillaryTeeth].sort())
                       ) && (
-                        <Card className="overflow-hidden border border-gray-200 shadow-sm -mt-2">
+                        <Card className="overflow-hidden border border-gray-200 shadow-sm -mt-6">
                           <Accordion
                             type="single"
                             collapsible
@@ -6915,15 +6926,15 @@ export default function CaseDesignCenterPage() {
                                 className="w-full"
                                 style={{
                                   position: 'relative',
-                                  minHeight: '70px',
+                                  minHeight: '45px',
                                   background: openAccordion === "maxillary-card" ? '#E0EDF8' : '#F5F5F5',
                                   boxShadow: '0.9px 0.9px 3.6px rgba(0, 0, 0, 0.25)',
                                   borderRadius: openAccordion === "maxillary-card" ? '10px 10px 0px 0px' : '10px',
                                   display: currentShadeField ? 'none' : 'flex',
                                   flexDirection: 'column',
                                   alignItems: 'flex-start',
-                                  padding: '14px 12px',
-                                  gap: '8px',
+                                  padding: '6px 8px',
+                                  gap: '4px',
                                   borderBottom: openAccordion === "maxillary-card" ? '1px dotted #B0D0F0' : 'none'
                                 }}
                               >
@@ -6939,13 +6950,13 @@ export default function CaseDesignCenterPage() {
                                   }}
                                 >
                                   {/* Responsive Content Container */}
-                                  <div style={{ width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: '12px', paddingRight: '30px' }}>
+                                  <div style={{ width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: '8px', paddingRight: '24px' }}>
                                     {/* Product Image */}
                                     <div
                                       style={{
-                                        width: '40px',
-                                        minWidth: '40px',
-                                        height: '40px',
+                                        width: '32px',
+                                        minWidth: '32px',
+                                        height: '32px',
                                         background: `url(${selectedProduct?.image_url || "/images/tooth-icon.png"}), #FFFFFF`,
                                         backgroundSize: 'contain',
                                         backgroundPosition: 'center',
@@ -6956,7 +6967,7 @@ export default function CaseDesignCenterPage() {
                                     />
 
                                     {/* Content Area - Responsive */}
-                                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0, alignItems: 'flex-start' }}>
+                                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0, alignItems: 'flex-start' }}>
                                       {/* Product Name - Bold, plain text */}
                                       {selectedProduct?.name && (
                                         <span
@@ -6964,8 +6975,8 @@ export default function CaseDesignCenterPage() {
                                             fontFamily: 'Verdana',
                                             fontStyle: 'normal',
                                             fontWeight: 600,
-                                            fontSize: '16px',
-                                            lineHeight: '20px',
+                                            fontSize: '14px',
+                                            lineHeight: '16px',
                                             letterSpacing: '-0.02em',
                                             color: '#000000',
                                             wordBreak: 'break-word',
@@ -6985,8 +6996,8 @@ export default function CaseDesignCenterPage() {
                                             fontFamily: 'Verdana',
                                             fontStyle: 'normal',
                                             fontWeight: 400,
-                                            fontSize: '14px',
-                                            lineHeight: '20px',
+                                            fontSize: '12px',
+                                            lineHeight: '14px',
                                             letterSpacing: '-0.02em',
                                             color: '#000000'
                                           }}
@@ -7002,20 +7013,20 @@ export default function CaseDesignCenterPage() {
                                       <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                                         {/* Badge - Category - Pill shaped */}
                                         {selectedCategory && (
-                                          <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '4px 12px', background: '#F0F0F0', borderRadius: '20px', flexShrink: 0 }}>
-                                            <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '12px', lineHeight: '16px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{selectedCategory}</span>
+                                          <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '2px 8px', background: '#F0F0F0', borderRadius: '12px', flexShrink: 0 }}>
+                                            <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{selectedCategory}</span>
                                           </div>
                                         )}
 
                                         {/* Badge - Subcategory - Pill shaped */}
                                         {selectedSubcategory && (
-                                          <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '4px 12px', background: '#F0F0F0', borderRadius: '20px', flexShrink: 0 }}>
-                                            <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '12px', lineHeight: '16px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{selectedSubcategory}</span>
+                                          <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '2px 8px', background: '#F0F0F0', borderRadius: '12px', flexShrink: 0 }}>
+                                            <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{selectedSubcategory}</span>
                                           </div>
                                         )}
 
                                         {/* Est days */}
-                                        <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '12px', lineHeight: '16px', letterSpacing: '-0.02em', color: '#B4B0B0', whiteSpace: 'nowrap' }}>
+                                        <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', letterSpacing: '-0.02em', color: '#B4B0B0', whiteSpace: 'nowrap' }}>
                                           Est days: {selectedProduct?.estimated_days || 10} work days after submission
                                         </span>
                                       </div>
@@ -7037,7 +7048,7 @@ export default function CaseDesignCenterPage() {
                                 {/* Tooth Shade Selection - Shows at the top when active */}
                                 {currentShadeField && currentShadeArch === "maxillary" && (
                                   <div className="w-full pt-4">
-                                    <div className="flex flex-col items-center gap-4 w-full">
+                                    <div className="flex flex-col items-center w-full">
                                       {/* Shade Guide Dropdown - Top Right */}
                                       <div className="w-full flex justify-end pr-4">
                                         <div className="flex items-center gap-2">
@@ -7087,8 +7098,8 @@ export default function CaseDesignCenterPage() {
                                     minHeight: 'auto',
                                     paddingLeft: '15.87px',
                                     paddingRight: '15.87px',
-                                    paddingBottom: '20px',
-                                    paddingTop: '20px',
+                                    paddingBottom: '8px',
+                                    paddingTop: '8px',
                                     display: 'flex',
                                     flexDirection: 'column',
                                     alignItems: 'flex-start',
@@ -7205,7 +7216,14 @@ export default function CaseDesignCenterPage() {
                                       />
 
                                       {/* Implant Brand/Platform Cards - Shows at the bottom when implant details field is clicked */}
-                                      {showImplantBrandCardsInFields.maxillary && implants && implants.length > 0 && (
+                                      {/* Only show if retention type is "Implant" */}
+                                      {(() => {
+                                        // Check if any tooth has "Implant" retention type for maxillary
+                                        const hasImplantRetention = Object.values(maxillaryRetentionTypes).some(
+                                          (types) => types && types.includes('Implant')
+                                        )
+                                        return hasImplantRetention
+                                      })() && showImplantBrandCardsInFields.maxillary && implants && implants.length > 0 && (
                                         <div className="w-full pt-2">
                                           <div className="flex flex-col items-center gap-2 w-full">
                                             <div className="bg-white w-full flex justify-center">
@@ -7488,7 +7506,7 @@ export default function CaseDesignCenterPage() {
                                                             <SelectTrigger
                                                               className="h-[37px] mt-[5.27px] rounded-[7.7px] text-[14.4px] font-normal"
                                                               style={{
-                                                                padding: '12px 15px 5px 15px',
+                                                                padding: '8px 12px 4px 12px',
                                                                 gap: '5px',
                                                                 background: '#FFFFFF',
                                                                 border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
@@ -7533,7 +7551,7 @@ export default function CaseDesignCenterPage() {
                                                             }}
                                                             className="mt-[5.27px] rounded-[7.7px] text-[14.4px]"
                                                             style={{
-                                                              padding: '12px 15px 5px 15px',
+                                                              padding: '8px 12px 4px 12px',
                                                               minHeight: '80px',
                                                               border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
                                                               minWidth: fieldWidth.minWidth,
@@ -7563,7 +7581,7 @@ export default function CaseDesignCenterPage() {
                                                             }}
                                                             className="h-[37px] mt-[5.27px] rounded-[7.7px] text-[14.4px]"
                                                             style={{
-                                                              padding: '12px 15px 5px 15px',
+                                                              padding: '8px 12px 4px 12px',
                                                               border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
                                                               minWidth: fieldWidth.minWidth,
                                                               maxWidth: fieldWidth.maxWidth,
@@ -7591,7 +7609,7 @@ export default function CaseDesignCenterPage() {
                                                             }}
                                                             className="mt-[5.27px] rounded-[7.7px] text-[14.4px]"
                                                             style={{
-                                                              padding: '12px 15px 5px 15px',
+                                                              padding: '8px 12px 4px 12px',
                                                               minHeight: '80px',
                                                               minWidth: fieldWidth.minWidth,
                                                               maxWidth: fieldWidth.maxWidth,
@@ -7637,7 +7655,7 @@ export default function CaseDesignCenterPage() {
                                                           <div
                                                             className="mt-[5.27px] rounded-[7.7px]"
                                                             style={{
-                                                              padding: '12px 15px 5px 15px',
+                                                              padding: '8px 12px 4px 12px',
                                                               minHeight: '37px',
                                                               background: '#FFFFFF',
                                                               border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
@@ -7724,7 +7742,7 @@ export default function CaseDesignCenterPage() {
                                                           <div
                                                             className="mt-[5.27px] rounded-[7.7px]"
                                                             style={{
-                                                              padding: '12px 15px 5px 15px',
+                                                              padding: '8px 12px 4px 12px',
                                                               minHeight: '37px',
                                                               background: '#FFFFFF',
                                                               border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
@@ -7768,7 +7786,7 @@ export default function CaseDesignCenterPage() {
                                                           <div
                                                             className="mt-[5.27px] rounded-[7.7px]"
                                                             style={{
-                                                              padding: '12px 15px 5px 15px',
+                                                              padding: '8px 12px 4px 12px',
                                                               minHeight: '37px',
                                                               background: '#FFFFFF',
                                                               border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
@@ -7820,7 +7838,7 @@ export default function CaseDesignCenterPage() {
                                                             }}
                                                             className="h-[37px] mt-[5.27px] rounded-[7.7px] text-[14.4px]"
                                                             style={{
-                                                              padding: '12px 15px 5px 15px',
+                                                              padding: '8px 12px 4px 12px',
                                                               border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
                                                               minWidth: fieldWidth.minWidth,
                                                               maxWidth: fieldWidth.maxWidth,
@@ -7891,7 +7909,7 @@ export default function CaseDesignCenterPage() {
                                                                 }}
                                                                 className="h-[37px] mt-[5.27px] rounded-[7.7px] text-[14.4px] cursor-pointer"
                                                                 style={{
-                                                                  padding: '12px 15px 5px 15px',
+                                                                  padding: '8px 12px 4px 12px',
                                                                   border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
                                                                   minWidth: fieldWidth.minWidth,
                                                                   maxWidth: fieldWidth.maxWidth,
@@ -7985,7 +8003,7 @@ export default function CaseDesignCenterPage() {
                                                         <div
                                                           className="flex items-center"
                                                           style={{
-                                                            padding: '12px 15px 5px 15px',
+                                                            padding: '8px 12px 4px 12px',
                                                             gap: '5px',
                                                             width: '100%',
                                                             minHeight: '37px',
@@ -8001,7 +8019,7 @@ export default function CaseDesignCenterPage() {
                                                             fontFamily: 'Verdana',
                                                             fontStyle: 'normal',
                                                             fontWeight: 400,
-                                                            fontSize: '14.4px',
+                                                            fontSize: '13px',
                                                             lineHeight: '20px',
                                                             letterSpacing: '-0.02em',
                                                             color: '#000000'
@@ -8017,7 +8035,7 @@ export default function CaseDesignCenterPage() {
                                                         key={field.id}
                                                         className="relative"
                                                         style={{
-                                                          minHeight: '43px',
+                                                          minHeight: '38px',
                                                           minWidth: fieldWidth.minWidth,
                                                           maxWidth: fieldWidth.maxWidth,
                                                           width: fieldWidth.width,
@@ -8057,7 +8075,14 @@ export default function CaseDesignCenterPage() {
                                         })()}
 
                                       {/* Implant Brand Cards for Advance Fields - Shows when implant details advance field is clicked */}
-                                      {showImplantCards && activeImplantFieldKey && activeImplantFieldKey.startsWith('advance_') && implants && implants.length > 0 && (
+                                      {/* Only show if retention type is "Implant" */}
+                                      {(() => {
+                                        // Check if any tooth has "Implant" retention type for maxillary
+                                        const hasImplantRetention = Object.values(maxillaryRetentionTypes).some(
+                                          (types) => types && types.includes('Implant')
+                                        )
+                                        return hasImplantRetention
+                                      })() && showImplantCards && activeImplantFieldKey && activeImplantFieldKey.startsWith('advance_') && implants && implants.length > 0 && (
                                         <div ref={implantCardsRef} className="w-full pt-2">
                                           <div className="flex flex-col items-center gap-2 w-full">
                                             <div className="bg-white w-full flex justify-center">
@@ -8225,7 +8250,7 @@ export default function CaseDesignCenterPage() {
                                           return (
                                             <div className="flex flex-wrap" style={{ width: '100%', marginTop: '10px' }}>
                                               <div style={{ flex: '1 1 50%', minWidth: '200px', maxWidth: '50%' }}>
-                                                <div className="relative" style={{ minHeight: '43px', width: '100%' }}>
+                                                <div className="relative" style={{ minHeight: '38px', width: '100%' }}>
                                                   <div
                                                     className="flex items-center cursor-pointer"
                                                     onClick={() => {
@@ -8255,10 +8280,10 @@ export default function CaseDesignCenterPage() {
                                                       }
                                                     }}
                                                     style={{
-                                                      padding: '12px 15px 5px 15px',
+                                                      padding: '8px 12px 4px 12px',
                                                       gap: '5px',
                                                       width: '100%',
-                                                      height: '37px',
+                                                      height: '32px',
                                                       position: 'relative',
                                                       marginTop: '5.27px',
                                                       background: '#FFFFFF',
@@ -8271,7 +8296,7 @@ export default function CaseDesignCenterPage() {
                                                       fontFamily: 'Verdana',
                                                       fontStyle: 'normal',
                                                       fontWeight: 400,
-                                                      fontSize: '14.4px',
+                                                      fontSize: '13px',
                                                       lineHeight: '20px',
                                                       letterSpacing: '-0.02em',
                                                       color: '#000000',
@@ -8631,7 +8656,7 @@ export default function CaseDesignCenterPage() {
                                         className="w-full"
                                         style={{
                                           position: 'relative',
-                                          minHeight: '70px',
+                                          minHeight: '45px',
                                           background: savedProduct.rushData ? '#FFE2E2' : (openAccordion === savedProduct.id ? '#E0EDF8' : '#F5F5F5'),
                                           boxShadow: savedProduct.rushData ? '0.9px 0.9px 3.6px 0 rgba(0, 0, 0, 0.25)' : '0.9px 0.9px 3.6px rgba(0, 0, 0, 0.25)',
                                           borderRadius: openAccordion === savedProduct.id ? '10px 10px 0px 0px' : '10px',
@@ -8639,7 +8664,7 @@ export default function CaseDesignCenterPage() {
                                           display: 'flex',
                                           flexDirection: 'column',
                                           alignItems: 'flex-start',
-                                          padding: '14px 12px',
+                                          padding: '6px 8px',
                                           gap: '8px',
                                           borderBottom: openAccordion === savedProduct.id ? '1px dotted #B0D0F0' : 'none'
                                         }}
@@ -8657,13 +8682,13 @@ export default function CaseDesignCenterPage() {
                                           onClick={() => handleSavedProductCardClick(savedProduct)}
                                         >
                                           {/* Responsive Content Container */}
-                                          <div style={{ width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: '12px', paddingRight: '30px' }}>
+                                          <div style={{ width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: '8px', paddingRight: '24px' }}>
                                             {/* Product Image */}
                                             <div
                                               style={{
-                                                width: '40px',
-                                                minWidth: '40px',
-                                                height: '40px',
+                                                width: '32px',
+                                                minWidth: '32px',
+                                                height: '32px',
                                                 background: '#F5F5F5',
                                                 borderRadius: '5.4px',
                                                 overflow: 'hidden',
@@ -8691,15 +8716,15 @@ export default function CaseDesignCenterPage() {
                                             </div>
 
                                             {/* Content Area - Responsive */}
-                                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0, alignItems: 'flex-start' }}>
+                                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0, alignItems: 'flex-start' }}>
                                               {/* Product Name - Bold, plain text */}
                                               <span
                                                 style={{
                                                   fontFamily: 'Verdana',
                                                   fontStyle: 'normal',
                                                   fontWeight: 600,
-                                                  fontSize: '16px',
-                                                  lineHeight: '20px',
+                                                  fontSize: '14px',
+                                                  lineHeight: '16px',
                                                   letterSpacing: '-0.02em',
                                                   color: '#000000',
                                                   wordBreak: 'break-word',
@@ -8718,8 +8743,8 @@ export default function CaseDesignCenterPage() {
                                                     fontFamily: 'Verdana',
                                                     fontStyle: 'normal',
                                                     fontWeight: 400,
-                                                    fontSize: '14px',
-                                                    lineHeight: '20px',
+                                                    fontSize: '12px',
+                                                    lineHeight: '14px',
                                                     letterSpacing: '-0.02em',
                                                     color: '#000000'
                                                   }}
@@ -8743,24 +8768,24 @@ export default function CaseDesignCenterPage() {
                                               {/* Badges and Info Row - Responsive */}
                                               <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                                                 {/* Badge - Category - Pill shaped */}
-                                                <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '4px 12px', background: '#F0F0F0', borderRadius: '20px', flexShrink: 0 }}>
-                                                  <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '12px', lineHeight: '16px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{savedProduct.category}</span>
+                                                <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '2px 8px', background: '#F0F0F0', borderRadius: '12px', flexShrink: 0 }}>
+                                                  <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{savedProduct.category}</span>
                                                 </div>
 
                                                 {/* Badge - Subcategory - Pill shaped */}
-                                                <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '4px 12px', background: '#F0F0F0', borderRadius: '20px', flexShrink: 0 }}>
-                                                  <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '12px', lineHeight: '16px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{savedProduct.subcategory}</span>
+                                                <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '2px 8px', background: '#F0F0F0', borderRadius: '12px', flexShrink: 0 }}>
+                                                  <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{savedProduct.subcategory}</span>
                                                 </div>
 
                                                 {/* Badge - Stage - Pill shaped */}
                                                 {savedProduct.maxillaryStage && (
-                                                  <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '4px 12px', background: '#F0F0F0', borderRadius: '20px', flexShrink: 0 }}>
-                                                    <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '12px', lineHeight: '16px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{savedProduct.maxillaryStage}</span>
+                                                  <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '2px 8px', background: '#F0F0F0', borderRadius: '12px', flexShrink: 0 }}>
+                                                    <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{savedProduct.maxillaryStage}</span>
                                                   </div>
                                                 )}
 
                                                 {/* Est days */}
-                                                <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '12px', lineHeight: '16px', letterSpacing: '-0.02em', color: '#B4B0B0', whiteSpace: 'nowrap' }}>
+                                                <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', letterSpacing: '-0.02em', color: '#B4B0B0', whiteSpace: 'nowrap' }}>
                                                   Est days: {savedProduct.product.estimated_days || 10} work days after submission
                                                 </span>
                                               </div>
@@ -8833,21 +8858,21 @@ export default function CaseDesignCenterPage() {
                                                 flexDirection: 'row',
                                                 alignItems: 'flex-start',
                                                 padding: '0px',
-                                                gap: '20px',
+                                                gap: '12px',
                                                 flex: 'none',
                                                 order: 0,
                                                 alignSelf: 'stretch',
                                                 flexGrow: 0
                                               }}
                                             >
-                                              <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
+                                              <div className="relative flex-1 min-w-[200px] max-w-[48%]" style={{ minHeight: '38px' }}>
                                                 <div
                                                   className="flex items-center"
                                                   style={{
-                                                    padding: '12px 15px 5px 15px',
+                                                    padding: '8px 12px 4px 12px',
                                                     gap: '5px',
                                                     width: '100%',
-                                                    height: '37px',
+                                                    height: '32px',
                                                     position: 'relative',
                                                     marginTop: '5.27px',
                                                     background: '#FFFFFF',
@@ -8860,7 +8885,7 @@ export default function CaseDesignCenterPage() {
                                                     fontFamily: 'Verdana',
                                                     fontStyle: 'normal',
                                                     fontWeight: 400,
-                                                    fontSize: '14.4px',
+                                                    fontSize: '13px',
                                                     lineHeight: '20px',
                                                     letterSpacing: '-0.02em',
                                                     color: '#000000',
@@ -8897,21 +8922,21 @@ export default function CaseDesignCenterPage() {
                                                 flexDirection: 'row',
                                                 alignItems: 'flex-start',
                                                 padding: '0px',
-                                                gap: '20px',
+                                                gap: '12px',
                                                 flex: 'none',
                                                 order: 1,
                                                 alignSelf: 'stretch',
                                                 flexGrow: 0
                                               }}
                                             >
-                                              <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
+                                              <div className="relative flex-1 min-w-[200px] max-w-[48%]" style={{ minHeight: '38px' }}>
                                                 <div
                                                   className="flex items-center"
                                                   style={{
-                                                    padding: '12px 15px 5px 15px',
+                                                    padding: '8px 12px 4px 12px',
                                                     gap: '5px',
                                                     width: '100%',
-                                                    height: '37px',
+                                                    height: '32px',
                                                     position: 'relative',
                                                     marginTop: '5.27px',
                                                     background: '#FFFFFF',
@@ -8960,14 +8985,14 @@ export default function CaseDesignCenterPage() {
                                                 flexDirection: 'row',
                                                 alignItems: 'flex-start',
                                                 padding: '0px',
-                                                gap: '20px',
+                                                gap: '12px',
                                                 flex: 'none',
                                                 order: 2,
                                                 alignSelf: 'stretch',
                                                 flexGrow: 0
                                               }}
                                             >
-                                              <div className="relative flex-1 min-w-[250px] max-w-[100%]" style={{ minHeight: '43px' }}>
+                                              <div className="relative flex-1 min-w-[200px] max-w-[100%]" style={{ minHeight: '38px' }}>
                                                 <div
                                                   className="flex items-start cursor-pointer"
                                                   onClick={(e) => {
@@ -8982,7 +9007,7 @@ export default function CaseDesignCenterPage() {
                                                     }))
                                                   }}
                                                   style={{
-                                                    padding: '12px 15px 5px 15px',
+                                                    padding: '8px 12px 4px 12px',
                                                     gap: '5px',
                                                     width: '100%',
                                                     minHeight: '37px',
@@ -8998,7 +9023,7 @@ export default function CaseDesignCenterPage() {
                                                     fontFamily: 'Verdana',
                                                     fontStyle: 'normal',
                                                     fontWeight: 400,
-                                                    fontSize: '14.4px',
+                                                    fontSize: '13px',
                                                     lineHeight: '20px',
                                                     letterSpacing: '-0.02em',
                                                     color: '#000000'
@@ -9051,7 +9076,7 @@ export default function CaseDesignCenterPage() {
                                           {/* Implant Brand/Platform Cards - Shows when implant details field is clicked */}
                                           {showImplantCardsForProduct[savedProduct.id]?.maxillary && implants && implants.length > 0 && (
                                             <div className="w-full pt-4">
-                                              <div className="flex flex-col items-center gap-4 w-full">
+                                              <div className="flex flex-col items-center w-full">
                                                 <div className="bg-white w-full flex justify-center">
                                                   {(() => {
                                                     // Get brand ID from state, or fallback to savedProduct
@@ -9189,21 +9214,21 @@ export default function CaseDesignCenterPage() {
                                                 flexDirection: 'row',
                                                 alignItems: 'flex-start',
                                                 padding: '0px',
-                                                gap: '20px',
+                                                gap: '12px',
                                                 flex: 'none',
                                                 order: 3,
                                                 alignSelf: 'stretch',
                                                 flexGrow: 0
                                               }}
                                             >
-                                              <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
+                                              <div className="relative flex-1 min-w-[200px] max-w-[48%]" style={{ minHeight: '38px' }}>
                                                 <div
                                                   className="flex items-center"
                                                   style={{
-                                                    padding: '12px 15px 5px 15px',
+                                                    padding: '8px 12px 4px 12px',
                                                     gap: '5px',
                                                     width: '100%',
-                                                    height: '37px',
+                                                    height: '32px',
                                                     position: 'relative',
                                                     marginTop: '5.27px',
                                                     background: '#FFFFFF',
@@ -9216,7 +9241,7 @@ export default function CaseDesignCenterPage() {
                                                     fontFamily: 'Verdana',
                                                     fontStyle: 'normal',
                                                     fontWeight: 400,
-                                                    fontSize: '14.4px',
+                                                    fontSize: '13px',
                                                     lineHeight: '20px',
                                                     letterSpacing: '-0.02em',
                                                     color: '#000000',
@@ -9257,7 +9282,7 @@ export default function CaseDesignCenterPage() {
                                                     flexDirection: 'row',
                                                     alignItems: 'flex-start',
                                                     padding: '0px',
-                                                    gap: '20px',
+                                                    gap: '12px',
                                                     flex: 'none',
                                                     order: 4,
                                                     alignSelf: 'stretch',
@@ -9277,21 +9302,21 @@ export default function CaseDesignCenterPage() {
                                                   flexDirection: 'row',
                                                   alignItems: 'flex-start',
                                                   padding: '0px',
-                                                  gap: '20px',
+                                                  gap: '12px',
                                                   flex: 'none',
                                                   order: 4,
                                                   alignSelf: 'stretch',
                                                   flexGrow: 0
                                                 }}
                                               >
-                                                <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                                <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
                                                   <div
                                                     className="flex items-center justify-between"
                                                     style={{
-                                                      padding: '12px 15px 5px 15px',
+                                                      padding: '8px 12px 4px 12px',
                                                       gap: '5px',
                                                       width: '100%',
-                                                      height: '37px',
+                                                      height: '32px',
                                                       background: '#FFFFFF',
                                                       border: '0.740384px solid #7F7F7F',
                                                       borderRadius: '7.7px',
@@ -9304,7 +9329,7 @@ export default function CaseDesignCenterPage() {
                                                       fontFamily: 'Verdana',
                                                       fontStyle: 'normal',
                                                       fontWeight: 400,
-                                                      fontSize: '14.4px',
+                                                      fontSize: '13px',
                                                       lineHeight: '20px',
                                                       letterSpacing: '-0.02em',
                                                       color: '#000000'
@@ -9371,21 +9396,21 @@ export default function CaseDesignCenterPage() {
                                                 flexDirection: 'row',
                                                 alignItems: 'flex-start',
                                                 padding: '0px',
-                                                gap: '20px',
+                                                gap: '12px',
                                                 flex: 'none',
                                                 order: 5,
                                                 alignSelf: 'stretch',
                                                 flexGrow: 0
                                               }}
                                             >
-                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
                                                 <div
                                                   className="flex items-center"
                                                   style={{
-                                                    padding: '12px 15px 5px 15px',
+                                                    padding: '8px 12px 4px 12px',
                                                     gap: '5px',
                                                     width: '100%',
-                                                    height: '37px',
+                                                    height: '32px',
                                                     background: '#FFFFFF',
                                                     border: '0.740384px solid #7F7F7F',
                                                     borderRadius: '7.7px',
@@ -9398,7 +9423,7 @@ export default function CaseDesignCenterPage() {
                                                     fontFamily: 'Verdana',
                                                     fontStyle: 'normal',
                                                     fontWeight: 400,
-                                                    fontSize: '14.4px',
+                                                    fontSize: '13px',
                                                     lineHeight: '20px',
                                                     letterSpacing: '-0.02em',
                                                     color: '#000000'
@@ -9434,21 +9459,21 @@ export default function CaseDesignCenterPage() {
                                                 flexDirection: 'row',
                                                 alignItems: 'flex-start',
                                                 padding: '0px',
-                                                gap: '20px',
+                                                gap: '12px',
                                                 flex: 'none',
                                                 order: 6,
                                                 alignSelf: 'stretch',
                                                 flexGrow: 0
                                               }}
                                             >
-                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
                                                 <div
                                                   className="flex items-center justify-between"
                                                   style={{
-                                                    padding: '12px 15px 5px 15px',
+                                                    padding: '8px 12px 4px 12px',
                                                     gap: '5px',
                                                     width: '100%',
-                                                    height: '37px',
+                                                    height: '32px',
                                                     background: '#FFFFFF',
                                                     border: '0.740384px solid #7F7F7F',
                                                     borderRadius: '7.7px',
@@ -9461,7 +9486,7 @@ export default function CaseDesignCenterPage() {
                                                     fontFamily: 'Verdana',
                                                     fontStyle: 'normal',
                                                     fontWeight: 400,
-                                                    fontSize: '14.4px',
+                                                    fontSize: '13px',
                                                     lineHeight: '20px',
                                                     letterSpacing: '-0.02em',
                                                     color: '#000000'
@@ -9503,21 +9528,21 @@ export default function CaseDesignCenterPage() {
                                                 flexDirection: 'row',
                                                 alignItems: 'flex-start',
                                                 padding: '0px',
-                                                gap: '20px',
+                                                gap: '12px',
                                                 flex: 'none',
                                                 order: 7,
                                                 alignSelf: 'stretch',
                                                 flexGrow: 0
                                               }}
                                             >
-                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
                                                 <div
                                                   className="flex items-center"
                                                   style={{
-                                                    padding: '12px 15px 5px 15px',
+                                                    padding: '8px 12px 4px 12px',
                                                     gap: '5px',
                                                     width: '100%',
-                                                    height: '37px',
+                                                    height: '32px',
                                                     background: '#FFFFFF',
                                                     border: '0.740384px solid #7F7F7F',
                                                     borderRadius: '7.7px',
@@ -9530,7 +9555,7 @@ export default function CaseDesignCenterPage() {
                                                     fontFamily: 'Verdana',
                                                     fontStyle: 'normal',
                                                     fontWeight: 400,
-                                                    fontSize: '14.4px',
+                                                    fontSize: '13px',
                                                     lineHeight: '20px',
                                                     letterSpacing: '-0.02em',
                                                     color: '#000000'
@@ -9566,21 +9591,21 @@ export default function CaseDesignCenterPage() {
                                                 flexDirection: 'row',
                                                 alignItems: 'flex-start',
                                                 padding: '0px',
-                                                gap: '20px',
+                                                gap: '12px',
                                                 flex: 'none',
                                                 order: 8,
                                                 alignSelf: 'stretch',
                                                 flexGrow: 0
                                               }}
                                             >
-                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
                                                 <div
                                                   className="flex items-center"
                                                   style={{
-                                                    padding: '12px 15px 5px 15px',
+                                                    padding: '8px 12px 4px 12px',
                                                     gap: '5px',
                                                     width: '100%',
-                                                    height: '37px',
+                                                    height: '32px',
                                                     position: 'relative',
                                                     marginTop: '5.27px',
                                                     background: '#FFFFFF',
@@ -9593,7 +9618,7 @@ export default function CaseDesignCenterPage() {
                                                     fontFamily: 'Verdana',
                                                     fontStyle: 'normal',
                                                     fontWeight: 400,
-                                                    fontSize: '14.4px',
+                                                    fontSize: '13px',
                                                     lineHeight: '20px',
                                                     letterSpacing: '-0.02em',
                                                     color: '#000000'
@@ -9629,21 +9654,21 @@ export default function CaseDesignCenterPage() {
                                                 flexDirection: 'row',
                                                 alignItems: 'flex-start',
                                                 padding: '0px',
-                                                gap: '20px',
+                                                gap: '12px',
                                                 flex: 'none',
                                                 order: 9,
                                                 alignSelf: 'stretch',
                                                 flexGrow: 0
                                               }}
                                             >
-                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
                                                 <div
                                                   className="flex items-center"
                                                   style={{
-                                                    padding: '12px 15px 5px 15px',
+                                                    padding: '8px 12px 4px 12px',
                                                     gap: '5px',
                                                     width: '100%',
-                                                    height: '37px',
+                                                    height: '32px',
                                                     background: '#FFFFFF',
                                                     border: '0.740384px solid #7F7F7F',
                                                     borderRadius: '7.7px',
@@ -9656,7 +9681,7 @@ export default function CaseDesignCenterPage() {
                                                     fontFamily: 'Verdana',
                                                     fontStyle: 'normal',
                                                     fontWeight: 400,
-                                                    fontSize: '14.4px',
+                                                    fontSize: '13px',
                                                     lineHeight: '20px',
                                                     letterSpacing: '-0.02em',
                                                     color: '#000000'
@@ -9692,21 +9717,21 @@ export default function CaseDesignCenterPage() {
                                                 flexDirection: 'row',
                                                 alignItems: 'flex-start',
                                                 padding: '0px',
-                                                gap: '20px',
+                                                gap: '12px',
                                                 flex: 'none',
                                                 order: 10,
                                                 alignSelf: 'stretch',
                                                 flexGrow: 0
                                               }}
                                             >
-                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
                                                 <div
                                                   className="flex items-center"
                                                   style={{
-                                                    padding: '12px 15px 5px 15px',
+                                                    padding: '8px 12px 4px 12px',
                                                     gap: '5px',
                                                     width: '100%',
-                                                    height: '37px',
+                                                    height: '32px',
                                                     background: '#FFFFFF',
                                                     border: '0.740384px solid #7F7F7F',
                                                     borderRadius: '7.7px',
@@ -9719,7 +9744,7 @@ export default function CaseDesignCenterPage() {
                                                     fontFamily: 'Verdana',
                                                     fontStyle: 'normal',
                                                     fontWeight: 400,
-                                                    fontSize: '14.4px',
+                                                    fontSize: '13px',
                                                     lineHeight: '20px',
                                                     letterSpacing: '-0.02em',
                                                     color: '#000000'
@@ -9755,21 +9780,21 @@ export default function CaseDesignCenterPage() {
                                                 flexDirection: 'row',
                                                 alignItems: 'flex-start',
                                                 padding: '0px',
-                                                gap: '20px',
+                                                gap: '12px',
                                                 flex: 'none',
                                                 order: 11,
                                                 alignSelf: 'stretch',
                                                 flexGrow: 0
                                               }}
                                             >
-                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
                                                 <div
                                                   className="flex items-center"
                                                   style={{
-                                                    padding: '12px 15px 5px 15px',
+                                                    padding: '8px 12px 4px 12px',
                                                     gap: '5px',
                                                     width: '100%',
-                                                    height: '37px',
+                                                    height: '32px',
                                                     background: '#FFFFFF',
                                                     border: '0.740384px solid #7F7F7F',
                                                     borderRadius: '7.7px',
@@ -9782,7 +9807,7 @@ export default function CaseDesignCenterPage() {
                                                     fontFamily: 'Verdana',
                                                     fontStyle: 'normal',
                                                     fontWeight: 400,
-                                                    fontSize: '14.4px',
+                                                    fontSize: '13px',
                                                     lineHeight: '20px',
                                                     letterSpacing: '-0.02em',
                                                     color: '#000000'
@@ -9818,21 +9843,21 @@ export default function CaseDesignCenterPage() {
                                                 flexDirection: 'row',
                                                 alignItems: 'flex-start',
                                                 padding: '0px',
-                                                gap: '20px',
+                                                gap: '12px',
                                                 flex: 'none',
                                                 order: 12,
                                                 alignSelf: 'stretch',
                                                 flexGrow: 0
                                               }}
                                             >
-                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
                                                 <div
                                                   className="flex items-center"
                                                   style={{
-                                                    padding: '12px 15px 5px 15px',
+                                                    padding: '8px 12px 4px 12px',
                                                     gap: '5px',
                                                     width: '100%',
-                                                    height: '37px',
+                                                    height: '32px',
                                                     background: '#FFFFFF',
                                                     border: '0.740384px solid #7F7F7F',
                                                     borderRadius: '7.7px',
@@ -9845,7 +9870,7 @@ export default function CaseDesignCenterPage() {
                                                     fontFamily: 'Verdana',
                                                     fontStyle: 'normal',
                                                     fontWeight: 400,
-                                                    fontSize: '14.4px',
+                                                    fontSize: '13px',
                                                     lineHeight: '20px',
                                                     letterSpacing: '-0.02em',
                                                     color: '#000000'
@@ -9881,21 +9906,21 @@ export default function CaseDesignCenterPage() {
                                                 flexDirection: 'row',
                                                 alignItems: 'flex-start',
                                                 padding: '0px',
-                                                gap: '20px',
+                                                gap: '12px',
                                                 flex: 'none',
                                                 order: 13,
                                                 alignSelf: 'stretch',
                                                 flexGrow: 0
                                               }}
                                             >
-                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
                                                 <div
                                                   className="flex items-center"
                                                   style={{
-                                                    padding: '12px 15px 5px 15px',
+                                                    padding: '8px 12px 4px 12px',
                                                     gap: '5px',
                                                     width: '100%',
-                                                    height: '37px',
+                                                    height: '32px',
                                                     background: '#FFFFFF',
                                                     border: '0.740384px solid #7F7F7F',
                                                     borderRadius: '7.7px',
@@ -9908,7 +9933,7 @@ export default function CaseDesignCenterPage() {
                                                     fontFamily: 'Verdana',
                                                     fontStyle: 'normal',
                                                     fontWeight: 400,
-                                                    fontSize: '14.4px',
+                                                    fontSize: '13px',
                                                     lineHeight: '20px',
                                                     letterSpacing: '-0.02em',
                                                     color: '#000000'
@@ -9944,21 +9969,21 @@ export default function CaseDesignCenterPage() {
                                                 flexDirection: 'row',
                                                 alignItems: 'flex-start',
                                                 padding: '0px',
-                                                gap: '20px',
+                                                gap: '12px',
                                                 flex: 'none',
                                                 order: 13,
                                                 alignSelf: 'stretch',
                                                 flexGrow: 0
                                               }}
                                             >
-                                              <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
+                                              <div className="relative flex-1 min-w-[200px] max-w-[48%]" style={{ minHeight: '38px' }}>
                                                 <div
                                                   className="flex items-center"
                                                   style={{
-                                                    padding: '12px 15px 5px 15px',
+                                                    padding: '8px 12px 4px 12px',
                                                     gap: '5px',
                                                     width: '100%',
-                                                    height: '37px',
+                                                    height: '32px',
                                                     background: '#FFFFFF',
                                                     border: '0.740384px solid #7F7F7F',
                                                     borderRadius: '7.7px',
@@ -9971,7 +9996,7 @@ export default function CaseDesignCenterPage() {
                                                     fontFamily: 'Verdana',
                                                     fontStyle: 'normal',
                                                     fontWeight: 400,
-                                                    fontSize: '14.4px',
+                                                    fontSize: '13px',
                                                     lineHeight: '20px',
                                                     letterSpacing: '-0.02em',
                                                     color: '#000000'
@@ -10007,7 +10032,7 @@ export default function CaseDesignCenterPage() {
                                                 flexDirection: 'row',
                                                 alignItems: 'flex-start',
                                                 padding: '0px',
-                                                gap: '20px',
+                                                gap: '12px',
                                                 flex: 'none',
                                                 order: 14,
                                                 alignSelf: 'stretch',
@@ -10027,7 +10052,7 @@ export default function CaseDesignCenterPage() {
                                                 flexDirection: 'row',
                                                 alignItems: 'flex-start',
                                                 padding: '0px',
-                                                gap: '20px',
+                                                gap: '12px',
                                                 flex: 'none',
                                                 order: 1,
                                                 alignSelf: 'stretch',
@@ -10048,14 +10073,14 @@ export default function CaseDesignCenterPage() {
 
                                                 // Otherwise, render the hardcoded stump shade (backward compatibility)
                                                 return (
-                                                  <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                                  <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
                                                     <div
                                                       className="flex items-center justify-between"
                                                       style={{
-                                                        padding: '12px 15px 5px 15px',
+                                                        padding: '8px 12px 4px 12px',
                                                         gap: '5px',
                                                         width: '100%',
-                                                        height: '37px',
+                                                        height: '32px',
                                                         background: '#FFFFFF',
                                                         border: '0.740384px solid #7F7F7F',
                                                         borderRadius: '7.7px',
@@ -10068,7 +10093,7 @@ export default function CaseDesignCenterPage() {
                                                         fontFamily: 'Verdana',
                                                         fontStyle: 'normal',
                                                         fontWeight: 400,
-                                                        fontSize: '14.4px',
+                                                        fontSize: '13px',
                                                         lineHeight: '20px',
                                                         letterSpacing: '-0.02em',
                                                         color: '#000000'
@@ -10126,14 +10151,14 @@ export default function CaseDesignCenterPage() {
                                               })()}
 
                                               {/* Tooth Shade */}
-                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
                                                 <div
                                                   className="flex items-center justify-between"
                                                   style={{
-                                                    padding: '12px 15px 5px 15px',
+                                                    padding: '8px 12px 4px 12px',
                                                     gap: '5px',
                                                     width: '100%',
-                                                    height: '37px',
+                                                    height: '32px',
                                                     background: '#FFFFFF',
                                                     border: '0.740384px solid #7F7F7F',
                                                     borderRadius: '7.7px',
@@ -10146,7 +10171,7 @@ export default function CaseDesignCenterPage() {
                                                     fontFamily: 'Verdana',
                                                     fontStyle: 'normal',
                                                     fontWeight: 400,
-                                                    fontSize: '14.4px',
+                                                    fontSize: '13px',
                                                     lineHeight: '20px',
                                                     letterSpacing: '-0.02em',
                                                     color: '#000000'
@@ -10172,14 +10197,14 @@ export default function CaseDesignCenterPage() {
                                               </div>
 
                                               {/* Stage */}
-                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
                                                 <div
                                                   className="flex items-center"
                                                   style={{
-                                                    padding: '12px 15px 5px 15px',
+                                                    padding: '8px 12px 4px 12px',
                                                     gap: '5px',
                                                     width: '100%',
-                                                    height: '37px',
+                                                    height: '32px',
                                                     position: 'relative',
                                                     marginTop: '5.27px',
                                                     background: '#FFFFFF',
@@ -10192,7 +10217,7 @@ export default function CaseDesignCenterPage() {
                                                     fontFamily: 'Verdana',
                                                     fontStyle: 'normal',
                                                     fontWeight: 400,
-                                                    fontSize: '14.4px',
+                                                    fontSize: '13px',
                                                     lineHeight: '20px',
                                                     letterSpacing: '-0.02em',
                                                     color: '#000000'
@@ -10473,16 +10498,16 @@ export default function CaseDesignCenterPage() {
                       {selectedProductForMandibular && mandibularTeeth.length > 0 && savedProducts.filter(p => p.addedFrom === "mandibular").length > 0 && (
                         <div
                           className="relative flex items-center justify-center"
-                          style={{ width: "100%", height: "32px", flex: "none", order: 0, flexGrow: 0 }}
+                          style={{ width: "100%", height: "22px", flex: "none", order: 0, flexGrow: 0 }}
                         >
                           <div
                             className="absolute left-1/2"
                             style={{
                               width: "auto",
-                              minWidth: "210px",
-                              maxWidth: "390px",
-                              height: "22px",
-                              top: "5px",
+                              minWidth: "129px",
+                              maxWidth: "300px",
+                              height: "18.53px",
+                              top: "2px",
                               transform: "translateX(-50%)",
                               background: "#DFEEFB",
                               boxShadow: "1px 1px 3.5px rgba(0, 0, 0, 0.25)",
@@ -10490,7 +10515,7 @@ export default function CaseDesignCenterPage() {
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
-                              padding: "0 14px",
+                              padding: "0 10px",
                             }}
                           >
                             <span
@@ -10499,7 +10524,7 @@ export default function CaseDesignCenterPage() {
                                 fontFamily: "Verdana",
                                 fontStyle: "normal",
                                 fontWeight: 400,
-                                fontSize: "15px",
+                                fontSize: "10px",
                                 lineHeight: "22px",
                                 textAlign: "center",
                                 letterSpacing: "-0.02em",
@@ -10529,12 +10554,12 @@ export default function CaseDesignCenterPage() {
                       )}
 
                       {/* MANDIBULAR Label - Below Product Badge */}
-                      <div className="flex items-center justify-center gap-3 mt-2 mb-2">
-                        <p className="text-base font-bold text-black text-center" style={{ fontWeight: 700, letterSpacing: "0.01em" }}>MANDIBULAR</p>
+                      <div className="flex items-center justify-center gap-2 mt-1 mb-1">
+                        <p className="text-sm font-bold text-black text-center" style={{ fontWeight: 700, letterSpacing: "0.01em" }}>MANDIBULAR</p>
                       </div>
 
                       {/* Dental Chart - Outside Card */}
-                      <div className="rounded-lg pt-3 px-3 pb-0 flex items-center justify-center relative">
+                      <div className="rounded-lg pt-1 px-2 pb-0 flex items-center justify-center relative">
                         {shouldShowImplantPopover && implantPopoverState.arch === 'mandibular' && implantPopoverState.toothNumber !== null && (
                           <ImplantPartsPopover
                             onImplantPartsIncluded={() => {
@@ -10613,7 +10638,7 @@ export default function CaseDesignCenterPage() {
                         sp.subcategoryId === selectedSubcategoryId &&
                         JSON.stringify([...(sp.mandibularTeeth || [])].sort()) === JSON.stringify([...mandibularTeeth].sort())
                       ) && (
-                        <Card className="overflow-hidden border border-gray-200 shadow-sm -mt-2">
+                        <Card className="overflow-hidden border border-gray-200 shadow-sm -mt-6">
                           <Accordion
                             type="single"
                             collapsible
@@ -10627,14 +10652,14 @@ export default function CaseDesignCenterPage() {
                                 className="w-full"
                                 style={{
                                   position: 'relative',
-                                  minHeight: '70px',
+                                  minHeight: '45px',
                                   background: openAccordion === "mandibular-card" ? '#E0EDF8' : '#F5F5F5',
                                   boxShadow: '0.9px 0.9px 3.6px rgba(0, 0, 0, 0.25)',
                                   borderRadius: openAccordion === "mandibular-card" ? '10px 10px 0px 0px' : '10px',
                                   display: currentShadeField ? 'none' : 'flex',
                                   flexDirection: 'column',
                                   alignItems: 'flex-start',
-                                  padding: '14px 12px',
+                                  padding: '6px 8px',
                                   gap: '8px',
                                   borderBottom: openAccordion === "mandibular-card" ? '1px dotted #B0D0F0' : 'none'
                                 }}
@@ -10651,13 +10676,13 @@ export default function CaseDesignCenterPage() {
                                   }}
                                 >
                                   {/* Responsive Content Container */}
-                                  <div style={{ width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: '12px', paddingRight: '30px' }}>
+                                  <div style={{ width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: '8px', paddingRight: '24px' }}>
                                     {/* Product Image */}
                                     <div
                                       style={{
-                                        width: '40px',
-                                        minWidth: '40px',
-                                        height: '40px',
+                                        width: '32px',
+                                        minWidth: '32px',
+                                        height: '32px',
                                         background: `url(${selectedProduct?.image_url || "/images/tooth-icon.png"}), #FFFFFF`,
                                         backgroundSize: 'contain',
                                         backgroundPosition: 'center',
@@ -10668,7 +10693,7 @@ export default function CaseDesignCenterPage() {
                                     />
 
                                     {/* Content Area - Responsive */}
-                                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0, alignItems: 'flex-start' }}>
+                                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0, alignItems: 'flex-start' }}>
                                       {/* Product Name - Bold, plain text */}
                                       {selectedProduct?.name && (
                                         <span
@@ -10676,8 +10701,8 @@ export default function CaseDesignCenterPage() {
                                             fontFamily: 'Verdana',
                                             fontStyle: 'normal',
                                             fontWeight: 600,
-                                            fontSize: '16px',
-                                            lineHeight: '20px',
+                                            fontSize: '14px',
+                                            lineHeight: '16px',
                                             letterSpacing: '-0.02em',
                                             color: '#000000',
                                             wordBreak: 'break-word',
@@ -10697,8 +10722,8 @@ export default function CaseDesignCenterPage() {
                                             fontFamily: 'Verdana',
                                             fontStyle: 'normal',
                                             fontWeight: 400,
-                                            fontSize: '14px',
-                                            lineHeight: '20px',
+                                            fontSize: '12px',
+                                            lineHeight: '14px',
                                             letterSpacing: '-0.02em',
                                             color: '#000000'
                                           }}
@@ -10714,20 +10739,20 @@ export default function CaseDesignCenterPage() {
                                       <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                                         {/* Badge - Category - Pill shaped */}
                                         {selectedCategory && (
-                                          <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '4px 12px', background: '#F0F0F0', borderRadius: '20px', flexShrink: 0 }}>
-                                            <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '12px', lineHeight: '16px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{selectedCategory}</span>
+                                          <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '2px 8px', background: '#F0F0F0', borderRadius: '12px', flexShrink: 0 }}>
+                                            <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{selectedCategory}</span>
                                           </div>
                                         )}
 
                                         {/* Badge - Subcategory - Pill shaped */}
                                         {selectedSubcategory && (
-                                          <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '4px 12px', background: '#F0F0F0', borderRadius: '20px', flexShrink: 0 }}>
-                                            <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '12px', lineHeight: '16px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{selectedSubcategory}</span>
+                                          <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '2px 8px', background: '#F0F0F0', borderRadius: '12px', flexShrink: 0 }}>
+                                            <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{selectedSubcategory}</span>
                                           </div>
                                         )}
 
                                         {/* Est days */}
-                                        <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '12px', lineHeight: '16px', letterSpacing: '-0.02em', color: '#B4B0B0', whiteSpace: 'nowrap' }}>
+                                        <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', letterSpacing: '-0.02em', color: '#B4B0B0', whiteSpace: 'nowrap' }}>
                                           Est days: {selectedProduct?.estimated_days || 10} work days after submission
                                         </span>
                                       </div>
@@ -10749,7 +10774,7 @@ export default function CaseDesignCenterPage() {
                                 {/* Tooth Shade Selection - Shows at the top when active */}
                                 {currentShadeField && currentShadeArch === "mandibular" && (
                                   <div className="w-full pt-4">
-                                    <div className="flex flex-col items-center gap-4 w-full">
+                                    <div className="flex flex-col items-center w-full">
                                       {/* Shade Guide Dropdown - Top Right */}
                                       <div className="w-full flex justify-end pr-4">
                                         <div className="flex items-center gap-2">
@@ -10799,8 +10824,8 @@ export default function CaseDesignCenterPage() {
                                     minHeight: 'auto',
                                     paddingLeft: '15.87px',
                                     paddingRight: '15.87px',
-                                    paddingBottom: '20px',
-                                    paddingTop: '20px',
+                                    paddingBottom: '8px',
+                                    paddingTop: '8px',
                                     display: 'flex',
                                     flexDirection: 'column',
                                     alignItems: 'flex-start',
@@ -10917,7 +10942,14 @@ export default function CaseDesignCenterPage() {
                                       />
 
                                       {/* Implant Brand/Platform Cards - Shows at the bottom when implant details field is clicked */}
-                                      {showImplantBrandCardsInFields.mandibular && implants && implants.length > 0 && (
+                                      {/* Only show if retention type is "Implant" */}
+                                      {(() => {
+                                        // Check if any tooth has "Implant" retention type for mandibular
+                                        const hasImplantRetention = Object.values(mandibularRetentionTypes).some(
+                                          (types) => types && types.includes('Implant')
+                                        )
+                                        return hasImplantRetention
+                                      })() && showImplantBrandCardsInFields.mandibular && implants && implants.length > 0 && (
                                         <div className="w-full pt-2">
                                           <div className="flex flex-col items-center gap-2 w-full">
                                             <div className="bg-white w-full flex justify-center">
@@ -11006,7 +11038,14 @@ export default function CaseDesignCenterPage() {
                                       )}
 
                                       {/* Implant Brand Cards for Advance Fields - Shows when implant details advance field is clicked */}
-                                      {showImplantCards && activeImplantFieldKey && activeImplantFieldKey.startsWith('advance_') && implants && implants.length > 0 && (
+                                      {/* Only show if retention type is "Implant" */}
+                                      {(() => {
+                                        // Check if any tooth has "Implant" retention type for mandibular
+                                        const hasImplantRetention = Object.values(mandibularRetentionTypes).some(
+                                          (types) => types && types.includes('Implant')
+                                        )
+                                        return hasImplantRetention
+                                      })() && showImplantCards && activeImplantFieldKey && activeImplantFieldKey.startsWith('advance_') && implants && implants.length > 0 && (
                                         <div ref={implantCardsRef} className="w-full pt-2">
                                           <div className="flex flex-col items-center gap-2 w-full">
                                             <div className="bg-white w-full flex justify-center">
@@ -11329,7 +11368,7 @@ export default function CaseDesignCenterPage() {
                                                             <SelectTrigger
                                                               className="h-[37px] mt-[5.27px] rounded-[7.7px] text-[14.4px] font-normal"
                                                               style={{
-                                                                padding: '12px 15px 5px 15px',
+                                                                padding: '8px 12px 4px 12px',
                                                                 gap: '5px',
                                                                 background: '#FFFFFF',
                                                                 border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
@@ -11374,7 +11413,7 @@ export default function CaseDesignCenterPage() {
                                                             }}
                                                             className="mt-[5.27px] rounded-[7.7px] text-[14.4px]"
                                                             style={{
-                                                              padding: '12px 15px 5px 15px',
+                                                              padding: '8px 12px 4px 12px',
                                                               minHeight: '80px',
                                                               border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
                                                               minWidth: fieldWidth.minWidth,
@@ -11404,7 +11443,7 @@ export default function CaseDesignCenterPage() {
                                                             }}
                                                             className="h-[37px] mt-[5.27px] rounded-[7.7px] text-[14.4px]"
                                                             style={{
-                                                              padding: '12px 15px 5px 15px',
+                                                              padding: '8px 12px 4px 12px',
                                                               border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
                                                               minWidth: fieldWidth.minWidth,
                                                               maxWidth: fieldWidth.maxWidth,
@@ -11432,7 +11471,7 @@ export default function CaseDesignCenterPage() {
                                                             }}
                                                             className="mt-[5.27px] rounded-[7.7px] text-[14.4px]"
                                                             style={{
-                                                              padding: '12px 15px 5px 15px',
+                                                              padding: '8px 12px 4px 12px',
                                                               minHeight: '80px',
                                                               minWidth: fieldWidth.minWidth,
                                                               maxWidth: fieldWidth.maxWidth,
@@ -11478,7 +11517,7 @@ export default function CaseDesignCenterPage() {
                                                           <div
                                                             className="mt-[5.27px] rounded-[7.7px]"
                                                             style={{
-                                                              padding: '12px 15px 5px 15px',
+                                                              padding: '8px 12px 4px 12px',
                                                               minHeight: '37px',
                                                               background: '#FFFFFF',
                                                               border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
@@ -11565,7 +11604,7 @@ export default function CaseDesignCenterPage() {
                                                           <div
                                                             className="mt-[5.27px] rounded-[7.7px]"
                                                             style={{
-                                                              padding: '12px 15px 5px 15px',
+                                                              padding: '8px 12px 4px 12px',
                                                               minHeight: '37px',
                                                               background: '#FFFFFF',
                                                               border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
@@ -11609,7 +11648,7 @@ export default function CaseDesignCenterPage() {
                                                           <div
                                                             className="mt-[5.27px] rounded-[7.7px]"
                                                             style={{
-                                                              padding: '12px 15px 5px 15px',
+                                                              padding: '8px 12px 4px 12px',
                                                               minHeight: '37px',
                                                               background: '#FFFFFF',
                                                               border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
@@ -11661,7 +11700,7 @@ export default function CaseDesignCenterPage() {
                                                             }}
                                                             className="h-[37px] mt-[5.27px] rounded-[7.7px] text-[14.4px]"
                                                             style={{
-                                                              padding: '12px 15px 5px 15px',
+                                                              padding: '8px 12px 4px 12px',
                                                               border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
                                                               minWidth: fieldWidth.minWidth,
                                                               maxWidth: fieldWidth.maxWidth,
@@ -11732,7 +11771,7 @@ export default function CaseDesignCenterPage() {
                                                                 }}
                                                                 className="h-[37px] mt-[5.27px] rounded-[7.7px] text-[14.4px] cursor-pointer"
                                                                 style={{
-                                                                  padding: '12px 15px 5px 15px',
+                                                                  padding: '8px 12px 4px 12px',
                                                                   border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
                                                                   minWidth: fieldWidth.minWidth,
                                                                   maxWidth: fieldWidth.maxWidth,
@@ -11826,7 +11865,7 @@ export default function CaseDesignCenterPage() {
                                                         <div
                                                           className="flex items-center"
                                                           style={{
-                                                            padding: '12px 15px 5px 15px',
+                                                            padding: '8px 12px 4px 12px',
                                                             gap: '5px',
                                                             width: '100%',
                                                             minHeight: '37px',
@@ -11842,7 +11881,7 @@ export default function CaseDesignCenterPage() {
                                                             fontFamily: 'Verdana',
                                                             fontStyle: 'normal',
                                                             fontWeight: 400,
-                                                            fontSize: '14.4px',
+                                                            fontSize: '13px',
                                                             lineHeight: '20px',
                                                             letterSpacing: '-0.02em',
                                                             color: '#000000'
@@ -11858,7 +11897,7 @@ export default function CaseDesignCenterPage() {
                                                         key={field.id}
                                                         className="relative"
                                                         style={{
-                                                          minHeight: '43px',
+                                                          minHeight: '38px',
                                                           minWidth: fieldWidth.minWidth,
                                                           maxWidth: fieldWidth.maxWidth,
                                                           width: fieldWidth.width,
@@ -11936,7 +11975,7 @@ export default function CaseDesignCenterPage() {
                                           return (
                                             <div className="flex flex-wrap" style={{ width: '100%', marginTop: '10px' }}>
                                               <div style={{ flex: '1 1 50%', minWidth: '200px', maxWidth: '50%' }}>
-                                                <div className="relative" style={{ minHeight: '43px', width: '100%' }}>
+                                                <div className="relative" style={{ minHeight: '38px', width: '100%' }}>
                                                   <div
                                                     className="flex items-center cursor-pointer"
                                                     onClick={() => {
@@ -11966,10 +12005,10 @@ export default function CaseDesignCenterPage() {
                                                       }
                                                     }}
                                                     style={{
-                                                      padding: '12px 15px 5px 15px',
+                                                      padding: '8px 12px 4px 12px',
                                                       gap: '5px',
                                                       width: '100%',
-                                                      height: '37px',
+                                                      height: '32px',
                                                       position: 'relative',
                                                       marginTop: '5.27px',
                                                       background: '#FFFFFF',
@@ -11982,7 +12021,7 @@ export default function CaseDesignCenterPage() {
                                                       fontFamily: 'Verdana',
                                                       fontStyle: 'normal',
                                                       fontWeight: 400,
-                                                      fontSize: '14.4px',
+                                                      fontSize: '13px',
                                                       lineHeight: '20px',
                                                       letterSpacing: '-0.02em',
                                                       color: '#000000',
@@ -12336,7 +12375,7 @@ export default function CaseDesignCenterPage() {
                                         className="w-full"
                                         style={{
                                           position: 'relative',
-                                          minHeight: '70px',
+                                          minHeight: '45px',
                                           background: savedProduct.rushData ? '#FFE2E2' : (openAccordion === savedProduct.id ? '#E0EDF8' : '#F5F5F5'),
                                           boxShadow: savedProduct.rushData ? '0.9px 0.9px 3.6px 0 rgba(0, 0, 0, 0.25)' : '0.9px 0.9px 3.6px rgba(0, 0, 0, 0.25)',
                                           borderRadius: openAccordion === savedProduct.id ? '10px 10px 0px 0px' : '10px',
@@ -12344,7 +12383,7 @@ export default function CaseDesignCenterPage() {
                                           display: 'flex',
                                           flexDirection: 'column',
                                           alignItems: 'flex-start',
-                                          padding: '14px 12px',
+                                          padding: '6px 8px',
                                           gap: '8px',
                                           borderBottom: openAccordion === savedProduct.id ? '1px dotted #B0D0F0' : 'none'
                                         }}
@@ -12361,13 +12400,13 @@ export default function CaseDesignCenterPage() {
                                           }}
                                         >
                                           {/* Responsive Content Container */}
-                                          <div style={{ width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: '12px', paddingRight: '30px' }}>
+                                          <div style={{ width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: '8px', paddingRight: '24px' }}>
                                             {/* Product Image */}
                                             <div
                                               style={{
-                                                width: '40px',
-                                                minWidth: '40px',
-                                                height: '40px',
+                                                width: '32px',
+                                                minWidth: '32px',
+                                                height: '32px',
                                                 background: '#F5F5F5',
                                                 borderRadius: '5.4px',
                                                 overflow: 'hidden',
@@ -12395,15 +12434,15 @@ export default function CaseDesignCenterPage() {
                                             </div>
 
                                             {/* Content Area - Responsive */}
-                                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0, alignItems: 'flex-start' }}>
+                                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0, alignItems: 'flex-start' }}>
                                               {/* Product Name - Bold, plain text */}
                                               <span
                                                 style={{
                                                   fontFamily: 'Verdana',
                                                   fontStyle: 'normal',
                                                   fontWeight: 600,
-                                                  fontSize: '16px',
-                                                  lineHeight: '20px',
+                                                  fontSize: '14px',
+                                                  lineHeight: '16px',
                                                   letterSpacing: '-0.02em',
                                                   color: '#000000',
                                                   wordBreak: 'break-word',
@@ -12422,8 +12461,8 @@ export default function CaseDesignCenterPage() {
                                                     fontFamily: 'Verdana',
                                                     fontStyle: 'normal',
                                                     fontWeight: 400,
-                                                    fontSize: '14px',
-                                                    lineHeight: '20px',
+                                                    fontSize: '12px',
+                                                    lineHeight: '14px',
                                                     letterSpacing: '-0.02em',
                                                     color: '#000000'
                                                   }}
@@ -12447,24 +12486,24 @@ export default function CaseDesignCenterPage() {
                                               {/* Badges and Info Row - Responsive */}
                                               <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                                                 {/* Badge - Category - Pill shaped */}
-                                                <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '4px 12px', background: '#F0F0F0', borderRadius: '20px', flexShrink: 0 }}>
-                                                  <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '12px', lineHeight: '16px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{savedProduct.category}</span>
+                                                <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '2px 8px', background: '#F0F0F0', borderRadius: '12px', flexShrink: 0 }}>
+                                                  <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{savedProduct.category}</span>
                                                 </div>
 
                                                 {/* Badge - Subcategory - Pill shaped */}
-                                                <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '4px 12px', background: '#F0F0F0', borderRadius: '20px', flexShrink: 0 }}>
-                                                  <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '12px', lineHeight: '16px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{savedProduct.subcategory}</span>
+                                                <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '2px 8px', background: '#F0F0F0', borderRadius: '12px', flexShrink: 0 }}>
+                                                  <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{savedProduct.subcategory}</span>
                                                 </div>
 
                                                 {/* Badge - Stage - Pill shaped */}
                                                 {savedProduct.mandibularStage && (
-                                                  <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '4px 12px', background: '#F0F0F0', borderRadius: '20px', flexShrink: 0 }}>
-                                                    <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '12px', lineHeight: '16px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{savedProduct.mandibularStage}</span>
+                                                  <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '2px 8px', background: '#F0F0F0', borderRadius: '12px', flexShrink: 0 }}>
+                                                    <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{savedProduct.mandibularStage}</span>
                                                   </div>
                                                 )}
 
                                                 {/* Est days */}
-                                                <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '12px', lineHeight: '16px', letterSpacing: '-0.02em', color: '#B4B0B0', whiteSpace: 'nowrap' }}>
+                                                <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', letterSpacing: '-0.02em', color: '#B4B0B0', whiteSpace: 'nowrap' }}>
                                                   Est days: {savedProduct.product.estimated_days || 10} work days after submission
                                                 </span>
                                               </div>
@@ -12537,21 +12576,21 @@ export default function CaseDesignCenterPage() {
                                                 flexDirection: 'row',
                                                 alignItems: 'flex-start',
                                                 padding: '0px',
-                                                gap: '20px',
+                                                gap: '12px',
                                                 flex: 'none',
                                                 order: 0,
                                                 alignSelf: 'stretch',
                                                 flexGrow: 0
                                               }}
                                             >
-                                              <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
+                                              <div className="relative flex-1 min-w-[200px] max-w-[48%]" style={{ minHeight: '38px' }}>
                                                 <div
                                                   className="flex items-center"
                                                   style={{
-                                                    padding: '12px 15px 5px 15px',
+                                                    padding: '8px 12px 4px 12px',
                                                     gap: '5px',
                                                     width: '100%',
-                                                    height: '37px',
+                                                    height: '32px',
                                                     position: 'relative',
                                                     marginTop: '5.27px',
                                                     background: '#FFFFFF',
@@ -12564,7 +12603,7 @@ export default function CaseDesignCenterPage() {
                                                     fontFamily: 'Verdana',
                                                     fontStyle: 'normal',
                                                     fontWeight: 400,
-                                                    fontSize: '14.4px',
+                                                    fontSize: '13px',
                                                     lineHeight: '20px',
                                                     letterSpacing: '-0.02em',
                                                     color: '#000000',
@@ -12601,21 +12640,21 @@ export default function CaseDesignCenterPage() {
                                                 flexDirection: 'row',
                                                 alignItems: 'flex-start',
                                                 padding: '0px',
-                                                gap: '20px',
+                                                gap: '12px',
                                                 flex: 'none',
                                                 order: 1,
                                                 alignSelf: 'stretch',
                                                 flexGrow: 0
                                               }}
                                             >
-                                              <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
+                                              <div className="relative flex-1 min-w-[200px] max-w-[48%]" style={{ minHeight: '38px' }}>
                                                 <div
                                                   className="flex items-center"
                                                   style={{
-                                                    padding: '12px 15px 5px 15px',
+                                                    padding: '8px 12px 4px 12px',
                                                     gap: '5px',
                                                     width: '100%',
-                                                    height: '37px',
+                                                    height: '32px',
                                                     position: 'relative',
                                                     marginTop: '5.27px',
                                                     background: '#FFFFFF',
@@ -12664,14 +12703,14 @@ export default function CaseDesignCenterPage() {
                                                 flexDirection: 'row',
                                                 alignItems: 'flex-start',
                                                 padding: '0px',
-                                                gap: '20px',
+                                                gap: '12px',
                                                 flex: 'none',
                                                 order: 2,
                                                 alignSelf: 'stretch',
                                                 flexGrow: 0
                                               }}
                                             >
-                                              <div className="relative flex-1 min-w-[250px] max-w-[100%]" style={{ minHeight: '43px' }}>
+                                              <div className="relative flex-1 min-w-[200px] max-w-[100%]" style={{ minHeight: '38px' }}>
                                                 <div
                                                   className="flex items-start cursor-pointer"
                                                   onClick={(e) => {
@@ -12686,7 +12725,7 @@ export default function CaseDesignCenterPage() {
                                                     }))
                                                   }}
                                                   style={{
-                                                    padding: '12px 15px 5px 15px',
+                                                    padding: '8px 12px 4px 12px',
                                                     gap: '5px',
                                                     width: '100%',
                                                     minHeight: '37px',
@@ -12702,7 +12741,7 @@ export default function CaseDesignCenterPage() {
                                                     fontFamily: 'Verdana',
                                                     fontStyle: 'normal',
                                                     fontWeight: 400,
-                                                    fontSize: '14.4px',
+                                                    fontSize: '13px',
                                                     lineHeight: '20px',
                                                     letterSpacing: '-0.02em',
                                                     color: '#000000'
@@ -12755,7 +12794,7 @@ export default function CaseDesignCenterPage() {
                                           {/* Implant Brand/Platform Cards - Shows when implant details field is clicked */}
                                           {showImplantCardsForProduct[savedProduct.id]?.mandibular && implants && implants.length > 0 && (
                                             <div className="w-full pt-4">
-                                              <div className="flex flex-col items-center gap-4 w-full">
+                                              <div className="flex flex-col items-center w-full">
                                                 <div className="bg-white w-full flex justify-center">
                                                   {(() => {
                                                     // Get brand ID from state, or fallback to savedProduct
@@ -12893,21 +12932,21 @@ export default function CaseDesignCenterPage() {
                                                 flexDirection: 'row',
                                                 alignItems: 'flex-start',
                                                 padding: '0px',
-                                                gap: '20px',
+                                                gap: '12px',
                                                 flex: 'none',
                                                 order: 3,
                                                 alignSelf: 'stretch',
                                                 flexGrow: 0
                                               }}
                                             >
-                                              <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
+                                              <div className="relative flex-1 min-w-[200px] max-w-[48%]" style={{ minHeight: '38px' }}>
                                                 <div
                                                   className="flex items-center"
                                                   style={{
-                                                    padding: '12px 15px 5px 15px',
+                                                    padding: '8px 12px 4px 12px',
                                                     gap: '5px',
                                                     width: '100%',
-                                                    height: '37px',
+                                                    height: '32px',
                                                     position: 'relative',
                                                     marginTop: '5.27px',
                                                     background: '#FFFFFF',
@@ -12920,7 +12959,7 @@ export default function CaseDesignCenterPage() {
                                                     fontFamily: 'Verdana',
                                                     fontStyle: 'normal',
                                                     fontWeight: 400,
-                                                    fontSize: '14.4px',
+                                                    fontSize: '13px',
                                                     lineHeight: '20px',
                                                     letterSpacing: '-0.02em',
                                                     color: '#000000',
@@ -12964,7 +13003,7 @@ export default function CaseDesignCenterPage() {
                                                     flexDirection: 'row',
                                                     alignItems: 'flex-start',
                                                     padding: '0px',
-                                                    gap: '20px',
+                                                    gap: '12px',
                                                     flex: 'none',
                                                     order: 4,
                                                     alignSelf: 'stretch',
@@ -12985,21 +13024,21 @@ export default function CaseDesignCenterPage() {
                                                   flexDirection: 'row',
                                                   alignItems: 'flex-start',
                                                   padding: '0px',
-                                                  gap: '20px',
+                                                  gap: '12px',
                                                   flex: 'none',
                                                   order: 4,
                                                   alignSelf: 'stretch',
                                                   flexGrow: 0
                                                 }}
                                               >
-                                                <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                                <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
                                                   <div
                                                     className="flex items-center justify-between"
                                                     style={{
-                                                      padding: '12px 15px 5px 15px',
+                                                      padding: '8px 12px 4px 12px',
                                                       gap: '5px',
                                                       width: '100%',
-                                                      height: '37px',
+                                                      height: '32px',
                                                       background: '#FFFFFF',
                                                       border: '0.740384px solid #7F7F7F',
                                                       borderRadius: '7.7px',
@@ -13012,7 +13051,7 @@ export default function CaseDesignCenterPage() {
                                                       fontFamily: 'Verdana',
                                                       fontStyle: 'normal',
                                                       fontWeight: 400,
-                                                      fontSize: '14.4px',
+                                                      fontSize: '13px',
                                                       lineHeight: '20px',
                                                       letterSpacing: '-0.02em',
                                                       color: '#000000'
@@ -13055,21 +13094,21 @@ export default function CaseDesignCenterPage() {
                                                 flexDirection: 'row',
                                                 alignItems: 'flex-start',
                                                 padding: '0px',
-                                                gap: '20px',
+                                                gap: '12px',
                                                 flex: 'none',
                                                 order: 5,
                                                 alignSelf: 'stretch',
                                                 flexGrow: 0
                                               }}
                                             >
-                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
                                                 <div
                                                   className="flex items-center"
                                                   style={{
-                                                    padding: '12px 15px 5px 15px',
+                                                    padding: '8px 12px 4px 12px',
                                                     gap: '5px',
                                                     width: '100%',
-                                                    height: '37px',
+                                                    height: '32px',
                                                     background: '#FFFFFF',
                                                     border: '0.740384px solid #7F7F7F',
                                                     borderRadius: '7.7px',
@@ -13082,7 +13121,7 @@ export default function CaseDesignCenterPage() {
                                                     fontFamily: 'Verdana',
                                                     fontStyle: 'normal',
                                                     fontWeight: 400,
-                                                    fontSize: '14.4px',
+                                                    fontSize: '13px',
                                                     lineHeight: '20px',
                                                     letterSpacing: '-0.02em',
                                                     color: '#000000'
@@ -13118,21 +13157,21 @@ export default function CaseDesignCenterPage() {
                                                 flexDirection: 'row',
                                                 alignItems: 'flex-start',
                                                 padding: '0px',
-                                                gap: '20px',
+                                                gap: '12px',
                                                 flex: 'none',
                                                 order: 6,
                                                 alignSelf: 'stretch',
                                                 flexGrow: 0
                                               }}
                                             >
-                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
                                                 <div
                                                   className="flex items-center justify-between"
                                                   style={{
-                                                    padding: '12px 15px 5px 15px',
+                                                    padding: '8px 12px 4px 12px',
                                                     gap: '5px',
                                                     width: '100%',
-                                                    height: '37px',
+                                                    height: '32px',
                                                     background: '#FFFFFF',
                                                     border: '0.740384px solid #7F7F7F',
                                                     borderRadius: '7.7px',
@@ -13145,7 +13184,7 @@ export default function CaseDesignCenterPage() {
                                                     fontFamily: 'Verdana',
                                                     fontStyle: 'normal',
                                                     fontWeight: 400,
-                                                    fontSize: '14.4px',
+                                                    fontSize: '13px',
                                                     lineHeight: '20px',
                                                     letterSpacing: '-0.02em',
                                                     color: '#000000'
@@ -13187,21 +13226,21 @@ export default function CaseDesignCenterPage() {
                                                 flexDirection: 'row',
                                                 alignItems: 'flex-start',
                                                 padding: '0px',
-                                                gap: '20px',
+                                                gap: '12px',
                                                 flex: 'none',
                                                 order: 7,
                                                 alignSelf: 'stretch',
                                                 flexGrow: 0
                                               }}
                                             >
-                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
                                                 <div
                                                   className="flex items-center"
                                                   style={{
-                                                    padding: '12px 15px 5px 15px',
+                                                    padding: '8px 12px 4px 12px',
                                                     gap: '5px',
                                                     width: '100%',
-                                                    height: '37px',
+                                                    height: '32px',
                                                     background: '#FFFFFF',
                                                     border: '0.740384px solid #7F7F7F',
                                                     borderRadius: '7.7px',
@@ -13214,7 +13253,7 @@ export default function CaseDesignCenterPage() {
                                                     fontFamily: 'Verdana',
                                                     fontStyle: 'normal',
                                                     fontWeight: 400,
-                                                    fontSize: '14.4px',
+                                                    fontSize: '13px',
                                                     lineHeight: '20px',
                                                     letterSpacing: '-0.02em',
                                                     color: '#000000'
@@ -13250,21 +13289,21 @@ export default function CaseDesignCenterPage() {
                                                 flexDirection: 'row',
                                                 alignItems: 'flex-start',
                                                 padding: '0px',
-                                                gap: '20px',
+                                                gap: '12px',
                                                 flex: 'none',
                                                 order: 8,
                                                 alignSelf: 'stretch',
                                                 flexGrow: 0
                                               }}
                                             >
-                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
                                                 <div
                                                   className="flex items-center"
                                                   style={{
-                                                    padding: '12px 15px 5px 15px',
+                                                    padding: '8px 12px 4px 12px',
                                                     gap: '5px',
                                                     width: '100%',
-                                                    height: '37px',
+                                                    height: '32px',
                                                     position: 'relative',
                                                     marginTop: '5.27px',
                                                     background: '#FFFFFF',
@@ -13277,7 +13316,7 @@ export default function CaseDesignCenterPage() {
                                                     fontFamily: 'Verdana',
                                                     fontStyle: 'normal',
                                                     fontWeight: 400,
-                                                    fontSize: '14.4px',
+                                                    fontSize: '13px',
                                                     lineHeight: '20px',
                                                     letterSpacing: '-0.02em',
                                                     color: '#000000'
@@ -13313,21 +13352,21 @@ export default function CaseDesignCenterPage() {
                                                 flexDirection: 'row',
                                                 alignItems: 'flex-start',
                                                 padding: '0px',
-                                                gap: '20px',
+                                                gap: '12px',
                                                 flex: 'none',
                                                 order: 9,
                                                 alignSelf: 'stretch',
                                                 flexGrow: 0
                                               }}
                                             >
-                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
                                                 <div
                                                   className="flex items-center"
                                                   style={{
-                                                    padding: '12px 15px 5px 15px',
+                                                    padding: '8px 12px 4px 12px',
                                                     gap: '5px',
                                                     width: '100%',
-                                                    height: '37px',
+                                                    height: '32px',
                                                     background: '#FFFFFF',
                                                     border: '0.740384px solid #7F7F7F',
                                                     borderRadius: '7.7px',
@@ -13340,7 +13379,7 @@ export default function CaseDesignCenterPage() {
                                                     fontFamily: 'Verdana',
                                                     fontStyle: 'normal',
                                                     fontWeight: 400,
-                                                    fontSize: '14.4px',
+                                                    fontSize: '13px',
                                                     lineHeight: '20px',
                                                     letterSpacing: '-0.02em',
                                                     color: '#000000',
@@ -13384,21 +13423,21 @@ export default function CaseDesignCenterPage() {
                                                 flexDirection: 'row',
                                                 alignItems: 'flex-start',
                                                 padding: '0px',
-                                                gap: '20px',
+                                                gap: '12px',
                                                 flex: 'none',
                                                 order: 10,
                                                 alignSelf: 'stretch',
                                                 flexGrow: 0
                                               }}
                                             >
-                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
                                                 <div
                                                   className="flex items-center"
                                                   style={{
-                                                    padding: '12px 15px 5px 15px',
+                                                    padding: '8px 12px 4px 12px',
                                                     gap: '5px',
                                                     width: '100%',
-                                                    height: '37px',
+                                                    height: '32px',
                                                     background: '#FFFFFF',
                                                     border: '0.740384px solid #7F7F7F',
                                                     borderRadius: '7.7px',
@@ -13411,7 +13450,7 @@ export default function CaseDesignCenterPage() {
                                                     fontFamily: 'Verdana',
                                                     fontStyle: 'normal',
                                                     fontWeight: 400,
-                                                    fontSize: '14.4px',
+                                                    fontSize: '13px',
                                                     lineHeight: '20px',
                                                     letterSpacing: '-0.02em',
                                                     color: '#000000',
@@ -13456,21 +13495,21 @@ export default function CaseDesignCenterPage() {
                                                 flexDirection: 'row',
                                                 alignItems: 'flex-start',
                                                 padding: '0px',
-                                                gap: '20px',
+                                                gap: '12px',
                                                 flex: 'none',
                                                 order: 11,
                                                 alignSelf: 'stretch',
                                                 flexGrow: 0
                                               }}
                                             >
-                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
                                                 <div
                                                   className="flex items-center"
                                                   style={{
-                                                    padding: '12px 15px 5px 15px',
+                                                    padding: '8px 12px 4px 12px',
                                                     gap: '5px',
                                                     width: '100%',
-                                                    height: '37px',
+                                                    height: '32px',
                                                     background: '#FFFFFF',
                                                     border: '0.740384px solid #7F7F7F',
                                                     borderRadius: '7.7px',
@@ -13483,7 +13522,7 @@ export default function CaseDesignCenterPage() {
                                                     fontFamily: 'Verdana',
                                                     fontStyle: 'normal',
                                                     fontWeight: 400,
-                                                    fontSize: '14.4px',
+                                                    fontSize: '13px',
                                                     lineHeight: '20px',
                                                     letterSpacing: '-0.02em',
                                                     color: '#000000',
@@ -13533,21 +13572,21 @@ export default function CaseDesignCenterPage() {
                                                 flexDirection: 'row',
                                                 alignItems: 'flex-start',
                                                 padding: '0px',
-                                                gap: '20px',
+                                                gap: '12px',
                                                 flex: 'none',
                                                 order: 12,
                                                 alignSelf: 'stretch',
                                                 flexGrow: 0
                                               }}
                                             >
-                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
                                                 <div
                                                   className="flex items-center"
                                                   style={{
-                                                    padding: '12px 15px 5px 15px',
+                                                    padding: '8px 12px 4px 12px',
                                                     gap: '5px',
                                                     width: '100%',
-                                                    height: '37px',
+                                                    height: '32px',
                                                     background: '#FFFFFF',
                                                     border: '0.740384px solid #7F7F7F',
                                                     borderRadius: '7.7px',
@@ -13560,7 +13599,7 @@ export default function CaseDesignCenterPage() {
                                                     fontFamily: 'Verdana',
                                                     fontStyle: 'normal',
                                                     fontWeight: 400,
-                                                    fontSize: '14.4px',
+                                                    fontSize: '13px',
                                                     lineHeight: '20px',
                                                     letterSpacing: '-0.02em',
                                                     color: '#000000',
@@ -13605,21 +13644,21 @@ export default function CaseDesignCenterPage() {
                                                 flexDirection: 'row',
                                                 alignItems: 'flex-start',
                                                 padding: '0px',
-                                                gap: '20px',
+                                                gap: '12px',
                                                 flex: 'none',
                                                 order: 13,
                                                 alignSelf: 'stretch',
                                                 flexGrow: 0
                                               }}
                                             >
-                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '43px' }}>
+                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
                                                 <div
                                                   className="flex items-center"
                                                   style={{
-                                                    padding: '12px 15px 5px 15px',
+                                                    padding: '8px 12px 4px 12px',
                                                     gap: '5px',
                                                     width: '100%',
-                                                    height: '37px',
+                                                    height: '32px',
                                                     background: '#FFFFFF',
                                                     border: '0.740384px solid #7F7F7F',
                                                     borderRadius: '7.7px',
@@ -13632,7 +13671,7 @@ export default function CaseDesignCenterPage() {
                                                     fontFamily: 'Verdana',
                                                     fontStyle: 'normal',
                                                     fontWeight: 400,
-                                                    fontSize: '14.4px',
+                                                    fontSize: '13px',
                                                     lineHeight: '20px',
                                                     letterSpacing: '-0.02em',
                                                     color: '#000000'
@@ -13668,21 +13707,21 @@ export default function CaseDesignCenterPage() {
                                                 flexDirection: 'row',
                                                 alignItems: 'flex-start',
                                                 padding: '0px',
-                                                gap: '20px',
+                                                gap: '12px',
                                                 flex: 'none',
                                                 order: 13,
                                                 alignSelf: 'stretch',
                                                 flexGrow: 0
                                               }}
                                             >
-                                              <div className="relative flex-1 min-w-[250px] max-w-[48%]" style={{ minHeight: '43px' }}>
+                                              <div className="relative flex-1 min-w-[200px] max-w-[48%]" style={{ minHeight: '38px' }}>
                                                 <div
                                                   className="flex items-center"
                                                   style={{
-                                                    padding: '12px 15px 5px 15px',
+                                                    padding: '8px 12px 4px 12px',
                                                     gap: '5px',
                                                     width: '100%',
-                                                    height: '37px',
+                                                    height: '32px',
                                                     background: '#FFFFFF',
                                                     border: '0.740384px solid #7F7F7F',
                                                     borderRadius: '7.7px',
@@ -13695,7 +13734,7 @@ export default function CaseDesignCenterPage() {
                                                     fontFamily: 'Verdana',
                                                     fontStyle: 'normal',
                                                     fontWeight: 400,
-                                                    fontSize: '14.4px',
+                                                    fontSize: '13px',
                                                     lineHeight: '20px',
                                                     letterSpacing: '-0.02em',
                                                     color: '#000000'
@@ -13731,7 +13770,7 @@ export default function CaseDesignCenterPage() {
                                                 flexDirection: 'row',
                                                 alignItems: 'flex-start',
                                                 padding: '0px',
-                                                gap: '20px',
+                                                gap: '12px',
                                                 flex: 'none',
                                                 order: 14,
                                                 alignSelf: 'stretch',
@@ -13751,18 +13790,18 @@ export default function CaseDesignCenterPage() {
                                                 flexDirection: 'row',
                                                 alignItems: 'flex-start',
                                                 padding: '0px',
-                                                gap: '20px',
+                                                gap: '12px',
                                                 flex: 'none',
                                                 order: 3,
                                                 alignSelf: 'stretch',
                                                 flexGrow: 0
                                               }}
                                             >
-                                              <div className="relative flex-1 min-w-[250px] max-w-[100%]" style={{ minHeight: '43px' }}>
+                                              <div className="relative flex-1 min-w-[200px] max-w-[100%]" style={{ minHeight: '38px' }}>
                                                 <div
                                                   className="flex items-start"
                                                   style={{
-                                                    padding: '12px 15px 5px 15px',
+                                                    padding: '8px 12px 4px 12px',
                                                     gap: '5px',
                                                     width: '100%',
                                                     minHeight: '60px',
@@ -13778,7 +13817,7 @@ export default function CaseDesignCenterPage() {
                                                     fontFamily: 'Verdana',
                                                     fontStyle: 'normal',
                                                     fontWeight: 400,
-                                                    fontSize: '14.4px',
+                                                    fontSize: '13px',
                                                     lineHeight: '20px',
                                                     letterSpacing: '-0.02em',
                                                     color: '#000000'
@@ -13978,7 +14017,7 @@ export default function CaseDesignCenterPage() {
 
           {/* Summary Accordion - Show in categories, subcategories and products steps, hide when product details are shown */}
           {selectedCategory && !showProductDetails && (
-            <div className="w-full flex justify-center mt-auto mb-8">
+            <div className="w-full flex justify-center mt-auto mb-4">
               <div
                 style={{
                   display: 'flex',
@@ -14346,6 +14385,12 @@ export default function CaseDesignCenterPage() {
           onClose={() => {
             setShowImpressionModal(false)
             setCurrentProductForImpression(null)
+            // Set flag to prevent auto-save immediately after closing impression modal
+            impressionModalJustClosedRef.current = true
+            // Clear the flag after a short delay to allow normal auto-save to resume
+            setTimeout(() => {
+              impressionModalJustClosedRef.current = false
+            }, 1000)
           }}
           onSTLFilesAttached={(files, impressionKey) => {
             // Store STL files for this impression

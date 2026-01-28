@@ -1501,32 +1501,33 @@ export default function CSDSection({
   // Handler for closing the impression selection modal
   const handleCloseImpressionModal = () => {
     // Save the selected impressions before closing
-    if (impressionModalProductId && impressionModalArch) {
-      const selectedImpressions = Object.entries(impressionQuantities)
-        .filter(([key, qty]) => key.startsWith(`${impressionModalProductId}_${impressionModalArch}_`) && (qty as number) > 0)
-        .map(([key, qty]) => {
-          const name = key.replace(`${impressionModalProductId}_${impressionModalArch}_`, "")
-          const impressionData = getProductData(impressionModalProductId, 'impressions')
-          const impObj = impressionData.find((opt: any) => opt.name === name)
-          return { id: impObj?.id ?? null, name, qty: qty as number }
-        })
-      
-      handleProductDetailChange(impressionModalProductId, impressionModalArch, "impressions", selectedImpressions)
-      
-      // Auto-copy maxillary impressions to mandibular if arch type is "both"
-      const product = products.find(p => p.id === impressionModalProductId)
-      if (product && product.type.includes("Mandibular") && impressionModalArch === "maxillary") {
-        handleProductDetailChange(impressionModalProductId, "mandibular", "impressions", selectedImpressions)
-        
-        // Also copy the impression quantities to mandibular keys
-        Object.entries(impressionQuantities)
-          .filter(([key, qty]) => key.startsWith(`${impressionModalProductId}_maxillary_`) && (qty as number) > 0)
-          .forEach(([key, qty]) => {
-            const mandibularKey = key.replace(`${impressionModalProductId}_maxillary_`, `${impressionModalProductId}_mandibular_`)
-            updateImpressionQuantity(mandibularKey, qty as number)
-          })
-      }
-    }
+    // DISABLED: Don't save product when closing impression modal
+    // if (impressionModalProductId && impressionModalArch) {
+    //   const selectedImpressions = Object.entries(impressionQuantities)
+    //     .filter(([key, qty]) => key.startsWith(`${impressionModalProductId}_${impressionModalArch}_`) && (qty as number) > 0)
+    //     .map(([key, qty]) => {
+    //       const name = key.replace(`${impressionModalProductId}_${impressionModalArch}_`, "")
+    //       const impressionData = getProductData(impressionModalProductId, 'impressions')
+    //       const impObj = impressionData.find((opt: any) => opt.name === name)
+    //       return { id: impObj?.id ?? null, name, qty: qty as number }
+    //     })
+    //   
+    //   handleProductDetailChange(impressionModalProductId, impressionModalArch, "impressions", selectedImpressions)
+    //   
+    //   // Auto-copy maxillary impressions to mandibular if arch type is "both"
+    //   const product = products.find(p => p.id === impressionModalProductId)
+    //   if (product && product.type.includes("Mandibular") && impressionModalArch === "maxillary") {
+    //     handleProductDetailChange(impressionModalProductId, "mandibular", "impressions", selectedImpressions)
+    //     
+    //     // Also copy the impression quantities to mandibular keys
+    //     Object.entries(impressionQuantities)
+    //       .filter(([key, qty]) => key.startsWith(`${impressionModalProductId}_maxillary_`) && (qty as number) > 0)
+    //       .forEach(([key, qty]) => {
+    //         const mandibularKey = key.replace(`${impressionModalProductId}_maxillary_`, `${impressionModalProductId}_mandibular_`)
+    //         updateImpressionQuantity(mandibularKey, qty as number)
+    //       })
+    //   }
+    // }
     
     setShowImpressionModal(false)
     setImpressionModalProductId("")

@@ -48,14 +48,14 @@ export function SlipCreationFooter({
   return (
     <>
       {/* Footer - Consistent across all pages */}
-      <div 
+      <div
         className="bg-white flex-shrink-0 sticky bottom-0 left-0 right-0 z-10"
         style={{
-          height: "59.94px",
+          height: "50px",
           background: "#FFFFFF",
         }}
       >
-        <div className={`flex justify-end items-center ${showPrevious ? 'gap-3' : ''} h-full px-6`}>
+        <div className={`flex justify-end items-center ${showPrevious ? 'gap-2' : ''} h-full px-4`}>
           {showPrevious && (
             <Button
               onClick={handlePrevious}
@@ -65,18 +65,18 @@ export function SlipCreationFooter({
                 flexDirection: "row",
                 justifyContent: "center",
                 alignItems: "center",
-                padding: "12px 16px",
-                gap: "10px",
-                minWidth: "111px",
-                height: "27px",
+                padding: "8px 12px",
+                gap: "8px",
+                minWidth: "100px",
+                height: "24px",
                 background: "#1162A8",
-                borderRadius: "6px",
+                borderRadius: "5px",
                 border: "none",
                 fontFamily: "Verdana",
                 fontStyle: "normal",
                 fontWeight: 700,
-                fontSize: "12px",
-                lineHeight: "22px",
+                fontSize: "11px",
+                lineHeight: "20px",
                 letterSpacing: "-0.02em",
                 color: "#FFFFFF",
                 whiteSpace: "nowrap",
@@ -95,17 +95,17 @@ export function SlipCreationFooter({
               flexDirection: "row",
               justifyContent: "center",
               alignItems: "center",
-              padding: "12px 16px",
-              gap: "10px",
-              minWidth: "111px",
-              height: "27px",
+              padding: "8px 12px",
+              gap: "8px",
+              minWidth: "100px",
+              height: "24px",
               border: "2px solid #9BA5B7",
-              borderRadius: "6px",
+              borderRadius: "5px",
               fontFamily: "Verdana",
               fontStyle: "normal",
               fontWeight: 700,
-              fontSize: "12px",
-              lineHeight: "22px",
+              fontSize: "11px",
+              lineHeight: "20px",
               letterSpacing: "-0.02em",
               color: "#9BA5B7",
               background: "transparent",

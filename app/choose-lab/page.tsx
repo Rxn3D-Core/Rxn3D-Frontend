@@ -83,10 +83,12 @@ export default function ChooseLabPage() {
     }
   }, [router, searchParams])
 
-  // Get doctor from URL or localStorage
+  // Get doctor from URL only (localStorage is cleared when lab changes)
   useEffect(() => {
     const doctorId = searchParams.get("doctorId")
     if (doctorId) {
+      // Only try to get doctor from localStorage if doctorId is in URL
+      // This is for display purposes only - when lab changes, doctor is cleared
       const storedDoctor = localStorage.getItem("selectedDoctor")
       if (storedDoctor) {
         try {
@@ -96,6 +98,10 @@ export default function ChooseLabPage() {
           console.error("Error parsing selected doctor:", error)
         }
       }
+    } else {
+      // No doctorId in URL - clear any stored doctor
+      localStorage.removeItem("selectedDoctor")
+      setSelectedDoctor(null)
     }
 
     // Get selected lab from localStorage
@@ -233,6 +239,11 @@ export default function ChooseLabPage() {
   }
 
   const handleLabSelect = (lab: Lab) => {
+    // Always clear the selected doctor when selecting a new lab/office
+    // because the doctor might not be valid for the new lab/office
+    localStorage.removeItem("selectedDoctor")
+    setSelectedDoctor(null)
+    
     // Store selected lab
     localStorage.setItem("selectedLab", JSON.stringify(lab))
     setSelectedLab(lab)
@@ -246,39 +257,39 @@ export default function ChooseLabPage() {
     // Get user role
     const role = typeof window !== "undefined" ? localStorage.getItem("role") || "" : ""
     
-    // Check if doctor is already selected (from URL or localStorage)
+    // Check if doctor is already selected (from URL only, since we cleared localStorage)
+    // When changing lab/office, we always clear selectedDoctor from localStorage
     const doctorId = searchParams.get("doctorId")
-    const storedDoctor = localStorage.getItem("selectedDoctor")
-    let doctorIdToUse: string | null = doctorId
-    
-    // Try to get doctor ID from localStorage if not in URL
-    if (!doctorIdToUse && storedDoctor) {
-      try {
-        const doctor = JSON.parse(storedDoctor)
-        doctorIdToUse = doctor?.id?.toString() || null
-      } catch (error) {
-        console.error("Error parsing selected doctor:", error)
-      }
-    }
+    const doctorIdToUse: string | null = doctorId // Only use doctorId from URL
     
     const hasSelectedDoctor = !!doctorIdToUse
     
     // If role is office_admin, redirect to patient-input page
     // office_admin has already selected a doctor, so they go to patient input next
+    // Always include doctorId in URL if available
     if (role === "office_admin") {
-      router.push(`/patient-input?labId=${lab.id}`)
+      if (doctorIdToUse) {
+        router.push(`/patient-input?labId=${lab.id}&doctorId=${doctorIdToUse}`)
+      } else {
+        router.push(`/patient-input?labId=${lab.id}`)
+      }
       return
     }
     
     // If doctor is already selected (user came back to select a different office),
-    // navigate directly to patient-input page
+    // navigate directly to patient-input page with both labId and doctorId
     if (hasSelectedDoctor && doctorIdToUse) {
       router.push(`/patient-input?labId=${lab.id}&doctorId=${doctorIdToUse}`)
       return
     }
     
-    // Navigate to choose doctor page (for other roles when no doctor is selected yet)
-    router.push(`/choose-doctor?labId=${lab.id}`)
+    // Navigate to choose doctor page with labId
+    // Always include doctorId in URL if available (for cases where user navigates back)
+    if (doctorIdToUse) {
+      router.push(`/choose-doctor?labId=${lab.id}&doctorId=${doctorIdToUse}`)
+    } else {
+      router.push(`/choose-doctor?labId=${lab.id}`)
+    }
   }
 
   const handleLabSelectFromModal = (lab: any) => {
@@ -288,6 +299,10 @@ export default function ChooseLabPage() {
     refetch()
     // If a lab is provided, select it and navigate
     if (lab) {
+      // Always clear the selected doctor when selecting a new lab/office from modal
+      localStorage.removeItem("selectedDoctor")
+      setSelectedDoctor(null)
+      
       // Transform lab to match Lab interface if needed
       const transformedLab: Lab = {
         id: lab.id || lab.customer_id,
@@ -614,7 +629,8 @@ export default function ChooseLabPage() {
             // Check if we came from choose-doctor (doctorId in URL)
             const doctorId = searchParams.get("doctorId")
             if (doctorId) {
-              router.push(`/choose-doctor`)
+              // Preserve doctorId when navigating back to choose-doctor
+              router.push(`/choose-doctor?doctorId=${doctorId}`)
             } else {
               // Otherwise go back to dashboard
               router.push("/dashboard")
