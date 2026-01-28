@@ -342,7 +342,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
 
       <div className={`relative ${className}`}>
 
-        <svg ref={svgRef} width="624" height="163" viewBox="0 0 624 160" fill="none" xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink">
+        <svg ref={svgRef} width="100%" height="120" viewBox="0 0 700 150" fill="none" xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink">
           {renderImplantOverlays()}
           {isImplantTooth(32) ? (
             <g transform={getToothTransform(32, 0, 43)}>

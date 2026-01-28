@@ -17,9 +17,12 @@ import {
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { getShadeGradientColors } from "@/utils/teeth-shade-utils"
-import { Check } from "lucide-react"
+import { Check, ChevronDown, Trash2, Zap, Paperclip } from "lucide-react"
 import { ImplantBrandCards } from "@/components/implant-brand-cards"
 import { ImplantPlatformCards } from "@/components/implant-platform-cards"
+import { Card } from "@/components/ui/card"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+import { ImplantDetailForm } from "@/components/implant-detail-form"
 
 export interface FieldConfig {
   key: string
@@ -34,6 +37,9 @@ export interface FieldConfig {
   dependsOn?: string
   rowGroup?: number
 }
+
+export type DynamicProductFieldsMode = "edit" | "display" | "readonly-locked" | "saved"
+export type DynamicProductFieldsLayout = "grid" | "accordion-compact"
 
 interface DynamicProductFieldsProps {
   productDetails: any
@@ -70,9 +76,9 @@ interface DynamicProductFieldsProps {
   // Implant platform cards props
   selectedImplantPlatformId?: number | null
   onSelectImplantPlatform?: (platform: any) => void
-  // Callbacks for when brand/platform fields are clicked
-  onBrandFieldClick?: () => void
-  onPlatformFieldClick?: () => void
+  // Callbacks for when brand/platform fields are clicked (for normal mode)
+  onBrandFieldClick?: (() => void) | ((productId: string, arch: "maxillary" | "mandibular") => void)
+  onPlatformFieldClick?: (() => void) | ((productId: string, arch: "maxillary" | "mandibular") => void)
   // Implant selection state (for checking if implant fields are completed)
   selectedImplantBrand?: { [fieldKey: string]: number | null }
   selectedImplantPlatform?: { [fieldKey: string]: number | null }
@@ -81,6 +87,40 @@ interface DynamicProductFieldsProps {
   hideFieldsDuringShadeSelection?: boolean
   // Hide impression field (to render it separately after advance fields)
   hideImpression?: boolean
+  // Mode for different usage contexts
+  mode?: DynamicProductFieldsMode
+  // Disable auto-opening of modals (for accordion view)
+  disableAutoOpen?: boolean
+  // Layout variant
+  layout?: DynamicProductFieldsLayout
+  // Fields that should be read-only/locked
+  lockedFields?: string[]
+  // Override field visibility logic (for accordion view using isAccordionFieldVisible)
+  fieldVisibilityOverride?: (fieldKey: string, arch: "maxillary" | "mandibular") => boolean | undefined
+  // Props for saved product card UI (when mode is "saved")
+  onSaveProduct?: () => void
+  onDeleteProduct?: (productId: string) => void
+  onCardClick?: (product: any) => void
+  isAccordionOpen?: boolean
+  onAccordionChange?: (value: string) => void
+  showActionButtons?: boolean
+  onAddOnsClick?: () => void
+  onAttachFilesClick?: () => void
+  onRushClick?: () => void
+  getTotalAddOnsCount?: () => number
+  getAttachedFilesCount?: () => number
+  showNotes?: boolean
+  showImplantDetails?: boolean
+  // For saved product card - product info
+  productId?: string
+  product?: any
+  category?: string
+  subcategory?: string
+  rushData?: any
+  // For notes display
+  notes?: string
+  // For checking retention type selection
+  hasRetentionTypeSelected?: (arch: "maxillary" | "mandibular") => boolean
 }
 
 // Stage Selection Modal Component
@@ -260,6 +300,32 @@ export function DynamicProductFields({
   selectedImplantSize = {},
   hideFieldsDuringShadeSelection = false,
   hideImpression = false,
+  mode = "edit",
+  disableAutoOpen = false,
+  layout = "grid",
+  lockedFields = [],
+  fieldVisibilityOverride,
+  // Saved product card props
+  onSaveProduct,
+  onDeleteProduct,
+  onCardClick,
+  isAccordionOpen = false,
+  onAccordionChange,
+  showActionButtons = false,
+  onAddOnsClick,
+  onAttachFilesClick,
+  onRushClick,
+  getTotalAddOnsCount,
+  getAttachedFilesCount,
+  showNotes = false,
+  showImplantDetails = false,
+  productId,
+  product,
+  category,
+  subcategory,
+  rushData,
+  notes,
+  hasRetentionTypeSelected,
 }: DynamicProductFieldsProps) {
   // State for stage selection modal
   const [isStageModalOpen, setIsStageModalOpen] = useState(false)
@@ -342,7 +408,12 @@ export function DynamicProductFields({
     if (showImplantBrandCards && implantSelectionStep === 'platform' && onPlatformFieldClick && selectedImplantId && platforms.length > 0) {
       // Use a small delay to ensure state is updated
       const timer = setTimeout(() => {
-        onPlatformFieldClick()
+        // Handle both function signatures: () => void and (productId, arch) => void
+        try {
+          (onPlatformFieldClick as any)()
+        } catch (e) {
+          // If it requires arguments, skip the call (it's for saved mode)
+        }
       }, 50)
       return () => clearTimeout(timer)
     }
@@ -394,7 +465,12 @@ export function DynamicProductFields({
   }
 
   // Helper to check if any tooth has a retention type selected from popover
-  const hasRetentionTypeSelected = (): boolean => {
+  const checkRetentionTypeSelected = (): boolean => {
+    // Use prop function if provided (for saved mode)
+    if (hasRetentionTypeSelected) {
+      return hasRetentionTypeSelected(arch)
+    }
+
     const teeth = arch === "maxillary" ? maxillaryTeeth : mandibularTeeth
     const retentionTypes = arch === "maxillary" ? maxillaryRetentionTypes : mandibularRetentionTypes
 
@@ -458,6 +534,14 @@ export function DynamicProductFields({
 
   // Helper to check if a field should be visible based on progressive disclosure
   const isFieldVisibleProgressive = (config: FieldConfig): boolean => {
+    // Check field visibility override first (e.g., from accordion view using isAccordionFieldVisible)
+    if (fieldVisibilityOverride) {
+      const override = fieldVisibilityOverride(config.key, arch)
+      if (override !== undefined) {
+        return override
+      }
+    }
+
     // Always show material (sequence 1) initially
     if (config.sequence === 1) {
       return true
@@ -465,7 +549,7 @@ export function DynamicProductFields({
     
     // For retention (sequence 2), only show if retention type selected from popover
     if (config.sequence === 2 || config.key === "retention") {
-      return hasRetentionTypeSelected()
+      return checkRetentionTypeSelected()
     }
 
     // retention_option (sequence 3) - show after retention has value
@@ -511,113 +595,91 @@ export function DynamicProductFields({
 
     // impression (sequence 7) - show after advance fields if they exist, otherwise after tooth_shade
     if (config.key === "impression" || config.key === "impressions") {
-      // First check if stage field is visible (required for impression)
-      const retentionValue = getFieldValueByKey("retention")
-      if (!hasValue(retentionValue)) {
+      // First check if tooth_shade has value (required for impression regardless of other conditions)
+      const toothShadeValue = getFieldValueByKey("tooth_shade")
+      if (!hasValue(toothShadeValue)) {
         return false
       }
-      const stages = productDetails?.stages
-      if (!stages || !Array.isArray(stages) || stages.length === 0) {
-        return false
-      }
-      const stageValue = getFieldValueByKey("stage")
-      if (!hasValue(stageValue)) {
-        return false
-      }
-      
-      // Only check advance fields if retention type is "Implant"
-      // If retention type is NOT "Implant", skip advance fields and show impression directly after tooth_shade
-      const retentionIsImplant = isRetentionTypeImplant()
-      
-      // If retention type is NOT "Implant", show impression directly after tooth_shade (skip advance fields)
-      if (!retentionIsImplant) {
-        const toothShadeValue = getFieldValueByKey("tooth_shade")
-        return hasValue(toothShadeValue)
-      }
-      
-      // If retention type IS "Implant", check advance fields
-      // Check if there are any advance fields in productDetails (these are rendered separately, not in fieldConfigs)
+
+      // Check if there are any advance fields in productDetails
       const advanceFields = productDetails?.advance_fields || []
-      const hasAdvanceFields = Array.isArray(advanceFields) && advanceFields.length > 0
-      
+
       // Filter out stump_shade from advance fields check (we use main stump shade field)
       const filteredAdvanceFields = advanceFields.filter((field: any) => {
         const fieldNameLower = (field.name || "").toLowerCase()
         return !(fieldNameLower.includes("stump") && fieldNameLower.includes("shade"))
       })
-      
-      // If advance fields exist, check if they are completed
-      // For implant retention type, ALL advance fields (especially implant_library fields) must be completed
-      if (hasAdvanceFields && filteredAdvanceFields.length > 0) {
-        // Check if all advance fields are completed
-        // For implant_library fields, check if brand, platform, and size are selected
-        // For other fields, check if they have values
-        const allAdvanceFieldsCompleted = filteredAdvanceFields.every((field: any) => {
-          // Check if this is an implant_library field (implant details)
-          if (field.field_type === "implant_library") {
-            // Check if all implant detail form fields are completed
-            // We must check ALL individual fields to ensure the form is fully completed
-            // Do not rely on implantDetails string alone as it may be set before all fields are filled
-            // Check via state variables first (for unsaved products)
-            const fieldKey = `advance_${field.id}`
-            const brandId = selectedImplantBrand[fieldKey]
-            const platformId = selectedImplantPlatform[fieldKey]
-            const size = selectedImplantSize[fieldKey]
-            
-            // Check if brand, platform, and size are set (using more robust checks)
-            const hasBrand = brandId !== null && brandId !== undefined && brandId !== 0
-            const hasPlatform = platformId !== null && platformId !== undefined && platformId !== 0
-            const hasSize = size !== null && size !== undefined && size !== "" && size.trim() !== ""
-            
-            // Also check inclusions, abutment detail, and abutment type from savedProduct
-            const implantInclusions = arch === "maxillary" 
-              ? savedProduct.maxillaryImplantInclusions 
-              : savedProduct.mandibularImplantInclusions
-            const abutmentDetail = arch === "maxillary"
-              ? savedProduct.maxillaryAbutmentDetail
-              : savedProduct.mandibularAbutmentDetail
-            const abutmentType = arch === "maxillary"
-              ? savedProduct.maxillaryAbutmentType
-              : savedProduct.mandibularAbutmentType
-            
-            // Check if all required fields are filled
-            // Use strict checks - all fields must have valid values (not empty, not "Select...", not placeholder)
-            const hasInclusions = hasValue(implantInclusions)
-            const hasAbutmentDetail = hasValue(abutmentDetail)
-            const hasAbutmentType = hasValue(abutmentType)
-            
-            // All fields must be completed: brand, platform, size, inclusions, abutment detail, and abutment type
-            // This is a strict check - ALL fields must be filled before impression field shows
-            if (hasBrand && hasPlatform && hasSize && hasInclusions && hasAbutmentDetail && hasAbutmentType) {
-              return true
-            }
-            
-            // If any field is missing, the implant detail form is not complete
-            // Do not show impression field until all fields are filled
-            return false
-          }
-          
-          // For other advance field types, check if they have values in savedProduct.advanceFields
-          if (savedProduct.advanceFields && Array.isArray(savedProduct.advanceFields)) {
-            const savedField = savedProduct.advanceFields.find((af: any) => af.advance_field_id === field.id)
-            if (savedField) {
-              const fieldValue = savedField.advance_field_value || ""
-              return hasValue(fieldValue)
-            }
-          }
-          
-          // If no saved field found, assume not completed
-          return false
-        })
-        
-        // If advance fields exist, show impression as soon as all advance fields are completed
-        // (tooth_shade is already required for advance fields to be visible, so no need to check again)
-        return allAdvanceFieldsCompleted
+
+      const hasAdvanceFields = Array.isArray(filteredAdvanceFields) && filteredAdvanceFields.length > 0
+
+      // If NO advance fields exist, show impression directly after tooth_shade
+      if (!hasAdvanceFields) {
+        return true // tooth_shade already checked above
       }
-      
-      // If no advance fields exist, show impression directly after tooth_shade
-      const toothShadeValue = getFieldValueByKey("tooth_shade")
-      return hasValue(toothShadeValue)
+
+      // If advance fields exist, check if retention type is "Implant"
+      // If retention type is NOT "Implant", skip advance fields and show impression directly
+      const retentionIsImplant = isRetentionTypeImplant()
+
+      if (!retentionIsImplant) {
+        return true // tooth_shade already checked above
+      }
+
+      // If retention type IS "Implant" and advance fields exist, check if they are completed
+      // For implant_library fields, check if brand, platform, size, inclusions, abutment detail, and abutment type are selected
+      const allAdvanceFieldsCompleted = filteredAdvanceFields.every((field: any) => {
+        // Check if this is an implant_library field (implant details)
+        if (field.field_type === "implant_library") {
+          // Check if all implant detail form fields are completed
+          // We must check ALL individual fields to ensure the form is fully completed
+          // Check via state variables first (for unsaved products)
+          const fieldKey = `advance_${field.id}`
+          const brandId = selectedImplantBrand[fieldKey]
+          const platformId = selectedImplantPlatform[fieldKey]
+          const size = selectedImplantSize[fieldKey]
+
+          // Check if brand, platform, and size are set (using more robust checks)
+          const hasBrand = brandId !== null && brandId !== undefined && brandId !== 0
+          const hasPlatform = platformId !== null && platformId !== undefined && platformId !== 0
+          const hasSizeValue = size !== null && size !== undefined && size !== "" && size.trim() !== ""
+
+          // Also check inclusions, abutment detail, and abutment type from savedProduct
+          const implantInclusions = arch === "maxillary"
+            ? savedProduct.maxillaryImplantInclusions
+            : savedProduct.mandibularImplantInclusions
+          const abutmentDetail = arch === "maxillary"
+            ? savedProduct.maxillaryAbutmentDetail
+            : savedProduct.mandibularAbutmentDetail
+          const abutmentType = arch === "maxillary"
+            ? savedProduct.maxillaryAbutmentType
+            : savedProduct.mandibularAbutmentType
+
+          // Check if all required fields are filled
+          // Use strict checks - all fields must have valid values (not empty, not "Select...", not placeholder)
+          const hasInclusions = hasValue(implantInclusions)
+          const hasAbutmentDetail = hasValue(abutmentDetail)
+          const hasAbutmentType = hasValue(abutmentType)
+
+          // All fields must be completed: brand, platform, size, inclusions, abutment detail, and abutment type
+          // This is a strict check - ALL fields must be filled before impression field shows
+          return hasBrand && hasPlatform && hasSizeValue && hasInclusions && hasAbutmentDetail && hasAbutmentType
+        }
+
+        // For other advance field types, check if they have values in savedProduct.advanceFields
+        if (savedProduct.advanceFields && Array.isArray(savedProduct.advanceFields)) {
+          const savedField = savedProduct.advanceFields.find((af: any) => af.advance_field_id === field.id)
+          if (savedField) {
+            const fieldValue = savedField.advance_field_value || ""
+            return hasValue(fieldValue)
+          }
+        }
+
+        // If no saved field found, assume not completed
+        return false
+      })
+
+      // Show impression only when all advance fields are completed
+      return allAdvanceFieldsCompleted
     }
 
     // Other fields (sequence >= 7) - show after stage has value
@@ -639,31 +701,37 @@ export function DynamicProductFields({
 
   // Auto-open stage modal when stage field becomes visible and value is empty or placeholder
   useEffect(() => {
+    // Skip auto-open when disabled (e.g., in accordion view)
+    if (disableAutoOpen) return
+
     const stageConfig = fieldConfigs.find(f => f.key === "stage")
     if (!stageConfig) return
 
     const stageValue = getFieldValueByKey("stage")
     const stages = productDetails?.stages
-    
+
     // Check if stage field should be visible
     const isVisible = isFieldVisibleProgressive(stageConfig)
-    
+
     // Check if value is empty or placeholder
     const isNotSpecified = !hasValue(stageValue)
-    
+
     // Auto-open modal if field is visible and value is not specified
     if (isVisible && isNotSpecified && stages && Array.isArray(stages) && stages.length > 0) {
       // Small delay to ensure the component is ready
       const timer = setTimeout(() => {
         setIsStageModalOpen(true)
       }, 100)
-      
+
       return () => clearTimeout(timer)
     }
-  }, [productDetails, savedProduct, arch, fieldConfigs])
+  }, [productDetails, savedProduct, arch, fieldConfigs, disableAutoOpen])
 
   // Auto-open shade modal when stump_shade or tooth_shade field becomes visible and value is empty
   useEffect(() => {
+    // Skip auto-open when disabled (e.g., in accordion view)
+    if (disableAutoOpen) return
+
     // Check stump_shade field
     const stumpShadeConfig = fieldConfigs.find(f => f.key === "stump_shade")
     if (stumpShadeConfig) {
@@ -681,10 +749,13 @@ export function DynamicProductFields({
         return () => clearTimeout(timer)
       }
     }
-  }, [productDetails, savedProduct, arch, fieldConfigs, onOpenShadeModal])
+  }, [productDetails, savedProduct, arch, fieldConfigs, onOpenShadeModal, disableAutoOpen])
 
   // Auto-open shade modal when tooth_shade field becomes visible and value is empty
   useEffect(() => {
+    // Skip auto-open when disabled (e.g., in accordion view)
+    if (disableAutoOpen) return
+
     // Check tooth_shade field
     const toothShadeConfig = fieldConfigs.find(f => f.key === "tooth_shade")
     if (toothShadeConfig) {
@@ -702,7 +773,7 @@ export function DynamicProductFields({
         return () => clearTimeout(timer)
       }
     }
-  }, [productDetails, savedProduct, arch, fieldConfigs, onOpenShadeModal])
+  }, [productDetails, savedProduct, arch, fieldConfigs, onOpenShadeModal, disableAutoOpen])
 
   // Note: Impression modal auto-open is disabled. It will only open when the user clicks on the impression field.
 
@@ -738,6 +809,31 @@ export function DynamicProductFields({
         const hiddenFields = ["material", "retention", "retention_option", "stage"]
         if (hiddenFields.includes(config.key)) {
           return false
+        }
+      }
+
+      // For readonly-locked mode (accordion view), check fieldVisibilityOverride first
+      // This allows fields with saved values to be shown even if productDetails doesn't have the API data
+      if (mode === "readonly-locked" && fieldVisibilityOverride) {
+        const override = fieldVisibilityOverride(config.key, arch)
+        if (override !== undefined) {
+          // If override returns true and the field has a saved value, show it
+          if (override === true) {
+            // Check if there's a saved value for this field
+            const stateKey = arch === "maxillary" ? config.maxillaryStateKey : config.mandibularStateKey
+            if (stateKey) {
+              const savedValue = savedProduct[stateKey as keyof typeof savedProduct] as string | undefined
+              if (savedValue && savedValue.trim() !== "" &&
+                  savedValue.toLowerCase() !== "not specified" &&
+                  !savedValue.toLowerCase().startsWith("select")) {
+                return true
+              }
+            }
+          }
+          // If override returns false explicitly, hide the field
+          if (override === false) {
+            return false
+          }
         }
       }
 
@@ -956,6 +1052,23 @@ export function DynamicProductFields({
     return '#7F7F7F' // gray
   }
 
+  // Helper to check if a field should be locked/read-only
+  const isFieldLocked = (config: FieldConfig, value: string | undefined): boolean => {
+    // Check if field is in the lockedFields array
+    if (lockedFields.includes(config.key)) {
+      return true
+    }
+    // In readonly-locked mode, lock fields that have values
+    if (mode === "readonly-locked" && hasValue(value)) {
+      return true
+    }
+    // In display mode, all fields are locked
+    if (mode === "display") {
+      return true
+    }
+    return false
+  }
+
   const renderField = (config: FieldConfig) => {
     const value = getFieldValue(config)
     const currentId = getFieldId(config)
@@ -1003,19 +1116,18 @@ export function DynamicProductFields({
               position: 'relative',
               marginTop: '4px',
               background: '#FFFFFF',
-              border: `1px solid ${isFocused ? '#1162A8' : borderColor}`,
-              borderRadius: '6px',
+              border: `0.740384px solid ${isFocused ? '#1162A8' : borderColor}`,
+              borderRadius: '7.7px',
               boxSizing: 'border-box'
             }}
           >
             <span style={{
-              fontFamily: 'Verdana',
+              fontFamily: 'Arial',
               fontStyle: 'normal',
               fontWeight: 400,
-              fontSize: '12px',
+              fontSize: '14px',
               lineHeight: '16px',
-              letterSpacing: '-0.02em',
-              color: '#000000',
+              color: '#1F2937',
               whiteSpace: 'nowrap',
               paddingRight: hasImpressionValue(impressionCount, displayText) ? '24px' : '0px'
             }}>{displayText}</span>
@@ -1029,14 +1141,14 @@ export function DynamicProductFields({
             className="absolute bg-white transition-colors duration-200"
             style={{
               padding: '0 2px',
-              height: '11px',
+              height: '12px',
               left: '8px',
-              top: '-1px',
+              top: '-5px',
               fontFamily: 'Arial',
               fontStyle: 'normal',
               fontWeight: 400,
-              fontSize: '11px',
-              lineHeight: '11px',
+              fontSize: '12px',
+              lineHeight: '12px',
               color: isFocused ? '#1162A8' : labelColor
             }}
           >
@@ -1059,6 +1171,8 @@ export function DynamicProductFields({
         const stages = productDetails?.stages || []
         // Check if this field should be focused
         const isFocused = focusedFieldKey === config.key && !hasValue(value)
+        // Check if field is locked
+        const fieldLocked = isFieldLocked(config, value)
 
         return (
           <>
@@ -1072,10 +1186,12 @@ export function DynamicProductFields({
               <div
                 ref={(el) => { fieldRefs.current[config.key] = el }}
                 className={cn(
-                  "flex items-center cursor-pointer transition-all duration-200",
-                  isFocused && "ring-2 ring-[#1162A8] ring-opacity-50 shadow-[0_0_0_4px_rgba(17,98,168,0.15)]"
+                  "flex items-center transition-all duration-200",
+                  !fieldLocked && "cursor-pointer",
+                  isFocused && !fieldLocked && "ring-2 ring-[#1162A8] ring-opacity-50 shadow-[0_0_0_4px_rgba(17,98,168,0.15)]"
                 )}
                 onClick={() => {
+                  if (fieldLocked) return
                   setFocusedFieldKey(config.key)
                   setIsStageModalOpen(true)
                 }}
@@ -1086,20 +1202,21 @@ export function DynamicProductFields({
                   height: '28px',
                   position: 'relative',
                   marginTop: '4px',
-                  background: '#FFFFFF',
-                  border: `1px solid ${isFocused ? '#1162A8' : borderColor}`,
-                  borderRadius: '6px',
-                  boxSizing: 'border-box'
+                  background: fieldLocked ? '#F5F5F5' : '#FFFFFF',
+                  border: fieldLocked ? '2px solid #22c55e' : `0.740384px solid ${isFocused ? '#1162A8' : borderColor}`,
+                  borderRadius: '7.7px',
+                  boxSizing: 'border-box',
+                  cursor: fieldLocked ? 'not-allowed' : 'pointer',
+                  pointerEvents: fieldLocked ? 'none' : 'auto'
                 }}
               >
                 <span style={{
-                  fontFamily: 'Verdana',
+                  fontFamily: 'Arial',
                   fontStyle: 'normal',
                   fontWeight: 400,
-                  fontSize: '12px',
+                  fontSize: '14px',
                   lineHeight: '16px',
-                  letterSpacing: '-0.02em',
-                  color: '#000000',
+                  color: fieldLocked ? '#999999' : '#1F2937',
                   whiteSpace: 'nowrap'
                 }}>{displayValue}</span>
                 {hasValue(value) && (
@@ -1112,15 +1229,15 @@ export function DynamicProductFields({
                 className="absolute bg-white transition-colors duration-200"
                 style={{
                   padding: '0 2px',
-                  height: '11px',
+                  height: '12px',
                   left: '8px',
-                  top: '-1px',
+                  top: '-5px',
                   fontFamily: 'Arial',
                   fontStyle: 'normal',
                   fontWeight: 400,
-                  fontSize: '11px',
-                  lineHeight: '11px',
-                  color: isFocused ? '#1162A8' : labelColor
+                  fontSize: '12px',
+                  lineHeight: '12px',
+                  color: isFocused && !fieldLocked ? '#1162A8' : labelColor
                 }}
               >
                 {hasValue(value) ? config.label : `Select ${config.label}`}
@@ -1167,6 +1284,9 @@ export function DynamicProductFields({
       // Check if this field should be focused
       const isFocused = focusedFieldKey === config.key && !hasValue(value)
 
+      // Check if field is locked
+      const fieldLocked = isFieldLocked(config, value)
+
       return (
         <div
           className="relative"
@@ -1177,7 +1297,9 @@ export function DynamicProductFields({
         >
           <Select
             value={selectedValue || ""}
+            disabled={fieldLocked}
             onValueChange={(selectedValue) => {
+              if (fieldLocked) return
               const selectedOption = options.find((opt: any) =>
                 opt.id?.toString() === selectedValue || opt.name === selectedValue
               )
@@ -1190,6 +1312,7 @@ export function DynamicProductFields({
               setFocusedFieldKey(null)
             }}
             onOpenChange={(open) => {
+              if (fieldLocked) return
               if (open) {
                 setFocusedFieldKey(config.key)
               } else if (!hasValue(value)) {
@@ -1203,7 +1326,7 @@ export function DynamicProductFields({
               ref={(el) => { fieldRefs.current[config.key] = el }}
               className={cn(
                 "transition-all duration-200",
-                isFocused && "ring-2 ring-[#1162A8] ring-opacity-50 shadow-[0_0_0_4px_rgba(17,98,168,0.15)]"
+                isFocused && !fieldLocked && "ring-2 ring-[#1162A8] ring-opacity-50 shadow-[0_0_0_4px_rgba(17,98,168,0.15)]"
               )}
               style={{
                 padding: '6px 10px 4px 10px',
@@ -1212,10 +1335,15 @@ export function DynamicProductFields({
                 height: '28px',
                 position: 'relative',
                 marginTop: '4px',
-                background: '#FFFFFF',
-                border: `1px solid ${isFocused ? '#1162A8' : borderColor}`,
-                borderRadius: '6px',
-                boxSizing: 'border-box'
+                background: fieldLocked ? '#F5F5F5' : '#FFFFFF',
+                border: fieldLocked ? '2px solid #22c55e' : `0.740384px solid ${isFocused ? '#1162A8' : borderColor}`,
+                borderRadius: '7.7px',
+                boxSizing: 'border-box',
+                fontFamily: 'Arial',
+                fontSize: '14px',
+                color: fieldLocked ? '#999999' : '#1F2937',
+                cursor: fieldLocked ? 'not-allowed' : 'pointer',
+                pointerEvents: fieldLocked ? 'none' : 'auto'
               }}
             >
               <SelectValue placeholder="">
@@ -1242,14 +1370,14 @@ export function DynamicProductFields({
             className="absolute bg-white transition-colors duration-200"
             style={{
               padding: '0 2px',
-              height: '11px',
+              height: '12px',
               left: '8px',
-              top: '-1px',
+              top: '-5px',
               fontFamily: 'Arial',
               fontStyle: 'normal',
               fontWeight: 400,
-              fontSize: '11px',
-              lineHeight: '11px',
+              fontSize: '12px',
+              lineHeight: '12px',
               color: isFocused ? '#1162A8' : labelColor
             }}
           >
@@ -1272,6 +1400,8 @@ export function DynamicProductFields({
       const isFocused = focusedFieldKey === config.key && !hasValue(value)
       // For shade fields, use red color when focused and empty (required field)
       const focusColor = '#ef4444' // Red for required empty shade fields
+      // Check if field is locked
+      const fieldLocked = isFieldLocked(config, value)
       const shadeBrand = arch === "maxillary"
         ? savedProduct.maxillaryShadeBrand
         : savedProduct.mandibularShadeBrand
@@ -1304,10 +1434,12 @@ export function DynamicProductFields({
           <div
             ref={(el) => { fieldRefs.current[config.key] = el }}
             className={cn(
-              "flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-all duration-200",
-              isFocused && "ring-2 ring-red-500 ring-opacity-50 shadow-[0_0_0_4px_rgba(239,68,68,0.15)]"
+              "flex items-center justify-between transition-all duration-200",
+              !fieldLocked && "cursor-pointer hover:bg-gray-50",
+              isFocused && !fieldLocked && "ring-2 ring-red-500 ring-opacity-50 shadow-[0_0_0_4px_rgba(239,68,68,0.15)]"
             )}
             onClick={(e) => {
+              if (fieldLocked) return
               e.preventDefault()
               e.stopPropagation()
               setFocusedFieldKey(config.key)
@@ -1322,22 +1454,23 @@ export function DynamicProductFields({
               gap: '4px',
               width: '100%',
               height: '28px',
-              background: '#FFFFFF',
-              border: `1px solid ${isFocused ? focusColor : borderColor}`,
-              borderRadius: '6px',
+              background: fieldLocked ? '#F5F5F5' : '#FFFFFF',
+              border: fieldLocked ? '2px solid #22c55e' : `0.740384px solid ${isFocused ? focusColor : borderColor}`,
+              borderRadius: '7.7px',
               boxSizing: 'border-box',
               position: 'relative',
-              marginTop: '4px'
+              marginTop: '4px',
+              cursor: fieldLocked ? 'not-allowed' : 'pointer',
+              pointerEvents: fieldLocked ? 'none' : 'auto'
             }}
           >
             <span style={{
-              fontFamily: 'Verdana',
+              fontFamily: 'Arial',
               fontStyle: 'normal',
               fontWeight: 400,
-              fontSize: '12px',
+              fontSize: '14px',
               lineHeight: '16px',
-              letterSpacing: '-0.02em',
-              color: '#000000'
+              color: fieldLocked ? '#999999' : '#1F2937'
             }}>{brandName || shadeValue}</span>
             {hasValue(value) && (
               <div
@@ -1430,15 +1563,15 @@ export function DynamicProductFields({
             className="absolute bg-white transition-colors duration-200"
             style={{
               padding: '0 2px',
-              height: '11px',
+              height: '12px',
               left: '8px',
-              top: '-1px',
+              top: '-5px',
               fontFamily: 'Arial',
               fontStyle: 'normal',
               fontWeight: 400,
-              fontSize: '11px',
-              lineHeight: '11px',
-              color: isFocused ? focusColor : labelColor
+              fontSize: '12px',
+              lineHeight: '12px',
+              color: isFocused && !fieldLocked ? focusColor : labelColor
             }}
           >
             {hasValue(value) ? config.label : `Select ${config.label}`}
@@ -1454,23 +1587,47 @@ export function DynamicProductFields({
   }
 
 
-  return (
+  // Container styles based on layout variant
+  const containerStyle = layout === "accordion-compact"
+    ? {
+        display: 'flex',
+        flexDirection: 'row' as const,
+        flexWrap: 'wrap' as const,
+        gap: '10px',
+        width: '100%'
+      }
+    : {
+        display: 'grid',
+        gridTemplateColumns: 'repeat(2, 1fr)',
+        gap: '4px 8px',
+        width: '100%'
+      }
+
+  // Field container styles based on layout variant
+  const getFieldContainerStyle = () => layout === "accordion-compact"
+    ? { flex: '1', minWidth: '180px', maxWidth: '48%' }
+    : { width: '100%' }
+
+  // Helper to get teeth array for saved product card
+  const getTeethArray = (): number[] => {
+    if (mode === "saved" && savedProduct) {
+      const teeth = arch === "maxillary" ? savedProduct.maxillaryTeeth : savedProduct.mandibularTeeth
+      return (teeth || []).sort((a: number, b: number) => a - b)
+    }
+    return []
+  }
+
+  // Render fields content (used in both normal and saved modes)
+  const renderFieldsContent = () => (
     <>
       <div
-        className="grid grid-cols-2"
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(2, 1fr)',
-          gap: '4px 8px',
-          width: '100%'
-        }}
+        className={layout === "accordion-compact" ? "flex flex-wrap" : "grid grid-cols-2"}
+        style={containerStyle}
       >
         {visibleFields.map(field => (
           <div
             key={field.key}
-            style={{
-              width: '100%'
-            }}
+            style={getFieldContainerStyle()}
           >
             {renderField(field)}
           </div>
@@ -1481,9 +1638,7 @@ export function DynamicProductFields({
         {!hideImpression && shouldShowImpression && impressionConfig && (
           <div
             key={impressionConfig.key}
-            style={{
-              width: '100%'
-            }}
+            style={getFieldContainerStyle()}
           >
             {renderField(impressionConfig)}
           </div>
@@ -1521,12 +1676,22 @@ export function DynamicProductFields({
                       setImplantSelectionStep('platform')
                       // Notify parent that we're showing platform cards
                       if (onPlatformFieldClick) {
-                        setTimeout(() => onPlatformFieldClick(), 0)
+                        setTimeout(() => {
+                          const fn = onPlatformFieldClick as any
+                          if (fn.length === 0) {
+                            fn()
+                          }
+                        }, 0)
                       }
                     } else {
                       // If no platforms, notify parent we're on brand step
                       if (onBrandFieldClick) {
-                        setTimeout(() => onBrandFieldClick(), 0)
+                        setTimeout(() => {
+                          const fn = onBrandFieldClick as any
+                          if (fn.length === 0) {
+                            fn()
+                          }
+                        }, 0)
                       }
                     }
                   }}
@@ -1542,6 +1707,516 @@ export function DynamicProductFields({
         </div>
       )}
     </>
+  )
+
+  // If mode is "saved", render accordion card wrapper
+  if (mode === "saved") {
+    const teeth = getTeethArray()
+    const isOpen = isAccordionOpen || false
+    const productName = product?.name || ""
+    const productImageUrl = product?.image_url || "/images/product-default.png"
+    const estimatedDays = product?.estimated_days || 10
+
+    return (
+      <Card
+        className="overflow-hidden shadow-sm"
+        style={{
+          width: '80%',
+          minWidth: '80%',
+          border: rushData ? '1px solid #CF0202' : '1px solid #e5e7eb',
+          borderRadius: '10px'
+        }}
+      >
+        <Accordion
+          type="single"
+          collapsible
+          className="w-full"
+          value={isOpen && productId ? productId : ""}
+          onValueChange={(value) => {
+            if (onAccordionChange && productId) {
+              onAccordionChange(value)
+            }
+          }}
+        >
+          <AccordionItem value={productId || ""} className="border-0">
+            {/* Header */}
+            <div
+              className="w-full"
+              style={{
+                position: 'relative',
+                height: '69.92px',
+                background: rushData ? '#FFE2E2' : (isOpen ? '#DFEEFB' : '#F5F5F5'),
+                boxShadow: rushData ? '0.9px 0.9px 3.6px 0 rgba(0, 0, 0, 0.25)' : '0.9px 0.9px 3.6px rgba(0, 0, 0, 0.25)',
+                borderRadius: isOpen ? '5.4px 5.4px 0px 0px' : '10px',
+                border: rushData ? '1px solid #CF0202' : 'none',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-start',
+                padding: '14px 8px',
+                gap: '10px'
+              }}
+              onClick={() => {
+                if (onCardClick && savedProduct) {
+                  onCardClick(savedProduct)
+                }
+              }}
+            >
+              <AccordionTrigger
+                className="hover:no-underline w-full [&>svg]:hidden"
+                style={{
+                  padding: '0px',
+                  gap: '10px',
+                  width: '100%',
+                  height: '100%',
+                  background: 'transparent',
+                  boxShadow: 'none',
+                  borderRadius: '0px'
+                }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (onCardClick && savedProduct) {
+                    onCardClick(savedProduct)
+                  }
+                }}
+              >
+                <div style={{ width: '697.74px', height: '42.69px', flex: 'none', order: 0, flexGrow: 0, position: 'relative' }}>
+                  <div style={{ position: 'absolute', width: '639.14px', height: '42.69px', left: '0px', top: '0px' }}>
+                    {/* Product Image */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        width: '64.04px',
+                        height: '42.69px',
+                        left: '0px',
+                        top: '0px',
+                        background: '#F5F5F5',
+                        borderRadius: '5.4px',
+                        overflow: 'hidden',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      <img
+                        src={productImageUrl}
+                        alt={productName}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'contain'
+                        }}
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement
+                          if (target.src !== window.location.origin + "/images/product-default.png") {
+                            target.src = "/images/product-default.png"
+                          }
+                        }}
+                      />
+                    </div>
+
+                    {/* Content Area */}
+                    <div style={{ position: 'absolute', width: '565.1px', height: '42px', left: '74.04px', top: '0.34px' }}>
+                      {/* Tooth Numbers */}
+                      <div style={{ position: 'absolute', width: 'auto', height: '20px', left: '0px', top: '0px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span
+                          style={{
+                            fontFamily: 'Verdana',
+                            fontStyle: 'normal',
+                            fontWeight: 400,
+                            fontSize: '14.4px',
+                            lineHeight: '20px',
+                            letterSpacing: '-0.02em',
+                            color: '#000000'
+                          }}
+                        >
+                          {teeth.length > 0 ? teeth.join(', ') : ''}
+                        </span>
+                        {rushData && (
+                          <Zap
+                            style={{
+                              width: '16px',
+                              height: '16px',
+                              color: '#CF0202',
+                              fill: '#CF0202',
+                              flexShrink: 0
+                            }}
+                          />
+                        )}
+                      </div>
+
+                      {/* Product Name */}
+                      <div style={{ position: 'absolute', width: 'auto', height: 'auto', left: '0px', top: '22px', display: 'flex', alignItems: 'center' }}>
+                        <div
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '4px 12px',
+                            background: '#DFEEFB',
+                            borderRadius: '6px',
+                            boxShadow: '0.9px 0.9px 3.6px rgba(0, 0, 0, 0.25)',
+                            maxWidth: '400px'
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontFamily: 'Verdana',
+                              fontStyle: 'normal',
+                              fontWeight: 400,
+                              fontSize: '12px',
+                              lineHeight: '16px',
+                              letterSpacing: '-0.02em',
+                              color: '#000000',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis'
+                            }}
+                          >
+                            {productName}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Badges and Info Row */}
+                      <div style={{ position: 'absolute', width: '565.1px', height: '22px', left: '0px', top: '44px', display: 'flex', flexDirection: 'row', alignItems: 'center', padding: '0px', gap: '5px' }}>
+                        {category && (
+                          <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '0px 10px', gap: '10px', width: 'fit-content', height: '17px', background: '#F9F9F9', boxShadow: '1px 1px 3.5px rgba(0, 0, 0, 0.25)', borderRadius: '6px', flex: 'none', order: 0, flexGrow: 0 }}>
+                            <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', flex: 'none', order: 0, flexGrow: 0 }}>{category}</span>
+                          </div>
+                        )}
+                        {subcategory && (
+                          <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '0px 10px', gap: '10px', width: 'fit-content', height: '17px', background: '#F9F9F9', boxShadow: '1px 1px 3.5px rgba(0, 0, 0, 0.25)', borderRadius: '6px', flex: 'none', order: 1, flexGrow: 0 }}>
+                            <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', flex: 'none', order: 0, flexGrow: 0 }}>{subcategory}</span>
+                          </div>
+                        )}
+                        <span style={{ width: 'auto', height: '22px', fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '22px', letterSpacing: '-0.02em', color: '#B4B0B0', flex: 'none', order: 4, flexGrow: 0 }}>
+                          Est days: {estimatedDays} work days after submission
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Chevron */}
+                <div style={{ position: 'absolute', width: '21.6px', height: '21.6px', right: '8px', top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}>
+                  <ChevronDown
+                    className="w-full h-full transition-transform duration-200 text-black"
+                    style={{
+                      transform: isOpen ? 'rotate(0deg)' : 'rotate(-180deg)'
+                    }}
+                  />
+                </div>
+              </AccordionTrigger>
+              {/* Delete Button */}
+              {onDeleteProduct && productId && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onDeleteProduct(productId)
+                  }}
+                  className="hover:text-red-600 transition-colors"
+                  style={{
+                    position: 'absolute',
+                    width: '16px',
+                    height: '16px',
+                    color: '#999999',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    right: '34px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 11
+                  }}
+                >
+                  <Trash2 className="w-full h-full" />
+                </button>
+              )}
+            </div>
+
+            <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto' }}>
+              {/* Scrollable content container */}
+              <div
+                className="bg-white w-full overflow-y-auto"
+                style={{
+                  position: 'relative',
+                  maxHeight: '600px',
+                  marginTop: '10px',
+                  paddingLeft: '15.87px',
+                  paddingRight: '15.87px',
+                  paddingBottom: '20px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'flex-start',
+                  gap: '10px',
+                  background: '#FFFFFF',
+                  boxSizing: 'border-box'
+                }}
+              >
+                {/* Dynamic Product Fields */}
+                {renderFieldsContent()}
+
+                {/* Notes if available */}
+                {showNotes && notes && (
+                  <div
+                    className="flex flex-col sm:flex-row flex-wrap gap-5"
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'row',
+                      alignItems: 'flex-start',
+                      padding: '0px',
+                      gap: '20px',
+                      flex: 'none',
+                      order: 3,
+                      alignSelf: 'stretch',
+                      flexGrow: 0
+                    }}
+                  >
+                    <div className="relative flex-1 min-w-[250px] max-w-[100%]" style={{ minHeight: '43px' }}>
+                      <div
+                        className="flex items-start"
+                        style={{
+                          padding: '12px 15px 5px 15px',
+                          gap: '5px',
+                          width: '100%',
+                          minHeight: '60px',
+                          background: '#FFFFFF',
+                          border: '0.740384px solid #7F7F7F',
+                          borderRadius: '7.7px',
+                          boxSizing: 'border-box',
+                          position: 'relative',
+                          marginTop: '5.27px'
+                        }}
+                      >
+                        <span style={{
+                          fontFamily: 'Verdana',
+                          fontStyle: 'normal',
+                          fontWeight: 400,
+                          fontSize: '14.4px',
+                          lineHeight: '20px',
+                          letterSpacing: '-0.02em',
+                          color: '#000000'
+                        }}>{notes}</span>
+                      </div>
+                      <label
+                        className="absolute bg-white"
+                        style={{
+                          padding: '0px',
+                          height: '14px',
+                          left: '8.9px',
+                          top: '0px',
+                          fontFamily: 'Arial',
+                          fontStyle: 'normal',
+                          fontWeight: 400,
+                          fontSize: '14px',
+                          lineHeight: '14px',
+                          color: '#7F7F7F'
+                        }}
+                      >
+                        Notes
+                      </label>
+                    </div>
+                  </div>
+                )}
+
+                {/* Implant Details if available */}
+                {showImplantDetails && savedProduct && (
+                  <div className="w-full" style={{ order: 3, alignSelf: 'stretch', flexGrow: 0 }}>
+                    {/* Implant details rendering would go here - similar to saved-products-section */}
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                {showActionButtons && (
+                  <div
+                    className="flex flex-wrap justify-center items-center w-full"
+                    style={{
+                      gap: '7.03px',
+                      position: 'relative',
+                      marginTop: '30px',
+                      marginBottom: '15px'
+                    }}
+                  >
+                    {onAddOnsClick && (
+                      <button
+                        onClick={onAddOnsClick}
+                        className="relative flex flex-col items-center justify-center"
+                        style={{
+                          width: '123.04px',
+                          height: '46.22px',
+                          background: '#F9F9F9',
+                          boxShadow: '0.878154px 0.878154px 3.07354px rgba(0, 0, 0, 0.25)',
+                          borderRadius: '5.26893px',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: '0'
+                        }}
+                      >
+                        <span
+                          className="absolute text-center"
+                          style={{
+                            width: '41.8px',
+                            height: '20px',
+                            left: '50%',
+                            top: '3.79px',
+                            transform: 'translateX(-50%)',
+                            fontFamily: 'Verdana',
+                            fontStyle: 'normal',
+                            fontWeight: 400,
+                            fontSize: '8.78154px',
+                            lineHeight: '19px',
+                            textAlign: 'center',
+                            letterSpacing: '-0.02em',
+                            color: '#000000'
+                          }}
+                        >
+                          +
+                        </span>
+                        <span
+                          className="absolute text-center"
+                          style={{
+                            width: '89px',
+                            height: '20px',
+                            left: '50%',
+                            top: '23.11px',
+                            transform: 'translateX(-50%)',
+                            fontFamily: 'Verdana',
+                            fontStyle: 'normal',
+                            fontWeight: 400,
+                            fontSize: '8.78154px',
+                            lineHeight: '19px',
+                            textAlign: 'center',
+                            letterSpacing: '-0.02em',
+                            color: '#000000'
+                          }}
+                        >
+                          Add ons ({getTotalAddOnsCount ? getTotalAddOnsCount() : 0} selected)
+                        </span>
+                      </button>
+                    )}
+                    {onAttachFilesClick && (
+                      <button
+                        onClick={onAttachFilesClick}
+                        className="relative flex flex-col items-center justify-center"
+                        style={{
+                          width: '123.04px',
+                          height: '46.22px',
+                          background: '#F9F9F9',
+                          boxShadow: '0.878154px 0.878154px 3.07354px rgba(0, 0, 0, 0.25)',
+                          borderRadius: '5.26893px',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: '0'
+                        }}
+                      >
+                        <Paperclip
+                          className="absolute"
+                          style={{
+                            width: '8.78px',
+                            height: '10.54px',
+                            left: '50%',
+                            top: '9.34px',
+                            transform: 'translateX(-50%)',
+                            color: '#1E1E1E',
+                            strokeWidth: '0.878154px'
+                          }}
+                        />
+                        <span
+                          className="absolute text-center"
+                          style={{
+                            width: '107px',
+                            height: '20px',
+                            left: '50%',
+                            top: '23.11px',
+                            transform: 'translateX(-50%)',
+                            fontFamily: 'Verdana',
+                            fontStyle: 'normal',
+                            fontWeight: 400,
+                            fontSize: '8.78154px',
+                            lineHeight: '19px',
+                            textAlign: 'center',
+                            letterSpacing: '-0.02em',
+                            color: '#000000'
+                          }}
+                        >
+                          Attach Files ({getAttachedFilesCount ? getAttachedFilesCount() : 0} uploads)
+                        </span>
+                      </button>
+                    )}
+                    {onRushClick && (
+                      <button
+                        onClick={onRushClick}
+                        className="relative flex flex-col items-center justify-center"
+                        style={{
+                          width: '123.04px',
+                          height: '46.22px',
+                          background: '#F9F9F9',
+                          boxShadow: '0px 0px 2.89791px rgba(207, 2, 2, 0.67)',
+                          borderRadius: '5.26893px',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: '0'
+                        }}
+                      >
+                        <Zap
+                          className="absolute"
+                          style={{
+                            width: '8.78px',
+                            height: '10.54px',
+                            left: '50%',
+                            top: '9.35px',
+                            transform: 'translateX(-50%)',
+                            color: '#CF0202',
+                            fill: '#CF0202',
+                            strokeWidth: '0.878154px'
+                          }}
+                        />
+                        <span
+                          className="absolute text-center"
+                          style={{
+                            width: '59px',
+                            height: '20px',
+                            left: '50%',
+                            top: '23.11px',
+                            transform: 'translateX(-50%)',
+                            fontFamily: 'Verdana',
+                            fontStyle: 'normal',
+                            fontWeight: 400,
+                            fontSize: '8.78154px',
+                            lineHeight: '19px',
+                            textAlign: 'center',
+                            letterSpacing: '-0.02em',
+                            color: '#000000'
+                          }}
+                        >
+                          Request Rush
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      </Card>
+    )
+  }
+
+  // Normal mode - render fields directly with scrolling
+  return (
+    <div
+      className="w-full overflow-y-auto"
+      style={{
+        maxHeight: '600px',
+        paddingRight: '4px'
+      }}
+    >
+      {renderFieldsContent()}
+    </div>
   )
 }
 

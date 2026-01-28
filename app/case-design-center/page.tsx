@@ -46,14 +46,6 @@ import { LoadingOverlay } from "@/components/ui/loading-overlay"
 import { useCaseDesignStore } from "@/stores/caseDesignStore"
 import type { ProductCategoryApi, Doctor, Lab, PatientData, Product, SavedProduct } from "./sections/types"
 
-const SavedProductsSection = dynamic(
-  () => import("./sections/saved-products-section").then((mod) => ({ default: mod.SavedProductsSection })),
-  {
-    ssr: false,
-    loading: () => null
-  }
-)
-
 // Dynamic imports for heavy components - loaded only when needed
 const MandibularTeethSVG = dynamic(
   () => import("@/components/mandibular-teeth-svg").then((mod) => ({ default: mod.MandibularTeethSVG })),
@@ -340,6 +332,10 @@ export default function CaseDesignCenterPage() {
   const [maxillaryStageId, setMaxillaryStageId] = useState<number | undefined>(undefined)
   const [maxillaryToothShade, setMaxillaryToothShade] = useState<string>("")
   const [maxillaryStage, setMaxillaryStage] = useState<string>("")
+  // Implant detail form fields for maxillary
+  const [maxillaryImplantInclusions, setMaxillaryImplantInclusions] = useState<string>("")
+  const [maxillaryAbutmentDetail, setMaxillaryAbutmentDetail] = useState<string>("")
+  const [maxillaryAbutmentType, setMaxillaryAbutmentType] = useState<string>("")
 
   // Form states for MANDIBULAR
   const [mandibularMaterial, setMandibularMaterial] = useState<string>("")
@@ -354,6 +350,10 @@ export default function CaseDesignCenterPage() {
   const [mandibularStageId, setMandibularStageId] = useState<number | undefined>(undefined)
   const [mandibularToothShade, setMandibularToothShade] = useState<string>("")
   const [mandibularStage, setMandibularStage] = useState<string>("")
+  // Implant detail form fields for mandibular
+  const [mandibularImplantInclusions, setMandibularImplantInclusions] = useState<string>("")
+  const [mandibularAbutmentDetail, setMandibularAbutmentDetail] = useState<string>("")
+  const [mandibularAbutmentType, setMandibularAbutmentType] = useState<string>("")
 
   // State to track if advance fields should be shown per product
   const [showAdvanceFields, setShowAdvanceFields] = useState<{ [productId: string]: boolean }>({})
@@ -618,39 +618,39 @@ export default function CaseDesignCenterPage() {
         if (!archType) return false
         const teeth = archType === "maxillary" ? savedProduct.maxillaryTeeth : savedProduct.mandibularTeeth
         const retentionTypes = archType === "maxillary" ? maxillaryRetentionTypes : mandibularRetentionTypes
-        
+
         // First, check if any tooth in the product has "Implant" as the retention type from state
         let hasImplantRetentionType = teeth.some(toothNumber => {
           const types = retentionTypes[toothNumber] || []
           return types.includes('Implant')
         })
-        
+
         // Fallback: If retentionTypes state is empty, check the retention option's tooth_chart_type
         // This handles saved products that might not have retentionTypes state populated
         if (!hasImplantRetentionType && productDetails?.retention_options) {
-          const retentionOptionId = archType === "maxillary" 
-            ? savedProduct.maxillaryRetentionOptionId 
+          const retentionOptionId = archType === "maxillary"
+            ? savedProduct.maxillaryRetentionOptionId
             : savedProduct.mandibularRetentionOptionId
-          
+
           if (retentionOptionId) {
             const selectedRetentionOption = productDetails.retention_options.find((opt: any) => {
               return opt.id === retentionOptionId ||
-                     opt.lab_retention_option?.id === retentionOptionId ||
-                     opt.retention_option_id === retentionOptionId
+                opt.lab_retention_option?.id === retentionOptionId ||
+                opt.retention_option_id === retentionOptionId
             })
-            
+
             if (selectedRetentionOption) {
               const toothChartType = selectedRetentionOption.tooth_chart_type ||
                 selectedRetentionOption.lab_retention_option?.tooth_chart_type ||
                 selectedRetentionOption.retention_option?.tooth_chart_type
-              
+
               hasImplantRetentionType = toothChartType === "Implant"
             }
           }
         }
-        
+
         if (!hasImplantRetentionType) return false
-        
+
         // Also check if product has implant configuration
         const implantDetails = archType === "maxillary" ? savedProduct.maxillaryImplantDetails : savedProduct.mandibularImplantDetails
         return !!(productDetails.implant || implantDetails)
@@ -1207,11 +1207,11 @@ export default function CaseDesignCenterPage() {
       if (filteredAdvanceFields.length > 0) {
         // Check if this is a saved product (has advanceFields stored) or current form (uses advanceFieldValues state)
         const isSavedProduct = savedProduct.advanceFields && Array.isArray(savedProduct.advanceFields) && savedProduct.advanceFields.length > 0
-        
+
         // Check if all advance fields have values
         const allAdvanceFieldsCompleted = filteredAdvanceFields.every((field: any) => {
           let currentValue: any = null
-          
+
           if (isSavedProduct) {
             // For saved products, check savedProduct.advanceFields
             const savedField = savedProduct.advanceFields?.find((af: any) => af.advance_field_id === field.id)
@@ -1311,100 +1311,6 @@ export default function CaseDesignCenterPage() {
   const isToothShadeFilled = (archType: "maxillary" | "mandibular"): boolean => {
     const toothShade = archType === "maxillary" ? maxillaryToothShade : mandibularToothShade
     return hasValue(toothShade)
-  }
-
-  // Helper to check if both stump shade and tooth shade are filled (for showing implant details)
-  const areStumpAndToothShadeFilled = (archType: "maxillary" | "mandibular"): boolean => {
-    const stumpShade = archType === "maxillary" ? maxillaryStumpShade : mandibularStumpShade
-    const toothShade = archType === "maxillary" ? maxillaryToothShade : mandibularToothShade
-    return hasValue(stumpShade) && hasValue(toothShade)
-  }
-
-  // Helper to check if stage field is visible in UI (for showing advanced fields)
-  const isStageFieldVisible = (archType: "maxillary" | "mandibular"): boolean => {
-    const toothShade = archType === "maxillary" ? maxillaryToothShade : mandibularToothShade
-    const stages = productDetails?.stages
-
-    // Stage field is visible if:
-    // 1. Tooth shade has a value
-    // 2. Stages exist in productDetails
-    if (!hasValue(toothShade)) {
-      return false
-    }
-    if (!stages || !Array.isArray(stages) || stages.length === 0) {
-      return false
-    }
-
-    return true
-  }
-
-  // Helper to check if advance fields are completed (for showing impression field)
-  const areAdvanceFieldsCompleted = (archType: "maxillary" | "mandibular"): boolean => {
-    if (!productDetails) return true // If no product details, allow impression (backward compatibility)
-    
-    const advanceFields = productDetails.advance_fields || productAdvanceFields[selectedProduct?.id?.toString() || ""] || []
-    // Filter out stump_shade from advance fields check (we use main stump shade field)
-    const filteredAdvanceFields = advanceFields.filter((field: any) => {
-      const fieldNameLower = (field.name || "").toLowerCase()
-      return !(fieldNameLower.includes("stump") && fieldNameLower.includes("shade"))
-    })
-
-    // If no advance fields exist, impression can be shown
-    if (filteredAdvanceFields.length === 0) {
-      return true
-    }
-
-    // If advance fields exist, check if they are all completed
-    return filteredAdvanceFields.every((field: any) => {
-      const fieldKey = `advance_${field.id}`
-      const currentValue = advanceFieldValues[fieldKey]
-
-      // For implant_library fields, check if brand, platform, and size are all selected
-      if (field.field_type === "implant_library") {
-        const brandId = selectedImplantBrand[fieldKey]
-        const platformId = selectedImplantPlatform[fieldKey]
-        const size = selectedImplantSize[fieldKey]
-        if (brandId && platformId && size) {
-          return true
-        }
-        // Fallback: check if advanceFieldValues has a value
-        if (currentValue) {
-          const displayValue = typeof currentValue === "object"
-            ? currentValue?.advance_field_value || ""
-            : currentValue || ""
-          return displayValue &&
-            displayValue.trim() !== "" &&
-            displayValue.trim().toLowerCase() !== "not specified"
-        }
-        return false
-      }
-
-      if (!currentValue) return false
-
-      // For checkbox fields, check if at least one option is selected
-      if (field.field_type === "checkbox") {
-        const currentSelectedIds = typeof currentValue === "object"
-          ? (Array.isArray(currentValue?.option_ids) ? currentValue.option_ids :
-            currentValue?.option_id ? [currentValue.option_id] : [])
-          : []
-        return currentSelectedIds.length > 0
-      }
-
-      // For other fields, check if value is not empty or "Not specified"
-      const displayValue = typeof currentValue === "object"
-        ? currentValue?.advance_field_value || ""
-        : currentValue || ""
-      return displayValue &&
-        displayValue.trim() !== "" &&
-        displayValue.trim().toLowerCase() !== "not specified" &&
-        (field.field_type !== "dropdown" || displayValue !== `Select ${field.name}`)
-    })
-  }
-
-  // Helper to check if stage is filled (for showing advanced fields)
-  const isStageFilled = (archType: "maxillary" | "mandibular"): boolean => {
-    const stage = archType === "maxillary" ? maxillaryStage : mandibularStage
-    return hasValue(stage)
   }
 
   const areAllRequiredFieldsFilled = (archType: "maxillary" | "mandibular"): boolean => {
@@ -1515,91 +1421,11 @@ export default function CaseDesignCenterPage() {
     return savedProducts.length > 0
   }
 
-  // Helper function to check if product accordion is complete (all products complete)
-  const isAccordionComplete = (): boolean => {
-    // If there are no saved products, accordion is not complete
-    if (savedProducts.length === 0) {
-      return false
-    }
-
-    // Check if all saved products have required fields filled
-    return savedProducts.every((product) => {
-      const hasMaterial = product.addedFrom === "maxillary"
-        ? hasValue(product.maxillaryMaterial)
-        : hasValue(product.mandibularMaterial)
-      const hasRetention = product.addedFrom === "maxillary"
-        ? hasValue(product.maxillaryRetention)
-        : hasValue(product.mandibularRetention)
-      const hasToothShade = product.addedFrom === "maxillary"
-        ? hasValue(product.maxillaryToothShade)
-        : hasValue(product.mandibularToothShade)
-      const hasStage = product.addedFrom === "maxillary"
-        ? hasValue(product.maxillaryStage)
-        : hasValue(product.mandibularStage)
-
-      return hasMaterial && hasRetention && hasToothShade && hasStage
-    })
-  }
-
-  // Helper function to get shade display text with brand and code
-  const getShadeDisplayText = (
-    shadeName: string | undefined,
-    shadeId: number | undefined,
-    shadeBrandId: number | undefined,
-    shadeType: "stump_shade" | "tooth_shade",
-    productDetails: any
-  ): string => {
-    if (!shadeName || shadeName.trim() === "" || shadeName === "Select" || shadeName === "Select stump shade" || shadeName === "Select tooth shade") {
-      return shadeType === "stump_shade" ? "Select stump shade" : "Select tooth shade"
-    }
-
-    if (!productDetails) {
-      return shadeName
-    }
-
-    // Get the appropriate shade array
-    const shades = shadeType === "stump_shade"
-      ? productDetails.gum_shades
-      : productDetails.teeth_shades
-
-    if (!shades || !Array.isArray(shades)) {
-      return shadeName
-    }
-
-    // Find the shade by ID or name
-    const shade = shades.find((s: any) => {
-      if (shadeId && (s.id === shadeId || String(s.id) === String(shadeId))) {
-        return true
-      }
-      if (s.name === shadeName || s.system_name === shadeName) {
-        return true
-      }
-      return false
-    })
-
-    if (!shade) {
-      return shadeName
-    }
-
-    // Get brand name
-    const brandName = shade.brand?.name || shade.brand_name || ""
-    // Get shade code
-    const shadeCode = shade.code || shade.shade_code || shade.name || ""
-
-    // Format: "Brand Name - Shade Code" or just "Shade Code" if no brand
-    if (brandName && shadeCode) {
-      return `${brandName} - ${shadeCode}`
-    } else if (shadeCode) {
-      return shadeCode
-    } else {
-      return shadeName
-    }
-  }
-
   // Helper function to check if accordion field should be visible (progressive disclosure for accordion)
   // Fields are hidden initially and shown automatically when the previous field has a value
+  // Order: Material → Retention → Stage → Stump Shade → Tooth Shade → Implant Details
   const isAccordionFieldVisible = (
-    fieldName: "stump_shade" | "tooth_shade" | "stage" | "implant_details",
+    fieldName: "stump_shade" | "tooth_shade" | "stage" | "notes" | "implant_details",
     savedProduct: SavedProduct,
     archType: "maxillary" | "mandibular"
   ): boolean => {
@@ -1608,9 +1434,9 @@ export default function CaseDesignCenterPage() {
     const currentRetention = archType === "maxillary" ? maxillaryRetention : mandibularRetention
     const retention = savedRetention || currentRetention
 
+    const stage = archType === "maxillary" ? savedProduct.maxillaryStage : savedProduct.mandibularStage
     const stumpShade = archType === "maxillary" ? savedProduct.maxillaryStumpShade : savedProduct.mandibularStumpShade
     const toothShade = archType === "maxillary" ? savedProduct.maxillaryToothShade : savedProduct.mandibularToothShade
-    const stage = archType === "maxillary" ? savedProduct.maxillaryStage : savedProduct.mandibularStage
 
     // Helper to check if a value is actually set (not empty, not "Not specified", not "Select impression", not undefined, not null)
     const hasValue = (value: string | undefined | null): boolean => {
@@ -1618,27 +1444,30 @@ export default function CaseDesignCenterPage() {
       const trimmed = String(value).trim()
       return trimmed !== "" &&
         trimmed.toLowerCase() !== "not specified" &&
-        trimmed.toLowerCase() !== "select impression"
+        trimmed.toLowerCase() !== "select impression" &&
+        !trimmed.toLowerCase().startsWith("select")
     }
 
     switch (fieldName) {
-      case "stump_shade":
-        // Show stump shade ONLY after retention has a real value (for both arches)
-        // Initially hidden, shows automatically when retention is filled
-        // Check both saved product and current state to handle cases where retention is selected but product not yet saved
-        return hasValue(retention)
-      case "tooth_shade":
-        // Show tooth shade ONLY after stump shade has a real value (for both arches)
-        // Initially hidden, shows automatically when stump shade is filled
-        return hasValue(stumpShade)
       case "stage":
-        // Show stage ONLY after tooth shade has a real value
-        // Initially hidden, shows automatically when tooth shade is filled
-        return hasValue(toothShade)
-      case "implant_details":
-        // Show implant details ONLY after stage has a real value (for both arches)
+        // Show stage ONLY after retention has a real value
+        // Initially hidden, shows automatically when retention is filled
+        return hasValue(retention)
+      case "stump_shade":
+        // Show stump shade ONLY after stage has a real value
         // Initially hidden, shows automatically when stage is filled
         return hasValue(stage)
+      case "tooth_shade":
+        // Show tooth shade ONLY after stump shade has a real value
+        // Initially hidden, shows automatically when stump shade is filled
+        return hasValue(stumpShade)
+      case "implant_details":
+        // Show implant details ONLY after tooth shade has a real value
+        // Initially hidden, shows automatically when tooth shade is filled
+        return hasValue(toothShade)
+      case "notes":
+        // Notes are always visible if there's content
+        return true
       default:
         return false
     }
@@ -2080,29 +1909,68 @@ export default function CaseDesignCenterPage() {
         const products = JSON.parse(storedProducts)
         // Restore productDetails for each saved product from separate localStorage keys if needed
         const productsWithDetails = products.map((sp: SavedProduct) => {
-          // If productDetails is minimal or missing essential fields, try to restore from separate key
-          if (sp.productDetails && (!sp.productDetails.advance_fields || !sp.productDetails.materials)) {
+          // Always try to restore productDetails from separate key if available, even if productDetails exist
             const storedDetails = localStorage.getItem(`productDetails_${sp.product.id}`)
             if (storedDetails) {
               try {
                 const fullDetails = JSON.parse(storedDetails)
-                // Merge stored details with saved product details
+              // Merge stored details with saved product details (saved product details take precedence)
                 return {
                   ...sp,
                   productDetails: {
                     ...fullDetails,
-                    ...sp.productDetails, // Saved product details take precedence
-                    id: sp.productDetails.id || fullDetails.id
+                  ...(sp.productDetails || {}), // Merge existing productDetails if they exist
+                  id: sp.productDetails?.id || fullDetails.id || sp.product.id
                   }
                 }
               } catch (error) {
                 console.error(`Error parsing productDetails for product ${sp.product.id}:`, error)
               }
             }
+          
+          // If productDetails is missing or minimal, ensure we have at least a basic structure
+          if (!sp.productDetails || !sp.productDetails.id) {
+            return {
+              ...sp,
+              productDetails: {
+                ...(sp.productDetails || {}),
+                id: sp.product.id,
+                // Ensure essential arrays exist even if empty
+                materials: sp.productDetails?.materials || [],
+                retentions: sp.productDetails?.retentions || [],
+                stages: sp.productDetails?.stages || [],
+                advance_fields: sp.productDetails?.advance_fields || []
+              }
+            }
           }
+          
           return sp
         })
         setSavedProducts(productsWithDetails)
+        
+        // Automatically show charts if there are saved products
+        const hasMaxillaryProducts = productsWithDetails.some((p: SavedProduct) => p.addedFrom === "maxillary" && p.maxillaryTeeth.length > 0)
+        const hasMandibularProducts = productsWithDetails.some((p: SavedProduct) => p.addedFrom === "mandibular" && p.mandibularTeeth.length > 0)
+        
+        if (hasMaxillaryProducts) {
+          setShowMaxillaryChart(true)
+          // If there's a product in the saved products, use it for maxillary
+          const maxillaryProduct = productsWithDetails.find((p: SavedProduct) => p.addedFrom === "maxillary")
+          if (maxillaryProduct && maxillaryProduct.product) {
+            setSelectedProductForMaxillary(maxillaryProduct.product)
+            setMaxillaryTeeth(maxillaryProduct.maxillaryTeeth || [])
+          }
+        }
+        
+        if (hasMandibularProducts) {
+          setShowMandibularChart(true)
+          // If there's a product in the saved products, use it for mandibular
+          const mandibularProduct = productsWithDetails.find((p: SavedProduct) => p.addedFrom === "mandibular")
+          if (mandibularProduct && mandibularProduct.product) {
+            setSelectedProductForMandibular(mandibularProduct.product)
+            setMandibularTeeth(mandibularProduct.mandibularTeeth || [])
+          }
+        }
       } catch (error) {
         console.error("Error parsing saved products:", error)
       }
@@ -2145,6 +2013,241 @@ export default function CaseDesignCenterPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // Only run once on mount - fetchAllCategories and fetchProductDetails are stable from context
+
+  // Ensure charts are shown when saved products exist
+  useEffect(() => {
+    if (savedProducts.length > 0) {
+      const hasMaxillaryProducts = savedProducts.some((p: SavedProduct) => p.addedFrom === "maxillary" && p.maxillaryTeeth.length > 0)
+      const hasMandibularProducts = savedProducts.some((p: SavedProduct) => p.addedFrom === "mandibular" && p.mandibularTeeth.length > 0)
+      
+      if (hasMaxillaryProducts && !showMaxillaryChart) {
+        setShowMaxillaryChart(true)
+        // Set the first maxillary product as selected if none is selected
+        if (!selectedProductForMaxillary) {
+          const maxillaryProduct = savedProducts.find((p: SavedProduct) => p.addedFrom === "maxillary")
+          if (maxillaryProduct && maxillaryProduct.product) {
+            setSelectedProductForMaxillary(maxillaryProduct.product)
+            setMaxillaryTeeth(maxillaryProduct.maxillaryTeeth || [])
+          }
+        }
+      }
+      
+      if (hasMandibularProducts && !showMandibularChart) {
+        setShowMandibularChart(true)
+        // Set the first mandibular product as selected if none is selected
+        if (!selectedProductForMandibular) {
+          const mandibularProduct = savedProducts.find((p: SavedProduct) => p.addedFrom === "mandibular")
+          if (mandibularProduct && mandibularProduct.product) {
+            setSelectedProductForMandibular(mandibularProduct.product)
+            setMandibularTeeth(mandibularProduct.mandibularTeeth || [])
+          }
+        }
+      }
+    }
+  }, [savedProducts, showMaxillaryChart, showMandibularChart, selectedProductForMaxillary, selectedProductForMandibular])
+
+  // Initialize implant state from saved products when they're loaded
+  useEffect(() => {
+    savedProducts.forEach((savedProduct: SavedProduct) => {
+      // Check if this product has implant_library advance fields
+      const productDetails = savedProduct.productDetails
+      if (productDetails?.advance_fields && Array.isArray(productDetails.advance_fields)) {
+        productDetails.advance_fields.forEach((field: any) => {
+          if (field.field_type === "implant_library") {
+            const fieldKey = `advance_${field.id}`
+            
+            // Initialize brand if saved - check multiple sources
+            if (savedProduct.maxillaryImplantBrand && !selectedImplantBrand[fieldKey]) {
+              let brandId: number | null = null
+              
+              // Try to get brand ID from savedProduct.maxillaryImplantBrand
+              if (typeof savedProduct.maxillaryImplantBrand === 'number') {
+                brandId = savedProduct.maxillaryImplantBrand
+              } else {
+                const parsed = Number(savedProduct.maxillaryImplantBrand)
+                if (!isNaN(parsed) && parsed > 0) {
+                  brandId = parsed
+                } else {
+                  // Try to find brand by name
+                  const foundBrand = implants.find((imp: any) => 
+                    imp.brand_name === savedProduct.maxillaryImplantBrand ||
+                    imp.brand_name?.toLowerCase() === String(savedProduct.maxillaryImplantBrand).toLowerCase()
+                  )
+                  if (foundBrand) {
+                    brandId = foundBrand.id
+                  }
+                }
+              }
+              
+              if (brandId !== null) {
+                setSelectedImplantBrand(prev => ({ ...prev, [fieldKey]: brandId }))
+                // Also update per-product state
+                setSelectedImplantBrandPerProduct(prev => ({
+                  ...prev,
+                  [savedProduct.id]: {
+                    ...prev[savedProduct.id],
+                    maxillary: brandId
+                  }
+                }))
+              }
+            }
+            
+            // Initialize platform if saved
+            if (savedProduct.maxillaryImplantPlatform) {
+              // Get brand first
+              const brandId = savedProduct.maxillaryImplantBrand 
+                ? (typeof savedProduct.maxillaryImplantBrand === 'number' 
+                    ? savedProduct.maxillaryImplantBrand 
+                    : Number(savedProduct.maxillaryImplantBrand))
+                : selectedImplantBrand[fieldKey]
+              
+              const brand = brandId 
+                ? implants.find((imp: any) => 
+                    imp.id === brandId || 
+                    imp.id === Number(brandId) ||
+                    imp.brand_name === savedProduct.maxillaryImplantBrand
+                  )
+                : null
+              
+              if (brand) {
+                const platform = brand.platforms?.find((p: any) => 
+                  p.name === savedProduct.maxillaryImplantPlatform || 
+                  String(p.id) === String(savedProduct.maxillaryImplantPlatform)
+                )
+                if (platform && !selectedImplantPlatform[fieldKey]) {
+                  const platformId = typeof platform.id === 'number' ? platform.id : Number(platform.id) || null
+                  if (platformId !== null) {
+                    setSelectedImplantPlatform(prev => ({ ...prev, [fieldKey]: platformId }))
+                    // Also update per-product state
+                    setSelectedImplantPlatformPerProduct(prev => ({
+                      ...prev,
+                      [savedProduct.id]: {
+                        ...prev[savedProduct.id],
+                        maxillary: platformId
+                      }
+                    }))
+                  }
+                }
+              }
+            }
+            
+            // Initialize size if saved
+            if (savedProduct.maxillaryImplantSize && !selectedImplantSize[fieldKey]) {
+              const sizeValue = typeof savedProduct.maxillaryImplantSize === 'string' 
+                ? savedProduct.maxillaryImplantSize 
+                : String(savedProduct.maxillaryImplantSize) || null
+              if (sizeValue !== null) {
+                setSelectedImplantSize(prev => ({ ...prev, [fieldKey]: sizeValue }))
+              }
+            }
+          }
+        })
+      }
+    })
+  }, [savedProducts, implants])
+
+  // Auto-save product when impression is filled in current editing card (maxillary)
+  useEffect(() => {
+    // Only run if we have a product selected and all required fields are filled
+    if (!selectedProductForMaxillary || !productDetails || !showMaxillaryChart || maxillaryTeeth.length === 0) {
+      return
+    }
+
+    // Check if impression is filled
+    const impressionCount = getImpressionCount(selectedProductForMaxillary.id.toString(), "maxillary", productDetails.impressions || [])
+    const hasImpression = impressionCount > 0
+
+    // Check if all required fields are filled (material, retention, tooth shade, advance fields if any)
+    const hasMaterial = !!maxillaryMaterial
+    const hasRetention = !!maxillaryRetention
+    const hasToothShade = isToothShadeFilled("maxillary")
+    
+    // Check if advance fields are complete (if they exist)
+    const hasAdvanceFields = productDetails?.advance_fields && Array.isArray(productDetails.advance_fields) && productDetails.advance_fields.length > 0
+    let allAdvanceFieldsComplete = true
+    if (hasAdvanceFields) {
+      const filteredAdvanceFields = productDetails.advance_fields.filter((field: any) => {
+        const fieldNameLower = (field.name || "").toLowerCase()
+        return !(fieldNameLower.includes("stump") && fieldNameLower.includes("shade"))
+      })
+      allAdvanceFieldsComplete = filteredAdvanceFields.every((field: any) => {
+        if (field.field_type === "implant_library") {
+          const fieldKey = `advance_${field.id}`
+          const brandId = selectedImplantBrand[fieldKey]
+          const platformId = selectedImplantPlatform[fieldKey]
+          const size = selectedImplantSize[fieldKey]
+          return brandId && platformId && size
+        }
+        const fieldKey = `advance_${field.id}`
+        const fieldValue = advanceFieldValues[fieldKey]
+        return fieldValue && fieldValue.advance_field_value
+      })
+    }
+
+    // Check if product is already saved (to avoid duplicate saves)
+    const isAlreadySaved = savedProducts.some(sp => {
+      const sameProduct = sp.product.id === selectedProductForMaxillary.id
+      const sameTeeth = JSON.stringify([...(sp.maxillaryTeeth || [])].sort()) === JSON.stringify([...maxillaryTeeth].sort())
+      const sameCategory = sp.categoryId === selectedCategoryId
+      const sameSubcategory = sp.subcategoryId === selectedSubcategoryId
+      const isMaxillary = sp.addedFrom === "maxillary"
+      return isMaxillary && sameProduct && sameTeeth && sameCategory && sameSubcategory
+    })
+
+    // Auto-save if:
+    // 1. Impression is filled
+    // 2. All required fields are filled
+    // 3. Impression modal is not open
+    // 4. Impression modal was not just closed (wait a bit after modal closes)
+    if (hasImpression && hasMaterial && hasRetention && hasToothShade && (!hasAdvanceFields || allAdvanceFieldsComplete) && !showImpressionModal && !impressionModalJustClosedRef.current) {
+      // Use a small delay to ensure impression state is fully updated
+      const saveTimer = setTimeout(() => {
+        // Double-check impression is still filled before saving
+        const currentImpressionCount = getImpressionCount(selectedProductForMaxillary.id.toString(), "maxillary", productDetails.impressions || [])
+        if (currentImpressionCount > 0) {
+          // Always call handleAutoSaveProduct - it will update existing product or create new one
+          handleAutoSaveProduct("maxillary")
+          
+          // After auto-save, open the saved product accordion instead of maxillary-card
+          // This ensures the current editing card is hidden and user sees the saved product
+          setTimeout(() => {
+            const matchingProduct = savedProducts.find(sp =>
+              sp.addedFrom === "maxillary" &&
+              sp.product.id === selectedProductForMaxillary.id &&
+              sp.categoryId === selectedCategoryId &&
+              sp.subcategoryId === selectedSubcategoryId &&
+              JSON.stringify([...(sp.maxillaryTeeth || [])].sort()) === JSON.stringify([...maxillaryTeeth].sort())
+            )
+            if (matchingProduct && openAccordion !== matchingProduct.id && openAccordion !== "maxillary-card") {
+              setOpenAccordion(matchingProduct.id)
+            } else if (openAccordion === "maxillary-card") {
+              // Close the current editing card if it's open
+              setOpenAccordion(null)
+            }
+          }, 200)
+        }
+      }, 500) // Small delay to ensure state is updated
+
+      return () => clearTimeout(saveTimer)
+    }
+  }, [
+    selectedProductForMaxillary,
+    productDetails,
+    showMaxillaryChart,
+    maxillaryTeeth,
+    maxillaryMaterial,
+    maxillaryRetention,
+    selectedImpressions,
+    showImpressionModal,
+    savedProducts,
+    selectedCategoryId,
+    selectedSubcategoryId,
+    advanceFieldValues,
+    selectedImplantBrand,
+    selectedImplantPlatform,
+    selectedImplantSize,
+    openAccordion
+  ])
 
   // Save products to localStorage whenever savedProducts changes
   useEffect(() => {
@@ -3792,9 +3895,9 @@ export default function CaseDesignCenterPage() {
     }
 
     console.log("Opening shade selection:", { fieldKey, shadeFieldType, actualArch, openAccordion, productDetails })
-    
+
     isSettingAccordionRef.current = true
-    
+
     setCurrentShadeField(shadeFieldType)
     setCurrentShadeArch(actualArch)
     setSelectedShadesForSVG([]) // Reset selected shades
@@ -3804,12 +3907,12 @@ export default function CaseDesignCenterPage() {
     if (openAccordion !== accordionId) {
       setOpenAccordion(accordionId)
     }
-    
+
     // Reset the ref after a short delay to allow state updates to complete
     setTimeout(() => {
       isSettingAccordionRef.current = false
     }, 100)
-    
+
     // No longer opening modal - just setting the field to show SVG inline
   }
 
@@ -4673,13 +4776,28 @@ export default function CaseDesignCenterPage() {
     const finalMaxillaryRetention = maxillaryRetention
     const finalMandibularRetention = mandibularRetention
 
+    // Determine addedFrom based on which arch has teeth (prefer maxillary if both)
+    const addedFrom: "maxillary" | "mandibular" = maxillaryTeeth.length > 0 ? "maxillary" : "mandibular"
+
     // Update existing product or add new one using functional update to get latest state
     setSavedProducts((prevProducts) => {
-      // Helper function to check if two products are duplicates
+      // Helper function to check if product should be updated (same product, category, subcategory, and arch)
+      // This does NOT require exact teeth match - we want to UPDATE the teeth array
+      const shouldUpdateProduct = (existingProduct: SavedProduct): boolean => {
+        const sameProduct = existingProduct.product.id === productToUse.id
+        const sameCategory = existingProduct.categoryId === selectedCategoryId
+        const sameSubcategory = existingProduct.subcategoryId === selectedSubcategoryId
+        const sameArch = existingProduct.addedFrom === addedFrom
+
+        return sameProduct && sameCategory && sameSubcategory && sameArch
+      }
+
+      // Helper function to check if two products are exact duplicates (for deduplication)
       const areProductsDuplicate = (p1: SavedProduct, p2: SavedProduct): boolean => {
         const sameProduct = p1.product.id === p2.product.id
         const sameCategory = p1.categoryId === p2.categoryId
         const sameSubcategory = p1.subcategoryId === p2.subcategoryId
+        const sameArch = p1.addedFrom === p2.addedFrom
 
         // Check if teeth arrays are the same (sorted for comparison)
         const p1MaxTeeth = [...(p1.maxillaryTeeth || [])].sort().join(',')
@@ -4690,7 +4808,7 @@ export default function CaseDesignCenterPage() {
         const sameMaxTeeth = p1MaxTeeth === p2MaxTeeth
         const sameMandTeeth = p1MandTeeth === p2MandTeeth
 
-        return sameProduct && sameCategory && sameSubcategory && sameMaxTeeth && sameMandTeeth
+        return sameProduct && sameCategory && sameSubcategory && sameArch && sameMaxTeeth && sameMandTeeth
       }
 
       // First, remove any existing duplicates from prevProducts (keep the first occurrence of each unique product)
@@ -4698,7 +4816,7 @@ export default function CaseDesignCenterPage() {
       const seenProducts = new Set<string>()
 
       prevProducts.forEach((product) => {
-        const productKey = `${product.product.id}-${product.categoryId}-${product.subcategoryId}-${[...(product.maxillaryTeeth || [])].sort().join(',')}-${[...(product.mandibularTeeth || [])].sort().join(',')}`
+        const productKey = `${product.product.id}-${product.categoryId}-${product.subcategoryId}-${product.addedFrom}-${[...(product.maxillaryTeeth || [])].sort().join(',')}-${[...(product.mandibularTeeth || [])].sort().join(',')}`
 
         if (!seenProducts.has(productKey)) {
           seenProducts.add(productKey)
@@ -4706,17 +4824,9 @@ export default function CaseDesignCenterPage() {
         }
       })
 
-      // ALWAYS find and update the first existing product with the same product ID, category, subcategory, and teeth
-      // This prevents duplicates - we update the first accordion instead of creating new ones
-      const existingIndex = deduplicatedProducts.findIndex(p => {
-        return areProductsDuplicate(p, {
-          product: productToUse,
-          categoryId: selectedCategoryId,
-          subcategoryId: selectedSubcategoryId,
-          maxillaryTeeth: maxillaryTeeth,
-          mandibularTeeth: mandibularTeeth,
-        } as SavedProduct)
-      })
+      // Find existing product to update - match by product, category, subcategory, and arch (NOT by exact teeth)
+      // This ensures clicking a new tooth updates the existing product rather than creating a new one
+      const existingIndex = deduplicatedProducts.findIndex(p => shouldUpdateProduct(p))
 
       // Get impression selections for this product
       const productId = existingIndex !== -1 ? deduplicatedProducts[existingIndex].id : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
@@ -4727,9 +4837,6 @@ export default function CaseDesignCenterPage() {
       const mandibularImpressions = mandibularTeeth.length > 0
         ? getImpressionSelections(productId, "mandibular", impressions)
         : []
-
-      // Determine addedFrom based on which arch has teeth (prefer maxillary if both)
-      const addedFrom: "maxillary" | "mandibular" = maxillaryTeeth.length > 0 ? "maxillary" : "mandibular"
 
       // Create saved product configuration with both arches' data
       const savedProduct: SavedProduct = {
@@ -4833,23 +4940,23 @@ export default function CaseDesignCenterPage() {
         // Update existing product with unified data (merge with existing data to preserve any fields)
         const updated = [...deduplicatedProducts]
         const existingProduct = deduplicatedProducts[existingIndex]
-        
+
         // Merge teeth arrays: combine existing and new teeth, remove duplicates
         const existingMaxTeeth = [...(existingProduct.maxillaryTeeth || [])]
         const existingMandTeeth = [...(existingProduct.mandibularTeeth || [])]
         const newMaxTeeth = [...maxillaryTeeth]
         const newMandTeeth = [...mandibularTeeth]
-        
+
         // Merge maxillary teeth: combine and remove duplicates
         const mergedMaxTeeth = savedProduct.maxillaryTeeth.length > 0
           ? [...new Set([...existingMaxTeeth, ...newMaxTeeth])].sort()
           : existingMaxTeeth
-        
+
         // Merge mandibular teeth: combine and remove duplicates
         const mergedMandTeeth = savedProduct.mandibularTeeth.length > 0
           ? [...new Set([...existingMandTeeth, ...newMandTeeth])].sort()
           : existingMandTeeth
-        
+
         // Merge existing product data with new data, preserving existing values where new ones are empty
         const mergedProduct: SavedProduct = {
           ...existingProduct,
@@ -4863,6 +4970,22 @@ export default function CaseDesignCenterPage() {
           // Preserve existing retention if new one is empty
           maxillaryRetention: savedProduct.maxillaryRetention || existingProduct.maxillaryRetention,
           mandibularRetention: savedProduct.mandibularRetention || existingProduct.mandibularRetention,
+          // Preserve existing stage, stump shade, and tooth shade if new ones are empty
+          maxillaryStage: savedProduct.maxillaryStage || existingProduct.maxillaryStage,
+          mandibularStage: savedProduct.mandibularStage || existingProduct.mandibularStage,
+          maxillaryStumpShade: savedProduct.maxillaryStumpShade || existingProduct.maxillaryStumpShade,
+          mandibularStumpShade: savedProduct.mandibularStumpShade || existingProduct.mandibularStumpShade,
+          maxillaryToothShade: savedProduct.maxillaryToothShade || existingProduct.maxillaryToothShade,
+          mandibularToothShade: savedProduct.mandibularToothShade || existingProduct.mandibularToothShade,
+          // Preserve IDs as well
+          maxillaryStageId: savedProduct.maxillaryStageId || existingProduct.maxillaryStageId,
+          mandibularStageId: savedProduct.mandibularStageId || existingProduct.mandibularStageId,
+          maxillaryGumShadeId: savedProduct.maxillaryGumShadeId || existingProduct.maxillaryGumShadeId,
+          mandibularGumShadeId: savedProduct.mandibularGumShadeId || existingProduct.mandibularGumShadeId,
+          maxillaryShadeId: savedProduct.maxillaryShadeId || existingProduct.maxillaryShadeId,
+          mandibularShadeId: savedProduct.mandibularShadeId || existingProduct.mandibularShadeId,
+          // Preserve productDetails
+          productDetails: savedProduct.productDetails || existingProduct.productDetails,
         }
         updated[existingIndex] = mergedProduct
         return updated
@@ -5071,6 +5194,35 @@ export default function CaseDesignCenterPage() {
             })
             .filter((field: any) => field !== null)
           : undefined,
+        // Extract and save implant details from advance fields if type is maxillary
+        ...(type === "maxillary" ? (() => {
+          // Find implant_library advance field
+          const implantField = productDetails?.advance_fields?.find((field: any) => field.field_type === "implant_library")
+          if (implantField) {
+            const fieldKey = `advance_${implantField.id}`
+            const brandId = selectedImplantBrand[fieldKey]
+            const platformId = selectedImplantPlatform[fieldKey]
+            const size = selectedImplantSize[fieldKey]
+            
+            // Get platform name if we have platform ID
+            let platformName: string | undefined = undefined
+            if (brandId && platformId) {
+              const brand = implants.find((imp: any) => imp.id === brandId)
+              const platform = brand?.platforms?.find((p: any) => (p.id || 0) === platformId)
+              platformName = platform?.name
+            }
+            
+            return {
+              maxillaryImplantBrand: brandId || undefined,
+              maxillaryImplantPlatform: platformName || (platformId ? String(platformId) : undefined),
+              maxillaryImplantSize: size || undefined,
+              maxillaryImplantInclusions: maxillaryImplantInclusions || undefined,
+              maxillaryAbutmentDetail: maxillaryAbutmentDetail || undefined,
+              maxillaryAbutmentType: maxillaryAbutmentType || undefined,
+            }
+          }
+          return {}
+        })() : {}),
       }
 
       // If both material and retention are set, show advance fields and fetch them
@@ -5437,11 +5589,11 @@ export default function CaseDesignCenterPage() {
 
         const maxillaryOverlap = existingMaxTeeth.length > 0 && newMaxTeeth.length > 0 &&
           (existingMaxTeeth.some(tooth => newMaxTeeth.includes(tooth)) ||
-           newMaxTeeth.some(tooth => existingMaxTeeth.includes(tooth)))
+            newMaxTeeth.some(tooth => existingMaxTeeth.includes(tooth)))
 
         const mandibularOverlap = existingMandTeeth.length > 0 && newMandTeeth.length > 0 &&
           (existingMandTeeth.some(tooth => newMandTeeth.includes(tooth)) ||
-           newMandTeeth.some(tooth => existingMandTeeth.includes(tooth)))
+            newMandTeeth.some(tooth => existingMandTeeth.includes(tooth)))
 
         return maxillaryOverlap || mandibularOverlap
       })
@@ -5450,13 +5602,13 @@ export default function CaseDesignCenterPage() {
         // Update existing product with merged teeth and all current fields
         const updated = [...prev]
         const existingProduct = prev[existingIndex]
-        
+
         // Merge teeth arrays
         const existingMaxTeeth = [...(existingProduct.maxillaryTeeth || [])]
         const existingMandTeeth = [...(existingProduct.mandibularTeeth || [])]
         const mergedMaxTeeth = [...new Set([...existingMaxTeeth, ...maxillaryTeeth])].sort()
         const mergedMandTeeth = [...new Set([...existingMandTeeth, ...mandibularTeeth])].sort()
-        
+
         // Update with all current fields
         updated[existingIndex] = {
           ...savedProduct,
@@ -5465,7 +5617,7 @@ export default function CaseDesignCenterPage() {
           maxillaryTeeth: mergedMaxTeeth,
           mandibularTeeth: mergedMandTeeth,
         }
-        
+
         // Move to first position
         const productToMove = updated.splice(existingIndex, 1)[0]
         return [productToMove, ...updated]
@@ -6809,19 +6961,7 @@ export default function CaseDesignCenterPage() {
                               }}
                             >
                               {selectedProductForMaxillary.name}
-                              {maxillaryTeeth && maxillaryTeeth.length > 0 && (
-                                <>
-                                  <span>
-                                    {maxillaryTeeth.length === 1
-                                      ? `#${maxillaryTeeth[0]}`
-                                      : maxillaryTeeth
-                                        .slice()
-                                        .sort((a, b) => a - b)
-                                        .map((num) => `#${num}`)
-                                        .join(", ")}
-                                  </span>
-                                </>
-                              )}
+                             
                             </span>
                           </div>
                         </div>
@@ -6885,7 +7025,7 @@ export default function CaseDesignCenterPage() {
                                 showWillExtract={true}
                                 productDetails={productDetails}
                                 extractionData={productDetails.extractions || productDetails.data?.extractions}
-                                productId={selectedProductForMaxillary.id?.toString()}
+                                productId={selectedProductForMaxillary?.id?.toString()}
                                 selectedProduct={selectedProductForMaxillary.name}
                                 onExtractionTypeSelect={(extractionType) => {
                                   // When any extraction type is selected, show the product accordion
@@ -6896,6 +7036,22 @@ export default function CaseDesignCenterPage() {
                                 onTeethSelectionChange={(teeth) => {
                                   // Update maxillary teeth when selection changes
                                   setMaxillaryTeeth(teeth)
+                                  
+                                  // If a saved product exists with these teeth and product, open its accordion
+                                  if (selectedProductForMaxillary && teeth.length > 0 && selectedCategoryId && selectedSubcategoryId) {
+                                    setTimeout(() => {
+                                      const matchingProduct = savedProducts.find(sp =>
+                                        sp.addedFrom === "maxillary" &&
+                                        sp.product.id === selectedProductForMaxillary.id &&
+                                        sp.categoryId === selectedCategoryId &&
+                                        sp.subcategoryId === selectedSubcategoryId &&
+                                        JSON.stringify([...(sp.maxillaryTeeth || [])].sort()) === JSON.stringify([...teeth].sort())
+                                      )
+                                      if (matchingProduct && openAccordion !== matchingProduct.id) {
+                                        setOpenAccordion(matchingProduct.id)
+                                      }
+                                    }, 100)
+                                  }
                                 }}
                               />
                             </div>
@@ -6905,241 +7061,1647 @@ export default function CaseDesignCenterPage() {
 
                       {/* Summary Card - Single card for all selected teeth */}
                       {/* Hide when savedProducts already contains a product with these teeth - prevents duplicate accordions */}
-                      {showMaxillaryChart && maxillaryTeeth.length > 0 && !savedProducts.some(sp =>
-                        sp.addedFrom === "maxillary" &&
-                        sp.product.id === selectedProduct?.id &&
-                        sp.categoryId === selectedCategoryId &&
-                        sp.subcategoryId === selectedSubcategoryId &&
-                        JSON.stringify([...(sp.maxillaryTeeth || [])].sort()) === JSON.stringify([...maxillaryTeeth].sort())
-                      ) && (
-                        <Card className="overflow-hidden border border-gray-200 shadow-sm -mt-6">
-                          <Accordion
-                            type="single"
-                            collapsible
-                            className="w-full"
-                            value={openAccordion === "maxillary-card" ? "maxillary-card" : ""}
-                            onValueChange={handleAccordionChange}
-                          >
-                            <AccordionItem value="maxillary-card" className="border-0">
-                              {/* Header - Hide when shade selection is active */}
-                              <div
-                                className="w-full"
-                                style={{
-                                  position: 'relative',
-                                  minHeight: '45px',
-                                  background: openAccordion === "maxillary-card" ? '#E0EDF8' : '#F5F5F5',
-                                  boxShadow: '0.9px 0.9px 3.6px rgba(0, 0, 0, 0.25)',
-                                  borderRadius: openAccordion === "maxillary-card" ? '10px 10px 0px 0px' : '10px',
-                                  display: currentShadeField ? 'none' : 'flex',
-                                  flexDirection: 'column',
-                                  alignItems: 'flex-start',
-                                  padding: '6px 8px',
-                                  gap: '4px',
-                                  borderBottom: openAccordion === "maxillary-card" ? '1px dotted #B0D0F0' : 'none'
-                                }}
-                              >
-                                <AccordionTrigger
-                                  className="hover:no-underline w-full group [&>svg]:hidden"
-                                  style={{
-                                    padding: '0px',
-                                    gap: '10px',
-                                    width: '100%',
-                                    background: 'transparent',
-                                    boxShadow: 'none',
-                                    borderRadius: '0px'
-                                  }}
-                                >
-                                  {/* Responsive Content Container */}
-                                  <div style={{ width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: '8px', paddingRight: '24px' }}>
-                                    {/* Product Image */}
-                                    <div
-                                      style={{
-                                        width: '32px',
-                                        minWidth: '32px',
-                                        height: '32px',
-                                        background: `url(${selectedProduct?.image_url || "/images/tooth-icon.png"}), #FFFFFF`,
-                                        backgroundSize: 'contain',
-                                        backgroundPosition: 'center',
-                                        backgroundRepeat: 'no-repeat',
-                                        borderRadius: '5.4px',
-                                        flexShrink: 0
-                                      }}
-                                    />
-
-                                    {/* Content Area - Responsive */}
-                                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0, alignItems: 'flex-start' }}>
-                                      {/* Product Name - Bold, plain text */}
-                                      {selectedProduct?.name && (
-                                        <span
-                                          style={{
-                                            fontFamily: 'Verdana',
-                                            fontStyle: 'normal',
-                                            fontWeight: 600,
-                                            fontSize: '14px',
-                                            lineHeight: '16px',
-                                            letterSpacing: '-0.02em',
-                                            color: '#000000',
-                                            wordBreak: 'break-word',
-                                            overflowWrap: 'break-word',
-                                            textAlign: 'left',
-                                            width: '100%'
-                                          }}
-                                        >
-                                          {selectedProduct.name}
-                                        </span>
-                                      )}
-
-                                      {/* Tooth Numbers Row - Formatted as #9 */}
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                        <span
-                                          style={{
-                                            fontFamily: 'Verdana',
-                                            fontStyle: 'normal',
-                                            fontWeight: 400,
-                                            fontSize: '12px',
-                                            lineHeight: '14px',
-                                            letterSpacing: '-0.02em',
-                                            color: '#000000'
-                                          }}
-                                        >
-                                          {(() => {
-                                            const sortedTeeth = [...maxillaryTeeth].sort((a, b) => a - b);
-                                            return sortedTeeth.length > 0 ? sortedTeeth.map(t => `#${t}`).join(', ') : '';
-                                          })()}
-                                        </span>
-                                      </div>
-
-                                      {/* Badges and Info Row - Responsive */}
-                                      <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-                                        {/* Badge - Category - Pill shaped */}
-                                        {selectedCategory && (
-                                          <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '2px 8px', background: '#F0F0F0', borderRadius: '12px', flexShrink: 0 }}>
-                                            <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{selectedCategory}</span>
-                                          </div>
-                                        )}
-
-                                        {/* Badge - Subcategory - Pill shaped */}
-                                        {selectedSubcategory && (
-                                          <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '2px 8px', background: '#F0F0F0', borderRadius: '12px', flexShrink: 0 }}>
-                                            <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{selectedSubcategory}</span>
-                                          </div>
-                                        )}
-
-                                        {/* Est days */}
-                                        <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', letterSpacing: '-0.02em', color: '#B4B0B0', whiteSpace: 'nowrap' }}>
-                                          Est days: {selectedProduct?.estimated_days || 10} work days after submission
-                                        </span>
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  {/* Chevron - Positioned relative to header */}
-                                  <div style={{ position: 'absolute', width: '21.6px', height: '21.6px', right: '8px', top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}>
-                                    <ChevronDown
-                                      className="w-full h-full transition-transform duration-200 text-black"
-                                      style={{
-                                        transform: openAccordion === "maxillary-card" ? 'rotate(0deg)' : 'rotate(-180deg)'
-                                      }}
-                                    />
-                                  </div>
-                                </AccordionTrigger>
-                              </div>
-                              <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto' }}>
-                                {/* Tooth Shade Selection - Shows at the top when active */}
-                                {currentShadeField && currentShadeArch === "maxillary" && (
-                                  <div className="w-full pt-4">
-                                    <div className="flex flex-col items-center w-full">
-                                      {/* Shade Guide Dropdown - Top Right */}
-                                      <div className="w-full flex justify-end pr-4">
-                                        <div className="flex items-center gap-2">
-                                          <label className="text-sm text-gray-600" style={{ fontFamily: 'Verdana', fontSize: '14px' }}>
-                                            Shade guide selected
-                                          </label>
-                                          <Select value={selectedShadeGuide} onValueChange={setSelectedShadeGuide}>
-                                            <SelectTrigger className="w-[200px] h-[32px] text-sm">
-                                              <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                              {shadeGuideOptions.map((guide) => (
-                                                <SelectItem key={guide} value={guide}>
-                                                  {guide}
-                                                </SelectItem>
-                                              ))}
-                                            </SelectContent>
-                                          </Select>
-                                        </div>
-                                      </div>
-
-                                      {/* Shade guide SVG */}
-                                      <div className="bg-white w-full flex justify-center">
-                                        {selectedShadeGuide === "Trubyte Bioform IPN" ? (
-                                          <TrubyteBioformIPNShadeSelectionSVG
-                                            selectedShades={selectedShadesForSVG}
-                                            onShadeClick={handleShadeClickFromSVG}
-                                            className="max-w-full"
-                                          />
-                                        ) : (
-                                          <ToothShadeSelectionSVG
-                                            selectedShades={selectedShadesForSVG}
-                                            onShadeClick={handleShadeClickFromSVG}
-                                            className="max-w-full"
-                                          />
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                )}
-                                {/* Summary detail */}
+                      {showMaxillaryChart && maxillaryTeeth.length > 0 && selectedProductForMaxillary && !savedProducts.some(sp => {
+                        // Check if this exact product/teeth combination is already saved
+                        const sameProduct = sp.product.id === selectedProductForMaxillary.id
+                        const sameTeeth = JSON.stringify([...(sp.maxillaryTeeth || [])].sort()) === JSON.stringify([...maxillaryTeeth].sort())
+                        const sameCategory = sp.categoryId === selectedCategoryId
+                        const sameSubcategory = sp.subcategoryId === selectedSubcategoryId
+                        const isMaxillary = sp.addedFrom === "maxillary"
+                        return isMaxillary && sameProduct && sameTeeth && sameCategory && sameSubcategory
+                      }) && (
+                          <Card className="overflow-hidden border border-gray-200 shadow-sm -mt-6">
+                            <Accordion
+                              type="single"
+                              collapsible
+                              className="w-full"
+                              value={openAccordion === "maxillary-card" ? "maxillary-card" : ""}
+                              onValueChange={handleAccordionChange}
+                            >
+                              <AccordionItem value="maxillary-card" className="border-0">
+                                {/* Header - Hide when shade selection is active */}
                                 <div
-                                  className="bg-white w-full"
+                                  className="w-full"
                                   style={{
                                     position: 'relative',
-                                    height: 'auto',
-                                    minHeight: 'auto',
-                                    paddingLeft: '15.87px',
-                                    paddingRight: '15.87px',
-                                    paddingBottom: '8px',
-                                    paddingTop: '8px',
-                                    display: 'flex',
+                                    minHeight: '45px',
+                                    background: openAccordion === "maxillary-card" ? '#E0EDF8' : '#F5F5F5',
+                                    boxShadow: '0.9px 0.9px 3.6px rgba(0, 0, 0, 0.25)',
+                                    borderRadius: openAccordion === "maxillary-card" ? '10px 10px 0px 0px' : '10px',
+                                    display: currentShadeField ? 'none' : 'flex',
                                     flexDirection: 'column',
                                     alignItems: 'flex-start',
-                                    background: '#FFFFFF',
-                                    boxSizing: 'border-box'
+                                    padding: '6px 8px',
+                                    gap: '4px',
+                                    borderBottom: openAccordion === "maxillary-card" ? '1px dotted #B0D0F0' : 'none'
                                   }}
                                 >
-                                  {/* Dynamic Fields - Rendered based on productDetails */}
-                                  {productDetails && (
-                                    <>
-                                      <DynamicProductFields
-                                        productDetails={productDetails}
-                                        savedProduct={{
-                                          maxillaryMaterial,
-                                          maxillaryRetention,
-                                          maxillaryStumpShade,
-                                          maxillaryToothShade,
-                                          maxillaryStage,
-                                          maxillaryMaterialId,
-                                          maxillaryRetentionId,
-                                          maxillaryRetentionOptionId,
-                                          maxillaryGumShadeId,
-                                          maxillaryShadeId,
-                                          maxillaryStageId,
-                                          maxillaryImplantDetails,
+                                  <AccordionTrigger
+                                    className="hover:no-underline w-full group [&>svg]:hidden"
+                                    style={{
+                                      padding: '0px',
+                                      gap: '10px',
+                                      width: '100%',
+                                      background: 'transparent',
+                                      boxShadow: 'none',
+                                      borderRadius: '0px'
+                                    }}
+                                  >
+                                    {/* Responsive Content Container */}
+                                    <div style={{ width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: '8px', paddingRight: '24px' }}>
+                                      {/* Product Image */}
+                                      <div
+                                        style={{
+                                          width: '32px',
+                                          minWidth: '32px',
+                                          height: '32px',
+                                          background: `url(${selectedProductForMaxillary?.image_url || "/images/tooth-icon.png"}), #FFFFFF`,
+                                          backgroundSize: 'contain',
+                                          backgroundPosition: 'center',
+                                          backgroundRepeat: 'no-repeat',
+                                          borderRadius: '5.4px',
+                                          flexShrink: 0
                                         }}
-                                        arch="maxillary"
-                                        fieldConfigs={fieldConfigs}
-                                        onFieldChange={(fieldKey, value, id) => {
-                                          handleFieldChange(fieldKey, value, id, undefined, "maxillary")
+                                      />
+
+                                      {/* Content Area - Responsive */}
+                                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0, alignItems: 'flex-start' }}>
+                                        {/* Product Name - Bold, plain text */}
+                                        {selectedProductForMaxillary?.name && (
+                                          <span
+                                            style={{
+                                              fontFamily: 'Verdana',
+                                              fontStyle: 'normal',
+                                              fontWeight: 600,
+                                              fontSize: '14px',
+                                              lineHeight: '16px',
+                                              letterSpacing: '-0.02em',
+                                              color: '#000000',
+                                              wordBreak: 'break-word',
+                                              overflowWrap: 'break-word',
+                                              textAlign: 'left',
+                                              width: '100%'
+                                            }}
+                                          >
+                                            {selectedProductForMaxillary.name}
+                                          </span>
+                                        )}
+
+                                        {/* Tooth Numbers Row - Formatted as #9 */}
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                          <span
+                                            style={{
+                                              fontFamily: 'Verdana',
+                                              fontStyle: 'normal',
+                                              fontWeight: 400,
+                                              fontSize: '12px',
+                                              lineHeight: '14px',
+                                              letterSpacing: '-0.02em',
+                                              color: '#000000'
+                                            }}
+                                          >
+                                            {(() => {
+                                              const sortedTeeth = [...maxillaryTeeth].sort((a, b) => a - b);
+                                              return sortedTeeth.length > 0 ? sortedTeeth.map(t => `#${t}`).join(', ') : '';
+                                            })()}
+                                          </span>
+                                        </div>
+
+                                        {/* Badges and Info Row - Responsive */}
+                                        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                                          {/* Badge - Category - Pill shaped */}
+                                          {selectedCategory && (
+                                            <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '2px 8px', background: '#F0F0F0', borderRadius: '12px', flexShrink: 0 }}>
+                                              <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{selectedCategory}</span>
+                                            </div>
+                                          )}
+
+                                          {/* Badge - Subcategory - Pill shaped */}
+                                          {selectedSubcategory && (
+                                            <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '2px 8px', background: '#F0F0F0', borderRadius: '12px', flexShrink: 0 }}>
+                                              <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{selectedSubcategory}</span>
+                                            </div>
+                                          )}
+
+                                          {/* Est days */}
+                                          <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', letterSpacing: '-0.02em', color: '#B4B0B0', whiteSpace: 'nowrap' }}>
+                                            Est days: {selectedProductForMaxillary?.estimated_days || 10} work days after submission
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Chevron - Positioned relative to header */}
+                                    <div style={{ position: 'absolute', width: '21.6px', height: '21.6px', right: '8px', top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}>
+                                      <ChevronDown
+                                        className="w-full h-full transition-transform duration-200 text-black"
+                                        style={{
+                                          transform: openAccordion === "maxillary-card" ? 'rotate(0deg)' : 'rotate(-180deg)'
                                         }}
-                                        maxillaryRetentionTypes={maxillaryRetentionTypes}
-                                        mandibularRetentionTypes={mandibularRetentionTypes}
-                                        maxillaryTeeth={maxillaryTeeth}
-                                        mandibularTeeth={mandibularTeeth}
-                                        onOpenImpressionModal={() => {
-                                          if (selectedProduct) {
+                                      />
+                                    </div>
+                                  </AccordionTrigger>
+                                </div>
+                                <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto' }}>
+                                  {/* Tooth Shade Selection - Shows at the top when active */}
+                                  {currentShadeField && currentShadeArch === "maxillary" && (
+                                    <div className="w-full pt-4">
+                                      <div className="flex flex-col items-center w-full">
+                                        {/* Shade Guide Dropdown - Top Right */}
+                                        <div className="w-full flex justify-end pr-4">
+                                          <div className="flex items-center gap-2">
+                                            <label className="text-sm text-gray-600" style={{ fontFamily: 'Verdana', fontSize: '14px' }}>
+                                              Shade guide selected
+                                            </label>
+                                            <Select value={selectedShadeGuide} onValueChange={setSelectedShadeGuide}>
+                                              <SelectTrigger className="w-[200px] h-[32px] text-sm">
+                                                <SelectValue />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                {shadeGuideOptions.map((guide) => (
+                                                  <SelectItem key={guide} value={guide}>
+                                                    {guide}
+                                                  </SelectItem>
+                                                ))}
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                        </div>
+
+                                        {/* Shade guide SVG */}
+                                        <div className="bg-white w-full flex justify-center">
+                                          {selectedShadeGuide === "Trubyte Bioform IPN" ? (
+                                            <TrubyteBioformIPNShadeSelectionSVG
+                                              selectedShades={selectedShadesForSVG}
+                                              onShadeClick={handleShadeClickFromSVG}
+                                              className="max-w-full"
+                                            />
+                                          ) : (
+                                            <ToothShadeSelectionSVG
+                                              selectedShades={selectedShadesForSVG}
+                                              onShadeClick={handleShadeClickFromSVG}
+                                              className="max-w-full"
+                                            />
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                  {/* Summary detail */}
+                                  <div
+                                    className="bg-white w-full"
+                                    style={{
+                                      position: 'relative',
+                                      height: 'auto',
+                                      minHeight: 'auto',
+                                      paddingLeft: '15.87px',
+                                      paddingRight: '15.87px',
+                                      paddingBottom: '8px',
+                                      paddingTop: '8px',
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      alignItems: 'flex-start',
+                                      background: '#FFFFFF',
+                                      boxSizing: 'border-box'
+                                    }}
+                                  >
+                                    {/* Dynamic Fields - Rendered based on productDetails */}
+                                    {productDetails && (
+                                      <>
+                                        <DynamicProductFields
+                                          productDetails={productDetails}
+                                          savedProduct={{
+                                            maxillaryMaterial,
+                                            maxillaryRetention,
+                                            maxillaryStumpShade,
+                                            maxillaryToothShade,
+                                            maxillaryStage,
+                                            maxillaryMaterialId,
+                                            maxillaryRetentionId,
+                                            maxillaryRetentionOptionId,
+                                            maxillaryGumShadeId,
+                                            maxillaryShadeId,
+                                            maxillaryStageId,
+                                            maxillaryImplantDetails,
+                                            maxillaryImplantInclusions,
+                                            maxillaryAbutmentDetail,
+                                            maxillaryAbutmentType,
+                                          }}
+                                          arch="maxillary"
+                                          fieldConfigs={fieldConfigs}
+                                          onFieldChange={(fieldKey, value, id) => {
+                                            handleFieldChange(fieldKey, value, id, undefined, "maxillary")
+                                          }}
+                                          maxillaryRetentionTypes={maxillaryRetentionTypes}
+                                          mandibularRetentionTypes={mandibularRetentionTypes}
+                                          maxillaryTeeth={maxillaryTeeth}
+                                          mandibularTeeth={mandibularTeeth}
+                                          onOpenImpressionModal={() => {
+                                            if (selectedProductForMaxillary) {
+                                              const tempProduct: SavedProduct = {
+                                                id: selectedProductForMaxillary.id.toString(),
+                                                product: selectedProductForMaxillary,
+                                                productDetails: productDetails,
+                                                category: selectedCategory || "",
+                                                categoryId: selectedCategoryId || 0,
+                                                subcategory: selectedSubcategory || "",
+                                                subcategoryId: selectedSubcategoryId || 0,
+                                                maxillaryTeeth: maxillaryTeeth,
+                                                mandibularTeeth: mandibularTeeth,
+                                                maxillaryMaterial: maxillaryMaterial,
+                                                maxillaryStumpShade: maxillaryStumpShade,
+                                                maxillaryRetention: maxillaryRetention,
+                                                maxillaryImplantDetails: maxillaryImplantDetails,
+                                                mandibularMaterial: mandibularMaterial,
+                                                mandibularRetention: mandibularRetention,
+                                                mandibularStumpShade: mandibularStumpShade,
+                                                mandibularImplantDetails: mandibularImplantDetails,
+                                                createdAt: Date.now(),
+                                                addedFrom: "maxillary",
+                                              }
+                                              handleOpenImpressionModal(tempProduct, "maxillary")
+                                            }
+                                          }}
+                                          getImpressionCount={() => {
+                                            if (!selectedProductForMaxillary || !productDetails?.impressions) return 0
+                                            const productId = selectedProductForMaxillary.id.toString()
+                                            return getImpressionCount(productId, "maxillary", productDetails.impressions)
+                                          }}
+                                          getImpressionDisplayText={() => {
+                                            if (!selectedProductForMaxillary || !productDetails?.impressions) return "Select impression"
+                                            const productId = selectedProductForMaxillary.id.toString()
+                                            return getImpressionDisplayText(productId, "maxillary", productDetails.impressions)
+                                          }}
+                                          onOpenShadeModal={(fieldKey) => {
+                                            handleOpenShadeModal(fieldKey, "maxillary")
+                                          }}
+                                          showImplantBrandCards={showImplantBrandCardsInFields.maxillary || false}
+                                          implants={implants.map((imp: any) => ({
+                                            id: imp.id,
+                                            brand_name: imp.brand_name,
+                                            system_name: imp.system_name,
+                                            code: imp.code,
+                                            image_url: imp.image_url,
+                                            platforms: imp.platforms?.map((p: any) => ({
+                                              id: p.id || 0,
+                                              name: p.name,
+                                              image: p.image_url
+                                            }))
+                                          }))}
+                                          selectedImplantId={selectedImplantBrandForDetails.maxillary || null}
+                                          onSelectImplant={(implant: any) => {
+                                            setSelectedImplantBrandForDetails(prev => ({ ...prev, maxillary: implant.id }))
+                                            // You can add additional logic here to update implant details
+                                          }}
+                                          onImplantDetailsFieldClick={() => {
+                                            setShowImplantBrandCardsInFields(prev => ({ ...prev, maxillary: !prev.maxillary }))
+                                          }}
+                                          selectedImplantPlatformId={selectedImplantPlatformForDetails.maxillary || null}
+                                          onSelectImplantPlatform={(platform: any) => {
+                                            setSelectedImplantPlatformForDetails(prev => ({ ...prev, maxillary: platform.id }))
+                                            // You can add additional logic here to update implant details with platform
+                                          }}
+                                          onBrandFieldClick={() => {
+                                            setShowImplantBrandCardsInFields(prev => ({ ...prev, maxillary: true }))
+                                            setClickedFieldTypeInImplantDetails(prev => ({ ...prev, maxillary: 'brand' }))
+                                          }}
+                                          onPlatformFieldClick={() => {
+                                            setShowImplantBrandCardsInFields(prev => ({ ...prev, maxillary: true }))
+                                            setClickedFieldTypeInImplantDetails(prev => ({ ...prev, maxillary: 'platform' }))
+                                          }}
+                                          selectedImplantBrand={selectedImplantBrand}
+                                          selectedImplantPlatform={selectedImplantPlatform}
+                                          selectedImplantSize={selectedImplantSize}
+                                          hideFieldsDuringShadeSelection={currentShadeField !== null && currentShadeArch === "maxillary"}
+                                          hideImpression={productDetails?.advance_fields && Array.isArray(productDetails.advance_fields) && productDetails.advance_fields.length > 0}
+                                        />
+
+                                        {/* Implant Brand/Platform Cards - Shows at the bottom when implant details field is clicked */}
+                                        {/* Only show if retention type is "Implant" */}
+                                        {(() => {
+                                          // Check if any tooth has "Implant" retention type for maxillary
+                                          const hasImplantRetention = Object.values(maxillaryRetentionTypes).some(
+                                            (types) => types && types.includes('Implant')
+                                          )
+                                          return hasImplantRetention
+                                        })() && showImplantBrandCardsInFields.maxillary && implants && implants.length > 0 && (
+                                            <div className="w-full pt-2">
+                                              <div className="flex flex-col items-center gap-2 w-full">
+                                                <div className="bg-white w-full flex justify-center">
+                                                  {(() => {
+                                                    const selectedBrandId = selectedImplantBrandForDetails.maxillary
+                                                    const selectedBrand = selectedBrandId ? implants.find((imp: any) => imp.id === selectedBrandId) : null
+                                                    const platforms = selectedBrand?.platforms || []
+                                                    const mappedPlatforms = platforms.map((plat: any) => ({
+                                                      id: plat.id || 0,
+                                                      name: plat.name,
+                                                      image: plat.image_url || plat.image
+                                                    }))
+                                                    const selectedPlatformId = selectedImplantPlatformForDetails.maxillary
+                                                    const clickedFieldType = clickedFieldTypeInImplantDetails.maxillary
+
+                                                    // Show platform cards if:
+                                                    // 1. Platform field was clicked AND brand is selected (highest priority - show even if no platforms), OR
+                                                    // 2. Brand is selected, platform not selected yet, and brand field was NOT clicked (auto-show after brand selection)
+                                                    const shouldShowPlatformCards = (clickedFieldType === 'platform' && selectedBrandId) ||
+                                                      (clickedFieldType !== 'brand' && (clickedFieldType === null || clickedFieldType === undefined) && selectedBrandId && selectedPlatformId === null)
+
+                                                    // Show brand cards if:
+                                                    // 1. Brand field was clicked, OR
+                                                    // 2. No brand selected yet, OR
+                                                    // 3. Platform cards should not be shown
+                                                    const shouldShowBrandCards = !shouldShowPlatformCards && (clickedFieldType === 'brand' ||
+                                                      !selectedBrandId)
+
+                                                    // Priority: Platform cards take precedence when platform field is clicked
+                                                    if (shouldShowPlatformCards) {
+                                                      return (
+                                                        <ImplantPlatformCards
+                                                          platforms={mappedPlatforms}
+                                                          selectedPlatformId={selectedPlatformId}
+                                                          onSelectPlatform={(platform: any) => {
+                                                            setSelectedImplantPlatformForDetails(prev => ({ ...prev, maxillary: platform.id }))
+                                                            // Reset clicked field type after selection
+                                                            setClickedFieldTypeInImplantDetails(prev => ({ ...prev, maxillary: null }))
+                                                          }}
+                                                          arch="maxillary"
+                                                        />
+                                                      )
+                                                    }
+
+                                                    // Show brand cards only if platform cards are not being shown
+                                                    if (shouldShowBrandCards) {
+                                                      const mappedImplants = implants.map((imp: any) => ({
+                                                        id: imp.id,
+                                                        brand_name: imp.brand_name,
+                                                        system_name: imp.system_name,
+                                                        code: imp.code,
+                                                        image_url: imp.image_url,
+                                                        platforms: imp.platforms?.map((p: any) => ({
+                                                          id: p.id || 0,
+                                                          name: p.name,
+                                                          image: p.image_url
+                                                        }))
+                                                      }))
+
+                                                      return (
+                                                        <ImplantBrandCards
+                                                          implants={mappedImplants}
+                                                          selectedImplantId={selectedBrandId}
+                                                          onSelectImplant={(implant: any) => {
+                                                            setSelectedImplantBrandForDetails(prev => ({ ...prev, maxillary: implant.id }))
+                                                            // If brand has platforms, reset platform selection to show platform cards
+                                                            if (implant.platforms && implant.platforms.length > 0) {
+                                                              setSelectedImplantPlatformForDetails(prev => ({ ...prev, maxillary: null }))
+                                                              // Auto-show platform cards after brand selection
+                                                              setClickedFieldTypeInImplantDetails(prev => ({ ...prev, maxillary: null }))
+                                                            } else {
+                                                              // Reset clicked field type after selection
+                                                              setClickedFieldTypeInImplantDetails(prev => ({ ...prev, maxillary: null }))
+                                                            }
+                                                          }}
+                                                          arch="maxillary"
+                                                        />
+                                                      )
+                                                    }
+
+                                                    return null
+                                                  })()}
+                                                </div>
+                                              </div>
+                                            </div>
+                                          )}
+
+                                        {/* Advance Fields - Shown after tooth shade is selected */}
+                                        {productDetails &&
+                                          productDetails.advance_fields &&
+                                          Array.isArray(productDetails.advance_fields) &&
+                                          productDetails.advance_fields.length > 0 &&
+                                          isToothShadeFilled("maxillary") && (() => {
+                                            // Filter out stump shade from advanced fields - use existing stump shade field instead
+                                            const stumpShadeField = getAdvanceFieldByName("stump_shade", productDetails.advance_fields)
+
+                                            // Check if any tooth has "Implant" retention type for maxillary
+                                            const hasImplantRetention = Object.values(maxillaryRetentionTypes).some(
+                                              (types) => types && types.includes('Implant')
+                                            )
+
+                                            const filteredAdvanceFields = productDetails.advance_fields.filter((field: any) => {
+                                              const fieldNameLower = (field.name || "").toLowerCase()
+                                              // Filter out stump shade fields
+                                              if (stumpShadeField && fieldNameLower.includes("stump") && fieldNameLower.includes("shade")) {
+                                                return false
+                                              }
+                                              // Filter out implant_library fields if no tooth has "Implant" retention type
+                                              if (field.field_type === "implant_library" && !hasImplantRetention) {
+                                                return false
+                                              }
+                                              return true
+                                            })
+
+                                            // If no fields remain after filtering, don't render the section
+                                            if (filteredAdvanceFields.length === 0) {
+                                              return null
+                                            }
+
+                                            const archType = "maxillary" // This is the maxillary section
+
+                                            return (
+                                              <div
+                                                className="flex flex-col gap-5"
+                                                style={{
+                                                  display: 'flex',
+                                                  flexDirection: 'column',
+                                                  alignItems: 'flex-start',
+                                                  padding: '0px',
+                                                  flex: 'none',
+                                                  alignSelf: 'stretch',
+                                                  flexGrow: 0,
+                                                  marginTop: '2px'
+                                                }}
+                                              >
+                                                <div className="w-full">
+                                                  <div className="flex flex-wrap gap-4" style={{ gap: '16px' }}>
+                                                    {filteredAdvanceFields.map((field: any) => {
+                                                      const fieldKey = `advance_${field.id}`
+                                                      const currentValue = advanceFieldValues[fieldKey] || ""
+
+                                                      // Calculate width based on field type and content
+                                                      const getFieldWidth = (): { minWidth: string; maxWidth: string; width: string; flex: string } => {
+                                                        if (field.field_type === "multiline_text") {
+                                                          return { minWidth: "100%", maxWidth: "100%", width: "100%", flex: "1 1 100%" }
+                                                        }
+
+                                                        // Radio and checkbox fields need more width to display options
+                                                        if (field.field_type === "radio" || field.field_type === "checkbox") {
+                                                          const minWidth = 250
+                                                          return {
+                                                            minWidth: `${minWidth}px`,
+                                                            maxWidth: "none",
+                                                            width: `${minWidth}px`,
+                                                            flex: '1 1 auto'
+                                                          }
+                                                        }
+
+                                                        // For other fields, calculate based on content
+                                                        const displayValue = typeof currentValue === "object"
+                                                          ? currentValue?.advance_field_value || ""
+                                                          : currentValue || ""
+
+                                                        // Get the longest possible value for width calculation
+                                                        let longestText = field.name || ""
+                                                        if ((field.field_type === "dropdown" || field.field_type === "radio" || field.field_type === "checkbox") && field.options) {
+                                                          // Find longest option name
+                                                          const longestOption = field.options.reduce((longest: any, opt: any) => {
+                                                            return (opt.name?.length || 0) > (longest?.name?.length || 0) ? opt : longest
+                                                          }, { name: "" })
+                                                          longestText = longestOption.name || longestText
+                                                        } else if (displayValue) {
+                                                          longestText = displayValue
+                                                        }
+
+                                                        // Calculate width: min 200px, base on content
+                                                        const minWidth = 200
+                                                        // Estimate width: ~8px per character + padding (60px) + some buffer
+                                                        const estimatedWidth = Math.max(minWidth, Math.min(500, longestText.length * 8 + 80))
+
+                                                        return {
+                                                          minWidth: `${minWidth}px`,
+                                                          maxWidth: "none",
+                                                          width: `${estimatedWidth}px`,
+                                                          flex: '1 1 auto'
+                                                        }
+                                                      }
+
+                                                      const fieldWidth = getFieldWidth()
+
+                                                      // Check if field is required and value is "Not specified" or empty
+                                                      const isFieldRequired = field.is_required === "Yes" || field.is_required === true
+                                                      const displayValue = typeof currentValue === "object"
+                                                        ? currentValue?.advance_field_value || ""
+                                                        : currentValue || ""
+
+                                                      // For checkbox fields, check if at least one option is selected
+                                                      let isEmptyOrNotSpecified = false
+                                                      if (field.field_type === "checkbox") {
+                                                        const currentSelectedIds = typeof currentValue === "object"
+                                                          ? (Array.isArray(currentValue?.option_ids) ? currentValue.option_ids :
+                                                            currentValue?.option_id ? [currentValue.option_id] : [])
+                                                          : []
+                                                        isEmptyOrNotSpecified = currentSelectedIds.length === 0
+                                                      } else {
+                                                        isEmptyOrNotSpecified = !displayValue ||
+                                                          displayValue.trim() === "" ||
+                                                          displayValue.trim().toLowerCase() === "not specified" ||
+                                                          (field.field_type === "dropdown" && displayValue === `Select ${field.name}`)
+                                                      }
+
+                                                      const showRedBorder = isFieldRequired && isEmptyOrNotSpecified
+
+                                                      // Render based on field_type
+                                                      const renderAdvanceField = () => {
+                                                        // Dropdown field
+                                                        if (field.field_type === "dropdown" && field.options && Array.isArray(field.options)) {
+                                                          // Get current selected option
+                                                          const currentOptionId = typeof currentValue === "object"
+                                                            ? currentValue?.option_id?.toString()
+                                                            : currentValue?.toString() || ""
+
+                                                          // Filter active options only
+                                                          const activeOptions = field.options.filter((opt: any) => opt.status === "Active" || opt.status === undefined)
+
+                                                          // If only one option and no value is set, auto-select it
+                                                          if (!currentOptionId && activeOptions.length === 1) {
+                                                            const singleOption = activeOptions[0]
+                                                            setTimeout(() => {
+                                                              setAdvanceFieldValues(prev => ({
+                                                                ...prev,
+                                                                [fieldKey]: {
+                                                                  advance_field_id: field.id,
+                                                                  advance_field_value: singleOption.name,
+                                                                  option_id: singleOption.id
+                                                                }
+                                                              }))
+                                                            }, 0)
+                                                          }
+
+                                                          // Find default option if no value is set and more than one option
+                                                          const defaultOption = !currentOptionId && activeOptions.length > 1
+                                                            ? activeOptions.find((opt: any) =>
+                                                              opt.is_default === "Yes" || opt.is_default === true
+                                                            )
+                                                            : null
+
+                                                          const selectedOptionId = currentOptionId || defaultOption?.id?.toString() || ""
+                                                          const selectedOption = activeOptions.find((opt: any) => opt.id?.toString() === selectedOptionId)
+
+                                                          // Auto-select default if exists and no value is set
+                                                          if (defaultOption && !currentOptionId && activeOptions.length > 1) {
+                                                            setTimeout(() => {
+                                                              setAdvanceFieldValues(prev => ({
+                                                                ...prev,
+                                                                [fieldKey]: {
+                                                                  advance_field_id: field.id,
+                                                                  advance_field_value: defaultOption.name,
+                                                                  option_id: defaultOption.id
+                                                                }
+                                                              }))
+                                                            }, 0)
+                                                          }
+
+                                                          return (
+                                                            <Select
+                                                              value={selectedOptionId}
+                                                              onValueChange={(value) => {
+                                                                const selectedOption = activeOptions.find((opt: any) => opt.id?.toString() === value)
+                                                                setAdvanceFieldValues(prev => ({
+                                                                  ...prev,
+                                                                  [fieldKey]: selectedOption ? {
+                                                                    advance_field_id: field.id,
+                                                                    advance_field_value: selectedOption.name,
+                                                                    option_id: selectedOption.id
+                                                                  } : null
+                                                                }))
+                                                              }}
+                                                            >
+                                                              <SelectTrigger
+                                                                className="h-[37px] mt-[5.27px] rounded-[7.7px] text-[14.4px] font-normal"
+                                                                style={{
+                                                                  padding: '8px 12px 4px 12px',
+                                                                  gap: '5px',
+                                                                  background: '#FFFFFF',
+                                                                  border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
+                                                                  boxSizing: 'border-box',
+                                                                  minWidth: fieldWidth.minWidth,
+                                                                  maxWidth: fieldWidth.maxWidth,
+                                                                  width: fieldWidth.width,
+                                                                  flex: fieldWidth.flex,
+                                                                }}
+                                                              >
+                                                                <SelectValue placeholder={`Select ${field.name}`}>
+                                                                  {selectedOption ? selectedOption.name : `Select ${field.name}`}
+                                                                </SelectValue>
+                                                              </SelectTrigger>
+                                                              <SelectContent>
+                                                                {activeOptions
+                                                                  .sort((a: any, b: any) => (a.sequence || 0) - (b.sequence || 0))
+                                                                  .map((option: any) => (
+                                                                    <SelectItem key={option.id} value={option.id.toString()}>
+                                                                      {option.name}
+                                                                    </SelectItem>
+                                                                  ))}
+                                                              </SelectContent>
+                                                            </Select>
+                                                          )
+                                                        }
+
+                                                        // Text field
+                                                        if (field.field_type === "text") {
+                                                          return (
+                                                            <Input
+                                                              type="text"
+                                                              value={typeof currentValue === "object" ? currentValue?.advance_field_value || "" : currentValue || ""}
+                                                              onChange={(e) => {
+                                                                setAdvanceFieldValues(prev => ({
+                                                                  ...prev,
+                                                                  [fieldKey]: {
+                                                                    advance_field_id: field.id,
+                                                                    advance_field_value: e.target.value
+                                                                  }
+                                                                }))
+                                                              }}
+                                                              className="mt-[5.27px] rounded-[7.7px] text-[14.4px]"
+                                                              style={{
+                                                                padding: '8px 12px 4px 12px',
+                                                                minHeight: '80px',
+                                                                border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
+                                                                minWidth: fieldWidth.minWidth,
+                                                                maxWidth: fieldWidth.maxWidth,
+                                                                width: fieldWidth.width,
+                                                                flex: fieldWidth.flex,
+                                                              }}
+                                                              placeholder={`Enter ${field.name}`}
+                                                            />
+                                                          )
+                                                        }
+
+                                                        // Number field
+                                                        if (field.field_type === "number") {
+                                                          return (
+                                                            <Input
+                                                              type="number"
+                                                              value={typeof currentValue === "object" ? currentValue?.advance_field_value || "" : currentValue || ""}
+                                                              onChange={(e) => {
+                                                                setAdvanceFieldValues(prev => ({
+                                                                  ...prev,
+                                                                  [fieldKey]: {
+                                                                    advance_field_id: field.id,
+                                                                    advance_field_value: e.target.value
+                                                                  }
+                                                                }))
+                                                              }}
+                                                              className="h-[37px] mt-[5.27px] rounded-[7.7px] text-[14.4px]"
+                                                              style={{
+                                                                padding: '8px 12px 4px 12px',
+                                                                border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
+                                                                minWidth: fieldWidth.minWidth,
+                                                                maxWidth: fieldWidth.maxWidth,
+                                                                width: fieldWidth.width,
+                                                                flex: fieldWidth.flex,
+                                                              }}
+                                                              placeholder={`Enter ${field.name}`}
+                                                            />
+                                                          )
+                                                        }
+
+                                                        // Multiline text (textarea)
+                                                        if (field.field_type === "multiline_text") {
+                                                          return (
+                                                            <Textarea
+                                                              value={typeof currentValue === "object" ? currentValue?.advance_field_value || "" : currentValue || ""}
+                                                              onChange={(e) => {
+                                                                setAdvanceFieldValues(prev => ({
+                                                                  ...prev,
+                                                                  [fieldKey]: {
+                                                                    advance_field_id: field.id,
+                                                                    advance_field_value: e.target.value
+                                                                  }
+                                                                }))
+                                                              }}
+                                                              className="mt-[5.27px] rounded-[7.7px] text-[14.4px]"
+                                                              style={{
+                                                                padding: '8px 12px 4px 12px',
+                                                                minHeight: '80px',
+                                                                minWidth: fieldWidth.minWidth,
+                                                                maxWidth: fieldWidth.maxWidth,
+                                                                width: fieldWidth.width,
+                                                                flex: fieldWidth.flex,
+                                                              }}
+                                                              placeholder={`Enter ${field.name}`}
+                                                            />
+                                                          )
+                                                        }
+
+                                                        // Radio field
+                                                        if (field.field_type === "radio" && field.options && Array.isArray(field.options)) {
+                                                          const activeOptions = field.options.filter((opt: any) => opt.status === "Active" || opt.status === undefined)
+                                                          const currentOptionId = typeof currentValue === "object"
+                                                            ? currentValue?.option_id?.toString()
+                                                            : currentValue?.toString() || ""
+
+                                                          // Find default option if no value is set
+                                                          const defaultOption = !currentOptionId
+                                                            ? activeOptions.find((opt: any) =>
+                                                              opt.is_default === "Yes" || opt.is_default === true
+                                                            )
+                                                            : null
+
+                                                          const selectedOptionId = currentOptionId || defaultOption?.id?.toString() || ""
+
+                                                          // Auto-select default if exists and no value is set
+                                                          if (defaultOption && !currentOptionId) {
+                                                            setTimeout(() => {
+                                                              setAdvanceFieldValues(prev => ({
+                                                                ...prev,
+                                                                [fieldKey]: {
+                                                                  advance_field_id: field.id,
+                                                                  advance_field_value: defaultOption.name,
+                                                                  option_id: defaultOption.id
+                                                                }
+                                                              }))
+                                                            }, 0)
+                                                          }
+
+                                                          return (
+                                                            <div
+                                                              className="mt-[5.27px] rounded-[7.7px]"
+                                                              style={{
+                                                                padding: '8px 12px 4px 12px',
+                                                                minHeight: '37px',
+                                                                background: '#FFFFFF',
+                                                                border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
+                                                                minWidth: fieldWidth.minWidth,
+                                                                maxWidth: fieldWidth.maxWidth,
+                                                                width: fieldWidth.width,
+                                                                flex: fieldWidth.flex,
+                                                              }}
+                                                            >
+                                                              <RadioGroup
+                                                                value={selectedOptionId}
+                                                                onValueChange={(value) => {
+                                                                  const selectedOption = activeOptions.find((opt: any) => opt.id?.toString() === value)
+                                                                  setAdvanceFieldValues(prev => ({
+                                                                    ...prev,
+                                                                    [fieldKey]: selectedOption ? {
+                                                                      advance_field_id: field.id,
+                                                                      advance_field_value: selectedOption.name,
+                                                                      option_id: selectedOption.id
+                                                                    } : null
+                                                                  }))
+                                                                }}
+                                                                className="space-y-2"
+                                                              >
+                                                                {activeOptions
+                                                                  .sort((a: any, b: any) => (a.sequence || 0) - (b.sequence || 0))
+                                                                  .map((option: any) => (
+                                                                    <div key={option.id} className="flex items-center space-x-2">
+                                                                      <RadioGroupItem value={option.id.toString()} id={`${fieldKey}-${option.id}`} />
+                                                                      <Label
+                                                                        htmlFor={`${fieldKey}-${option.id}`}
+                                                                        className="text-[14.4px] font-normal cursor-pointer"
+                                                                      >
+                                                                        {option.name}
+                                                                      </Label>
+                                                                    </div>
+                                                                  ))}
+                                                              </RadioGroup>
+                                                            </div>
+                                                          )
+                                                        }
+
+                                                        // Checkbox field (multiple selection)
+                                                        if (field.field_type === "checkbox" && field.options && Array.isArray(field.options)) {
+                                                          const activeOptions = field.options.filter((opt: any) => opt.status === "Active" || opt.status === undefined)
+
+                                                          // For checkbox, value can be an array of selected option IDs
+                                                          const currentSelectedIds = typeof currentValue === "object"
+                                                            ? (Array.isArray(currentValue?.option_ids) ? currentValue.option_ids :
+                                                              currentValue?.option_id ? [currentValue.option_id] : [])
+                                                            : []
+
+                                                          const handleCheckboxChange = (optionId: number, checked: boolean) => {
+                                                            setAdvanceFieldValues(prev => {
+                                                              const current = prev[fieldKey]
+                                                              const currentIds = typeof current === "object"
+                                                                ? (Array.isArray(current?.option_ids) ? current.option_ids :
+                                                                  current?.option_id ? [current.option_id] : [])
+                                                                : []
+
+                                                              let newIds: number[]
+                                                              if (checked) {
+                                                                newIds = [...currentIds, optionId]
+                                                              } else {
+                                                                newIds = currentIds.filter((id: number) => id !== optionId)
+                                                              }
+
+                                                              // Get selected option names
+                                                              const selectedOptions = activeOptions.filter((opt: any) => newIds.includes(opt.id))
+                                                              const optionNames = selectedOptions.map((opt: any) => opt.name).join(", ")
+
+                                                              return {
+                                                                ...prev,
+                                                                [fieldKey]: {
+                                                                  advance_field_id: field.id,
+                                                                  advance_field_value: optionNames || "",
+                                                                  option_ids: newIds
+                                                                }
+                                                              }
+                                                            })
+                                                          }
+
+                                                          return (
+                                                            <div
+                                                              className="mt-[5.27px] rounded-[7.7px]"
+                                                              style={{
+                                                                padding: '8px 12px 4px 12px',
+                                                                minHeight: '37px',
+                                                                background: '#FFFFFF',
+                                                                border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
+                                                                minWidth: fieldWidth.minWidth,
+                                                                maxWidth: fieldWidth.maxWidth,
+                                                                width: fieldWidth.width,
+                                                                flex: fieldWidth.flex,
+                                                              }}
+                                                            >
+                                                              <div className="space-y-2">
+                                                                {activeOptions
+                                                                  .sort((a: any, b: any) => (a.sequence || 0) - (b.sequence || 0))
+                                                                  .map((option: any) => (
+                                                                    <div key={option.id} className="flex items-center space-x-2">
+                                                                      <Checkbox
+                                                                        id={`${fieldKey}-${option.id}`}
+                                                                        checked={currentSelectedIds.includes(option.id)}
+                                                                        onCheckedChange={(checked) => handleCheckboxChange(option.id, checked === true)}
+                                                                        className="border-gray-400"
+                                                                      />
+                                                                      <Label
+                                                                        htmlFor={`${fieldKey}-${option.id}`}
+                                                                        className="text-[14.4px] font-normal cursor-pointer"
+                                                                      >
+                                                                        {option.name}
+                                                                      </Label>
+                                                                    </div>
+                                                                  ))}
+                                                              </div>
+                                                            </div>
+                                                          )
+                                                        }
+
+                                                        // File upload field
+                                                        if (field.field_type === "file_upload") {
+                                                          const currentFile = typeof currentValue === "object" && currentValue?.file
+                                                            ? currentValue.file
+                                                            : null
+
+                                                          return (
+                                                            <div
+                                                              className="mt-[5.27px] rounded-[7.7px]"
+                                                              style={{
+                                                                padding: '8px 12px 4px 12px',
+                                                                minHeight: '37px',
+                                                                background: '#FFFFFF',
+                                                                border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
+                                                                minWidth: fieldWidth.minWidth,
+                                                                maxWidth: fieldWidth.maxWidth,
+                                                                width: fieldWidth.width,
+                                                                flex: fieldWidth.flex,
+                                                              }}
+                                                            >
+                                                              <input
+                                                                type="file"
+                                                                onChange={(e) => {
+                                                                  const file = e.target.files?.[0] || null
+                                                                  setAdvanceFieldValues(prev => ({
+                                                                    ...prev,
+                                                                    [fieldKey]: {
+                                                                      advance_field_id: field.id,
+                                                                      advance_field_value: file?.name || "",
+                                                                      file: file
+                                                                    }
+                                                                  }))
+                                                                }}
+                                                                className="text-[14.4px] w-full"
+                                                                accept=".jpg,.jpeg,.png,.gif,.svg,.pdf,.stl,.mp4,.avi,.mov,.zip,.rar"
+                                                              />
+                                                              {currentFile && (
+                                                                <div className="mt-2 text-xs text-gray-600">
+                                                                  Selected: {currentFile.name}
+                                                                </div>
+                                                              )}
+                                                            </div>
+                                                          )
+                                                        }
+
+                                                        // Shade guide field
+                                                        if (field.field_type === "shade_guide") {
+                                                          return (
+                                                            <Input
+                                                              type="text"
+                                                              value={typeof currentValue === "object" ? currentValue?.advance_field_value || "" : currentValue || ""}
+                                                              onChange={(e) => {
+                                                                setAdvanceFieldValues(prev => ({
+                                                                  ...prev,
+                                                                  [fieldKey]: {
+                                                                    advance_field_id: field.id,
+                                                                    advance_field_value: e.target.value
+                                                                  }
+                                                                }))
+                                                              }}
+                                                              className="h-[37px] mt-[5.27px] rounded-[7.7px] text-[14.4px]"
+                                                              style={{
+                                                                padding: '8px 12px 4px 12px',
+                                                                border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
+                                                                minWidth: fieldWidth.minWidth,
+                                                                maxWidth: fieldWidth.maxWidth,
+                                                                width: fieldWidth.width,
+                                                                flex: fieldWidth.flex,
+                                                              }}
+                                                              placeholder={`Enter ${field.name}`}
+                                                            />
+                                                          )
+                                                        }
+
+                                                        // Implant library field
+                                                        if (field.field_type === "implant_library") {
+                                                          const currentStep = implantSelectionStep[fieldKey] || 'brand'
+                                                          const selectedBrandId = selectedImplantBrand[fieldKey]
+                                                          const selectedPlatformId = selectedImplantPlatform[fieldKey]
+                                                          const selectedSize = selectedImplantSize[fieldKey]
+
+                                                          // Get selected brand and platform
+                                                          const selectedBrand = selectedBrandId ? implants.find((imp: any) => imp.id === selectedBrandId) : null
+                                                          // Try to find platform in brand's platforms first, otherwise use stored platform data (for static platforms)
+                                                          let selectedPlatform = null
+                                                          if (selectedBrand && selectedPlatformId) {
+                                                            selectedPlatform = selectedBrand.platforms?.find((p: any) => (p.id || 0) === selectedPlatformId)
+                                                            // If not found in brand's platforms, use stored platform data (static platforms)
+                                                            if (!selectedPlatform && selectedImplantPlatformData[fieldKey]) {
+                                                              selectedPlatform = selectedImplantPlatformData[fieldKey]
+                                                            }
+                                                          }
+
+                                                          // Build display value
+                                                          let displayValue = ""
+                                                          if (selectedBrand && selectedPlatform && selectedSize) {
+                                                            displayValue = `${selectedBrand.brand_name} - ${selectedPlatform.name} - ${selectedSize}`
+                                                          } else if (selectedBrand && selectedPlatform) {
+                                                            displayValue = `${selectedBrand.brand_name} - ${selectedPlatform.name}`
+                                                          } else if (selectedBrand) {
+                                                            displayValue = selectedBrand.brand_name
+                                                          }
+
+                                                          return (
+                                                            <>
+                                                              {/* Only show input if form is not shown yet */}
+                                                              {currentStep !== 'form' && (
+                                                                <Input
+                                                                  type="text"
+                                                                  value={displayValue || (typeof currentValue === "object" ? currentValue?.advance_field_value || "" : currentValue || "")}
+                                                                  onClick={() => {
+                                                                    // Show cards when input is clicked, reset to brand step
+                                                                    setShowImplantCards(true)
+                                                                    setActiveImplantFieldKey(fieldKey)
+                                                                    setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'brand' }))
+                                                                  }}
+                                                                  onFocus={() => {
+                                                                    // Show cards when input is focused, reset to brand step
+                                                                    setShowImplantCards(true)
+                                                                    setActiveImplantFieldKey(fieldKey)
+                                                                    setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'brand' }))
+                                                                  }}
+                                                                  onChange={(e) => {
+                                                                    setAdvanceFieldValues(prev => ({
+                                                                      ...prev,
+                                                                      [fieldKey]: {
+                                                                        advance_field_id: field.id,
+                                                                        advance_field_value: e.target.value
+                                                                      }
+                                                                    }))
+                                                                  }}
+                                                                  className="h-[37px] mt-[5.27px] rounded-[7.7px] text-[14.4px] cursor-pointer"
+                                                                  style={{
+                                                                    padding: '8px 12px 4px 12px',
+                                                                    border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
+                                                                    minWidth: fieldWidth.minWidth,
+                                                                    maxWidth: fieldWidth.maxWidth,
+                                                                    width: fieldWidth.width,
+                                                                    flex: fieldWidth.flex,
+                                                                  }}
+                                                                  readOnly
+                                                                />
+                                                              )}
+
+                                                              {/* Implant Detail Form - Show after brand/platform selection */}
+                                                              {currentStep === 'form' && selectedBrand && (
+                                                                <div data-implant-field-key={fieldKey} style={{ width: '100%', marginTop: '20px' }}>
+                                                                  <ImplantDetailForm
+                                                                    fieldKey={fieldKey}
+                                                                    fieldId={field.id}
+                                                                    selectedBrand={selectedBrand}
+                                                                    selectedPlatform={selectedPlatform}
+                                                                    selectedSize={selectedSize}
+                                                                    onSizeChange={(size: string) => {
+                                                                      setSelectedImplantSize(prev => ({ ...prev, [fieldKey]: size }))
+                                                                      // Update maxillaryImplantDetails to trigger impression field visibility in DynamicProductFields
+                                                                      if (selectedBrand && selectedPlatform) {
+                                                                        const implantDetailsStr = `${selectedBrand.brand_name} - ${selectedPlatform.name} - ${size}`
+                                                                        setMaxillaryImplantDetails(implantDetailsStr)
+                                                                      }
+                                                                    }}
+                                                                    onInclusionsChange={(inclusions) => {
+                                                                      // Handle inclusions change - update state for impression field visibility
+                                                                      setMaxillaryImplantInclusions(inclusions)
+                                                                      if (selectedBrand && selectedPlatform && selectedSize) {
+                                                                        const implantDetailsStr = `${selectedBrand.brand_name} - ${selectedPlatform.name} - ${selectedSize} - ${inclusions}`
+                                                                        setMaxillaryImplantDetails(implantDetailsStr)
+                                                                      }
+                                                                    }}
+                                                                    onAbutmentDetailChange={(detail) => {
+                                                                      // Handle abutment detail change - update state for impression field visibility
+                                                                      setMaxillaryAbutmentDetail(detail)
+                                                                    }}
+                                                                    onAbutmentTypeChange={(type) => {
+                                                                      // Handle abutment type change - update state for impression field visibility
+                                                                      setMaxillaryAbutmentType(type)
+                                                                    }}
+                                                                    onPlatformChange={(platform) => {
+                                                                      setSelectedImplantPlatform(prev => ({ ...prev, [fieldKey]: platform.id }))
+                                                                      // Store full platform data
+                                                                      setSelectedImplantPlatformData(prev => ({ ...prev, [fieldKey]: { id: platform.id, name: platform.name } }))
+                                                                    }}
+                                                                    onBrandFieldClick={() => {
+                                                                      // Show brand cards when brand field is clicked
+                                                                      setShowImplantCards(true)
+                                                                      setActiveImplantFieldKey(fieldKey)
+                                                                      // Keep step as 'form' so form stays visible, but show brand cards
+                                                                      setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'form' }))
+                                                                      setClickedFieldTypeInForm(prev => ({ ...prev, [fieldKey]: 'brand' }))
+                                                                      // Scroll to the cards container to show the brand cards
+                                                                      setTimeout(() => {
+                                                                        if (implantCardsRef.current) {
+                                                                          implantCardsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                                                                        }
+                                                                      }, 100)
+                                                                    }}
+                                                                    onPlatformFieldClick={() => {
+                                                                      // Show platform cards when platform field is clicked (same position as brand cards)
+                                                                      if (selectedBrand) {
+                                                                        // Ensure the brand ID is stored in state so cards rendering can find it
+                                                                        if (!selectedImplantBrand[fieldKey] || selectedImplantBrand[fieldKey] !== selectedBrand.id) {
+                                                                          setSelectedImplantBrand(prev => ({ ...prev, [fieldKey]: selectedBrand.id }))
+                                                                        }
+                                                                        setShowImplantCards(true)
+                                                                        setActiveImplantFieldKey(fieldKey)
+                                                                        // Keep step as 'form' so form stays visible, but show platform cards
+                                                                        setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'form' }))
+                                                                        setClickedFieldTypeInForm(prev => ({ ...prev, [fieldKey]: 'platform' }))
+                                                                        // Scroll to the cards container to show the platform cards (same position as brand cards)
+                                                                        setTimeout(() => {
+                                                                          if (implantCardsRef.current) {
+                                                                            implantCardsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                                                                          }
+                                                                        }, 100)
+                                                                      }
+                                                                    }}
+                                                                    teethNumbers={maxillaryTeeth}
+                                                                    arch={archType}
+                                                                  />
+                                                                </div>
+                                                              )}
+                                                            </>
+                                                          )
+                                                        }
+
+                                                        // Default: display field name
+                                                        return (
+                                                          <div
+                                                            className="flex items-center"
+                                                            style={{
+                                                              padding: '8px 12px 4px 12px',
+                                                              gap: '5px',
+                                                              width: '100%',
+                                                              minHeight: '37px',
+                                                              position: 'relative',
+                                                              marginTop: '5.27px',
+                                                              background: '#FFFFFF',
+                                                              border: '0.740384px solid #7F7F7F',
+                                                              borderRadius: '7.7px',
+                                                              boxSizing: 'border-box'
+                                                            }}
+                                                          >
+                                                            <span style={{
+                                                              fontFamily: 'Verdana',
+                                                              fontStyle: 'normal',
+                                                              fontWeight: 400,
+                                                              fontSize: '13px',
+                                                              lineHeight: '20px',
+                                                              letterSpacing: '-0.02em',
+                                                              color: '#000000'
+                                                            }}>
+                                                              {field.name || field.description || "Advanced Field"} ({field.field_type})
+                                                            </span>
+                                                          </div>
+                                                        )
+                                                      }
+
+                                                      return (
+                                                        <div
+                                                          key={field.id}
+                                                          className="relative"
+                                                          style={{
+                                                            minHeight: '38px',
+                                                            minWidth: fieldWidth.minWidth,
+                                                            maxWidth: fieldWidth.maxWidth,
+                                                            width: fieldWidth.width,
+                                                            flex: fieldWidth.flex,
+                                                          }}
+                                                        >
+                                                          {renderAdvanceField()}
+                                                          <label
+                                                            className="absolute bg-white"
+                                                            style={{
+                                                              padding: '0px',
+                                                              height: '14px',
+                                                              left: '8.9px',
+                                                              top: '0px',
+                                                              fontFamily: 'Arial',
+                                                              fontStyle: 'normal',
+                                                              fontWeight: 400,
+                                                              fontSize: '14px',
+                                                              lineHeight: '14px',
+                                                              color: '#7F7F7F'
+                                                            }}
+                                                          >
+                                                            {field.field_type === "implant_library" && isEmptyOrNotSpecified
+                                                              ? "Select Implant Details"
+                                                              : (field.name || "Advanced Field")}
+                                                            {field.is_required === "Yes" && (
+                                                              <span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>
+                                                            )}
+                                                          </label>
+                                                        </div>
+                                                      )
+                                                    })}
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            )
+                                          })()}
+
+                                        {/* Implant Brand Cards for Advance Fields - Shows when implant details advance field is clicked */}
+                                        {/* Only show if retention type is "Implant" */}
+                                        {(() => {
+                                          // Check if any tooth has "Implant" retention type for maxillary
+                                          const hasImplantRetention = Object.values(maxillaryRetentionTypes).some(
+                                            (types) => types && types.includes('Implant')
+                                          )
+                                          return hasImplantRetention
+                                        })() && showImplantCards && activeImplantFieldKey && activeImplantFieldKey.startsWith('advance_') && implants && implants.length > 0 && (
+                                            <div ref={implantCardsRef} className="w-full pt-2">
+                                              <div className="flex flex-col items-center gap-2 w-full">
+                                                <div className="bg-white w-full flex justify-center">
+                                                  {(() => {
+                                                    const fieldKey = activeImplantFieldKey
+                                                    const currentStep = implantSelectionStep[fieldKey] || 'brand'
+                                                    const selectedBrandId = selectedImplantBrand[fieldKey]
+                                                    let selectedBrand = selectedBrandId ? implants.find((imp: any) => imp.id === selectedBrandId) : null
+
+                                                    // If we're in form mode and selectedBrand is not found, try to get it from the form's selectedBrand prop
+                                                    // This handles the case where the brand was selected but the state lookup fails
+                                                    if (!selectedBrand && currentStep === 'form') {
+                                                      // Try to find the brand by checking if we have a brand name in advanceFieldValues
+                                                      const currentValue = advanceFieldValues[fieldKey]
+                                                      if (currentValue && typeof currentValue === 'object' && currentValue.advance_field_value) {
+                                                        const brandName = typeof currentValue.advance_field_value === 'string'
+                                                          ? currentValue.advance_field_value.split(' - ')[0]
+                                                          : null
+                                                        if (brandName) {
+                                                          const foundBrand = implants.find((imp: any) => imp.brand_name === brandName)
+                                                          if (foundBrand) {
+                                                            selectedBrand = foundBrand
+                                                            // If found, update the selectedBrandId
+                                                            if (!selectedBrandId) {
+                                                              setSelectedImplantBrand(prev => ({ ...prev, [fieldKey]: foundBrand.id }))
+                                                            }
+                                                          }
+                                                        }
+                                                      }
+                                                    }
+
+                                                    const platforms = selectedBrand?.platforms || []
+                                                    const mappedPlatforms = platforms.map((plat: any) => ({
+                                                      id: plat.id || 0,
+                                                      name: plat.name,
+                                                      image: plat.image_url || plat.image
+                                                    }))
+                                                    const selectedPlatformId = selectedImplantPlatform[fieldKey]
+                                                    const clickedFieldType = clickedFieldTypeInForm[fieldKey]
+
+                                                    // Show platform cards if:
+                                                    // 1. We're on platform step, OR
+                                                    // 2. We're in form step and platform field was clicked (hide brand cards when platform is clicked)
+                                                    // Then check if we have a brand with platforms
+                                                    const shouldShowPlatformCards = currentStep === 'platform' || (currentStep === 'form' && showImplantCards && clickedFieldType === 'platform')
+
+                                                    // Show brand cards if:
+                                                    // 1. We're on brand step, OR
+                                                    // 2. We're in form step and brand field was clicked (hide platform cards when brand is clicked)
+                                                    const shouldShowBrandCards = currentStep === 'brand' || (currentStep === 'form' && showImplantCards && clickedFieldType === 'brand')
+
+                                                    // Priority: Platform cards take precedence when platform field is clicked
+                                                    if (shouldShowPlatformCards && selectedBrand) {
+                                                      return (
+                                                        <ImplantPlatformCards
+                                                          platforms={mappedPlatforms}
+                                                          selectedPlatformId={selectedPlatformId}
+                                                          onSelectPlatform={(platform: any) => {
+                                                            setSelectedImplantPlatform(prev => ({ ...prev, [fieldKey]: platform.id }))
+                                                            // Store full platform data
+                                                            setSelectedImplantPlatformData(prev => ({ ...prev, [fieldKey]: { id: platform.id, name: platform.name } }))
+                                                            // After platform selection, keep form visible and hide the cards
+                                                            setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'form' }))
+                                                            setShowImplantCards(false)
+                                                            setClickedFieldTypeInForm(prev => ({ ...prev, [fieldKey]: null }))
+                                                            // Scroll to the form
+                                                            setTimeout(() => {
+                                                              const formElement = document.querySelector(`[data-implant-field-key="${fieldKey}"]`)
+                                                              if (formElement) {
+                                                                formElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                                                              }
+                                                            }, 100)
+                                                          }}
+                                                          arch="maxillary"
+                                                        />
+                                                      )
+                                                    }
+
+                                                    // Show brand cards only if platform cards are not being shown
+                                                    if (shouldShowBrandCards && !shouldShowPlatformCards) {
+                                                      return (
+                                                        <ImplantBrandCards
+                                                          implants={implants.map((imp: any) => ({
+                                                            id: imp.id,
+                                                            brand_name: imp.brand_name,
+                                                            system_name: imp.system_name,
+                                                            code: imp.code,
+                                                            image_url: imp.image_url,
+                                                            platforms: imp.platforms?.map((p: any) => ({
+                                                              id: p.id || 0,
+                                                              name: p.name,
+                                                              image: p.image_url
+                                                            }))
+                                                          }))}
+                                                          selectedImplantId={selectedBrandId || null}
+                                                          onSelectImplant={(implant: any) => {
+                                                            setSelectedImplantBrand(prev => ({ ...prev, [fieldKey]: implant.id }))
+                                                            // If brand has platforms, show platform cards, otherwise go directly to form
+                                                            if (implant.platforms && implant.platforms.length > 0) {
+                                                              setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'platform' }))
+                                                            } else {
+                                                              // No platforms, go directly to form
+                                                              setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'form' }))
+                                                              setShowImplantCards(false)
+                                                              setClickedFieldTypeInForm(prev => ({ ...prev, [fieldKey]: null }))
+                                                              // Scroll to the form
+                                                              setTimeout(() => {
+                                                                const formElement = document.querySelector(`[data-implant-field-key="${fieldKey}"]`)
+                                                                if (formElement) {
+                                                                  formElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                                                                }
+                                                              }, 100)
+                                                            }
+                                                          }}
+                                                          arch="maxillary"
+                                                        />
+                                                      )
+                                                    }
+
+                                                    // Default: don't show any cards if conditions don't match
+                                                    return null
+                                                  })()}
+                                                </div>
+                                              </div>
+                                            </div>
+                                          )}
+
+
+                                        {/* Impression Field - Shown after advance fields are complete */}
+                                        {productDetails?.impressions &&
+                                          Array.isArray(productDetails.impressions) &&
+                                          productDetails.impressions.length > 0 &&
+                                          productDetails?.advance_fields &&
+                                          Array.isArray(productDetails.advance_fields) &&
+                                          productDetails.advance_fields.length > 0 &&
+                                          isToothShadeFilled("maxillary") && (() => {
+                                            // Check if all advance fields are complete
+                                            const filteredAdvanceFields = productDetails.advance_fields.filter((field: any) => {
+                                              const fieldNameLower = (field.name || "").toLowerCase()
+                                              return !(fieldNameLower.includes("stump") && fieldNameLower.includes("shade"))
+                                            })
+
+                                            const allAdvanceFieldsComplete = filteredAdvanceFields.every((field: any) => {
+                                              if (field.field_type === "implant_library") {
+                                                const fieldKey = `advance_${field.id}`
+                                                const brandId = selectedImplantBrand[fieldKey]
+                                                const platformId = selectedImplantPlatform[fieldKey]
+                                                return brandId && platformId
+                                              }
+                                              const fieldKey = `advance_${field.id}`
+                                              const fieldValue = advanceFieldValues[fieldKey]
+                                              return fieldValue && fieldValue.advance_field_value
+                                            })
+
+                                            if (!allAdvanceFieldsComplete) return null
+
+                                            const impressionCount = selectedProductForMaxillary
+                                              ? getImpressionCount(selectedProductForMaxillary.id.toString(), "maxillary", productDetails.impressions)
+                                              : 0
+                                            const displayText = selectedProductForMaxillary
+                                              ? getImpressionDisplayText(selectedProductForMaxillary.id.toString(), "maxillary", productDetails.impressions)
+                                              : "Select impression"
+                                            const hasImpressionValue = impressionCount > 0 || (displayText && displayText !== "Select impression")
+
+                                            return (
+                                              <div className="flex flex-wrap" style={{ width: '100%', marginTop: '10px' }}>
+                                                <div style={{ flex: '1 1 50%', minWidth: '200px', maxWidth: '50%' }}>
+                                                  <div className="relative" style={{ minHeight: '38px', width: '100%' }}>
+                                                    <div
+                                                      className="flex items-center cursor-pointer"
+                                                      onClick={() => {
+                                                        if (selectedProductForMaxillary) {
+                                                          const tempProduct: SavedProduct = {
+                                                            id: selectedProductForMaxillary.id.toString(),
+                                                            product: selectedProductForMaxillary,
+                                                            productDetails: productDetails,
+                                                            category: selectedCategory || "",
+                                                            categoryId: selectedCategoryId || 0,
+                                                            subcategory: selectedSubcategory || "",
+                                                            subcategoryId: selectedSubcategoryId || 0,
+                                                            maxillaryTeeth: maxillaryTeeth,
+                                                            mandibularTeeth: mandibularTeeth,
+                                                            maxillaryMaterial: maxillaryMaterial,
+                                                            maxillaryStumpShade: maxillaryStumpShade,
+                                                            maxillaryRetention: maxillaryRetention,
+                                                            maxillaryImplantDetails: maxillaryImplantDetails,
+                                                            mandibularMaterial: mandibularMaterial,
+                                                            mandibularRetention: mandibularRetention,
+                                                            mandibularStumpShade: mandibularStumpShade,
+                                                            mandibularImplantDetails: mandibularImplantDetails,
+                                                            createdAt: Date.now(),
+                                                            addedFrom: "maxillary",
+                                                          }
+                                                          handleOpenImpressionModal(tempProduct, "maxillary")
+                                                        }
+                                                      }}
+                                                      style={{
+                                                        padding: '8px 12px 4px 12px',
+                                                        gap: '5px',
+                                                        width: '100%',
+                                                        height: '32px',
+                                                        position: 'relative',
+                                                        marginTop: '5.27px',
+                                                        background: '#FFFFFF',
+                                                        border: `0.740384px solid ${hasImpressionValue ? '#119933' : '#ef4444'}`,
+                                                        borderRadius: '7.7px',
+                                                        boxSizing: 'border-box'
+                                                      }}
+                                                    >
+                                                      <span style={{
+                                                        fontFamily: 'Verdana',
+                                                        fontStyle: 'normal',
+                                                        fontWeight: 400,
+                                                        fontSize: '13px',
+                                                        lineHeight: '20px',
+                                                        letterSpacing: '-0.02em',
+                                                        color: '#000000',
+                                                        whiteSpace: 'nowrap',
+                                                        paddingRight: hasImpressionValue ? '30px' : '0px'
+                                                      }}>{displayText}</span>
+                                                    </div>
+                                                    <label
+                                                      className="absolute bg-white"
+                                                      style={{
+                                                        padding: '0px',
+                                                        height: '14px',
+                                                        left: '8.9px',
+                                                        top: '0px',
+                                                        fontFamily: 'Arial',
+                                                        fontStyle: 'normal',
+                                                        fontWeight: 400,
+                                                        fontSize: '14px',
+                                                        lineHeight: '14px',
+                                                        color: hasImpressionValue ? '#119933' : '#ef4444'
+                                                      }}
+                                                    >
+                                                      Impression<span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>
+                                                    </label>
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            )
+                                          })()}
+                                      </>
+                                    )}
+
+                                  </div>
+
+                                  {/* Action Buttons - Show when all fields have values */}
+                                  {productDetails &&
+                                    areAllCurrentProductFieldsFilled("maxillary") && (
+                                      <div
+                                        className="flex flex-wrap justify-center items-center w-full"
+                                        style={{
+                                          gap: '7.03px',
+                                          position: 'relative',
+                                          marginTop: '30px',
+                                          marginBottom: '15px'
+                                        }}
+                                      >
+                                        {/* Deliver product first - Only show if multiple products */}
+                                        {savedProducts.length > 1 && (
+                                          <button
+                                            className="relative flex flex-col items-center justify-center"
+                                            style={{
+                                              width: '123.04px',
+                                              height: '46.22px',
+                                              background: '#F9F9F9',
+                                              boxShadow: '0.878154px 0.878154px 3.07354px rgba(0, 0, 0, 0.25)',
+                                              borderRadius: '5.26893px',
+                                              border: 'none',
+                                              cursor: 'pointer',
+                                              padding: '0'
+                                            }}
+                                          >
+                                            <div
+                                              className="absolute"
+                                              style={{
+                                                width: '13.91px',
+                                                height: '13.91px',
+                                                left: '50%',
+                                                top: '9.2px',
+                                                transform: 'translateX(-50%)',
+                                                background: '#FFFFFF',
+                                                border: '1.15951px solid #1162A8',
+                                                borderRadius: '1.73926px'
+                                              }}
+                                            />
+                                            <span
+                                              className="absolute text-center"
+                                              style={{
+                                                width: '85px',
+                                                height: '20px',
+                                                left: '50%',
+                                                top: '23.11px',
+                                                transform: 'translateX(-50%)',
+                                                fontFamily: 'Verdana',
+                                                fontStyle: 'normal',
+                                                fontWeight: 400,
+                                                fontSize: '8.78154px',
+                                                lineHeight: '19px',
+                                                textAlign: 'center',
+                                                letterSpacing: '-0.02em',
+                                                color: '#000000'
+                                              }}
+                                            >
+                                              Deliver product first
+                                            </span>
+                                          </button>
+                                        )}
+                                        <button
+                                          onClick={() => {
+                                            // Only proceed if we have a valid selectedProductForMaxillary with an ID
+                                            if (!selectedProductForMaxillary || !selectedProductForMaxillary.id) {
+                                              console.error("Cannot open add-ons modal: No product selected")
+                                              return
+                                            }
+
+                                            // For card accordion, use selectedProductForMaxillary
+                                            const arch = "maxillary"
+                                            // Create a temporary saved product structure for the modal
                                             const tempProduct: SavedProduct = {
-                                              id: selectedProduct.id.toString(),
-                                              product: selectedProduct,
+                                              id: selectedProductForMaxillary.id.toString(),
+                                              product: selectedProductForMaxillary,
+                                              productDetails: productDetails,
+                                              category: selectedCategory || "",
+                                              categoryId: selectedCategoryId || 0,
+                                              subcategory: selectedSubcategory || "",
+                                              subcategoryId: selectedSubcategoryId || 0,
+                                              maxillaryTeeth: maxillaryTeeth,
+                                              mandibularTeeth: mandibularTeeth,
+                                              maxillaryMaterial: maxillaryMaterial,
+                                              maxillaryStumpShade: maxillaryStumpShade,
+                                              maxillaryRetention: maxillaryRetention,
+                                              maxillaryImplantDetails: maxillaryImplantDetails,
+                                              mandibularMaterial: mandibularMaterial,
+                                              mandibularRetention: mandibularRetention,
+                                              mandibularStumpShade: mandibularStumpShade,
+                                              mandibularImplantDetails: mandibularImplantDetails,
+                                              createdAt: Date.now(),
+                                              addedFrom: arch,
+                                            }
+                                            console.log(`🔘 Opening Add Ons Modal for product ID: ${selectedProductForMaxillary.id}, arch: ${arch}`)
+                                            setCurrentProductForModal(tempProduct)
+                                            setCurrentArchForModal(arch)
+                                            setShowAddOnsModal(true)
+                                          }}
+                                          className="relative flex flex-col items-center justify-center"
+                                          style={{
+                                            width: '123.04px',
+                                            height: '46.22px',
+                                            background: '#F9F9F9',
+                                            boxShadow: '0.878154px 0.878154px 3.07354px rgba(0, 0, 0, 0.25)',
+                                            borderRadius: '5.26893px',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            padding: '0'
+                                          }}
+                                        >
+                                          <span
+                                            className="absolute text-center"
+                                            style={{
+                                              width: '41.8px',
+                                              height: '20px',
+                                              left: '50%',
+                                              top: '3.79px',
+                                              transform: 'translateX(-50%)',
+                                              fontFamily: 'Verdana',
+                                              fontStyle: 'normal',
+                                              fontWeight: 400,
+                                              fontSize: '8.78154px',
+                                              lineHeight: '19px',
+                                              textAlign: 'center',
+                                              letterSpacing: '-0.02em',
+                                              color: '#000000'
+                                            }}
+                                          >
+                                            +
+                                          </span>
+                                          <span
+                                            className="absolute text-center"
+                                            style={{
+                                              width: '89px',
+                                              height: '20px',
+                                              left: '50%',
+                                              top: '23.11px',
+                                              transform: 'translateX(-50%)',
+                                              fontFamily: 'Verdana',
+                                              fontStyle: 'normal',
+                                              fontWeight: 400,
+                                              fontSize: '8.78154px',
+                                              lineHeight: '19px',
+                                              textAlign: 'center',
+                                              letterSpacing: '-0.02em',
+                                              color: '#000000'
+                                            }}
+                                          >
+                                            Add ons ({getTotalAddOnsCount} selected)
+                                          </span>
+                                        </button>
+                                        <button
+                                          onClick={() => {
+                                            setShowAttachModal(true)
+                                          }}
+                                          className="relative flex flex-col items-center justify-center"
+                                          style={{
+                                            width: '123.04px',
+                                            height: '46.22px',
+                                            background: '#F9F9F9',
+                                            boxShadow: '0.878154px 0.878154px 3.07354px rgba(0, 0, 0, 0.25)',
+                                            borderRadius: '5.26893px',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            padding: '0'
+                                          }}
+                                        >
+                                          <Paperclip
+                                            className="absolute"
+                                            style={{
+                                              width: '8.78px',
+                                              height: '10.54px',
+                                              left: '50%',
+                                              top: '9.34px',
+                                              transform: 'translateX(-50%)',
+                                              color: '#1E1E1E',
+                                              strokeWidth: '0.878154px'
+                                            }}
+                                          />
+                                          <span
+                                            className="absolute text-center"
+                                            style={{
+                                              width: '107px',
+                                              height: '20px',
+                                              left: '50%',
+                                              top: '23.11px',
+                                              transform: 'translateX(-50%)',
+                                              fontFamily: 'Verdana',
+                                              fontStyle: 'normal',
+                                              fontWeight: 400,
+                                              fontSize: '8.78154px',
+                                              lineHeight: '19px',
+                                              textAlign: 'center',
+                                              letterSpacing: '-0.02em',
+                                              color: '#000000'
+                                            }}
+                                          >
+                                            Attach Files ({getAttachedFilesCount()} uploads)
+                                          </span>
+                                        </button>
+                                        <button
+                                          onClick={() => {
+                                            // For card accordion, create temp product for rush modal
+                                            const tempProduct: SavedProduct = {
+                                              id: selectedProductForMaxillary?.id?.toString() || `temp-${Date.now()}`,
+                                              product: selectedProductForMaxillary || { id: 0, name: "Product", price: 0 },
                                               productDetails: productDetails,
                                               category: selectedCategory || "",
                                               categoryId: selectedCategoryId || 0,
@@ -7158,1223 +8720,38 @@ export default function CaseDesignCenterPage() {
                                               createdAt: Date.now(),
                                               addedFrom: "maxillary",
                                             }
-                                            handleOpenImpressionModal(tempProduct, "maxillary")
-                                          }
-                                        }}
-                                        getImpressionCount={() => {
-                                          if (!selectedProduct || !productDetails?.impressions) return 0
-                                          const productId = selectedProduct.id.toString()
-                                          return getImpressionCount(productId, "maxillary", productDetails.impressions)
-                                        }}
-                                        getImpressionDisplayText={() => {
-                                          if (!selectedProduct || !productDetails?.impressions) return "Select impression"
-                                          const productId = selectedProduct.id.toString()
-                                          return getImpressionDisplayText(productId, "maxillary", productDetails.impressions)
-                                        }}
-                                        onOpenShadeModal={(fieldKey) => {
-                                          handleOpenShadeModal(fieldKey, "maxillary")
-                                        }}
-                                        showImplantBrandCards={showImplantBrandCardsInFields.maxillary || false}
-                                        implants={implants.map((imp: any) => ({
-                                          id: imp.id,
-                                          brand_name: imp.brand_name,
-                                          system_name: imp.system_name,
-                                          code: imp.code,
-                                          image_url: imp.image_url,
-                                          platforms: imp.platforms?.map((p: any) => ({
-                                            id: p.id || 0,
-                                            name: p.name,
-                                            image: p.image_url
-                                          }))
-                                        }))}
-                                        selectedImplantId={selectedImplantBrandForDetails.maxillary || null}
-                                        onSelectImplant={(implant: any) => {
-                                          setSelectedImplantBrandForDetails(prev => ({ ...prev, maxillary: implant.id }))
-                                          // You can add additional logic here to update implant details
-                                        }}
-                                        onImplantDetailsFieldClick={() => {
-                                          setShowImplantBrandCardsInFields(prev => ({ ...prev, maxillary: !prev.maxillary }))
-                                        }}
-                                        selectedImplantPlatformId={selectedImplantPlatformForDetails.maxillary || null}
-                                        onSelectImplantPlatform={(platform: any) => {
-                                          setSelectedImplantPlatformForDetails(prev => ({ ...prev, maxillary: platform.id }))
-                                          // You can add additional logic here to update implant details with platform
-                                        }}
-                                        onBrandFieldClick={() => {
-                                          setShowImplantBrandCardsInFields(prev => ({ ...prev, maxillary: true }))
-                                          setClickedFieldTypeInImplantDetails(prev => ({ ...prev, maxillary: 'brand' }))
-                                        }}
-                                        onPlatformFieldClick={() => {
-                                          setShowImplantBrandCardsInFields(prev => ({ ...prev, maxillary: true }))
-                                          setClickedFieldTypeInImplantDetails(prev => ({ ...prev, maxillary: 'platform' }))
-                                        }}
-                                        selectedImplantBrand={selectedImplantBrand}
-                                        selectedImplantPlatform={selectedImplantPlatform}
-                                        selectedImplantSize={selectedImplantSize}
-                                        hideFieldsDuringShadeSelection={currentShadeField !== null && currentShadeArch === "maxillary"}
-                                        hideImpression={productDetails?.advance_fields && Array.isArray(productDetails.advance_fields) && productDetails.advance_fields.length > 0}
-                                      />
-
-                                      {/* Implant Brand/Platform Cards - Shows at the bottom when implant details field is clicked */}
-                                      {/* Only show if retention type is "Implant" */}
-                                      {(() => {
-                                        // Check if any tooth has "Implant" retention type for maxillary
-                                        const hasImplantRetention = Object.values(maxillaryRetentionTypes).some(
-                                          (types) => types && types.includes('Implant')
-                                        )
-                                        return hasImplantRetention
-                                      })() && showImplantBrandCardsInFields.maxillary && implants && implants.length > 0 && (
-                                        <div className="w-full pt-2">
-                                          <div className="flex flex-col items-center gap-2 w-full">
-                                            <div className="bg-white w-full flex justify-center">
-                                              {(() => {
-                                                const selectedBrandId = selectedImplantBrandForDetails.maxillary
-                                                const selectedBrand = selectedBrandId ? implants.find((imp: any) => imp.id === selectedBrandId) : null
-                                                const platforms = selectedBrand?.platforms || []
-                                                const mappedPlatforms = platforms.map((plat: any) => ({
-                                                  id: plat.id || 0,
-                                                  name: plat.name,
-                                                  image: plat.image_url || plat.image
-                                                }))
-                                                const selectedPlatformId = selectedImplantPlatformForDetails.maxillary
-                                                const clickedFieldType = clickedFieldTypeInImplantDetails.maxillary
-
-                                                // Show platform cards if:
-                                                // 1. Platform field was clicked AND brand is selected (highest priority - show even if no platforms), OR
-                                                // 2. Brand is selected, platform not selected yet, and brand field was NOT clicked (auto-show after brand selection)
-                                                const shouldShowPlatformCards = (clickedFieldType === 'platform' && selectedBrandId) ||
-                                                                               (clickedFieldType !== 'brand' && (clickedFieldType === null || clickedFieldType === undefined) && selectedBrandId && selectedPlatformId === null)
-
-                                                // Show brand cards if:
-                                                // 1. Brand field was clicked, OR
-                                                // 2. No brand selected yet, OR
-                                                // 3. Platform cards should not be shown
-                                                const shouldShowBrandCards = !shouldShowPlatformCards && (clickedFieldType === 'brand' ||
-                                                                                !selectedBrandId)
-
-                                                // Priority: Platform cards take precedence when platform field is clicked
-                                                if (shouldShowPlatformCards) {
-                                                  return (
-                                                    <ImplantPlatformCards
-                                                      platforms={mappedPlatforms}
-                                                      selectedPlatformId={selectedPlatformId}
-                                                      onSelectPlatform={(platform: any) => {
-                                                        setSelectedImplantPlatformForDetails(prev => ({ ...prev, maxillary: platform.id }))
-                                                        // Reset clicked field type after selection
-                                                        setClickedFieldTypeInImplantDetails(prev => ({ ...prev, maxillary: null }))
-                                                      }}
-                                                      arch="maxillary"
-                                                    />
-                                                  )
-                                                }
-
-                                                // Show brand cards only if platform cards are not being shown
-                                                if (shouldShowBrandCards) {
-                                                  const mappedImplants = implants.map((imp: any) => ({
-                                                    id: imp.id,
-                                                    brand_name: imp.brand_name,
-                                                    system_name: imp.system_name,
-                                                    code: imp.code,
-                                                    image_url: imp.image_url,
-                                                    platforms: imp.platforms?.map((p: any) => ({
-                                                      id: p.id || 0,
-                                                      name: p.name,
-                                                      image: p.image_url
-                                                    }))
-                                                  }))
-
-                                                  return (
-                                                    <ImplantBrandCards
-                                                      implants={mappedImplants}
-                                                      selectedImplantId={selectedBrandId}
-                                                      onSelectImplant={(implant: any) => {
-                                                        setSelectedImplantBrandForDetails(prev => ({ ...prev, maxillary: implant.id }))
-                                                        // If brand has platforms, reset platform selection to show platform cards
-                                                        if (implant.platforms && implant.platforms.length > 0) {
-                                                          setSelectedImplantPlatformForDetails(prev => ({ ...prev, maxillary: null }))
-                                                          // Auto-show platform cards after brand selection
-                                                          setClickedFieldTypeInImplantDetails(prev => ({ ...prev, maxillary: null }))
-                                                        } else {
-                                                          // Reset clicked field type after selection
-                                                          setClickedFieldTypeInImplantDetails(prev => ({ ...prev, maxillary: null }))
-                                                        }
-                                                      }}
-                                                      arch="maxillary"
-                                                    />
-                                                  )
-                                                }
-
-                                                return null
-                                              })()}
-                                            </div>
-                                          </div>
-                                        </div>
-                                      )}
-
-                                      {/* Advance Fields - Shown after tooth shade is selected */}
-                                      {productDetails &&
-                                        productDetails.advance_fields &&
-                                        Array.isArray(productDetails.advance_fields) &&
-                                        productDetails.advance_fields.length > 0 &&
-                                        isToothShadeFilled("maxillary") && (() => {
-                                          // Filter out stump shade from advanced fields - use existing stump shade field instead
-                                          const stumpShadeField = getAdvanceFieldByName("stump_shade", productDetails.advance_fields)
-
-                                          // Check if any tooth has "Implant" retention type for maxillary
-                                          const hasImplantRetention = Object.values(maxillaryRetentionTypes).some(
-                                            (types) => types && types.includes('Implant')
-                                          )
-
-                                          const filteredAdvanceFields = productDetails.advance_fields.filter((field: any) => {
-                                            const fieldNameLower = (field.name || "").toLowerCase()
-                                            // Filter out stump shade fields
-                                            if (stumpShadeField && fieldNameLower.includes("stump") && fieldNameLower.includes("shade")) {
-                                              return false
-                                            }
-                                            // Filter out implant_library fields if no tooth has "Implant" retention type
-                                            if (field.field_type === "implant_library" && !hasImplantRetention) {
-                                              return false
-                                            }
-                                            return true
-                                          })
-
-                                          // If no fields remain after filtering, don't render the section
-                                          if (filteredAdvanceFields.length === 0) {
-                                            return null
-                                          }
-
-                                          const archType = "maxillary" // This is the maxillary section
-
-                                          return (
-                                            <div
-                                              className="flex flex-col gap-5"
-                                              style={{
-                                                display: 'flex',
-                                                flexDirection: 'column',
-                                                alignItems: 'flex-start',
-                                                padding: '0px',
-                                                flex: 'none',
-                                                alignSelf: 'stretch',
-                                                flexGrow: 0,
-                                                marginTop: '2px'
-                                              }}
-                                            >
-                                              <div className="w-full">
-                                                <div className="flex flex-wrap gap-4" style={{ gap: '16px' }}>
-                                                  {filteredAdvanceFields.map((field: any) => {
-                                                    const fieldKey = `advance_${field.id}`
-                                                    const currentValue = advanceFieldValues[fieldKey] || ""
-
-                                                    // Calculate width based on field type and content
-                                                    const getFieldWidth = (): { minWidth: string; maxWidth: string; width: string; flex: string } => {
-                                                      if (field.field_type === "multiline_text") {
-                                                        return { minWidth: "100%", maxWidth: "100%", width: "100%", flex: "1 1 100%" }
-                                                      }
-
-                                                      // Radio and checkbox fields need more width to display options
-                                                      if (field.field_type === "radio" || field.field_type === "checkbox") {
-                                                        const minWidth = 250
-                                                        return {
-                                                          minWidth: `${minWidth}px`,
-                                                          maxWidth: "none",
-                                                          width: `${minWidth}px`,
-                                                          flex: '1 1 auto'
-                                                        }
-                                                      }
-
-                                                      // For other fields, calculate based on content
-                                                      const displayValue = typeof currentValue === "object"
-                                                        ? currentValue?.advance_field_value || ""
-                                                        : currentValue || ""
-
-                                                      // Get the longest possible value for width calculation
-                                                      let longestText = field.name || ""
-                                                      if ((field.field_type === "dropdown" || field.field_type === "radio" || field.field_type === "checkbox") && field.options) {
-                                                        // Find longest option name
-                                                        const longestOption = field.options.reduce((longest: any, opt: any) => {
-                                                          return (opt.name?.length || 0) > (longest?.name?.length || 0) ? opt : longest
-                                                        }, { name: "" })
-                                                        longestText = longestOption.name || longestText
-                                                      } else if (displayValue) {
-                                                        longestText = displayValue
-                                                      }
-
-                                                      // Calculate width: min 200px, base on content
-                                                      const minWidth = 200
-                                                      // Estimate width: ~8px per character + padding (60px) + some buffer
-                                                      const estimatedWidth = Math.max(minWidth, Math.min(500, longestText.length * 8 + 80))
-
-                                                      return {
-                                                        minWidth: `${minWidth}px`,
-                                                        maxWidth: "none",
-                                                        width: `${estimatedWidth}px`,
-                                                        flex: '1 1 auto'
-                                                      }
-                                                    }
-
-                                                    const fieldWidth = getFieldWidth()
-
-                                                    // Check if field is required and value is "Not specified" or empty
-                                                    const isFieldRequired = field.is_required === "Yes" || field.is_required === true
-                                                    const displayValue = typeof currentValue === "object"
-                                                      ? currentValue?.advance_field_value || ""
-                                                      : currentValue || ""
-
-                                                    // For checkbox fields, check if at least one option is selected
-                                                    let isEmptyOrNotSpecified = false
-                                                    if (field.field_type === "checkbox") {
-                                                      const currentSelectedIds = typeof currentValue === "object"
-                                                        ? (Array.isArray(currentValue?.option_ids) ? currentValue.option_ids :
-                                                          currentValue?.option_id ? [currentValue.option_id] : [])
-                                                        : []
-                                                      isEmptyOrNotSpecified = currentSelectedIds.length === 0
-                                                    } else {
-                                                      isEmptyOrNotSpecified = !displayValue ||
-                                                        displayValue.trim() === "" ||
-                                                        displayValue.trim().toLowerCase() === "not specified" ||
-                                                        (field.field_type === "dropdown" && displayValue === `Select ${field.name}`)
-                                                    }
-
-                                                    const showRedBorder = isFieldRequired && isEmptyOrNotSpecified
-
-                                                    // Render based on field_type
-                                                    const renderAdvanceField = () => {
-                                                      // Dropdown field
-                                                      if (field.field_type === "dropdown" && field.options && Array.isArray(field.options)) {
-                                                        // Get current selected option
-                                                        const currentOptionId = typeof currentValue === "object"
-                                                          ? currentValue?.option_id?.toString()
-                                                          : currentValue?.toString() || ""
-
-                                                        // Filter active options only
-                                                        const activeOptions = field.options.filter((opt: any) => opt.status === "Active" || opt.status === undefined)
-
-                                                        // If only one option and no value is set, auto-select it
-                                                        if (!currentOptionId && activeOptions.length === 1) {
-                                                          const singleOption = activeOptions[0]
-                                                          setTimeout(() => {
-                                                            setAdvanceFieldValues(prev => ({
-                                                              ...prev,
-                                                              [fieldKey]: {
-                                                                advance_field_id: field.id,
-                                                                advance_field_value: singleOption.name,
-                                                                option_id: singleOption.id
-                                                              }
-                                                            }))
-                                                          }, 0)
-                                                        }
-
-                                                        // Find default option if no value is set and more than one option
-                                                        const defaultOption = !currentOptionId && activeOptions.length > 1
-                                                          ? activeOptions.find((opt: any) =>
-                                                            opt.is_default === "Yes" || opt.is_default === true
-                                                          )
-                                                          : null
-
-                                                        const selectedOptionId = currentOptionId || defaultOption?.id?.toString() || ""
-                                                        const selectedOption = activeOptions.find((opt: any) => opt.id?.toString() === selectedOptionId)
-
-                                                        // Auto-select default if exists and no value is set
-                                                        if (defaultOption && !currentOptionId && activeOptions.length > 1) {
-                                                          setTimeout(() => {
-                                                            setAdvanceFieldValues(prev => ({
-                                                              ...prev,
-                                                              [fieldKey]: {
-                                                                advance_field_id: field.id,
-                                                                advance_field_value: defaultOption.name,
-                                                                option_id: defaultOption.id
-                                                              }
-                                                            }))
-                                                          }, 0)
-                                                        }
-
-                                                        return (
-                                                          <Select
-                                                            value={selectedOptionId}
-                                                            onValueChange={(value) => {
-                                                              const selectedOption = activeOptions.find((opt: any) => opt.id?.toString() === value)
-                                                              setAdvanceFieldValues(prev => ({
-                                                                ...prev,
-                                                                [fieldKey]: selectedOption ? {
-                                                                  advance_field_id: field.id,
-                                                                  advance_field_value: selectedOption.name,
-                                                                  option_id: selectedOption.id
-                                                                } : null
-                                                              }))
-                                                            }}
-                                                          >
-                                                            <SelectTrigger
-                                                              className="h-[37px] mt-[5.27px] rounded-[7.7px] text-[14.4px] font-normal"
-                                                              style={{
-                                                                padding: '8px 12px 4px 12px',
-                                                                gap: '5px',
-                                                                background: '#FFFFFF',
-                                                                border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
-                                                                boxSizing: 'border-box',
-                                                                minWidth: fieldWidth.minWidth,
-                                                                maxWidth: fieldWidth.maxWidth,
-                                                                width: fieldWidth.width,
-                                                                flex: fieldWidth.flex,
-                                                              }}
-                                                            >
-                                                              <SelectValue placeholder={`Select ${field.name}`}>
-                                                                {selectedOption ? selectedOption.name : `Select ${field.name}`}
-                                                              </SelectValue>
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                              {activeOptions
-                                                                .sort((a: any, b: any) => (a.sequence || 0) - (b.sequence || 0))
-                                                                .map((option: any) => (
-                                                                  <SelectItem key={option.id} value={option.id.toString()}>
-                                                                    {option.name}
-                                                                  </SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                          </Select>
-                                                        )
-                                                      }
-
-                                                      // Text field
-                                                      if (field.field_type === "text") {
-                                                        return (
-                                                          <Input
-                                                            type="text"
-                                                            value={typeof currentValue === "object" ? currentValue?.advance_field_value || "" : currentValue || ""}
-                                                            onChange={(e) => {
-                                                              setAdvanceFieldValues(prev => ({
-                                                                ...prev,
-                                                                [fieldKey]: {
-                                                                  advance_field_id: field.id,
-                                                                  advance_field_value: e.target.value
-                                                                }
-                                                              }))
-                                                            }}
-                                                            className="mt-[5.27px] rounded-[7.7px] text-[14.4px]"
-                                                            style={{
-                                                              padding: '8px 12px 4px 12px',
-                                                              minHeight: '80px',
-                                                              border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
-                                                              minWidth: fieldWidth.minWidth,
-                                                              maxWidth: fieldWidth.maxWidth,
-                                                              width: fieldWidth.width,
-                                                              flex: fieldWidth.flex,
-                                                            }}
-                                                            placeholder={`Enter ${field.name}`}
-                                                          />
-                                                        )
-                                                      }
-
-                                                      // Number field
-                                                      if (field.field_type === "number") {
-                                                        return (
-                                                          <Input
-                                                            type="number"
-                                                            value={typeof currentValue === "object" ? currentValue?.advance_field_value || "" : currentValue || ""}
-                                                            onChange={(e) => {
-                                                              setAdvanceFieldValues(prev => ({
-                                                                ...prev,
-                                                                [fieldKey]: {
-                                                                  advance_field_id: field.id,
-                                                                  advance_field_value: e.target.value
-                                                                }
-                                                              }))
-                                                            }}
-                                                            className="h-[37px] mt-[5.27px] rounded-[7.7px] text-[14.4px]"
-                                                            style={{
-                                                              padding: '8px 12px 4px 12px',
-                                                              border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
-                                                              minWidth: fieldWidth.minWidth,
-                                                              maxWidth: fieldWidth.maxWidth,
-                                                              width: fieldWidth.width,
-                                                              flex: fieldWidth.flex,
-                                                            }}
-                                                            placeholder={`Enter ${field.name}`}
-                                                          />
-                                                        )
-                                                      }
-
-                                                      // Multiline text (textarea)
-                                                      if (field.field_type === "multiline_text") {
-                                                        return (
-                                                          <Textarea
-                                                            value={typeof currentValue === "object" ? currentValue?.advance_field_value || "" : currentValue || ""}
-                                                            onChange={(e) => {
-                                                              setAdvanceFieldValues(prev => ({
-                                                                ...prev,
-                                                                [fieldKey]: {
-                                                                  advance_field_id: field.id,
-                                                                  advance_field_value: e.target.value
-                                                                }
-                                                              }))
-                                                            }}
-                                                            className="mt-[5.27px] rounded-[7.7px] text-[14.4px]"
-                                                            style={{
-                                                              padding: '8px 12px 4px 12px',
-                                                              minHeight: '80px',
-                                                              minWidth: fieldWidth.minWidth,
-                                                              maxWidth: fieldWidth.maxWidth,
-                                                              width: fieldWidth.width,
-                                                              flex: fieldWidth.flex,
-                                                            }}
-                                                            placeholder={`Enter ${field.name}`}
-                                                          />
-                                                        )
-                                                      }
-
-                                                      // Radio field
-                                                      if (field.field_type === "radio" && field.options && Array.isArray(field.options)) {
-                                                        const activeOptions = field.options.filter((opt: any) => opt.status === "Active" || opt.status === undefined)
-                                                        const currentOptionId = typeof currentValue === "object"
-                                                          ? currentValue?.option_id?.toString()
-                                                          : currentValue?.toString() || ""
-
-                                                        // Find default option if no value is set
-                                                        const defaultOption = !currentOptionId
-                                                          ? activeOptions.find((opt: any) =>
-                                                            opt.is_default === "Yes" || opt.is_default === true
-                                                          )
-                                                          : null
-
-                                                        const selectedOptionId = currentOptionId || defaultOption?.id?.toString() || ""
-
-                                                        // Auto-select default if exists and no value is set
-                                                        if (defaultOption && !currentOptionId) {
-                                                          setTimeout(() => {
-                                                            setAdvanceFieldValues(prev => ({
-                                                              ...prev,
-                                                              [fieldKey]: {
-                                                                advance_field_id: field.id,
-                                                                advance_field_value: defaultOption.name,
-                                                                option_id: defaultOption.id
-                                                              }
-                                                            }))
-                                                          }, 0)
-                                                        }
-
-                                                        return (
-                                                          <div
-                                                            className="mt-[5.27px] rounded-[7.7px]"
-                                                            style={{
-                                                              padding: '8px 12px 4px 12px',
-                                                              minHeight: '37px',
-                                                              background: '#FFFFFF',
-                                                              border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
-                                                              minWidth: fieldWidth.minWidth,
-                                                              maxWidth: fieldWidth.maxWidth,
-                                                              width: fieldWidth.width,
-                                                              flex: fieldWidth.flex,
-                                                            }}
-                                                          >
-                                                            <RadioGroup
-                                                              value={selectedOptionId}
-                                                              onValueChange={(value) => {
-                                                                const selectedOption = activeOptions.find((opt: any) => opt.id?.toString() === value)
-                                                                setAdvanceFieldValues(prev => ({
-                                                                  ...prev,
-                                                                  [fieldKey]: selectedOption ? {
-                                                                    advance_field_id: field.id,
-                                                                    advance_field_value: selectedOption.name,
-                                                                    option_id: selectedOption.id
-                                                                  } : null
-                                                                }))
-                                                              }}
-                                                              className="space-y-2"
-                                                            >
-                                                              {activeOptions
-                                                                .sort((a: any, b: any) => (a.sequence || 0) - (b.sequence || 0))
-                                                                .map((option: any) => (
-                                                                  <div key={option.id} className="flex items-center space-x-2">
-                                                                    <RadioGroupItem value={option.id.toString()} id={`${fieldKey}-${option.id}`} />
-                                                                    <Label
-                                                                      htmlFor={`${fieldKey}-${option.id}`}
-                                                                      className="text-[14.4px] font-normal cursor-pointer"
-                                                                    >
-                                                                      {option.name}
-                                                                    </Label>
-                                                                  </div>
-                                                                ))}
-                                                            </RadioGroup>
-                                                          </div>
-                                                        )
-                                                      }
-
-                                                      // Checkbox field (multiple selection)
-                                                      if (field.field_type === "checkbox" && field.options && Array.isArray(field.options)) {
-                                                        const activeOptions = field.options.filter((opt: any) => opt.status === "Active" || opt.status === undefined)
-
-                                                        // For checkbox, value can be an array of selected option IDs
-                                                        const currentSelectedIds = typeof currentValue === "object"
-                                                          ? (Array.isArray(currentValue?.option_ids) ? currentValue.option_ids :
-                                                            currentValue?.option_id ? [currentValue.option_id] : [])
-                                                          : []
-
-                                                        const handleCheckboxChange = (optionId: number, checked: boolean) => {
-                                                          setAdvanceFieldValues(prev => {
-                                                            const current = prev[fieldKey]
-                                                            const currentIds = typeof current === "object"
-                                                              ? (Array.isArray(current?.option_ids) ? current.option_ids :
-                                                                current?.option_id ? [current.option_id] : [])
-                                                              : []
-
-                                                            let newIds: number[]
-                                                            if (checked) {
-                                                              newIds = [...currentIds, optionId]
-                                                            } else {
-                                                              newIds = currentIds.filter((id: number) => id !== optionId)
-                                                            }
-
-                                                            // Get selected option names
-                                                            const selectedOptions = activeOptions.filter((opt: any) => newIds.includes(opt.id))
-                                                            const optionNames = selectedOptions.map((opt: any) => opt.name).join(", ")
-
-                                                            return {
-                                                              ...prev,
-                                                              [fieldKey]: {
-                                                                advance_field_id: field.id,
-                                                                advance_field_value: optionNames || "",
-                                                                option_ids: newIds
-                                                              }
-                                                            }
-                                                          })
-                                                        }
-
-                                                        return (
-                                                          <div
-                                                            className="mt-[5.27px] rounded-[7.7px]"
-                                                            style={{
-                                                              padding: '8px 12px 4px 12px',
-                                                              minHeight: '37px',
-                                                              background: '#FFFFFF',
-                                                              border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
-                                                              minWidth: fieldWidth.minWidth,
-                                                              maxWidth: fieldWidth.maxWidth,
-                                                              width: fieldWidth.width,
-                                                              flex: fieldWidth.flex,
-                                                            }}
-                                                          >
-                                                            <div className="space-y-2">
-                                                              {activeOptions
-                                                                .sort((a: any, b: any) => (a.sequence || 0) - (b.sequence || 0))
-                                                                .map((option: any) => (
-                                                                  <div key={option.id} className="flex items-center space-x-2">
-                                                                    <Checkbox
-                                                                      id={`${fieldKey}-${option.id}`}
-                                                                      checked={currentSelectedIds.includes(option.id)}
-                                                                      onCheckedChange={(checked) => handleCheckboxChange(option.id, checked === true)}
-                                                                      className="border-gray-400"
-                                                                    />
-                                                                    <Label
-                                                                      htmlFor={`${fieldKey}-${option.id}`}
-                                                                      className="text-[14.4px] font-normal cursor-pointer"
-                                                                    >
-                                                                      {option.name}
-                                                                    </Label>
-                                                                  </div>
-                                                                ))}
-                                                            </div>
-                                                          </div>
-                                                        )
-                                                      }
-
-                                                      // File upload field
-                                                      if (field.field_type === "file_upload") {
-                                                        const currentFile = typeof currentValue === "object" && currentValue?.file
-                                                          ? currentValue.file
-                                                          : null
-
-                                                        return (
-                                                          <div
-                                                            className="mt-[5.27px] rounded-[7.7px]"
-                                                            style={{
-                                                              padding: '8px 12px 4px 12px',
-                                                              minHeight: '37px',
-                                                              background: '#FFFFFF',
-                                                              border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
-                                                              minWidth: fieldWidth.minWidth,
-                                                              maxWidth: fieldWidth.maxWidth,
-                                                              width: fieldWidth.width,
-                                                              flex: fieldWidth.flex,
-                                                            }}
-                                                          >
-                                                            <input
-                                                              type="file"
-                                                              onChange={(e) => {
-                                                                const file = e.target.files?.[0] || null
-                                                                setAdvanceFieldValues(prev => ({
-                                                                  ...prev,
-                                                                  [fieldKey]: {
-                                                                    advance_field_id: field.id,
-                                                                    advance_field_value: file?.name || "",
-                                                                    file: file
-                                                                  }
-                                                                }))
-                                                              }}
-                                                              className="text-[14.4px] w-full"
-                                                              accept=".jpg,.jpeg,.png,.gif,.svg,.pdf,.stl,.mp4,.avi,.mov,.zip,.rar"
-                                                            />
-                                                            {currentFile && (
-                                                              <div className="mt-2 text-xs text-gray-600">
-                                                                Selected: {currentFile.name}
-                                                              </div>
-                                                            )}
-                                                          </div>
-                                                        )
-                                                      }
-
-                                                      // Shade guide field
-                                                      if (field.field_type === "shade_guide") {
-                                                        return (
-                                                          <Input
-                                                            type="text"
-                                                            value={typeof currentValue === "object" ? currentValue?.advance_field_value || "" : currentValue || ""}
-                                                            onChange={(e) => {
-                                                              setAdvanceFieldValues(prev => ({
-                                                                ...prev,
-                                                                [fieldKey]: {
-                                                                  advance_field_id: field.id,
-                                                                  advance_field_value: e.target.value
-                                                                }
-                                                              }))
-                                                            }}
-                                                            className="h-[37px] mt-[5.27px] rounded-[7.7px] text-[14.4px]"
-                                                            style={{
-                                                              padding: '8px 12px 4px 12px',
-                                                              border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
-                                                              minWidth: fieldWidth.minWidth,
-                                                              maxWidth: fieldWidth.maxWidth,
-                                                              width: fieldWidth.width,
-                                                              flex: fieldWidth.flex,
-                                                            }}
-                                                            placeholder={`Enter ${field.name}`}
-                                                          />
-                                                        )
-                                                      }
-
-                                                      // Implant library field
-                                                      if (field.field_type === "implant_library") {
-                                                        const currentStep = implantSelectionStep[fieldKey] || 'brand'
-                                                        const selectedBrandId = selectedImplantBrand[fieldKey]
-                                                        const selectedPlatformId = selectedImplantPlatform[fieldKey]
-                                                        const selectedSize = selectedImplantSize[fieldKey]
-
-                                                        // Get selected brand and platform
-                                                        const selectedBrand = selectedBrandId ? implants.find((imp: any) => imp.id === selectedBrandId) : null
-                                                        // Try to find platform in brand's platforms first, otherwise use stored platform data (for static platforms)
-                                                        let selectedPlatform = null
-                                                        if (selectedBrand && selectedPlatformId) {
-                                                          selectedPlatform = selectedBrand.platforms?.find((p: any) => (p.id || 0) === selectedPlatformId)
-                                                          // If not found in brand's platforms, use stored platform data (static platforms)
-                                                          if (!selectedPlatform && selectedImplantPlatformData[fieldKey]) {
-                                                            selectedPlatform = selectedImplantPlatformData[fieldKey]
-                                                          }
-                                                        }
-
-                                                        // Build display value
-                                                        let displayValue = ""
-                                                        if (selectedBrand && selectedPlatform && selectedSize) {
-                                                          displayValue = `${selectedBrand.brand_name} - ${selectedPlatform.name} - ${selectedSize}`
-                                                        } else if (selectedBrand && selectedPlatform) {
-                                                          displayValue = `${selectedBrand.brand_name} - ${selectedPlatform.name}`
-                                                        } else if (selectedBrand) {
-                                                          displayValue = selectedBrand.brand_name
-                                                        }
-
-                                                        return (
-                                                          <>
-                                                            {/* Only show input if form is not shown yet */}
-                                                            {currentStep !== 'form' && (
-                                                              <Input
-                                                                type="text"
-                                                                value={displayValue || (typeof currentValue === "object" ? currentValue?.advance_field_value || "" : currentValue || "")}
-                                                                onClick={() => {
-                                                                  // Show cards when input is clicked, reset to brand step
-                                                                  setShowImplantCards(true)
-                                                                  setActiveImplantFieldKey(fieldKey)
-                                                                  setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'brand' }))
-                                                                }}
-                                                                onFocus={() => {
-                                                                  // Show cards when input is focused, reset to brand step
-                                                                  setShowImplantCards(true)
-                                                                  setActiveImplantFieldKey(fieldKey)
-                                                                  setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'brand' }))
-                                                                }}
-                                                                onChange={(e) => {
-                                                                  setAdvanceFieldValues(prev => ({
-                                                                    ...prev,
-                                                                    [fieldKey]: {
-                                                                      advance_field_id: field.id,
-                                                                      advance_field_value: e.target.value
-                                                                    }
-                                                                  }))
-                                                                }}
-                                                                className="h-[37px] mt-[5.27px] rounded-[7.7px] text-[14.4px] cursor-pointer"
-                                                                style={{
-                                                                  padding: '8px 12px 4px 12px',
-                                                                  border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
-                                                                  minWidth: fieldWidth.minWidth,
-                                                                  maxWidth: fieldWidth.maxWidth,
-                                                                  width: fieldWidth.width,
-                                                                  flex: fieldWidth.flex,
-                                                                }}
-                                                                readOnly
-                                                              />
-                                                            )}
-
-                                                            {/* Implant Detail Form - Show after brand/platform selection */}
-                                                            {currentStep === 'form' && selectedBrand && (
-                                                              <div data-implant-field-key={fieldKey} style={{ width: '100%', marginTop: '20px' }}>
-                                                                <ImplantDetailForm
-                                                                  fieldKey={fieldKey}
-                                                                  fieldId={field.id}
-                                                                  selectedBrand={selectedBrand}
-                                                                  selectedPlatform={selectedPlatform}
-                                                                  selectedSize={selectedSize}
-                                                                  onSizeChange={(size: string) => {
-                                                                    setSelectedImplantSize(prev => ({ ...prev, [fieldKey]: size }))
-                                                                    // Update maxillaryImplantDetails to trigger impression field visibility in DynamicProductFields
-                                                                    if (selectedBrand && selectedPlatform) {
-                                                                      const implantDetailsStr = `${selectedBrand.brand_name} - ${selectedPlatform.name} - ${size}`
-                                                                      setMaxillaryImplantDetails(implantDetailsStr)
-                                                                    }
-                                                                  }}
-                                                                  onInclusionsChange={(inclusions) => {
-                                                                    // Handle inclusions change - update implant details with inclusions
-                                                                    if (selectedBrand && selectedPlatform && selectedSize) {
-                                                                      const implantDetailsStr = `${selectedBrand.brand_name} - ${selectedPlatform.name} - ${selectedSize} - ${inclusions}`
-                                                                      setMaxillaryImplantDetails(implantDetailsStr)
-                                                                    }
-                                                                  }}
-                                                                  onAbutmentDetailChange={(detail) => {
-                                                                    // Handle abutment detail change
-                                                                  }}
-                                                                  onAbutmentTypeChange={(type) => {
-                                                                    // Handle abutment type change
-                                                                  }}
-                                                                  onPlatformChange={(platform) => {
-                                                                    setSelectedImplantPlatform(prev => ({ ...prev, [fieldKey]: platform.id }))
-                                                                    // Store full platform data
-                                                                    setSelectedImplantPlatformData(prev => ({ ...prev, [fieldKey]: { id: platform.id, name: platform.name } }))
-                                                                  }}
-                                                                  onBrandFieldClick={() => {
-                                                                    // Show brand cards when brand field is clicked
-                                                                    setShowImplantCards(true)
-                                                                    setActiveImplantFieldKey(fieldKey)
-                                                                    // Keep step as 'form' so form stays visible, but show brand cards
-                                                                    setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'form' }))
-                                                                    setClickedFieldTypeInForm(prev => ({ ...prev, [fieldKey]: 'brand' }))
-                                                                    // Scroll to the cards container to show the brand cards
-                                                                    setTimeout(() => {
-                                                                      if (implantCardsRef.current) {
-                                                                        implantCardsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                                                                      }
-                                                                    }, 100)
-                                                                  }}
-                                                                  onPlatformFieldClick={() => {
-                                                                    // Show platform cards when platform field is clicked (same position as brand cards)
-                                                                    if (selectedBrand) {
-                                                                      // Ensure the brand ID is stored in state so cards rendering can find it
-                                                                      if (!selectedImplantBrand[fieldKey] || selectedImplantBrand[fieldKey] !== selectedBrand.id) {
-                                                                        setSelectedImplantBrand(prev => ({ ...prev, [fieldKey]: selectedBrand.id }))
-                                                                      }
-                                                                      setShowImplantCards(true)
-                                                                      setActiveImplantFieldKey(fieldKey)
-                                                                      // Keep step as 'form' so form stays visible, but show platform cards
-                                                                      setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'form' }))
-                                                                      setClickedFieldTypeInForm(prev => ({ ...prev, [fieldKey]: 'platform' }))
-                                                                      // Scroll to the cards container to show the platform cards (same position as brand cards)
-                                                                      setTimeout(() => {
-                                                                        if (implantCardsRef.current) {
-                                                                          implantCardsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                                                                        }
-                                                                      }, 100)
-                                                                    }
-                                                                  }}
-                                                                  teethNumbers={maxillaryTeeth}
-                                                                  arch={archType}
-                                                                />
-                                                              </div>
-                                                            )}
-                                                          </>
-                                                        )
-                                                      }
-
-                                                      // Default: display field name
-                                                      return (
-                                                        <div
-                                                          className="flex items-center"
-                                                          style={{
-                                                            padding: '8px 12px 4px 12px',
-                                                            gap: '5px',
-                                                            width: '100%',
-                                                            minHeight: '37px',
-                                                            position: 'relative',
-                                                            marginTop: '5.27px',
-                                                            background: '#FFFFFF',
-                                                            border: '0.740384px solid #7F7F7F',
-                                                            borderRadius: '7.7px',
-                                                            boxSizing: 'border-box'
-                                                          }}
-                                                        >
-                                                          <span style={{
-                                                            fontFamily: 'Verdana',
-                                                            fontStyle: 'normal',
-                                                            fontWeight: 400,
-                                                            fontSize: '13px',
-                                                            lineHeight: '20px',
-                                                            letterSpacing: '-0.02em',
-                                                            color: '#000000'
-                                                          }}>
-                                                            {field.name || field.description || "Advanced Field"} ({field.field_type})
-                                                          </span>
-                                                        </div>
-                                                      )
-                                                    }
-
-                                                    return (
-                                                      <div
-                                                        key={field.id}
-                                                        className="relative"
-                                                        style={{
-                                                          minHeight: '38px',
-                                                          minWidth: fieldWidth.minWidth,
-                                                          maxWidth: fieldWidth.maxWidth,
-                                                          width: fieldWidth.width,
-                                                          flex: fieldWidth.flex,
-                                                        }}
-                                                      >
-                                                        {renderAdvanceField()}
-                                                        <label
-                                                          className="absolute bg-white"
-                                                          style={{
-                                                            padding: '0px',
-                                                            height: '14px',
-                                                            left: '8.9px',
-                                                            top: '0px',
-                                                            fontFamily: 'Arial',
-                                                            fontStyle: 'normal',
-                                                            fontWeight: 400,
-                                                            fontSize: '14px',
-                                                            lineHeight: '14px',
-                                                            color: '#7F7F7F'
-                                                          }}
-                                                        >
-                                                          {field.field_type === "implant_library" && isEmptyOrNotSpecified
-                                                            ? "Select Implant Details"
-                                                            : (field.name || "Advanced Field")}
-                                                          {field.is_required === "Yes" && (
-                                                            <span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>
-                                                          )}
-                                                        </label>
-                                                      </div>
-                                                    )
-                                                  })}
-                                                </div>
-                                              </div>
-                                            </div>
-                                          )
-                                        })()}
-
-                                      {/* Implant Brand Cards for Advance Fields - Shows when implant details advance field is clicked */}
-                                      {/* Only show if retention type is "Implant" */}
-                                      {(() => {
-                                        // Check if any tooth has "Implant" retention type for maxillary
-                                        const hasImplantRetention = Object.values(maxillaryRetentionTypes).some(
-                                          (types) => types && types.includes('Implant')
-                                        )
-                                        return hasImplantRetention
-                                      })() && showImplantCards && activeImplantFieldKey && activeImplantFieldKey.startsWith('advance_') && implants && implants.length > 0 && (
-                                        <div ref={implantCardsRef} className="w-full pt-2">
-                                          <div className="flex flex-col items-center gap-2 w-full">
-                                            <div className="bg-white w-full flex justify-center">
-                                              {(() => {
-                                                const fieldKey = activeImplantFieldKey
-                                                const currentStep = implantSelectionStep[fieldKey] || 'brand'
-                                                const selectedBrandId = selectedImplantBrand[fieldKey]
-                                                let selectedBrand = selectedBrandId ? implants.find((imp: any) => imp.id === selectedBrandId) : null
-
-                                                // If we're in form mode and selectedBrand is not found, try to get it from the form's selectedBrand prop
-                                                // This handles the case where the brand was selected but the state lookup fails
-                                                if (!selectedBrand && currentStep === 'form') {
-                                                  // Try to find the brand by checking if we have a brand name in advanceFieldValues
-                                                  const currentValue = advanceFieldValues[fieldKey]
-                                                  if (currentValue && typeof currentValue === 'object' && currentValue.advance_field_value) {
-                                                    const brandName = typeof currentValue.advance_field_value === 'string'
-                                                      ? currentValue.advance_field_value.split(' - ')[0]
-                                                      : null
-                                                    if (brandName) {
-                                                      const foundBrand = implants.find((imp: any) => imp.brand_name === brandName)
-                                                      if (foundBrand) {
-                                                        selectedBrand = foundBrand
-                                                        // If found, update the selectedBrandId
-                                                        if (!selectedBrandId) {
-                                                          setSelectedImplantBrand(prev => ({ ...prev, [fieldKey]: foundBrand.id }))
-                                                        }
-                                                      }
-                                                    }
-                                                  }
-                                                }
-
-                                                const platforms = selectedBrand?.platforms || []
-                                                const mappedPlatforms = platforms.map((plat: any) => ({
-                                                  id: plat.id || 0,
-                                                  name: plat.name,
-                                                  image: plat.image_url || plat.image
-                                                }))
-                                                const selectedPlatformId = selectedImplantPlatform[fieldKey]
-                                                const clickedFieldType = clickedFieldTypeInForm[fieldKey]
-
-                                                // Show platform cards if:
-                                                // 1. We're on platform step, OR
-                                                // 2. We're in form step and platform field was clicked (hide brand cards when platform is clicked)
-                                                // Then check if we have a brand with platforms
-                                                const shouldShowPlatformCards = currentStep === 'platform' || (currentStep === 'form' && showImplantCards && clickedFieldType === 'platform')
-
-                                                // Show brand cards if:
-                                                // 1. We're on brand step, OR
-                                                // 2. We're in form step and brand field was clicked (hide platform cards when brand is clicked)
-                                                const shouldShowBrandCards = currentStep === 'brand' || (currentStep === 'form' && showImplantCards && clickedFieldType === 'brand')
-
-                                                // Priority: Platform cards take precedence when platform field is clicked
-                                                if (shouldShowPlatformCards && selectedBrand) {
-                                                  return (
-                                                    <ImplantPlatformCards
-                                                      platforms={mappedPlatforms}
-                                                      selectedPlatformId={selectedPlatformId}
-                                                      onSelectPlatform={(platform: any) => {
-                                                        setSelectedImplantPlatform(prev => ({ ...prev, [fieldKey]: platform.id }))
-                                                        // Store full platform data
-                                                        setSelectedImplantPlatformData(prev => ({ ...prev, [fieldKey]: { id: platform.id, name: platform.name } }))
-                                                        // After platform selection, keep form visible and hide the cards
-                                                        setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'form' }))
-                                                        setShowImplantCards(false)
-                                                        setClickedFieldTypeInForm(prev => ({ ...prev, [fieldKey]: null }))
-                                                        // Scroll to the form
-                                                        setTimeout(() => {
-                                                          const formElement = document.querySelector(`[data-implant-field-key="${fieldKey}"]`)
-                                                          if (formElement) {
-                                                            formElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                                                          }
-                                                        }, 100)
-                                                      }}
-                                                      arch="maxillary"
-                                                    />
-                                                  )
-                                                }
-
-                                                // Show brand cards only if platform cards are not being shown
-                                                if (shouldShowBrandCards && !shouldShowPlatformCards) {
-                                                  return (
-                                                    <ImplantBrandCards
-                                                      implants={implants.map((imp: any) => ({
-                                                        id: imp.id,
-                                                        brand_name: imp.brand_name,
-                                                        system_name: imp.system_name,
-                                                        code: imp.code,
-                                                        image_url: imp.image_url,
-                                                        platforms: imp.platforms?.map((p: any) => ({
-                                                          id: p.id || 0,
-                                                          name: p.name,
-                                                          image: p.image_url
-                                                        }))
-                                                      }))}
-                                                      selectedImplantId={selectedBrandId || null}
-                                                      onSelectImplant={(implant: any) => {
-                                                        setSelectedImplantBrand(prev => ({ ...prev, [fieldKey]: implant.id }))
-                                                        // If brand has platforms, show platform cards, otherwise go directly to form
-                                                        if (implant.platforms && implant.platforms.length > 0) {
-                                                          setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'platform' }))
-                                                        } else {
-                                                          // No platforms, go directly to form
-                                                          setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'form' }))
-                                                          setShowImplantCards(false)
-                                                          setClickedFieldTypeInForm(prev => ({ ...prev, [fieldKey]: null }))
-                                                          // Scroll to the form
-                                                          setTimeout(() => {
-                                                            const formElement = document.querySelector(`[data-implant-field-key="${fieldKey}"]`)
-                                                            if (formElement) {
-                                                              formElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                                                            }
-                                                          }, 100)
-                                                        }
-                                                      }}
-                                                      arch="maxillary"
-                                                    />
-                                                  )
-                                                }
-
-                                                // Default: don't show any cards if conditions don't match
-                                                return null
-                                              })()}
-                                            </div>
-                                          </div>
-                                        </div>
-                                      )}
-
-
-                                      {/* Impression Field - Shown after advance fields are complete */}
-                                      {productDetails?.impressions &&
-                                        Array.isArray(productDetails.impressions) &&
-                                        productDetails.impressions.length > 0 &&
-                                        productDetails?.advance_fields &&
-                                        Array.isArray(productDetails.advance_fields) &&
-                                        productDetails.advance_fields.length > 0 &&
-                                        isToothShadeFilled("maxillary") && (() => {
-                                          // Check if all advance fields are complete
-                                          const filteredAdvanceFields = productDetails.advance_fields.filter((field: any) => {
-                                            const fieldNameLower = (field.name || "").toLowerCase()
-                                            return !(fieldNameLower.includes("stump") && fieldNameLower.includes("shade"))
-                                          })
-
-                                          const allAdvanceFieldsComplete = filteredAdvanceFields.every((field: any) => {
-                                            if (field.field_type === "implant_library") {
-                                              const fieldKey = `advance_${field.id}`
-                                              const brandId = selectedImplantBrand[fieldKey]
-                                              const platformId = selectedImplantPlatform[fieldKey]
-                                              return brandId && platformId
-                                            }
-                                            const fieldKey = `advance_${field.id}`
-                                            const fieldValue = advanceFieldValues[fieldKey]
-                                            return fieldValue && fieldValue.advance_field_value
-                                          })
-
-                                          if (!allAdvanceFieldsComplete) return null
-
-                                          const impressionCount = selectedProduct
-                                            ? getImpressionCount(selectedProduct.id.toString(), "maxillary", productDetails.impressions)
-                                            : 0
-                                          const displayText = selectedProduct
-                                            ? getImpressionDisplayText(selectedProduct.id.toString(), "maxillary", productDetails.impressions)
-                                            : "Select impression"
-                                          const hasImpressionValue = impressionCount > 0 || (displayText && displayText !== "Select impression")
-
-                                          return (
-                                            <div className="flex flex-wrap" style={{ width: '100%', marginTop: '10px' }}>
-                                              <div style={{ flex: '1 1 50%', minWidth: '200px', maxWidth: '50%' }}>
-                                                <div className="relative" style={{ minHeight: '38px', width: '100%' }}>
-                                                  <div
-                                                    className="flex items-center cursor-pointer"
-                                                    onClick={() => {
-                                                      if (selectedProduct) {
-                                                        const tempProduct: SavedProduct = {
-                                                          id: selectedProduct.id.toString(),
-                                                          product: selectedProduct,
-                                                          productDetails: productDetails,
-                                                          category: selectedCategory || "",
-                                                          categoryId: selectedCategoryId || 0,
-                                                          subcategory: selectedSubcategory || "",
-                                                          subcategoryId: selectedSubcategoryId || 0,
-                                                          maxillaryTeeth: maxillaryTeeth,
-                                                          mandibularTeeth: mandibularTeeth,
-                                                          maxillaryMaterial: maxillaryMaterial,
-                                                          maxillaryStumpShade: maxillaryStumpShade,
-                                                          maxillaryRetention: maxillaryRetention,
-                                                          maxillaryImplantDetails: maxillaryImplantDetails,
-                                                          mandibularMaterial: mandibularMaterial,
-                                                          mandibularRetention: mandibularRetention,
-                                                          mandibularStumpShade: mandibularStumpShade,
-                                                          mandibularImplantDetails: mandibularImplantDetails,
-                                                          createdAt: Date.now(),
-                                                          addedFrom: "maxillary",
-                                                        }
-                                                        handleOpenImpressionModal(tempProduct, "maxillary")
-                                                      }
-                                                    }}
-                                                    style={{
-                                                      padding: '8px 12px 4px 12px',
-                                                      gap: '5px',
-                                                      width: '100%',
-                                                      height: '32px',
-                                                      position: 'relative',
-                                                      marginTop: '5.27px',
-                                                      background: '#FFFFFF',
-                                                      border: `0.740384px solid ${hasImpressionValue ? '#119933' : '#ef4444'}`,
-                                                      borderRadius: '7.7px',
-                                                      boxSizing: 'border-box'
-                                                    }}
-                                                  >
-                                                    <span style={{
-                                                      fontFamily: 'Verdana',
-                                                      fontStyle: 'normal',
-                                                      fontWeight: 400,
-                                                      fontSize: '13px',
-                                                      lineHeight: '20px',
-                                                      letterSpacing: '-0.02em',
-                                                      color: '#000000',
-                                                      whiteSpace: 'nowrap',
-                                                      paddingRight: hasImpressionValue ? '30px' : '0px'
-                                                    }}>{displayText}</span>
-                                                  </div>
-                                                  <label
-                                                    className="absolute bg-white"
-                                                    style={{
-                                                      padding: '0px',
-                                                      height: '14px',
-                                                      left: '8.9px',
-                                                      top: '0px',
-                                                      fontFamily: 'Arial',
-                                                      fontStyle: 'normal',
-                                                      fontWeight: 400,
-                                                      fontSize: '14px',
-                                                      lineHeight: '14px',
-                                                      color: hasImpressionValue ? '#119933' : '#ef4444'
-                                                    }}
-                                                  >
-                                                    Impression<span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>
-                                                  </label>
-                                                </div>
-                                              </div>
-                                            </div>
-                                          )
-                                        })()}
-                                    </>
-                                  )}
-
-                                </div>
-
-                                {/* Action Buttons - Show when all fields have values */}
-                                {productDetails &&
-                                  areAllCurrentProductFieldsFilled("maxillary") && (
-                                    <div
-                                      className="flex flex-wrap justify-center items-center w-full"
-                                      style={{
-                                        gap: '7.03px',
-                                        position: 'relative',
-                                        marginTop: '30px',
-                                        marginBottom: '15px'
-                                      }}
-                                    >
-                                      {/* Deliver product first - Only show if multiple products */}
-                                      {savedProducts.length > 1 && (
-                                        <button
+                                            setCurrentProductForModal(tempProduct)
+                                            setShowRushModal(true)
+                                          }}
                                           className="relative flex flex-col items-center justify-center"
                                           style={{
                                             width: '123.04px',
                                             height: '46.22px',
                                             background: '#F9F9F9',
-                                            boxShadow: '0.878154px 0.878154px 3.07354px rgba(0, 0, 0, 0.25)',
+                                            boxShadow: '0px 0px 2.89791px rgba(207, 2, 2, 0.67)',
                                             borderRadius: '5.26893px',
                                             border: 'none',
                                             cursor: 'pointer',
                                             padding: '0'
                                           }}
                                         >
-                                          <div
+                                          <Zap
                                             className="absolute"
                                             style={{
-                                              width: '13.91px',
-                                              height: '13.91px',
+                                              width: '8.78px',
+                                              height: '10.54px',
                                               left: '50%',
-                                              top: '9.2px',
+                                              top: '9.35px',
                                               transform: 'translateX(-50%)',
-                                              background: '#FFFFFF',
-                                              border: '1.15951px solid #1162A8',
-                                              borderRadius: '1.73926px'
+                                              color: '#CF0202',
+                                              fill: '#CF0202',
+                                              strokeWidth: '0.878154px'
                                             }}
                                           />
                                           <span
                                             className="absolute text-center"
                                             style={{
-                                              width: '85px',
+                                              width: '59px',
                                               height: '20px',
                                               left: '50%',
                                               top: '23.11px',
@@ -8389,230 +8766,17 @@ export default function CaseDesignCenterPage() {
                                               color: '#000000'
                                             }}
                                           >
-                                            Deliver product first
+                                            Request Rush
                                           </span>
                                         </button>
-                                      )}
-                                      <button
-                                        onClick={() => {
-                                          // Only proceed if we have a valid selectedProduct with an ID
-                                          if (!selectedProduct || !selectedProduct.id) {
-                                            console.error("Cannot open add-ons modal: No product selected")
-                                            return
-                                          }
-
-                                          // For card accordion, use selectedProduct and determine arch from context
-                                          const arch = maxillaryTeeth.length > 0 ? "maxillary" : "mandibular"
-                                          // Create a temporary saved product structure for the modal
-                                          const tempProduct: SavedProduct = {
-                                            id: selectedProduct.id.toString(),
-                                            product: selectedProduct,
-                                            productDetails: productDetails,
-                                            category: selectedCategory || "",
-                                            categoryId: selectedCategoryId || 0,
-                                            subcategory: selectedSubcategory || "",
-                                            subcategoryId: selectedSubcategoryId || 0,
-                                            maxillaryTeeth: maxillaryTeeth,
-                                            mandibularTeeth: mandibularTeeth,
-                                            maxillaryMaterial: maxillaryMaterial,
-                                            maxillaryStumpShade: maxillaryStumpShade,
-                                            maxillaryRetention: maxillaryRetention,
-                                            maxillaryImplantDetails: maxillaryImplantDetails,
-                                            mandibularMaterial: mandibularMaterial,
-                                            mandibularRetention: mandibularRetention,
-                                            mandibularStumpShade: mandibularStumpShade,
-                                            mandibularImplantDetails: mandibularImplantDetails,
-                                            createdAt: Date.now(),
-                                            addedFrom: arch,
-                                          }
-                                          console.log(`🔘 Opening Add Ons Modal for product ID: ${selectedProduct.id}, arch: ${arch}`)
-                                          setCurrentProductForModal(tempProduct)
-                                          setCurrentArchForModal(arch)
-                                          setShowAddOnsModal(true)
-                                        }}
-                                        className="relative flex flex-col items-center justify-center"
-                                        style={{
-                                          width: '123.04px',
-                                          height: '46.22px',
-                                          background: '#F9F9F9',
-                                          boxShadow: '0.878154px 0.878154px 3.07354px rgba(0, 0, 0, 0.25)',
-                                          borderRadius: '5.26893px',
-                                          border: 'none',
-                                          cursor: 'pointer',
-                                          padding: '0'
-                                        }}
-                                      >
-                                        <span
-                                          className="absolute text-center"
-                                          style={{
-                                            width: '41.8px',
-                                            height: '20px',
-                                            left: '50%',
-                                            top: '3.79px',
-                                            transform: 'translateX(-50%)',
-                                            fontFamily: 'Verdana',
-                                            fontStyle: 'normal',
-                                            fontWeight: 400,
-                                            fontSize: '8.78154px',
-                                            lineHeight: '19px',
-                                            textAlign: 'center',
-                                            letterSpacing: '-0.02em',
-                                            color: '#000000'
-                                          }}
-                                        >
-                                          +
-                                        </span>
-                                        <span
-                                          className="absolute text-center"
-                                          style={{
-                                            width: '89px',
-                                            height: '20px',
-                                            left: '50%',
-                                            top: '23.11px',
-                                            transform: 'translateX(-50%)',
-                                            fontFamily: 'Verdana',
-                                            fontStyle: 'normal',
-                                            fontWeight: 400,
-                                            fontSize: '8.78154px',
-                                            lineHeight: '19px',
-                                            textAlign: 'center',
-                                            letterSpacing: '-0.02em',
-                                            color: '#000000'
-                                          }}
-                                        >
-                                          Add ons ({getTotalAddOnsCount} selected)
-                                        </span>
-                                      </button>
-                                      <button
-                                        onClick={() => {
-                                          setShowAttachModal(true)
-                                        }}
-                                        className="relative flex flex-col items-center justify-center"
-                                        style={{
-                                          width: '123.04px',
-                                          height: '46.22px',
-                                          background: '#F9F9F9',
-                                          boxShadow: '0.878154px 0.878154px 3.07354px rgba(0, 0, 0, 0.25)',
-                                          borderRadius: '5.26893px',
-                                          border: 'none',
-                                          cursor: 'pointer',
-                                          padding: '0'
-                                        }}
-                                      >
-                                        <Paperclip
-                                          className="absolute"
-                                          style={{
-                                            width: '8.78px',
-                                            height: '10.54px',
-                                            left: '50%',
-                                            top: '9.34px',
-                                            transform: 'translateX(-50%)',
-                                            color: '#1E1E1E',
-                                            strokeWidth: '0.878154px'
-                                          }}
-                                        />
-                                        <span
-                                          className="absolute text-center"
-                                          style={{
-                                            width: '107px',
-                                            height: '20px',
-                                            left: '50%',
-                                            top: '23.11px',
-                                            transform: 'translateX(-50%)',
-                                            fontFamily: 'Verdana',
-                                            fontStyle: 'normal',
-                                            fontWeight: 400,
-                                            fontSize: '8.78154px',
-                                            lineHeight: '19px',
-                                            textAlign: 'center',
-                                            letterSpacing: '-0.02em',
-                                            color: '#000000'
-                                          }}
-                                        >
-                                          Attach Files ({getAttachedFilesCount()} uploads)
-                                        </span>
-                                      </button>
-                                      <button
-                                        onClick={() => {
-                                          // For card accordion, create temp product for rush modal
-                                          const tempProduct: SavedProduct = {
-                                            id: selectedProduct?.id?.toString() || `temp-${Date.now()}`,
-                                            product: selectedProduct || { id: 0, name: "Product", price: 0 },
-                                            productDetails: productDetails,
-                                            category: selectedCategory || "",
-                                            categoryId: selectedCategoryId || 0,
-                                            subcategory: selectedSubcategory || "",
-                                            subcategoryId: selectedSubcategoryId || 0,
-                                            maxillaryTeeth: maxillaryTeeth,
-                                            mandibularTeeth: mandibularTeeth,
-                                            maxillaryMaterial: maxillaryMaterial,
-                                            maxillaryStumpShade: maxillaryStumpShade,
-                                            maxillaryRetention: maxillaryRetention,
-                                            maxillaryImplantDetails: maxillaryImplantDetails,
-                                            mandibularMaterial: mandibularMaterial,
-                                            mandibularRetention: mandibularRetention,
-                                            mandibularStumpShade: mandibularStumpShade,
-                                            mandibularImplantDetails: mandibularImplantDetails,
-                                            createdAt: Date.now(),
-                                            addedFrom: maxillaryTeeth.length > 0 ? "maxillary" : "mandibular",
-                                          }
-                                          setCurrentProductForModal(tempProduct)
-                                          setShowRushModal(true)
-                                        }}
-                                        className="relative flex flex-col items-center justify-center"
-                                        style={{
-                                          width: '123.04px',
-                                          height: '46.22px',
-                                          background: '#F9F9F9',
-                                          boxShadow: '0px 0px 2.89791px rgba(207, 2, 2, 0.67)',
-                                          borderRadius: '5.26893px',
-                                          border: 'none',
-                                          cursor: 'pointer',
-                                          padding: '0'
-                                        }}
-                                      >
-                                        <Zap
-                                          className="absolute"
-                                          style={{
-                                            width: '8.78px',
-                                            height: '10.54px',
-                                            left: '50%',
-                                            top: '9.35px',
-                                            transform: 'translateX(-50%)',
-                                            color: '#CF0202',
-                                            fill: '#CF0202',
-                                            strokeWidth: '0.878154px'
-                                          }}
-                                        />
-                                        <span
-                                          className="absolute text-center"
-                                          style={{
-                                            width: '59px',
-                                            height: '20px',
-                                            left: '50%',
-                                            top: '23.11px',
-                                            transform: 'translateX(-50%)',
-                                            fontFamily: 'Verdana',
-                                            fontStyle: 'normal',
-                                            fontWeight: 400,
-                                            fontSize: '8.78154px',
-                                            lineHeight: '19px',
-                                            textAlign: 'center',
-                                            letterSpacing: '-0.02em',
-                                            color: '#000000'
-                                          }}
-                                        >
-                                          Request Rush
-                                        </span>
-                                      </button>
-                                    </div>
-                                  )}
-                              </AccordionContent>
-                            </AccordionItem>
-                          </Accordion>
-                        </Card>
-                      )}
-
+                                      </div>
+                                    )}
+                                </AccordionContent>
+                              </AccordionItem>
+                            </Accordion>
+                          </Card>
+                        )}
+                      {/* Saved Mandibular Products - this is the save */}
                       {/* Saved Maxillary Products - Display below MAXILLARY section */}
                       {showMaxillaryChart && savedProducts.filter(p => p.addedFrom === "maxillary").length > 0 && (
                         <div className="w-full -mt-2 space-y-1">
@@ -8661,7 +8825,6 @@ export default function CaseDesignCenterPage() {
                                           boxShadow: savedProduct.rushData ? '0.9px 0.9px 3.6px 0 rgba(0, 0, 0, 0.25)' : '0.9px 0.9px 3.6px rgba(0, 0, 0, 0.25)',
                                           borderRadius: openAccordion === savedProduct.id ? '10px 10px 0px 0px' : '10px',
                                           border: savedProduct.rushData ? '1px solid #CF0202' : 'none',
-                                          display: 'flex',
                                           flexDirection: 'column',
                                           alignItems: 'flex-start',
                                           padding: '6px 8px',
@@ -8792,15 +8955,7 @@ export default function CaseDesignCenterPage() {
                                             </div>
                                           </div>
 
-                                          {/* Chevron - Positioned relative to header */}
-                                          <div style={{ position: 'absolute', width: '21.6px', height: '21.6px', right: '8px', top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}>
-                                            <ChevronDown
-                                              className="w-full h-full transition-transform duration-200 text-black"
-                                              style={{
-                                                transform: openAccordion === savedProduct.id ? 'rotate(0deg)' : 'rotate(-180deg)'
-                                              }}
-                                            />
-                                          </div>
+                                         
                                         </AccordionTrigger>
                                         {/* Delete Button - Moved outside AccordionTrigger to avoid nested buttons */}
                                         <button
@@ -8841,7 +8996,7 @@ export default function CaseDesignCenterPage() {
                                             marginTop: '10px',
                                             paddingLeft: '15.87px',
                                             paddingRight: '15.87px',
-                                            paddingBottom: '20px',
+                                            paddingBottom: '8px',
                                             display: 'flex',
                                             flexDirection: 'column',
                                             alignItems: 'flex-start',
@@ -8849,155 +9004,97 @@ export default function CaseDesignCenterPage() {
                                             boxSizing: 'border-box'
                                           }}
                                         >
-                                          {/* Field 1: Product - Material (always visible) */}
-                                          {isFieldVisible("product_material", savedProduct.id, savedProduct, productDetails, archType) && (
-                                            <div
-                                              className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                              style={{
-                                                display: 'flex',
-                                                flexDirection: 'row',
-                                                alignItems: 'flex-start',
-                                                padding: '0px',
-                                                gap: '12px',
-                                                flex: 'none',
-                                                order: 0,
-                                                alignSelf: 'stretch',
-                                                flexGrow: 0
-                                              }}
-                                            >
-                                              <div className="relative flex-1 min-w-[200px] max-w-[48%]" style={{ minHeight: '38px' }}>
-                                                <div
-                                                  className="flex items-center"
-                                                  style={{
-                                                    padding: '8px 12px 4px 12px',
-                                                    gap: '5px',
-                                                    width: '100%',
-                                                    height: '32px',
-                                                    position: 'relative',
-                                                    marginTop: '5.27px',
-                                                    background: '#FFFFFF',
-                                                    border: '0.740384px solid #7F7F7F',
-                                                    borderRadius: '7.7px',
-                                                    boxSizing: 'border-box'
-                                                  }}
-                                                >
-                                                  <span style={{
-                                                    fontFamily: 'Verdana',
-                                                    fontStyle: 'normal',
-                                                    fontWeight: 400,
-                                                    fontSize: '13px',
-                                                    lineHeight: '20px',
-                                                    letterSpacing: '-0.02em',
-                                                    color: '#000000',
-                                                    whiteSpace: 'nowrap'
-                                                  }}>{savedProduct.maxillaryMaterial || 'Select'}</span>
-                                                </div>
-                                                <label
-                                                  className="absolute bg-white"
-                                                  style={{
-                                                    padding: '0px',
-                                                    height: '14px',
-                                                    left: '8.9px',
-                                                    top: '0px',
-                                                    fontFamily: 'Arial',
-                                                    fontStyle: 'normal',
-                                                    fontWeight: 400,
-                                                    fontSize: '14px',
-                                                    lineHeight: '14px',
-                                                    color: '#7F7F7F'
-                                                  }}
-                                                >
-                                                  Product - Material
-                                                </label>
-                                              </div>
-                                            </div>
-                                          )}
-
-                                          {/* Field 2: Retention (Fixed Restoration only, visible after Product/Material) */}
-                                          {isFixedRestoration && isFieldVisible("retention", savedProduct.id, savedProduct, productDetails, archType) && (
-                                            <div
-                                              className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                              style={{
-                                                display: 'flex',
-                                                flexDirection: 'row',
-                                                alignItems: 'flex-start',
-                                                padding: '0px',
-                                                gap: '12px',
-                                                flex: 'none',
-                                                order: 1,
-                                                alignSelf: 'stretch',
-                                                flexGrow: 0
-                                              }}
-                                            >
-                                              <div className="relative flex-1 min-w-[200px] max-w-[48%]" style={{ minHeight: '38px' }}>
-                                                <div
-                                                  className="flex items-center"
-                                                  style={{
-                                                    padding: '8px 12px 4px 12px',
-                                                    gap: '5px',
-                                                    width: '100%',
-                                                    height: '32px',
-                                                    position: 'relative',
-                                                    marginTop: '5.27px',
-                                                    background: '#FFFFFF',
-                                                    border: '0.740384px solid #7F7F7F',
-                                                    borderRadius: '7.7px',
-                                                    boxSizing: 'border-box'
-                                                  }}
-                                                >
-                                                  <span style={{
-                                                    fontFamily: 'Arial',
-                                                    fontStyle: 'normal',
-                                                    fontWeight: 400,
-                                                    fontSize: '14px',
-                                                    lineHeight: '14px',
-                                                    color: '#000000',
-                                                    whiteSpace: 'nowrap'
-                                                  }}>{savedProduct.maxillaryRetention || 'Select'}</span>
-                                                </div>
-                                                <label
-                                                  className="absolute bg-white"
-                                                  style={{
-                                                    padding: '0px',
-                                                    height: '14px',
-                                                    left: '9.23px',
-                                                    top: '0px',
-                                                    fontFamily: 'Arial',
-                                                    fontStyle: 'normal',
-                                                    fontWeight: 400,
-                                                    fontSize: '14px',
-                                                    lineHeight: '14px',
-                                                    color: '#7F7F7F'
-                                                  }}
-                                                >
-                                                  {hasValidRetentionValue(savedProduct.maxillaryRetention) ? 'Retention type' : 'Select Retention type'}
-                                                </label>
-                                              </div>
-                                            </div>
-                                          )}
-
-                                          {/* Field 3: Implant (if configured, visible after previous field) */}
-                                          {isFieldVisible("implant", savedProduct.id, savedProduct, productDetails, archType) && (
-                                            <div
-                                              className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                              style={{
-                                                display: 'flex',
-                                                flexDirection: 'row',
-                                                alignItems: 'flex-start',
-                                                padding: '0px',
-                                                gap: '12px',
-                                                flex: 'none',
-                                                order: 2,
-                                                alignSelf: 'stretch',
-                                                flexGrow: 0
-                                              }}
-                                            >
-                                              <div className="relative flex-1 min-w-[200px] max-w-[100%]" style={{ minHeight: '38px' }}>
-                                                <div
-                                                  className="flex items-start cursor-pointer"
-                                                  onClick={(e) => {
-                                                    e.preventDefault()
-                                                    e.stopPropagation()
+                                          {/* Dynamic Fields - Rendered based on productDetails */}
+                                          {productDetails && (
+                                            <>
+                                              <DynamicProductFields
+                                                productDetails={productDetails}
+                                                savedProduct={{
+                                                  maxillaryMaterial: savedProduct.maxillaryMaterial,
+                                                  maxillaryRetention: savedProduct.maxillaryRetention,
+                                                  maxillaryStumpShade: savedProduct.maxillaryStumpShade,
+                                                  maxillaryToothShade: savedProduct.maxillaryToothShade,
+                                                  maxillaryStage: savedProduct.maxillaryStage,
+                                                  maxillaryMaterialId: savedProduct.maxillaryMaterialId,
+                                                  maxillaryRetentionId: savedProduct.maxillaryRetentionId,
+                                                  maxillaryRetentionOptionId: savedProduct.maxillaryRetentionOptionId,
+                                                  maxillaryGumShadeId: savedProduct.maxillaryGumShadeId,
+                                                  maxillaryShadeId: savedProduct.maxillaryShadeId,
+                                                  maxillaryStageId: savedProduct.maxillaryStageId,
+                                                  maxillaryImplantDetails: savedProduct.maxillaryImplantDetails,
+                                                  maxillaryImplantInclusions: savedProduct.maxillaryImplantInclusions,
+                                                  maxillaryAbutmentDetail: savedProduct.maxillaryAbutmentDetail,
+                                                  maxillaryAbutmentType: savedProduct.maxillaryAbutmentType,
+                                                }}
+                                                arch="maxillary"
+                                                fieldConfigs={fieldConfigs}
+                                                onFieldChange={(fieldKey, value, id) => {
+                                                  // Update saved product when field changes
+                                                  setSavedProducts(prev => prev.map(sp => {
+                                                    if (sp.id === savedProduct.id) {
+                                                      const update: any = { [fieldKey]: value }
+                                                      if (id !== undefined) {
+                                                        update[`${fieldKey}Id`] = id
+                                                      }
+                                                      return { ...sp, ...update }
+                                                    }
+                                                    return sp
+                                                  }))
+                                                }}
+                                                maxillaryRetentionTypes={maxillaryRetentionTypes}
+                                                mandibularRetentionTypes={mandibularRetentionTypes}
+                                                maxillaryTeeth={savedProduct.maxillaryTeeth}
+                                                mandibularTeeth={savedProduct.mandibularTeeth}
+                                                onOpenImpressionModal={() => {
+                                                  handleOpenImpressionModal(savedProduct, "maxillary")
+                                                }}
+                                                getImpressionCount={() => {
+                                                  if (!savedProduct.product || !productDetails?.impressions) return 0
+                                                  const productId = savedProduct.product.id.toString()
+                                                  return getImpressionCount(productId, "maxillary", productDetails.impressions)
+                                                }}
+                                                getImpressionDisplayText={() => {
+                                                  if (!savedProduct.product || !productDetails?.impressions) return "Select impression"
+                                                  const productId = savedProduct.product.id.toString()
+                                                  return getImpressionDisplayText(productId, "maxillary", productDetails.impressions)
+                                                }}
+                                                onOpenShadeModal={(fieldKey) => {
+                                                  handleOpenShadeModal(fieldKey, "maxillary")
+                                                }}
+                                                showImplantBrandCards={showImplantCardsForProduct[savedProduct.id]?.maxillary || false}
+                                                implants={implants.map((imp: any) => ({
+                                                  id: imp.id,
+                                                  brand_name: imp.brand_name,
+                                                  system_name: imp.system_name,
+                                                  code: imp.code,
+                                                  image_url: imp.image_url,
+                                                  platforms: imp.platforms?.map((p: any) => ({
+                                                    id: p.id || 0,
+                                                    name: p.name,
+                                                    image: p.image_url
+                                                  }))
+                                                }))}
+                                                selectedImplantId={selectedImplantBrandPerProduct[savedProduct.id]?.maxillary || savedProduct.maxillaryImplantBrand || null}
+                                                onSelectImplant={(implant: any) => {
+                                                  setSelectedImplantBrandPerProduct(prev => ({
+                                                    ...prev,
+                                                    [savedProduct.id]: {
+                                                      ...prev[savedProduct.id],
+                                                      maxillary: implant.id
+                                                    }
+                                                  }))
+                                                  // Update saved product
+                                                  setSavedProducts(prev => prev.map(sp => {
+                                                    if (sp.id === savedProduct.id) {
+                                                      return {
+                                                        ...sp,
+                                                        maxillaryImplantBrand: implant.id
+                                                      }
+                                                    }
+                                                    return sp
+                                                  }))
+                                                }}
+                                                onImplantDetailsFieldClick={() => {
                                                     setShowImplantCardsForProduct(prev => ({
                                                       ...prev,
                                                       [savedProduct.id]: {
@@ -9006,75 +9103,62 @@ export default function CaseDesignCenterPage() {
                                                       }
                                                     }))
                                                   }}
-                                                  style={{
-                                                    padding: '8px 12px 4px 12px',
-                                                    gap: '5px',
-                                                    width: '100%',
-                                                    minHeight: '37px',
-                                                    background: '#FFFFFF',
-                                                    border: '0.740384px solid #7F7F7F',
-                                                    borderRadius: '7.7px',
-                                                    boxSizing: 'border-box',
-                                                    position: 'relative',
-                                                    marginTop: '5.27px'
-                                                  }}
-                                                >
-                                                  <span style={{
-                                                    fontFamily: 'Verdana',
-                                                    fontStyle: 'normal',
-                                                    fontWeight: 400,
-                                                    fontSize: '13px',
-                                                    lineHeight: '20px',
-                                                    letterSpacing: '-0.02em',
-                                                    color: '#000000'
-                                                  }}>
-                                                    {(() => {
-                                                      // Find the selected brand from implants
-                                                      const selectedBrand = savedProduct.maxillaryImplantBrand
-                                                        ? implants.find((imp: any) => imp.id === savedProduct.maxillaryImplantBrand || imp.brand_name === savedProduct.maxillaryImplantBrand)
-                                                        : null
-
-                                                      // Build display text with brand and details
-                                                      if (selectedBrand) {
-                                                        const brandName = selectedBrand.brand_name || ''
-                                                        const details = (savedProduct as any).maxillaryImplantDetails || ''
-                                                        if (brandName && details) {
-                                                          return `${brandName} - ${details}`
-                                                        } else if (brandName) {
-                                                          return brandName
-                                                        } else if (details) {
-                                                          return details
-                                                        }
-                                                      }
-
-                                                      // Fallback to just details or "Not specified"
-                                                      return (savedProduct as any).maxillaryImplantDetails || 'Not specified'
-                                                    })()}
-                                                  </span>
-                                                </div>
-                                                <label
-                                                  className="absolute bg-white"
-                                                  style={{
-                                                    padding: '0px',
-                                                    height: '14px',
-                                                    left: '8.9px',
-                                                    top: '0px',
-                                                    fontFamily: 'Arial',
-                                                    fontStyle: 'normal',
-                                                    fontWeight: 400,
-                                                    fontSize: '14px',
-                                                    lineHeight: '14px',
-                                                    color: '#7F7F7F'
-                                                  }}
-                                                >
-                                                  Implant Details
-                                                </label>
-                                              </div>
-                                            </div>
-                                          )}
+                                                selectedImplantPlatformId={selectedImplantPlatformPerProduct[savedProduct.id]?.maxillary || null}
+                                                onSelectImplantPlatform={(platform: any) => {
+                                                  setSelectedImplantPlatformPerProduct(prev => ({
+                                                    ...prev,
+                                                    [savedProduct.id]: {
+                                                      ...prev[savedProduct.id],
+                                                      maxillary: platform.id
+                                                    }
+                                                  }))
+                                                }}
+                                                onBrandFieldClick={() => {
+                                                  setShowImplantCardsForProduct(prev => ({
+                                                    ...prev,
+                                                    [savedProduct.id]: {
+                                                      ...prev[savedProduct.id],
+                                                      maxillary: true
+                                                    }
+                                                  }))
+                                                  setClickedFieldTypeInAccordion(prev => ({
+                                                    ...prev,
+                                                    [savedProduct.id]: {
+                                                      ...prev[savedProduct.id],
+                                                      maxillary: 'brand'
+                                                    }
+                                                  }))
+                                                }}
+                                                onPlatformFieldClick={() => {
+                                                  setShowImplantCardsForProduct(prev => ({
+                                                    ...prev,
+                                                    [savedProduct.id]: {
+                                                      ...prev[savedProduct.id],
+                                                      maxillary: true
+                                                    }
+                                                  }))
+                                                  setClickedFieldTypeInAccordion(prev => ({
+                                                    ...prev,
+                                                    [savedProduct.id]: {
+                                                      ...prev[savedProduct.id],
+                                                      maxillary: 'platform'
+                                                    }
+                                                  }))
+                                                }}
+                                                selectedImplantBrand={selectedImplantBrand}
+                                                selectedImplantPlatform={selectedImplantPlatform}
+                                                selectedImplantSize={selectedImplantSize}
+                                                hideFieldsDuringShadeSelection={currentShadeField !== null && currentShadeArch === "maxillary"}
+                                                hideImpression={productDetails?.advance_fields && Array.isArray(productDetails.advance_fields) && productDetails.advance_fields.length > 0}
+                                              />
 
                                           {/* Implant Brand/Platform Cards - Shows when implant details field is clicked */}
-                                          {showImplantCardsForProduct[savedProduct.id]?.maxillary && implants && implants.length > 0 && (
+                                              {/* Only show if retention type is "Implant" */}
+                                              {(() => {
+                                                // Check if any tooth has "Implant" retention type for maxillary
+                                                const hasImplantRetention = savedProduct.maxillaryRetention && savedProduct.maxillaryRetention.toLowerCase().includes('implant')
+                                                return hasImplantRetention
+                                              })() && showImplantCardsForProduct[savedProduct.id]?.maxillary && implants && implants.length > 0 && (
                                             <div className="w-full pt-4">
                                               <div className="flex flex-col items-center w-full">
                                                 <div className="bg-white w-full flex justify-center">
@@ -9083,14 +9167,14 @@ export default function CaseDesignCenterPage() {
                                                     const brandIdFromState = selectedImplantBrandPerProduct[savedProduct.id]?.maxillary
                                                     const brandIdFromSaved = savedProduct.maxillaryImplantBrand
                                                     const selectedBrandId = brandIdFromState || brandIdFromSaved
-                                                    
+
                                                     // Find brand by ID or brand name
-                                                    const selectedBrand = selectedBrandId 
-                                                      ? implants.find((imp: any) => 
-                                                          imp.id === selectedBrandId || 
-                                                          imp.id === Number(selectedBrandId) ||
-                                                          imp.brand_name === selectedBrandId
-                                                        ) 
+                                                    const selectedBrand = selectedBrandId
+                                                      ? implants.find((imp: any) =>
+                                                        imp.id === selectedBrandId ||
+                                                        imp.id === Number(selectedBrandId) ||
+                                                        imp.brand_name === selectedBrandId
+                                                      )
                                                       : null
                                                     const platforms = selectedBrand?.platforms || []
                                                     const mappedPlatforms = platforms.map((plat: any) => ({
@@ -9105,7 +9189,7 @@ export default function CaseDesignCenterPage() {
                                                     // 1. Platform field was clicked AND brand is selected (highest priority), OR
                                                     // 2. Brand is selected, platform not selected yet, and brand field was NOT clicked (auto-show after brand selection)
                                                     const shouldShowPlatformCards = (clickedFieldType === 'platform' && selectedBrandId) ||
-                                                                                   (clickedFieldType !== 'brand' && (clickedFieldType === null || clickedFieldType === undefined) && selectedBrandId && selectedPlatformId === null)
+                                                      (clickedFieldType !== 'brand' && (clickedFieldType === null || clickedFieldType === undefined) && selectedBrandId && selectedPlatformId === null)
 
                                                     // Show brand cards if platform cards should not be shown
                                                     const shouldShowBrandCards = !shouldShowPlatformCards
@@ -9165,6 +9249,16 @@ export default function CaseDesignCenterPage() {
                                                                 maxillary: implant.id
                                                               }
                                                             }))
+                                                                  // Update saved product
+                                                                  setSavedProducts(prev => prev.map(sp => {
+                                                                    if (sp.id === savedProduct.id) {
+                                                                      return {
+                                                                        ...sp,
+                                                                        maxillaryImplantBrand: implant.id
+                                                                      }
+                                                                    }
+                                                                    return sp
+                                                                  }))
                                                             // If brand has platforms, reset platform selection to show platform cards
                                                             if (implant.platforms && implant.platforms.length > 0) {
                                                               setSelectedImplantPlatformPerProduct(prev => ({
@@ -9205,966 +9299,459 @@ export default function CaseDesignCenterPage() {
                                             </div>
                                           )}
 
-                                          {/* Field 4: Grade (Removables/Ortho only, visible after Implant) */}
-                                          {isRemovableOrOrtho && isFieldVisible("grade", savedProduct.id, savedProduct, productDetails, archType) && (
-                                            <div
-                                              className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                              style={{
-                                                display: 'flex',
-                                                flexDirection: 'row',
-                                                alignItems: 'flex-start',
-                                                padding: '0px',
-                                                gap: '12px',
-                                                flex: 'none',
-                                                order: 3,
-                                                alignSelf: 'stretch',
-                                                flexGrow: 0
-                                              }}
-                                            >
-                                              <div className="relative flex-1 min-w-[200px] max-w-[48%]" style={{ minHeight: '38px' }}>
-                                                <div
-                                                  className="flex items-center"
-                                                  style={{
-                                                    padding: '8px 12px 4px 12px',
-                                                    gap: '5px',
-                                                    width: '100%',
-                                                    height: '32px',
-                                                    position: 'relative',
-                                                    marginTop: '5.27px',
-                                                    background: '#FFFFFF',
-                                                    border: '0.740384px solid #7F7F7F',
-                                                    borderRadius: '7.7px',
-                                                    boxSizing: 'border-box'
-                                                  }}
-                                                >
-                                                  <span style={{
-                                                    fontFamily: 'Verdana',
-                                                    fontStyle: 'normal',
-                                                    fontWeight: 400,
-                                                    fontSize: '13px',
-                                                    lineHeight: '20px',
-                                                    letterSpacing: '-0.02em',
-                                                    color: '#000000',
-                                                    whiteSpace: 'nowrap'
-                                                  }}>{savedProduct.maxillaryMaterial || 'Select'}</span>
-                                                </div>
-                                                <label
-                                                  className="absolute bg-white"
-                                                  style={{
-                                                    padding: '0px',
-                                                    height: '14px',
-                                                    left: '8.9px',
-                                                    top: '0px',
-                                                    fontFamily: 'Arial',
-                                                    fontStyle: 'normal',
-                                                    fontWeight: 400,
-                                                    fontSize: '14px',
-                                                    lineHeight: '14px',
-                                                    color: '#7F7F7F'
-                                                  }}
-                                                >
-                                                  Grade
-                                                </label>
-                                              </div>
-                                            </div>
-                                          )}
+                                              {/* Advance Fields - Shown after tooth shade is selected */}
+                                              {productDetails &&
+                                                productDetails.advance_fields &&
+                                                Array.isArray(productDetails.advance_fields) &&
+                                                productDetails.advance_fields.length > 0 &&
+                                                savedProduct.maxillaryToothShade && (() => {
+                                                  // Filter out stump shade from advanced fields - use existing stump shade field instead
+                                                  const stumpShadeField = getAdvanceFieldByName("stump_shade", productDetails.advance_fields)
 
-                                          {/* Field 5: Stump Shade (Fixed Restoration only, advance field, visible after Implant) */}
-                                          {isFixedRestoration && isFieldVisible("stump_shade", savedProduct.id, savedProduct, productDetails, archType) && (() => {
-                                            const advanceFields = productDetails?.advance_fields || productAdvanceFields[savedProduct.id] || []
-                                            const stumpShadeField = getAdvanceFieldByName("stump_shade", advanceFields)
-                                            if (stumpShadeField) {
+                                                  // Check if any tooth has "Implant" retention type for maxillary
+                                                  const hasImplantRetention = savedProduct.maxillaryRetention && savedProduct.maxillaryRetention.toLowerCase().includes('implant')
+
+                                                  const filteredAdvanceFields = productDetails.advance_fields.filter((field: any) => {
+                                                    const fieldNameLower = (field.name || "").toLowerCase()
+                                                    // Filter out stump shade fields
+                                                    if (stumpShadeField && fieldNameLower.includes("stump") && fieldNameLower.includes("shade")) {
+                                                      return false
+                                                    }
+                                                    // Filter out implant_library fields if no tooth has "Implant" retention type
+                                                    if (field.field_type === "implant_library" && !hasImplantRetention) {
+                                                      return false
+                                                    }
+                                                    return true
+                                                  })
+
+                                                  // If no fields remain after filtering, don't render the section
+                                                  if (filteredAdvanceFields.length === 0) {
+                                                    return null
+                                                  }
+
+                                                  const advanceFields = productDetails.advance_fields || productAdvanceFields[savedProduct.id] || []
+
                                               return (
                                                 <div
-                                                  className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                                      className="flex flex-col gap-5"
                                                   style={{
                                                     display: 'flex',
-                                                    flexDirection: 'row',
+                                                        flexDirection: 'column',
                                                     alignItems: 'flex-start',
                                                     padding: '0px',
-                                                    gap: '12px',
                                                     flex: 'none',
-                                                    order: 4,
                                                     alignSelf: 'stretch',
-                                                    flexGrow: 0
-                                                  }}
-                                                >
-                                                  {renderSavedAdvanceField(stumpShadeField, savedProduct, archType)}
-                                                </div>
-                                              )
-                                            }
-
-                                            return (
-                                              <div
-                                                className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                                style={{
-                                                  display: 'flex',
-                                                  flexDirection: 'row',
-                                                  alignItems: 'flex-start',
-                                                  padding: '0px',
-                                                  gap: '12px',
-                                                  flex: 'none',
-                                                  order: 4,
-                                                  alignSelf: 'stretch',
-                                                  flexGrow: 0
-                                                }}
-                                              >
-                                                <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
-                                                  <div
-                                                    className="flex items-center justify-between"
-                                                    style={{
-                                                      padding: '8px 12px 4px 12px',
-                                                      gap: '5px',
-                                                      width: '100%',
-                                                      height: '32px',
-                                                      background: '#FFFFFF',
-                                                      border: '0.740384px solid #7F7F7F',
-                                                      borderRadius: '7.7px',
-                                                      boxSizing: 'border-box',
-                                                      position: 'relative',
-                                                      marginTop: '5.27px'
-                                                    }}
-                                                  >
-                                                    <span style={{
-                                                      fontFamily: 'Verdana',
-                                                      fontStyle: 'normal',
-                                                      fontWeight: 400,
-                                                      fontSize: '13px',
-                                                      lineHeight: '20px',
-                                                      letterSpacing: '-0.02em',
-                                                      color: '#000000'
-                                                    }}>{getShadeDisplayText(
-                                                      savedProduct.maxillaryStumpShade,
-                                                      savedProduct.maxillaryGumShadeId,
-                                                      savedProduct.maxillaryGumShadeBrand,
-                                                      "stump_shade",
-                                                      productDetails
-                                                    )}</span>
-                                                    {savedProduct.maxillaryStumpShade && (
-                                                      <div
-                                                        className="flex items-center justify-center"
-                                                        style={{
-                                                          width: '37.51px',
-                                                          height: '41.97px',
-                                                          background: 'linear-gradient(0deg, #DED2C7 0.05%, #E3D4C4 7.04%, #EDD9C1 25.04%, #F0DBC0 50.02%, #F0DCC2 76.01%, #F1E0CA 90%, #F3E7D7 100%)',
-                                                          borderRadius: '8px',
-                                                          position: 'absolute',
-                                                          right: '0px',
-                                                          top: '-1px'
-                                                        }}
-                                                      >
-                                                        <span style={{
-                                                          fontFamily: 'Verdana',
-                                                          fontStyle: 'normal',
-                                                          fontWeight: 400,
-                                                          fontSize: '12.8603px',
-                                                          lineHeight: '18px',
-                                                          letterSpacing: '-0.02em',
-                                                          color: '#000000'
-                                                        }}>{savedProduct.maxillaryStumpShade}</span>
-                                                      </div>
-                                                    )}
-                                                  </div>
-                                                  <label
-                                                    className="absolute bg-white"
-                                                    style={{
-                                                      padding: '0px',
-                                                      height: '14px',
-                                                      left: '8.9px',
-                                                      top: '0px',
-                                                      fontFamily: 'Arial',
-                                                      fontStyle: 'normal',
-                                                      fontWeight: 400,
-                                                      fontSize: '14px',
-                                                      lineHeight: '14px',
-                                                      color: '#7F7F7F'
-                                                    }}
-                                                  >
-                                                    Stump Shade
-                                                  </label>
-                                                </div>
-                                              </div>
-                                            )
-                                          })()}
-
-                                          {/* Field 6: Crown Third Shade (Fixed Restoration only, advance field, visible after Stump Shade) */}
-                                          {isFixedRestoration && isFieldVisible("crown_third_shade", savedProduct.id, savedProduct, productDetails, archType) && (
-                                            <div
-                                              className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                              style={{
-                                                display: 'flex',
-                                                flexDirection: 'row',
-                                                alignItems: 'flex-start',
-                                                padding: '0px',
-                                                gap: '12px',
-                                                flex: 'none',
-                                                order: 5,
-                                                alignSelf: 'stretch',
-                                                flexGrow: 0
-                                              }}
-                                            >
-                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
-                                                <div
-                                                  className="flex items-center"
-                                                  style={{
-                                                    padding: '8px 12px 4px 12px',
-                                                    gap: '5px',
-                                                    width: '100%',
-                                                    height: '32px',
-                                                    background: '#FFFFFF',
-                                                    border: '0.740384px solid #7F7F7F',
-                                                    borderRadius: '7.7px',
-                                                    boxSizing: 'border-box',
-                                                    position: 'relative',
-                                                    marginTop: '5.27px'
-                                                  }}
-                                                >
-                                                  <span style={{
-                                                    fontFamily: 'Verdana',
-                                                    fontStyle: 'normal',
-                                                    fontWeight: 400,
-                                                    fontSize: '13px',
-                                                    lineHeight: '20px',
-                                                    letterSpacing: '-0.02em',
-                                                    color: '#000000'
-                                                  }}>Not specified</span>
-                                                </div>
-                                                <label
-                                                  className="absolute bg-white"
-                                                  style={{
-                                                    padding: '0px',
-                                                    height: '14px',
-                                                    left: '8.9px',
-                                                    top: '0px',
-                                                    fontFamily: 'Arial',
-                                                    fontStyle: 'normal',
-                                                    fontWeight: 400,
-                                                    fontSize: '14px',
-                                                    lineHeight: '14px',
-                                                    color: '#7F7F7F'
-                                                  }}
-                                                >
-                                                  Crown Third Shade
-                                                </label>
-                                              </div>
-                                            </div>
-                                          )}
-
-                                          {/* Field 7: Tooth Shade (Fixed Restoration) or Teeth Shade (Removables/Ortho) */}
-                                          {isFieldVisible(isFixedRestoration ? "tooth_shade" : "teeth_shade", savedProduct.id, savedProduct, productDetails, archType) && (
-                                            <div
-                                              className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                              style={{
-                                                display: 'flex',
-                                                flexDirection: 'row',
-                                                alignItems: 'flex-start',
-                                                padding: '0px',
-                                                gap: '12px',
-                                                flex: 'none',
-                                                order: 6,
-                                                alignSelf: 'stretch',
-                                                flexGrow: 0
-                                              }}
-                                            >
-                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
-                                                <div
-                                                  className="flex items-center justify-between"
-                                                  style={{
-                                                    padding: '8px 12px 4px 12px',
-                                                    gap: '5px',
-                                                    width: '100%',
-                                                    height: '32px',
-                                                    background: '#FFFFFF',
-                                                    border: '0.740384px solid #7F7F7F',
-                                                    borderRadius: '7.7px',
-                                                    boxSizing: 'border-box',
-                                                    position: 'relative',
-                                                    marginTop: '5.27px'
-                                                  }}
-                                                >
-                                                  <span style={{
-                                                    fontFamily: 'Verdana',
-                                                    fontStyle: 'normal',
-                                                    fontWeight: 400,
-                                                    fontSize: '13px',
-                                                    lineHeight: '20px',
-                                                    letterSpacing: '-0.02em',
-                                                    color: '#000000'
-                                                  }}>{getShadeDisplayText(
-                                                    savedProduct.maxillaryToothShade,
-                                                    savedProduct.maxillaryShadeId,
-                                                    savedProduct.maxillaryShadeBrand,
-                                                    "tooth_shade",
-                                                    productDetails
-                                                  )}</span>
-                                                </div>
-                                                <label
-                                                  className="absolute bg-white"
-                                                  style={{
-                                                    padding: '0px',
-                                                    height: '14px',
-                                                    left: '8.9px',
-                                                    top: '0px',
-                                                    fontFamily: 'Arial',
-                                                    fontStyle: 'normal',
-                                                    fontWeight: 400,
-                                                    fontSize: '14px',
-                                                    lineHeight: '14px',
-                                                    color: '#7F7F7F'
-                                                  }}
-                                                >
-                                                  {isFixedRestoration ? "Tooth Shade" : "Teeth Shade"}
-                                                </label>
-                                              </div>
-                                            </div>
-                                          )}
-
-                                          {/* Field 8: Gum Shade (Removables/Ortho only, visible after Teeth Shade) */}
-                                          {isRemovableOrOrtho && isFieldVisible("gum_shade", savedProduct.id, savedProduct, productDetails, archType) && (
-                                            <div
-                                              className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                              style={{
-                                                display: 'flex',
-                                                flexDirection: 'row',
-                                                alignItems: 'flex-start',
-                                                padding: '0px',
-                                                gap: '12px',
-                                                flex: 'none',
-                                                order: 7,
-                                                alignSelf: 'stretch',
-                                                flexGrow: 0
-                                              }}
-                                            >
-                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
-                                                <div
-                                                  className="flex items-center"
-                                                  style={{
-                                                    padding: '8px 12px 4px 12px',
-                                                    gap: '5px',
-                                                    width: '100%',
-                                                    height: '32px',
-                                                    background: '#FFFFFF',
-                                                    border: '0.740384px solid #7F7F7F',
-                                                    borderRadius: '7.7px',
-                                                    boxSizing: 'border-box',
-                                                    position: 'relative',
-                                                    marginTop: '5.27px'
-                                                  }}
-                                                >
-                                                  <span style={{
-                                                    fontFamily: 'Verdana',
-                                                    fontStyle: 'normal',
-                                                    fontWeight: 400,
-                                                    fontSize: '13px',
-                                                    lineHeight: '20px',
-                                                    letterSpacing: '-0.02em',
-                                                    color: '#000000'
-                                                  }}>Not specified</span>
-                                                </div>
-                                                <label
-                                                  className="absolute bg-white"
-                                                  style={{
-                                                    padding: '0px',
-                                                    height: '14px',
-                                                    left: '8.9px',
-                                                    top: '0px',
-                                                    fontFamily: 'Arial',
-                                                    fontStyle: 'normal',
-                                                    fontWeight: 400,
-                                                    fontSize: '14px',
-                                                    lineHeight: '14px',
-                                                    color: '#7F7F7F'
-                                                  }}
-                                                >
-                                                  Gum Shade
-                                                </label>
-                                              </div>
-                                            </div>
-                                          )}
-
-                                          {/* Field 9: Stage (visible after previous field) */}
-                                          {isFieldVisible("stage", savedProduct.id, savedProduct, productDetails, archType) && (
-                                            <div
-                                              className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                              style={{
-                                                display: 'flex',
-                                                flexDirection: 'row',
-                                                alignItems: 'flex-start',
-                                                padding: '0px',
-                                                gap: '12px',
-                                                flex: 'none',
-                                                order: 8,
-                                                alignSelf: 'stretch',
-                                                flexGrow: 0
-                                              }}
-                                            >
-                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
-                                                <div
-                                                  className="flex items-center"
-                                                  style={{
-                                                    padding: '8px 12px 4px 12px',
-                                                    gap: '5px',
-                                                    width: '100%',
-                                                    height: '32px',
-                                                    position: 'relative',
-                                                    marginTop: '5.27px',
-                                                    background: '#FFFFFF',
-                                                    border: '0.740384px solid #7F7F7F',
-                                                    borderRadius: '7.7px',
-                                                    boxSizing: 'border-box'
-                                                  }}
-                                                >
-                                                  <span style={{
-                                                    fontFamily: 'Verdana',
-                                                    fontStyle: 'normal',
-                                                    fontWeight: 400,
-                                                    fontSize: '13px',
-                                                    lineHeight: '20px',
-                                                    letterSpacing: '-0.02em',
-                                                    color: '#000000'
-                                                  }}>{savedProduct.maxillaryStage || 'Finish'}</span>
-                                                </div>
-                                                <label
-                                                  className="absolute bg-white"
-                                                  style={{
-                                                    padding: '0px',
-                                                    height: '14px',
-                                                    left: '8.9px',
-                                                    top: '0px',
-                                                    fontFamily: 'Arial',
-                                                    fontStyle: 'normal',
-                                                    fontWeight: 400,
-                                                    fontSize: '14px',
-                                                    lineHeight: '14px',
-                                                    color: '#7F7F7F'
-                                                  }}
-                                                >
-                                                  Stage
-                                                </label>
-                                              </div>
-                                            </div>
-                                          )}
-
-                                          {/* Field 10: Pontic Design (Fixed Restoration only, advance field, visible after Stage) */}
-                                          {isFixedRestoration && isFieldVisible("pontic_design", savedProduct.id, savedProduct, productDetails, archType) && (
-                                            <div
-                                              className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                              style={{
-                                                display: 'flex',
-                                                flexDirection: 'row',
-                                                alignItems: 'flex-start',
-                                                padding: '0px',
-                                                gap: '12px',
-                                                flex: 'none',
-                                                order: 9,
-                                                alignSelf: 'stretch',
-                                                flexGrow: 0
-                                              }}
-                                            >
-                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
-                                                <div
-                                                  className="flex items-center"
-                                                  style={{
-                                                    padding: '8px 12px 4px 12px',
-                                                    gap: '5px',
-                                                    width: '100%',
-                                                    height: '32px',
-                                                    background: '#FFFFFF',
-                                                    border: '0.740384px solid #7F7F7F',
-                                                    borderRadius: '7.7px',
-                                                    boxSizing: 'border-box',
-                                                    position: 'relative',
-                                                    marginTop: '5.27px'
-                                                  }}
-                                                >
-                                                  <span style={{
-                                                    fontFamily: 'Verdana',
-                                                    fontStyle: 'normal',
-                                                    fontWeight: 400,
-                                                    fontSize: '13px',
-                                                    lineHeight: '20px',
-                                                    letterSpacing: '-0.02em',
-                                                    color: '#000000'
-                                                  }}>{savedProduct.maxillaryPonticDesign || 'Not specified'}</span>
-                                                </div>
-                                                <label
-                                                  className="absolute bg-white"
-                                                  style={{
-                                                    padding: '0px',
-                                                    height: '14px',
-                                                    left: '8.9px',
-                                                    top: '0px',
-                                                    fontFamily: 'Arial',
-                                                    fontStyle: 'normal',
-                                                    fontWeight: 400,
-                                                    fontSize: '14px',
-                                                    lineHeight: '14px',
-                                                    color: '#7F7F7F'
-                                                  }}
-                                                >
-                                                  Pontic Design
-                                                </label>
-                                              </div>
-                                            </div>
-                                          )}
-
-                                          {/* Field 11: Embrasures (Fixed Restoration only, advance field, visible after Pontic Design) */}
-                                          {isFixedRestoration && isFieldVisible("embrasures", savedProduct.id, savedProduct, productDetails, archType) && (
-                                            <div
-                                              className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                              style={{
-                                                display: 'flex',
-                                                flexDirection: 'row',
-                                                alignItems: 'flex-start',
-                                                padding: '0px',
-                                                gap: '12px',
-                                                flex: 'none',
-                                                order: 10,
-                                                alignSelf: 'stretch',
-                                                flexGrow: 0
-                                              }}
-                                            >
-                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
-                                                <div
-                                                  className="flex items-center"
-                                                  style={{
-                                                    padding: '8px 12px 4px 12px',
-                                                    gap: '5px',
-                                                    width: '100%',
-                                                    height: '32px',
-                                                    background: '#FFFFFF',
-                                                    border: '0.740384px solid #7F7F7F',
-                                                    borderRadius: '7.7px',
-                                                    boxSizing: 'border-box',
-                                                    position: 'relative',
-                                                    marginTop: '5.27px'
-                                                  }}
-                                                >
-                                                  <span style={{
-                                                    fontFamily: 'Verdana',
-                                                    fontStyle: 'normal',
-                                                    fontWeight: 400,
-                                                    fontSize: '13px',
-                                                    lineHeight: '20px',
-                                                    letterSpacing: '-0.02em',
-                                                    color: '#000000'
-                                                  }}>{savedProduct.maxillaryEmbrasure || 'Not specified'}</span>
-                                                </div>
-                                                <label
-                                                  className="absolute bg-white"
-                                                  style={{
-                                                    padding: '0px',
-                                                    height: '14px',
-                                                    left: '8.9px',
-                                                    top: '0px',
-                                                    fontFamily: 'Arial',
-                                                    fontStyle: 'normal',
-                                                    fontWeight: 400,
-                                                    fontSize: '14px',
-                                                    lineHeight: '14px',
-                                                    color: '#7F7F7F'
-                                                  }}
-                                                >
-                                                  Embrasures
-                                                </label>
-                                              </div>
-                                            </div>
-                                          )}
-
-                                          {/* Field 12: Occlusal Contact (Fixed Restoration only, advance field, visible after Embrasures) */}
-                                          {isFixedRestoration && isFieldVisible("occlusal_contact", savedProduct.id, savedProduct, productDetails, archType) && (
-                                            <div
-                                              className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                              style={{
-                                                display: 'flex',
-                                                flexDirection: 'row',
-                                                alignItems: 'flex-start',
-                                                padding: '0px',
-                                                gap: '12px',
-                                                flex: 'none',
-                                                order: 11,
-                                                alignSelf: 'stretch',
-                                                flexGrow: 0
-                                              }}
-                                            >
-                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
-                                                <div
-                                                  className="flex items-center"
-                                                  style={{
-                                                    padding: '8px 12px 4px 12px',
-                                                    gap: '5px',
-                                                    width: '100%',
-                                                    height: '32px',
-                                                    background: '#FFFFFF',
-                                                    border: '0.740384px solid #7F7F7F',
-                                                    borderRadius: '7.7px',
-                                                    boxSizing: 'border-box',
-                                                    position: 'relative',
-                                                    marginTop: '5.27px'
-                                                  }}
-                                                >
-                                                  <span style={{
-                                                    fontFamily: 'Verdana',
-                                                    fontStyle: 'normal',
-                                                    fontWeight: 400,
-                                                    fontSize: '13px',
-                                                    lineHeight: '20px',
-                                                    letterSpacing: '-0.02em',
-                                                    color: '#000000'
-                                                  }}>{savedProduct.maxillaryOcclusalContact || 'Not specified'}</span>
-                                                </div>
-                                                <label
-                                                  className="absolute bg-white"
-                                                  style={{
-                                                    padding: '0px',
-                                                    height: '14px',
-                                                    left: '8.9px',
-                                                    top: '0px',
-                                                    fontFamily: 'Arial',
-                                                    fontStyle: 'normal',
-                                                    fontWeight: 400,
-                                                    fontSize: '14px',
-                                                    lineHeight: '14px',
-                                                    color: '#7F7F7F'
-                                                  }}
-                                                >
-                                                  Occlusal Contact
-                                                </label>
-                                              </div>
-                                            </div>
-                                          )}
-
-                                          {/* Field 13: Interproximal Contact (Fixed Restoration only, advance field, visible after Occlusal Contact) */}
-                                          {isFixedRestoration && isFieldVisible("interproximal_contact", savedProduct.id, savedProduct, productDetails, archType) && (
-                                            <div
-                                              className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                              style={{
-                                                display: 'flex',
-                                                flexDirection: 'row',
-                                                alignItems: 'flex-start',
-                                                padding: '0px',
-                                                gap: '12px',
-                                                flex: 'none',
-                                                order: 12,
-                                                alignSelf: 'stretch',
-                                                flexGrow: 0
-                                              }}
-                                            >
-                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
-                                                <div
-                                                  className="flex items-center"
-                                                  style={{
-                                                    padding: '8px 12px 4px 12px',
-                                                    gap: '5px',
-                                                    width: '100%',
-                                                    height: '32px',
-                                                    background: '#FFFFFF',
-                                                    border: '0.740384px solid #7F7F7F',
-                                                    borderRadius: '7.7px',
-                                                    boxSizing: 'border-box',
-                                                    position: 'relative',
-                                                    marginTop: '5.27px'
-                                                  }}
-                                                >
-                                                  <span style={{
-                                                    fontFamily: 'Verdana',
-                                                    fontStyle: 'normal',
-                                                    fontWeight: 400,
-                                                    fontSize: '13px',
-                                                    lineHeight: '20px',
-                                                    letterSpacing: '-0.02em',
-                                                    color: '#000000'
-                                                  }}>{savedProduct.maxillaryProximalContact || 'Not specified'}</span>
-                                                </div>
-                                                <label
-                                                  className="absolute bg-white"
-                                                  style={{
-                                                    padding: '0px',
-                                                    height: '14px',
-                                                    left: '8.9px',
-                                                    top: '0px',
-                                                    fontFamily: 'Arial',
-                                                    fontStyle: 'normal',
-                                                    fontWeight: 400,
-                                                    fontSize: '14px',
-                                                    lineHeight: '14px',
-                                                    color: '#7F7F7F'
-                                                  }}
-                                                >
-                                                  Interproximal Contact
-                                                </label>
-                                              </div>
-                                            </div>
-                                          )}
-
-                                          {/* Field 14: Gap (Fixed Restoration only, advance field, visible after Interproximal Contact) */}
-                                          {isFixedRestoration && isFieldVisible("gap", savedProduct.id, savedProduct, productDetails, archType) && (
-                                            <div
-                                              className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                              style={{
-                                                display: 'flex',
-                                                flexDirection: 'row',
-                                                alignItems: 'flex-start',
-                                                padding: '0px',
-                                                gap: '12px',
-                                                flex: 'none',
-                                                order: 13,
-                                                alignSelf: 'stretch',
-                                                flexGrow: 0
-                                              }}
-                                            >
-                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
-                                                <div
-                                                  className="flex items-center"
-                                                  style={{
-                                                    padding: '8px 12px 4px 12px',
-                                                    gap: '5px',
-                                                    width: '100%',
-                                                    height: '32px',
-                                                    background: '#FFFFFF',
-                                                    border: '0.740384px solid #7F7F7F',
-                                                    borderRadius: '7.7px',
-                                                    boxSizing: 'border-box',
-                                                    position: 'relative',
-                                                    marginTop: '5.27px'
-                                                  }}
-                                                >
-                                                  <span style={{
-                                                    fontFamily: 'Verdana',
-                                                    fontStyle: 'normal',
-                                                    fontWeight: 400,
-                                                    fontSize: '13px',
-                                                    lineHeight: '20px',
-                                                    letterSpacing: '-0.02em',
-                                                    color: '#000000'
-                                                  }}>{savedProduct.maxillaryGap || 'Not specified'}</span>
-                                                </div>
-                                                <label
-                                                  className="absolute bg-white"
-                                                  style={{
-                                                    padding: '0px',
-                                                    height: '14px',
-                                                    left: '8.9px',
-                                                    top: '0px',
-                                                    fontFamily: 'Arial',
-                                                    fontStyle: 'normal',
-                                                    fontWeight: 400,
-                                                    fontSize: '14px',
-                                                    lineHeight: '14px',
-                                                    color: '#7F7F7F'
-                                                  }}
-                                                >
-                                                  Gap
-                                                </label>
-                                              </div>
-                                            </div>
-                                          )}
-
-                                          {/* Field 15: Impressions (always visible per category) */}
-                                          {isFieldVisible("impressions", savedProduct.id, savedProduct, productDetails, archType) && (
-                                            <div
-                                              className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                              style={{
-                                                display: 'flex',
-                                                flexDirection: 'row',
-                                                alignItems: 'flex-start',
-                                                padding: '0px',
-                                                gap: '12px',
-                                                flex: 'none',
-                                                order: 13,
-                                                alignSelf: 'stretch',
-                                                flexGrow: 0
-                                              }}
-                                            >
-                                              <div className="relative flex-1 min-w-[200px] max-w-[48%]" style={{ minHeight: '38px' }}>
-                                                <div
-                                                  className="flex items-center"
-                                                  style={{
-                                                    padding: '8px 12px 4px 12px',
-                                                    gap: '5px',
-                                                    width: '100%',
-                                                    height: '32px',
-                                                    background: '#FFFFFF',
-                                                    border: '0.740384px solid #7F7F7F',
-                                                    borderRadius: '7.7px',
-                                                    boxSizing: 'border-box',
-                                                    position: 'relative',
-                                                    marginTop: '5.27px'
-                                                  }}
-                                                >
-                                                  <span style={{
-                                                    fontFamily: 'Verdana',
-                                                    fontStyle: 'normal',
-                                                    fontWeight: 400,
-                                                    fontSize: '13px',
-                                                    lineHeight: '20px',
-                                                    letterSpacing: '-0.02em',
-                                                    color: '#000000'
-                                                  }}>{savedProduct.maxillaryImpression || 'Not specified'}</span>
-                                                </div>
-                                                <label
-                                                  className="absolute bg-white"
-                                                  style={{
-                                                    padding: '0px',
-                                                    height: '14px',
-                                                    left: '8.9px',
-                                                    top: '0px',
-                                                    fontFamily: 'Arial',
-                                                    fontStyle: 'normal',
-                                                    fontWeight: 400,
-                                                    fontSize: '14px',
-                                                    lineHeight: '14px',
-                                                    color: '#7F7F7F'
-                                                  }}
-                                                >
-                                                  Impressions
-                                                </label>
-                                              </div>
-                                            </div>
-                                          )}
-
-                                          {/* Field 15: Add ons (always shown last, visible after Impressions) */}
-                                          {isFieldVisible("add_ons", savedProduct.id, savedProduct, productDetails, archType) && (
-                                            <div
-                                              className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                              style={{
-                                                display: 'flex',
-                                                flexDirection: 'row',
-                                                alignItems: 'flex-start',
-                                                padding: '0px',
-                                                gap: '12px',
-                                                flex: 'none',
-                                                order: 14,
-                                                alignSelf: 'stretch',
-                                                flexGrow: 0
-                                              }}
-                                            >
-                                              {/* Add ons button will be rendered separately below */}
-                                            </div>
-                                          )}
-
-                                          {/* Notes if available */}
-                                          {savedProduct.maxillaryImplantDetails && (
-                                            <div
-                                              className="flex flex-col sm:flex-row flex-wrap gap-5"
-                                              style={{
-                                                display: 'flex',
-                                                flexDirection: 'row',
-                                                alignItems: 'flex-start',
-                                                padding: '0px',
-                                                gap: '12px',
-                                                flex: 'none',
-                                                order: 1,
-                                                alignSelf: 'stretch',
-                                                flexGrow: 0
-                                              }}
-                                            >
-                                              {/* Stump Shade */}
-                                              {(() => {
-                                                // Check if stump_shade exists as an advance field
-                                                const productDetails = savedProduct.productDetails
-                                                const advanceFields = productDetails?.advance_fields || productAdvanceFields[savedProduct.id] || []
-                                                const stumpShadeField = getAdvanceFieldByName("stump_shade", advanceFields)
-
-                                                // If stump_shade exists as an advance field, render it using advance field logic
-                                                if (stumpShadeField) {
-                                                  return renderSavedAdvanceField(stumpShadeField, savedProduct, "maxillary")
-                                                }
-
-                                                // Otherwise, render the hardcoded stump shade (backward compatibility)
-                                                return (
-                                                  <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
-                                                    <div
-                                                      className="flex items-center justify-between"
-                                                      style={{
-                                                        padding: '8px 12px 4px 12px',
-                                                        gap: '5px',
-                                                        width: '100%',
-                                                        height: '32px',
-                                                        background: '#FFFFFF',
-                                                        border: '0.740384px solid #7F7F7F',
-                                                        borderRadius: '7.7px',
-                                                        boxSizing: 'border-box',
-                                                        position: 'relative',
-                                                        marginTop: '5.27px'
+                                                        flexGrow: 0,
+                                                        marginTop: '2px'
                                                       }}
                                                     >
-                                                      <span style={{
-                                                        fontFamily: 'Verdana',
-                                                        fontStyle: 'normal',
-                                                        fontWeight: 400,
-                                                        fontSize: '13px',
-                                                        lineHeight: '20px',
-                                                        letterSpacing: '-0.02em',
-                                                        color: '#000000'
-                                                      }}>{getShadeDisplayText(
-                                                        savedProduct.maxillaryStumpShade,
-                                                        savedProduct.maxillaryGumShadeId,
-                                                        savedProduct.maxillaryGumShadeBrand,
-                                                        "stump_shade",
-                                                        productDetails
-                                                      )}</span>
-                                                      {savedProduct.maxillaryStumpShade && (
-                                                        <div
-                                                          className="flex items-center justify-center"
-                                                          style={{
-                                                            width: '37.51px',
-                                                            height: '41.97px',
-                                                            background: 'linear-gradient(0deg, #DED2C7 0.05%, #E3D4C4 7.04%, #EDD9C1 25.04%, #F0DBC0 50.02%, #F0DCC2 76.01%, #F1E0CA 90%, #F3E7D7 100%)',
-                                                            borderRadius: '8px',
-                                                            position: 'absolute',
-                                                            right: '0px',
-                                                            top: '-1px'
-                                                          }}
-                                                        >
-                                                          <span style={{
-                                                            fontFamily: 'Verdana',
-                                                            fontStyle: 'normal',
-                                                            fontWeight: 400,
-                                                            fontSize: '12.8603px',
-                                                            lineHeight: '18px',
-                                                            letterSpacing: '-0.02em',
-                                                            color: '#000000'
-                                                          }}>{savedProduct.maxillaryStumpShade}</span>
-                                                        </div>
-                                                      )}
+                                                      <div className="w-full">
+                                                        <div className="flex flex-wrap gap-4" style={{ gap: '16px' }}>
+                                                          {filteredAdvanceFields.map((field: any) => {
+                                                            const fieldKey = `advance_${field.id}`
+                                                            // Get value from saved product's advanceFields
+                                                            const savedAdvanceField = savedProduct.advanceFields?.find((af: any) => af.advance_field_id === field.id)
+                                                            const currentValue = savedAdvanceField || advanceFieldValues[fieldKey] || ""
+
+                                                            // Handle implant_library fields specially - render ImplantDetailForm
+                                                            if (field.field_type === "implant_library") {
+                                                              // Get saved implant details from savedProduct
+                                                              // Check multiple sources for brand ID
+                                                              let savedBrandId: number | string | null = savedProduct.maxillaryImplantBrand || 
+                                                                selectedImplantBrandPerProduct[savedProduct.id]?.maxillary ||
+                                                                selectedImplantBrand[fieldKey] ||
+                                                                null
+                                                              
+                                                              // If we have maxillaryImplantDetails but no brand ID, try to extract brand name from it
+                                                              if (!savedBrandId && savedProduct.maxillaryImplantDetails) {
+                                                                const parts = savedProduct.maxillaryImplantDetails.split(' - ')
+                                                                if (parts.length > 0) {
+                                                                  const brandName = parts[0].trim()
+                                                                  // Try to find brand by name
+                                                                  const foundBrand = implants.find((imp: any) => 
+                                                                    imp.brand_name === brandName ||
+                                                                    imp.brand_name?.toLowerCase() === brandName.toLowerCase()
+                                                                  )
+                                                                  if (foundBrand) {
+                                                                    savedBrandId = foundBrand.id
+                                                                  }
+                                                                }
+                                                              }
+                                                              
+                                                              // Find the brand from implants array - try multiple ways
+                                                              let selectedBrand = null
+                                                              if (savedBrandId) {
+                                                                // Try by ID first (most reliable)
+                                                                selectedBrand = implants.find((imp: any) => 
+                                                                  imp.id === savedBrandId || 
+                                                                  imp.id === Number(savedBrandId) ||
+                                                                    String(imp.id) === String(savedBrandId)
+                                                                )
+                                                                
+                                                                // If not found by ID, try by brand name
+                                                                if (!selectedBrand && typeof savedBrandId === 'string') {
+                                                                  selectedBrand = implants.find((imp: any) => 
+                                                                    imp.brand_name === savedBrandId ||
+                                                                    imp.brand_name?.toLowerCase() === savedBrandId.toLowerCase()
+                                                                  )
+                                                                }
+                                                              }
+                                                              
+                                                              // If still not found but we have maxillaryImplantDetails, try to extract brand name
+                                                              if (!selectedBrand && savedProduct.maxillaryImplantDetails) {
+                                                                const parts = savedProduct.maxillaryImplantDetails.split(' - ')
+                                                                if (parts.length > 0) {
+                                                                  const brandName = parts[0].trim()
+                                                                  selectedBrand = implants.find((imp: any) => 
+                                                                    imp.brand_name === brandName ||
+                                                                    imp.brand_name?.toLowerCase() === brandName.toLowerCase()
+                                                                  )
+                                                                  // If found, update savedBrandId for future lookups
+                                                                  if (selectedBrand) {
+                                                                    savedBrandId = selectedBrand.id
+                                                                  }
+                                                                }
+                                                              }
+                                                              
+                                                              // Check multiple sources for platform ID
+                                                              // First try to get platform ID from state, then from saved product
+                                                              let savedPlatformId: number | string | null = selectedImplantPlatformPerProduct[savedProduct.id]?.maxillary ||
+                                                                selectedImplantPlatform[fieldKey] ||
+                                                                null
+                                                              
+                                                              // If not found in state, try to find it from savedProduct.maxillaryImplantPlatform
+                                                              if (!savedPlatformId && savedProduct.maxillaryImplantPlatform && selectedBrand) {
+                                                                // Try to find platform by name or ID
+                                                                const platformByName = selectedBrand.platforms?.find((p: any) => 
+                                                                  p.name === savedProduct.maxillaryImplantPlatform
+                                                                )
+                                                                if (platformByName) {
+                                                                  savedPlatformId = platformByName.id
+                                                                } else if (typeof savedProduct.maxillaryImplantPlatform === 'number') {
+                                                                  savedPlatformId = savedProduct.maxillaryImplantPlatform
+                                                                }
+                                                              }
+                                                              
+                                                              const selectedPlatform = selectedBrand && savedPlatformId
+                                                                ? selectedBrand.platforms?.find((p: any) => 
+                                                                    (p.id || 0) === savedPlatformId ||
+                                                                    p.id === Number(savedPlatformId) ||
+                                                                    String(p.id) === String(savedPlatformId) ||
+                                                                    p.name === savedPlatformId ||
+                                                                    p.name === String(savedPlatformId)
+                                                                  )
+                                                                : null
+
+                                                              // Extract size from multiple sources
+                                                              // 1. Check maxillaryImplantSize directly
+                                                              // 2. Extract from maxillaryImplantDetails string
+                                                              // 3. Check selectedImplantSize state
+                                                              let savedSize: string | null = savedProduct.maxillaryImplantSize || null
+                                                              if (!savedSize && savedProduct.maxillaryImplantDetails) {
+                                                                const parts = savedProduct.maxillaryImplantDetails.split(' - ')
+                                                                if (parts.length >= 3) {
+                                                                  savedSize = parts[2].trim()
+                                                                } else if (parts.length === 2) {
+                                                                  // Sometimes it might be "Brand - Size" format
+                                                                  savedSize = parts[1].trim()
+                                                                }
+                                                              }
+                                                              // Also check if size is stored in selectedImplantSize state
+                                                              const sizeFromState = selectedImplantSize[fieldKey]
+                                                              const selectedSize = sizeFromState || savedSize || null
+
+                                                              // Get saved inclusions, abutment detail, and abutment type
+                                                              const savedInclusions = savedProduct.maxillaryImplantInclusions || ""
+                                                              const savedAbutmentDetail = savedProduct.maxillaryAbutmentDetail || ""
+                                                              const savedAbutmentType = savedProduct.maxillaryAbutmentType || ""
+
+                                                              // Always show the form if we have a selectedBrand (ImplantDetailForm requires selectedBrand)
+                                                              // The form will display saved values via initialInclusions, initialAbutmentDetail, etc.
+                                                              const shouldShowForm = selectedBrand !== null
+                                                              
+                                                              // Debug: Log if we have saved data but no brand found
+                                                              if ((savedBrandId || savedInclusions || savedAbutmentDetail || savedAbutmentType || selectedSize || savedProduct.maxillaryImplantDetails) && !selectedBrand) {
+                                                                console.log("🔍 Implant details found but brand not found:", {
+                                                                  savedBrandId,
+                                                                  savedInclusions,
+                                                                  savedAbutmentDetail,
+                                                                  savedAbutmentType,
+                                                                  selectedSize,
+                                                                  maxillaryImplantDetails: savedProduct.maxillaryImplantDetails,
+                                                                  maxillaryImplantBrand: savedProduct.maxillaryImplantBrand,
+                                                                  maxillaryImplantPlatform: savedProduct.maxillaryImplantPlatform,
+                                                                  implantsCount: implants.length,
+                                                                  fieldKey,
+                                                                  productId: savedProduct.id
+                                                                })
+                                                              }
+
+                                                              return (
+                                                                <div
+                                                                  key={field.id}
+                                                                  className="relative w-full"
+                                                                  style={{
+                                                                    minHeight: '38px',
+                                                                    width: '100%',
+                                                                    marginTop: '10px'
+                                                                  }}
+                                                                >
+                                                                  {/* Show ImplantDetailForm if we have a brand (required for form) */}
+                                                                  {/* Always show the form when we have saved data and a brand is found */}
+                                                                  {shouldShowForm && selectedBrand && (
+                                                                    <div data-implant-field-key={fieldKey} style={{ width: '100%', marginTop: '0px' }}>
+                                                                      <ImplantDetailForm
+                                                                        fieldKey={fieldKey}
+                                                                        fieldId={field.id}
+                                                                        selectedBrand={selectedBrand}
+                                                                        selectedPlatform={selectedPlatform || null}
+                                                                        selectedSize={selectedSize}
+                                                                        onSizeChange={(size: string) => {
+                                                                          setSelectedImplantSize(prev => ({ ...prev, [fieldKey]: size }))
+                                                                          // Update saved product
+                                                                          setSavedProducts(prev => prev.map(sp => {
+                                                                            if (sp.id === savedProduct.id) {
+                                                                              return { ...sp, maxillaryImplantDetails: `${selectedBrand.brand_name} - ${selectedPlatform?.name || ''} - ${size}` }
+                                                                            }
+                                                                            return sp
+                                                                          }))
+                                                                        }}
+                                                                        onInclusionsChange={(inclusions) => {
+                                                                          setSavedProducts(prev => prev.map(sp => {
+                                                                            if (sp.id === savedProduct.id) {
+                                                                              return { ...sp, maxillaryImplantInclusions: inclusions }
+                                                                            }
+                                                                            return sp
+                                                                          }))
+                                                                        }}
+                                                                        onAbutmentDetailChange={(detail) => {
+                                                                          setSavedProducts(prev => prev.map(sp => {
+                                                                            if (sp.id === savedProduct.id) {
+                                                                              return { ...sp, maxillaryAbutmentDetail: detail }
+                                                                            }
+                                                                            return sp
+                                                                          }))
+                                                                        }}
+                                                                        onAbutmentTypeChange={(type) => {
+                                                                          setSavedProducts(prev => prev.map(sp => {
+                                                                            if (sp.id === savedProduct.id) {
+                                                                              return { ...sp, maxillaryAbutmentType: type }
+                                                                            }
+                                                                            return sp
+                                                                          }))
+                                                                        }}
+                                                                        onPlatformChange={(platform) => {
+                                                                          setSelectedImplantPlatformPerProduct(prev => ({
+                                                                            ...prev,
+                                                                            [savedProduct.id]: {
+                                                                              ...prev[savedProduct.id],
+                                                                              maxillary: platform.id
+                                                                            }
+                                                                          }))
+                                                                          // Update saved product
+                                                                          setSavedProducts(prev => prev.map(sp => {
+                                                                            if (sp.id === savedProduct.id) {
+                                                                              return { ...sp, maxillaryImplantBrand: selectedBrand.id }
+                                                                            }
+                                                                            return sp
+                                                                          }))
+                                                                        }}
+                                                                        onBrandFieldClick={() => {
+                                                                          setShowImplantCardsForProduct(prev => ({
+                                                                            ...prev,
+                                                                            [savedProduct.id]: {
+                                                                              ...prev[savedProduct.id],
+                                                                              maxillary: true
+                                                                            }
+                                                                          }))
+                                                                          setClickedFieldTypeInAccordion(prev => ({
+                                                                            ...prev,
+                                                                            [savedProduct.id]: {
+                                                                              ...prev[savedProduct.id],
+                                                                              maxillary: 'brand'
+                                                                            }
+                                                                          }))
+                                                                        }}
+                                                                        onPlatformFieldClick={() => {
+                                                                          setShowImplantCardsForProduct(prev => ({
+                                                                            ...prev,
+                                                                            [savedProduct.id]: {
+                                                                              ...prev[savedProduct.id],
+                                                                              maxillary: true
+                                                                            }
+                                                                          }))
+                                                                          setClickedFieldTypeInAccordion(prev => ({
+                                                                            ...prev,
+                                                                            [savedProduct.id]: {
+                                                                              ...prev[savedProduct.id],
+                                                                              maxillary: 'platform'
+                                                                            }
+                                                                          }))
+                                                                        }}
+                                                                        teethNumbers={savedProduct.maxillaryTeeth || []}
+                                                                        arch={archType}
+                                                                        initialInclusions={savedInclusions}
+                                                                        initialAbutmentDetail={savedAbutmentDetail}
+                                                                        initialAbutmentType={savedAbutmentType}
+                                                                      />
+                                            </div>
+                                          )}
+
+                                                                  {/* Fallback: Show simple display if form can't be shown */}
+                                                                  {!shouldShowForm && (
+                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
+                                                <div
+                                                  className="flex items-center"
+                                                  style={{
+                                                    padding: '8px 12px 4px 12px',
+                                                    gap: '5px',
+                                                    width: '100%',
+                                                    height: '32px',
+                                                    background: '#FFFFFF',
+                                                    border: '0.740384px solid #7F7F7F',
+                                                    borderRadius: '7.7px',
+                                                    boxSizing: 'border-box',
+                                                    position: 'relative',
+                                                    marginTop: '5.27px'
+                                                  }}
+                                                >
+                                                  <span style={{
+                                                    fontFamily: 'Verdana',
+                                                    fontStyle: 'normal',
+                                                    fontWeight: 400,
+                                                    fontSize: '13px',
+                                                    lineHeight: '20px',
+                                                    letterSpacing: '-0.02em',
+                                                    color: '#000000'
+                                                                        }}>Select Implant Details</span>
+                                                </div>
+                                                <label
+                                                  className="absolute bg-white"
+                                                  style={{
+                                                    padding: '0px',
+                                                    height: '14px',
+                                                    left: '8.9px',
+                                                    top: '0px',
+                                                    fontFamily: 'Arial',
+                                                    fontStyle: 'normal',
+                                                    fontWeight: 400,
+                                                    fontSize: '14px',
+                                                    lineHeight: '14px',
+                                                    color: '#7F7F7F'
+                                                  }}
+                                                >
+                                                                        {field.name || "Implant Details"}
+                                                </label>
+                                            </div>
+                                          )}
+                                                                </div>
+                                                              )
+                                                            }
+
+                                                            // Calculate width based on field type and content
+                                                            const getFieldWidth = (): { minWidth: string; maxWidth: string; width: string; flex: string } => {
+                                                              if (field.field_type === "multiline_text") {
+                                                                return { minWidth: "100%", maxWidth: "100%", width: "100%", flex: "1 1 100%" }
+                                                              }
+
+                                                              // Radio and checkbox fields need more width to display options
+                                                              if (field.field_type === "radio" || field.field_type === "checkbox") {
+                                                                const minWidth = 250
+                                                                return {
+                                                                  minWidth: `${minWidth}px`,
+                                                                  maxWidth: "none",
+                                                                  width: `${minWidth}px`,
+                                                                  flex: '1 1 auto'
+                                                                }
+                                                              }
+
+                                                              // For other fields, calculate based on content
+                                                              const displayValue = typeof currentValue === "object"
+                                                                ? currentValue?.advance_field_value || ""
+                                                                : currentValue || ""
+
+                                                              // Get the longest possible value for width calculation
+                                                              let longestText = field.name || ""
+                                                              if ((field.field_type === "dropdown" || field.field_type === "radio" || field.field_type === "checkbox") && field.options) {
+                                                                // Find longest option name
+                                                                const longestOption = field.options.reduce((longest: any, opt: any) => {
+                                                                  return (opt.name?.length || 0) > (longest?.name?.length || 0) ? opt : longest
+                                                                }, { name: "" })
+                                                                longestText = longestOption.name || longestText
+                                                              } else if (displayValue) {
+                                                                longestText = displayValue
+                                                              }
+
+                                                              // Calculate width: min 200px, base on content
+                                                              const minWidth = 200
+                                                              // Estimate width: ~8px per character + padding (60px) + some buffer
+                                                              const estimatedWidth = Math.max(minWidth, Math.min(500, longestText.length * 8 + 80))
+
+                                                              return {
+                                                                minWidth: `${minWidth}px`,
+                                                                maxWidth: "none",
+                                                                width: `${estimatedWidth}px`,
+                                                                flex: '1 1 auto'
+                                                              }
+                                                            }
+
+                                                            const fieldWidth = getFieldWidth()
+
+                                                            // Render based on field_type - use renderSavedAdvanceField helper
+                                                            return (
+                                                              <div
+                                                                key={field.id}
+                                                                className="relative"
+                                              style={{
+                                                                  minHeight: '38px',
+                                                                  minWidth: fieldWidth.minWidth,
+                                                                  maxWidth: fieldWidth.maxWidth,
+                                                                  width: fieldWidth.width,
+                                                                  flex: fieldWidth.flex,
+                                                                }}
+                                                              >
+                                                                {renderSavedAdvanceField(field, savedProduct, archType)}
+                                                </div>
+                                                            )
+                                                          })}
+                                              </div>
+                                            </div>
                                                     </div>
-                                                    <label
-                                                      className="absolute bg-white"
-                                                      style={{
-                                                        padding: '0px',
-                                                        height: '14px',
-                                                        left: '8.9px',
-                                                        top: '0px',
-                                                        fontFamily: 'Arial',
-                                                        fontStyle: 'normal',
-                                                        fontWeight: 400,
-                                                        fontSize: '14px',
-                                                        lineHeight: '14px',
-                                                        color: '#7F7F7F'
-                                                      }}
-                                                    >
-                                                      Stump Shade
-                                                    </label>
-                                                  </div>
-                                                )
-                                              })()}
+                                                  )
+                                                })()}
 
-                                              {/* Tooth Shade */}
-                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
-                                                <div
-                                                  className="flex items-center justify-between"
+                                              {/* Impression Field - Always shown for saved products if impressions exist */}
+                                              {productDetails?.impressions &&
+                                                Array.isArray(productDetails.impressions) &&
+                                                productDetails.impressions.length > 0 && (() => {
+                                                  const impressionCount = savedProduct.product
+                                                    ? getImpressionCount(savedProduct.product.id.toString(), "maxillary", productDetails.impressions)
+                                                    : 0
+                                                  const displayText = savedProduct.product
+                                                    ? getImpressionDisplayText(savedProduct.product.id.toString(), "maxillary", productDetails.impressions)
+                                                    : "Select impression"
+                                                  const hasImpressionValue = impressionCount > 0 || (displayText && displayText !== "Select impression")
+
+                                                  return (
+                                                    <div className="flex flex-wrap" style={{ width: '100%', marginTop: '10px' }}>
+                                                      <div style={{ flex: '1 1 50%', minWidth: '200px', maxWidth: '50%' }}>
+                                                        <div className="relative" style={{ minHeight: '38px', width: '100%' }}>
+                                                          <div
+                                                            className="flex items-center cursor-pointer"
+                                                            onClick={() => {
+                                                              handleOpenImpressionModal(savedProduct, "maxillary")
+                                                            }}
                                                   style={{
                                                     padding: '8px 12px 4px 12px',
                                                     gap: '5px',
                                                     width: '100%',
                                                     height: '32px',
+                                                              position: 'relative',
+                                                              marginTop: '5.27px',
                                                     background: '#FFFFFF',
-                                                    border: '0.740384px solid #7F7F7F',
+                                                              border: `0.740384px solid ${hasImpressionValue ? '#119933' : '#ef4444'}`,
                                                     borderRadius: '7.7px',
-                                                    boxSizing: 'border-box',
-                                                    position: 'relative',
-                                                    marginTop: '5.27px'
+                                                              boxSizing: 'border-box'
                                                   }}
                                                 >
                                                   <span style={{
@@ -10174,8 +9761,10 @@ export default function CaseDesignCenterPage() {
                                                     fontSize: '13px',
                                                     lineHeight: '20px',
                                                     letterSpacing: '-0.02em',
-                                                    color: '#000000'
-                                                  }}>Not specified</span>
+                                                              color: '#000000',
+                                                              whiteSpace: 'nowrap',
+                                                              paddingRight: hasImpressionValue ? '30px' : '0px'
+                                                            }}>{displayText}</span>
                                                 </div>
                                                 <label
                                                   className="absolute bg-white"
@@ -10189,59 +9778,29 @@ export default function CaseDesignCenterPage() {
                                                     fontWeight: 400,
                                                     fontSize: '14px',
                                                     lineHeight: '14px',
-                                                    color: '#7F7F7F'
+                                                              color: hasImpressionValue ? '#119933' : '#ef4444'
                                                   }}
                                                 >
-                                                  Tooth Shade
-                                                </label>
-                                              </div>
-
-                                              {/* Stage */}
-                                              <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
-                                                <div
-                                                  className="flex items-center"
-                                                  style={{
-                                                    padding: '8px 12px 4px 12px',
-                                                    gap: '5px',
-                                                    width: '100%',
-                                                    height: '32px',
-                                                    position: 'relative',
-                                                    marginTop: '5.27px',
-                                                    background: '#FFFFFF',
-                                                    border: '0.740384px solid #7F7F7F',
-                                                    borderRadius: '7.7px',
-                                                    boxSizing: 'border-box'
-                                                  }}
-                                                >
-                                                  <span style={{
-                                                    fontFamily: 'Verdana',
-                                                    fontStyle: 'normal',
-                                                    fontWeight: 400,
-                                                    fontSize: '13px',
-                                                    lineHeight: '20px',
-                                                    letterSpacing: '-0.02em',
-                                                    color: '#000000'
-                                                  }}>Finish</span>
-                                                </div>
-                                                <label
-                                                  className="absolute bg-white"
-                                                  style={{
-                                                    padding: '0px',
-                                                    height: '14px',
-                                                    left: '8.9px',
-                                                    top: '0px',
-                                                    fontFamily: 'Arial',
-                                                    fontStyle: 'normal',
-                                                    fontWeight: 400,
-                                                    fontSize: '14px',
-                                                    lineHeight: '14px',
-                                                    color: '#7F7F7F'
-                                                  }}
-                                                >
-                                                  Stage
+                                                            Impression<span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>
                                                 </label>
                                               </div>
                                             </div>
+                                                    </div>
+                                                  )
+                                                })()}
+                                            </>
+                                          )}
+
+                                          {/* Legacy field rendering - keeping minimal fallback if productDetails is missing */}
+                                          {!productDetails && (
+                                            <>
+                                              {/* Minimal fallback - just show basic fields if productDetails is missing */}
+                                              {savedProduct.maxillaryMaterial && (
+                                                <div className="text-sm text-gray-500 p-4">
+                                                  Product Details not available. Please reload the product.
+                                            </div>
+                                              )}
+                                            </>
                                           )}
 
                                         </div>
@@ -10638,234 +10197,1491 @@ export default function CaseDesignCenterPage() {
                         sp.subcategoryId === selectedSubcategoryId &&
                         JSON.stringify([...(sp.mandibularTeeth || [])].sort()) === JSON.stringify([...mandibularTeeth].sort())
                       ) && (
-                        <Card className="overflow-hidden border border-gray-200 shadow-sm -mt-6">
-                          <Accordion
-                            type="single"
-                            collapsible
-                            className="w-full"
-                            value={openAccordion === "mandibular-card" ? "mandibular-card" : ""}
-                            onValueChange={handleAccordionChange}
-                          >
-                            <AccordionItem value="mandibular-card" className="border-0">
-                              {/* Header - Hide when shade selection is active */}
-                              <div
-                                className="w-full"
-                                style={{
-                                  position: 'relative',
-                                  minHeight: '45px',
-                                  background: openAccordion === "mandibular-card" ? '#E0EDF8' : '#F5F5F5',
-                                  boxShadow: '0.9px 0.9px 3.6px rgba(0, 0, 0, 0.25)',
-                                  borderRadius: openAccordion === "mandibular-card" ? '10px 10px 0px 0px' : '10px',
-                                  display: currentShadeField ? 'none' : 'flex',
-                                  flexDirection: 'column',
-                                  alignItems: 'flex-start',
-                                  padding: '6px 8px',
-                                  gap: '8px',
-                                  borderBottom: openAccordion === "mandibular-card" ? '1px dotted #B0D0F0' : 'none'
-                                }}
-                              >
-                                <AccordionTrigger
-                                  className="hover:no-underline w-full group [&>svg]:hidden"
-                                  style={{
-                                    padding: '0px',
-                                    gap: '10px',
-                                    width: '100%',
-                                    background: 'transparent',
-                                    boxShadow: 'none',
-                                    borderRadius: '0px'
-                                  }}
-                                >
-                                  {/* Responsive Content Container */}
-                                  <div style={{ width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: '8px', paddingRight: '24px' }}>
-                                    {/* Product Image */}
-                                    <div
-                                      style={{
-                                        width: '32px',
-                                        minWidth: '32px',
-                                        height: '32px',
-                                        background: `url(${selectedProduct?.image_url || "/images/tooth-icon.png"}), #FFFFFF`,
-                                        backgroundSize: 'contain',
-                                        backgroundPosition: 'center',
-                                        backgroundRepeat: 'no-repeat',
-                                        borderRadius: '5.4px',
-                                        flexShrink: 0
-                                      }}
-                                    />
-
-                                    {/* Content Area - Responsive */}
-                                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0, alignItems: 'flex-start' }}>
-                                      {/* Product Name - Bold, plain text */}
-                                      {selectedProduct?.name && (
-                                        <span
-                                          style={{
-                                            fontFamily: 'Verdana',
-                                            fontStyle: 'normal',
-                                            fontWeight: 600,
-                                            fontSize: '14px',
-                                            lineHeight: '16px',
-                                            letterSpacing: '-0.02em',
-                                            color: '#000000',
-                                            wordBreak: 'break-word',
-                                            overflowWrap: 'break-word',
-                                            textAlign: 'left',
-                                            width: '100%'
-                                          }}
-                                        >
-                                          {selectedProduct.name}
-                                        </span>
-                                      )}
-
-                                      {/* Tooth Numbers Row - Formatted as #9 */}
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                        <span
-                                          style={{
-                                            fontFamily: 'Verdana',
-                                            fontStyle: 'normal',
-                                            fontWeight: 400,
-                                            fontSize: '12px',
-                                            lineHeight: '14px',
-                                            letterSpacing: '-0.02em',
-                                            color: '#000000'
-                                          }}
-                                        >
-                                          {(() => {
-                                            const sortedTeeth = [...mandibularTeeth].sort((a, b) => a - b);
-                                            return sortedTeeth.length > 0 ? sortedTeeth.map(t => `#${t}`).join(', ') : '';
-                                          })()}
-                                        </span>
-                                      </div>
-
-                                      {/* Badges and Info Row - Responsive */}
-                                      <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-                                        {/* Badge - Category - Pill shaped */}
-                                        {selectedCategory && (
-                                          <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '2px 8px', background: '#F0F0F0', borderRadius: '12px', flexShrink: 0 }}>
-                                            <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{selectedCategory}</span>
-                                          </div>
-                                        )}
-
-                                        {/* Badge - Subcategory - Pill shaped */}
-                                        {selectedSubcategory && (
-                                          <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '2px 8px', background: '#F0F0F0', borderRadius: '12px', flexShrink: 0 }}>
-                                            <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{selectedSubcategory}</span>
-                                          </div>
-                                        )}
-
-                                        {/* Est days */}
-                                        <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', letterSpacing: '-0.02em', color: '#B4B0B0', whiteSpace: 'nowrap' }}>
-                                          Est days: {selectedProduct?.estimated_days || 10} work days after submission
-                                        </span>
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  {/* Chevron - Positioned relative to header */}
-                                  <div style={{ position: 'absolute', width: '21.6px', height: '21.6px', right: '8px', top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}>
-                                    <ChevronDown
-                                      className="w-full h-full transition-transform duration-200 text-black"
-                                      style={{
-                                        transform: openAccordion === "mandibular-card" ? 'rotate(0deg)' : 'rotate(-180deg)'
-                                      }}
-                                    />
-                                  </div>
-                                </AccordionTrigger>
-                              </div>
-                              <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto' }}>
-                                {/* Tooth Shade Selection - Shows at the top when active */}
-                                {currentShadeField && currentShadeArch === "mandibular" && (
-                                  <div className="w-full pt-4">
-                                    <div className="flex flex-col items-center w-full">
-                                      {/* Shade Guide Dropdown - Top Right */}
-                                      <div className="w-full flex justify-end pr-4">
-                                        <div className="flex items-center gap-2">
-                                          <label className="text-sm text-gray-600" style={{ fontFamily: 'Verdana', fontSize: '14px' }}>
-                                            Shade guide selected
-                                          </label>
-                                          <Select value={selectedShadeGuide} onValueChange={setSelectedShadeGuide}>
-                                            <SelectTrigger className="w-[200px] h-[32px] text-sm">
-                                              <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                              {shadeGuideOptions.map((guide) => (
-                                                <SelectItem key={guide} value={guide}>
-                                                  {guide}
-                                                </SelectItem>
-                                              ))}
-                                            </SelectContent>
-                                          </Select>
-                                        </div>
-                                      </div>
-
-                                      {/* Shade guide SVG */}
-                                      <div className="bg-white w-full flex justify-center">
-                                        {selectedShadeGuide === "Trubyte Bioform IPN" ? (
-                                          <TrubyteBioformIPNShadeSelectionSVG
-                                            selectedShades={selectedShadesForSVG}
-                                            onShadeClick={handleShadeClickFromSVG}
-                                            className="max-w-full"
-                                          />
-                                        ) : (
-                                          <ToothShadeSelectionSVG
-                                            selectedShades={selectedShadesForSVG}
-                                            onShadeClick={handleShadeClickFromSVG}
-                                            className="max-w-full"
-                                          />
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                )}
-                                {/* Summary detail */}
+                          <Card className="overflow-hidden border border-gray-200 shadow-sm -mt-6">
+                            <Accordion
+                              type="single"
+                              collapsible
+                              className="w-full"
+                              value={openAccordion === "mandibular-card" ? "mandibular-card" : ""}
+                              onValueChange={handleAccordionChange}
+                            >
+                              <AccordionItem value="mandibular-card" className="border-0">
+                                {/* Header - Hide when shade selection is active */}
                                 <div
-                                  className="bg-white w-full"
+                                  className="w-full"
                                   style={{
                                     position: 'relative',
-                                    height: 'auto',
-                                    minHeight: 'auto',
-                                    paddingLeft: '15.87px',
-                                    paddingRight: '15.87px',
-                                    paddingBottom: '8px',
-                                    paddingTop: '8px',
-                                    display: 'flex',
+                                    minHeight: '45px',
+                                    background: openAccordion === "mandibular-card" ? '#E0EDF8' : '#F5F5F5',
+                                    boxShadow: '0.9px 0.9px 3.6px rgba(0, 0, 0, 0.25)',
+                                    borderRadius: openAccordion === "mandibular-card" ? '10px 10px 0px 0px' : '10px',
+                                    display: currentShadeField ? 'none' : 'flex',
                                     flexDirection: 'column',
                                     alignItems: 'flex-start',
-                                    background: '#FFFFFF',
-                                    boxSizing: 'border-box'
+                                    padding: '6px 8px',
+                                    gap: '8px',
+                                    borderBottom: openAccordion === "mandibular-card" ? '1px dotted #B0D0F0' : 'none'
                                   }}
                                 >
-                                  {/* Dynamic Fields - Rendered based on productDetails */}
-                                  {productDetails && (
-                                    <>
-                                      <DynamicProductFields
-                                        productDetails={productDetails}
-                                        savedProduct={{
-                                          mandibularMaterial,
-                                          mandibularRetention,
-                                          mandibularStumpShade,
-                                          mandibularToothShade,
-                                          mandibularStage,
-                                          mandibularMaterialId,
-                                          mandibularRetentionId,
-                                          mandibularRetentionOptionId,
-                                          mandibularGumShadeId,
-                                          mandibularShadeId,
-                                          mandibularStageId,
-                                          mandibularImplantDetails,
+                                  <AccordionTrigger
+                                    className="hover:no-underline w-full group [&>svg]:hidden"
+                                    style={{
+                                      padding: '0px',
+                                      gap: '10px',
+                                      width: '100%',
+                                      background: 'transparent',
+                                      boxShadow: 'none',
+                                      borderRadius: '0px'
+                                    }}
+                                  >
+                                    {/* Responsive Content Container */}
+                                    <div style={{ width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: '8px', paddingRight: '24px' }}>
+                                      {/* Product Image */}
+                                      <div
+                                        style={{
+                                          width: '32px',
+                                          minWidth: '32px',
+                                          height: '32px',
+                                          background: `url(${selectedProduct?.image_url || "/images/tooth-icon.png"}), #FFFFFF`,
+                                          backgroundSize: 'contain',
+                                          backgroundPosition: 'center',
+                                          backgroundRepeat: 'no-repeat',
+                                          borderRadius: '5.4px',
+                                          flexShrink: 0
                                         }}
-                                        arch="mandibular"
-                                        fieldConfigs={fieldConfigs}
-                                        onFieldChange={(fieldKey, value, id) => {
-                                          handleFieldChange(fieldKey, value, id, undefined, "mandibular")
+                                      />
+
+                                      {/* Content Area - Responsive */}
+                                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0, alignItems: 'flex-start' }}>
+                                        {/* Product Name - Bold, plain text */}
+                                        {selectedProduct?.name && (
+                                          <span
+                                            style={{
+                                              fontFamily: 'Verdana',
+                                              fontStyle: 'normal',
+                                              fontWeight: 600,
+                                              fontSize: '14px',
+                                              lineHeight: '16px',
+                                              letterSpacing: '-0.02em',
+                                              color: '#000000',
+                                              wordBreak: 'break-word',
+                                              overflowWrap: 'break-word',
+                                              textAlign: 'left',
+                                              width: '100%'
+                                            }}
+                                          >
+                                            {selectedProduct.name}
+                                          </span>
+                                        )}
+
+                                        {/* Tooth Numbers Row - Formatted as #9 */}
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                          <span
+                                            style={{
+                                              fontFamily: 'Verdana',
+                                              fontStyle: 'normal',
+                                              fontWeight: 400,
+                                              fontSize: '12px',
+                                              lineHeight: '14px',
+                                              letterSpacing: '-0.02em',
+                                              color: '#000000'
+                                            }}
+                                          >
+                                            {(() => {
+                                              const sortedTeeth = [...mandibularTeeth].sort((a, b) => a - b);
+                                              return sortedTeeth.length > 0 ? sortedTeeth.map(t => `#${t}`).join(', ') : '';
+                                            })()}
+                                          </span>
+                                        </div>
+
+                                        {/* Badges and Info Row - Responsive */}
+                                        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                                          {/* Badge - Category - Pill shaped */}
+                                          {selectedCategory && (
+                                            <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '2px 8px', background: '#F0F0F0', borderRadius: '12px', flexShrink: 0 }}>
+                                              <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{selectedCategory}</span>
+                                            </div>
+                                          )}
+
+                                          {/* Badge - Subcategory - Pill shaped */}
+                                          {selectedSubcategory && (
+                                            <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '2px 8px', background: '#F0F0F0', borderRadius: '12px', flexShrink: 0 }}>
+                                              <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{selectedSubcategory}</span>
+                                            </div>
+                                          )}
+
+                                          {/* Est days */}
+                                          <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', letterSpacing: '-0.02em', color: '#B4B0B0', whiteSpace: 'nowrap' }}>
+                                            Est days: {selectedProduct?.estimated_days || 10} work days after submission
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                  
+                                  </AccordionTrigger>
+                                </div>
+                                <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto' }}>
+                                  {/* Tooth Shade Selection - Shows at the top when active */}
+                                  {currentShadeField && currentShadeArch === "mandibular" && (
+                                    <div className="w-full pt-4">
+                                      <div className="flex flex-col items-center w-full">
+                                        {/* Shade Guide Dropdown - Top Right */}
+                                        <div className="w-full flex justify-end pr-4">
+                                          <div className="flex items-center gap-2">
+                                            <label className="text-sm text-gray-600" style={{ fontFamily: 'Verdana', fontSize: '14px' }}>
+                                              Shade guide selected
+                                            </label>
+                                            <Select value={selectedShadeGuide} onValueChange={setSelectedShadeGuide}>
+                                              <SelectTrigger className="w-[200px] h-[32px] text-sm">
+                                                <SelectValue />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                {shadeGuideOptions.map((guide) => (
+                                                  <SelectItem key={guide} value={guide}>
+                                                    {guide}
+                                                  </SelectItem>
+                                                ))}
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                        </div>
+
+                                        {/* Shade guide SVG */}
+                                        <div className="bg-white w-full flex justify-center">
+                                          {selectedShadeGuide === "Trubyte Bioform IPN" ? (
+                                            <TrubyteBioformIPNShadeSelectionSVG
+                                              selectedShades={selectedShadesForSVG}
+                                              onShadeClick={handleShadeClickFromSVG}
+                                              className="max-w-full"
+                                            />
+                                          ) : (
+                                            <ToothShadeSelectionSVG
+                                              selectedShades={selectedShadesForSVG}
+                                              onShadeClick={handleShadeClickFromSVG}
+                                              className="max-w-full"
+                                            />
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                  {/* Summary detail */}
+                                  <div
+                                    className="bg-white w-full"
+                                    style={{
+                                      position: 'relative',
+                                      height: 'auto',
+                                      minHeight: 'auto',
+                                      paddingLeft: '15.87px',
+                                      paddingRight: '15.87px',
+                                      paddingBottom: '8px',
+                                      paddingTop: '8px',
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      alignItems: 'flex-start',
+                                      background: '#FFFFFF',
+                                      boxSizing: 'border-box'
+                                    }}
+                                  >
+                                    {/* Dynamic Fields - Rendered based on productDetails */}
+                                    {productDetails && (
+                                      <>
+                                        <DynamicProductFields
+                                          productDetails={productDetails}
+                                          savedProduct={{
+                                            mandibularMaterial,
+                                            mandibularRetention,
+                                            mandibularStumpShade,
+                                            mandibularToothShade,
+                                            mandibularStage,
+                                            mandibularMaterialId,
+                                            mandibularRetentionId,
+                                            mandibularRetentionOptionId,
+                                            mandibularGumShadeId,
+                                            mandibularShadeId,
+                                            mandibularStageId,
+                                            mandibularImplantDetails,
+                                            mandibularImplantInclusions,
+                                            mandibularAbutmentDetail,
+                                            mandibularAbutmentType,
+                                          }}
+                                          arch="mandibular"
+                                          fieldConfigs={fieldConfigs}
+                                          onFieldChange={(fieldKey, value, id) => {
+                                            handleFieldChange(fieldKey, value, id, undefined, "mandibular")
+                                          }}
+                                          maxillaryRetentionTypes={maxillaryRetentionTypes}
+                                          mandibularRetentionTypes={mandibularRetentionTypes}
+                                          maxillaryTeeth={maxillaryTeeth}
+                                          mandibularTeeth={mandibularTeeth}
+                                          onOpenImpressionModal={() => {
+                                            if (selectedProduct) {
+                                              const tempProduct: SavedProduct = {
+                                                id: selectedProduct.id.toString(),
+                                                product: selectedProduct,
+                                                productDetails: productDetails,
+                                                category: selectedCategory || "",
+                                                categoryId: selectedCategoryId || 0,
+                                                subcategory: selectedSubcategory || "",
+                                                subcategoryId: selectedSubcategoryId || 0,
+                                                maxillaryTeeth: maxillaryTeeth,
+                                                mandibularTeeth: mandibularTeeth,
+                                                maxillaryMaterial: maxillaryMaterial,
+                                                maxillaryStumpShade: maxillaryStumpShade,
+                                                maxillaryRetention: maxillaryRetention,
+                                                maxillaryImplantDetails: maxillaryImplantDetails,
+                                                mandibularMaterial: mandibularMaterial,
+                                                mandibularRetention: mandibularRetention,
+                                                mandibularStumpShade: mandibularStumpShade,
+                                                mandibularImplantDetails: mandibularImplantDetails,
+                                                createdAt: Date.now(),
+                                                addedFrom: "mandibular",
+                                              }
+                                              handleOpenImpressionModal(tempProduct, "mandibular")
+                                            }
+                                          }}
+                                          getImpressionCount={() => {
+                                            if (!selectedProduct || !productDetails?.impressions) return 0
+                                            const productId = selectedProduct.id.toString()
+                                            return getImpressionCount(productId, "mandibular", productDetails.impressions)
+                                          }}
+                                          getImpressionDisplayText={() => {
+                                            if (!selectedProduct || !productDetails?.impressions) return "Select impression"
+                                            const productId = selectedProduct.id.toString()
+                                            return getImpressionDisplayText(productId, "mandibular", productDetails.impressions)
+                                          }}
+                                          onOpenShadeModal={(fieldKey) => {
+                                            handleOpenShadeModal(fieldKey, "mandibular")
+                                          }}
+                                          showImplantBrandCards={showImplantBrandCardsInFields.mandibular || false}
+                                          implants={implants.map((imp: any) => ({
+                                            id: imp.id,
+                                            brand_name: imp.brand_name,
+                                            system_name: imp.system_name,
+                                            code: imp.code,
+                                            image_url: imp.image_url,
+                                            platforms: imp.platforms?.map((p: any) => ({
+                                              id: p.id || 0,
+                                              name: p.name,
+                                              image: p.image_url
+                                            }))
+                                          }))}
+                                          selectedImplantId={selectedImplantBrandForDetails.mandibular || null}
+                                          onSelectImplant={(implant: any) => {
+                                            setSelectedImplantBrandForDetails(prev => ({ ...prev, mandibular: implant.id }))
+                                            // You can add additional logic here to update implant details
+                                          }}
+                                          onImplantDetailsFieldClick={() => {
+                                            setShowImplantBrandCardsInFields(prev => ({ ...prev, mandibular: !prev.mandibular }))
+                                          }}
+                                          selectedImplantPlatformId={selectedImplantPlatformForDetails.mandibular || null}
+                                          onSelectImplantPlatform={(platform: any) => {
+                                            setSelectedImplantPlatformForDetails(prev => ({ ...prev, mandibular: platform.id }))
+                                            // You can add additional logic here to update implant details with platform
+                                          }}
+                                          onBrandFieldClick={() => {
+                                            setShowImplantBrandCardsInFields(prev => ({ ...prev, mandibular: true }))
+                                            setClickedFieldTypeInImplantDetails(prev => ({ ...prev, mandibular: 'brand' }))
+                                          }}
+                                          onPlatformFieldClick={() => {
+                                            setShowImplantBrandCardsInFields(prev => ({ ...prev, mandibular: true }))
+                                            setClickedFieldTypeInImplantDetails(prev => ({ ...prev, mandibular: 'platform' }))
+                                          }}
+                                          selectedImplantBrand={selectedImplantBrand}
+                                          selectedImplantPlatform={selectedImplantPlatform}
+                                          selectedImplantSize={selectedImplantSize}
+                                          hideFieldsDuringShadeSelection={currentShadeField !== null && currentShadeArch === "mandibular"}
+                                          hideImpression={productDetails?.advance_fields && Array.isArray(productDetails.advance_fields) && productDetails.advance_fields.length > 0}
+                                        />
+
+                                        {/* Implant Brand/Platform Cards - Shows at the bottom when implant details field is clicked */}
+                                        {/* Only show if retention type is "Implant" */}
+                                        {(() => {
+                                          // Check if any tooth has "Implant" retention type for mandibular
+                                          const hasImplantRetention = Object.values(mandibularRetentionTypes).some(
+                                            (types) => types && types.includes('Implant')
+                                          )
+                                          return hasImplantRetention
+                                        })() && showImplantBrandCardsInFields.mandibular && implants && implants.length > 0 && (
+                                            <div className="w-full pt-2">
+                                              <div className="flex flex-col items-center gap-2 w-full">
+                                                <div className="bg-white w-full flex justify-center">
+                                                  {(() => {
+                                                    const selectedBrandId = selectedImplantBrandForDetails.mandibular
+                                                    const selectedBrand = selectedBrandId ? implants.find((imp: any) => imp.id === selectedBrandId) : null
+                                                    const platforms = selectedBrand?.platforms || []
+                                                    const mappedPlatforms = platforms.map((plat: any) => ({
+                                                      id: plat.id || 0,
+                                                      name: plat.name,
+                                                      image: plat.image_url || plat.image
+                                                    }))
+                                                    const selectedPlatformId = selectedImplantPlatformForDetails.mandibular
+                                                    const clickedFieldType = clickedFieldTypeInImplantDetails.mandibular
+
+                                                    // Show platform cards if:
+                                                    // 1. Platform field was clicked AND brand is selected (highest priority - show even if no platforms), OR
+                                                    // 2. Brand is selected, platform not selected yet, and brand field was NOT clicked (auto-show after brand selection)
+                                                    const shouldShowPlatformCards = (clickedFieldType === 'platform' && selectedBrandId) ||
+                                                      (clickedFieldType !== 'brand' && (clickedFieldType === null || clickedFieldType === undefined) && selectedBrandId && selectedPlatformId === null)
+
+                                                    // Show brand cards if:
+                                                    // 1. Brand field was clicked, OR
+                                                    // 2. No brand selected yet, OR
+                                                    // 3. Platform cards should not be shown
+                                                    const shouldShowBrandCards = !shouldShowPlatformCards && (clickedFieldType === 'brand' ||
+                                                      !selectedBrandId)
+
+                                                    // Priority: Platform cards take precedence when platform field is clicked
+                                                    if (shouldShowPlatformCards) {
+                                                      return (
+                                                        <ImplantPlatformCards
+                                                          platforms={mappedPlatforms}
+                                                          selectedPlatformId={selectedPlatformId}
+                                                          onSelectPlatform={(platform: any) => {
+                                                            setSelectedImplantPlatformForDetails(prev => ({ ...prev, mandibular: platform.id }))
+                                                            // Reset clicked field type after selection
+                                                            setClickedFieldTypeInImplantDetails(prev => ({ ...prev, mandibular: null }))
+                                                          }}
+                                                          arch="mandibular"
+                                                        />
+                                                      )
+                                                    }
+
+                                                    // Show brand cards only if platform cards are not being shown
+                                                    if (shouldShowBrandCards) {
+                                                      const mappedImplants = implants.map((imp: any) => ({
+                                                        id: imp.id,
+                                                        brand_name: imp.brand_name,
+                                                        system_name: imp.system_name,
+                                                        code: imp.code,
+                                                        image_url: imp.image_url,
+                                                        platforms: imp.platforms?.map((p: any) => ({
+                                                          id: p.id || 0,
+                                                          name: p.name,
+                                                          image: p.image_url
+                                                        }))
+                                                      }))
+
+                                                      return (
+                                                        <ImplantBrandCards
+                                                          implants={mappedImplants}
+                                                          selectedImplantId={selectedBrandId}
+                                                          onSelectImplant={(implant: any) => {
+                                                            setSelectedImplantBrandForDetails(prev => ({ ...prev, mandibular: implant.id }))
+                                                            // If brand has platforms, reset platform selection to show platform cards
+                                                            if (implant.platforms && implant.platforms.length > 0) {
+                                                              setSelectedImplantPlatformForDetails(prev => ({ ...prev, mandibular: null }))
+                                                              // Auto-show platform cards after brand selection
+                                                              setClickedFieldTypeInImplantDetails(prev => ({ ...prev, mandibular: null }))
+                                                            } else {
+                                                              // Reset clicked field type after selection
+                                                              setClickedFieldTypeInImplantDetails(prev => ({ ...prev, mandibular: null }))
+                                                            }
+                                                          }}
+                                                          arch="mandibular"
+                                                        />
+                                                      )
+                                                    }
+
+                                                    return null
+                                                  })()}
+                                                </div>
+                                              </div>
+                                            </div>
+                                          )}
+
+                                        {/* Implant Brand Cards for Advance Fields - Shows when implant details advance field is clicked */}
+                                        {/* Only show if retention type is "Implant" */}
+                                        {(() => {
+                                          // Check if any tooth has "Implant" retention type for mandibular
+                                          const hasImplantRetention = Object.values(mandibularRetentionTypes).some(
+                                            (types) => types && types.includes('Implant')
+                                          )
+                                          return hasImplantRetention
+                                        })() && showImplantCards && activeImplantFieldKey && activeImplantFieldKey.startsWith('advance_') && implants && implants.length > 0 && (
+                                            <div ref={implantCardsRef} className="w-full pt-2">
+                                              <div className="flex flex-col items-center gap-2 w-full">
+                                                <div className="bg-white w-full flex justify-center">
+                                                  {(() => {
+                                                    const fieldKey = activeImplantFieldKey
+                                                    const currentStep = implantSelectionStep[fieldKey] || 'brand'
+                                                    const selectedBrandId = selectedImplantBrand[fieldKey]
+
+                                                    // Get selected brand - try lookup first, then fallback
+                                                    let selectedBrand = selectedBrandId ? implants.find((imp: any) => imp.id === selectedBrandId) : null
+
+                                                    // If we're in form mode and selectedBrand is not found, try to get it from advanceFieldValues
+                                                    if (!selectedBrand && currentStep === 'form') {
+                                                      const currentValue = advanceFieldValues[fieldKey]
+                                                      if (currentValue && typeof currentValue === 'object' && currentValue.advance_field_value) {
+                                                        const brandName = typeof currentValue.advance_field_value === 'string'
+                                                          ? currentValue.advance_field_value.split(' - ')[0]
+                                                          : null
+                                                        if (brandName) {
+                                                          const foundBrand = implants.find((imp: any) => imp.brand_name === brandName)
+                                                          if (foundBrand) {
+                                                            selectedBrand = foundBrand
+                                                            // If found, update the selectedBrandId
+                                                            if (!selectedBrandId) {
+                                                              setSelectedImplantBrand(prev => ({ ...prev, [fieldKey]: foundBrand.id }))
+                                                            }
+                                                          }
+                                                        }
+                                                      }
+                                                    }
+
+                                                    const platforms = selectedBrand?.platforms || []
+                                                    const mappedPlatforms = platforms.map((plat: any) => ({
+                                                      id: plat.id || 0,
+                                                      name: plat.name,
+                                                      image: plat.image_url || plat.image
+                                                    }))
+                                                    const selectedPlatformId = selectedImplantPlatform[fieldKey]
+                                                    const clickedFieldType = clickedFieldTypeInForm[fieldKey]
+
+                                                    // Show platform cards if:
+                                                    // 1. We're on platform step, OR
+                                                    // 2. We're in form step and platform field was clicked (hide brand cards when platform is clicked)
+                                                    // Then check if we have a brand with platforms
+                                                    const shouldShowPlatformCards = currentStep === 'platform' || (currentStep === 'form' && showImplantCards && clickedFieldType === 'platform')
+
+                                                    // Show brand cards if:
+                                                    // 1. We're on brand step, OR
+                                                    // 2. We're in form step and brand field was clicked (hide platform cards when brand is clicked)
+                                                    const shouldShowBrandCards = currentStep === 'brand' || (currentStep === 'form' && showImplantCards && clickedFieldType === 'brand')
+
+                                                    // Priority: Platform cards take precedence when platform field is clicked
+                                                    if (shouldShowPlatformCards && selectedBrand) {
+                                                      return (
+                                                        <ImplantPlatformCards
+                                                          platforms={mappedPlatforms}
+                                                          selectedPlatformId={selectedPlatformId}
+                                                          onSelectPlatform={(platform: any) => {
+                                                            setSelectedImplantPlatform(prev => ({ ...prev, [fieldKey]: platform.id }))
+                                                            // Store full platform data
+                                                            setSelectedImplantPlatformData(prev => ({ ...prev, [fieldKey]: { id: platform.id, name: platform.name } }))
+                                                            // After platform selection, keep form visible and hide the cards
+                                                            setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'form' }))
+                                                            setShowImplantCards(false)
+                                                            setClickedFieldTypeInForm(prev => ({ ...prev, [fieldKey]: null }))
+                                                            // Scroll to the form
+                                                            setTimeout(() => {
+                                                              const formElement = document.querySelector(`[data-implant-field-key="${fieldKey}"]`)
+                                                              if (formElement) {
+                                                                formElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                                                              }
+                                                            }, 100)
+                                                          }}
+                                                          arch="mandibular"
+                                                        />
+                                                      )
+                                                    }
+
+                                                    // Show brand cards only if platform cards are not being shown
+                                                    if (shouldShowBrandCards && !shouldShowPlatformCards) {
+                                                      return (
+                                                        <ImplantBrandCards
+                                                          implants={implants.map((imp: any) => ({
+                                                            id: imp.id,
+                                                            brand_name: imp.brand_name,
+                                                            system_name: imp.system_name,
+                                                            code: imp.code,
+                                                            image_url: imp.image_url,
+                                                            platforms: imp.platforms?.map((p: any) => ({
+                                                              id: p.id || 0,
+                                                              name: p.name,
+                                                              image: p.image_url
+                                                            }))
+                                                          }))}
+                                                          selectedImplantId={selectedBrandId || null}
+                                                          onSelectImplant={(implant: any) => {
+                                                            setSelectedImplantBrand(prev => ({ ...prev, [fieldKey]: implant.id }))
+                                                            // If brand has platforms, show platform cards, otherwise go directly to form
+                                                            if (implant.platforms && implant.platforms.length > 0) {
+                                                              setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'platform' }))
+                                                            } else {
+                                                              // No platforms, go directly to form
+                                                              setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'form' }))
+                                                              setShowImplantCards(false)
+                                                              setClickedFieldTypeInForm(prev => ({ ...prev, [fieldKey]: null }))
+                                                              // Scroll to the form
+                                                              setTimeout(() => {
+                                                                const formElement = document.querySelector(`[data-implant-field-key="${fieldKey}"]`)
+                                                                if (formElement) {
+                                                                  formElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                                                                }
+                                                              }, 100)
+                                                            }
+                                                          }}
+                                                          arch="mandibular"
+                                                        />
+                                                      )
+                                                    }
+
+                                                    // Default: don't show any cards if conditions don't match
+                                                    return null
+                                                  })()}
+                                                </div>
+                                              </div>
+                                            </div>
+                                          )}
+
+                                        {/* Advance Fields - Shown after tooth shade is selected */}
+                                        {productDetails &&
+                                          productDetails.advance_fields &&
+                                          Array.isArray(productDetails.advance_fields) &&
+                                          productDetails.advance_fields.length > 0 &&
+                                          isToothShadeFilled("mandibular") && (() => {
+                                            // Filter out stump shade from advanced fields - use existing stump shade field instead
+                                            const stumpShadeField = getAdvanceFieldByName("stump_shade", productDetails.advance_fields)
+
+                                            // Check if any tooth has "Implant" retention type for mandibular
+                                            const hasImplantRetention = Object.values(mandibularRetentionTypes).some(
+                                              (types) => types && types.includes('Implant')
+                                            )
+
+                                            const filteredAdvanceFields = productDetails.advance_fields.filter((field: any) => {
+                                              const fieldNameLower = (field.name || "").toLowerCase()
+                                              // Filter out stump shade fields
+                                              if (stumpShadeField && fieldNameLower.includes("stump") && fieldNameLower.includes("shade")) {
+                                                return false
+                                              }
+                                              // Filter out implant_library fields if no tooth has "Implant" retention type
+                                              if (field.field_type === "implant_library" && !hasImplantRetention) {
+                                                return false
+                                              }
+                                              return true
+                                            })
+
+                                            // If no fields remain after filtering, don't render the section
+                                            if (filteredAdvanceFields.length === 0) {
+                                              return null
+                                            }
+
+                                            const archType = "mandibular" // This is the mandibular section
+
+                                            return (
+                                              <div
+                                                className="flex flex-col gap-5"
+                                                style={{
+                                                  display: 'flex',
+                                                  flexDirection: 'column',
+                                                  alignItems: 'flex-start',
+                                                  padding: '0px',
+                                                  flex: 'none',
+                                                  alignSelf: 'stretch',
+                                                  flexGrow: 0,
+                                                  marginTop: '2px'
+                                                }}
+                                              >
+                                                <div className="w-full">
+                                                  <div className="flex flex-wrap gap-4" style={{ gap: '16px' }}>
+                                                    {filteredAdvanceFields.map((field: any) => {
+                                                      const fieldKey = `advance_${field.id}`
+                                                      const currentValue = advanceFieldValues[fieldKey] || ""
+
+                                                      // Calculate width based on field type and content
+                                                      const getFieldWidth = (): { minWidth: string; maxWidth: string; width: string; flex: string } => {
+                                                        if (field.field_type === "multiline_text") {
+                                                          return { minWidth: "100%", maxWidth: "100%", width: "100%", flex: "1 1 100%" }
+                                                        }
+
+                                                        // Radio and checkbox fields need more width to display options
+                                                        if (field.field_type === "radio" || field.field_type === "checkbox") {
+                                                          const minWidth = 250
+                                                          return {
+                                                            minWidth: `${minWidth}px`,
+                                                            maxWidth: "none",
+                                                            width: `${minWidth}px`,
+                                                            flex: '1 1 auto'
+                                                          }
+                                                        }
+
+                                                        // For other fields, calculate based on content
+                                                        const displayValue = typeof currentValue === "object"
+                                                          ? currentValue?.advance_field_value || ""
+                                                          : currentValue || ""
+
+                                                        // Get the longest possible value for width calculation
+                                                        let longestText = field.name || ""
+                                                        if ((field.field_type === "dropdown" || field.field_type === "radio" || field.field_type === "checkbox") && field.options) {
+                                                          // Find longest option name
+                                                          const longestOption = field.options.reduce((longest: any, opt: any) => {
+                                                            return (opt.name?.length || 0) > (longest?.name?.length || 0) ? opt : longest
+                                                          }, { name: "" })
+                                                          longestText = longestOption.name || longestText
+                                                        } else if (displayValue) {
+                                                          longestText = displayValue
+                                                        }
+
+                                                        // Calculate width: min 200px, base on content
+                                                        const minWidth = 200
+                                                        // Estimate width: ~8px per character + padding (60px) + some buffer
+                                                        const estimatedWidth = Math.max(minWidth, Math.min(500, longestText.length * 8 + 80))
+
+                                                        return {
+                                                          minWidth: `${minWidth}px`,
+                                                          maxWidth: "none",
+                                                          width: `${estimatedWidth}px`,
+                                                          flex: '1 1 auto'
+                                                        }
+                                                      }
+
+                                                      const fieldWidth = getFieldWidth()
+
+                                                      // Check if field is required and value is "Not specified" or empty
+                                                      const isFieldRequired = field.is_required === "Yes" || field.is_required === true
+                                                      const displayValue = typeof currentValue === "object"
+                                                        ? currentValue?.advance_field_value || ""
+                                                        : currentValue || ""
+
+                                                      // For checkbox fields, check if at least one option is selected
+                                                      let isEmptyOrNotSpecified = false
+                                                      if (field.field_type === "checkbox") {
+                                                        const currentSelectedIds = typeof currentValue === "object"
+                                                          ? (Array.isArray(currentValue?.option_ids) ? currentValue.option_ids :
+                                                            currentValue?.option_id ? [currentValue.option_id] : [])
+                                                          : []
+                                                        isEmptyOrNotSpecified = currentSelectedIds.length === 0
+                                                      } else {
+                                                        isEmptyOrNotSpecified = !displayValue ||
+                                                          displayValue.trim() === "" ||
+                                                          displayValue.trim().toLowerCase() === "not specified" ||
+                                                          (field.field_type === "dropdown" && displayValue === `Select ${field.name}`)
+                                                      }
+
+                                                      const showRedBorder = isFieldRequired && isEmptyOrNotSpecified
+
+                                                      // Render based on field_type
+                                                      const renderAdvanceField = () => {
+                                                        // Dropdown field
+                                                        if (field.field_type === "dropdown" && field.options && Array.isArray(field.options)) {
+                                                          // Get current selected option
+                                                          const currentOptionId = typeof currentValue === "object"
+                                                            ? currentValue?.option_id?.toString()
+                                                            : currentValue?.toString() || ""
+
+                                                          // Filter active options only
+                                                          const activeOptions = field.options.filter((opt: any) => opt.status === "Active" || opt.status === undefined)
+
+                                                          // If only one option and no value is set, auto-select it
+                                                          if (!currentOptionId && activeOptions.length === 1) {
+                                                            const singleOption = activeOptions[0]
+                                                            setTimeout(() => {
+                                                              setAdvanceFieldValues(prev => ({
+                                                                ...prev,
+                                                                [fieldKey]: {
+                                                                  advance_field_id: field.id,
+                                                                  advance_field_value: singleOption.name,
+                                                                  option_id: singleOption.id
+                                                                }
+                                                              }))
+                                                            }, 0)
+                                                          }
+
+                                                          // Find default option if no value is set and more than one option
+                                                          const defaultOption = !currentOptionId && activeOptions.length > 1
+                                                            ? activeOptions.find((opt: any) =>
+                                                              opt.is_default === "Yes" || opt.is_default === true
+                                                            )
+                                                            : null
+
+                                                          const selectedOptionId = currentOptionId || defaultOption?.id?.toString() || ""
+                                                          const selectedOption = activeOptions.find((opt: any) => opt.id?.toString() === selectedOptionId)
+
+                                                          // Auto-select default if exists and no value is set
+                                                          if (defaultOption && !currentOptionId && activeOptions.length > 1) {
+                                                            setTimeout(() => {
+                                                              setAdvanceFieldValues(prev => ({
+                                                                ...prev,
+                                                                [fieldKey]: {
+                                                                  advance_field_id: field.id,
+                                                                  advance_field_value: defaultOption.name,
+                                                                  option_id: defaultOption.id
+                                                                }
+                                                              }))
+                                                            }, 0)
+                                                          }
+
+                                                          return (
+                                                            <Select
+                                                              value={selectedOptionId}
+                                                              onValueChange={(value) => {
+                                                                const selectedOption = activeOptions.find((opt: any) => opt.id?.toString() === value)
+                                                                setAdvanceFieldValues(prev => ({
+                                                                  ...prev,
+                                                                  [fieldKey]: selectedOption ? {
+                                                                    advance_field_id: field.id,
+                                                                    advance_field_value: selectedOption.name,
+                                                                    option_id: selectedOption.id
+                                                                  } : null
+                                                                }))
+                                                              }}
+                                                            >
+                                                              <SelectTrigger
+                                                                className="h-[37px] mt-[5.27px] rounded-[7.7px] text-[14.4px] font-normal"
+                                                                style={{
+                                                                  padding: '8px 12px 4px 12px',
+                                                                  gap: '5px',
+                                                                  background: '#FFFFFF',
+                                                                  border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
+                                                                  boxSizing: 'border-box',
+                                                                  minWidth: fieldWidth.minWidth,
+                                                                  maxWidth: fieldWidth.maxWidth,
+                                                                  width: fieldWidth.width,
+                                                                  flex: fieldWidth.flex,
+                                                                }}
+                                                              >
+                                                                <SelectValue placeholder={`Select ${field.name}`}>
+                                                                  {selectedOption ? selectedOption.name : `Select ${field.name}`}
+                                                                </SelectValue>
+                                                              </SelectTrigger>
+                                                              <SelectContent>
+                                                                {activeOptions
+                                                                  .sort((a: any, b: any) => (a.sequence || 0) - (b.sequence || 0))
+                                                                  .map((option: any) => (
+                                                                    <SelectItem key={option.id} value={option.id.toString()}>
+                                                                      {option.name}
+                                                                    </SelectItem>
+                                                                  ))}
+                                                              </SelectContent>
+                                                            </Select>
+                                                          )
+                                                        }
+
+                                                        // Text field
+                                                        if (field.field_type === "text") {
+                                                          return (
+                                                            <Input
+                                                              type="text"
+                                                              value={typeof currentValue === "object" ? currentValue?.advance_field_value || "" : currentValue || ""}
+                                                              onChange={(e) => {
+                                                                setAdvanceFieldValues(prev => ({
+                                                                  ...prev,
+                                                                  [fieldKey]: {
+                                                                    advance_field_id: field.id,
+                                                                    advance_field_value: e.target.value
+                                                                  }
+                                                                }))
+                                                              }}
+                                                              className="mt-[5.27px] rounded-[7.7px] text-[14.4px]"
+                                                              style={{
+                                                                padding: '8px 12px 4px 12px',
+                                                                minHeight: '80px',
+                                                                border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
+                                                                minWidth: fieldWidth.minWidth,
+                                                                maxWidth: fieldWidth.maxWidth,
+                                                                width: fieldWidth.width,
+                                                                flex: fieldWidth.flex,
+                                                              }}
+                                                              placeholder={`Enter ${field.name}`}
+                                                            />
+                                                          )
+                                                        }
+
+                                                        // Number field
+                                                        if (field.field_type === "number") {
+                                                          return (
+                                                            <Input
+                                                              type="number"
+                                                              value={typeof currentValue === "object" ? currentValue?.advance_field_value || "" : currentValue || ""}
+                                                              onChange={(e) => {
+                                                                setAdvanceFieldValues(prev => ({
+                                                                  ...prev,
+                                                                  [fieldKey]: {
+                                                                    advance_field_id: field.id,
+                                                                    advance_field_value: e.target.value
+                                                                  }
+                                                                }))
+                                                              }}
+                                                              className="h-[37px] mt-[5.27px] rounded-[7.7px] text-[14.4px]"
+                                                              style={{
+                                                                padding: '8px 12px 4px 12px',
+                                                                border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
+                                                                minWidth: fieldWidth.minWidth,
+                                                                maxWidth: fieldWidth.maxWidth,
+                                                                width: fieldWidth.width,
+                                                                flex: fieldWidth.flex,
+                                                              }}
+                                                              placeholder={`Enter ${field.name}`}
+                                                            />
+                                                          )
+                                                        }
+
+                                                        // Multiline text (textarea)
+                                                        if (field.field_type === "multiline_text") {
+                                                          return (
+                                                            <Textarea
+                                                              value={typeof currentValue === "object" ? currentValue?.advance_field_value || "" : currentValue || ""}
+                                                              onChange={(e) => {
+                                                                setAdvanceFieldValues(prev => ({
+                                                                  ...prev,
+                                                                  [fieldKey]: {
+                                                                    advance_field_id: field.id,
+                                                                    advance_field_value: e.target.value
+                                                                  }
+                                                                }))
+                                                              }}
+                                                              className="mt-[5.27px] rounded-[7.7px] text-[14.4px]"
+                                                              style={{
+                                                                padding: '8px 12px 4px 12px',
+                                                                minHeight: '80px',
+                                                                minWidth: fieldWidth.minWidth,
+                                                                maxWidth: fieldWidth.maxWidth,
+                                                                width: fieldWidth.width,
+                                                                flex: fieldWidth.flex,
+                                                              }}
+                                                              placeholder={`Enter ${field.name}`}
+                                                            />
+                                                          )
+                                                        }
+
+                                                        // Radio field
+                                                        if (field.field_type === "radio" && field.options && Array.isArray(field.options)) {
+                                                          const activeOptions = field.options.filter((opt: any) => opt.status === "Active" || opt.status === undefined)
+                                                          const currentOptionId = typeof currentValue === "object"
+                                                            ? currentValue?.option_id?.toString()
+                                                            : currentValue?.toString() || ""
+
+                                                          // Find default option if no value is set
+                                                          const defaultOption = !currentOptionId
+                                                            ? activeOptions.find((opt: any) =>
+                                                              opt.is_default === "Yes" || opt.is_default === true
+                                                            )
+                                                            : null
+
+                                                          const selectedOptionId = currentOptionId || defaultOption?.id?.toString() || ""
+
+                                                          // Auto-select default if exists and no value is set
+                                                          if (defaultOption && !currentOptionId) {
+                                                            setTimeout(() => {
+                                                              setAdvanceFieldValues(prev => ({
+                                                                ...prev,
+                                                                [fieldKey]: {
+                                                                  advance_field_id: field.id,
+                                                                  advance_field_value: defaultOption.name,
+                                                                  option_id: defaultOption.id
+                                                                }
+                                                              }))
+                                                            }, 0)
+                                                          }
+
+                                                          return (
+                                                            <div
+                                                              className="mt-[5.27px] rounded-[7.7px]"
+                                                              style={{
+                                                                padding: '8px 12px 4px 12px',
+                                                                minHeight: '37px',
+                                                                background: '#FFFFFF',
+                                                                border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
+                                                                minWidth: fieldWidth.minWidth,
+                                                                maxWidth: fieldWidth.maxWidth,
+                                                                width: fieldWidth.width,
+                                                                flex: fieldWidth.flex,
+                                                              }}
+                                                            >
+                                                              <RadioGroup
+                                                                value={selectedOptionId}
+                                                                onValueChange={(value) => {
+                                                                  const selectedOption = activeOptions.find((opt: any) => opt.id?.toString() === value)
+                                                                  setAdvanceFieldValues(prev => ({
+                                                                    ...prev,
+                                                                    [fieldKey]: selectedOption ? {
+                                                                      advance_field_id: field.id,
+                                                                      advance_field_value: selectedOption.name,
+                                                                      option_id: selectedOption.id
+                                                                    } : null
+                                                                  }))
+                                                                }}
+                                                                className="space-y-2"
+                                                              >
+                                                                {activeOptions
+                                                                  .sort((a: any, b: any) => (a.sequence || 0) - (b.sequence || 0))
+                                                                  .map((option: any) => (
+                                                                    <div key={option.id} className="flex items-center space-x-2">
+                                                                      <RadioGroupItem value={option.id.toString()} id={`${fieldKey}-${option.id}`} />
+                                                                      <Label
+                                                                        htmlFor={`${fieldKey}-${option.id}`}
+                                                                        className="text-[14.4px] font-normal cursor-pointer"
+                                                                      >
+                                                                        {option.name}
+                                                                      </Label>
+                                                                    </div>
+                                                                  ))}
+                                                              </RadioGroup>
+                                                            </div>
+                                                          )
+                                                        }
+
+                                                        // Checkbox field (multiple selection)
+                                                        if (field.field_type === "checkbox" && field.options && Array.isArray(field.options)) {
+                                                          const activeOptions = field.options.filter((opt: any) => opt.status === "Active" || opt.status === undefined)
+
+                                                          // For checkbox, value can be an array of selected option IDs
+                                                          const currentSelectedIds = typeof currentValue === "object"
+                                                            ? (Array.isArray(currentValue?.option_ids) ? currentValue.option_ids :
+                                                              currentValue?.option_id ? [currentValue.option_id] : [])
+                                                            : []
+
+                                                          const handleCheckboxChange = (optionId: number, checked: boolean) => {
+                                                            setAdvanceFieldValues(prev => {
+                                                              const current = prev[fieldKey]
+                                                              const currentIds = typeof current === "object"
+                                                                ? (Array.isArray(current?.option_ids) ? current.option_ids :
+                                                                  current?.option_id ? [current.option_id] : [])
+                                                                : []
+
+                                                              let newIds: number[]
+                                                              if (checked) {
+                                                                newIds = [...currentIds, optionId]
+                                                              } else {
+                                                                newIds = currentIds.filter((id: number) => id !== optionId)
+                                                              }
+
+                                                              // Get selected option names
+                                                              const selectedOptions = activeOptions.filter((opt: any) => newIds.includes(opt.id))
+                                                              const optionNames = selectedOptions.map((opt: any) => opt.name).join(", ")
+
+                                                              return {
+                                                                ...prev,
+                                                                [fieldKey]: {
+                                                                  advance_field_id: field.id,
+                                                                  advance_field_value: optionNames || "",
+                                                                  option_ids: newIds
+                                                                }
+                                                              }
+                                                            })
+                                                          }
+
+                                                          return (
+                                                            <div
+                                                              className="mt-[5.27px] rounded-[7.7px]"
+                                                              style={{
+                                                                padding: '8px 12px 4px 12px',
+                                                                minHeight: '37px',
+                                                                background: '#FFFFFF',
+                                                                border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
+                                                                minWidth: fieldWidth.minWidth,
+                                                                maxWidth: fieldWidth.maxWidth,
+                                                                width: fieldWidth.width,
+                                                                flex: fieldWidth.flex,
+                                                              }}
+                                                            >
+                                                              <div className="space-y-2">
+                                                                {activeOptions
+                                                                  .sort((a: any, b: any) => (a.sequence || 0) - (b.sequence || 0))
+                                                                  .map((option: any) => (
+                                                                    <div key={option.id} className="flex items-center space-x-2">
+                                                                      <Checkbox
+                                                                        id={`${fieldKey}-${option.id}`}
+                                                                        checked={currentSelectedIds.includes(option.id)}
+                                                                        onCheckedChange={(checked) => handleCheckboxChange(option.id, checked === true)}
+                                                                        className="border-gray-400"
+                                                                      />
+                                                                      <Label
+                                                                        htmlFor={`${fieldKey}-${option.id}`}
+                                                                        className="text-[14.4px] font-normal cursor-pointer"
+                                                                      >
+                                                                        {option.name}
+                                                                      </Label>
+                                                                    </div>
+                                                                  ))}
+                                                              </div>
+                                                            </div>
+                                                          )
+                                                        }
+
+                                                        // File upload field
+                                                        if (field.field_type === "file_upload") {
+                                                          const currentFile = typeof currentValue === "object" && currentValue?.file
+                                                            ? currentValue.file
+                                                            : null
+
+                                                          return (
+                                                            <div
+                                                              className="mt-[5.27px] rounded-[7.7px]"
+                                                              style={{
+                                                                padding: '8px 12px 4px 12px',
+                                                                minHeight: '37px',
+                                                                background: '#FFFFFF',
+                                                                border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
+                                                                minWidth: fieldWidth.minWidth,
+                                                                maxWidth: fieldWidth.maxWidth,
+                                                                width: fieldWidth.width,
+                                                                flex: fieldWidth.flex,
+                                                              }}
+                                                            >
+                                                              <input
+                                                                type="file"
+                                                                onChange={(e) => {
+                                                                  const file = e.target.files?.[0] || null
+                                                                  setAdvanceFieldValues(prev => ({
+                                                                    ...prev,
+                                                                    [fieldKey]: {
+                                                                      advance_field_id: field.id,
+                                                                      advance_field_value: file?.name || "",
+                                                                      file: file
+                                                                    }
+                                                                  }))
+                                                                }}
+                                                                className="text-[14.4px] w-full"
+                                                                accept=".jpg,.jpeg,.png,.gif,.svg,.pdf,.stl,.mp4,.avi,.mov,.zip,.rar"
+                                                              />
+                                                              {currentFile && (
+                                                                <div className="mt-2 text-xs text-gray-600">
+                                                                  Selected: {currentFile.name}
+                                                                </div>
+                                                              )}
+                                                            </div>
+                                                          )
+                                                        }
+
+                                                        // Shade guide field
+                                                        if (field.field_type === "shade_guide") {
+                                                          return (
+                                                            <Input
+                                                              type="text"
+                                                              value={typeof currentValue === "object" ? currentValue?.advance_field_value || "" : currentValue || ""}
+                                                              onChange={(e) => {
+                                                                setAdvanceFieldValues(prev => ({
+                                                                  ...prev,
+                                                                  [fieldKey]: {
+                                                                    advance_field_id: field.id,
+                                                                    advance_field_value: e.target.value
+                                                                  }
+                                                                }))
+                                                              }}
+                                                              className="h-[37px] mt-[5.27px] rounded-[7.7px] text-[14.4px]"
+                                                              style={{
+                                                                padding: '8px 12px 4px 12px',
+                                                                border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
+                                                                minWidth: fieldWidth.minWidth,
+                                                                maxWidth: fieldWidth.maxWidth,
+                                                                width: fieldWidth.width,
+                                                                flex: fieldWidth.flex,
+                                                              }}
+                                                              placeholder={`Enter ${field.name}`}
+                                                            />
+                                                          )
+                                                        }
+
+                                                        // Implant library field
+                                                        if (field.field_type === "implant_library") {
+                                                          const currentStep = implantSelectionStep[fieldKey] || 'brand'
+                                                          const selectedBrandId = selectedImplantBrand[fieldKey]
+                                                          const selectedPlatformId = selectedImplantPlatform[fieldKey]
+                                                          const selectedSize = selectedImplantSize[fieldKey]
+
+                                                          // Get selected brand and platform
+                                                          const selectedBrand = selectedBrandId ? implants.find((imp: any) => imp.id === selectedBrandId) : null
+                                                          // Try to find platform in brand's platforms first, otherwise use stored platform data (for static platforms)
+                                                          let selectedPlatform = null
+                                                          if (selectedBrand && selectedPlatformId) {
+                                                            selectedPlatform = selectedBrand.platforms?.find((p: any) => (p.id || 0) === selectedPlatformId)
+                                                            // If not found in brand's platforms, use stored platform data (static platforms)
+                                                            if (!selectedPlatform && selectedImplantPlatformData[fieldKey]) {
+                                                              selectedPlatform = selectedImplantPlatformData[fieldKey]
+                                                            }
+                                                          }
+
+                                                          // Build display value
+                                                          let displayValue = ""
+                                                          if (selectedBrand && selectedPlatform && selectedSize) {
+                                                            displayValue = `${selectedBrand.brand_name} - ${selectedPlatform.name} - ${selectedSize}`
+                                                          } else if (selectedBrand && selectedPlatform) {
+                                                            displayValue = `${selectedBrand.brand_name} - ${selectedPlatform.name}`
+                                                          } else if (selectedBrand) {
+                                                            displayValue = selectedBrand.brand_name
+                                                          }
+
+                                                          return (
+                                                            <>
+                                                              {/* Only show input if form is not shown yet */}
+                                                              {currentStep !== 'form' && (
+                                                                <Input
+                                                                  type="text"
+                                                                  value={displayValue || (typeof currentValue === "object" ? currentValue?.advance_field_value || "" : currentValue || "")}
+                                                                  onClick={() => {
+                                                                    // Show cards when input is clicked, reset to brand step
+                                                                    setShowImplantCards(true)
+                                                                    setActiveImplantFieldKey(fieldKey)
+                                                                    setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'brand' }))
+                                                                  }}
+                                                                  onFocus={() => {
+                                                                    // Show cards when input is focused, reset to brand step
+                                                                    setShowImplantCards(true)
+                                                                    setActiveImplantFieldKey(fieldKey)
+                                                                    setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'brand' }))
+                                                                  }}
+                                                                  onChange={(e) => {
+                                                                    setAdvanceFieldValues(prev => ({
+                                                                      ...prev,
+                                                                      [fieldKey]: {
+                                                                        advance_field_id: field.id,
+                                                                        advance_field_value: e.target.value
+                                                                      }
+                                                                    }))
+                                                                  }}
+                                                                  className="h-[37px] mt-[5.27px] rounded-[7.7px] text-[14.4px] cursor-pointer"
+                                                                  style={{
+                                                                    padding: '8px 12px 4px 12px',
+                                                                    border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
+                                                                    minWidth: fieldWidth.minWidth,
+                                                                    maxWidth: fieldWidth.maxWidth,
+                                                                    width: fieldWidth.width,
+                                                                    flex: fieldWidth.flex,
+                                                                  }}
+                                                                  readOnly
+                                                                />
+                                                              )}
+
+                                                              {/* Implant Detail Form - Show after brand/platform selection */}
+                                                              {currentStep === 'form' && selectedBrand && (
+                                                                <div data-implant-field-key={fieldKey} style={{ width: '100%', marginTop: '20px' }}>
+                                                                  <ImplantDetailForm
+                                                                    fieldKey={fieldKey}
+                                                                    fieldId={field.id}
+                                                                    selectedBrand={selectedBrand}
+                                                                    selectedPlatform={selectedPlatform}
+                                                                    selectedSize={selectedSize}
+                                                                    onSizeChange={(size: string) => {
+                                                                      setSelectedImplantSize(prev => ({ ...prev, [fieldKey]: size }))
+                                                                      // Update mandibularImplantDetails to trigger impression field visibility in DynamicProductFields
+                                                                      if (selectedBrand && selectedPlatform) {
+                                                                        const implantDetailsStr = `${selectedBrand.brand_name} - ${selectedPlatform.name} - ${size}`
+                                                                        setMandibularImplantDetails(implantDetailsStr)
+                                                                      }
+                                                                    }}
+                                                                    onInclusionsChange={(inclusions) => {
+                                                                      // Handle inclusions change - update state for impression field visibility
+                                                                      setMandibularImplantInclusions(inclusions)
+                                                                      if (selectedBrand && selectedPlatform && selectedSize) {
+                                                                        const implantDetailsStr = `${selectedBrand.brand_name} - ${selectedPlatform.name} - ${selectedSize} - ${inclusions}`
+                                                                        setMandibularImplantDetails(implantDetailsStr)
+                                                                      }
+                                                                    }}
+                                                                    onAbutmentDetailChange={(detail) => {
+                                                                      // Handle abutment detail change - update state for impression field visibility
+                                                                      setMandibularAbutmentDetail(detail)
+                                                                    }}
+                                                                    onAbutmentTypeChange={(type) => {
+                                                                      // Handle abutment type change - update state for impression field visibility
+                                                                      setMandibularAbutmentType(type)
+                                                                    }}
+                                                                    onPlatformChange={(platform) => {
+                                                                      setSelectedImplantPlatform(prev => ({ ...prev, [fieldKey]: platform.id }))
+                                                                      // Store full platform data
+                                                                      setSelectedImplantPlatformData(prev => ({ ...prev, [fieldKey]: { id: platform.id, name: platform.name } }))
+                                                                    }}
+                                                                    onBrandFieldClick={() => {
+                                                                      // Show brand cards when brand field is clicked
+                                                                      setShowImplantCards(true)
+                                                                      setActiveImplantFieldKey(fieldKey)
+                                                                      // Keep step as 'form' so form stays visible, but show brand cards
+                                                                      setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'form' }))
+                                                                      setClickedFieldTypeInForm(prev => ({ ...prev, [fieldKey]: 'brand' }))
+                                                                      // Scroll to the cards container to show the brand cards
+                                                                      setTimeout(() => {
+                                                                        if (implantCardsRef.current) {
+                                                                          implantCardsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                                                                        }
+                                                                      }, 100)
+                                                                    }}
+                                                                    onPlatformFieldClick={() => {
+                                                                      // Show platform cards when platform field is clicked (same position as brand cards)
+                                                                      if (selectedBrand) {
+                                                                        // Ensure the brand ID is stored in state so cards rendering can find it
+                                                                        if (!selectedImplantBrand[fieldKey] || selectedImplantBrand[fieldKey] !== selectedBrand.id) {
+                                                                          setSelectedImplantBrand(prev => ({ ...prev, [fieldKey]: selectedBrand.id }))
+                                                                        }
+                                                                        setShowImplantCards(true)
+                                                                        setActiveImplantFieldKey(fieldKey)
+                                                                        // Keep step as 'form' so form stays visible, but show platform cards
+                                                                        setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'form' }))
+                                                                        setClickedFieldTypeInForm(prev => ({ ...prev, [fieldKey]: 'platform' }))
+                                                                        // Scroll to the cards container to show the platform cards (same position as brand cards)
+                                                                        setTimeout(() => {
+                                                                          if (implantCardsRef.current) {
+                                                                            implantCardsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                                                                          }
+                                                                        }, 100)
+                                                                      }
+                                                                    }}
+                                                                    teethNumbers={mandibularTeeth}
+                                                                    arch={archType}
+                                                                  />
+                                                                </div>
+                                                              )}
+                                                            </>
+                                                          )
+                                                        }
+
+                                                        // Default: display field name
+                                                        return (
+                                                          <div
+                                                            className="flex items-center"
+                                                            style={{
+                                                              padding: '8px 12px 4px 12px',
+                                                              gap: '5px',
+                                                              width: '100%',
+                                                              minHeight: '37px',
+                                                              position: 'relative',
+                                                              marginTop: '5.27px',
+                                                              background: '#FFFFFF',
+                                                              border: '0.740384px solid #7F7F7F',
+                                                              borderRadius: '7.7px',
+                                                              boxSizing: 'border-box'
+                                                            }}
+                                                          >
+                                                            <span style={{
+                                                              fontFamily: 'Verdana',
+                                                              fontStyle: 'normal',
+                                                              fontWeight: 400,
+                                                              fontSize: '13px',
+                                                              lineHeight: '20px',
+                                                              letterSpacing: '-0.02em',
+                                                              color: '#000000'
+                                                            }}>
+                                                              {field.name || field.description || "Advanced Field"} ({field.field_type})
+                                                            </span>
+                                                          </div>
+                                                        )
+                                                      }
+
+                                                      return (
+                                                        <div
+                                                          key={field.id}
+                                                          className="relative"
+                                                          style={{
+                                                            minHeight: '38px',
+                                                            minWidth: fieldWidth.minWidth,
+                                                            maxWidth: fieldWidth.maxWidth,
+                                                            width: fieldWidth.width,
+                                                            flex: fieldWidth.flex,
+                                                          }}
+                                                        >
+                                                          {renderAdvanceField()}
+                                                          <label
+                                                            className="absolute bg-white"
+                                                            style={{
+                                                              padding: '0px',
+                                                              height: '14px',
+                                                              left: '8.9px',
+                                                              top: '0px',
+                                                              fontFamily: 'Arial',
+                                                              fontStyle: 'normal',
+                                                              fontWeight: 400,
+                                                              fontSize: '14px',
+                                                              lineHeight: '14px',
+                                                              color: '#7F7F7F'
+                                                            }}
+                                                          >
+                                                            {field.field_type === "implant_library" && isEmptyOrNotSpecified
+                                                              ? "Select Implant Details"
+                                                              : (field.name || "Advanced Field")}
+                                                            {field.is_required === "Yes" && (
+                                                              <span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>
+                                                            )}
+                                                          </label>
+                                                        </div>
+                                                      )
+                                                    })}
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            )
+                                          })()}
+
+                                        {/* Impression Field - Shown after advance fields are complete */}
+                                        {productDetails?.impressions &&
+                                          Array.isArray(productDetails.impressions) &&
+                                          productDetails.impressions.length > 0 &&
+                                          productDetails?.advance_fields &&
+                                          Array.isArray(productDetails.advance_fields) &&
+                                          productDetails.advance_fields.length > 0 &&
+                                          isToothShadeFilled("mandibular") && (() => {
+                                            // Check if all advance fields are complete
+                                            const filteredAdvanceFields = productDetails.advance_fields.filter((field: any) => {
+                                              const fieldNameLower = (field.name || "").toLowerCase()
+                                              return !(fieldNameLower.includes("stump") && fieldNameLower.includes("shade"))
+                                            })
+
+                                            const allAdvanceFieldsComplete = filteredAdvanceFields.every((field: any) => {
+                                              if (field.field_type === "implant_library") {
+                                                const fieldKey = `advance_${field.id}`
+                                                const brandId = selectedImplantBrand[fieldKey]
+                                                const platformId = selectedImplantPlatform[fieldKey]
+                                                return brandId && platformId
+                                              }
+                                              const fieldKey = `advance_${field.id}`
+                                              const fieldValue = advanceFieldValues[fieldKey]
+                                              return fieldValue && fieldValue.advance_field_value
+                                            })
+
+                                            if (!allAdvanceFieldsComplete) return null
+
+                                            const impressionCount = selectedProduct
+                                              ? getImpressionCount(selectedProduct.id.toString(), "mandibular", productDetails.impressions)
+                                              : 0
+                                            const displayText = selectedProduct
+                                              ? getImpressionDisplayText(selectedProduct.id.toString(), "mandibular", productDetails.impressions)
+                                              : "Select impression"
+                                            const hasImpressionValue = impressionCount > 0 || (displayText && displayText !== "Select impression")
+
+                                            return (
+                                              <div className="flex flex-wrap" style={{ width: '100%', marginTop: '10px' }}>
+                                                <div style={{ flex: '1 1 50%', minWidth: '200px', maxWidth: '50%' }}>
+                                                  <div className="relative" style={{ minHeight: '38px', width: '100%' }}>
+                                                    <div
+                                                      className="flex items-center cursor-pointer"
+                                                      onClick={() => {
+                                                        if (selectedProduct) {
+                                                          const tempProduct: SavedProduct = {
+                                                            id: selectedProduct.id.toString(),
+                                                            product: selectedProduct,
+                                                            productDetails: productDetails,
+                                                            category: selectedCategory || "",
+                                                            categoryId: selectedCategoryId || 0,
+                                                            subcategory: selectedSubcategory || "",
+                                                            subcategoryId: selectedSubcategoryId || 0,
+                                                            maxillaryTeeth: maxillaryTeeth,
+                                                            mandibularTeeth: mandibularTeeth,
+                                                            maxillaryMaterial: maxillaryMaterial,
+                                                            maxillaryStumpShade: maxillaryStumpShade,
+                                                            maxillaryRetention: maxillaryRetention,
+                                                            maxillaryImplantDetails: maxillaryImplantDetails,
+                                                            mandibularMaterial: mandibularMaterial,
+                                                            mandibularRetention: mandibularRetention,
+                                                            mandibularStumpShade: mandibularStumpShade,
+                                                            mandibularImplantDetails: mandibularImplantDetails,
+                                                            createdAt: Date.now(),
+                                                            addedFrom: "mandibular",
+                                                          }
+                                                          handleOpenImpressionModal(tempProduct, "mandibular")
+                                                        }
+                                                      }}
+                                                      style={{
+                                                        padding: '8px 12px 4px 12px',
+                                                        gap: '5px',
+                                                        width: '100%',
+                                                        height: '32px',
+                                                        position: 'relative',
+                                                        marginTop: '5.27px',
+                                                        background: '#FFFFFF',
+                                                        border: `0.740384px solid ${hasImpressionValue ? '#119933' : '#ef4444'}`,
+                                                        borderRadius: '7.7px',
+                                                        boxSizing: 'border-box'
+                                                      }}
+                                                    >
+                                                      <span style={{
+                                                        fontFamily: 'Verdana',
+                                                        fontStyle: 'normal',
+                                                        fontWeight: 400,
+                                                        fontSize: '13px',
+                                                        lineHeight: '20px',
+                                                        letterSpacing: '-0.02em',
+                                                        color: '#000000',
+                                                        whiteSpace: 'nowrap',
+                                                        paddingRight: hasImpressionValue ? '30px' : '0px'
+                                                      }}>{displayText}</span>
+                                                    </div>
+                                                    <label
+                                                      className="absolute bg-white"
+                                                      style={{
+                                                        padding: '0px',
+                                                        height: '14px',
+                                                        left: '8.9px',
+                                                        top: '0px',
+                                                        fontFamily: 'Arial',
+                                                        fontStyle: 'normal',
+                                                        fontWeight: 400,
+                                                        fontSize: '14px',
+                                                        lineHeight: '14px',
+                                                        color: hasImpressionValue ? '#119933' : '#ef4444'
+                                                      }}
+                                                    >
+                                                      Impression<span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>
+                                                    </label>
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            )
+                                          })()}
+                                      </>
+                                    )}
+
+                                  </div>
+
+                                  {/* Action Buttons - Show when all fields have values */}
+                                  {productDetails &&
+                                    areAllCurrentProductFieldsFilled("mandibular") && (
+                                      <div
+                                        className="flex flex-wrap justify-center items-center w-full"
+                                        style={{
+                                          gap: '7.03px',
+                                          position: 'relative',
+                                          marginTop: '30px',
+                                          marginBottom: '15px'
                                         }}
-                                        maxillaryRetentionTypes={maxillaryRetentionTypes}
-                                        mandibularRetentionTypes={mandibularRetentionTypes}
-                                        maxillaryTeeth={maxillaryTeeth}
-                                        mandibularTeeth={mandibularTeeth}
-                                        onOpenImpressionModal={() => {
-                                          if (selectedProduct) {
+                                      >
+                                        {/* Deliver product first - Only show if multiple products */}
+                                        {savedProducts.length > 1 && (
+                                          <button
+                                            className="relative flex flex-col items-center justify-center"
+                                            style={{
+                                              width: '123.04px',
+                                              height: '46.22px',
+                                              background: '#F9F9F9',
+                                              boxShadow: '0.878154px 0.878154px 3.07354px rgba(0, 0, 0, 0.25)',
+                                              borderRadius: '5.26893px',
+                                              border: 'none',
+                                              cursor: 'pointer',
+                                              padding: '0'
+                                            }}
+                                          >
+                                            <div
+                                              className="absolute"
+                                              style={{
+                                                width: '13.91px',
+                                                height: '13.91px',
+                                                left: '50%',
+                                                top: '9.2px',
+                                                transform: 'translateX(-50%)',
+                                                background: '#FFFFFF',
+                                                border: '1.15951px solid #1162A8',
+                                                borderRadius: '1.73926px'
+                                              }}
+                                            />
+                                            <span
+                                              className="absolute text-center"
+                                              style={{
+                                                width: '85px',
+                                                height: '20px',
+                                                left: '50%',
+                                                top: '23.11px',
+                                                transform: 'translateX(-50%)',
+                                                fontFamily: 'Verdana',
+                                                fontStyle: 'normal',
+                                                fontWeight: 400,
+                                                fontSize: '8.78154px',
+                                                lineHeight: '19px',
+                                                textAlign: 'center',
+                                                letterSpacing: '-0.02em',
+                                                color: '#000000'
+                                              }}
+                                            >
+                                              Deliver product first
+                                            </span>
+                                          </button>
+                                        )}
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            // For card accordion, create temp product for modal
                                             const tempProduct: SavedProduct = {
-                                              id: selectedProduct.id.toString(),
-                                              product: selectedProduct,
+                                              id: selectedProduct?.id?.toString() || `temp-${Date.now()}`,
+                                              product: selectedProduct || { id: 0, name: "Product", price: 0 },
                                               productDetails: productDetails,
                                               category: selectedCategory || "",
                                               categoryId: selectedCategoryId || 0,
@@ -10884,1193 +11700,10 @@ export default function CaseDesignCenterPage() {
                                               createdAt: Date.now(),
                                               addedFrom: "mandibular",
                                             }
-                                            handleOpenImpressionModal(tempProduct, "mandibular")
-                                          }
-                                        }}
-                                        getImpressionCount={() => {
-                                          if (!selectedProduct || !productDetails?.impressions) return 0
-                                          const productId = selectedProduct.id.toString()
-                                          return getImpressionCount(productId, "mandibular", productDetails.impressions)
-                                        }}
-                                        getImpressionDisplayText={() => {
-                                          if (!selectedProduct || !productDetails?.impressions) return "Select impression"
-                                          const productId = selectedProduct.id.toString()
-                                          return getImpressionDisplayText(productId, "mandibular", productDetails.impressions)
-                                        }}
-                                        onOpenShadeModal={(fieldKey) => {
-                                          handleOpenShadeModal(fieldKey, "mandibular")
-                                        }}
-                                        showImplantBrandCards={showImplantBrandCardsInFields.mandibular || false}
-                                        implants={implants.map((imp: any) => ({
-                                          id: imp.id,
-                                          brand_name: imp.brand_name,
-                                          system_name: imp.system_name,
-                                          code: imp.code,
-                                          image_url: imp.image_url,
-                                          platforms: imp.platforms?.map((p: any) => ({
-                                            id: p.id || 0,
-                                            name: p.name,
-                                            image: p.image_url
-                                          }))
-                                        }))}
-                                        selectedImplantId={selectedImplantBrandForDetails.mandibular || null}
-                                        onSelectImplant={(implant: any) => {
-                                          setSelectedImplantBrandForDetails(prev => ({ ...prev, mandibular: implant.id }))
-                                          // You can add additional logic here to update implant details
-                                        }}
-                                        onImplantDetailsFieldClick={() => {
-                                          setShowImplantBrandCardsInFields(prev => ({ ...prev, mandibular: !prev.mandibular }))
-                                        }}
-                                        selectedImplantPlatformId={selectedImplantPlatformForDetails.mandibular || null}
-                                        onSelectImplantPlatform={(platform: any) => {
-                                          setSelectedImplantPlatformForDetails(prev => ({ ...prev, mandibular: platform.id }))
-                                          // You can add additional logic here to update implant details with platform
-                                        }}
-                                        onBrandFieldClick={() => {
-                                          setShowImplantBrandCardsInFields(prev => ({ ...prev, mandibular: true }))
-                                          setClickedFieldTypeInImplantDetails(prev => ({ ...prev, mandibular: 'brand' }))
-                                        }}
-                                        onPlatformFieldClick={() => {
-                                          setShowImplantBrandCardsInFields(prev => ({ ...prev, mandibular: true }))
-                                          setClickedFieldTypeInImplantDetails(prev => ({ ...prev, mandibular: 'platform' }))
-                                        }}
-                                        selectedImplantBrand={selectedImplantBrand}
-                                        selectedImplantPlatform={selectedImplantPlatform}
-                                        selectedImplantSize={selectedImplantSize}
-                                        hideFieldsDuringShadeSelection={currentShadeField !== null && currentShadeArch === "mandibular"}
-                                        hideImpression={productDetails?.advance_fields && Array.isArray(productDetails.advance_fields) && productDetails.advance_fields.length > 0}
-                                      />
-
-                                      {/* Implant Brand/Platform Cards - Shows at the bottom when implant details field is clicked */}
-                                      {/* Only show if retention type is "Implant" */}
-                                      {(() => {
-                                        // Check if any tooth has "Implant" retention type for mandibular
-                                        const hasImplantRetention = Object.values(mandibularRetentionTypes).some(
-                                          (types) => types && types.includes('Implant')
-                                        )
-                                        return hasImplantRetention
-                                      })() && showImplantBrandCardsInFields.mandibular && implants && implants.length > 0 && (
-                                        <div className="w-full pt-2">
-                                          <div className="flex flex-col items-center gap-2 w-full">
-                                            <div className="bg-white w-full flex justify-center">
-                                              {(() => {
-                                                const selectedBrandId = selectedImplantBrandForDetails.mandibular
-                                                const selectedBrand = selectedBrandId ? implants.find((imp: any) => imp.id === selectedBrandId) : null
-                                                const platforms = selectedBrand?.platforms || []
-                                                const mappedPlatforms = platforms.map((plat: any) => ({
-                                                  id: plat.id || 0,
-                                                  name: plat.name,
-                                                  image: plat.image_url || plat.image
-                                                }))
-                                                const selectedPlatformId = selectedImplantPlatformForDetails.mandibular
-                                                const clickedFieldType = clickedFieldTypeInImplantDetails.mandibular
-
-                                                // Show platform cards if:
-                                                // 1. Platform field was clicked AND brand is selected (highest priority - show even if no platforms), OR
-                                                // 2. Brand is selected, platform not selected yet, and brand field was NOT clicked (auto-show after brand selection)
-                                                const shouldShowPlatformCards = (clickedFieldType === 'platform' && selectedBrandId) ||
-                                                                               (clickedFieldType !== 'brand' && (clickedFieldType === null || clickedFieldType === undefined) && selectedBrandId && selectedPlatformId === null)
-
-                                                // Show brand cards if:
-                                                // 1. Brand field was clicked, OR
-                                                // 2. No brand selected yet, OR
-                                                // 3. Platform cards should not be shown
-                                                const shouldShowBrandCards = !shouldShowPlatformCards && (clickedFieldType === 'brand' ||
-                                                                                !selectedBrandId)
-
-                                                // Priority: Platform cards take precedence when platform field is clicked
-                                                if (shouldShowPlatformCards) {
-                                                  return (
-                                                    <ImplantPlatformCards
-                                                      platforms={mappedPlatforms}
-                                                      selectedPlatformId={selectedPlatformId}
-                                                      onSelectPlatform={(platform: any) => {
-                                                        setSelectedImplantPlatformForDetails(prev => ({ ...prev, mandibular: platform.id }))
-                                                        // Reset clicked field type after selection
-                                                        setClickedFieldTypeInImplantDetails(prev => ({ ...prev, mandibular: null }))
-                                                      }}
-                                                      arch="mandibular"
-                                                    />
-                                                  )
-                                                }
-
-                                                // Show brand cards only if platform cards are not being shown
-                                                if (shouldShowBrandCards) {
-                                                  const mappedImplants = implants.map((imp: any) => ({
-                                                    id: imp.id,
-                                                    brand_name: imp.brand_name,
-                                                    system_name: imp.system_name,
-                                                    code: imp.code,
-                                                    image_url: imp.image_url,
-                                                    platforms: imp.platforms?.map((p: any) => ({
-                                                      id: p.id || 0,
-                                                      name: p.name,
-                                                      image: p.image_url
-                                                    }))
-                                                  }))
-
-                                                  return (
-                                                    <ImplantBrandCards
-                                                      implants={mappedImplants}
-                                                      selectedImplantId={selectedBrandId}
-                                                      onSelectImplant={(implant: any) => {
-                                                        setSelectedImplantBrandForDetails(prev => ({ ...prev, mandibular: implant.id }))
-                                                        // If brand has platforms, reset platform selection to show platform cards
-                                                        if (implant.platforms && implant.platforms.length > 0) {
-                                                          setSelectedImplantPlatformForDetails(prev => ({ ...prev, mandibular: null }))
-                                                          // Auto-show platform cards after brand selection
-                                                          setClickedFieldTypeInImplantDetails(prev => ({ ...prev, mandibular: null }))
-                                                        } else {
-                                                          // Reset clicked field type after selection
-                                                          setClickedFieldTypeInImplantDetails(prev => ({ ...prev, mandibular: null }))
-                                                        }
-                                                      }}
-                                                      arch="mandibular"
-                                                    />
-                                                  )
-                                                }
-
-                                                return null
-                                              })()}
-                                            </div>
-                                          </div>
-                                        </div>
-                                      )}
-
-                                      {/* Implant Brand Cards for Advance Fields - Shows when implant details advance field is clicked */}
-                                      {/* Only show if retention type is "Implant" */}
-                                      {(() => {
-                                        // Check if any tooth has "Implant" retention type for mandibular
-                                        const hasImplantRetention = Object.values(mandibularRetentionTypes).some(
-                                          (types) => types && types.includes('Implant')
-                                        )
-                                        return hasImplantRetention
-                                      })() && showImplantCards && activeImplantFieldKey && activeImplantFieldKey.startsWith('advance_') && implants && implants.length > 0 && (
-                                        <div ref={implantCardsRef} className="w-full pt-2">
-                                          <div className="flex flex-col items-center gap-2 w-full">
-                                            <div className="bg-white w-full flex justify-center">
-                                              {(() => {
-                                                const fieldKey = activeImplantFieldKey
-                                                const currentStep = implantSelectionStep[fieldKey] || 'brand'
-                                                const selectedBrandId = selectedImplantBrand[fieldKey]
-
-                                                // Get selected brand - try lookup first, then fallback
-                                                let selectedBrand = selectedBrandId ? implants.find((imp: any) => imp.id === selectedBrandId) : null
-
-                                                // If we're in form mode and selectedBrand is not found, try to get it from advanceFieldValues
-                                                if (!selectedBrand && currentStep === 'form') {
-                                                  const currentValue = advanceFieldValues[fieldKey]
-                                                  if (currentValue && typeof currentValue === 'object' && currentValue.advance_field_value) {
-                                                    const brandName = typeof currentValue.advance_field_value === 'string'
-                                                      ? currentValue.advance_field_value.split(' - ')[0]
-                                                      : null
-                                                    if (brandName) {
-                                                      const foundBrand = implants.find((imp: any) => imp.brand_name === brandName)
-                                                      if (foundBrand) {
-                                                        selectedBrand = foundBrand
-                                                        // If found, update the selectedBrandId
-                                                        if (!selectedBrandId) {
-                                                          setSelectedImplantBrand(prev => ({ ...prev, [fieldKey]: foundBrand.id }))
-                                                        }
-                                                      }
-                                                    }
-                                                  }
-                                                }
-
-                                                const platforms = selectedBrand?.platforms || []
-                                                const mappedPlatforms = platforms.map((plat: any) => ({
-                                                  id: plat.id || 0,
-                                                  name: plat.name,
-                                                  image: plat.image_url || plat.image
-                                                }))
-                                                const selectedPlatformId = selectedImplantPlatform[fieldKey]
-                                                const clickedFieldType = clickedFieldTypeInForm[fieldKey]
-
-                                                // Show platform cards if:
-                                                // 1. We're on platform step, OR
-                                                // 2. We're in form step and platform field was clicked (hide brand cards when platform is clicked)
-                                                // Then check if we have a brand with platforms
-                                                const shouldShowPlatformCards = currentStep === 'platform' || (currentStep === 'form' && showImplantCards && clickedFieldType === 'platform')
-
-                                                // Show brand cards if:
-                                                // 1. We're on brand step, OR
-                                                // 2. We're in form step and brand field was clicked (hide platform cards when brand is clicked)
-                                                const shouldShowBrandCards = currentStep === 'brand' || (currentStep === 'form' && showImplantCards && clickedFieldType === 'brand')
-
-                                                // Priority: Platform cards take precedence when platform field is clicked
-                                                if (shouldShowPlatformCards && selectedBrand) {
-                                                  return (
-                                                    <ImplantPlatformCards
-                                                      platforms={mappedPlatforms}
-                                                      selectedPlatformId={selectedPlatformId}
-                                                      onSelectPlatform={(platform: any) => {
-                                                        setSelectedImplantPlatform(prev => ({ ...prev, [fieldKey]: platform.id }))
-                                                        // Store full platform data
-                                                        setSelectedImplantPlatformData(prev => ({ ...prev, [fieldKey]: { id: platform.id, name: platform.name } }))
-                                                        // After platform selection, keep form visible and hide the cards
-                                                        setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'form' }))
-                                                        setShowImplantCards(false)
-                                                        setClickedFieldTypeInForm(prev => ({ ...prev, [fieldKey]: null }))
-                                                        // Scroll to the form
-                                                        setTimeout(() => {
-                                                          const formElement = document.querySelector(`[data-implant-field-key="${fieldKey}"]`)
-                                                          if (formElement) {
-                                                            formElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                                                          }
-                                                        }, 100)
-                                                      }}
-                                                      arch="mandibular"
-                                                    />
-                                                  )
-                                                }
-
-                                                // Show brand cards only if platform cards are not being shown
-                                                if (shouldShowBrandCards && !shouldShowPlatformCards) {
-                                                  return (
-                                                    <ImplantBrandCards
-                                                      implants={implants.map((imp: any) => ({
-                                                        id: imp.id,
-                                                        brand_name: imp.brand_name,
-                                                        system_name: imp.system_name,
-                                                        code: imp.code,
-                                                        image_url: imp.image_url,
-                                                        platforms: imp.platforms?.map((p: any) => ({
-                                                          id: p.id || 0,
-                                                          name: p.name,
-                                                          image: p.image_url
-                                                        }))
-                                                      }))}
-                                                      selectedImplantId={selectedBrandId || null}
-                                                      onSelectImplant={(implant: any) => {
-                                                        setSelectedImplantBrand(prev => ({ ...prev, [fieldKey]: implant.id }))
-                                                        // If brand has platforms, show platform cards, otherwise go directly to form
-                                                        if (implant.platforms && implant.platforms.length > 0) {
-                                                          setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'platform' }))
-                                                        } else {
-                                                          // No platforms, go directly to form
-                                                          setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'form' }))
-                                                          setShowImplantCards(false)
-                                                          setClickedFieldTypeInForm(prev => ({ ...prev, [fieldKey]: null }))
-                                                          // Scroll to the form
-                                                          setTimeout(() => {
-                                                            const formElement = document.querySelector(`[data-implant-field-key="${fieldKey}"]`)
-                                                            if (formElement) {
-                                                              formElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                                                            }
-                                                          }, 100)
-                                                        }
-                                                      }}
-                                                      arch="mandibular"
-                                                    />
-                                                  )
-                                                }
-
-                                                // Default: don't show any cards if conditions don't match
-                                                return null
-                                              })()}
-                                            </div>
-                                          </div>
-                                        </div>
-                                      )}
-
-                                      {/* Advance Fields - Shown after tooth shade is selected */}
-                                      {productDetails &&
-                                        productDetails.advance_fields &&
-                                        Array.isArray(productDetails.advance_fields) &&
-                                        productDetails.advance_fields.length > 0 &&
-                                        isToothShadeFilled("mandibular") && (() => {
-                                          // Filter out stump shade from advanced fields - use existing stump shade field instead
-                                          const stumpShadeField = getAdvanceFieldByName("stump_shade", productDetails.advance_fields)
-
-                                          // Check if any tooth has "Implant" retention type for mandibular
-                                          const hasImplantRetention = Object.values(mandibularRetentionTypes).some(
-                                            (types) => types && types.includes('Implant')
-                                          )
-
-                                          const filteredAdvanceFields = productDetails.advance_fields.filter((field: any) => {
-                                            const fieldNameLower = (field.name || "").toLowerCase()
-                                            // Filter out stump shade fields
-                                            if (stumpShadeField && fieldNameLower.includes("stump") && fieldNameLower.includes("shade")) {
-                                              return false
-                                            }
-                                            // Filter out implant_library fields if no tooth has "Implant" retention type
-                                            if (field.field_type === "implant_library" && !hasImplantRetention) {
-                                              return false
-                                            }
-                                            return true
-                                          })
-
-                                          // If no fields remain after filtering, don't render the section
-                                          if (filteredAdvanceFields.length === 0) {
-                                            return null
-                                          }
-
-                                          const archType = "mandibular" // This is the mandibular section
-
-                                          return (
-                                            <div
-                                              className="flex flex-col gap-5"
-                                              style={{
-                                                display: 'flex',
-                                                flexDirection: 'column',
-                                                alignItems: 'flex-start',
-                                                padding: '0px',
-                                                flex: 'none',
-                                                alignSelf: 'stretch',
-                                                flexGrow: 0,
-                                                marginTop: '2px'
-                                              }}
-                                            >
-                                              <div className="w-full">
-                                                <div className="flex flex-wrap gap-4" style={{ gap: '16px' }}>
-                                                  {filteredAdvanceFields.map((field: any) => {
-                                                    const fieldKey = `advance_${field.id}`
-                                                    const currentValue = advanceFieldValues[fieldKey] || ""
-
-                                                    // Calculate width based on field type and content
-                                                    const getFieldWidth = (): { minWidth: string; maxWidth: string; width: string; flex: string } => {
-                                                      if (field.field_type === "multiline_text") {
-                                                        return { minWidth: "100%", maxWidth: "100%", width: "100%", flex: "1 1 100%" }
-                                                      }
-
-                                                      // Radio and checkbox fields need more width to display options
-                                                      if (field.field_type === "radio" || field.field_type === "checkbox") {
-                                                        const minWidth = 250
-                                                        return {
-                                                          minWidth: `${minWidth}px`,
-                                                          maxWidth: "none",
-                                                          width: `${minWidth}px`,
-                                                          flex: '1 1 auto'
-                                                        }
-                                                      }
-
-                                                      // For other fields, calculate based on content
-                                                      const displayValue = typeof currentValue === "object"
-                                                        ? currentValue?.advance_field_value || ""
-                                                        : currentValue || ""
-
-                                                      // Get the longest possible value for width calculation
-                                                      let longestText = field.name || ""
-                                                      if ((field.field_type === "dropdown" || field.field_type === "radio" || field.field_type === "checkbox") && field.options) {
-                                                        // Find longest option name
-                                                        const longestOption = field.options.reduce((longest: any, opt: any) => {
-                                                          return (opt.name?.length || 0) > (longest?.name?.length || 0) ? opt : longest
-                                                        }, { name: "" })
-                                                        longestText = longestOption.name || longestText
-                                                      } else if (displayValue) {
-                                                        longestText = displayValue
-                                                      }
-
-                                                      // Calculate width: min 200px, base on content
-                                                      const minWidth = 200
-                                                      // Estimate width: ~8px per character + padding (60px) + some buffer
-                                                      const estimatedWidth = Math.max(minWidth, Math.min(500, longestText.length * 8 + 80))
-
-                                                      return {
-                                                        minWidth: `${minWidth}px`,
-                                                        maxWidth: "none",
-                                                        width: `${estimatedWidth}px`,
-                                                        flex: '1 1 auto'
-                                                      }
-                                                    }
-
-                                                    const fieldWidth = getFieldWidth()
-
-                                                    // Check if field is required and value is "Not specified" or empty
-                                                    const isFieldRequired = field.is_required === "Yes" || field.is_required === true
-                                                    const displayValue = typeof currentValue === "object"
-                                                      ? currentValue?.advance_field_value || ""
-                                                      : currentValue || ""
-
-                                                    // For checkbox fields, check if at least one option is selected
-                                                    let isEmptyOrNotSpecified = false
-                                                    if (field.field_type === "checkbox") {
-                                                      const currentSelectedIds = typeof currentValue === "object"
-                                                        ? (Array.isArray(currentValue?.option_ids) ? currentValue.option_ids :
-                                                          currentValue?.option_id ? [currentValue.option_id] : [])
-                                                        : []
-                                                      isEmptyOrNotSpecified = currentSelectedIds.length === 0
-                                                    } else {
-                                                      isEmptyOrNotSpecified = !displayValue ||
-                                                        displayValue.trim() === "" ||
-                                                        displayValue.trim().toLowerCase() === "not specified" ||
-                                                        (field.field_type === "dropdown" && displayValue === `Select ${field.name}`)
-                                                    }
-
-                                                    const showRedBorder = isFieldRequired && isEmptyOrNotSpecified
-
-                                                    // Render based on field_type
-                                                    const renderAdvanceField = () => {
-                                                      // Dropdown field
-                                                      if (field.field_type === "dropdown" && field.options && Array.isArray(field.options)) {
-                                                        // Get current selected option
-                                                        const currentOptionId = typeof currentValue === "object"
-                                                          ? currentValue?.option_id?.toString()
-                                                          : currentValue?.toString() || ""
-
-                                                        // Filter active options only
-                                                        const activeOptions = field.options.filter((opt: any) => opt.status === "Active" || opt.status === undefined)
-
-                                                        // If only one option and no value is set, auto-select it
-                                                        if (!currentOptionId && activeOptions.length === 1) {
-                                                          const singleOption = activeOptions[0]
-                                                          setTimeout(() => {
-                                                            setAdvanceFieldValues(prev => ({
-                                                              ...prev,
-                                                              [fieldKey]: {
-                                                                advance_field_id: field.id,
-                                                                advance_field_value: singleOption.name,
-                                                                option_id: singleOption.id
-                                                              }
-                                                            }))
-                                                          }, 0)
-                                                        }
-
-                                                        // Find default option if no value is set and more than one option
-                                                        const defaultOption = !currentOptionId && activeOptions.length > 1
-                                                          ? activeOptions.find((opt: any) =>
-                                                            opt.is_default === "Yes" || opt.is_default === true
-                                                          )
-                                                          : null
-
-                                                        const selectedOptionId = currentOptionId || defaultOption?.id?.toString() || ""
-                                                        const selectedOption = activeOptions.find((opt: any) => opt.id?.toString() === selectedOptionId)
-
-                                                        // Auto-select default if exists and no value is set
-                                                        if (defaultOption && !currentOptionId && activeOptions.length > 1) {
-                                                          setTimeout(() => {
-                                                            setAdvanceFieldValues(prev => ({
-                                                              ...prev,
-                                                              [fieldKey]: {
-                                                                advance_field_id: field.id,
-                                                                advance_field_value: defaultOption.name,
-                                                                option_id: defaultOption.id
-                                                              }
-                                                            }))
-                                                          }, 0)
-                                                        }
-
-                                                        return (
-                                                          <Select
-                                                            value={selectedOptionId}
-                                                            onValueChange={(value) => {
-                                                              const selectedOption = activeOptions.find((opt: any) => opt.id?.toString() === value)
-                                                              setAdvanceFieldValues(prev => ({
-                                                                ...prev,
-                                                                [fieldKey]: selectedOption ? {
-                                                                  advance_field_id: field.id,
-                                                                  advance_field_value: selectedOption.name,
-                                                                  option_id: selectedOption.id
-                                                                } : null
-                                                              }))
-                                                            }}
-                                                          >
-                                                            <SelectTrigger
-                                                              className="h-[37px] mt-[5.27px] rounded-[7.7px] text-[14.4px] font-normal"
-                                                              style={{
-                                                                padding: '8px 12px 4px 12px',
-                                                                gap: '5px',
-                                                                background: '#FFFFFF',
-                                                                border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
-                                                                boxSizing: 'border-box',
-                                                                minWidth: fieldWidth.minWidth,
-                                                                maxWidth: fieldWidth.maxWidth,
-                                                                width: fieldWidth.width,
-                                                                flex: fieldWidth.flex,
-                                                              }}
-                                                            >
-                                                              <SelectValue placeholder={`Select ${field.name}`}>
-                                                                {selectedOption ? selectedOption.name : `Select ${field.name}`}
-                                                              </SelectValue>
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                              {activeOptions
-                                                                .sort((a: any, b: any) => (a.sequence || 0) - (b.sequence || 0))
-                                                                .map((option: any) => (
-                                                                  <SelectItem key={option.id} value={option.id.toString()}>
-                                                                    {option.name}
-                                                                  </SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                          </Select>
-                                                        )
-                                                      }
-
-                                                      // Text field
-                                                      if (field.field_type === "text") {
-                                                        return (
-                                                          <Input
-                                                            type="text"
-                                                            value={typeof currentValue === "object" ? currentValue?.advance_field_value || "" : currentValue || ""}
-                                                            onChange={(e) => {
-                                                              setAdvanceFieldValues(prev => ({
-                                                                ...prev,
-                                                                [fieldKey]: {
-                                                                  advance_field_id: field.id,
-                                                                  advance_field_value: e.target.value
-                                                                }
-                                                              }))
-                                                            }}
-                                                            className="mt-[5.27px] rounded-[7.7px] text-[14.4px]"
-                                                            style={{
-                                                              padding: '8px 12px 4px 12px',
-                                                              minHeight: '80px',
-                                                              border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
-                                                              minWidth: fieldWidth.minWidth,
-                                                              maxWidth: fieldWidth.maxWidth,
-                                                              width: fieldWidth.width,
-                                                              flex: fieldWidth.flex,
-                                                            }}
-                                                            placeholder={`Enter ${field.name}`}
-                                                          />
-                                                        )
-                                                      }
-
-                                                      // Number field
-                                                      if (field.field_type === "number") {
-                                                        return (
-                                                          <Input
-                                                            type="number"
-                                                            value={typeof currentValue === "object" ? currentValue?.advance_field_value || "" : currentValue || ""}
-                                                            onChange={(e) => {
-                                                              setAdvanceFieldValues(prev => ({
-                                                                ...prev,
-                                                                [fieldKey]: {
-                                                                  advance_field_id: field.id,
-                                                                  advance_field_value: e.target.value
-                                                                }
-                                                              }))
-                                                            }}
-                                                            className="h-[37px] mt-[5.27px] rounded-[7.7px] text-[14.4px]"
-                                                            style={{
-                                                              padding: '8px 12px 4px 12px',
-                                                              border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
-                                                              minWidth: fieldWidth.minWidth,
-                                                              maxWidth: fieldWidth.maxWidth,
-                                                              width: fieldWidth.width,
-                                                              flex: fieldWidth.flex,
-                                                            }}
-                                                            placeholder={`Enter ${field.name}`}
-                                                          />
-                                                        )
-                                                      }
-
-                                                      // Multiline text (textarea)
-                                                      if (field.field_type === "multiline_text") {
-                                                        return (
-                                                          <Textarea
-                                                            value={typeof currentValue === "object" ? currentValue?.advance_field_value || "" : currentValue || ""}
-                                                            onChange={(e) => {
-                                                              setAdvanceFieldValues(prev => ({
-                                                                ...prev,
-                                                                [fieldKey]: {
-                                                                  advance_field_id: field.id,
-                                                                  advance_field_value: e.target.value
-                                                                }
-                                                              }))
-                                                            }}
-                                                            className="mt-[5.27px] rounded-[7.7px] text-[14.4px]"
-                                                            style={{
-                                                              padding: '8px 12px 4px 12px',
-                                                              minHeight: '80px',
-                                                              minWidth: fieldWidth.minWidth,
-                                                              maxWidth: fieldWidth.maxWidth,
-                                                              width: fieldWidth.width,
-                                                              flex: fieldWidth.flex,
-                                                            }}
-                                                            placeholder={`Enter ${field.name}`}
-                                                          />
-                                                        )
-                                                      }
-
-                                                      // Radio field
-                                                      if (field.field_type === "radio" && field.options && Array.isArray(field.options)) {
-                                                        const activeOptions = field.options.filter((opt: any) => opt.status === "Active" || opt.status === undefined)
-                                                        const currentOptionId = typeof currentValue === "object"
-                                                          ? currentValue?.option_id?.toString()
-                                                          : currentValue?.toString() || ""
-
-                                                        // Find default option if no value is set
-                                                        const defaultOption = !currentOptionId
-                                                          ? activeOptions.find((opt: any) =>
-                                                            opt.is_default === "Yes" || opt.is_default === true
-                                                          )
-                                                          : null
-
-                                                        const selectedOptionId = currentOptionId || defaultOption?.id?.toString() || ""
-
-                                                        // Auto-select default if exists and no value is set
-                                                        if (defaultOption && !currentOptionId) {
-                                                          setTimeout(() => {
-                                                            setAdvanceFieldValues(prev => ({
-                                                              ...prev,
-                                                              [fieldKey]: {
-                                                                advance_field_id: field.id,
-                                                                advance_field_value: defaultOption.name,
-                                                                option_id: defaultOption.id
-                                                              }
-                                                            }))
-                                                          }, 0)
-                                                        }
-
-                                                        return (
-                                                          <div
-                                                            className="mt-[5.27px] rounded-[7.7px]"
-                                                            style={{
-                                                              padding: '8px 12px 4px 12px',
-                                                              minHeight: '37px',
-                                                              background: '#FFFFFF',
-                                                              border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
-                                                              minWidth: fieldWidth.minWidth,
-                                                              maxWidth: fieldWidth.maxWidth,
-                                                              width: fieldWidth.width,
-                                                              flex: fieldWidth.flex,
-                                                            }}
-                                                          >
-                                                            <RadioGroup
-                                                              value={selectedOptionId}
-                                                              onValueChange={(value) => {
-                                                                const selectedOption = activeOptions.find((opt: any) => opt.id?.toString() === value)
-                                                                setAdvanceFieldValues(prev => ({
-                                                                  ...prev,
-                                                                  [fieldKey]: selectedOption ? {
-                                                                    advance_field_id: field.id,
-                                                                    advance_field_value: selectedOption.name,
-                                                                    option_id: selectedOption.id
-                                                                  } : null
-                                                                }))
-                                                              }}
-                                                              className="space-y-2"
-                                                            >
-                                                              {activeOptions
-                                                                .sort((a: any, b: any) => (a.sequence || 0) - (b.sequence || 0))
-                                                                .map((option: any) => (
-                                                                  <div key={option.id} className="flex items-center space-x-2">
-                                                                    <RadioGroupItem value={option.id.toString()} id={`${fieldKey}-${option.id}`} />
-                                                                    <Label
-                                                                      htmlFor={`${fieldKey}-${option.id}`}
-                                                                      className="text-[14.4px] font-normal cursor-pointer"
-                                                                    >
-                                                                      {option.name}
-                                                                    </Label>
-                                                                  </div>
-                                                                ))}
-                                                            </RadioGroup>
-                                                          </div>
-                                                        )
-                                                      }
-
-                                                      // Checkbox field (multiple selection)
-                                                      if (field.field_type === "checkbox" && field.options && Array.isArray(field.options)) {
-                                                        const activeOptions = field.options.filter((opt: any) => opt.status === "Active" || opt.status === undefined)
-
-                                                        // For checkbox, value can be an array of selected option IDs
-                                                        const currentSelectedIds = typeof currentValue === "object"
-                                                          ? (Array.isArray(currentValue?.option_ids) ? currentValue.option_ids :
-                                                            currentValue?.option_id ? [currentValue.option_id] : [])
-                                                          : []
-
-                                                        const handleCheckboxChange = (optionId: number, checked: boolean) => {
-                                                          setAdvanceFieldValues(prev => {
-                                                            const current = prev[fieldKey]
-                                                            const currentIds = typeof current === "object"
-                                                              ? (Array.isArray(current?.option_ids) ? current.option_ids :
-                                                                current?.option_id ? [current.option_id] : [])
-                                                              : []
-
-                                                            let newIds: number[]
-                                                            if (checked) {
-                                                              newIds = [...currentIds, optionId]
-                                                            } else {
-                                                              newIds = currentIds.filter((id: number) => id !== optionId)
-                                                            }
-
-                                                            // Get selected option names
-                                                            const selectedOptions = activeOptions.filter((opt: any) => newIds.includes(opt.id))
-                                                            const optionNames = selectedOptions.map((opt: any) => opt.name).join(", ")
-
-                                                            return {
-                                                              ...prev,
-                                                              [fieldKey]: {
-                                                                advance_field_id: field.id,
-                                                                advance_field_value: optionNames || "",
-                                                                option_ids: newIds
-                                                              }
-                                                            }
-                                                          })
-                                                        }
-
-                                                        return (
-                                                          <div
-                                                            className="mt-[5.27px] rounded-[7.7px]"
-                                                            style={{
-                                                              padding: '8px 12px 4px 12px',
-                                                              minHeight: '37px',
-                                                              background: '#FFFFFF',
-                                                              border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
-                                                              minWidth: fieldWidth.minWidth,
-                                                              maxWidth: fieldWidth.maxWidth,
-                                                              width: fieldWidth.width,
-                                                              flex: fieldWidth.flex,
-                                                            }}
-                                                          >
-                                                            <div className="space-y-2">
-                                                              {activeOptions
-                                                                .sort((a: any, b: any) => (a.sequence || 0) - (b.sequence || 0))
-                                                                .map((option: any) => (
-                                                                  <div key={option.id} className="flex items-center space-x-2">
-                                                                    <Checkbox
-                                                                      id={`${fieldKey}-${option.id}`}
-                                                                      checked={currentSelectedIds.includes(option.id)}
-                                                                      onCheckedChange={(checked) => handleCheckboxChange(option.id, checked === true)}
-                                                                      className="border-gray-400"
-                                                                    />
-                                                                    <Label
-                                                                      htmlFor={`${fieldKey}-${option.id}`}
-                                                                      className="text-[14.4px] font-normal cursor-pointer"
-                                                                    >
-                                                                      {option.name}
-                                                                    </Label>
-                                                                  </div>
-                                                                ))}
-                                                            </div>
-                                                          </div>
-                                                        )
-                                                      }
-
-                                                      // File upload field
-                                                      if (field.field_type === "file_upload") {
-                                                        const currentFile = typeof currentValue === "object" && currentValue?.file
-                                                          ? currentValue.file
-                                                          : null
-
-                                                        return (
-                                                          <div
-                                                            className="mt-[5.27px] rounded-[7.7px]"
-                                                            style={{
-                                                              padding: '8px 12px 4px 12px',
-                                                              minHeight: '37px',
-                                                              background: '#FFFFFF',
-                                                              border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
-                                                              minWidth: fieldWidth.minWidth,
-                                                              maxWidth: fieldWidth.maxWidth,
-                                                              width: fieldWidth.width,
-                                                              flex: fieldWidth.flex,
-                                                            }}
-                                                          >
-                                                            <input
-                                                              type="file"
-                                                              onChange={(e) => {
-                                                                const file = e.target.files?.[0] || null
-                                                                setAdvanceFieldValues(prev => ({
-                                                                  ...prev,
-                                                                  [fieldKey]: {
-                                                                    advance_field_id: field.id,
-                                                                    advance_field_value: file?.name || "",
-                                                                    file: file
-                                                                  }
-                                                                }))
-                                                              }}
-                                                              className="text-[14.4px] w-full"
-                                                              accept=".jpg,.jpeg,.png,.gif,.svg,.pdf,.stl,.mp4,.avi,.mov,.zip,.rar"
-                                                            />
-                                                            {currentFile && (
-                                                              <div className="mt-2 text-xs text-gray-600">
-                                                                Selected: {currentFile.name}
-                                                              </div>
-                                                            )}
-                                                          </div>
-                                                        )
-                                                      }
-
-                                                      // Shade guide field
-                                                      if (field.field_type === "shade_guide") {
-                                                        return (
-                                                          <Input
-                                                            type="text"
-                                                            value={typeof currentValue === "object" ? currentValue?.advance_field_value || "" : currentValue || ""}
-                                                            onChange={(e) => {
-                                                              setAdvanceFieldValues(prev => ({
-                                                                ...prev,
-                                                                [fieldKey]: {
-                                                                  advance_field_id: field.id,
-                                                                  advance_field_value: e.target.value
-                                                                }
-                                                              }))
-                                                            }}
-                                                            className="h-[37px] mt-[5.27px] rounded-[7.7px] text-[14.4px]"
-                                                            style={{
-                                                              padding: '8px 12px 4px 12px',
-                                                              border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
-                                                              minWidth: fieldWidth.minWidth,
-                                                              maxWidth: fieldWidth.maxWidth,
-                                                              width: fieldWidth.width,
-                                                              flex: fieldWidth.flex,
-                                                            }}
-                                                            placeholder={`Enter ${field.name}`}
-                                                          />
-                                                        )
-                                                      }
-
-                                                      // Implant library field
-                                                      if (field.field_type === "implant_library") {
-                                                        const currentStep = implantSelectionStep[fieldKey] || 'brand'
-                                                        const selectedBrandId = selectedImplantBrand[fieldKey]
-                                                        const selectedPlatformId = selectedImplantPlatform[fieldKey]
-                                                        const selectedSize = selectedImplantSize[fieldKey]
-
-                                                        // Get selected brand and platform
-                                                        const selectedBrand = selectedBrandId ? implants.find((imp: any) => imp.id === selectedBrandId) : null
-                                                        // Try to find platform in brand's platforms first, otherwise use stored platform data (for static platforms)
-                                                        let selectedPlatform = null
-                                                        if (selectedBrand && selectedPlatformId) {
-                                                          selectedPlatform = selectedBrand.platforms?.find((p: any) => (p.id || 0) === selectedPlatformId)
-                                                          // If not found in brand's platforms, use stored platform data (static platforms)
-                                                          if (!selectedPlatform && selectedImplantPlatformData[fieldKey]) {
-                                                            selectedPlatform = selectedImplantPlatformData[fieldKey]
-                                                          }
-                                                        }
-
-                                                        // Build display value
-                                                        let displayValue = ""
-                                                        if (selectedBrand && selectedPlatform && selectedSize) {
-                                                          displayValue = `${selectedBrand.brand_name} - ${selectedPlatform.name} - ${selectedSize}`
-                                                        } else if (selectedBrand && selectedPlatform) {
-                                                          displayValue = `${selectedBrand.brand_name} - ${selectedPlatform.name}`
-                                                        } else if (selectedBrand) {
-                                                          displayValue = selectedBrand.brand_name
-                                                        }
-
-                                                        return (
-                                                          <>
-                                                            {/* Only show input if form is not shown yet */}
-                                                            {currentStep !== 'form' && (
-                                                              <Input
-                                                                type="text"
-                                                                value={displayValue || (typeof currentValue === "object" ? currentValue?.advance_field_value || "" : currentValue || "")}
-                                                                onClick={() => {
-                                                                  // Show cards when input is clicked, reset to brand step
-                                                                  setShowImplantCards(true)
-                                                                  setActiveImplantFieldKey(fieldKey)
-                                                                  setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'brand' }))
-                                                                }}
-                                                                onFocus={() => {
-                                                                  // Show cards when input is focused, reset to brand step
-                                                                  setShowImplantCards(true)
-                                                                  setActiveImplantFieldKey(fieldKey)
-                                                                  setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'brand' }))
-                                                                }}
-                                                                onChange={(e) => {
-                                                                  setAdvanceFieldValues(prev => ({
-                                                                    ...prev,
-                                                                    [fieldKey]: {
-                                                                      advance_field_id: field.id,
-                                                                      advance_field_value: e.target.value
-                                                                    }
-                                                                  }))
-                                                                }}
-                                                                className="h-[37px] mt-[5.27px] rounded-[7.7px] text-[14.4px] cursor-pointer"
-                                                                style={{
-                                                                  padding: '8px 12px 4px 12px',
-                                                                  border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
-                                                                  minWidth: fieldWidth.minWidth,
-                                                                  maxWidth: fieldWidth.maxWidth,
-                                                                  width: fieldWidth.width,
-                                                                  flex: fieldWidth.flex,
-                                                                }}
-                                                                readOnly
-                                                              />
-                                                            )}
-
-                                                            {/* Implant Detail Form - Show after brand/platform selection */}
-                                                            {currentStep === 'form' && selectedBrand && (
-                                                              <div data-implant-field-key={fieldKey} style={{ width: '100%', marginTop: '20px' }}>
-                                                                <ImplantDetailForm
-                                                                  fieldKey={fieldKey}
-                                                                  fieldId={field.id}
-                                                                  selectedBrand={selectedBrand}
-                                                                  selectedPlatform={selectedPlatform}
-                                                                  selectedSize={selectedSize}
-                                                                  onSizeChange={(size: string) => {
-                                                                    setSelectedImplantSize(prev => ({ ...prev, [fieldKey]: size }))
-                                                                    // Update mandibularImplantDetails to trigger impression field visibility in DynamicProductFields
-                                                                    if (selectedBrand && selectedPlatform) {
-                                                                      const implantDetailsStr = `${selectedBrand.brand_name} - ${selectedPlatform.name} - ${size}`
-                                                                      setMandibularImplantDetails(implantDetailsStr)
-                                                                    }
-                                                                  }}
-                                                                  onInclusionsChange={(inclusions) => {
-                                                                    // Handle inclusions change - update implant details with inclusions
-                                                                    if (selectedBrand && selectedPlatform && selectedSize) {
-                                                                      const implantDetailsStr = `${selectedBrand.brand_name} - ${selectedPlatform.name} - ${selectedSize} - ${inclusions}`
-                                                                      setMandibularImplantDetails(implantDetailsStr)
-                                                                    }
-                                                                  }}
-                                                                  onAbutmentDetailChange={(detail) => {
-                                                                    // Handle abutment detail change
-                                                                  }}
-                                                                  onAbutmentTypeChange={(type) => {
-                                                                    // Handle abutment type change
-                                                                  }}
-                                                                  onPlatformChange={(platform) => {
-                                                                    setSelectedImplantPlatform(prev => ({ ...prev, [fieldKey]: platform.id }))
-                                                                    // Store full platform data
-                                                                    setSelectedImplantPlatformData(prev => ({ ...prev, [fieldKey]: { id: platform.id, name: platform.name } }))
-                                                                  }}
-                                                                  onBrandFieldClick={() => {
-                                                                    // Show brand cards when brand field is clicked
-                                                                    setShowImplantCards(true)
-                                                                    setActiveImplantFieldKey(fieldKey)
-                                                                    // Keep step as 'form' so form stays visible, but show brand cards
-                                                                    setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'form' }))
-                                                                    setClickedFieldTypeInForm(prev => ({ ...prev, [fieldKey]: 'brand' }))
-                                                                    // Scroll to the cards container to show the brand cards
-                                                                    setTimeout(() => {
-                                                                      if (implantCardsRef.current) {
-                                                                        implantCardsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                                                                      }
-                                                                    }, 100)
-                                                                  }}
-                                                                  onPlatformFieldClick={() => {
-                                                                    // Show platform cards when platform field is clicked (same position as brand cards)
-                                                                    if (selectedBrand) {
-                                                                      // Ensure the brand ID is stored in state so cards rendering can find it
-                                                                      if (!selectedImplantBrand[fieldKey] || selectedImplantBrand[fieldKey] !== selectedBrand.id) {
-                                                                        setSelectedImplantBrand(prev => ({ ...prev, [fieldKey]: selectedBrand.id }))
-                                                                      }
-                                                                      setShowImplantCards(true)
-                                                                      setActiveImplantFieldKey(fieldKey)
-                                                                      // Keep step as 'form' so form stays visible, but show platform cards
-                                                                      setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'form' }))
-                                                                      setClickedFieldTypeInForm(prev => ({ ...prev, [fieldKey]: 'platform' }))
-                                                                      // Scroll to the cards container to show the platform cards (same position as brand cards)
-                                                                      setTimeout(() => {
-                                                                        if (implantCardsRef.current) {
-                                                                          implantCardsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                                                                        }
-                                                                      }, 100)
-                                                                    }
-                                                                  }}
-                                                                  teethNumbers={mandibularTeeth}
-                                                                  arch={archType}
-                                                                />
-                                                              </div>
-                                                            )}
-                                                          </>
-                                                        )
-                                                      }
-
-                                                      // Default: display field name
-                                                      return (
-                                                        <div
-                                                          className="flex items-center"
-                                                          style={{
-                                                            padding: '8px 12px 4px 12px',
-                                                            gap: '5px',
-                                                            width: '100%',
-                                                            minHeight: '37px',
-                                                            position: 'relative',
-                                                            marginTop: '5.27px',
-                                                            background: '#FFFFFF',
-                                                            border: '0.740384px solid #7F7F7F',
-                                                            borderRadius: '7.7px',
-                                                            boxSizing: 'border-box'
-                                                          }}
-                                                        >
-                                                          <span style={{
-                                                            fontFamily: 'Verdana',
-                                                            fontStyle: 'normal',
-                                                            fontWeight: 400,
-                                                            fontSize: '13px',
-                                                            lineHeight: '20px',
-                                                            letterSpacing: '-0.02em',
-                                                            color: '#000000'
-                                                          }}>
-                                                            {field.name || field.description || "Advanced Field"} ({field.field_type})
-                                                          </span>
-                                                        </div>
-                                                      )
-                                                    }
-
-                                                    return (
-                                                      <div
-                                                        key={field.id}
-                                                        className="relative"
-                                                        style={{
-                                                          minHeight: '38px',
-                                                          minWidth: fieldWidth.minWidth,
-                                                          maxWidth: fieldWidth.maxWidth,
-                                                          width: fieldWidth.width,
-                                                          flex: fieldWidth.flex,
-                                                        }}
-                                                      >
-                                                        {renderAdvanceField()}
-                                                        <label
-                                                          className="absolute bg-white"
-                                                          style={{
-                                                            padding: '0px',
-                                                            height: '14px',
-                                                            left: '8.9px',
-                                                            top: '0px',
-                                                            fontFamily: 'Arial',
-                                                            fontStyle: 'normal',
-                                                            fontWeight: 400,
-                                                            fontSize: '14px',
-                                                            lineHeight: '14px',
-                                                            color: '#7F7F7F'
-                                                          }}
-                                                        >
-                                                          {field.field_type === "implant_library" && isEmptyOrNotSpecified
-                                                            ? "Select Implant Details"
-                                                            : (field.name || "Advanced Field")}
-                                                          {field.is_required === "Yes" && (
-                                                            <span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>
-                                                          )}
-                                                        </label>
-                                                      </div>
-                                                    )
-                                                  })}
-                                                </div>
-                                              </div>
-                                            </div>
-                                          )
-                                        })()}
-
-                                      {/* Impression Field - Shown after advance fields are complete */}
-                                      {productDetails?.impressions &&
-                                        Array.isArray(productDetails.impressions) &&
-                                        productDetails.impressions.length > 0 &&
-                                        productDetails?.advance_fields &&
-                                        Array.isArray(productDetails.advance_fields) &&
-                                        productDetails.advance_fields.length > 0 &&
-                                        isToothShadeFilled("mandibular") && (() => {
-                                          // Check if all advance fields are complete
-                                          const filteredAdvanceFields = productDetails.advance_fields.filter((field: any) => {
-                                            const fieldNameLower = (field.name || "").toLowerCase()
-                                            return !(fieldNameLower.includes("stump") && fieldNameLower.includes("shade"))
-                                          })
-
-                                          const allAdvanceFieldsComplete = filteredAdvanceFields.every((field: any) => {
-                                            if (field.field_type === "implant_library") {
-                                              const fieldKey = `advance_${field.id}`
-                                              const brandId = selectedImplantBrand[fieldKey]
-                                              const platformId = selectedImplantPlatform[fieldKey]
-                                              return brandId && platformId
-                                            }
-                                            const fieldKey = `advance_${field.id}`
-                                            const fieldValue = advanceFieldValues[fieldKey]
-                                            return fieldValue && fieldValue.advance_field_value
-                                          })
-
-                                          if (!allAdvanceFieldsComplete) return null
-
-                                          const impressionCount = selectedProduct
-                                            ? getImpressionCount(selectedProduct.id.toString(), "mandibular", productDetails.impressions)
-                                            : 0
-                                          const displayText = selectedProduct
-                                            ? getImpressionDisplayText(selectedProduct.id.toString(), "mandibular", productDetails.impressions)
-                                            : "Select impression"
-                                          const hasImpressionValue = impressionCount > 0 || (displayText && displayText !== "Select impression")
-
-                                          return (
-                                            <div className="flex flex-wrap" style={{ width: '100%', marginTop: '10px' }}>
-                                              <div style={{ flex: '1 1 50%', minWidth: '200px', maxWidth: '50%' }}>
-                                                <div className="relative" style={{ minHeight: '38px', width: '100%' }}>
-                                                  <div
-                                                    className="flex items-center cursor-pointer"
-                                                    onClick={() => {
-                                                      if (selectedProduct) {
-                                                        const tempProduct: SavedProduct = {
-                                                          id: selectedProduct.id.toString(),
-                                                          product: selectedProduct,
-                                                          productDetails: productDetails,
-                                                          category: selectedCategory || "",
-                                                          categoryId: selectedCategoryId || 0,
-                                                          subcategory: selectedSubcategory || "",
-                                                          subcategoryId: selectedSubcategoryId || 0,
-                                                          maxillaryTeeth: maxillaryTeeth,
-                                                          mandibularTeeth: mandibularTeeth,
-                                                          maxillaryMaterial: maxillaryMaterial,
-                                                          maxillaryStumpShade: maxillaryStumpShade,
-                                                          maxillaryRetention: maxillaryRetention,
-                                                          maxillaryImplantDetails: maxillaryImplantDetails,
-                                                          mandibularMaterial: mandibularMaterial,
-                                                          mandibularRetention: mandibularRetention,
-                                                          mandibularStumpShade: mandibularStumpShade,
-                                                          mandibularImplantDetails: mandibularImplantDetails,
-                                                          createdAt: Date.now(),
-                                                          addedFrom: "mandibular",
-                                                        }
-                                                        handleOpenImpressionModal(tempProduct, "mandibular")
-                                                      }
-                                                    }}
-                                                    style={{
-                                                      padding: '8px 12px 4px 12px',
-                                                      gap: '5px',
-                                                      width: '100%',
-                                                      height: '32px',
-                                                      position: 'relative',
-                                                      marginTop: '5.27px',
-                                                      background: '#FFFFFF',
-                                                      border: `0.740384px solid ${hasImpressionValue ? '#119933' : '#ef4444'}`,
-                                                      borderRadius: '7.7px',
-                                                      boxSizing: 'border-box'
-                                                    }}
-                                                  >
-                                                    <span style={{
-                                                      fontFamily: 'Verdana',
-                                                      fontStyle: 'normal',
-                                                      fontWeight: 400,
-                                                      fontSize: '13px',
-                                                      lineHeight: '20px',
-                                                      letterSpacing: '-0.02em',
-                                                      color: '#000000',
-                                                      whiteSpace: 'nowrap',
-                                                      paddingRight: hasImpressionValue ? '30px' : '0px'
-                                                    }}>{displayText}</span>
-                                                  </div>
-                                                  <label
-                                                    className="absolute bg-white"
-                                                    style={{
-                                                      padding: '0px',
-                                                      height: '14px',
-                                                      left: '8.9px',
-                                                      top: '0px',
-                                                      fontFamily: 'Arial',
-                                                      fontStyle: 'normal',
-                                                      fontWeight: 400,
-                                                      fontSize: '14px',
-                                                      lineHeight: '14px',
-                                                      color: hasImpressionValue ? '#119933' : '#ef4444'
-                                                    }}
-                                                  >
-                                                    Impression<span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>
-                                                  </label>
-                                                </div>
-                                              </div>
-                                            </div>
-                                          )
-                                        })()}
-                                    </>
-                                  )}
-
-                                </div>
-
-                                {/* Action Buttons - Show when all fields have values */}
-                                {productDetails &&
-                                  areAllCurrentProductFieldsFilled("mandibular") && (
-                                    <div
-                                      className="flex flex-wrap justify-center items-center w-full"
-                                      style={{
-                                        gap: '7.03px',
-                                        position: 'relative',
-                                        marginTop: '30px',
-                                        marginBottom: '15px'
-                                      }}
-                                    >
-                                      {/* Deliver product first - Only show if multiple products */}
-                                      {savedProducts.length > 1 && (
-                                        <button
+                                            setCurrentProductForModal(tempProduct)
+                                            setCurrentArchForModal("mandibular")
+                                            setShowAddOnsModal(true)
+                                          }}
                                           className="relative flex flex-col items-center justify-center"
                                           style={{
                                             width: '123.04px',
@@ -12083,23 +11716,30 @@ export default function CaseDesignCenterPage() {
                                             padding: '0'
                                           }}
                                         >
-                                          <div
-                                            className="absolute"
-                                            style={{
-                                              width: '13.91px',
-                                              height: '13.91px',
-                                              left: '50%',
-                                              top: '9.2px',
-                                              transform: 'translateX(-50%)',
-                                              background: '#FFFFFF',
-                                              border: '1.15951px solid #1162A8',
-                                              borderRadius: '1.73926px'
-                                            }}
-                                          />
                                           <span
                                             className="absolute text-center"
                                             style={{
-                                              width: '85px',
+                                              width: '41.8px',
+                                              height: '20px',
+                                              left: '50%',
+                                              top: '3.79px',
+                                              transform: 'translateX(-50%)',
+                                              fontFamily: 'Verdana',
+                                              fontStyle: 'normal',
+                                              fontWeight: 400,
+                                              fontSize: '8.78154px',
+                                              lineHeight: '19px',
+                                              textAlign: 'center',
+                                              letterSpacing: '-0.02em',
+                                              color: '#000000'
+                                            }}
+                                          >
+                                            +
+                                          </span>
+                                          <span
+                                            className="absolute text-center"
+                                            style={{
+                                              width: '89px',
                                               height: '20px',
                                               left: '50%',
                                               top: '23.11px',
@@ -12114,223 +11754,140 @@ export default function CaseDesignCenterPage() {
                                               color: '#000000'
                                             }}
                                           >
-                                            Deliver product first
+                                            Add ons ({getTotalAddOnsCount} selected)
                                           </span>
                                         </button>
-                                      )}
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          // For card accordion, create temp product for modal
-                                          const tempProduct: SavedProduct = {
-                                            id: selectedProduct?.id?.toString() || `temp-${Date.now()}`,
-                                            product: selectedProduct || { id: 0, name: "Product", price: 0 },
-                                            productDetails: productDetails,
-                                            category: selectedCategory || "",
-                                            categoryId: selectedCategoryId || 0,
-                                            subcategory: selectedSubcategory || "",
-                                            subcategoryId: selectedSubcategoryId || 0,
-                                            maxillaryTeeth: maxillaryTeeth,
-                                            mandibularTeeth: mandibularTeeth,
-                                            maxillaryMaterial: maxillaryMaterial,
-                                            maxillaryStumpShade: maxillaryStumpShade,
-                                            maxillaryRetention: maxillaryRetention,
-                                            maxillaryImplantDetails: maxillaryImplantDetails,
-                                            mandibularMaterial: mandibularMaterial,
-                                            mandibularRetention: mandibularRetention,
-                                            mandibularStumpShade: mandibularStumpShade,
-                                            mandibularImplantDetails: mandibularImplantDetails,
-                                            createdAt: Date.now(),
-                                            addedFrom: "mandibular",
-                                          }
-                                          setCurrentProductForModal(tempProduct)
-                                          setCurrentArchForModal("mandibular")
-                                          setShowAddOnsModal(true)
-                                        }}
-                                        className="relative flex flex-col items-center justify-center"
-                                        style={{
-                                          width: '123.04px',
-                                          height: '46.22px',
-                                          background: '#F9F9F9',
-                                          boxShadow: '0.878154px 0.878154px 3.07354px rgba(0, 0, 0, 0.25)',
-                                          borderRadius: '5.26893px',
-                                          border: 'none',
-                                          cursor: 'pointer',
-                                          padding: '0'
-                                        }}
-                                      >
-                                        <span
-                                          className="absolute text-center"
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            setShowAttachModal(true)
+                                          }}
+                                          className="relative flex flex-col items-center justify-center"
                                           style={{
-                                            width: '41.8px',
-                                            height: '20px',
-                                            left: '50%',
-                                            top: '3.79px',
-                                            transform: 'translateX(-50%)',
-                                            fontFamily: 'Verdana',
-                                            fontStyle: 'normal',
-                                            fontWeight: 400,
-                                            fontSize: '8.78154px',
-                                            lineHeight: '19px',
-                                            textAlign: 'center',
-                                            letterSpacing: '-0.02em',
-                                            color: '#000000'
+                                            width: '123.04px',
+                                            height: '46.22px',
+                                            background: '#F9F9F9',
+                                            boxShadow: '0.878154px 0.878154px 3.07354px rgba(0, 0, 0, 0.25)',
+                                            borderRadius: '5.26893px',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            padding: '0'
                                           }}
                                         >
-                                          +
-                                        </span>
-                                        <span
-                                          className="absolute text-center"
+                                          <Paperclip
+                                            className="absolute"
+                                            style={{
+                                              width: '8.78px',
+                                              height: '10.54px',
+                                              left: '50%',
+                                              top: '9.34px',
+                                              transform: 'translateX(-50%)',
+                                              color: '#1E1E1E',
+                                              strokeWidth: '0.878154px'
+                                            }}
+                                          />
+                                          <span
+                                            className="absolute text-center"
+                                            style={{
+                                              width: '107px',
+                                              height: '20px',
+                                              left: '50%',
+                                              top: '23.11px',
+                                              transform: 'translateX(-50%)',
+                                              fontFamily: 'Verdana',
+                                              fontStyle: 'normal',
+                                              fontWeight: 400,
+                                              fontSize: '8.78154px',
+                                              lineHeight: '19px',
+                                              textAlign: 'center',
+                                              letterSpacing: '-0.02em',
+                                              color: '#000000'
+                                            }}
+                                          >
+                                            Attach Files ({getAttachedFilesCount()} uploads)
+                                          </span>
+                                        </button>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            // For card accordion, create temp product for rush modal
+                                            const tempProduct: SavedProduct = {
+                                              id: selectedProduct?.id?.toString() || `temp-${Date.now()}`,
+                                              product: selectedProduct || { id: 0, name: "Product", price: 0 },
+                                              productDetails: productDetails,
+                                              category: selectedCategory || "",
+                                              categoryId: selectedCategoryId || 0,
+                                              subcategory: selectedSubcategory || "",
+                                              subcategoryId: selectedSubcategoryId || 0,
+                                              maxillaryTeeth: maxillaryTeeth,
+                                              mandibularTeeth: mandibularTeeth,
+                                              maxillaryMaterial: maxillaryMaterial,
+                                              maxillaryStumpShade: maxillaryStumpShade,
+                                              maxillaryRetention: maxillaryRetention,
+                                              maxillaryImplantDetails: maxillaryImplantDetails,
+                                              mandibularMaterial: mandibularMaterial,
+                                              mandibularRetention: mandibularRetention,
+                                              mandibularStumpShade: mandibularStumpShade,
+                                              mandibularImplantDetails: mandibularImplantDetails,
+                                              createdAt: Date.now(),
+                                              addedFrom: "mandibular",
+                                            }
+                                            setCurrentProductForModal(tempProduct)
+                                            setShowRushModal(true)
+                                          }}
+                                          className="relative flex flex-col items-center justify-center"
                                           style={{
-                                            width: '89px',
-                                            height: '20px',
-                                            left: '50%',
-                                            top: '23.11px',
-                                            transform: 'translateX(-50%)',
-                                            fontFamily: 'Verdana',
-                                            fontStyle: 'normal',
-                                            fontWeight: 400,
-                                            fontSize: '8.78154px',
-                                            lineHeight: '19px',
-                                            textAlign: 'center',
-                                            letterSpacing: '-0.02em',
-                                            color: '#000000'
+                                            width: '123.04px',
+                                            height: '46.22px',
+                                            background: '#F9F9F9',
+                                            boxShadow: '0px 0px 2.89791px rgba(207, 2, 2, 0.67)',
+                                            borderRadius: '5.26893px',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            padding: '0'
                                           }}
                                         >
-                                          Add ons ({getTotalAddOnsCount} selected)
-                                        </span>
-                                      </button>
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          setShowAttachModal(true)
-                                        }}
-                                        className="relative flex flex-col items-center justify-center"
-                                        style={{
-                                          width: '123.04px',
-                                          height: '46.22px',
-                                          background: '#F9F9F9',
-                                          boxShadow: '0.878154px 0.878154px 3.07354px rgba(0, 0, 0, 0.25)',
-                                          borderRadius: '5.26893px',
-                                          border: 'none',
-                                          cursor: 'pointer',
-                                          padding: '0'
-                                        }}
-                                      >
-                                        <Paperclip
-                                          className="absolute"
-                                          style={{
-                                            width: '8.78px',
-                                            height: '10.54px',
-                                            left: '50%',
-                                            top: '9.34px',
-                                            transform: 'translateX(-50%)',
-                                            color: '#1E1E1E',
-                                            strokeWidth: '0.878154px'
-                                          }}
-                                        />
-                                        <span
-                                          className="absolute text-center"
-                                          style={{
-                                            width: '107px',
-                                            height: '20px',
-                                            left: '50%',
-                                            top: '23.11px',
-                                            transform: 'translateX(-50%)',
-                                            fontFamily: 'Verdana',
-                                            fontStyle: 'normal',
-                                            fontWeight: 400,
-                                            fontSize: '8.78154px',
-                                            lineHeight: '19px',
-                                            textAlign: 'center',
-                                            letterSpacing: '-0.02em',
-                                            color: '#000000'
-                                          }}
-                                        >
-                                          Attach Files ({getAttachedFilesCount()} uploads)
-                                        </span>
-                                      </button>
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          // For card accordion, create temp product for rush modal
-                                          const tempProduct: SavedProduct = {
-                                            id: selectedProduct?.id?.toString() || `temp-${Date.now()}`,
-                                            product: selectedProduct || { id: 0, name: "Product", price: 0 },
-                                            productDetails: productDetails,
-                                            category: selectedCategory || "",
-                                            categoryId: selectedCategoryId || 0,
-                                            subcategory: selectedSubcategory || "",
-                                            subcategoryId: selectedSubcategoryId || 0,
-                                            maxillaryTeeth: maxillaryTeeth,
-                                            mandibularTeeth: mandibularTeeth,
-                                            maxillaryMaterial: maxillaryMaterial,
-                                            maxillaryStumpShade: maxillaryStumpShade,
-                                            maxillaryRetention: maxillaryRetention,
-                                            maxillaryImplantDetails: maxillaryImplantDetails,
-                                            mandibularMaterial: mandibularMaterial,
-                                            mandibularRetention: mandibularRetention,
-                                            mandibularStumpShade: mandibularStumpShade,
-                                            mandibularImplantDetails: mandibularImplantDetails,
-                                            createdAt: Date.now(),
-                                            addedFrom: "mandibular",
-                                          }
-                                          setCurrentProductForModal(tempProduct)
-                                          setShowRushModal(true)
-                                        }}
-                                        className="relative flex flex-col items-center justify-center"
-                                        style={{
-                                          width: '123.04px',
-                                          height: '46.22px',
-                                          background: '#F9F9F9',
-                                          boxShadow: '0px 0px 2.89791px rgba(207, 2, 2, 0.67)',
-                                          borderRadius: '5.26893px',
-                                          border: 'none',
-                                          cursor: 'pointer',
-                                          padding: '0'
-                                        }}
-                                      >
-                                        <Zap
-                                          className="absolute"
-                                          style={{
-                                            width: '8.78px',
-                                            height: '10.54px',
-                                            left: '50%',
-                                            top: '9.35px',
-                                            transform: 'translateX(-50%)',
-                                            color: '#CF0202',
-                                            fill: '#CF0202',
-                                            strokeWidth: '0.878154px'
-                                          }}
-                                        />
-                                        <span
-                                          className="absolute text-center"
-                                          style={{
-                                            width: '59px',
-                                            height: '20px',
-                                            left: '50%',
-                                            top: '23.11px',
-                                            transform: 'translateX(-50%)',
-                                            fontFamily: 'Verdana',
-                                            fontStyle: 'normal',
-                                            fontWeight: 400,
-                                            fontSize: '8.78154px',
-                                            lineHeight: '19px',
-                                            textAlign: 'center',
-                                            letterSpacing: '-0.02em',
-                                            color: '#000000'
-                                          }}
-                                        >
-                                          Request Rush
-                                        </span>
-                                      </button>
-                                    </div>
-                                  )}
-                              </AccordionContent>
-                            </AccordionItem>
-                          </Accordion>
-                        </Card>
-                      )}
+                                          <Zap
+                                            className="absolute"
+                                            style={{
+                                              width: '8.78px',
+                                              height: '10.54px',
+                                              left: '50%',
+                                              top: '9.35px',
+                                              transform: 'translateX(-50%)',
+                                              color: '#CF0202',
+                                              fill: '#CF0202',
+                                              strokeWidth: '0.878154px'
+                                            }}
+                                          />
+                                          <span
+                                            className="absolute text-center"
+                                            style={{
+                                              width: '59px',
+                                              height: '20px',
+                                              left: '50%',
+                                              top: '23.11px',
+                                              transform: 'translateX(-50%)',
+                                              fontFamily: 'Verdana',
+                                              fontStyle: 'normal',
+                                              fontWeight: 400,
+                                              fontSize: '8.78154px',
+                                              lineHeight: '19px',
+                                              textAlign: 'center',
+                                              letterSpacing: '-0.02em',
+                                              color: '#000000'
+                                            }}
+                                          >
+                                            Request Rush
+                                          </span>
+                                        </button>
+                                      </div>
+                                    )}
+                                </AccordionContent>
+                              </AccordionItem>
+                            </Accordion>
+                          </Card>
+                        )}
 
                       {/* Saved Mandibular Products - Display below MANDIBULAR section */}
                       {showMandibularChart && savedProducts.filter(p => p.addedFrom === "mandibular").length > 0 && (
@@ -12510,15 +12067,6 @@ export default function CaseDesignCenterPage() {
                                             </div>
                                           </div>
 
-                                          {/* Chevron - Positioned relative to header */}
-                                          <div style={{ position: 'absolute', width: '21.6px', height: '21.6px', right: '8px', top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}>
-                                            <ChevronDown
-                                              className="w-full h-full transition-transform duration-200 text-black"
-                                              style={{
-                                                transform: openAccordion === savedProduct.id ? 'rotate(0deg)' : 'rotate(-180deg)'
-                                              }}
-                                            />
-                                          </div>
                                         </AccordionTrigger>
                                         {/* Delete Button - Moved outside AccordionTrigger to avoid nested buttons */}
                                         <button
@@ -12801,14 +12349,14 @@ export default function CaseDesignCenterPage() {
                                                     const brandIdFromState = selectedImplantBrandPerProduct[savedProduct.id]?.mandibular
                                                     const brandIdFromSaved = savedProduct.mandibularImplantBrand
                                                     const selectedBrandId = brandIdFromState || brandIdFromSaved
-                                                    
+
                                                     // Find brand by ID or brand name
-                                                    const selectedBrand = selectedBrandId 
-                                                      ? implants.find((imp: any) => 
-                                                          imp.id === selectedBrandId || 
-                                                          imp.id === Number(selectedBrandId) ||
-                                                          imp.brand_name === selectedBrandId
-                                                        ) 
+                                                    const selectedBrand = selectedBrandId
+                                                      ? implants.find((imp: any) =>
+                                                        imp.id === selectedBrandId ||
+                                                        imp.id === Number(selectedBrandId) ||
+                                                        imp.brand_name === selectedBrandId
+                                                      )
                                                       : null
                                                     const platforms = selectedBrand?.platforms || []
                                                     const mappedPlatforms = platforms.map((plat: any) => ({
@@ -12823,7 +12371,7 @@ export default function CaseDesignCenterPage() {
                                                     // 1. Platform field was clicked AND brand is selected (highest priority), OR
                                                     // 2. Brand is selected, platform not selected yet, and brand field was NOT clicked (auto-show after brand selection)
                                                     const shouldShowPlatformCards = (clickedFieldType === 'platform' && selectedBrandId) ||
-                                                                                   (clickedFieldType !== 'brand' && (clickedFieldType === null || clickedFieldType === undefined) && selectedBrandId && selectedPlatformId === null)
+                                                      (clickedFieldType !== 'brand' && (clickedFieldType === null || clickedFieldType === undefined) && selectedBrandId && selectedPlatformId === null)
 
                                                     // Show brand cards if platform cards should not be shown
                                                     const shouldShowBrandCards = !shouldShowPlatformCards
@@ -13891,57 +13439,16 @@ export default function CaseDesignCenterPage() {
                       </span>
                     </div>
 
-                    {/* Action Icons - positioned absolutely at top right */}
-                    <div className="absolute right-[5px] top-[6px] flex items-center gap-2 z-10">
-                      {/* Open full page icon */}
-                      <button
-                        className="w-[14px] h-[14px] flex items-center justify-center hover:bg-gray-100 rounded transition-colors"
-                        onClick={() => {
-                          // TODO: Implement full page view
-                        }}
-                        aria-label="Open full page"
-                      >
-                        <Maximize2 className="w-[10px] h-[10px] text-[#B4B0B0]" />
-                      </button>
-
-                      {/* Chevron up/down - toggle expansion - Made more noticeable */}
-                      <button
-                        className="flex items-center justify-center rounded transition-all duration-200 hover:scale-110 active:scale-95"
-                        style={{
-                          width: "32px",
-                          height: "32px",
-                          border: "2px solid #1162A8",
-                          backgroundColor: isCaseSummaryExpanded ? "#1162A8" : "#FFFFFF",
-                          boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
-                        }}
-                        onClick={() => {
-                          const willExpand = !isCaseSummaryExpanded
-                          setIsCaseSummaryExpanded(willExpand)
-                          // Initialize notes when expanding if empty and we have products
-                          if (willExpand && !maxillaryImplantDetails && savedProducts.length > 0) {
-                            const generatedNotes = generateCaseNotes()
-                            if (generatedNotes) {
-                              setMaxillaryImplantDetails(generatedNotes)
-                            }
-                          }
-                        }}
-                        aria-label={isCaseSummaryExpanded ? "Collapse notes" : "Expand notes"}
-                        title={isCaseSummaryExpanded ? "Collapse notes" : "Expand notes"}
-                      >
-                        {isCaseSummaryExpanded ? (
-                          <ChevronUp className="w-[18px] h-[18px]" style={{ color: "#FFFFFF" }} />
-                        ) : (
-                          <ChevronDown className="w-[18px] h-[18px]" style={{ color: "#1162A8" }} />
-                        )}
-                      </button>
-                    </div>
-
-                    {/* Content Container - Responsive padding */}
-                    <div className={cn(
-                      "transition-all duration-300 overflow-hidden",
-                      "p-[12px_15px_5px_15px] sm:p-[12px_39px_5px_15px]",
-                      isCaseSummaryExpanded ? "max-h-[500px] sm:max-h-[600px]" : "max-h-[74px]"
-                    )}>
+                    {/* Content Container - Fixed size with scrolling */}
+                    <div
+                      style={{
+                        height: '200px',
+                        maxHeight: '200px',
+                        padding: '12px 15px 5px 15px',
+                        overflowY: 'auto',
+                        overflowX: 'hidden'
+                      }}
+                    >
                       <Textarea
                         value={maxillaryImplantDetails}
                         onChange={(e) => {
@@ -13988,27 +13495,23 @@ export default function CaseDesignCenterPage() {
                             parseCaseNotes(maxillaryImplantDetails)
                           }
                         }}
-                        className={cn(
-                          "w-full border-0 outline-none resize-none tracking-[-0.02em] text-black bg-transparent p-0 focus:ring-0",
-                          "text-[12px] sm:text-[14px] leading-[15px] sm:leading-[17px]",
-                          "font-[Verdana]",
-                          isCaseSummaryExpanded ? "min-h-[300px] sm:min-h-[442px]" : "min-h-[42px] overflow-hidden"
-                        )}
+                        className="w-full border-0 outline-none resize-none tracking-[-0.02em] text-black bg-transparent p-0 focus:ring-0 text-[12px] sm:text-[14px] leading-[15px] sm:leading-[17px] font-[Verdana]"
+                        style={{
+                          minHeight: '100%',
+                          height: 'auto'
+                        }}
                         placeholder="Enter case notes following the format: MAXILLARY / MANDIBULAR sections with product details..."
-                        disabled={!isCaseSummaryExpanded}
                       />
                     </div>
 
-                    {/* Helper text when expanded - Responsive */}
-                    {isCaseSummaryExpanded && (
-                      <p className="text-[10px] sm:text-xs text-gray-500 px-[15px] pb-3 sm:pb-4">
-                        {generateCaseNotes().length > 0 && !maxillaryImplantDetails
-                          ? "Case notes are automatically generated from your products. Edit to customize, and changes will update your product selections."
-                          : maxillaryImplantDetails
-                            ? "Editing case notes will update your products, categories, subcategories, and teeth selections based on the content."
-                            : "Enter case notes to automatically populate products, categories, subcategories, and teeth selections. Or add products first to generate notes automatically."}
-                      </p>
-                    )}
+                    {/* Helper text */}
+                    <p className="text-[10px] sm:text-xs text-gray-500 px-[15px] pb-3 sm:pb-4">
+                      {generateCaseNotes().length > 0 && !maxillaryImplantDetails
+                        ? "Case notes are automatically generated from your products. Edit to customize, and changes will update your product selections."
+                        : maxillaryImplantDetails
+                          ? "Editing case notes will update your products, categories, subcategories, and teeth selections based on the content."
+                          : "Enter case notes to automatically populate products, categories, subcategories, and teeth selections. Or add products first to generate notes automatically."}
+                    </p>
                   </div>
                 )}
               </div>
@@ -14088,99 +13591,222 @@ export default function CaseDesignCenterPage() {
           )}
 
           {/* Saved Products Section */}
-          <SavedProductsSection
-            savedProducts={savedProducts}
-            selectedCategory={selectedCategory}
-            showProductDetails={showProductDetails}
-            openAccordion={openAccordion}
-            handleAccordionChange={handleAccordionChange}
-            handleDeleteProduct={handleDeleteProduct}
-            handleSavedProductCardClick={handleSavedProductCardClick}
-            isAccordionFieldVisible={isAccordionFieldVisible}
-            getAdvanceFieldByName={getAdvanceFieldByName}
-            renderSavedAdvanceField={renderSavedAdvanceField}
-            productAdvanceFields={productAdvanceFields}
-            openStageDropdown={openStageDropdown}
-            setOpenStageDropdown={setOpenStageDropdown}
-            handleStageSelect={handleStageSelect}
-            showAdvanceFields={showAdvanceFields}
-            getTotalAddOnsCount={getTotalAddOnsCount}
-            getAttachedFilesCount={getAttachedFilesCount}
-            setCurrentProductForModal={setCurrentProductForModal}
-            setCurrentArchForModal={setCurrentArchForModal}
-            setShowAddOnsModal={setShowAddOnsModal}
-            maxillaryRetentionTypes={maxillaryRetentionTypes}
-            mandibularRetentionTypes={mandibularRetentionTypes}
-            setShowAttachModal={setShowAttachModal}
-            setShowRushModal={setShowRushModal}
-            handleFieldChange={handleFieldChange}
-            openRetentionDropdown={openRetentionDropdown}
-            setOpenRetentionDropdown={setOpenRetentionDropdown}
-            implants={implants}
-            onBrandFieldClick={(productId, arch) => {
-              // Show cards and set clicked field type to 'brand'
-              setShowImplantCardsForProduct(prev => ({
-                ...prev,
-                [productId]: {
-                  ...prev[productId],
-                  [arch]: true
-                }
-              }))
-              setClickedFieldTypeInAccordion(prev => ({
-                ...prev,
-                [productId]: {
-                  ...prev[productId],
-                  [arch]: 'brand'
-                }
-              }))
-            }}
-            onPlatformFieldClick={(productId, arch) => {
-              // Find the saved product
-              const savedProduct = savedProducts.find(p => p.id === productId)
-              if (savedProduct) {
-                // Get the brand from saved product data
-                const brandNameOrId = arch === 'maxillary' 
-                  ? savedProduct.maxillaryImplantBrand 
-                  : savedProduct.mandibularImplantBrand
-                
-                if (brandNameOrId) {
-                  // Find the brand in implants array
-                  const foundBrand = implants.find((imp: any) => 
-                    imp.id === brandNameOrId || 
-                    imp.id === Number(brandNameOrId) ||
-                    imp.brand_name === brandNameOrId
-                  )
-                  
-                  if (foundBrand) {
-                    // Ensure the brand ID is stored in state so cards rendering can find it
-                    setSelectedImplantBrandPerProduct(prev => ({
-                      ...prev,
-                      [productId]: {
-                        ...prev[productId],
-                        [arch]: foundBrand.id
-                      }
-                    }))
-                  }
-                }
-              }
-              
-              // Show cards and set clicked field type to 'platform'
-              setShowImplantCardsForProduct(prev => ({
-                ...prev,
-                [productId]: {
-                  ...prev[productId],
-                  [arch]: true
-                }
-              }))
-              setClickedFieldTypeInAccordion(prev => ({
-                ...prev,
-                [productId]: {
-                  ...prev[productId],
-                  [arch]: 'platform'
-                }
-              }))
-            }}
-          />
+          {savedProducts.length > 0 && !selectedCategory && !showProductDetails && (
+            <div className="w-full flex mt-4 mb-8">
+              <div className="w-full">
+                {/* Two Column Layout for Saved Products */}
+                <div className="w-full flex gap-4 items-start">
+                  {/* Maxillary Products - Left Column */}
+                  <div className="flex-1 flex flex-col">
+                    <div className="space-y-1 flex flex-col items-center">
+                      {savedProducts.filter(p => p.addedFrom === "maxillary").length > 0 ? (
+                        savedProducts
+                          .filter(p => p.addedFrom === "maxillary")
+                          .map((savedProduct) => {
+                            const hasAddons = (savedProduct.maxillaryAddOnsStructured && savedProduct.maxillaryAddOnsStructured.length > 0) ||
+                              (savedProduct.maxillaryAddOns && savedProduct.maxillaryAddOns.length > 0)
+                            let addonsText = ""
+                            if (savedProduct.maxillaryAddOnsStructured && savedProduct.maxillaryAddOnsStructured.length > 0) {
+                              addonsText = savedProduct.maxillaryAddOnsStructured
+                                .map(addon => {
+                                  const qty = addon.qty || addon.quantity || 1
+                                  const name = addon.name || `Add-on ${addon.addon_id}`
+                                  return `${qty}x ${name}`
+                                })
+                                .join(", ")
+                            } else if (savedProduct.maxillaryAddOns && savedProduct.maxillaryAddOns.length > 0) {
+                              addonsText = savedProduct.maxillaryAddOns.join(", ")
+                            }
+
+                            return (
+                              <DynamicProductFields
+                                key={savedProduct.id}
+                                productDetails={savedProduct.productDetails}
+                                savedProduct={savedProduct}
+                                arch="maxillary"
+                                fieldConfigs={fieldConfigs}
+                                mode="saved"
+                                disableAutoOpen={true}
+                                layout="accordion-compact"
+                                lockedFields={["material"]}
+                                productId={savedProduct.id}
+                                product={savedProduct.product}
+                                category={savedProduct.category}
+                                subcategory={savedProduct.subcategory}
+                                rushData={savedProduct.rushData}
+                                isAccordionOpen={openAccordion === savedProduct.id}
+                                onAccordionChange={handleAccordionChange}
+                                onDeleteProduct={handleDeleteProduct}
+                                onCardClick={handleSavedProductCardClick}
+                                showNotes={hasAddons}
+                                notes={addonsText}
+                                showActionButtons={showAdvanceFields[savedProduct.id]}
+                                onAddOnsClick={() => {
+                                  setCurrentProductForModal(savedProduct)
+                                  setCurrentArchForModal("maxillary")
+                                  setShowAddOnsModal(true)
+                                }}
+                                onAttachFilesClick={() => {
+                                  setCurrentProductForModal(savedProduct)
+                                  setShowAttachModal(true)
+                                }}
+                                onRushClick={() => {
+                                  setCurrentProductForModal(savedProduct)
+                                  setShowRushModal(true)
+                                }}
+                                getTotalAddOnsCount={getTotalAddOnsCount}
+                                getAttachedFilesCount={getAttachedFilesCount}
+                                fieldVisibilityOverride={(fieldKey, arch) => {
+                                  const fieldNameMap: Record<string, "stump_shade" | "tooth_shade" | "stage" | "notes" | "implant_details"> = {
+                                    "stump_shade": "stump_shade",
+                                    "tooth_shade": "tooth_shade",
+                                    "stage": "stage"
+                                  }
+                                  const mappedName = fieldNameMap[fieldKey]
+                                  if (mappedName) {
+                                    return isAccordionFieldVisible(mappedName, savedProduct, arch)
+                                  }
+                                  if (fieldKey === "material") return true
+                                  if (fieldKey === "retention") {
+                                    const teeth = savedProduct.maxillaryTeeth || []
+                                    const retentionTypes = maxillaryRetentionTypes
+                                    const hasSelection = teeth.some(toothNumber => {
+                                      const types = retentionTypes[toothNumber] || []
+                                      return types.length > 0 && (types.includes('Implant') || types.includes('Prep') || types.includes('Pontic'))
+                                    })
+                                    return hasSelection || teeth.length > 0
+                                  }
+                                  return undefined
+                                }}
+                                onFieldChange={(fieldKey, value, id) =>
+                                  handleFieldChange(fieldKey, value, id, savedProduct.id, "maxillary")
+                                }
+                                maxillaryRetentionTypes={maxillaryRetentionTypes}
+                                mandibularRetentionTypes={mandibularRetentionTypes}
+                                maxillaryTeeth={savedProduct.maxillaryTeeth}
+                                mandibularTeeth={savedProduct.mandibularTeeth}
+                                onOpenShadeModal={(fieldKey) => {
+                                  setShadeFieldBeingEdited(fieldKey)
+                                  setCurrentArchForShade("maxillary")
+                                  setShowShadeModal(true)
+                                }}
+                                hideImpression={true}
+                              />
+                            )
+                          })
+                      ) : (
+                        <div className="text-gray-400 text-sm py-4">No maxillary products</div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Mandibular Products - Right Column */}
+                  <div className="flex-1 flex flex-col">
+                    <div className="space-y-1">
+                      {savedProducts.filter(p => p.addedFrom === "mandibular").length > 0 ? (
+                        savedProducts
+                          .filter(p => p.addedFrom === "mandibular")
+                          .map((savedProduct) => {
+                            const hasAddons = (savedProduct.mandibularAddOnsStructured && savedProduct.mandibularAddOnsStructured.length > 0) ||
+                              (savedProduct.mandibularAddOns && savedProduct.mandibularAddOns.length > 0)
+                            let addonsText = ""
+                            if (savedProduct.mandibularAddOnsStructured && savedProduct.mandibularAddOnsStructured.length > 0) {
+                              addonsText = savedProduct.mandibularAddOnsStructured
+                                .map(addon => {
+                                  const qty = addon.qty || addon.quantity || 1
+                                  const name = addon.name || `Add-on ${addon.addon_id}`
+                                  return `${qty}x ${name}`
+                                })
+                                .join(", ")
+                            } else if (savedProduct.mandibularAddOns && savedProduct.mandibularAddOns.length > 0) {
+                              addonsText = savedProduct.mandibularAddOns.join(", ")
+                            }
+
+                            return (
+                              <DynamicProductFields
+                                key={savedProduct.id}
+                                productDetails={savedProduct.productDetails}
+                                savedProduct={savedProduct}
+                                arch="mandibular"
+                                fieldConfigs={fieldConfigs}
+                                mode="saved"
+                                disableAutoOpen={true}
+                                layout="accordion-compact"
+                                lockedFields={["material"]}
+                                productId={savedProduct.id}
+                                product={savedProduct.product}
+                                category={savedProduct.category}
+                                subcategory={savedProduct.subcategory}
+                                rushData={savedProduct.rushData}
+                                isAccordionOpen={openAccordion === savedProduct.id}
+                                onAccordionChange={handleAccordionChange}
+                                onDeleteProduct={handleDeleteProduct}
+                                onCardClick={handleSavedProductCardClick}
+                                showNotes={hasAddons}
+                                notes={addonsText}
+                                showActionButtons={showAdvanceFields[savedProduct.id]}
+                                onAddOnsClick={() => {
+                                  setCurrentProductForModal(savedProduct)
+                                  setCurrentArchForModal("mandibular")
+                                  setShowAddOnsModal(true)
+                                }}
+                                onAttachFilesClick={() => {
+                                  setCurrentProductForModal(savedProduct)
+                                  setShowAttachModal(true)
+                                }}
+                                onRushClick={() => {
+                                  setCurrentProductForModal(savedProduct)
+                                  setShowRushModal(true)
+                                }}
+                                getTotalAddOnsCount={getTotalAddOnsCount}
+                                getAttachedFilesCount={getAttachedFilesCount}
+                                fieldVisibilityOverride={(fieldKey, arch) => {
+                                  const fieldNameMap: Record<string, "stump_shade" | "tooth_shade" | "stage" | "notes" | "implant_details"> = {
+                                    "stump_shade": "stump_shade",
+                                    "tooth_shade": "tooth_shade",
+                                    "stage": "stage"
+                                  }
+                                  const mappedName = fieldNameMap[fieldKey]
+                                  if (mappedName) {
+                                    return isAccordionFieldVisible(mappedName, savedProduct, arch)
+                                  }
+                                  if (fieldKey === "material") return true
+                                  if (fieldKey === "retention") {
+                                    const teeth = savedProduct.mandibularTeeth || []
+                                    const retentionTypes = mandibularRetentionTypes
+                                    const hasSelection = teeth.some(toothNumber => {
+                                      const types = retentionTypes[toothNumber] || []
+                                      return types.length > 0 && (types.includes('Implant') || types.includes('Prep') || types.includes('Pontic'))
+                                    })
+                                    return hasSelection || teeth.length > 0
+                                  }
+                                  return undefined
+                                }}
+                                onFieldChange={(fieldKey, value, id) =>
+                                  handleFieldChange(fieldKey, value, id, savedProduct.id, "mandibular")
+                                }
+                                maxillaryRetentionTypes={maxillaryRetentionTypes}
+                                mandibularRetentionTypes={mandibularRetentionTypes}
+                                maxillaryTeeth={savedProduct.maxillaryTeeth}
+                                mandibularTeeth={savedProduct.mandibularTeeth}
+                                onOpenShadeModal={(fieldKey) => {
+                                  setShadeFieldBeingEdited(fieldKey)
+                                  setCurrentArchForShade("mandibular")
+                                  setShowShadeModal(true)
+                                }}
+                                hideImpression={true}
+                              />
+                            )
+                          })
+                      ) : (
+                        <div className="text-gray-400 text-sm py-4">No mandibular products</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
         </div>
       </div>
@@ -14231,7 +13857,7 @@ export default function CaseDesignCenterPage() {
                 // Get current product details for impressions
                 const productDetails = product.productDetails || currentProductForModal.productDetails
                 const impressions = productDetails?.impressions || []
-                
+
                 // Get latest impression selections for this product
                 const maxillaryImpressions = getImpressionSelections(product.id, "maxillary", impressions)
                 const mandibularImpressions = getImpressionSelections(product.id, "mandibular", impressions)

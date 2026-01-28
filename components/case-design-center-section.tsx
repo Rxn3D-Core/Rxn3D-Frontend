@@ -2565,7 +2565,7 @@ export default function CSDSection({
                     }`}
                   >
                     <AccordionTrigger
-                      className={`px-2 sm:px-3 md:px-4 min-h-[78px] hover:no-underline transition-all duration-200 ${
+                      className={`px-2 sm:px-3 md:px-4 min-h-[78px] hover:no-underline transition-all duration-200 [&>svg]:hidden ${
                         openAccordionItem === product.id
                           ? "text-blue-900"
                           : "text-gray-900 hover:bg-gray-50"
@@ -2696,8 +2696,8 @@ export default function CSDSection({
                           </div>
                         </div>
 
-                        {/* Right Side - Delete Button */}
-                        <div className="flex items-center flex-shrink-0">
+                        {/* Right Side - Delete Button and Chevron */}
+                        <div className="flex items-center gap-2 flex-shrink-0">
                           {/* Delete Button */}
                           {!isCaseSubmitted && (
                             <Button
@@ -2709,11 +2709,22 @@ export default function CSDSection({
                               <Trash2 className="w-4 h-4" />
                             </Button>
                           )}
+                          {/* Custom Chevron - Single icon that rotates */}
+                          <ChevronDown
+                            className={`w-5 h-5 text-gray-600 transition-transform duration-200 flex-shrink-0 ${
+                              openAccordionItem === product.id ? 'rotate-180' : ''
+                            }`}
+                          />
                         </div>
                       </div>
                     </AccordionTrigger>
 
-                    <AccordionContent className="mt-2 relative flex-1 min-h-0 overflow-auto">
+                    <AccordionContent 
+                      className="mt-2 relative flex-1 min-h-0 overflow-y-auto"
+                      style={{
+                        maxHeight: '600px'
+                      }}
+                    >
 
                       {rushRequests[product.id] && (
                         <div className="bg-red-100 border border-red-300 rounded-lg p-2 mb-2">
