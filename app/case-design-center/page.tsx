@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import dynamic from "next/dynamic"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useDebounce } from "@/lib/performance-utils"
+import { debounce } from "@/lib/performance"
 import { Search, Pencil, Eye, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Loader2, Trash2, Plus, Paperclip, Zap, Maximize2, Info, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -1338,6 +1339,12 @@ export default function CaseDesignCenterPage() {
     const toothShade = archType === "maxillary" ? maxillaryToothShade : mandibularToothShade
     const stage = archType === "maxillary" ? maxillaryStage : mandibularStage
 
+    // Check if any tooth has "Implant" retention type for this arch
+    const retentionTypes = archType === "maxillary" ? maxillaryRetentionTypes : mandibularRetentionTypes
+    const hasImplantRetention = Object.values(retentionTypes).some(
+      (types) => types && types.includes('Implant')
+    )
+
     // Check basic required fields
     const hasMaterial = hasValue(material)
     const hasRetention = hasValue(retention)
@@ -1352,9 +1359,13 @@ export default function CaseDesignCenterPage() {
     let hasRequiredAdvanceFields = true
     if (productDetails?.advance_fields && Array.isArray(productDetails.advance_fields)) {
       // Filter out stump shade from advanced fields check (we use main stump shade field)
+      // Also filter out implant_library fields if retention type is not "Implant"
       const filteredAdvanceFields = productDetails.advance_fields.filter((field: any) => {
         const fieldNameLower = (field.name || "").toLowerCase()
-        return !(fieldNameLower.includes("stump") && fieldNameLower.includes("shade"))
+        if (fieldNameLower.includes("stump") && fieldNameLower.includes("shade")) return false
+        // Skip implant_library fields if retention type is not "Implant"
+        if (field.field_type === "implant_library" && !hasImplantRetention) return false
+        return true
       })
 
       // Check if any required advanced fields are missing
@@ -1367,14 +1378,18 @@ export default function CaseDesignCenterPage() {
           const fieldKey = `advance_${field.id}`
           const currentValue = advanceFieldValues[fieldKey]
 
-          // For implant_library fields, check if brand, platform, and size are all selected
+          // For implant_library fields, check if brand, platform, size, inclusions, abutment detail, and abutment type are all selected
           if (field.field_type === "implant_library") {
             const brandId = selectedImplantBrand[fieldKey]
             const platformId = selectedImplantPlatform[fieldKey]
             const size = selectedImplantSize[fieldKey]
-            // Implant is considered filled if brand, platform, and size are all selected
-            // OR if advanceFieldValues has a valid value
-            if (brandId && platformId && size) {
+            // Get inclusions, abutment detail, and abutment type based on arch
+            const inclusions = archType === "maxillary" ? maxillaryImplantInclusions : mandibularImplantInclusions
+            const abutmentDetail = archType === "maxillary" ? maxillaryAbutmentDetail : mandibularAbutmentDetail
+            const abutmentType = archType === "maxillary" ? maxillaryAbutmentType : mandibularAbutmentType
+
+            // Implant is considered filled if brand, platform, size, inclusions, abutment detail, and abutment type are all selected
+            if (brandId && platformId && size && hasValue(inclusions) && hasValue(abutmentDetail) && hasValue(abutmentType)) {
               return true
             }
             // Fallback: check if advanceFieldValues has a value
@@ -1584,32 +1599,177 @@ export default function CaseDesignCenterPage() {
     }
   }, [productDetails, advanceFieldValues, implants, maxillaryToothShade, mandibularToothShade])
 
+  // Track if we've already auto-opened impression modal for this session to prevent repeated auto-opening
+  const autoOpenedImpressionModalRef = useRef<{ maxillary?: boolean; mandibular?: boolean }>({})
+
+  // Auto-open impression modal when all implant detail form fields are complete
+  useEffect(() => {
+    if (!productDetails || !productDetails.advance_fields || !Array.isArray(productDetails.advance_fields)) {
+      return
+    }
+
+    // Don't auto-open if impression modal is already open
+    if (showImpressionModal) {
+      return
+    }
+
+    // Find implant_library field in advance fields
+    const implantLibraryField = productDetails.advance_fields.find(
+      (field: any) => field.field_type === "implant_library"
+    )
+
+    if (!implantLibraryField) {
+      return
+    }
+
+    const fieldKey = `advance_${implantLibraryField.id}`
+
+    // Check if all implant detail form fields are complete for maxillary
+    const checkMaxillaryComplete = () => {
+      if (!isToothShadeFilled("maxillary")) return false
+      if (autoOpenedImpressionModalRef.current.maxillary) return false
+
+      const brandId = selectedImplantBrand[fieldKey]
+      const platformId = selectedImplantPlatform[fieldKey]
+      const size = selectedImplantSize[fieldKey]
+      const hasInclusions = !!maxillaryImplantInclusions
+      const hasAbutmentDetail = !!maxillaryAbutmentDetail
+      const hasAbutmentType = !!maxillaryAbutmentType
+
+      return brandId && platformId && size && hasInclusions && hasAbutmentDetail && hasAbutmentType
+    }
+
+    // Check if all implant detail form fields are complete for mandibular
+    const checkMandibularComplete = () => {
+      if (!isToothShadeFilled("mandibular")) return false
+      if (autoOpenedImpressionModalRef.current.mandibular) return false
+
+      const brandId = selectedImplantBrand[fieldKey]
+      const platformId = selectedImplantPlatform[fieldKey]
+      const size = selectedImplantSize[fieldKey]
+      const hasInclusions = !!mandibularImplantInclusions
+      const hasAbutmentDetail = !!mandibularAbutmentDetail
+      const hasAbutmentType = !!mandibularAbutmentType
+
+      return brandId && platformId && size && hasInclusions && hasAbutmentDetail && hasAbutmentType
+    }
+
+    // Auto-open for maxillary if complete
+    if (checkMaxillaryComplete() && selectedProductForMaxillary && productDetails?.impressions?.length > 0) {
+      autoOpenedImpressionModalRef.current = { ...autoOpenedImpressionModalRef.current, maxillary: true }
+
+      const timer = setTimeout(() => {
+        const tempProduct: SavedProduct = {
+          id: selectedProductForMaxillary.id.toString(),
+          product: selectedProductForMaxillary,
+          productDetails: productDetails,
+          category: selectedCategory || "",
+          categoryId: selectedCategoryId || 0,
+          subcategory: selectedSubcategory || "",
+          subcategoryId: selectedSubcategoryId || 0,
+          maxillaryTeeth: maxillaryTeeth,
+          mandibularTeeth: mandibularTeeth,
+          maxillaryMaterial: maxillaryMaterial,
+          maxillaryStumpShade: maxillaryStumpShade,
+          maxillaryRetention: maxillaryRetention,
+          maxillaryImplantDetails: maxillaryImplantDetails,
+          mandibularMaterial: mandibularMaterial,
+          mandibularRetention: mandibularRetention,
+          mandibularStumpShade: mandibularStumpShade,
+          mandibularImplantDetails: mandibularImplantDetails,
+          createdAt: Date.now(),
+          addedFrom: "maxillary",
+        }
+        handleOpenImpressionModal(tempProduct, "maxillary")
+      }, 300)
+
+      return () => clearTimeout(timer)
+    }
+
+    // Auto-open for mandibular if complete
+    if (checkMandibularComplete() && selectedProduct && productDetails?.impressions?.length > 0) {
+      autoOpenedImpressionModalRef.current = { ...autoOpenedImpressionModalRef.current, mandibular: true }
+
+      const timer = setTimeout(() => {
+        const tempProduct: SavedProduct = {
+          id: selectedProduct.id.toString(),
+          product: selectedProduct,
+          productDetails: productDetails,
+          category: selectedCategory || "",
+          categoryId: selectedCategoryId || 0,
+          subcategory: selectedSubcategory || "",
+          subcategoryId: selectedSubcategoryId || 0,
+          maxillaryTeeth: maxillaryTeeth,
+          mandibularTeeth: mandibularTeeth,
+          maxillaryMaterial: maxillaryMaterial,
+          maxillaryStumpShade: maxillaryStumpShade,
+          maxillaryRetention: maxillaryRetention,
+          maxillaryImplantDetails: maxillaryImplantDetails,
+          mandibularMaterial: mandibularMaterial,
+          mandibularRetention: mandibularRetention,
+          mandibularStumpShade: mandibularStumpShade,
+          mandibularImplantDetails: mandibularImplantDetails,
+          createdAt: Date.now(),
+          addedFrom: "mandibular",
+        }
+        handleOpenImpressionModal(tempProduct, "mandibular")
+      }, 300)
+
+      return () => clearTimeout(timer)
+    }
+  }, [
+    productDetails,
+    selectedImplantBrand,
+    selectedImplantPlatform,
+    selectedImplantSize,
+    maxillaryImplantInclusions,
+    maxillaryAbutmentDetail,
+    maxillaryAbutmentType,
+    mandibularImplantInclusions,
+    mandibularAbutmentDetail,
+    mandibularAbutmentType,
+    maxillaryToothShade,
+    mandibularToothShade,
+    showImpressionModal,
+    selectedProductForMaxillary,
+    selectedProduct
+  ])
+
   // Track which product configurations have been auto-saved to prevent duplicate saves
   const autoSavedArchesRef = useRef<Set<string>>(new Set())
   // Ref to track when impression modal was just closed to prevent auto-save
   const impressionModalJustClosedRef = useRef<boolean>(false)
+  // Ref for debounced auto-save so the debounced function always calls the latest handleAutoSaveProduct
+  const handleAutoSaveProductRef = useRef<(type: "maxillary" | "mandibular") => void>(() => {})
 
   // Handler to toggle accordion - only opens/closes on click
-  const handleAccordionChange = (value: string) => {
-    // If clicking the same accordion that's open, close it
-    // If clicking a different accordion, open it (which automatically closes the previous one)
-    if (value && openAccordion === value) {
-      // Same accordion clicked - close it
+  // Radix passes "" or undefined when closing (collapsible); pass string when opening
+  const handleAccordionChange = (value: string | undefined) => {
+    const nextValue = value === undefined || value === "" ? null : String(value)
+    // If clicking the same accordion that's open, or Radix sent empty (close) - close it
+    if (nextValue === null) {
       setOpenAccordion(null)
-      // Close stage dropdowns for this accordion
+      setOpenStageDropdown({})
+      return
+    }
+    if (openAccordion === nextValue) {
+      // Same accordion clicked again - close it
+      setOpenAccordion(null)
       setOpenStageDropdown((prev) => {
         const newState = { ...prev }
-        delete newState[value]
+        delete newState[nextValue]
         return newState
       })
-    } else if (value) {
-      // Different accordion clicked or opening for first time - open it
-      setOpenAccordion(value)
-    } else {
-      // Empty string means closing
-      setOpenAccordion(null)
-      // Close all stage dropdowns
-      setOpenStageDropdown({})
+      return
+    }
+    // Open the clicked accordion
+    setOpenAccordion(nextValue)
+    // When opening a saved product card (not maxillary-card or mandibular-card), load its details
+    if (nextValue !== "maxillary-card" && nextValue !== "mandibular-card") {
+      const savedProduct = savedProducts.find((p) => p.id === nextValue)
+      if (savedProduct) {
+        handleSavedProductCardClick(savedProduct)
+      }
     }
   }
 
@@ -2162,21 +2322,35 @@ export default function CaseDesignCenterPage() {
     const hasRetention = !!maxillaryRetention
     const hasToothShade = isToothShadeFilled("maxillary")
     
+    // Check if any tooth has "Implant" retention type for maxillary
+    const hasImplantRetention = Object.values(maxillaryRetentionTypes).some(
+      (types) => types && types.includes('Implant')
+    )
+
     // Check if advance fields are complete (if they exist)
     const hasAdvanceFields = productDetails?.advance_fields && Array.isArray(productDetails.advance_fields) && productDetails.advance_fields.length > 0
     let allAdvanceFieldsComplete = true
     if (hasAdvanceFields) {
       const filteredAdvanceFields = productDetails.advance_fields.filter((field: any) => {
         const fieldNameLower = (field.name || "").toLowerCase()
-        return !(fieldNameLower.includes("stump") && fieldNameLower.includes("shade"))
+        // Filter out stump shade fields
+        if (fieldNameLower.includes("stump") && fieldNameLower.includes("shade")) return false
+        // Filter out implant_library fields if retention type is not "Implant"
+        if (field.field_type === "implant_library" && !hasImplantRetention) return false
+        return true
       })
       allAdvanceFieldsComplete = filteredAdvanceFields.every((field: any) => {
         if (field.field_type === "implant_library") {
+          // Only check implant details if retention type is "Implant"
           const fieldKey = `advance_${field.id}`
           const brandId = selectedImplantBrand[fieldKey]
           const platformId = selectedImplantPlatform[fieldKey]
           const size = selectedImplantSize[fieldKey]
-          return brandId && platformId && size
+          // Also check inclusions, abutment detail, and abutment type are filled
+          const hasInclusions = !!maxillaryImplantInclusions
+          const hasAbutmentDetail = !!maxillaryAbutmentDetail
+          const hasAbutmentType = !!maxillaryAbutmentType
+          return brandId && platformId && size && hasInclusions && hasAbutmentDetail && hasAbutmentType
         }
         const fieldKey = `advance_${field.id}`
         const fieldValue = advanceFieldValues[fieldKey]
@@ -2205,8 +2379,8 @@ export default function CaseDesignCenterPage() {
         // Double-check impression is still filled before saving
         const currentImpressionCount = getImpressionCount(selectedProductForMaxillary.id.toString(), "maxillary", productDetails.impressions || [])
         if (currentImpressionCount > 0) {
-          // Always call handleAutoSaveProduct - it will update existing product or create new one
-          handleAutoSaveProduct("maxillary")
+          // Debounced auto-save to avoid multiple rapid saves
+          debouncedAutoSaveProduct("maxillary")
           
           // After auto-save, open the saved product accordion instead of maxillary-card
           // This ensures the current editing card is hidden and user sees the saved product
@@ -2246,7 +2420,101 @@ export default function CaseDesignCenterPage() {
     selectedImplantBrand,
     selectedImplantPlatform,
     selectedImplantSize,
-    openAccordion
+    openAccordion,
+    maxillaryRetentionTypes,
+    maxillaryImplantInclusions,
+    maxillaryAbutmentDetail,
+    maxillaryAbutmentType
+  ])
+
+  // Auto-save product when impression is filled in current editing card (mandibular)
+  useEffect(() => {
+    if (!selectedProductForMandibular || !productDetails || !showMandibularChart || mandibularTeeth.length === 0) {
+      return
+    }
+
+    const impressionCount = getImpressionCount(selectedProductForMandibular.id.toString(), "mandibular", productDetails.impressions || [])
+    const hasImpression = impressionCount > 0
+
+    const hasMaterial = !!mandibularMaterial
+    const hasRetention = !!mandibularRetention
+    const hasToothShade = isToothShadeFilled("mandibular")
+
+    const hasImplantRetention = Object.values(mandibularRetentionTypes).some(
+      (types) => types && types.includes('Implant')
+    )
+
+    const hasAdvanceFields = productDetails?.advance_fields && Array.isArray(productDetails.advance_fields) && productDetails.advance_fields.length > 0
+    let allAdvanceFieldsComplete = true
+    if (hasAdvanceFields) {
+      const filteredAdvanceFields = productDetails.advance_fields.filter((field: any) => {
+        const fieldNameLower = (field.name || "").toLowerCase()
+        if (fieldNameLower.includes("stump") && fieldNameLower.includes("shade")) return false
+        if (field.field_type === "implant_library" && !hasImplantRetention) return false
+        return true
+      })
+      allAdvanceFieldsComplete = filteredAdvanceFields.every((field: any) => {
+        if (field.field_type === "implant_library") {
+          const fieldKey = `advance_${field.id}`
+          const brandId = selectedImplantBrand[fieldKey]
+          const platformId = selectedImplantPlatform[fieldKey]
+          const size = selectedImplantSize[fieldKey]
+          const hasInclusions = !!mandibularImplantInclusions
+          const hasAbutmentDetail = !!mandibularAbutmentDetail
+          const hasAbutmentType = !!mandibularAbutmentType
+          return brandId && platformId && size && hasInclusions && hasAbutmentDetail && hasAbutmentType
+        }
+        const fieldKey = `advance_${field.id}`
+        const fieldValue = advanceFieldValues[fieldKey]
+        return fieldValue && fieldValue.advance_field_value
+      })
+    }
+
+    if (hasImpression && hasMaterial && hasRetention && hasToothShade && (!hasAdvanceFields || allAdvanceFieldsComplete) && !showImpressionModal && !impressionModalJustClosedRef.current) {
+      const saveTimer = setTimeout(() => {
+        const currentImpressionCount = getImpressionCount(selectedProductForMandibular.id.toString(), "mandibular", productDetails.impressions || [])
+        if (currentImpressionCount > 0) {
+          debouncedAutoSaveProduct("mandibular")
+          setTimeout(() => {
+            const matchingProduct = savedProducts.find(sp =>
+              sp.addedFrom === "mandibular" &&
+              sp.product.id === selectedProductForMandibular.id &&
+              sp.categoryId === selectedCategoryId &&
+              sp.subcategoryId === selectedSubcategoryId &&
+              JSON.stringify([...(sp.mandibularTeeth || [])].sort()) === JSON.stringify([...mandibularTeeth].sort())
+            )
+            if (matchingProduct && openAccordion !== matchingProduct.id && openAccordion !== "mandibular-card") {
+              setOpenAccordion(matchingProduct.id)
+            } else if (openAccordion === "mandibular-card") {
+              setOpenAccordion(null)
+            }
+          }, 200)
+        }
+      }, 500)
+
+      return () => clearTimeout(saveTimer)
+    }
+  }, [
+    selectedProductForMandibular,
+    productDetails,
+    showMandibularChart,
+    mandibularTeeth,
+    mandibularMaterial,
+    mandibularRetention,
+    selectedImpressions,
+    showImpressionModal,
+    savedProducts,
+    selectedCategoryId,
+    selectedSubcategoryId,
+    advanceFieldValues,
+    selectedImplantBrand,
+    selectedImplantPlatform,
+    selectedImplantSize,
+    openAccordion,
+    mandibularRetentionTypes,
+    mandibularImplantInclusions,
+    mandibularAbutmentDetail,
+    mandibularAbutmentType
   ])
 
   // Save products to localStorage whenever savedProducts changes
@@ -3894,8 +4162,6 @@ export default function CaseDesignCenterPage() {
       }
     }
 
-    console.log("Opening shade selection:", { fieldKey, shadeFieldType, actualArch, openAccordion, productDetails })
-
     isSettingAccordionRef.current = true
 
     setCurrentShadeField(shadeFieldType)
@@ -4909,6 +5175,72 @@ export default function CaseDesignCenterPage() {
             })
             .filter((field: any) => field !== null)
           : undefined,
+        // Extract and save implant details only when retention is Implant (maxillary)
+        ...(() => {
+          const hasImplantRetention = maxillaryRetention && String(maxillaryRetention).toLowerCase().includes("implant")
+          const implantField = productDetails?.advance_fields?.find((field: any) => field.field_type === "implant_library")
+          if (implantField && maxillaryTeeth.length > 0 && hasImplantRetention) {
+            const fieldKey = `advance_${implantField.id}`
+            const brandId = selectedImplantBrand[fieldKey]
+            const platformId = selectedImplantPlatform[fieldKey]
+            const size = selectedImplantSize[fieldKey]
+
+            let platformName: string | undefined = undefined
+            const brand = brandId ? implants.find((imp: any) => imp.id === brandId) : null
+            if (brandId && platformId && brand) {
+              const platform = brand.platforms?.find((p: any) => (p.id || 0) === platformId)
+              platformName = platform?.name
+            }
+
+            const implantDetailsStr = brand && (platformName || platformId) && size
+              ? `${brand.brand_name || ""} - ${platformName || platformId || ""} - ${size}`
+              : maxillaryImplantDetails || undefined
+
+            return {
+              maxillaryImplantBrand: brandId || undefined,
+              maxillaryImplantPlatform: platformName || (platformId ? String(platformId) : undefined),
+              maxillaryImplantSize: size || undefined,
+              maxillaryImplantInclusions: maxillaryImplantInclusions || undefined,
+              maxillaryAbutmentDetail: maxillaryAbutmentDetail || undefined,
+              maxillaryAbutmentType: maxillaryAbutmentType || undefined,
+              maxillaryImplantDetails: implantDetailsStr,
+            }
+          }
+          return {}
+        })(),
+        // Extract and save implant details only when retention is Implant (mandibular)
+        ...(() => {
+          const hasImplantRetention = mandibularRetention && String(mandibularRetention).toLowerCase().includes("implant")
+          const implantField = productDetails?.advance_fields?.find((field: any) => field.field_type === "implant_library")
+          if (implantField && mandibularTeeth.length > 0 && hasImplantRetention) {
+            const fieldKey = `advance_${implantField.id}`
+            const brandId = selectedImplantBrand[fieldKey]
+            const platformId = selectedImplantPlatform[fieldKey]
+            const size = selectedImplantSize[fieldKey]
+
+            let platformName: string | undefined = undefined
+            const brand = brandId ? implants.find((imp: any) => imp.id === brandId) : null
+            if (brandId && platformId && brand) {
+              const platform = brand.platforms?.find((p: any) => (p.id || 0) === platformId)
+              platformName = platform?.name
+            }
+
+            const implantDetailsStr = brand && (platformName || platformId) && size
+              ? `${brand.brand_name || ""} - ${platformName || platformId || ""} - ${size}`
+              : mandibularImplantDetails || undefined
+
+            return {
+              mandibularImplantBrand: brandId || undefined,
+              mandibularImplantPlatform: platformName || (platformId ? String(platformId) : undefined),
+              mandibularImplantSize: size || undefined,
+              mandibularImplantInclusions: mandibularImplantInclusions || undefined,
+              mandibularAbutmentDetail: mandibularAbutmentDetail || undefined,
+              mandibularAbutmentType: mandibularAbutmentType || undefined,
+              mandibularImplantDetails: implantDetailsStr,
+            }
+          }
+          return {}
+        })(),
       }
 
       // If both material and retention are set for either arch, show advance fields and fetch them
@@ -4941,21 +5273,10 @@ export default function CaseDesignCenterPage() {
         const updated = [...deduplicatedProducts]
         const existingProduct = deduplicatedProducts[existingIndex]
 
-        // Merge teeth arrays: combine existing and new teeth, remove duplicates
-        const existingMaxTeeth = [...(existingProduct.maxillaryTeeth || [])]
-        const existingMandTeeth = [...(existingProduct.mandibularTeeth || [])]
-        const newMaxTeeth = [...maxillaryTeeth]
-        const newMandTeeth = [...mandibularTeeth]
-
-        // Merge maxillary teeth: combine and remove duplicates
-        const mergedMaxTeeth = savedProduct.maxillaryTeeth.length > 0
-          ? [...new Set([...existingMaxTeeth, ...newMaxTeeth])].sort()
-          : existingMaxTeeth
-
-        // Merge mandibular teeth: combine and remove duplicates
-        const mergedMandTeeth = savedProduct.mandibularTeeth.length > 0
-          ? [...new Set([...existingMandTeeth, ...newMandTeeth])].sort()
-          : existingMandTeeth
+        // Replace teeth arrays with current selection (not merge)
+        // This ensures deselecting a tooth actually removes it from the saved product
+        const mergedMaxTeeth = [...maxillaryTeeth].sort()
+        const mergedMandTeeth = [...mandibularTeeth].sort()
 
         // Merge existing product data with new data, preserving existing values where new ones are empty
         const mergedProduct: SavedProduct = {
@@ -4977,6 +5298,21 @@ export default function CaseDesignCenterPage() {
           mandibularStumpShade: savedProduct.mandibularStumpShade || existingProduct.mandibularStumpShade,
           maxillaryToothShade: savedProduct.maxillaryToothShade || existingProduct.maxillaryToothShade,
           mandibularToothShade: savedProduct.mandibularToothShade || existingProduct.mandibularToothShade,
+          // Preserve implant detail fields for the arch we did NOT save (other arch)
+          maxillaryImplantBrand: savedProduct.maxillaryImplantBrand ?? existingProduct.maxillaryImplantBrand,
+          maxillaryImplantPlatform: savedProduct.maxillaryImplantPlatform ?? existingProduct.maxillaryImplantPlatform,
+          maxillaryImplantSize: savedProduct.maxillaryImplantSize ?? existingProduct.maxillaryImplantSize,
+          maxillaryImplantInclusions: savedProduct.maxillaryImplantInclusions ?? existingProduct.maxillaryImplantInclusions,
+          maxillaryAbutmentDetail: savedProduct.maxillaryAbutmentDetail ?? existingProduct.maxillaryAbutmentDetail,
+          maxillaryAbutmentType: savedProduct.maxillaryAbutmentType ?? existingProduct.maxillaryAbutmentType,
+          maxillaryImplantDetails: savedProduct.maxillaryImplantDetails ?? existingProduct.maxillaryImplantDetails,
+          mandibularImplantBrand: savedProduct.mandibularImplantBrand ?? existingProduct.mandibularImplantBrand,
+          mandibularImplantPlatform: savedProduct.mandibularImplantPlatform ?? existingProduct.mandibularImplantPlatform,
+          mandibularImplantSize: savedProduct.mandibularImplantSize ?? existingProduct.mandibularImplantSize,
+          mandibularImplantInclusions: savedProduct.mandibularImplantInclusions ?? existingProduct.mandibularImplantInclusions,
+          mandibularAbutmentDetail: savedProduct.mandibularAbutmentDetail ?? existingProduct.mandibularAbutmentDetail,
+          mandibularAbutmentType: savedProduct.mandibularAbutmentType ?? existingProduct.mandibularAbutmentType,
+          mandibularImplantDetails: savedProduct.mandibularImplantDetails ?? existingProduct.mandibularImplantDetails,
           // Preserve IDs as well
           maxillaryStageId: savedProduct.maxillaryStageId || existingProduct.maxillaryStageId,
           mandibularStageId: savedProduct.mandibularStageId || existingProduct.mandibularStageId,
@@ -5069,27 +5405,14 @@ export default function CaseDesignCenterPage() {
         }
       })
 
-      // Get current teeth for comparison
-      const currentTeeth = type === "maxillary"
-        ? [...maxillaryTeeth].sort()
-        : [...mandibularTeeth].sort()
-
-      // Find existing product with the same configuration (product, category, subcategory, arch, AND same teeth)
+      // Find existing product with the same configuration (product, category, subcategory, arch)
+      // Note: We do NOT require exact teeth match - we want to UPDATE the existing product with new teeth
       const existingIndex = deduplicatedProducts.findIndex(p => {
-        // Check basic matching criteria
-        const matchesBasic = p.product.id === productToUse.id &&
+        // Check basic matching criteria - match by product, category, subcategory, and arch only
+        return p.product.id === productToUse.id &&
           p.categoryId === selectedCategoryId &&
           p.subcategoryId === selectedSubcategoryId &&
           p.addedFrom === type
-
-        if (!matchesBasic) return false
-
-        // Check if teeth are exactly the same
-        const existingTeeth = type === "maxillary"
-          ? [...(p.maxillaryTeeth || [])].sort()
-          : [...(p.mandibularTeeth || [])].sort()
-
-        return JSON.stringify(existingTeeth) === JSON.stringify(currentTeeth)
       })
 
       // If we found an existing product with the same configuration, update it instead of adding a duplicate
@@ -5194,24 +5517,27 @@ export default function CaseDesignCenterPage() {
             })
             .filter((field: any) => field !== null)
           : undefined,
-        // Extract and save implant details from advance fields if type is maxillary
+        // Extract and save implant details from advance fields only when retention is Implant
         ...(type === "maxillary" ? (() => {
-          // Find implant_library advance field
+          const hasImplantRetention = finalMaxillaryRetention && String(finalMaxillaryRetention).toLowerCase().includes("implant")
           const implantField = productDetails?.advance_fields?.find((field: any) => field.field_type === "implant_library")
-          if (implantField) {
+          if (implantField && hasImplantRetention) {
             const fieldKey = `advance_${implantField.id}`
             const brandId = selectedImplantBrand[fieldKey]
             const platformId = selectedImplantPlatform[fieldKey]
             const size = selectedImplantSize[fieldKey]
-            
-            // Get platform name if we have platform ID
+
             let platformName: string | undefined = undefined
-            if (brandId && platformId) {
-              const brand = implants.find((imp: any) => imp.id === brandId)
-              const platform = brand?.platforms?.find((p: any) => (p.id || 0) === platformId)
+            const brand = brandId ? implants.find((imp: any) => imp.id === brandId) : null
+            if (brandId && platformId && brand) {
+              const platform = brand.platforms?.find((p: any) => (p.id || 0) === platformId)
               platformName = platform?.name
             }
-            
+
+            const implantDetailsStr = brand && (platformName || platformId) && size
+              ? `${brand.brand_name || ""} - ${platformName || platformId || ""} - ${size}`
+              : maxillaryImplantDetails || undefined
+
             return {
               maxillaryImplantBrand: brandId || undefined,
               maxillaryImplantPlatform: platformName || (platformId ? String(platformId) : undefined),
@@ -5219,6 +5545,40 @@ export default function CaseDesignCenterPage() {
               maxillaryImplantInclusions: maxillaryImplantInclusions || undefined,
               maxillaryAbutmentDetail: maxillaryAbutmentDetail || undefined,
               maxillaryAbutmentType: maxillaryAbutmentType || undefined,
+              maxillaryImplantDetails: implantDetailsStr,
+            }
+          }
+          return {}
+        })() : {}),
+        // Extract and save implant details for mandibular when retention is Implant
+        ...(type === "mandibular" ? (() => {
+          const hasImplantRetention = finalMandibularRetention && String(finalMandibularRetention).toLowerCase().includes("implant")
+          const implantField = productDetails?.advance_fields?.find((field: any) => field.field_type === "implant_library")
+          if (implantField && hasImplantRetention) {
+            const fieldKey = `advance_${implantField.id}`
+            const brandId = selectedImplantBrand[fieldKey]
+            const platformId = selectedImplantPlatform[fieldKey]
+            const size = selectedImplantSize[fieldKey]
+
+            let platformName: string | undefined = undefined
+            const brand = brandId ? implants.find((imp: any) => imp.id === brandId) : null
+            if (brandId && platformId && brand) {
+              const platform = brand.platforms?.find((p: any) => (p.id || 0) === platformId)
+              platformName = platform?.name
+            }
+
+            const implantDetailsStr = brand && (platformName || platformId) && size
+              ? `${brand.brand_name || ""} - ${platformName || platformId || ""} - ${size}`
+              : mandibularImplantDetails || undefined
+
+            return {
+              mandibularImplantBrand: brandId || undefined,
+              mandibularImplantPlatform: platformName || (platformId ? String(platformId) : undefined),
+              mandibularImplantSize: size || undefined,
+              mandibularImplantInclusions: mandibularImplantInclusions || undefined,
+              mandibularAbutmentDetail: mandibularAbutmentDetail || undefined,
+              mandibularAbutmentType: mandibularAbutmentType || undefined,
+              mandibularImplantDetails: implantDetailsStr,
             }
           }
           return {}
@@ -5267,10 +5627,24 @@ export default function CaseDesignCenterPage() {
     }
   }
 
+  // Keep ref pointing to latest handleAutoSaveProduct (for debounced version)
+  useEffect(() => {
+    handleAutoSaveProductRef.current = handleAutoSaveProduct
+  }, [handleAutoSaveProduct])
+
+  // Debounced auto-save: coalesce rapid calls (e.g. from effects + modal close) into one save after 500ms
+  const debouncedAutoSaveProduct = useMemo(
+    () =>
+      debounce((type: "maxillary" | "mandibular") => {
+        handleAutoSaveProductRef.current(type)
+      }, 500),
+    []
+  )
+
   // React Query mutation for auto-saving products (kept for potential future use)
   const autoSaveProductMutation = useMutation({
     mutationFn: async (type: "maxillary" | "mandibular") => {
-      // Call the existing handleAutoSaveProduct function
+      // Call the existing handleAutoSaveProduct function (sync when mutation is used explicitly)
       handleAutoSaveProduct(type)
       return type
     },
@@ -5349,8 +5723,7 @@ export default function CaseDesignCenterPage() {
     productDetails,
     showMaxillaryChart,
     showMandibularChart,
-    maxillaryTeeth,
-    mandibularTeeth,
+    // maxillaryTeeth and mandibularTeeth intentionally omitted - do not trigger save when user only clicks teeth (teeth SVG)
     maxillaryMaterial,
     maxillaryRetention,
     maxillaryStumpShade,
@@ -5360,7 +5733,6 @@ export default function CaseDesignCenterPage() {
     mandibularRetention,
     mandibularToothShade,
     mandibularStage,
-    // selectedImpressions removed - impressions are not required for validation and shouldn't trigger auto-save
     selectedProductForMaxillary,
     selectedProductForMandibular,
     selectedCategory,
@@ -6314,7 +6686,18 @@ export default function CaseDesignCenterPage() {
 
     // If adding a tooth, automatically open the accordion
     if (isAdding) {
-      if (selectedProduct && showProductDetails) {
+      const newTeeth = isAdding ? [...maxillaryTeeth, toothNumber] : maxillaryTeeth.filter(t => t !== toothNumber)
+      const sortedNew = newTeeth.map((t: number) => Number(t)).sort((a, b) => a - b)
+      const matchingSaved = selectedProductForMaxillary && savedProducts.find(sp => {
+        if (sp.addedFrom !== "maxillary") return false
+        const sameProduct = String(sp.product?.id ?? "") === String(selectedProductForMaxillary?.id ?? "")
+        const savedTeeth = (sp.maxillaryTeeth || []).map((t: number) => Number(t)).sort((a, b) => a - b)
+        const sameTeeth = savedTeeth.length === sortedNew.length && savedTeeth.every((t, i) => t === sortedNew[i])
+        return sameProduct && sameTeeth
+      })
+      if (matchingSaved) {
+        setOpenAccordion(matchingSaved.id)
+      } else if (selectedProduct && showProductDetails) {
         setOpenAccordion("maxillary-card")
       } else {
         const maxillaryProducts = savedProducts.filter(p => p.maxillaryTeeth.length > 0)
@@ -6359,7 +6742,18 @@ export default function CaseDesignCenterPage() {
 
     // If adding a tooth, automatically open the accordion
     if (isAdding) {
-      if (selectedProduct && showProductDetails) {
+      const newTeeth = isAdding ? [...mandibularTeeth, toothNumber] : mandibularTeeth.filter(t => t !== toothNumber)
+      const sortedNew = newTeeth.map((t: number) => Number(t)).sort((a, b) => a - b)
+      const matchingSaved = selectedProductForMandibular && savedProducts.find(sp => {
+        if (sp.addedFrom !== "mandibular") return false
+        const sameProduct = String(sp.product?.id ?? "") === String(selectedProductForMandibular?.id ?? "")
+        const savedTeeth = (sp.mandibularTeeth || []).map((t: number) => Number(t)).sort((a, b) => a - b)
+        const sameTeeth = savedTeeth.length === sortedNew.length && savedTeeth.every((t, i) => t === sortedNew[i])
+        return sameProduct && sameTeeth
+      })
+      if (matchingSaved) {
+        setOpenAccordion(matchingSaved.id)
+      } else if (selectedProduct && showProductDetails) {
         setOpenAccordion("mandibular-card")
       } else {
         const mandibularProducts = savedProducts.filter(p => p.mandibularTeeth.length > 0)
@@ -6920,8 +7314,8 @@ export default function CaseDesignCenterPage() {
                   {/* MAXILLARY Section - Only show when maxillary chart is visible */}
                   {showMaxillaryChart && (
                     <div ref={maxillarySectionRef} className="flex flex-col w-full">
-                      {/* Selected Product Badge - Only show when there are multiple products (saved products exist) */}
-                      {selectedProductForMaxillary && maxillaryTeeth.length > 0 && savedProducts.filter(p => p.addedFrom === "maxillary").length > 0 && (
+                      {/* Selected Product Badge - Only show when there are multiple products (more than 1 saved product) */}
+                      {selectedProductForMaxillary && maxillaryTeeth.length > 0 && savedProducts.filter(p => p.addedFrom === "maxillary").length > 1 && (
                         <div
                           className="relative flex items-center justify-center"
                           style={{ width: "100%", height: "22px", flex: "none", order: 0, flexGrow: 0 }}
@@ -7036,18 +7430,18 @@ export default function CaseDesignCenterPage() {
                                 onTeethSelectionChange={(teeth) => {
                                   // Update maxillary teeth when selection changes
                                   setMaxillaryTeeth(teeth)
-                                  
-                                  // If a saved product exists with these teeth and product, open its accordion
-                                  if (selectedProductForMaxillary && teeth.length > 0 && selectedCategoryId && selectedSubcategoryId) {
+                                  // If a saved product exists with same product + teeth (match by product id + teeth only), open its accordion
+                                  if (selectedProductForMaxillary && teeth.length > 0) {
                                     setTimeout(() => {
-                                      const matchingProduct = savedProducts.find(sp =>
-                                        sp.addedFrom === "maxillary" &&
-                                        sp.product.id === selectedProductForMaxillary.id &&
-                                        sp.categoryId === selectedCategoryId &&
-                                        sp.subcategoryId === selectedSubcategoryId &&
-                                        JSON.stringify([...(sp.maxillaryTeeth || [])].sort()) === JSON.stringify([...teeth].sort())
-                                      )
-                                      if (matchingProduct && openAccordion !== matchingProduct.id) {
+                                      const savedTeeth = (teeth as number[]).map((t: number) => Number(t)).sort((a, b) => a - b)
+                                      const matchingProduct = savedProducts.find(sp => {
+                                        if (sp.addedFrom !== "maxillary") return false
+                                        const sameProduct = String(sp.product?.id ?? "") === String(selectedProductForMaxillary?.id ?? "")
+                                        const currentSaved = (sp.maxillaryTeeth || []).map((t: number) => Number(t)).sort((a, b) => a - b)
+                                        const sameTeeth = currentSaved.length === savedTeeth.length && currentSaved.every((t, i) => t === savedTeeth[i])
+                                        return sameProduct && sameTeeth
+                                      })
+                                      if (matchingProduct) {
                                         setOpenAccordion(matchingProduct.id)
                                       }
                                     }, 100)
@@ -7060,15 +7454,14 @@ export default function CaseDesignCenterPage() {
                       )}
 
                       {/* Summary Card - Single card for all selected teeth */}
-                      {/* Hide when savedProducts already contains a product with these teeth - prevents duplicate accordions */}
+                      {/* Hide when savedProducts already contains this product+teeth for maxillary - avoid showing both "current" and "saved" when identical */}
                       {showMaxillaryChart && maxillaryTeeth.length > 0 && selectedProductForMaxillary && !savedProducts.some(sp => {
-                        // Check if this exact product/teeth combination is already saved
-                        const sameProduct = sp.product.id === selectedProductForMaxillary.id
-                        const sameTeeth = JSON.stringify([...(sp.maxillaryTeeth || [])].sort()) === JSON.stringify([...maxillaryTeeth].sort())
-                        const sameCategory = sp.categoryId === selectedCategoryId
-                        const sameSubcategory = sp.subcategoryId === selectedSubcategoryId
-                        const isMaxillary = sp.addedFrom === "maxillary"
-                        return isMaxillary && sameProduct && sameTeeth && sameCategory && sameSubcategory
+                        if (sp.addedFrom !== "maxillary") return false
+                        const sameProduct = String(sp.product?.id ?? "") === String(selectedProductForMaxillary?.id ?? "")
+                        const savedTeeth = (sp.maxillaryTeeth || []).map((t: number) => Number(t)).sort((a, b) => a - b)
+                        const currentTeeth = maxillaryTeeth.map((t: number) => Number(t)).sort((a, b) => a - b)
+                        const sameTeeth = savedTeeth.length === currentTeeth.length && savedTeeth.every((t, i) => t === currentTeeth[i])
+                        return sameProduct && sameTeeth
                       }) && (
                           <Card className="overflow-hidden border border-gray-200 shadow-sm -mt-6">
                             <Accordion
@@ -7202,7 +7595,7 @@ export default function CaseDesignCenterPage() {
                                     </div>
                                   </AccordionTrigger>
                                 </div>
-                                <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto' }}>
+                                <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto', maxHeight: '400px', overflowY: 'auto' }}>
                                   {/* Tooth Shade Selection - Shows at the top when active */}
                                   {currentShadeField && currentShadeArch === "maxillary" && (
                                     <div className="w-full pt-4">
@@ -8394,7 +8787,12 @@ export default function CaseDesignCenterPage() {
                                                 const fieldKey = `advance_${field.id}`
                                                 const brandId = selectedImplantBrand[fieldKey]
                                                 const platformId = selectedImplantPlatform[fieldKey]
-                                                return brandId && platformId
+                                                const size = selectedImplantSize[fieldKey]
+                                                // Also check inclusions, abutment detail, and abutment type are filled
+                                                const hasInclusions = !!maxillaryImplantInclusions
+                                                const hasAbutmentDetail = !!maxillaryAbutmentDetail
+                                                const hasAbutmentType = !!maxillaryAbutmentType
+                                                return brandId && platformId && size && hasInclusions && hasAbutmentDetail && hasAbutmentType
                                               }
                                               const fieldKey = `advance_${field.id}`
                                               const fieldValue = advanceFieldValues[fieldKey]
@@ -8842,7 +9240,6 @@ export default function CaseDesignCenterPage() {
                                             boxShadow: 'none',
                                             borderRadius: '0px'
                                           }}
-                                          onClick={() => handleSavedProductCardClick(savedProduct)}
                                         >
                                           {/* Responsive Content Container */}
                                           <div style={{ width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: '8px', paddingRight: '24px' }}>
@@ -8985,7 +9382,7 @@ export default function CaseDesignCenterPage() {
                                         </button>
                                       </div>
 
-                                      <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto' }}>
+                                      <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto', maxHeight: '400px', overflowY: 'auto' }}>
                                         {/* Summary detail - Progressive field disclosure */}
                                         <div
                                           className="bg-white w-full"
@@ -10053,8 +10450,8 @@ export default function CaseDesignCenterPage() {
                   {/* MANDIBULAR Section - Only show when mandibular chart is visible */}
                   {showMandibularChart && (
                     <div ref={mandibularSectionRef} className="flex flex-col w-full">
-                      {/* Selected Product Badge - Only show when there are multiple products (saved products exist) */}
-                      {selectedProductForMandibular && mandibularTeeth.length > 0 && savedProducts.filter(p => p.addedFrom === "mandibular").length > 0 && (
+                      {/* Selected Product Badge - Only show when there are multiple products (more than 1 saved product) */}
+                      {selectedProductForMandibular && mandibularTeeth.length > 0 && savedProducts.filter(p => p.addedFrom === "mandibular").length > 1 && (
                         <div
                           className="relative flex items-center justify-center"
                           style={{ width: "100%", height: "22px", flex: "none", order: 0, flexGrow: 0 }}
@@ -10181,6 +10578,22 @@ export default function CaseDesignCenterPage() {
                                 onTeethSelectionChange={(teeth) => {
                                   // Update mandibular teeth when selection changes
                                   setMandibularTeeth(teeth)
+                                  // If a saved product exists with same product + teeth (match by product id + teeth only), open its accordion
+                                  if (selectedProductForMandibular && teeth.length > 0) {
+                                    setTimeout(() => {
+                                      const savedTeeth = (teeth as number[]).map((t: number) => Number(t)).sort((a, b) => a - b)
+                                      const matchingProduct = savedProducts.find(sp => {
+                                        if (sp.addedFrom !== "mandibular") return false
+                                        const sameProduct = String(sp.product?.id ?? "") === String(selectedProductForMandibular?.id ?? "")
+                                        const currentSaved = (sp.mandibularTeeth || []).map((t: number) => Number(t)).sort((a, b) => a - b)
+                                        const sameTeeth = currentSaved.length === savedTeeth.length && currentSaved.every((t, i) => t === savedTeeth[i])
+                                        return sameProduct && sameTeeth
+                                      })
+                                      if (matchingProduct) {
+                                        setOpenAccordion(matchingProduct.id)
+                                      }
+                                    }, 100)
+                                  }
                                 }}
                               />
                             </div>
@@ -10189,14 +10602,15 @@ export default function CaseDesignCenterPage() {
                       )}
 
                       {/* Summary Card - Single card for all selected teeth */}
-                      {/* Hide when savedProducts already contains a product with these teeth - prevents duplicate accordions */}
-                      {showMandibularChart && mandibularTeeth.length > 0 && !savedProducts.some(sp =>
-                        sp.addedFrom === "mandibular" &&
-                        sp.product.id === selectedProduct?.id &&
-                        sp.categoryId === selectedCategoryId &&
-                        sp.subcategoryId === selectedSubcategoryId &&
-                        JSON.stringify([...(sp.mandibularTeeth || [])].sort()) === JSON.stringify([...mandibularTeeth].sort())
-                      ) && (
+                      {/* Hide when savedProducts already contains this product+teeth for mandibular - avoid showing both "current" and "saved" when identical */}
+                      {showMandibularChart && mandibularTeeth.length > 0 && selectedProductForMandibular && !savedProducts.some(sp => {
+                        if (sp.addedFrom !== "mandibular") return false
+                        const sameProduct = String(sp.product?.id ?? "") === String(selectedProductForMandibular?.id ?? "")
+                        const savedTeeth = (sp.mandibularTeeth || []).map((t: number) => Number(t)).sort((a, b) => a - b)
+                        const currentTeeth = mandibularTeeth.map((t: number) => Number(t)).sort((a, b) => a - b)
+                        const sameTeeth = savedTeeth.length === currentTeeth.length && savedTeeth.every((t, i) => t === currentTeeth[i])
+                        return sameProduct && sameTeeth
+                      }) && (
                           <Card className="overflow-hidden border border-gray-200 shadow-sm -mt-6">
                             <Accordion
                               type="single"
@@ -10321,7 +10735,7 @@ export default function CaseDesignCenterPage() {
                                   
                                   </AccordionTrigger>
                                 </div>
-                                <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto' }}>
+                                <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto', maxHeight: '400px', overflowY: 'auto' }}>
                                   {/* Tooth Shade Selection - Shows at the top when active */}
                                   {currentShadeField && currentShadeArch === "mandibular" && (
                                     <div className="w-full pt-4">
@@ -11512,7 +11926,12 @@ export default function CaseDesignCenterPage() {
                                                 const fieldKey = `advance_${field.id}`
                                                 const brandId = selectedImplantBrand[fieldKey]
                                                 const platformId = selectedImplantPlatform[fieldKey]
-                                                return brandId && platformId
+                                                const size = selectedImplantSize[fieldKey]
+                                                // Also check inclusions, abutment detail, and abutment type are filled
+                                                const hasInclusions = !!mandibularImplantInclusions
+                                                const hasAbutmentDetail = !!mandibularAbutmentDetail
+                                                const hasAbutmentType = !!mandibularAbutmentType
+                                                return brandId && platformId && size && hasInclusions && hasAbutmentDetail && hasAbutmentType
                                               }
                                               const fieldKey = `advance_${field.id}`
                                               const fieldValue = advanceFieldValues[fieldKey]
@@ -12096,7 +12515,7 @@ export default function CaseDesignCenterPage() {
                                         </button>
                                       </div>
 
-                                      <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto' }}>
+                                      <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto', maxHeight: '400px', overflowY: 'auto' }}>
                                         {/* Summary detail - Progressive field disclosure */}
                                         <div
                                           className="bg-white w-full"
@@ -14009,14 +14428,22 @@ export default function CaseDesignCenterPage() {
         <ImpressionSelectionModal
           isOpen={showImpressionModal}
           onClose={() => {
+            const productId = currentProductForImpression?.id?.toString() || selectedProduct?.id?.toString() || ""
+            const impressions = productDetails?.impressions || []
+            const impressionCount = productId && impressions.length
+              ? getImpressionCount(productId, currentImpressionArch, impressions)
+              : 0
             setShowImpressionModal(false)
             setCurrentProductForImpression(null)
-            // Set flag to prevent auto-save immediately after closing impression modal
+            // Set flag to prevent duplicate auto-save from other effects
             impressionModalJustClosedRef.current = true
-            // Clear the flag after a short delay to allow normal auto-save to resume
             setTimeout(() => {
               impressionModalJustClosedRef.current = false
             }, 1000)
+            // Auto-save when user completed impression (has value) - debounced to coalesce with effect-triggered saves
+            if (impressionCount > 0) {
+              debouncedAutoSaveProduct(currentImpressionArch)
+            }
           }}
           onSTLFilesAttached={(files, impressionKey) => {
             // Store STL files for this impression

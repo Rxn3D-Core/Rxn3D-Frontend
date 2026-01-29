@@ -246,7 +246,7 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
 
       <div className={`relative ${className}`}>
 
-        <svg ref={svgRef} width="100%" height="120" viewBox="0 0 700 180" fill="none" xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink">
+        <svg ref={svgRef} width="100%" height="104" viewBox="0 0 700 160" fill="none" xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink">
           {toothMapping.map(({ tooth, x, width, pattern }) => {
             const isSelected = isToothSelected(tooth)
             const isHovered = hoveredTooth === tooth

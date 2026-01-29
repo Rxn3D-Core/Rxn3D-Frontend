@@ -335,6 +335,8 @@ export function DynamicProductFields({
 
   // Refs for field elements to enable auto-focus
   const fieldRefs = useRef<Record<string, HTMLButtonElement | HTMLDivElement | null>>({})
+  // Prevent shade auto-open from firing repeatedly (mandibular/maxillary loop)
+  const autoOpenedShadeRef = useRef<Record<string, boolean>>({})
 
   // Helper to get the first empty required field key
   const getFirstEmptyRequiredFieldKey = useCallback((): string | null => {
@@ -727,20 +729,24 @@ export function DynamicProductFields({
     }
   }, [productDetails, savedProduct, arch, fieldConfigs, disableAutoOpen])
 
-  // Auto-open shade modal when stump_shade or tooth_shade field becomes visible and value is empty
+  // Auto-open shade modal when stump_shade or tooth_shade field becomes visible and value is empty (once per arch+field to avoid loop)
   useEffect(() => {
     // Skip auto-open when disabled (e.g., in accordion view)
     if (disableAutoOpen) return
 
+    const shadeKey = `${arch}_stump_shade`
     // Check stump_shade field
     const stumpShadeConfig = fieldConfigs.find(f => f.key === "stump_shade")
     if (stumpShadeConfig) {
       const stumpShadeValue = getFieldValueByKey("stump_shade")
       const isStumpShadeVisible = isFieldVisibleProgressive(stumpShadeConfig)
       const isStumpShadeEmpty = !hasValue(stumpShadeValue)
-
-      if (isStumpShadeVisible && isStumpShadeEmpty && onOpenShadeModal) {
-        // Small delay to ensure the component is ready
+      // Reset ref when field gets a value so we can auto-open again if user clears it
+      if (!isStumpShadeEmpty) {
+        autoOpenedShadeRef.current[shadeKey] = false
+      }
+      if (isStumpShadeVisible && isStumpShadeEmpty && onOpenShadeModal && !autoOpenedShadeRef.current[shadeKey]) {
+        autoOpenedShadeRef.current[shadeKey] = true
         const timer = setTimeout(() => {
           setFocusedFieldKey("stump_shade")
           onOpenShadeModal("stump_shade", arch)
@@ -751,20 +757,23 @@ export function DynamicProductFields({
     }
   }, [productDetails, savedProduct, arch, fieldConfigs, onOpenShadeModal, disableAutoOpen])
 
-  // Auto-open shade modal when tooth_shade field becomes visible and value is empty
+  // Auto-open shade modal when tooth_shade field becomes visible and value is empty (once per arch+field to avoid loop)
   useEffect(() => {
     // Skip auto-open when disabled (e.g., in accordion view)
     if (disableAutoOpen) return
 
+    const shadeKey = `${arch}_tooth_shade`
     // Check tooth_shade field
     const toothShadeConfig = fieldConfigs.find(f => f.key === "tooth_shade")
     if (toothShadeConfig) {
       const toothShadeValue = getFieldValueByKey("tooth_shade")
       const isToothShadeVisible = isFieldVisibleProgressive(toothShadeConfig)
       const isToothShadeEmpty = !hasValue(toothShadeValue)
-
-      if (isToothShadeVisible && isToothShadeEmpty && onOpenShadeModal) {
-        // Small delay to ensure the component is ready
+      if (!isToothShadeEmpty) {
+        autoOpenedShadeRef.current[shadeKey] = false
+      }
+      if (isToothShadeVisible && isToothShadeEmpty && onOpenShadeModal && !autoOpenedShadeRef.current[shadeKey]) {
+        autoOpenedShadeRef.current[shadeKey] = true
         const timer = setTimeout(() => {
           setFocusedFieldKey("tooth_shade")
           onOpenShadeModal("tooth_shade", arch)
@@ -1945,8 +1954,8 @@ export function DynamicProductFields({
                   position: 'relative',
                   maxHeight: '600px',
                   marginTop: '10px',
-                  paddingLeft: '15.87px',
-                  paddingRight: '15.87px',
+                  paddingLeft: '69.87px',
+                  paddingRight: '69.87px',
                   paddingBottom: '20px',
                   display: 'flex',
                   flexDirection: 'column',

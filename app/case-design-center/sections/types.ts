@@ -175,6 +175,8 @@ export interface SavedProduct {
     quantity: number
     name?: string
   }>
+  // Case summary notes for this product
+  caseSummaryNotes?: string
 }
 
 
