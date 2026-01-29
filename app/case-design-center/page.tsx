@@ -7463,7 +7463,7 @@ export default function CaseDesignCenterPage() {
                         const sameTeeth = savedTeeth.length === currentTeeth.length && savedTeeth.every((t, i) => t === currentTeeth[i])
                         return sameProduct && sameTeeth
                       }) && (
-                          <Card className="overflow-hidden border border-gray-200 shadow-sm -mt-6">
+                          <Card className="overflow-hidden border border-gray-200 shadow-sm ">
                             <Accordion
                               type="single"
                               collapsible
@@ -7484,7 +7484,7 @@ export default function CaseDesignCenterPage() {
                                     display: currentShadeField ? 'none' : 'flex',
                                     flexDirection: 'column',
                                     alignItems: 'flex-start',
-                                    padding: '6px 8px',
+                                    padding: '14px 8px',
                                     gap: '4px',
                                     borderBottom: openAccordion === "maxillary-card" ? '1px dotted #B0D0F0' : 'none'
                                   }}
