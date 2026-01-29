@@ -8901,8 +8901,6 @@ export default function CaseDesignCenterPage() {
                                         style={{
                                           gap: '7.03px',
                                           position: 'relative',
-                                          marginTop: '30px',
-                                          marginBottom: '15px'
                                         }}
                                       >
                                         {/* Deliver product first - Only show if multiple products */}
@@ -10217,8 +10215,6 @@ export default function CaseDesignCenterPage() {
                                               style={{
                                                 gap: '7.03px',
                                                 position: 'relative',
-                                                marginTop: '30px',
-                                                marginBottom: '15px'
                                               }}
                                             >
                                               {/* Deliver product first - Only show if multiple products */}
@@ -12040,8 +12036,6 @@ export default function CaseDesignCenterPage() {
                                         style={{
                                           gap: '7.03px',
                                           position: 'relative',
-                                          marginTop: '30px',
-                                          marginBottom: '15px'
                                         }}
                                       >
                                         {/* Deliver product first - Only show if multiple products */}

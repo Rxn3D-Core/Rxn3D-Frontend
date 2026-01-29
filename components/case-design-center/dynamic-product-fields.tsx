@@ -2045,8 +2045,6 @@ export function DynamicProductFields({
                     style={{
                       gap: '7.03px',
                       position: 'relative',
-                      marginTop: '30px',
-                      marginBottom: '15px'
                     }}
                   >
                     {onAddOnsClick && (
