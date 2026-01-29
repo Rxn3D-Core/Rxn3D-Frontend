@@ -6971,7 +6971,7 @@ export default function CaseDesignCenterPage() {
 
       {/* Main Content */}
       <div className="min-h-full" style={{ paddingBottom: "55px" }}>
-        <div className="container mx-auto px-5 py-3">
+        <div className="container mx-auto px-5">
           {/* Search and Category Selection */}
           <div className="flex flex-col items-center">
             {/* Search and Labels Row */}
