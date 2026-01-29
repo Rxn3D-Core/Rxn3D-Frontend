@@ -34,6 +34,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
 import { Dialog, DialogContent, DialogOverlay, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Skeleton } from "@/components/ui/skeleton"
 import { clearSlipCreationStorage } from "@/utils/slip-creation-storage"
 import { DynamicProductFields } from "@/components/case-design-center/dynamic-product-fields"
 import { ImplantPartsPopover } from "@/components/implant-parts-popover"
@@ -43,7 +44,6 @@ import { ImplantDetailForm } from "@/components/implant-detail-form"
 import { useImplants } from "@/lib/api/advance-mode-query"
 import { FooterSection } from "./sections/footer-section"
 import { ProductSelectionBadge } from "./components/product-selection-badge"
-import { LoadingOverlay } from "@/components/ui/loading-overlay"
 import { useCaseDesignStore } from "@/stores/caseDesignStore"
 import type { ProductCategoryApi, Doctor, Lab, PatientData, Product, SavedProduct } from "./sections/types"
 
@@ -4088,6 +4088,129 @@ export default function CaseDesignCenterPage() {
     }
   }, [savedProducts.length, savedProducts]) // Run when savedProducts change
 
+  // Sync implant form state from Summary Card into matching saved product so values filled
+  // before the card hides are preserved when opening the saved accordion
+  useEffect(() => {
+    if (!selectedProductForMaxillary || !productDetails?.advance_fields || maxillaryTeeth.length === 0 || !implants?.length) return
+    const implantField = productDetails.advance_fields.find((f: any) => f.field_type === "implant_library")
+    if (!implantField) return
+    const fieldKey = `advance_${implantField.id}`
+    const brandId = selectedImplantBrand[fieldKey]
+    const platformId = selectedImplantPlatform[fieldKey]
+    const size = selectedImplantSize[fieldKey]
+    const brand = brandId ? implants.find((imp: any) => imp.id === brandId) : null
+    const platform = brand && platformId ? (brand.platforms?.find((p: any) => Number(p.id) === Number(platformId)) || selectedImplantPlatformData[fieldKey]) : null
+    const platformName = platform && typeof platform === 'object' && 'name' in platform ? platform.name : (platformId ? String(platformId) : undefined)
+    const implantDetailsStr = brand && (platformName || platformId) && size
+      ? `${brand.brand_name || ""} - ${platformName || platformId || ""} - ${size}`
+      : undefined
+    setSavedProducts((prev) => {
+      const sortedCurrent = [...maxillaryTeeth].sort((a, b) => a - b)
+      const matchIndex = prev.findIndex(
+        (sp) =>
+          sp.addedFrom === "maxillary" &&
+          sp.product?.id === selectedProductForMaxillary.id &&
+          [...(sp.maxillaryTeeth || [])].sort((a, b) => a - b).join(",") === sortedCurrent.join(",")
+      )
+      if (matchIndex === -1) return prev
+      const existing = prev[matchIndex] as SavedProduct & { maxillaryImplantDetails?: string }
+      const brandIdStr = brandId != null ? String(brandId) : undefined
+      const hasNewBrand = brandIdStr != null && existing.maxillaryImplantBrand !== brandIdStr
+      const hasNewPlatform = (platformName ?? platformId) != null && existing.maxillaryImplantPlatform !== (platformName ?? platformId)
+      const hasNewSize = size != null && size !== "" && existing.maxillaryImplantSize !== size
+      const hasNewInclusions = maxillaryImplantInclusions != null && maxillaryImplantInclusions !== "" && existing.maxillaryImplantInclusions !== maxillaryImplantInclusions
+      const hasNewAbutmentDetail = maxillaryAbutmentDetail != null && maxillaryAbutmentDetail !== "" && existing.maxillaryAbutmentDetail !== maxillaryAbutmentDetail
+      const hasNewAbutmentType = maxillaryAbutmentType != null && maxillaryAbutmentType !== "" && existing.maxillaryAbutmentType !== maxillaryAbutmentType
+      const hasNewDetails = implantDetailsStr != null && implantDetailsStr !== "" && existing.maxillaryImplantDetails !== implantDetailsStr
+      if (!hasNewBrand && !hasNewPlatform && !hasNewSize && !hasNewInclusions && !hasNewAbutmentDetail && !hasNewAbutmentType && !hasNewDetails) return prev
+      const updated = [...prev]
+      updated[matchIndex] = {
+        ...existing,
+        ...(brandIdStr != null ? { maxillaryImplantBrand: brandIdStr } : {}),
+        ...(platformName != null || platformId != null ? { maxillaryImplantPlatform: platformName ?? (platformId != null ? String(platformId) : undefined) } : {}),
+        ...(size != null && size !== "" ? { maxillaryImplantSize: size } : {}),
+        ...(implantDetailsStr != null ? { maxillaryImplantDetails: implantDetailsStr } : {}),
+        ...(maxillaryImplantInclusions != null && maxillaryImplantInclusions !== "" ? { maxillaryImplantInclusions } : {}),
+        ...(maxillaryAbutmentDetail != null && maxillaryAbutmentDetail !== "" ? { maxillaryAbutmentDetail } : {}),
+        ...(maxillaryAbutmentType != null && maxillaryAbutmentType !== "" ? { maxillaryAbutmentType } : {}),
+      } as SavedProduct
+      return updated
+    })
+  }, [
+    selectedProductForMaxillary,
+    productDetails?.advance_fields,
+    maxillaryTeeth,
+    selectedImplantBrand,
+    selectedImplantPlatform,
+    selectedImplantSize,
+    selectedImplantPlatformData,
+    maxillaryImplantInclusions,
+    maxillaryAbutmentDetail,
+    maxillaryAbutmentType,
+    implants,
+  ])
+
+  // Sync mandibular implant form state from Summary Card into matching saved product
+  useEffect(() => {
+    if (!selectedProductForMandibular || !productDetails?.advance_fields || mandibularTeeth.length === 0 || !implants?.length) return
+    const implantField = productDetails.advance_fields.find((f: any) => f.field_type === "implant_library")
+    if (!implantField) return
+    const fieldKey = `advance_${implantField.id}`
+    const brandId = selectedImplantBrand[fieldKey]
+    const platformId = selectedImplantPlatform[fieldKey]
+    const size = selectedImplantSize[fieldKey]
+    const brand = brandId ? implants.find((imp: any) => imp.id === brandId) : null
+    const platform = brand && platformId ? (brand.platforms?.find((p: any) => Number(p.id) === Number(platformId)) || selectedImplantPlatformData[fieldKey]) : null
+    const platformName = platform && typeof platform === 'object' && 'name' in platform ? platform.name : (platformId ? String(platformId) : undefined)
+    const implantDetailsStr = brand && (platformName || platformId) && size
+      ? `${brand.brand_name || ""} - ${platformName || platformId || ""} - ${size}`
+      : undefined
+    setSavedProducts((prev) => {
+      const sortedCurrent = [...mandibularTeeth].sort((a, b) => a - b)
+      const matchIndex = prev.findIndex(
+        (sp) =>
+          sp.addedFrom === "mandibular" &&
+          sp.product?.id === selectedProductForMandibular.id &&
+          [...(sp.mandibularTeeth || [])].sort((a, b) => a - b).join(",") === sortedCurrent.join(",")
+      )
+      if (matchIndex === -1) return prev
+      const existing = prev[matchIndex]
+      const brandIdStr = brandId != null ? String(brandId) : undefined
+      const hasNewBrand = brandIdStr != null && existing.mandibularImplantBrand !== brandIdStr
+      const hasNewPlatform = (platformName ?? platformId) != null && existing.mandibularImplantPlatform !== (platformName ?? platformId)
+      const hasNewSize = size != null && size !== "" && existing.mandibularImplantSize !== size
+      const hasNewInclusions = mandibularImplantInclusions != null && mandibularImplantInclusions !== "" && existing.mandibularImplantInclusions !== mandibularImplantInclusions
+      const hasNewAbutmentDetail = mandibularAbutmentDetail != null && mandibularAbutmentDetail !== "" && existing.mandibularAbutmentDetail !== mandibularAbutmentDetail
+      const hasNewAbutmentType = mandibularAbutmentType != null && mandibularAbutmentType !== "" && existing.mandibularAbutmentType !== mandibularAbutmentType
+      const hasNewDetails = implantDetailsStr != null && implantDetailsStr !== "" && existing.mandibularImplantDetails !== implantDetailsStr
+      if (!hasNewBrand && !hasNewPlatform && !hasNewSize && !hasNewInclusions && !hasNewAbutmentDetail && !hasNewAbutmentType && !hasNewDetails) return prev
+      const updated = [...prev]
+      updated[matchIndex] = {
+        ...existing,
+        ...(brandIdStr != null ? { mandibularImplantBrand: brandIdStr } : {}),
+        ...(platformName != null || platformId != null ? { mandibularImplantPlatform: platformName ?? (platformId != null ? String(platformId) : undefined) } : {}),
+        ...(size != null && size !== "" ? { mandibularImplantSize: size } : {}),
+        ...(implantDetailsStr != null ? { mandibularImplantDetails: implantDetailsStr } : {}),
+        ...(mandibularImplantInclusions != null && mandibularImplantInclusions !== "" ? { mandibularImplantInclusions } : {}),
+        ...(mandibularAbutmentDetail != null && mandibularAbutmentDetail !== "" ? { mandibularAbutmentDetail } : {}),
+        ...(mandibularAbutmentType != null && mandibularAbutmentType !== "" ? { mandibularAbutmentType } : {}),
+      } as SavedProduct
+      return updated
+    })
+  }, [
+    selectedProductForMandibular,
+    productDetails?.advance_fields,
+    mandibularTeeth,
+    selectedImplantBrand,
+    selectedImplantPlatform,
+    selectedImplantSize,
+    selectedImplantPlatformData,
+    mandibularImplantInclusions,
+    mandibularAbutmentDetail,
+    mandibularAbutmentType,
+    implants,
+  ])
+
   // Track if we've auto-added the current product to avoid duplicates
   const autoAddedProductRef = useRef<string | null>(null)
 
@@ -5188,7 +5311,7 @@ export default function CaseDesignCenterPage() {
             let platformName: string | undefined = undefined
             const brand = brandId ? implants.find((imp: any) => imp.id === brandId) : null
             if (brandId && platformId && brand) {
-              const platform = brand.platforms?.find((p: any) => (p.id || 0) === platformId)
+              const platform = brand.platforms?.find((p: any) => Number(p.id) === Number(platformId))
               platformName = platform?.name
             }
 
@@ -5221,7 +5344,7 @@ export default function CaseDesignCenterPage() {
             let platformName: string | undefined = undefined
             const brand = brandId ? implants.find((imp: any) => imp.id === brandId) : null
             if (brandId && platformId && brand) {
-              const platform = brand.platforms?.find((p: any) => (p.id || 0) === platformId)
+              const platform = brand.platforms?.find((p: any) => Number(p.id) === Number(platformId))
               platformName = platform?.name
             }
 
@@ -5298,21 +5421,21 @@ export default function CaseDesignCenterPage() {
           mandibularStumpShade: savedProduct.mandibularStumpShade || existingProduct.mandibularStumpShade,
           maxillaryToothShade: savedProduct.maxillaryToothShade || existingProduct.maxillaryToothShade,
           mandibularToothShade: savedProduct.mandibularToothShade || existingProduct.mandibularToothShade,
-          // Preserve implant detail fields for the arch we did NOT save (other arch)
+          // Preserve implant detail fields: keep existing when incoming is empty so ImplantDetailForm values are not wiped
           maxillaryImplantBrand: savedProduct.maxillaryImplantBrand ?? existingProduct.maxillaryImplantBrand,
           maxillaryImplantPlatform: savedProduct.maxillaryImplantPlatform ?? existingProduct.maxillaryImplantPlatform,
           maxillaryImplantSize: savedProduct.maxillaryImplantSize ?? existingProduct.maxillaryImplantSize,
-          maxillaryImplantInclusions: savedProduct.maxillaryImplantInclusions ?? existingProduct.maxillaryImplantInclusions,
-          maxillaryAbutmentDetail: savedProduct.maxillaryAbutmentDetail ?? existingProduct.maxillaryAbutmentDetail,
-          maxillaryAbutmentType: savedProduct.maxillaryAbutmentType ?? existingProduct.maxillaryAbutmentType,
-          maxillaryImplantDetails: savedProduct.maxillaryImplantDetails ?? existingProduct.maxillaryImplantDetails,
+          maxillaryImplantInclusions: savedProduct.maxillaryImplantInclusions || existingProduct.maxillaryImplantInclusions,
+          maxillaryAbutmentDetail: savedProduct.maxillaryAbutmentDetail || existingProduct.maxillaryAbutmentDetail,
+          maxillaryAbutmentType: savedProduct.maxillaryAbutmentType || existingProduct.maxillaryAbutmentType,
+          maxillaryImplantDetails: savedProduct.maxillaryImplantDetails || existingProduct.maxillaryImplantDetails,
           mandibularImplantBrand: savedProduct.mandibularImplantBrand ?? existingProduct.mandibularImplantBrand,
           mandibularImplantPlatform: savedProduct.mandibularImplantPlatform ?? existingProduct.mandibularImplantPlatform,
           mandibularImplantSize: savedProduct.mandibularImplantSize ?? existingProduct.mandibularImplantSize,
-          mandibularImplantInclusions: savedProduct.mandibularImplantInclusions ?? existingProduct.mandibularImplantInclusions,
-          mandibularAbutmentDetail: savedProduct.mandibularAbutmentDetail ?? existingProduct.mandibularAbutmentDetail,
-          mandibularAbutmentType: savedProduct.mandibularAbutmentType ?? existingProduct.mandibularAbutmentType,
-          mandibularImplantDetails: savedProduct.mandibularImplantDetails ?? existingProduct.mandibularImplantDetails,
+          mandibularImplantInclusions: savedProduct.mandibularImplantInclusions || existingProduct.mandibularImplantInclusions,
+          mandibularAbutmentDetail: savedProduct.mandibularAbutmentDetail || existingProduct.mandibularAbutmentDetail,
+          mandibularAbutmentType: savedProduct.mandibularAbutmentType || existingProduct.mandibularAbutmentType,
+          mandibularImplantDetails: savedProduct.mandibularImplantDetails || existingProduct.mandibularImplantDetails,
           // Preserve IDs as well
           maxillaryStageId: savedProduct.maxillaryStageId || existingProduct.maxillaryStageId,
           mandibularStageId: savedProduct.mandibularStageId || existingProduct.mandibularStageId,
@@ -5530,7 +5653,7 @@ export default function CaseDesignCenterPage() {
             let platformName: string | undefined = undefined
             const brand = brandId ? implants.find((imp: any) => imp.id === brandId) : null
             if (brandId && platformId && brand) {
-              const platform = brand.platforms?.find((p: any) => (p.id || 0) === platformId)
+              const platform = brand.platforms?.find((p: any) => Number(p.id) === Number(platformId))
               platformName = platform?.name
             }
 
@@ -5563,7 +5686,7 @@ export default function CaseDesignCenterPage() {
             let platformName: string | undefined = undefined
             const brand = brandId ? implants.find((imp: any) => imp.id === brandId) : null
             if (brandId && platformId && brand) {
-              const platform = brand.platforms?.find((p: any) => (p.id || 0) === platformId)
+              const platform = brand.platforms?.find((p: any) => Number(p.id) === Number(platformId))
               platformName = platform?.name
             }
 
@@ -6687,6 +6810,13 @@ export default function CaseDesignCenterPage() {
     // Compute new teeth after this click (add or remove)
     const newTeeth = isAdding ? [...maxillaryTeeth, toothNumber] : maxillaryTeeth.filter(t => t !== toothNumber)
     const sortedNew = newTeeth.map((t: number) => Number(t)).sort((a, b) => a - b)
+    // If a saved maxillary product's accordion is open, update that product's teeth so the header reflects the new selection
+    if (openAccordion && openAccordion !== "maxillary-card") {
+      const openSaved = savedProducts.find(sp => sp.id === openAccordion && sp.addedFrom === "maxillary")
+      if (openSaved) {
+        setSavedProducts(prev => prev.map(sp => sp.id === openAccordion ? { ...sp, maxillaryTeeth: [...sortedNew] } : sp))
+      }
+    }
     // Check if resulting selection matches a saved product (use current product context or any maxillary saved product)
     const productToMatch = selectedProductForMaxillary || savedProducts.find(sp => sp.addedFrom === "maxillary")?.product
     const matchingSaved = productToMatch && sortedNew.length > 0 && savedProducts.find(sp => {
@@ -6749,6 +6879,13 @@ export default function CaseDesignCenterPage() {
     // Compute new teeth after this click (add or remove)
     const newTeeth = isAdding ? [...mandibularTeeth, toothNumber] : mandibularTeeth.filter(t => t !== toothNumber)
     const sortedNew = newTeeth.map((t: number) => Number(t)).sort((a, b) => a - b)
+    // If a saved mandibular product's accordion is open, update that product's teeth so the header reflects the new selection
+    if (openAccordion && openAccordion !== "mandibular-card") {
+      const openSaved = savedProducts.find(sp => sp.id === openAccordion && sp.addedFrom === "mandibular")
+      if (openSaved) {
+        setSavedProducts(prev => prev.map(sp => sp.id === openAccordion ? { ...sp, mandibularTeeth: [...sortedNew] } : sp))
+      }
+    }
     // Check if resulting selection matches a saved product (use current product context or any mandibular saved product)
     const productToMatch = selectedProductForMandibular || savedProducts.find(sp => sp.addedFrom === "mandibular")?.product
     const matchingSaved = productToMatch && sortedNew.length > 0 && savedProducts.find(sp => {
@@ -6992,13 +7129,6 @@ export default function CaseDesignCenterPage() {
 
             </div>
 
-            {/* Loading Overlay - Show during initial load or when product details are loading */}
-            <LoadingOverlay
-              isLoading={Boolean(showProductDetails && selectedProduct && (isInitialLoading || isLoadingProductDetails))}
-              title="Loading Case design center"
-              message="Please wait while we load the product information..."
-            />
-
             {/* Unified Search Bar - Show in all views */}
             {!showProductDetails && (
               <div className="flex justify-center mb-2">
@@ -7077,11 +7207,16 @@ export default function CaseDesignCenterPage() {
             {!showSubcategories && !showProducts && !showProductDetails && !searchQuery.trim() && (
               <div className="w-full flex flex-col gap-4 mb-4">
                 {allCategoriesLoading ? (
-                  <div className="flex items-center justify-center py-20">
-                    <div className="flex flex-col items-center gap-3">
-                      <Loader2 className="h-8 w-8 animate-spin text-[#1162a8]" />
-                      <div className="text-gray-500 text-sm">Loading categories...</div>
-                    </div>
+                  <div className="flex gap-4 justify-center flex-wrap">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className="bg-white border-2 border-gray-200 rounded-lg h-[220px] w-[200px] p-4 flex flex-col items-center justify-center gap-4"
+                      >
+                        <Skeleton className="w-[150px] h-[150px] rounded" />
+                        <Skeleton className="h-4 w-24" />
+                      </div>
+                    ))}
                   </div>
                 ) : mainCategories.length === 0 ? (
                   <div className="flex items-center justify-center py-20">
@@ -7126,8 +7261,16 @@ export default function CaseDesignCenterPage() {
             {showSubcategories && !showProducts && !showProductDetails && !searchQuery.trim() && (
               <div className="w-full flex flex-col gap-4">
                 {subcategoriesLoading ? (
-                  <div className="flex items-center justify-center py-20">
-                    <div className="text-gray-500">Loading subcategories...</div>
+                  <div className="flex gap-4 overflow-x-auto scrollbar-hide py-2 justify-center">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className="bg-white border-2 border-gray-200 rounded-lg h-[220px] w-[200px] p-4 flex flex-col items-center justify-center gap-4 flex-shrink-0"
+                      >
+                        <Skeleton className="w-[150px] h-[150px] rounded" />
+                        <Skeleton className="h-4 w-24" />
+                      </div>
+                    ))}
                   </div>
                 ) : subcategoriesError ? (
                   <div className="flex items-center justify-center py-20">
@@ -7221,8 +7364,20 @@ export default function CaseDesignCenterPage() {
             {showProducts && !showProductDetails && !searchQuery.trim() && (
               <div className="w-full flex flex-col gap-4">
                 {isLoadingProducts ? (
-                  <div className="flex items-center justify-center py-20">
-                    <div className="text-gray-500">Loading products...</div>
+                  <div className="flex gap-4 overflow-x-auto scrollbar-hide py-2 justify-center">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className="bg-white border-2 border-gray-200 rounded-lg h-[250px] w-[200px] p-4 flex flex-col items-center justify-center gap-2 flex-shrink-0"
+                      >
+                        <Skeleton className="w-[150px] h-[150px] rounded" />
+                        <Skeleton className="h-4 w-28" />
+                        <div className="flex flex-col gap-1 items-start w-[120px]">
+                          <Skeleton className="h-5 w-full rounded-[10px]" />
+                          <Skeleton className="h-5 w-full rounded-[10px]" />
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ) : filteredProducts.length === 0 ? (
                   <div className="flex items-center justify-center py-20">
@@ -7319,6 +7474,37 @@ export default function CaseDesignCenterPage() {
             {/* Product Details Split View - Show when product is selected */}
             {showProductDetails && selectedProduct && (
               <div ref={toothSelectionRef} className="w-full max-w-[1400px] mx-auto">
+                {(isInitialLoading || isLoadingProductDetails) ? (
+                  <div className="grid gap-4 lg:gap-4 mb-2 grid-cols-1 lg:grid-cols-2">
+                    <div className="flex flex-col w-full">
+                      <div className="flex items-center justify-center gap-2 mt-1 mb-1">
+                        <Skeleton className="h-4 w-28" />
+                      </div>
+                      <div className="rounded-lg pt-1 px-2 pb-0 flex items-center justify-center">
+                        <Skeleton className="w-full max-w-[400px] h-[200px] rounded" />
+                      </div>
+                      <div className="mt-4 space-y-2 px-2">
+                        <Skeleton className="h-9 w-full max-w-[280px] rounded-[7.7px]" />
+                        <Skeleton className="h-9 w-full max-w-[280px] rounded-[7.7px]" />
+                        <Skeleton className="h-9 w-3/4 max-w-[200px] rounded-[7.7px]" />
+                      </div>
+                    </div>
+                    <div className="flex flex-col w-full">
+                      <div className="flex items-center justify-center gap-2 mt-1 mb-1">
+                        <Skeleton className="h-4 w-28" />
+                      </div>
+                      <div className="rounded-lg pt-1 px-2 pb-0 flex items-center justify-center">
+                        <Skeleton className="w-full max-w-[400px] h-[200px] rounded" />
+                      </div>
+                      <div className="mt-4 space-y-2 px-2">
+                        <Skeleton className="h-9 w-full max-w-[280px] rounded-[7.7px]" />
+                        <Skeleton className="h-9 w-full max-w-[280px] rounded-[7.7px]" />
+                        <Skeleton className="h-9 w-3/4 max-w-[200px] rounded-[7.7px]" />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <>
                 {/* Implant Selection Cards - REMOVED: Now shown inside DynamicProductFields when implant details field is clicked */}
 
                 {/* Tooth Selection Interface */}
@@ -8428,7 +8614,7 @@ export default function CaseDesignCenterPage() {
                                                           // Try to find platform in brand's platforms first, otherwise use stored platform data (for static platforms)
                                                           let selectedPlatform = null
                                                           if (selectedBrand && selectedPlatformId) {
-                                                            selectedPlatform = selectedBrand.platforms?.find((p: any) => (p.id || 0) === selectedPlatformId)
+                                                            selectedPlatform = selectedBrand.platforms?.find((p: any) => Number(p.id) === Number(selectedPlatformId))
                                                             // If not found in brand's platforms, use stored platform data (static platforms)
                                                             if (!selectedPlatform && selectedImplantPlatformData[fieldKey]) {
                                                               selectedPlatform = selectedImplantPlatformData[fieldKey]
@@ -8488,7 +8674,7 @@ export default function CaseDesignCenterPage() {
 
                                                               {/* Implant Detail Form - Show after brand/platform selection */}
                                                               {currentStep === 'form' && selectedBrand && (
-                                                                <div data-implant-field-key={fieldKey} style={{ width: '100%', marginTop: '20px' }}>
+                                                                <div data-implant-field-key={fieldKey} style={{ width: '100%'}}>
                                                                   <ImplantDetailForm
                                                                     fieldKey={fieldKey}
                                                                     fieldId={field.id}
@@ -8520,9 +8706,11 @@ export default function CaseDesignCenterPage() {
                                                                       setMaxillaryAbutmentType(type)
                                                                     }}
                                                                     onPlatformChange={(platform) => {
-                                                                      setSelectedImplantPlatform(prev => ({ ...prev, [fieldKey]: platform.id }))
-                                                                      // Store full platform data
-                                                                      setSelectedImplantPlatformData(prev => ({ ...prev, [fieldKey]: { id: platform.id, name: platform.name } }))
+                                                                      const platformIdNum = Number(platform?.id)
+                                                                      if (!Number.isNaN(platformIdNum)) {
+                                                                        setSelectedImplantPlatform(prev => ({ ...prev, [fieldKey]: platformIdNum }))
+                                                                        setSelectedImplantPlatformData(prev => ({ ...prev, [fieldKey]: { id: platformIdNum, name: platform.name } }))
+                                                                      }
                                                                     }}
                                                                     onBrandFieldClick={() => {
                                                                       // Show brand cards when brand field is clicked
@@ -8710,9 +8898,11 @@ export default function CaseDesignCenterPage() {
                                                           platforms={mappedPlatforms}
                                                           selectedPlatformId={selectedPlatformId}
                                                           onSelectPlatform={(platform: any) => {
-                                                            setSelectedImplantPlatform(prev => ({ ...prev, [fieldKey]: platform.id }))
-                                                            // Store full platform data
-                                                            setSelectedImplantPlatformData(prev => ({ ...prev, [fieldKey]: { id: platform.id, name: platform.name } }))
+                                                            const platformIdNum = Number(platform.id)
+                                                            if (!Number.isNaN(platformIdNum)) {
+                                                              setSelectedImplantPlatform(prev => ({ ...prev, [fieldKey]: platformIdNum }))
+                                                              setSelectedImplantPlatformData(prev => ({ ...prev, [fieldKey]: { id: platformIdNum, name: platform.name } }))
+                                                            }
                                                             // After platform selection, keep form visible and hide the cards
                                                             setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'form' }))
                                                             setShowImplantCards(false)
@@ -8822,7 +9012,7 @@ export default function CaseDesignCenterPage() {
                                             const hasImpressionValue = impressionCount > 0 || (displayText && displayText !== "Select impression")
 
                                             return (
-                                              <div className="flex flex-wrap" style={{ width: '100%', marginTop: '10px' }}>
+                                              <div className="flex flex-wrap" style={{ width: '100%'}}>
                                                 <div style={{ flex: '1 1 50%', minWidth: '200px', maxWidth: '50%' }}>
                                                   <div className="relative" style={{ minHeight: '38px', width: '100%' }}>
                                                     <div
@@ -9468,7 +9658,7 @@ export default function CaseDesignCenterPage() {
                                                 onOpenShadeModal={(fieldKey) => {
                                                   handleOpenShadeModal(fieldKey, "maxillary")
                                                 }}
-                                                showImplantBrandCards={showImplantCardsForProduct[savedProduct.id]?.maxillary || false}
+                                                showImplantBrandCards={false}
                                                 implants={implants.map((imp: any) => ({
                                                   id: imp.id,
                                                   brand_name: imp.brand_name,
@@ -9559,6 +9749,154 @@ export default function CaseDesignCenterPage() {
                                                 hideImpression={productDetails?.advance_fields && Array.isArray(productDetails.advance_fields) && productDetails.advance_fields.length > 0}
                                               />
 
+                                          {/* Implant Detail Form - Below tooth shade field for saved products with implant retention */}
+                                              {(() => {
+                                                let hasImplantRetentionForForm = false
+                                                const teethForForm = savedProduct.maxillaryTeeth || []
+                                                hasImplantRetentionForForm = teethForForm.some((toothNumber: number) => {
+                                                  const types = maxillaryRetentionTypes[toothNumber] || []
+                                                  return types.includes('Implant')
+                                                })
+                                                if (!hasImplantRetentionForForm && productDetails?.retention_options && savedProduct.maxillaryRetentionOptionId) {
+                                                  const opt = productDetails.retention_options.find((o: any) =>
+                                                    o.id === savedProduct.maxillaryRetentionOptionId ||
+                                                    o.lab_retention_option?.id === savedProduct.maxillaryRetentionOptionId ||
+                                                    o.retention_option_id === savedProduct.maxillaryRetentionOptionId
+                                                  )
+                                                  const toothChartType = opt?.tooth_chart_type ?? opt?.lab_retention_option?.tooth_chart_type ?? opt?.retention_option?.tooth_chart_type
+                                                  hasImplantRetentionForForm = toothChartType === "Implant"
+                                                }
+                                                if (!hasImplantRetentionForForm && savedProduct.maxillaryRetention && String(savedProduct.maxillaryRetention).toLowerCase().includes('implant')) {
+                                                  hasImplantRetentionForForm = true
+                                                }
+                                                if (!hasImplantRetentionForForm || !implants?.length) return null
+                                                const fieldKeyForm = `saved_implant_maxillary_${savedProduct.id}`
+                                                let savedBrandIdForm: number | string | null = savedProduct.maxillaryImplantBrand ?? selectedImplantBrandPerProduct[savedProduct.id]?.maxillary ?? null
+                                                if (!savedBrandIdForm && savedProduct.maxillaryImplantDetails) {
+                                                  const parts = String(savedProduct.maxillaryImplantDetails).split(' - ')
+                                                  if (parts[0]) {
+                                                    const found = implants.find((imp: any) =>
+                                                      imp.brand_name === parts[0].trim() || imp.brand_name?.toLowerCase() === parts[0].trim().toLowerCase()
+                                                    )
+                                                    if (found) savedBrandIdForm = found.id
+                                                  }
+                                                }
+                                                let selectedBrandForm = savedBrandIdForm ? implants.find((imp: any) => imp.id === savedBrandIdForm || imp.id === Number(savedBrandIdForm) || String(imp.id) === String(savedBrandIdForm)) : null
+                                                if (!selectedBrandForm && typeof savedBrandIdForm === 'string') {
+                                                  selectedBrandForm = implants.find((imp: any) => imp.brand_name === savedBrandIdForm || imp.brand_name?.toLowerCase() === String(savedBrandIdForm).toLowerCase())
+                                                }
+                                                if (!selectedBrandForm && savedProduct.maxillaryImplantDetails) {
+                                                  const parts = String(savedProduct.maxillaryImplantDetails).split(' - ')
+                                                  if (parts[0]) {
+                                                    selectedBrandForm = implants.find((imp: any) => imp.brand_name === parts[0].trim() || imp.brand_name?.toLowerCase() === parts[0].trim().toLowerCase())
+                                                  }
+                                                }
+                                                let savedPlatformIdForm: number | string | null = selectedImplantPlatformPerProduct[savedProduct.id]?.maxillary ?? null
+                                                if (!savedPlatformIdForm && savedProduct.maxillaryImplantPlatform != null && selectedBrandForm) {
+                                                  const platformVal = savedProduct.maxillaryImplantPlatform
+                                                  const strVal = String(platformVal).trim()
+                                                  const byName = selectedBrandForm.platforms?.find((p: any) =>
+                                                    (p.name != null && String(p.name).toLowerCase() === strVal.toLowerCase()) || p.name === platformVal
+                                                  )
+                                                  if (byName) savedPlatformIdForm = byName.id ?? byName.name
+                                                  else if (typeof platformVal === 'number') savedPlatformIdForm = platformVal
+                                                  else {
+                                                    const numId = Number(platformVal)
+                                                    if (!Number.isNaN(numId)) {
+                                                      const byId = selectedBrandForm.platforms?.find((p: any) => (p.id || 0) === numId || p.id === numId || Number(p.id) === numId)
+                                                      if (byId) savedPlatformIdForm = byId.id ?? byId.name
+                                                    }
+                                                  }
+                                                }
+                                                const selectedPlatformForm = selectedBrandForm && savedPlatformIdForm != null
+                                                  ? selectedBrandForm.platforms?.find((p: any) => ((p.id || 0) === savedPlatformIdForm || p.id === Number(savedPlatformIdForm) || String(p.id) === String(savedPlatformIdForm) || (p.name != null && (p.name === savedPlatformIdForm || String(p.name).toLowerCase() === String(savedPlatformIdForm).toLowerCase()))))
+                                                  : null
+                                                let savedSizeForm: string | null = savedProduct.maxillaryImplantSize ?? null
+                                                if (!savedSizeForm && savedProduct.maxillaryImplantDetails) {
+                                                  const parts = String(savedProduct.maxillaryImplantDetails).split(' - ')
+                                                  if (parts.length >= 3) savedSizeForm = parts[2].trim()
+                                                  else if (parts.length === 2) savedSizeForm = parts[1].trim()
+                                                }
+                                                const selectedSizeForm = selectedImplantSize[fieldKeyForm] ?? savedSizeForm ?? null
+                                                const savedInclusionsForm = savedProduct.maxillaryImplantInclusions ?? ""
+                                                const savedAbutmentDetailForm = savedProduct.maxillaryAbutmentDetail ?? ""
+                                                const savedAbutmentTypeForm = savedProduct.maxillaryAbutmentType ?? ""
+                                                const storageKeyForm = `${savedProduct.id}_${archType}_${fieldKeyForm}`
+                                                return selectedBrandForm ? (
+                                                  <div key={fieldKeyForm} className="w-full" data-implant-field-key={fieldKeyForm}>
+                                                    <ImplantDetailForm
+                                                      fieldKey={fieldKeyForm}
+                                                      fieldId={0}
+                                                      selectedBrand={selectedBrandForm}
+                                                      selectedPlatform={selectedPlatformForm ?? null}
+                                                      selectedSize={selectedSizeForm}
+                                                      storageKey={storageKeyForm}
+                                                      onRestoreFromCache={(data) => {
+                                                        if (data.platformId != null) {
+                                                          setSelectedImplantPlatformPerProduct(prev => ({ ...prev, [savedProduct.id]: { ...prev[savedProduct.id], maxillary: data.platformId } }))
+                                                        }
+                                                        if (data.size != null) {
+                                                          setSelectedImplantSize(prev => ({ ...prev, [fieldKeyForm]: data.size }))
+                                                        }
+                                                        if (data.platformId != null || data.size != null) {
+                                                          setSavedProducts(prev => prev.map(sp => sp.id === savedProduct.id ? {
+                                                            ...sp,
+                                                            maxillaryImplantPlatform: data.platformName ?? sp.maxillaryImplantPlatform,
+                                                            maxillaryImplantSize: data.size ?? sp.maxillaryImplantSize,
+                                                            maxillaryImplantDetails: selectedBrandForm?.brand_name && (data.platformName || data.size)
+                                                              ? `${selectedBrandForm.brand_name} - ${data.platformName ?? ''} - ${data.size ?? ''}`.replace(/\s*-\s*$/, '')
+                                                              : sp.maxillaryImplantDetails,
+                                                          } : sp))
+                                                        }
+                                                      }}
+                                                      onSizeChange={(size: string) => {
+                                                        setSelectedImplantSize(prev => ({ ...prev, [fieldKeyForm]: size }))
+                                                        setSavedProducts(prev => prev.map(sp => sp.id === savedProduct.id ? {
+                                                          ...sp,
+                                                          maxillaryImplantSize: size,
+                                                          maxillaryImplantDetails: `${selectedBrandForm.brand_name} - ${selectedPlatformForm?.name ?? ''} - ${size}`
+                                                        } : sp))
+                                                      }}
+                                                      onInclusionsChange={(inclusions) => {
+                                                        setSavedProducts(prev => prev.map(sp => sp.id === savedProduct.id ? { ...sp, maxillaryImplantInclusions: inclusions } : sp))
+                                                      }}
+                                                      onAbutmentDetailChange={(detail) => {
+                                                        setSavedProducts(prev => prev.map(sp => sp.id === savedProduct.id ? { ...sp, maxillaryAbutmentDetail: detail } : sp))
+                                                      }}
+                                                      onAbutmentTypeChange={(type) => {
+                                                        setSavedProducts(prev => prev.map(sp => sp.id === savedProduct.id ? { ...sp, maxillaryAbutmentType: type } : sp))
+                                                      }}
+                                                      onPlatformChange={(platform: any) => {
+                                                        setSelectedImplantPlatformPerProduct(prev => ({ ...prev, [savedProduct.id]: { ...prev[savedProduct.id], maxillary: platform.id } }))
+                                                        const platformNameOrId = platform?.name ?? platform?.id
+                                                        setSavedProducts(prev => prev.map(sp => sp.id === savedProduct.id ? {
+                                                          ...sp,
+                                                          maxillaryImplantBrand: selectedBrandForm.id,
+                                                          maxillaryImplantPlatform: platformNameOrId,
+                                                          maxillaryImplantDetails: selectedBrandForm?.brand_name && platformNameOrId && (savedSizeForm ?? sp.maxillaryImplantSize)
+                                                            ? `${selectedBrandForm.brand_name} - ${platformNameOrId} - ${savedSizeForm ?? sp.maxillaryImplantSize ?? ''}`
+                                                            : sp.maxillaryImplantDetails
+                                                        } : sp))
+                                                      }}
+                                                      onBrandFieldClick={() => {
+                                                        setShowImplantCardsForProduct(prev => ({ ...prev, [savedProduct.id]: { ...prev[savedProduct.id], maxillary: true } }))
+                                                        setClickedFieldTypeInAccordion(prev => ({ ...prev, [savedProduct.id]: { ...prev[savedProduct.id], maxillary: 'brand' } }))
+                                                      }}
+                                                      onPlatformFieldClick={() => {
+                                                        setShowImplantCardsForProduct(prev => ({ ...prev, [savedProduct.id]: { ...prev[savedProduct.id], maxillary: true } }))
+                                                        setClickedFieldTypeInAccordion(prev => ({ ...prev, [savedProduct.id]: { ...prev[savedProduct.id], maxillary: 'platform' } }))
+                                                      }}
+                                                      teethNumbers={savedProduct.maxillaryTeeth || []}
+                                                      arch={archType}
+                                                      initialInclusions={savedInclusionsForm}
+                                                      initialAbutmentDetail={savedAbutmentDetailForm}
+                                                      initialAbutmentType={savedAbutmentTypeForm}
+                                                      disableAutoShowPlatformCards
+                                                    />
+                                                  </div>
+                                                ) : null
+                                              })()}
+
                                           {/* Implant Brand/Platform Cards - Shows when implant details field is clicked */}
                                               {/* Only show if retention type is "Implant" */}
                                               {(() => {
@@ -9592,8 +9930,8 @@ export default function CaseDesignCenterPage() {
                                                 }
                                                 
                                                 return hasImplantRetention
-                                              })() && showImplantCardsForProduct[savedProduct.id]?.maxillary && implants && implants.length > 0 && (
-                                            <div className="w-full pt-4">
+                                              })() && (clickedFieldTypeInAccordion[savedProduct.id]?.maxillary === 'brand' || clickedFieldTypeInAccordion[savedProduct.id]?.maxillary === 'platform') && showImplantCardsForProduct[savedProduct.id]?.maxillary && implants && implants.length > 0 && (
+                                            <div className="w-full">
                                               <div className="flex flex-col items-center w-full">
                                                 <div className="bg-white w-full flex justify-center">
                                                   {(() => {
@@ -9619,16 +9957,10 @@ export default function CaseDesignCenterPage() {
                                                     const selectedPlatformId = selectedImplantPlatformPerProduct[savedProduct.id]?.maxillary
                                                     const clickedFieldType = clickedFieldTypeInAccordion[savedProduct.id]?.maxillary
 
-                                                    // Show platform cards if:
-                                                    // 1. Platform field was clicked AND brand is selected (highest priority), OR
-                                                    // 2. Brand is selected, platform not selected yet, and brand field was NOT clicked (auto-show after brand selection)
-                                                    const shouldShowPlatformCards = (clickedFieldType === 'platform' && selectedBrandId) ||
-                                                      (clickedFieldType !== 'brand' && (clickedFieldType === null || clickedFieldType === undefined) && selectedBrandId && selectedPlatformId === null)
+                                                    // Only show cards when user explicitly clicked the implant brand or platform field (saved data already shown in form)
+                                                    const shouldShowPlatformCards = clickedFieldType === 'platform' && selectedBrandId
+                                                    const shouldShowBrandCards = clickedFieldType === 'brand'
 
-                                                    // Show brand cards if platform cards should not be shown
-                                                    const shouldShowBrandCards = !shouldShowPlatformCards
-
-                                                    // Priority: Platform cards take precedence when platform field is clicked
                                                     if (shouldShowPlatformCards) {
                                                       return (
                                                         <ImplantPlatformCards
@@ -9642,13 +9974,32 @@ export default function CaseDesignCenterPage() {
                                                                 maxillary: platform.id
                                                               }
                                                             }))
-                                                            // Reset clicked field type after selection
+                                                            // Reset clicked field type and hide cards after selection
                                                             setClickedFieldTypeInAccordion(prev => ({
                                                               ...prev,
                                                               [savedProduct.id]: {
                                                                 ...prev[savedProduct.id],
                                                                 maxillary: null
                                                               }
+                                                            }))
+                                                            setShowImplantCardsForProduct(prev => ({
+                                                              ...prev,
+                                                              [savedProduct.id]: { ...prev[savedProduct.id], maxillary: false }
+                                                            }))
+                                                            // Persist platform to saved product so it displays and survives re-open
+                                                            const platformNameOrId = platform?.name ?? platform?.id
+                                                            const sizePart = savedProduct.maxillaryImplantSize ?? ''
+                                                            setSavedProducts(prev => prev.map(sp => {
+                                                              if (sp.id === savedProduct.id && selectedBrand) {
+                                                                return {
+                                                                  ...sp,
+                                                                  maxillaryImplantPlatform: platformNameOrId,
+                                                                  maxillaryImplantDetails: selectedBrand.brand_name && platformNameOrId
+                                                                    ? `${selectedBrand.brand_name} - ${platformNameOrId}${sizePart ? ` - ${sizePart}` : ''}`
+                                                                    : sp.maxillaryImplantDetails
+                                                                }
+                                                              }
+                                                              return sp
                                                             }))
                                                           }}
                                                           arch="maxillary"
@@ -9854,25 +10205,31 @@ export default function CaseDesignCenterPage() {
                                                                 null
                                                               
                                                               // If not found in state, try to find it from savedProduct.maxillaryImplantPlatform
-                                                              if (!savedPlatformId && savedProduct.maxillaryImplantPlatform && selectedBrand) {
-                                                                // Try to find platform by name or ID
-                                                                const platformByName = selectedBrand.platforms?.find((p: any) => 
-                                                                  p.name === savedProduct.maxillaryImplantPlatform
+                                                              if (!savedPlatformId && savedProduct.maxillaryImplantPlatform != null && selectedBrand) {
+                                                                const platformVal = savedProduct.maxillaryImplantPlatform
+                                                                const strVal = String(platformVal).trim()
+                                                                const platformByName = selectedBrand.platforms?.find((p: any) =>
+                                                                  (p.name != null && String(p.name).toLowerCase() === strVal.toLowerCase()) || p.name === platformVal
                                                                 )
                                                                 if (platformByName) {
-                                                                  savedPlatformId = platformByName.id
-                                                                } else if (typeof savedProduct.maxillaryImplantPlatform === 'number') {
-                                                                  savedPlatformId = savedProduct.maxillaryImplantPlatform
+                                                                  savedPlatformId = platformByName.id ?? platformByName.name
+                                                                } else if (typeof platformVal === 'number') {
+                                                                  savedPlatformId = platformVal
+                                                                } else {
+                                                                  const numId = Number(platformVal)
+                                                                  if (!Number.isNaN(numId)) {
+                                                                    const byId = selectedBrand.platforms?.find((p: any) => (p.id || 0) === numId || p.id === numId || Number(p.id) === numId)
+                                                                    if (byId) savedPlatformId = byId.id ?? byId.name
+                                                                  }
                                                                 }
                                                               }
                                                               
-                                                              const selectedPlatform = selectedBrand && savedPlatformId
+                                                              const selectedPlatform = selectedBrand && savedPlatformId != null
                                                                 ? selectedBrand.platforms?.find((p: any) => 
                                                                     (p.id || 0) === savedPlatformId ||
                                                                     p.id === Number(savedPlatformId) ||
                                                                     String(p.id) === String(savedPlatformId) ||
-                                                                    p.name === savedPlatformId ||
-                                                                    p.name === String(savedPlatformId)
+                                                                    (p.name != null && (p.name === savedPlatformId || String(p.name).toLowerCase() === String(savedPlatformId).toLowerCase()))
                                                                   )
                                                                 : null
 
@@ -9940,12 +10297,35 @@ export default function CaseDesignCenterPage() {
                                                                         selectedBrand={selectedBrand}
                                                                         selectedPlatform={selectedPlatform || null}
                                                                         selectedSize={selectedSize}
+                                                                        storageKey={`${savedProduct.id}_maxillary_${fieldKey}`}
+                                                                        onRestoreFromCache={(data) => {
+                                                                          if (data.platformId != null) {
+                                                                            setSelectedImplantPlatformPerProduct(prev => ({ ...prev, [savedProduct.id]: { ...prev[savedProduct.id], maxillary: data.platformId } }))
+                                                                          }
+                                                                          if (data.size != null) {
+                                                                            setSelectedImplantSize(prev => ({ ...prev, [fieldKey]: data.size }))
+                                                                          }
+                                                                          if (data.platformId != null || data.size != null) {
+                                                                            setSavedProducts(prev => prev.map(sp => sp.id === savedProduct.id ? {
+                                                                              ...sp,
+                                                                              maxillaryImplantPlatform: data.platformName ?? sp.maxillaryImplantPlatform,
+                                                                              maxillaryImplantSize: data.size ?? sp.maxillaryImplantSize,
+                                                                              maxillaryImplantDetails: selectedBrand?.brand_name && (data.platformName || data.size)
+                                                                                ? `${selectedBrand.brand_name} - ${data.platformName ?? ''} - ${data.size ?? ''}`.replace(/\s*-\s*$/, '')
+                                                                                : sp.maxillaryImplantDetails,
+                                                                            } : sp))
+                                                                          }
+                                                                        }}
                                                                         onSizeChange={(size: string) => {
                                                                           setSelectedImplantSize(prev => ({ ...prev, [fieldKey]: size }))
                                                                           // Update saved product
                                                                           setSavedProducts(prev => prev.map(sp => {
                                                                             if (sp.id === savedProduct.id) {
-                                                                              return { ...sp, maxillaryImplantDetails: `${selectedBrand.brand_name} - ${selectedPlatform?.name || ''} - ${size}` }
+                                                                              return {
+                                                                                ...sp,
+                                                                                maxillaryImplantSize: size,
+                                                                                maxillaryImplantDetails: `${selectedBrand.brand_name} - ${selectedPlatform?.name || ''} - ${size}`
+                                                                              }
                                                                             }
                                                                             return sp
                                                                           }))
@@ -9982,10 +10362,19 @@ export default function CaseDesignCenterPage() {
                                                                               maxillary: platform.id
                                                                             }
                                                                           }))
-                                                                          // Update saved product
+                                                                          const platformNameOrId = platform?.name ?? platform?.id
+                                                                          // Update saved product with brand, platform, and details string
                                                                           setSavedProducts(prev => prev.map(sp => {
                                                                             if (sp.id === savedProduct.id) {
-                                                                              return { ...sp, maxillaryImplantBrand: selectedBrand.id }
+                                                                              const sizeVal = sp.maxillaryImplantSize ?? selectedSize
+                                                                              return {
+                                                                                ...sp,
+                                                                                maxillaryImplantBrand: selectedBrand.id,
+                                                                                maxillaryImplantPlatform: platformNameOrId,
+                                                                                maxillaryImplantDetails: selectedBrand?.brand_name && platformNameOrId && sizeVal
+                                                                                  ? `${selectedBrand.brand_name} - ${platformNameOrId} - ${sizeVal}`
+                                                                                  : sp.maxillaryImplantDetails
+                                                                              }
                                                                             }
                                                                             return sp
                                                                           }))
@@ -10027,6 +10416,7 @@ export default function CaseDesignCenterPage() {
                                                                         initialInclusions={savedInclusions}
                                                                         initialAbutmentDetail={savedAbutmentDetail}
                                                                         initialAbutmentType={savedAbutmentType}
+                                                                        disableAutoShowPlatformCards
                                                                       />
                                             </div>
                                           )}
@@ -10167,8 +10557,8 @@ export default function CaseDesignCenterPage() {
                                                   const hasImpressionValue = impressionCount > 0 || (displayText && displayText !== "Select impression")
 
                                                   return (
-                                                    <div className="flex flex-wrap" style={{ width: '100%', marginTop: '10px' }}>
-                                                      <div style={{ flex: '1 1 50%', minWidth: '200px', maxWidth: '50%' }}>
+                                                    <div className="flex flex-wrap" style={{ width: '100%'}}>
+                                                      <div style={{ flex: '1 1 50%', minWidth: '200px'}}>
                                                         <div className="relative" style={{ minHeight: '38px', width: '100%' }}>
                                                           <div
                                                             className="flex items-center cursor-pointer"
@@ -11107,9 +11497,11 @@ export default function CaseDesignCenterPage() {
                                                           platforms={mappedPlatforms}
                                                           selectedPlatformId={selectedPlatformId}
                                                           onSelectPlatform={(platform: any) => {
-                                                            setSelectedImplantPlatform(prev => ({ ...prev, [fieldKey]: platform.id }))
-                                                            // Store full platform data
-                                                            setSelectedImplantPlatformData(prev => ({ ...prev, [fieldKey]: { id: platform.id, name: platform.name } }))
+                                                            const platformIdNum = Number(platform.id)
+                                                            if (!Number.isNaN(platformIdNum)) {
+                                                              setSelectedImplantPlatform(prev => ({ ...prev, [fieldKey]: platformIdNum }))
+                                                              setSelectedImplantPlatformData(prev => ({ ...prev, [fieldKey]: { id: platformIdNum, name: platform.name } }))
+                                                            }
                                                             // After platform selection, keep form visible and hide the cards
                                                             setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'form' }))
                                                             setShowImplantCards(false)
@@ -11723,14 +12115,20 @@ export default function CaseDesignCenterPage() {
                                                           const selectedSize = selectedImplantSize[fieldKey]
 
                                                           // Get selected brand and platform
-                                                          const selectedBrand = selectedBrandId ? implants.find((imp: any) => imp.id === selectedBrandId) : null
-                                                          // Try to find platform in brand's platforms first, otherwise use stored platform data (for static platforms)
-                                                          let selectedPlatform = null
-                                                          if (selectedBrand && selectedPlatformId) {
-                                                            selectedPlatform = selectedBrand.platforms?.find((p: any) => (p.id || 0) === selectedPlatformId)
-                                                            // If not found in brand's platforms, use stored platform data (static platforms)
-                                                            if (!selectedPlatform && selectedImplantPlatformData[fieldKey]) {
-                                                              selectedPlatform = selectedImplantPlatformData[fieldKey]
+                                                          const selectedBrand = selectedBrandId ? implants.find((imp: any) => imp.id === selectedBrandId || imp.id === Number(selectedBrandId)) : null
+                                                          // Prefer stored platform data when id matches so the selected value always shows (API platforms may have different shape)
+                                                          let selectedPlatform: { id: number; name: string } | null = null
+                                                          if (selectedBrand && selectedPlatformId != null) {
+                                                            const stored = selectedImplantPlatformData[fieldKey]
+                                                            if (stored && (Number(stored.id) === Number(selectedPlatformId) || stored.id === selectedPlatformId)) {
+                                                              selectedPlatform = { id: Number(stored.id), name: stored.name ?? '' }
+                                                            }
+                                                            if (!selectedPlatform) {
+                                                              const fromBrand = selectedBrand.platforms?.find((p: any) => Number(p.id) === Number(selectedPlatformId))
+                                                              const fallback = selectedImplantPlatformData[fieldKey]
+                                                              selectedPlatform = fromBrand
+                                                                ? { id: Number(fromBrand.id) || 0, name: (fromBrand as any).name ?? '' }
+                                                                : (fallback ? { id: Number(fallback.id), name: fallback.name ?? '' } : null)
                                                             }
                                                           }
 
@@ -11787,7 +12185,7 @@ export default function CaseDesignCenterPage() {
 
                                                               {/* Implant Detail Form - Show after brand/platform selection */}
                                                               {currentStep === 'form' && selectedBrand && (
-                                                                <div data-implant-field-key={fieldKey} style={{ width: '100%', marginTop: '20px' }}>
+                                                                <div data-implant-field-key={fieldKey} style={{ width: '100%'}}>
                                                                   <ImplantDetailForm
                                                                     fieldKey={fieldKey}
                                                                     fieldId={field.id}
@@ -11819,9 +12217,11 @@ export default function CaseDesignCenterPage() {
                                                                       setMandibularAbutmentType(type)
                                                                     }}
                                                                     onPlatformChange={(platform) => {
-                                                                      setSelectedImplantPlatform(prev => ({ ...prev, [fieldKey]: platform.id }))
-                                                                      // Store full platform data
-                                                                      setSelectedImplantPlatformData(prev => ({ ...prev, [fieldKey]: { id: platform.id, name: platform.name } }))
+                                                                      const platformIdNum = Number(platform?.id)
+                                                                      if (!Number.isNaN(platformIdNum)) {
+                                                                        setSelectedImplantPlatform(prev => ({ ...prev, [fieldKey]: platformIdNum }))
+                                                                        setSelectedImplantPlatformData(prev => ({ ...prev, [fieldKey]: { id: platformIdNum, name: platform.name } }))
+                                                                      }
                                                                     }}
                                                                     onBrandFieldClick={() => {
                                                                       // Show brand cards when brand field is clicked
@@ -12752,21 +13152,21 @@ export default function CaseDesignCenterPage() {
                                                         ? implants.find((imp: any) => imp.id === savedProduct.mandibularImplantBrand || imp.brand_name === savedProduct.mandibularImplantBrand)
                                                         : null
 
-                                                      // Build display text with brand and details
+                                                      // Build display text: brand + platform + size so platform and size are visible
+                                                      const platformPart = savedProduct.mandibularImplantPlatform ?? ''
+                                                      const sizePart = savedProduct.mandibularImplantSize ?? ''
+                                                      const detailsStr = savedProduct.mandibularImplantDetails || [platformPart, sizePart].filter(Boolean).join(' - ')
+
                                                       if (selectedBrand) {
                                                         const brandName = selectedBrand.brand_name || ''
-                                                        const details = savedProduct.mandibularImplantDetails || ''
-                                                        if (brandName && details) {
-                                                          return `${brandName} - ${details}`
-                                                        } else if (brandName) {
-                                                          return brandName
-                                                        } else if (details) {
-                                                          return details
+                                                        if (brandName && detailsStr) {
+                                                          return `${brandName} - ${detailsStr}`
                                                         }
+                                                        if (brandName) return brandName
+                                                        if (detailsStr) return detailsStr
                                                       }
 
-                                                      // Fallback to just details or "Not specified"
-                                                      return savedProduct.mandibularImplantDetails || 'Not specified'
+                                                      return detailsStr || 'Not specified'
                                                     })()}
                                                   </span>
                                                 </div>
@@ -12791,9 +13191,73 @@ export default function CaseDesignCenterPage() {
                                             </div>
                                           )}
 
-                                          {/* Implant Brand/Platform Cards - Shows when implant details field is clicked */}
-                                          {showImplantCardsForProduct[savedProduct.id]?.mandibular && implants && implants.length > 0 && (
-                                            <div className="w-full pt-4">
+                                          {/* Implant Size - show when we have implant details and size is set */}
+                                          {isFieldVisible("implant", savedProduct.id, savedProduct, productDetails, archType) && savedProduct.mandibularImplantSize && (
+                                            <div
+                                              className="flex flex-col sm:flex-row flex-wrap gap-5"
+                                              style={{
+                                                display: 'flex',
+                                                flexDirection: 'row',
+                                                alignItems: 'flex-start',
+                                                padding: '0px',
+                                                gap: '12px',
+                                                flex: 'none',
+                                                order: 2,
+                                                alignSelf: 'stretch',
+                                                flexGrow: 0
+                                              }}
+                                            >
+                                              <div className="relative flex-1 min-w-[120px] max-w-[200px]" style={{ minHeight: '38px' }}>
+                                                <div
+                                                  className="flex items-center"
+                                                  style={{
+                                                    padding: '8px 12px 4px 12px',
+                                                    gap: '5px',
+                                                    width: '100%',
+                                                    height: '32px',
+                                                    position: 'relative',
+                                                    marginTop: '5.27px',
+                                                    background: '#FFFFFF',
+                                                    border: '0.740384px solid #7F7F7F',
+                                                    borderRadius: '7.7px',
+                                                    boxSizing: 'border-box'
+                                                  }}
+                                                >
+                                                  <span style={{
+                                                    fontFamily: 'Verdana',
+                                                    fontStyle: 'normal',
+                                                    fontWeight: 400,
+                                                    fontSize: '13px',
+                                                    lineHeight: '20px',
+                                                    letterSpacing: '-0.02em',
+                                                    color: '#000000',
+                                                    whiteSpace: 'nowrap'
+                                                  }}>{savedProduct.mandibularImplantSize}</span>
+                                                </div>
+                                                <label
+                                                  className="absolute bg-white"
+                                                  style={{
+                                                    padding: '0px',
+                                                    height: '14px',
+                                                    left: '8.9px',
+                                                    top: '0px',
+                                                    fontFamily: 'Arial',
+                                                    fontStyle: 'normal',
+                                                    fontWeight: 400,
+                                                    fontSize: '14px',
+                                                    lineHeight: '14px',
+                                                    color: '#7F7F7F'
+                                                  }}
+                                                >
+                                                  Implant Size
+                                                </label>
+                                              </div>
+                                            </div>
+                                          )}
+
+                                          {/* Implant Brand/Platform Cards - Only when user clicked implant brand or platform field */}
+                                          {(clickedFieldTypeInAccordion[savedProduct.id]?.mandibular === 'brand' || clickedFieldTypeInAccordion[savedProduct.id]?.mandibular === 'platform') && showImplantCardsForProduct[savedProduct.id]?.mandibular && implants && implants.length > 0 && (
+                                            <div className="w-full">
                                               <div className="flex flex-col items-center w-full">
                                                 <div className="bg-white w-full flex justify-center">
                                                   {(() => {
@@ -12819,16 +13283,10 @@ export default function CaseDesignCenterPage() {
                                                     const selectedPlatformId = selectedImplantPlatformPerProduct[savedProduct.id]?.mandibular
                                                     const clickedFieldType = clickedFieldTypeInAccordion[savedProduct.id]?.mandibular
 
-                                                    // Show platform cards if:
-                                                    // 1. Platform field was clicked AND brand is selected (highest priority), OR
-                                                    // 2. Brand is selected, platform not selected yet, and brand field was NOT clicked (auto-show after brand selection)
-                                                    const shouldShowPlatformCards = (clickedFieldType === 'platform' && selectedBrandId) ||
-                                                      (clickedFieldType !== 'brand' && (clickedFieldType === null || clickedFieldType === undefined) && selectedBrandId && selectedPlatformId === null)
+                                                    // Only show cards when user explicitly clicked the implant brand or platform field (saved data already shown in form)
+                                                    const shouldShowPlatformCards = clickedFieldType === 'platform' && selectedBrandId
+                                                    const shouldShowBrandCards = clickedFieldType === 'brand'
 
-                                                    // Show brand cards if platform cards should not be shown
-                                                    const shouldShowBrandCards = !shouldShowPlatformCards
-
-                                                    // Priority: Platform cards take precedence when platform field is clicked
                                                     if (shouldShowPlatformCards) {
                                                       return (
                                                         <ImplantPlatformCards
@@ -12842,13 +13300,32 @@ export default function CaseDesignCenterPage() {
                                                                 mandibular: platform.id
                                                               }
                                                             }))
-                                                            // Reset clicked field type after selection
+                                                            // Reset clicked field type and hide cards after selection
                                                             setClickedFieldTypeInAccordion(prev => ({
                                                               ...prev,
                                                               [savedProduct.id]: {
                                                                 ...prev[savedProduct.id],
                                                                 mandibular: null
                                                               }
+                                                            }))
+                                                            setShowImplantCardsForProduct(prev => ({
+                                                              ...prev,
+                                                              [savedProduct.id]: { ...prev[savedProduct.id], mandibular: false }
+                                                            }))
+                                                            // Persist platform to saved product so it displays and survives re-open
+                                                            const platformNameOrId = platform?.name ?? platform?.id
+                                                            const sizePart = savedProduct.mandibularImplantSize ?? ''
+                                                            setSavedProducts(prev => prev.map(sp => {
+                                                              if (sp.id === savedProduct.id && selectedBrand) {
+                                                                return {
+                                                                  ...sp,
+                                                                  mandibularImplantPlatform: platformNameOrId,
+                                                                  mandibularImplantDetails: selectedBrand.brand_name && platformNameOrId
+                                                                    ? `${selectedBrand.brand_name} - ${platformNameOrId}${sizePart ? ` - ${sizePart}` : ''}`
+                                                                    : sp.mandibularImplantDetails
+                                                                }
+                                                              }
+                                                              return sp
                                                             }))
                                                           }}
                                                           arch="mandibular"
@@ -13828,21 +14305,21 @@ export default function CaseDesignCenterPage() {
                                                         ? implants.find((imp: any) => imp.id === savedProduct.mandibularImplantBrand || imp.brand_name === savedProduct.mandibularImplantBrand)
                                                         : null
 
-                                                      // Build display text with brand and details
+                                                      // Build display text: brand + platform + size so platform and size are visible
+                                                      const platformPart = savedProduct.mandibularImplantPlatform ?? ''
+                                                      const sizePart = savedProduct.mandibularImplantSize ?? ''
+                                                      const detailsStr = savedProduct.mandibularImplantDetails || [platformPart, sizePart].filter(Boolean).join(' - ')
+
                                                       if (selectedBrand) {
                                                         const brandName = selectedBrand.brand_name || ''
-                                                        const details = savedProduct.mandibularImplantDetails || ''
-                                                        if (brandName && details) {
-                                                          return `${brandName} - ${details}`
-                                                        } else if (brandName) {
-                                                          return brandName
-                                                        } else if (details) {
-                                                          return details
+                                                        if (brandName && detailsStr) {
+                                                          return `${brandName} - ${detailsStr}`
                                                         }
+                                                        if (brandName) return brandName
+                                                        if (detailsStr) return detailsStr
                                                       }
 
-                                                      // Fallback to just details
-                                                      return savedProduct.mandibularImplantDetails || 'Not specified'
+                                                      return detailsStr || 'Not specified'
                                                     })()}
                                                   </span>
                                                 </div>
@@ -13878,6 +14355,8 @@ export default function CaseDesignCenterPage() {
                     </div>
                   )}
                 </div>
+                  </>
+                )}
 
                 {/* Case Summary Notes - Expandable and Responsive - Hidden initially */}
                 {showCaseSummaryNotes && (
@@ -14457,12 +14936,13 @@ export default function CaseDesignCenterPage() {
       />
 
       {/* Impression Selection Modal */}
-      {currentProductForImpression && productDetails && (
+      {currentProductForImpression && (currentProductForImpression.productDetails || productDetails) && (
         <ImpressionSelectionModal
           isOpen={showImpressionModal}
           onClose={() => {
-            const productId = currentProductForImpression?.id?.toString() || selectedProduct?.id?.toString() || ""
-            const impressions = productDetails?.impressions || []
+            // Use catalog product.id so impression keys match getImpressionCount (saved accordion uses product.id)
+            const productId = currentProductForImpression?.product?.id?.toString() || selectedProduct?.id?.toString() || ""
+            const impressions = currentProductForImpression?.productDetails?.impressions || productDetails?.impressions || []
             const impressionCount = productId && impressions.length
               ? getImpressionCount(productId, currentImpressionArch, impressions)
               : 0
@@ -14492,7 +14972,7 @@ export default function CaseDesignCenterPage() {
               [impressionKey]: convertedFiles
             }))
           }}
-          impressions={productDetails?.impressions || []}
+          impressions={currentProductForImpression?.productDetails?.impressions || productDetails?.impressions || []}
           selectedImpressions={selectedImpressions}
           onUpdateQuantity={handleImpressionQuantityUpdate}
           onRemoveImpression={(impressionKey) => {
@@ -14508,7 +14988,7 @@ export default function CaseDesignCenterPage() {
               return updated
             })
           }}
-          productId={currentProductForImpression?.id || selectedProduct?.id?.toString() || ""}
+          productId={currentProductForImpression?.product?.id?.toString() || selectedProduct?.id?.toString() || ""}
           arch={currentImpressionArch}
           stlFilesByImpression={Object.fromEntries(
             Object.entries(stlFilesByImpression).map(([key, files]) => [

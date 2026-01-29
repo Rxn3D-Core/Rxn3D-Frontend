@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
-import { Plus, Minus } from "lucide-react"
+import { Plus, Minus, Check } from "lucide-react"
+import { useImplantDetailFormCache, type ImplantDetailFormCacheState } from "@/hooks/use-implant-detail-form-cache"
 
 interface ImplantDetailFormProps {
   fieldKey: string
@@ -24,6 +25,19 @@ interface ImplantDetailFormProps {
   initialAbutmentType?: string
   initialInclusionsQuantity?: number
   onInclusionsQuantityChange?: (quantity: number) => void
+  /** When true, do not auto-open platform cards (e.g. in saved product accordion where saved value is shown) */
+  disableAutoShowPlatformCards?: boolean
+  /**
+   * Optional storage key for React Query cache. When provided, user selections
+   * (platform, size, inclusions, abutment) are persisted and restored so they
+   * are not lost when accordion closes or component re-mounts.
+   */
+  storageKey?: string
+  /**
+   * Called when cache has platform/size but parent has not set them yet (e.g. after accordion open).
+   * Parent can restore selectedImplantPlatformPerProduct and selectedImplantSize from the cached data.
+   */
+  onRestoreFromCache?: (data: ImplantDetailFormCacheState) => void
 }
 
 export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
@@ -45,12 +59,33 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
   initialAbutmentDetail,
   initialAbutmentType,
   initialInclusionsQuantity,
-  onInclusionsQuantityChange
+  onInclusionsQuantityChange,
+  disableAutoShowPlatformCards = false,
+  storageKey,
+  onRestoreFromCache,
 }) => {
-  const [inclusions, setInclusions] = useState<string>(initialInclusions || "")
-  const [abutmentDetail, setAbutmentDetail] = useState<string>(initialAbutmentDetail || "")
-  const [abutmentType, setAbutmentType] = useState<string>(initialAbutmentType || "")
-  const [inclusionsQuantity, setInclusionsQuantity] = useState<number>(initialInclusionsQuantity || 1)
+  const { cachedState, setCachedState, hasCache } = useImplantDetailFormCache(storageKey)
+
+  const hasRestoredRef = useRef(false)
+  // Notify parent when cache has platform/size so it can restore selected platform and size state (once per mount)
+  useEffect(() => {
+    if (!hasCache || !onRestoreFromCache || hasRestoredRef.current) return
+    if (cachedState.platformId != null || cachedState.size) {
+      hasRestoredRef.current = true
+      onRestoreFromCache(cachedState)
+    }
+  }, [hasCache, onRestoreFromCache, cachedState])
+
+  // Prefer cached values when present so selections persist across accordion open/close
+  const resolvedInclusions = (hasCache && cachedState.inclusions) ? cachedState.inclusions : (initialInclusions || "")
+  const resolvedAbutmentDetail = (hasCache && cachedState.abutmentDetail) ? cachedState.abutmentDetail : (initialAbutmentDetail || "")
+  const resolvedAbutmentType = (hasCache && cachedState.abutmentType) ? cachedState.abutmentType : (initialAbutmentType || "")
+  const resolvedInclusionsQuantity = (hasCache && cachedState.inclusionsQuantity != null) ? cachedState.inclusionsQuantity : (initialInclusionsQuantity ?? 1)
+
+  const [inclusions, setInclusions] = useState<string>(resolvedInclusions)
+  const [abutmentDetail, setAbutmentDetail] = useState<string>(resolvedAbutmentDetail)
+  const [abutmentType, setAbutmentType] = useState<string>(resolvedAbutmentType)
+  const [inclusionsQuantity, setInclusionsQuantity] = useState<number>(resolvedInclusionsQuantity)
 
   // Delayed visibility states to prevent Radix UI ref composition infinite loops
   // When Select components are conditionally rendered rapidly, Radix's compose-refs can enter an infinite update cycle
@@ -92,16 +127,17 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
     }
   }, [abutmentDetail])
 
-  // Auto-show platform cards when platform field becomes visible (brand selected) and platform is not yet set
+  // Auto-show platform cards when platform field becomes visible (brand selected) and platform is not yet set.
+  // Skip when disableAutoShowPlatformCards (e.g. saved product accordion) so cards don't pop open on open.
   useEffect(() => {
+    if (disableAutoShowPlatformCards) return
     if (selectedBrand?.brand_name && !selectedPlatform?.name && onPlatformFieldClick) {
-      // Small delay to ensure the component is ready
       const timer = setTimeout(() => {
         onPlatformFieldClick()
       }, 200)
       return () => clearTimeout(timer)
     }
-  }, [selectedBrand?.brand_name, selectedPlatform?.name, onPlatformFieldClick])
+  }, [disableAutoShowPlatformCards, selectedBrand?.brand_name, selectedPlatform?.name, onPlatformFieldClick])
 
   // Auto-open Size dropdown when platform is selected and size is not yet set
   useEffect(() => {
@@ -146,30 +182,42 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
   onAbutmentDetailChangeRef.current = onAbutmentDetailChange
   onAbutmentTypeChangeRef.current = onAbutmentTypeChange
 
-  // Sync local state with props when they change
+  // Sync local state with resolved values (cache or props) when they change
   useEffect(() => {
-    if (initialInclusions !== undefined && initialInclusions !== inclusions) {
-      setInclusions(initialInclusions)
+    if (resolvedInclusions !== inclusions) {
+      setInclusions(resolvedInclusions)
     }
-  }, [initialInclusions])
+  }, [resolvedInclusions])
 
   useEffect(() => {
-    if (initialAbutmentDetail !== undefined && initialAbutmentDetail !== abutmentDetail) {
-      setAbutmentDetail(initialAbutmentDetail)
+    if (resolvedAbutmentDetail !== abutmentDetail) {
+      setAbutmentDetail(resolvedAbutmentDetail)
     }
-  }, [initialAbutmentDetail])
+  }, [resolvedAbutmentDetail])
 
   useEffect(() => {
-    if (initialAbutmentType !== undefined && initialAbutmentType !== abutmentType) {
-      setAbutmentType(initialAbutmentType)
+    if (resolvedAbutmentType !== abutmentType) {
+      setAbutmentType(resolvedAbutmentType)
     }
-  }, [initialAbutmentType])
+  }, [resolvedAbutmentType])
 
   useEffect(() => {
-    if (initialInclusionsQuantity !== undefined && initialInclusionsQuantity !== inclusionsQuantity) {
-      setInclusionsQuantity(initialInclusionsQuantity)
+    if (resolvedInclusionsQuantity !== inclusionsQuantity) {
+      setInclusionsQuantity(resolvedInclusionsQuantity)
     }
-  }, [initialInclusionsQuantity])
+  }, [resolvedInclusionsQuantity])
+
+  // Persist platform and size to React Query cache when they change (from parent or form). Do not overwrite with null so cache is not cleared on first render.
+  useEffect(() => {
+    if (!hasCache) return
+    if (selectedPlatform != null || selectedSize != null) {
+      setCachedState({
+        platformId: selectedPlatform?.id ?? null,
+        platformName: selectedPlatform?.name ?? null,
+        size: selectedSize ?? null,
+      })
+    }
+  }, [hasCache, selectedPlatform?.id, selectedPlatform?.name, selectedSize])
   
   // Removed automatic clearing logic to prevent infinite loops
   // The useEffect hooks that cleared subsequent fields when previous fields were cleared
@@ -254,13 +302,11 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
       style={{
         width: '100%',
         maxWidth: '100%',
-        minHeight: '208px',
         flex: 'none',
         order: 2,
         alignSelf: 'stretch',
         flexGrow: 0,
         position: 'relative',
-        marginTop: '20px'
       }}
     >
       {/* Frame 2463 - Main container */}
@@ -348,6 +394,11 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
                     color: '#000000'
                   }}
                 />
+                {hasValue(selectedBrand?.brand_name) && (
+                  <div className="absolute right-[8px] top-1/2 -translate-y-1/2 pointer-events-none">
+                    <Check className="h-3.5 w-3.5 text-[#119933]" aria-label="Valid" />
+                  </div>
+                )}
                 <label
                   className="absolute bg-white"
                   style={{
@@ -411,6 +462,11 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
                     }}
                     placeholder="Select Platform"
                   />
+                  {hasValue(selectedPlatform?.name) && (
+                    <div className="absolute right-[8px] top-1/2 -translate-y-1/2 pointer-events-none">
+                      <Check className="h-3.5 w-3.5 text-[#119933]" aria-label="Valid" />
+                    </div>
+                  )}
                   <label
                     className="absolute bg-white"
                     style={{
@@ -441,6 +497,7 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
                     open={sizeOpen}
                     onOpenChange={setSizeOpen}
                     onValueChange={(value: string) => {
+                      if (hasCache) setCachedState({ size: value })
                       onSizeChange(value)
                       setSizeOpen(false)
                     }}
@@ -477,6 +534,11 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
                       ))}
                     </SelectContent>
                   </Select>
+                  {hasValue(selectedSize) && (
+                    <div className="absolute right-[8px] top-1/2 -translate-y-1/2 pointer-events-none">
+                      <Check className="h-3.5 w-3.5 text-[#119933]" aria-label="Valid" />
+                    </div>
+                  )}
                   <label
                     className="absolute bg-white"
                     style={{
@@ -521,6 +583,7 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
                   onOpenChange={setInclusionsOpen}
                   onValueChange={(value) => {
                     setInclusions(value)
+                    if (hasCache) setCachedState({ inclusions: value, inclusionsQuantity: value === "Model with Tissue + QTY" ? 1 : undefined })
                     onInclusionsChange(value)
                     // Reset quantity to 1 when changing inclusion type
                     if (value === "Model with Tissue + QTY") {
@@ -566,6 +629,11 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
                     ))}
                   </SelectContent>
                 </Select>
+                {hasValue(inclusions) && (
+                  <div className="absolute right-[8px] top-1/2 -translate-y-1/2 pointer-events-none">
+                    <Check className="h-3.5 w-3.5 text-[#119933]" aria-label="Valid" />
+                  </div>
+                )}
                 <label
                   className="absolute bg-white"
                   style={{
@@ -603,6 +671,7 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
                     onClick={() => {
                       const newQuantity = Math.max(1, inclusionsQuantity - 1)
                       setInclusionsQuantity(newQuantity)
+                      if (hasCache) setCachedState({ inclusionsQuantity: newQuantity })
                       if (onInclusionsQuantityChange) {
                         onInclusionsQuantityChange(newQuantity)
                       }
@@ -643,6 +712,7 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
                     onClick={() => {
                       const newQuantity = inclusionsQuantity + 1
                       setInclusionsQuantity(newQuantity)
+                      if (hasCache) setCachedState({ inclusionsQuantity: newQuantity })
                       if (onInclusionsQuantityChange) {
                         onInclusionsQuantityChange(newQuantity)
                       }
@@ -694,6 +764,7 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
                     onOpenChange={setAbutmentDetailOpen}
                     onValueChange={(value) => {
                       setAbutmentDetail(value)
+                      if (hasCache) setCachedState({ abutmentDetail: value })
                       onAbutmentDetailChange(value)
                       setAbutmentDetailOpen(false)
                     }}
@@ -730,6 +801,11 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
                       ))}
                     </SelectContent>
                   </Select>
+                  {hasValue(abutmentDetail) && (
+                    <div className="absolute right-[8px] top-1/2 -translate-y-1/2 pointer-events-none">
+                      <Check className="h-3.5 w-3.5 text-[#119933]" aria-label="Valid" />
+                    </div>
+                  )}
                   <label
                     className="absolute bg-white"
                     style={{
@@ -761,6 +837,7 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
                       onOpenChange={setAbutmentTypeOpen}
                       onValueChange={(value) => {
                         setAbutmentType(value)
+                        if (hasCache) setCachedState({ abutmentType: value })
                         onAbutmentTypeChange(value)
                         setAbutmentTypeOpen(false)
                       }}
@@ -797,6 +874,11 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
                         ))}
                       </SelectContent>
                     </Select>
+                    {hasValue(abutmentType) && (
+                      <div className="absolute right-[8px] top-1/2 -translate-y-1/2 pointer-events-none">
+                        <Check className="h-3.5 w-3.5 text-[#119933]" aria-label="Valid" />
+                      </div>
+                    )}
                     <label
                       className="absolute bg-white"
                       style={{

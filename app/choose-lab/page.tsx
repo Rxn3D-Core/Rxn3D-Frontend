@@ -24,6 +24,7 @@ import { SlipCreationFooter } from "@/components/slip-creation-footer"
 import { AddNewLabModal } from "@/components/add-new-lab-modal"
 import { useCustomerLogoStore } from "@/stores/customer-logo-store"
 import { Dialog, DialogContent, DialogOverlay, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Skeleton } from "@/components/ui/skeleton"
 
 interface Lab {
   id: number
@@ -62,8 +63,29 @@ export default function ChooseLabPage() {
   const allowNavigationRef = useRef<boolean>(false)
   const { setCustomerLogo } = useCustomerLogoStore()
 
+  // User id for query key so cache is per-user (no cross-user cached labs)
+  const [userId, setUserId] = useState<string>(() => {
+    if (typeof window === "undefined") return ""
+    try {
+      const u = localStorage.getItem("user")
+      return u ? String(JSON.parse(u).id ?? "") : ""
+    } catch {
+      return ""
+    }
+  })
+
   // Debounce search query to avoid excessive API calls
   const debouncedSearchQuery = useDebounce(searchQuery, 500)
+
+  // Keep userId in sync with localStorage (e.g. after login as different user)
+  useEffect(() => {
+    try {
+      const u = localStorage.getItem("user")
+      setUserId(u ? String(JSON.parse(u).id ?? "") : "")
+    } catch {
+      setUserId("")
+    }
+  }, [])
 
   // Remove caseDesignCenterState from localStorage on page load/refresh using React Query
   useEffect(() => {
@@ -131,10 +153,11 @@ export default function ChooseLabPage() {
   const {
     data: labs = [],
     isLoading,
+    isFetching,
     error,
     refetch,
   } = useQuery<Lab[]>({
-    queryKey: ["labs", debouncedSearchQuery],
+    queryKey: ["labs", userId, debouncedSearchQuery],
     queryFn: async () => {
       const token = localStorage.getItem("token")
       if (!token) {
@@ -194,8 +217,9 @@ export default function ChooseLabPage() {
       return labsList
     },
     enabled: typeof window !== "undefined" && !!localStorage.getItem("token"),
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    gcTime: 1000 * 60 * 10, // 10 minutes
+    staleTime: 0, // Always consider data stale so we fetch latest when page is shown
+    refetchOnMount: "always", // Always fetch latest data when navigating to this page
+    gcTime: 0, // No cache retention - avoid showing previous user's data when switching users
     retry: 1,
     refetchOnWindowFocus: false,
   })
@@ -493,23 +517,21 @@ export default function ChooseLabPage() {
             </p>
           </div>
 
-          {/* Loading State */}
-          {isLoading ? (
-            <div className="flex items-center justify-center py-20">
-              <div className="text-gray-500">
-                {typeof window !== "undefined"
-                  ? (() => {
-                      const role = window.localStorage.getItem("role");
-                      if (role === "lab_admin") {
-                        return "Loading Offices...";
-                      }
-                      if (role === "office_admin") {
-                        return "Loading Labs...";
-                      }
-                      return "Loading...";
-                    })()
-                  : "Loading..."}
-              </div>
+          {/* Loading State - always show skeleton when fetching (no cached data from previous user) */}
+          {isLoading || isFetching ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12 max-w-6xl mx-auto">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="bg-white border-2 border-gray-200 rounded-lg p-4 flex flex-col items-center justify-between min-h-[220px]"
+                >
+                  <div className="flex-1 flex items-center justify-center w-full py-4">
+                    <Skeleton className="h-[80px] w-[140px] rounded" />
+                  </div>
+                  <Skeleton className="h-4 w-32 mb-1" />
+                  <Skeleton className="h-3 w-24 mb-3" />
+                </div>
+              ))}
             </div>
           ) : sortedAndFilteredLabs.length === 0 ? (
             <div className="flex items-center justify-center py-20">

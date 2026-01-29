@@ -23,6 +23,7 @@ import { clearSlipCreationStorage } from "@/utils/slip-creation-storage"
 import { SlipCreationFooter } from "@/components/slip-creation-footer"
 import { useDebounce } from "@/lib/performance-utils"
 import { Dialog, DialogContent, DialogOverlay, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Skeleton } from "@/components/ui/skeleton"
 
 interface Doctor {
   id: number
@@ -592,10 +593,19 @@ export default function ChooseDoctorPage() {
             </p>
           </div>
 
-          {/* Loading State */}
+          {/* Loading State - skeleton matching doctor cards layout */}
           {isLoading ? (
-            <div className="flex items-center justify-center py-20">
-              <div className="text-gray-500">Loading doctors...</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-12 gap-y-16 mb-16 max-w-6xl mx-auto px-4 place-items-center">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="flex flex-col items-center justify-center gap-4"
+                >
+                  <Skeleton className="w-40 h-40 rounded-full" />
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-4 w-24" />
+                </div>
+              ))}
             </div>
           ) : sortedAndFilteredDoctors.length === 0 ? (
             <div className="flex items-center justify-center py-20">
