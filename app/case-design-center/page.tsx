@@ -6684,20 +6684,26 @@ export default function CaseDesignCenterPage() {
       setImplantPopoverState({ arch: null, toothNumber: null })
     }
 
-    // If adding a tooth, automatically open the accordion
-    if (isAdding) {
-      const newTeeth = isAdding ? [...maxillaryTeeth, toothNumber] : maxillaryTeeth.filter(t => t !== toothNumber)
-      const sortedNew = newTeeth.map((t: number) => Number(t)).sort((a, b) => a - b)
-      const matchingSaved = selectedProductForMaxillary && savedProducts.find(sp => {
-        if (sp.addedFrom !== "maxillary") return false
-        const sameProduct = String(sp.product?.id ?? "") === String(selectedProductForMaxillary?.id ?? "")
-        const savedTeeth = (sp.maxillaryTeeth || []).map((t: number) => Number(t)).sort((a, b) => a - b)
-        const sameTeeth = savedTeeth.length === sortedNew.length && savedTeeth.every((t, i) => t === sortedNew[i])
-        return sameProduct && sameTeeth
-      })
-      if (matchingSaved) {
-        setOpenAccordion(matchingSaved.id)
-      } else if (selectedProduct && showProductDetails) {
+    // Compute new teeth after this click (add or remove)
+    const newTeeth = isAdding ? [...maxillaryTeeth, toothNumber] : maxillaryTeeth.filter(t => t !== toothNumber)
+    const sortedNew = newTeeth.map((t: number) => Number(t)).sort((a, b) => a - b)
+    // Check if resulting selection matches a saved product (use current product context or any maxillary saved product)
+    const productToMatch = selectedProductForMaxillary || savedProducts.find(sp => sp.addedFrom === "maxillary")?.product
+    const matchingSaved = productToMatch && sortedNew.length > 0 && savedProducts.find(sp => {
+      if (sp.addedFrom !== "maxillary") return false
+      const sameProduct = String(sp.product?.id ?? "") === String(productToMatch?.id ?? "")
+      const savedTeeth = (sp.maxillaryTeeth || []).map((t: number) => Number(t)).sort((a, b) => a - b)
+      const sameTeeth = savedTeeth.length === sortedNew.length && savedTeeth.every((t, i) => t === sortedNew[i])
+      return sameProduct && sameTeeth
+    })
+
+    if (matchingSaved) {
+      // Current selection matches a saved product: open that saved accordion and sync product context (Summary Card will hide)
+      setSelectedProductForMaxillary(matchingSaved.product)
+      setOpenAccordion(matchingSaved.id)
+    } else if (isAdding) {
+      // Adding a tooth and no match: open Summary Card or most recent saved
+      if (selectedProduct && showProductDetails) {
         setOpenAccordion("maxillary-card")
       } else {
         const maxillaryProducts = savedProducts.filter(p => p.maxillaryTeeth.length > 0)
@@ -6740,20 +6746,26 @@ export default function CaseDesignCenterPage() {
       setImplantPopoverState({ arch: null, toothNumber: null })
     }
 
-    // If adding a tooth, automatically open the accordion
-    if (isAdding) {
-      const newTeeth = isAdding ? [...mandibularTeeth, toothNumber] : mandibularTeeth.filter(t => t !== toothNumber)
-      const sortedNew = newTeeth.map((t: number) => Number(t)).sort((a, b) => a - b)
-      const matchingSaved = selectedProductForMandibular && savedProducts.find(sp => {
-        if (sp.addedFrom !== "mandibular") return false
-        const sameProduct = String(sp.product?.id ?? "") === String(selectedProductForMandibular?.id ?? "")
-        const savedTeeth = (sp.mandibularTeeth || []).map((t: number) => Number(t)).sort((a, b) => a - b)
-        const sameTeeth = savedTeeth.length === sortedNew.length && savedTeeth.every((t, i) => t === sortedNew[i])
-        return sameProduct && sameTeeth
-      })
-      if (matchingSaved) {
-        setOpenAccordion(matchingSaved.id)
-      } else if (selectedProduct && showProductDetails) {
+    // Compute new teeth after this click (add or remove)
+    const newTeeth = isAdding ? [...mandibularTeeth, toothNumber] : mandibularTeeth.filter(t => t !== toothNumber)
+    const sortedNew = newTeeth.map((t: number) => Number(t)).sort((a, b) => a - b)
+    // Check if resulting selection matches a saved product (use current product context or any mandibular saved product)
+    const productToMatch = selectedProductForMandibular || savedProducts.find(sp => sp.addedFrom === "mandibular")?.product
+    const matchingSaved = productToMatch && sortedNew.length > 0 && savedProducts.find(sp => {
+      if (sp.addedFrom !== "mandibular") return false
+      const sameProduct = String(sp.product?.id ?? "") === String(productToMatch?.id ?? "")
+      const savedTeeth = (sp.mandibularTeeth || []).map((t: number) => Number(t)).sort((a, b) => a - b)
+      const sameTeeth = savedTeeth.length === sortedNew.length && savedTeeth.every((t, i) => t === sortedNew[i])
+      return sameProduct && sameTeeth
+    })
+
+    if (matchingSaved) {
+      // Current selection matches a saved product: open that saved accordion and sync product context (Summary Card will hide)
+      setSelectedProductForMandibular(matchingSaved.product)
+      setOpenAccordion(matchingSaved.id)
+    } else if (isAdding) {
+      // Adding a tooth and no match: open Summary Card or most recent saved
+      if (selectedProduct && showProductDetails) {
         setOpenAccordion("mandibular-card")
       } else {
         const mandibularProducts = savedProducts.filter(p => p.mandibularTeeth.length > 0)
@@ -7454,14 +7466,14 @@ export default function CaseDesignCenterPage() {
                       )}
 
                       {/* Summary Card - Single card for all selected teeth */}
-                      {/* Hide when savedProducts already contains this product+teeth for maxillary - avoid showing both "current" and "saved" when identical */}
+                      {/* Hide when savedProducts already has maxillary product with same teeth (clicking SVG should show saved card instead) */}
                       {showMaxillaryChart && maxillaryTeeth.length > 0 && selectedProductForMaxillary && !savedProducts.some(sp => {
                         if (sp.addedFrom !== "maxillary") return false
-                        const sameProduct = String(sp.product?.id ?? "") === String(selectedProductForMaxillary?.id ?? "")
                         const savedTeeth = (sp.maxillaryTeeth || []).map((t: number) => Number(t)).sort((a, b) => a - b)
                         const currentTeeth = maxillaryTeeth.map((t: number) => Number(t)).sort((a, b) => a - b)
                         const sameTeeth = savedTeeth.length === currentTeeth.length && savedTeeth.every((t, i) => t === currentTeeth[i])
-                        return sameProduct && sameTeeth
+                        const sameProduct = String(sp.product?.id ?? "") === String(selectedProductForMaxillary?.id ?? "")
+                        return sameTeeth && sameProduct
                       }) && (
                           <Card className="overflow-hidden border border-gray-200 shadow-sm ">
                             <Accordion
@@ -9550,8 +9562,35 @@ export default function CaseDesignCenterPage() {
                                           {/* Implant Brand/Platform Cards - Shows when implant details field is clicked */}
                                               {/* Only show if retention type is "Implant" */}
                                               {(() => {
-                                                // Check if any tooth has "Implant" retention type for maxillary
-                                                const hasImplantRetention = savedProduct.maxillaryRetention && savedProduct.maxillaryRetention.toLowerCase().includes('implant')
+                                                // Check if retention type is "Implant" by checking tooth_chart_type from retention option
+                                                let hasImplantRetention = false
+                                                
+                                                // First, check if any tooth has "Implant" retention type from state
+                                                const teeth = savedProduct.maxillaryTeeth
+                                                const retentionTypes = maxillaryRetentionTypes
+                                                hasImplantRetention = teeth.some(toothNumber => {
+                                                  const types = retentionTypes[toothNumber] || []
+                                                  return types.includes('Implant')
+                                                })
+                                                
+                                                // Fallback: If retentionTypes state is empty, check the retention option's tooth_chart_type
+                                                // This handles saved products that might not have retentionTypes state populated
+                                                if (!hasImplantRetention && productDetails?.retention_options && savedProduct.maxillaryRetentionOptionId) {
+                                                  const selectedRetentionOption = productDetails.retention_options.find((opt: any) => {
+                                                    return opt.id === savedProduct.maxillaryRetentionOptionId ||
+                                                      opt.lab_retention_option?.id === savedProduct.maxillaryRetentionOptionId ||
+                                                      opt.retention_option_id === savedProduct.maxillaryRetentionOptionId
+                                                  })
+                                                  
+                                                  if (selectedRetentionOption) {
+                                                    const toothChartType = selectedRetentionOption.tooth_chart_type ||
+                                                      selectedRetentionOption.lab_retention_option?.tooth_chart_type ||
+                                                      selectedRetentionOption.retention_option?.tooth_chart_type
+                                                    
+                                                    hasImplantRetention = toothChartType === "Implant"
+                                                  }
+                                                }
+                                                
                                                 return hasImplantRetention
                                               })() && showImplantCardsForProduct[savedProduct.id]?.maxillary && implants && implants.length > 0 && (
                                             <div className="w-full pt-4">
