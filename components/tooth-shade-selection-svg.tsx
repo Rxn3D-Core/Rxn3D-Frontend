@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 
 interface ToothShadeSelectionSVGProps {
   selectedShades: string[]
@@ -13,6 +13,11 @@ export const ToothShadeSelectionSVG: React.FC<ToothShadeSelectionSVGProps> = ({
 }) => {
   const [clickedShade, setClickedShade] = useState<string | null>(null)
   const [hoveredShade, setHoveredShade] = useState<string | null>(null)
+
+  // Reset clickedShade when selectedShades prop changes (e.g., when switching between stump_shade and tooth_shade)
+  useEffect(() => {
+    setClickedShade(null)
+  }, [selectedShades])
 
   const isShadeSelected = (shade: string) => selectedShades.includes(shade)
 

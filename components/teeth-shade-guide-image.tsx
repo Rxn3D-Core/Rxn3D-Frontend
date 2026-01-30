@@ -93,6 +93,11 @@ export function TeethShadeGuideImage({
   const [gumShadesLoading, setGumShadesLoading] = useState(false)
   const [gumShadesError, setGumShadesError] = useState<string | null>(null)
 
+  // Reset clickedShade when selectedShade prop changes (e.g., when switching between stump_shade and tooth_shade)
+  useEffect(() => {
+    setClickedShade(null)
+  }, [selectedShade])
+
   // Get auth context for customer ID
   const { user } = useAuth()
 
