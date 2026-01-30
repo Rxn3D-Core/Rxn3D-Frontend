@@ -1535,8 +1535,8 @@ export default function CaseDesignCenterPage() {
     }
   }, [showProductDetails, selectedProduct, showMaxillaryChart, showMandibularChart, productDetails, isLoadingProductDetails])
 
-  // Track if we've already auto-shown implant cards for this session to prevent repeated auto-showing
-  const autoShownImplantCardsRef = useRef<{ maxillary?: boolean; mandibular?: boolean }>({})
+  // Track if we've already auto-shown implant cards per product+arch so we auto-show when "Select Implant Details" is visible for each product
+  const autoShownImplantCardsRef = useRef<Record<string, boolean>>({})
 
   // Auto-show implant brand cards when implant_library advance field becomes visible and is empty
   useEffect(() => {
@@ -1555,8 +1555,12 @@ export default function CaseDesignCenterPage() {
 
     const fieldKey = `advance_${implantLibraryField.id}`
 
+    // Key by product + arch so we auto-show when "Select Implant Details" is visible for this product (e.g. after switching product)
+    const maxillaryKey = `maxillary_${selectedProductForMaxillary?.id ?? productDetails?.id ?? "new"}`
+    const mandibularKey = `mandibular_${selectedProductForMandibular?.id ?? productDetails?.id ?? "new"}`
+
     // Check for maxillary arch
-    if (isToothShadeFilled("maxillary") && !autoShownImplantCardsRef.current.maxillary) {
+    if (isToothShadeFilled("maxillary") && !autoShownImplantCardsRef.current[maxillaryKey]) {
       const currentValue = advanceFieldValues[fieldKey]
       const displayValue = typeof currentValue === "object"
         ? currentValue?.advance_field_value || ""
@@ -1564,13 +1568,13 @@ export default function CaseDesignCenterPage() {
       const isEmpty = !displayValue || displayValue.trim() === ""
 
       if (isEmpty && implants && implants.length > 0) {
-        // Mark as auto-shown to prevent repeated auto-showing
-        autoShownImplantCardsRef.current = { ...autoShownImplantCardsRef.current, maxillary: true }
+        // Mark as auto-shown for this product+arch so we don't repeatedly open, but allow auto-show for other products
+        autoShownImplantCardsRef.current = { ...autoShownImplantCardsRef.current, [maxillaryKey]: true }
 
         const timer = setTimeout(() => {
           setShowImplantCards(true)
           setActiveImplantFieldKey(fieldKey)
-          setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'brand' }))
+          setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: "brand" }))
         }, 200)
 
         return () => clearTimeout(timer)
@@ -1578,7 +1582,7 @@ export default function CaseDesignCenterPage() {
     }
 
     // Check for mandibular arch
-    if (isToothShadeFilled("mandibular") && !autoShownImplantCardsRef.current.mandibular) {
+    if (isToothShadeFilled("mandibular") && !autoShownImplantCardsRef.current[mandibularKey]) {
       const currentValue = advanceFieldValues[fieldKey]
       const displayValue = typeof currentValue === "object"
         ? currentValue?.advance_field_value || ""
@@ -1586,19 +1590,27 @@ export default function CaseDesignCenterPage() {
       const isEmpty = !displayValue || displayValue.trim() === ""
 
       if (isEmpty && implants && implants.length > 0) {
-        // Mark as auto-shown to prevent repeated auto-showing
-        autoShownImplantCardsRef.current = { ...autoShownImplantCardsRef.current, mandibular: true }
+        // Mark as auto-shown for this product+arch
+        autoShownImplantCardsRef.current = { ...autoShownImplantCardsRef.current, [mandibularKey]: true }
 
         const timer = setTimeout(() => {
           setShowImplantCards(true)
           setActiveImplantFieldKey(fieldKey)
-          setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: 'brand' }))
+          setImplantSelectionStep(prev => ({ ...prev, [fieldKey]: "brand" }))
         }, 200)
 
         return () => clearTimeout(timer)
       }
     }
-  }, [productDetails, advanceFieldValues, implants, maxillaryToothShade, mandibularToothShade])
+  }, [
+    productDetails,
+    advanceFieldValues,
+    implants,
+    maxillaryToothShade,
+    mandibularToothShade,
+    selectedProductForMaxillary?.id,
+    selectedProductForMandibular?.id,
+  ])
 
   // Track if we've already auto-opened impression modal for this session to prevent repeated auto-opening
   const autoOpenedImpressionModalRef = useRef<{ maxillary?: boolean; mandibular?: boolean }>({})

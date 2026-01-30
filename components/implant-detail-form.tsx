@@ -337,6 +337,22 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
             minHeight: '167.55px'
           }}
         >
+          {/* Implant Detail - visible on small screens when left panel is hidden */}
+          <div
+            className="sm:hidden w-full"
+            style={{
+              fontFamily: 'Arial',
+              fontStyle: 'normal',
+              fontWeight: 400,
+              fontSize: '14px',
+              lineHeight: '14px',
+              color: '#119933',
+              marginBottom: '4px',
+              order: -1
+            }}
+          >
+            Implant Detail
+          </div>
           {/* Row 1: Implant Brand, Platform, Size */}
           <div
             className="w-full flex flex-col sm:flex-row flex-wrap"
@@ -903,16 +919,16 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
           )}
         </div>
         
-        {/* Frame 2462 - Left side with tooth number and label */}
+        {/* Frame 2462 - Left side with Implant Detail label and tooth number */}
         <div
           className="hidden sm:flex"
           style={{
             display: 'flex',
-            flexDirection: 'row',
-            justifyContent: 'center',
+            flexDirection: 'column',
+            justifyContent: 'flex-start',
             alignItems: 'center',
-            padding: '0px',
-            gap: '10px',
+            padding: '10px 0',
+            gap: '6px',
             position: 'absolute',
             width: '90px',
             minHeight: '166.82px',
@@ -920,6 +936,22 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
             top: '0px'
           }}
         >
+          {/* Implant Detail - section label at top of form */}
+          <div
+            style={{
+              fontFamily: 'Arial',
+              fontStyle: 'normal',
+              fontWeight: 400,
+              fontSize: '14px',
+              lineHeight: '14px',
+              textAlign: 'center',
+              color: '#119933',
+              flex: 'none',
+              order: 0
+            }}
+          >
+            Implant Detail
+          </div>
           {/* Tooth Number */}
           {primaryToothNumber && (
             <div
@@ -934,7 +966,7 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
                 textAlign: 'center',
                 color: '#7F7F7F',
                 flex: 'none',
-                order: 0,
+                order: 1,
                 flexGrow: 0
               }}
             >
