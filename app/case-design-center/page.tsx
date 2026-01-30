@@ -7364,7 +7364,7 @@ export default function CaseDesignCenterPage() {
             {showProducts && !showProductDetails && !searchQuery.trim() && (
               <div className="w-full flex flex-col gap-4">
                 {isLoadingProducts ? (
-                  <div className="flex gap-[16rem] overflow-x-auto scrollbar-hide py-2 justify-center">
+                  <div className="flex gap-4 overflow-x-auto scrollbar-hide py-2 justify-center">
                     {Array.from({ length: 6 }).map((_, i) => (
                       <div
                         key={i}
