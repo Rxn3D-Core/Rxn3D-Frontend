@@ -1497,9 +1497,9 @@ export default function CaseDesignCenterPage() {
   const [showProductsLeftArrow, setShowProductsLeftArrow] = useState(false)
   const [showProductsRightArrow, setShowProductsRightArrow] = useState(false)
 
-  // Case summary notes expansion state
-  const [isCaseSummaryExpanded, setIsCaseSummaryExpanded] = useState<boolean>(true)
-  const [showCaseSummaryNotes, setShowCaseSummaryNotes] = useState<boolean>(false)
+  // Case summary notes expansion state - initially collapsed
+  const [isCaseSummaryExpanded, setIsCaseSummaryExpanded] = useState<boolean>(false)
+  const [showCaseSummaryNotes, setShowCaseSummaryNotes] = useState<boolean>(true)
 
   // Track previous notes value to prevent unnecessary parsing
   const previousNotesRef = useRef<string>("")
@@ -2382,8 +2382,9 @@ export default function CaseDesignCenterPage() {
           // Debounced auto-save to avoid multiple rapid saves
           debouncedAutoSaveProduct("maxillary")
           
-          // After auto-save, open the saved product accordion instead of maxillary-card
+          // After auto-save, open the saved product accordion only if currently on maxillary-card
           // This ensures the current editing card is hidden and user sees the saved product
+          // But don't force-open if user has already closed or is viewing another accordion
           setTimeout(() => {
             const matchingProduct = savedProducts.find(sp =>
               sp.addedFrom === "maxillary" &&
@@ -2392,11 +2393,9 @@ export default function CaseDesignCenterPage() {
               sp.subcategoryId === selectedSubcategoryId &&
               JSON.stringify([...(sp.maxillaryTeeth || [])].sort()) === JSON.stringify([...maxillaryTeeth].sort())
             )
-            if (matchingProduct && openAccordion !== matchingProduct.id && openAccordion !== "maxillary-card") {
+            if (matchingProduct && openAccordion === "maxillary-card") {
+              // Only open the saved product accordion if we're on the editing card
               setOpenAccordion(matchingProduct.id)
-            } else if (openAccordion === "maxillary-card") {
-              // Close the current editing card if it's open
-              setOpenAccordion(null)
             }
           }, 200)
         }
@@ -2475,6 +2474,8 @@ export default function CaseDesignCenterPage() {
         const currentImpressionCount = getImpressionCount(selectedProductForMandibular.id.toString(), "mandibular", productDetails.impressions || [])
         if (currentImpressionCount > 0) {
           debouncedAutoSaveProduct("mandibular")
+          // After auto-save, open the saved product accordion only if currently on mandibular-card
+          // But don't force-open if user has already closed or is viewing another accordion
           setTimeout(() => {
             const matchingProduct = savedProducts.find(sp =>
               sp.addedFrom === "mandibular" &&
@@ -2483,10 +2484,9 @@ export default function CaseDesignCenterPage() {
               sp.subcategoryId === selectedSubcategoryId &&
               JSON.stringify([...(sp.mandibularTeeth || [])].sort()) === JSON.stringify([...mandibularTeeth].sort())
             )
-            if (matchingProduct && openAccordion !== matchingProduct.id && openAccordion !== "mandibular-card") {
+            if (matchingProduct && openAccordion === "mandibular-card") {
+              // Only open the saved product accordion if we're on the editing card
               setOpenAccordion(matchingProduct.id)
-            } else if (openAccordion === "mandibular-card") {
-              setOpenAccordion(null)
             }
           }, 200)
         }
@@ -7119,7 +7119,7 @@ export default function CaseDesignCenterPage() {
       </div>
 
       {/* Main Content */}
-      <div className="min-h-full" style={{ paddingBottom: "55px" }}>
+      <div className="min-h-full" style={{ paddingBottom: "5px" }}>
         <div className="container mx-auto px-5">
           {/* Search and Category Selection */}
           <div className="flex flex-col items-center">
@@ -7364,7 +7364,7 @@ export default function CaseDesignCenterPage() {
             {showProducts && !showProductDetails && !searchQuery.trim() && (
               <div className="w-full flex flex-col gap-4">
                 {isLoadingProducts ? (
-                  <div className="flex gap-4 overflow-x-auto scrollbar-hide py-2 justify-center">
+                  <div className="flex gap-[16rem] overflow-x-auto scrollbar-hide py-2 justify-center">
                     {Array.from({ length: 6 }).map((_, i) => (
                       <div
                         key={i}
@@ -7508,7 +7508,7 @@ export default function CaseDesignCenterPage() {
                 {/* Implant Selection Cards - REMOVED: Now shown inside DynamicProductFields when implant details field is clicked */}
 
                 {/* Tooth Selection Interface */}
-                <div className={`grid gap-4 lg:gap-4 mb-2 ${showMaxillaryChart && showMandibularChart ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
+                <div className={`grid gap-16 lg:gap-[16rem] mb-2 ${showMaxillaryChart && showMandibularChart ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
                   {/* MAXILLARY Section - Only show when maxillary chart is visible */}
                   {showMaxillaryChart && (
                     <div ref={maxillarySectionRef} className="flex flex-col w-full">
@@ -7661,7 +7661,7 @@ export default function CaseDesignCenterPage() {
                         const sameProduct = String(sp.product?.id ?? "") === String(selectedProductForMaxillary?.id ?? "")
                         return sameTeeth && sameProduct
                       }) && (
-                          <Card className="overflow-hidden border border-gray-200 shadow-sm ">
+                          <Card className="overflow-hidden border border-gray-200 shadow-sm w-full">
                             <Accordion
                               type="single"
                               collapsible
@@ -8112,54 +8112,22 @@ export default function CaseDesignCenterPage() {
                                                 }}
                                               >
                                                 <div className="w-full">
-                                                  <div className="flex flex-wrap gap-4" style={{ gap: '16px' }}>
+                                                  <div className="grid grid-cols-2 gap-4" style={{ gap: '8px 16px' }}>
                                                     {filteredAdvanceFields.map((field: any) => {
                                                       const fieldKey = `advance_${field.id}`
                                                       const currentValue = advanceFieldValues[fieldKey] || ""
 
-                                                      // Calculate width based on field type and content
-                                                      const getFieldWidth = (): { minWidth: string; maxWidth: string; width: string; flex: string } => {
+                                                      // Calculate width based on field type - 3 column grid layout
+                                                      const getFieldWidth = (): { minWidth: string; maxWidth: string; width: string; flex: string; gridColumn?: string } => {
                                                         if (field.field_type === "multiline_text") {
-                                                          return { minWidth: "100%", maxWidth: "100%", width: "100%", flex: "1 1 100%" }
+                                                          return { minWidth: "100%", maxWidth: "100%", width: "100%", flex: "1 1 100%", gridColumn: "1 / -1" }
                                                         }
 
-                                                        // Radio and checkbox fields need more width to display options
-                                                        if (field.field_type === "radio" || field.field_type === "checkbox") {
-                                                          const minWidth = 250
-                                                          return {
-                                                            minWidth: `${minWidth}px`,
-                                                            maxWidth: "none",
-                                                            width: `${minWidth}px`,
-                                                            flex: '1 1 auto'
-                                                          }
-                                                        }
-
-                                                        // For other fields, calculate based on content
-                                                        const displayValue = typeof currentValue === "object"
-                                                          ? currentValue?.advance_field_value || ""
-                                                          : currentValue || ""
-
-                                                        // Get the longest possible value for width calculation
-                                                        let longestText = field.name || ""
-                                                        if ((field.field_type === "dropdown" || field.field_type === "radio" || field.field_type === "checkbox") && field.options) {
-                                                          // Find longest option name
-                                                          const longestOption = field.options.reduce((longest: any, opt: any) => {
-                                                            return (opt.name?.length || 0) > (longest?.name?.length || 0) ? opt : longest
-                                                          }, { name: "" })
-                                                          longestText = longestOption.name || longestText
-                                                        } else if (displayValue) {
-                                                          longestText = displayValue
-                                                        }
-
-                                                        // Calculate width: min 200px, base on content
-                                                        const minWidth = 200
-                                                        // Estimate width: ~8px per character + padding (60px) + some buffer
-                                                        const estimatedWidth = Math.max(minWidth, Math.min(500, longestText.length * 8 + 80))
-
+                                                        // All other fields take 1 column in the 3-column grid
                                                         return {
-                                                          minWidth: `${minWidth}px`,
-                                                          maxWidth: "none",
-                                                          width: `${estimatedWidth}px`,
+                                                          minWidth: "0",
+                                                          maxWidth: "100%",
+                                                          width: "100%",
                                                           flex: '1 1 auto'
                                                         }
                                                       }
@@ -8263,10 +8231,7 @@ export default function CaseDesignCenterPage() {
                                                                   background: '#FFFFFF',
                                                                   border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
                                                                   boxSizing: 'border-box',
-                                                                  minWidth: fieldWidth.minWidth,
-                                                                  maxWidth: fieldWidth.maxWidth,
-                                                                  width: fieldWidth.width,
-                                                                  flex: fieldWidth.flex,
+                                                                  width: '100%',
                                                                 }}
                                                               >
                                                                 <SelectValue placeholder={`Select ${field.name}`}>
@@ -8306,10 +8271,7 @@ export default function CaseDesignCenterPage() {
                                                                 padding: '8px 12px 4px 12px',
                                                                 minHeight: '80px',
                                                                 border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
-                                                                minWidth: fieldWidth.minWidth,
-                                                                maxWidth: fieldWidth.maxWidth,
-                                                                width: fieldWidth.width,
-                                                                flex: fieldWidth.flex,
+                                                                width: '100%',
                                                               }}
                                                               placeholder={`Enter ${field.name}`}
                                                             />
@@ -8335,10 +8297,7 @@ export default function CaseDesignCenterPage() {
                                                               style={{
                                                                 padding: '8px 12px 4px 12px',
                                                                 border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
-                                                                minWidth: fieldWidth.minWidth,
-                                                                maxWidth: fieldWidth.maxWidth,
-                                                                width: fieldWidth.width,
-                                                                flex: fieldWidth.flex,
+                                                                width: '100%',
                                                               }}
                                                               placeholder={`Enter ${field.name}`}
                                                             />
@@ -8363,10 +8322,7 @@ export default function CaseDesignCenterPage() {
                                                               style={{
                                                                 padding: '8px 12px 4px 12px',
                                                                 minHeight: '80px',
-                                                                minWidth: fieldWidth.minWidth,
-                                                                maxWidth: fieldWidth.maxWidth,
-                                                                width: fieldWidth.width,
-                                                                flex: fieldWidth.flex,
+                                                                width: '100%',
                                                               }}
                                                               placeholder={`Enter ${field.name}`}
                                                             />
@@ -8411,10 +8367,7 @@ export default function CaseDesignCenterPage() {
                                                                 minHeight: '37px',
                                                                 background: '#FFFFFF',
                                                                 border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
-                                                                minWidth: fieldWidth.minWidth,
-                                                                maxWidth: fieldWidth.maxWidth,
-                                                                width: fieldWidth.width,
-                                                                flex: fieldWidth.flex,
+                                                                width: '100%',
                                                               }}
                                                             >
                                                               <RadioGroup
@@ -8498,10 +8451,7 @@ export default function CaseDesignCenterPage() {
                                                                 minHeight: '37px',
                                                                 background: '#FFFFFF',
                                                                 border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
-                                                                minWidth: fieldWidth.minWidth,
-                                                                maxWidth: fieldWidth.maxWidth,
-                                                                width: fieldWidth.width,
-                                                                flex: fieldWidth.flex,
+                                                                width: '100%',
                                                               }}
                                                             >
                                                               <div className="space-y-2">
@@ -8542,10 +8492,7 @@ export default function CaseDesignCenterPage() {
                                                                 minHeight: '37px',
                                                                 background: '#FFFFFF',
                                                                 border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
-                                                                minWidth: fieldWidth.minWidth,
-                                                                maxWidth: fieldWidth.maxWidth,
-                                                                width: fieldWidth.width,
-                                                                flex: fieldWidth.flex,
+                                                                width: '100%',
                                                               }}
                                                             >
                                                               <input
@@ -8592,10 +8539,7 @@ export default function CaseDesignCenterPage() {
                                                               style={{
                                                                 padding: '8px 12px 4px 12px',
                                                                 border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
-                                                                minWidth: fieldWidth.minWidth,
-                                                                maxWidth: fieldWidth.maxWidth,
-                                                                width: fieldWidth.width,
-                                                                flex: fieldWidth.flex,
+                                                                width: '100%',
                                                               }}
                                                               placeholder={`Enter ${field.name}`}
                                                             />
@@ -8663,10 +8607,7 @@ export default function CaseDesignCenterPage() {
                                                                   style={{
                                                                     padding: '8px 12px 4px 12px',
                                                                     border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
-                                                                    minWidth: fieldWidth.minWidth,
-                                                                    maxWidth: fieldWidth.maxWidth,
-                                                                    width: fieldWidth.width,
-                                                                    flex: fieldWidth.flex,
+                                                                    width: '100%',
                                                                   }}
                                                                   readOnly
                                                                 />
@@ -8793,10 +8734,8 @@ export default function CaseDesignCenterPage() {
                                                           className="relative"
                                                           style={{
                                                             minHeight: '38px',
-                                                            minWidth: fieldWidth.minWidth,
-                                                            maxWidth: fieldWidth.maxWidth,
-                                                            width: fieldWidth.width,
-                                                            flex: fieldWidth.flex,
+                                                            width: '100%',
+                                                            ...(fieldWidth.gridColumn ? { gridColumn: fieldWidth.gridColumn } : {}),
                                                           }}
                                                         >
                                                           {renderAdvanceField()}
@@ -10131,7 +10070,7 @@ export default function CaseDesignCenterPage() {
                                                       }}
                                                     >
                                                       <div className="w-full">
-                                                        <div className="flex flex-wrap gap-4" style={{ gap: '16px' }}>
+                                                        <div className="grid grid-cols-2 gap-4" style={{ gap: '8px 16px' }}>
                                                           {filteredAdvanceFields.map((field: any) => {
                                                             const fieldKey = `advance_${field.id}`
                                                             // Get value from saved product's advanceFields
@@ -10472,49 +10411,17 @@ export default function CaseDesignCenterPage() {
                                                               )
                                                             }
 
-                                                            // Calculate width based on field type and content
-                                                            const getFieldWidth = (): { minWidth: string; maxWidth: string; width: string; flex: string } => {
+                                                            // Calculate width based on field type - 3 column grid layout
+                                                            const getFieldWidth = (): { minWidth: string; maxWidth: string; width: string; flex: string; gridColumn?: string } => {
                                                               if (field.field_type === "multiline_text") {
-                                                                return { minWidth: "100%", maxWidth: "100%", width: "100%", flex: "1 1 100%" }
+                                                                return { minWidth: "100%", maxWidth: "100%", width: "100%", flex: "1 1 100%", gridColumn: "1 / -1" }
                                                               }
 
-                                                              // Radio and checkbox fields need more width to display options
-                                                              if (field.field_type === "radio" || field.field_type === "checkbox") {
-                                                                const minWidth = 250
-                                                                return {
-                                                                  minWidth: `${minWidth}px`,
-                                                                  maxWidth: "none",
-                                                                  width: `${minWidth}px`,
-                                                                  flex: '1 1 auto'
-                                                                }
-                                                              }
-
-                                                              // For other fields, calculate based on content
-                                                              const displayValue = typeof currentValue === "object"
-                                                                ? currentValue?.advance_field_value || ""
-                                                                : currentValue || ""
-
-                                                              // Get the longest possible value for width calculation
-                                                              let longestText = field.name || ""
-                                                              if ((field.field_type === "dropdown" || field.field_type === "radio" || field.field_type === "checkbox") && field.options) {
-                                                                // Find longest option name
-                                                                const longestOption = field.options.reduce((longest: any, opt: any) => {
-                                                                  return (opt.name?.length || 0) > (longest?.name?.length || 0) ? opt : longest
-                                                                }, { name: "" })
-                                                                longestText = longestOption.name || longestText
-                                                              } else if (displayValue) {
-                                                                longestText = displayValue
-                                                              }
-
-                                                              // Calculate width: min 200px, base on content
-                                                              const minWidth = 200
-                                                              // Estimate width: ~8px per character + padding (60px) + some buffer
-                                                              const estimatedWidth = Math.max(minWidth, Math.min(500, longestText.length * 8 + 80))
-
+                                                              // All other fields take 1 column in the 3-column grid
                                                               return {
-                                                                minWidth: `${minWidth}px`,
-                                                                maxWidth: "none",
-                                                                width: `${estimatedWidth}px`,
+                                                                minWidth: "0",
+                                                                maxWidth: "100%",
+                                                                width: "100%",
                                                                 flex: '1 1 auto'
                                                               }
                                                             }
@@ -10528,10 +10435,8 @@ export default function CaseDesignCenterPage() {
                                                                 className="relative"
                                               style={{
                                                                   minHeight: '38px',
-                                                                  minWidth: fieldWidth.minWidth,
-                                                                  maxWidth: fieldWidth.maxWidth,
-                                                                  width: fieldWidth.width,
-                                                                  flex: fieldWidth.flex,
+                                                                  width: '100%',
+                                                                  ...(fieldWidth.gridColumn ? { gridColumn: fieldWidth.gridColumn } : {}),
                                                                 }}
                                                               >
                                                                 {renderSavedAdvanceField(field, savedProduct, archType)}
@@ -11036,7 +10941,7 @@ export default function CaseDesignCenterPage() {
                         const sameTeeth = savedTeeth.length === currentTeeth.length && savedTeeth.every((t, i) => t === currentTeeth[i])
                         return sameProduct && sameTeeth
                       }) && (
-                          <Card className="overflow-hidden border border-gray-200 shadow-sm -mt-6">
+                          <Card className="overflow-hidden border border-gray-200 shadow-sm -mt-6 w-full">
                             <Accordion
                               type="single"
                               collapsible
@@ -11617,54 +11522,22 @@ export default function CaseDesignCenterPage() {
                                                 }}
                                               >
                                                 <div className="w-full">
-                                                  <div className="flex flex-wrap gap-4" style={{ gap: '16px' }}>
+                                                  <div className="grid grid-cols-2 gap-4" style={{ gap: '8px 16px' }}>
                                                     {filteredAdvanceFields.map((field: any) => {
                                                       const fieldKey = `advance_${field.id}`
                                                       const currentValue = advanceFieldValues[fieldKey] || ""
 
-                                                      // Calculate width based on field type and content
-                                                      const getFieldWidth = (): { minWidth: string; maxWidth: string; width: string; flex: string } => {
+                                                      // Calculate width based on field type - 3 column grid layout
+                                                      const getFieldWidth = (): { minWidth: string; maxWidth: string; width: string; flex: string; gridColumn?: string } => {
                                                         if (field.field_type === "multiline_text") {
-                                                          return { minWidth: "100%", maxWidth: "100%", width: "100%", flex: "1 1 100%" }
+                                                          return { minWidth: "100%", maxWidth: "100%", width: "100%", flex: "1 1 100%", gridColumn: "1 / -1" }
                                                         }
 
-                                                        // Radio and checkbox fields need more width to display options
-                                                        if (field.field_type === "radio" || field.field_type === "checkbox") {
-                                                          const minWidth = 250
-                                                          return {
-                                                            minWidth: `${minWidth}px`,
-                                                            maxWidth: "none",
-                                                            width: `${minWidth}px`,
-                                                            flex: '1 1 auto'
-                                                          }
-                                                        }
-
-                                                        // For other fields, calculate based on content
-                                                        const displayValue = typeof currentValue === "object"
-                                                          ? currentValue?.advance_field_value || ""
-                                                          : currentValue || ""
-
-                                                        // Get the longest possible value for width calculation
-                                                        let longestText = field.name || ""
-                                                        if ((field.field_type === "dropdown" || field.field_type === "radio" || field.field_type === "checkbox") && field.options) {
-                                                          // Find longest option name
-                                                          const longestOption = field.options.reduce((longest: any, opt: any) => {
-                                                            return (opt.name?.length || 0) > (longest?.name?.length || 0) ? opt : longest
-                                                          }, { name: "" })
-                                                          longestText = longestOption.name || longestText
-                                                        } else if (displayValue) {
-                                                          longestText = displayValue
-                                                        }
-
-                                                        // Calculate width: min 200px, base on content
-                                                        const minWidth = 200
-                                                        // Estimate width: ~8px per character + padding (60px) + some buffer
-                                                        const estimatedWidth = Math.max(minWidth, Math.min(500, longestText.length * 8 + 80))
-
+                                                        // All other fields take 1 column in the 3-column grid
                                                         return {
-                                                          minWidth: `${minWidth}px`,
-                                                          maxWidth: "none",
-                                                          width: `${estimatedWidth}px`,
+                                                          minWidth: "0",
+                                                          maxWidth: "100%",
+                                                          width: "100%",
                                                           flex: '1 1 auto'
                                                         }
                                                       }
@@ -11768,10 +11641,7 @@ export default function CaseDesignCenterPage() {
                                                                   background: '#FFFFFF',
                                                                   border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
                                                                   boxSizing: 'border-box',
-                                                                  minWidth: fieldWidth.minWidth,
-                                                                  maxWidth: fieldWidth.maxWidth,
-                                                                  width: fieldWidth.width,
-                                                                  flex: fieldWidth.flex,
+                                                                  width: '100%',
                                                                 }}
                                                               >
                                                                 <SelectValue placeholder={`Select ${field.name}`}>
@@ -11811,10 +11681,7 @@ export default function CaseDesignCenterPage() {
                                                                 padding: '8px 12px 4px 12px',
                                                                 minHeight: '80px',
                                                                 border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
-                                                                minWidth: fieldWidth.minWidth,
-                                                                maxWidth: fieldWidth.maxWidth,
-                                                                width: fieldWidth.width,
-                                                                flex: fieldWidth.flex,
+                                                                width: '100%',
                                                               }}
                                                               placeholder={`Enter ${field.name}`}
                                                             />
@@ -11840,10 +11707,7 @@ export default function CaseDesignCenterPage() {
                                                               style={{
                                                                 padding: '8px 12px 4px 12px',
                                                                 border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
-                                                                minWidth: fieldWidth.minWidth,
-                                                                maxWidth: fieldWidth.maxWidth,
-                                                                width: fieldWidth.width,
-                                                                flex: fieldWidth.flex,
+                                                                width: '100%',
                                                               }}
                                                               placeholder={`Enter ${field.name}`}
                                                             />
@@ -11868,10 +11732,7 @@ export default function CaseDesignCenterPage() {
                                                               style={{
                                                                 padding: '8px 12px 4px 12px',
                                                                 minHeight: '80px',
-                                                                minWidth: fieldWidth.minWidth,
-                                                                maxWidth: fieldWidth.maxWidth,
-                                                                width: fieldWidth.width,
-                                                                flex: fieldWidth.flex,
+                                                                width: '100%',
                                                               }}
                                                               placeholder={`Enter ${field.name}`}
                                                             />
@@ -11916,10 +11777,7 @@ export default function CaseDesignCenterPage() {
                                                                 minHeight: '37px',
                                                                 background: '#FFFFFF',
                                                                 border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
-                                                                minWidth: fieldWidth.minWidth,
-                                                                maxWidth: fieldWidth.maxWidth,
-                                                                width: fieldWidth.width,
-                                                                flex: fieldWidth.flex,
+                                                                width: '100%',
                                                               }}
                                                             >
                                                               <RadioGroup
@@ -12003,10 +11861,7 @@ export default function CaseDesignCenterPage() {
                                                                 minHeight: '37px',
                                                                 background: '#FFFFFF',
                                                                 border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
-                                                                minWidth: fieldWidth.minWidth,
-                                                                maxWidth: fieldWidth.maxWidth,
-                                                                width: fieldWidth.width,
-                                                                flex: fieldWidth.flex,
+                                                                width: '100%',
                                                               }}
                                                             >
                                                               <div className="space-y-2">
@@ -12047,10 +11902,7 @@ export default function CaseDesignCenterPage() {
                                                                 minHeight: '37px',
                                                                 background: '#FFFFFF',
                                                                 border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
-                                                                minWidth: fieldWidth.minWidth,
-                                                                maxWidth: fieldWidth.maxWidth,
-                                                                width: fieldWidth.width,
-                                                                flex: fieldWidth.flex,
+                                                                width: '100%',
                                                               }}
                                                             >
                                                               <input
@@ -12097,10 +11949,7 @@ export default function CaseDesignCenterPage() {
                                                               style={{
                                                                 padding: '8px 12px 4px 12px',
                                                                 border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
-                                                                minWidth: fieldWidth.minWidth,
-                                                                maxWidth: fieldWidth.maxWidth,
-                                                                width: fieldWidth.width,
-                                                                flex: fieldWidth.flex,
+                                                                width: '100%',
                                                               }}
                                                               placeholder={`Enter ${field.name}`}
                                                             />
@@ -12174,10 +12023,7 @@ export default function CaseDesignCenterPage() {
                                                                   style={{
                                                                     padding: '8px 12px 4px 12px',
                                                                     border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
-                                                                    minWidth: fieldWidth.minWidth,
-                                                                    maxWidth: fieldWidth.maxWidth,
-                                                                    width: fieldWidth.width,
-                                                                    flex: fieldWidth.flex,
+                                                                    width: '100%',
                                                                   }}
                                                                   readOnly
                                                                 />
@@ -12304,10 +12150,8 @@ export default function CaseDesignCenterPage() {
                                                           className="relative"
                                                           style={{
                                                             minHeight: '38px',
-                                                            minWidth: fieldWidth.minWidth,
-                                                            maxWidth: fieldWidth.maxWidth,
-                                                            width: fieldWidth.width,
-                                                            flex: fieldWidth.flex,
+                                                            width: '100%',
+                                                            ...(fieldWidth.gridColumn ? { gridColumn: fieldWidth.gridColumn } : {}),
                                                           }}
                                                         >
                                                           {renderAdvanceField()}
@@ -14358,24 +14202,29 @@ export default function CaseDesignCenterPage() {
                   </>
                 )}
 
-                {/* Case Summary Notes - Expandable and Responsive - Hidden initially */}
+                {/* Case Summary Notes - Expandable and Responsive */}
                 {showCaseSummaryNotes && (
-                  <div className="relative bg-white border border-[#7F7F7F] rounded-[7.7px] w-full mx-auto px-2 sm:px-4" style={{ marginBottom: "80px" }}>
-                    {/* Label positioned absolutely at the top */}
+                  <div className="relative bg-white border border-[#7F7F7F] rounded-[7.7px] w-full mx-auto" style={{ marginBottom: "80px" }}>
+                    {/* Clickable Header for expand/collapse */}
                     <div
-                      className="absolute left-[9px] -top-[7px] bg-white px-2 flex items-center gap-[7.7px] z-10"
+                      className="flex items-center justify-between px-3 py-2 cursor-pointer select-none"
+                      onClick={() => setIsCaseSummaryExpanded(!isCaseSummaryExpanded)}
                     >
                       <span className="text-[14px] leading-[14px] text-[#7F7F7F] font-[Arial]">
                         Case summary notes
                       </span>
+                      <ChevronDown
+                        className={`w-5 h-5 text-[#7F7F7F] transition-transform duration-200 ${isCaseSummaryExpanded ? 'rotate-180' : ''}`}
+                      />
                     </div>
 
-                    {/* Content Container - Fixed size with scrolling */}
+                    {/* Content Container - Collapsible */}
+                    {isCaseSummaryExpanded && (
                     <div
                       style={{
                         height: '200px',
                         maxHeight: '200px',
-                        padding: '12px 15px 5px 15px',
+                        padding: '0px 15px 5px 15px',
                         overflowY: 'auto',
                         overflowX: 'hidden'
                       }}
@@ -14433,16 +14282,17 @@ export default function CaseDesignCenterPage() {
                         }}
                         placeholder="Enter case notes following the format: MAXILLARY / MANDIBULAR sections with product details..."
                       />
-                    </div>
 
-                    {/* Helper text */}
-                    <p className="text-[10px] sm:text-xs text-gray-500 px-[15px] pb-3 sm:pb-4">
-                      {generateCaseNotes().length > 0 && !maxillaryImplantDetails
-                        ? "Case notes are automatically generated from your products. Edit to customize, and changes will update your product selections."
-                        : maxillaryImplantDetails
-                          ? "Editing case notes will update your products, categories, subcategories, and teeth selections based on the content."
-                          : "Enter case notes to automatically populate products, categories, subcategories, and teeth selections. Or add products first to generate notes automatically."}
-                    </p>
+                      {/* Helper text */}
+                      <p className="text-[10px] sm:text-xs text-gray-500 pt-2">
+                        {generateCaseNotes().length > 0 && !maxillaryImplantDetails
+                          ? "Case notes are automatically generated from your products. Edit to customize, and changes will update your product selections."
+                          : maxillaryImplantDetails
+                            ? "Editing case notes will update your products, categories, subcategories, and teeth selections based on the content."
+                            : "Enter case notes to automatically populate products, categories, subcategories, and teeth selections. Or add products first to generate notes automatically."}
+                      </p>
+                    </div>
+                    )}
                   </div>
                 )}
               </div>

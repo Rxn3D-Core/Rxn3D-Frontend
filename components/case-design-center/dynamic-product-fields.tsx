@@ -1614,7 +1614,7 @@ export function DynamicProductFields({
 
   // Field container styles based on layout variant
   const getFieldContainerStyle = () => layout === "accordion-compact"
-    ? { flex: '1', minWidth: '180px', maxWidth: '48%' }
+    ? { flex: '1', minWidth: '150px', maxWidth: '48%' }
     : { width: '100%' }
 
   // Helper to get teeth array for saved product card
