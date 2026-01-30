@@ -28,7 +28,7 @@ export function ProductSelectionBadge({
   showMandibularChart,
 }: ProductSelectionBadgeProps) {
   return (
-    <div className="w-full max-w-[1400px] grid grid-cols-2 gap-4">
+    <div className="w-full max-w-[1400px] grid grid-cols-1 gap-4">
       {/* Left Column - Upper Product Button */}
       <div className="flex items-center justify-center">
         {showMaxillaryChart ? (

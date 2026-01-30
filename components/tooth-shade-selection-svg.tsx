@@ -68,7 +68,7 @@ export const ToothShadeSelectionSVG: React.FC<ToothShadeSelectionSVGProps> = ({
           return ''
         }).join('\n')}
       `}</style>
-<svg width="100%" height="170" viewBox="0 30 600 170" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg width="100%" height="185" viewBox="0 30 600 170" fill="none" xmlns="http://www.w3.org/2000/svg">
 <g clipPath="url(#clip0_58_5765)">
 <rect width="599.985" height="192.192" fill="white"/>
 <g clipPath="url(#clip1_58_5765)">

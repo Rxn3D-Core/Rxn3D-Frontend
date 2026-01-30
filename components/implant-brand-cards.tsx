@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface Implant {
   id: number
@@ -20,6 +21,7 @@ interface ImplantBrandCardsProps {
   onSelectImplant: (implant: Implant) => void
   productId?: string
   arch?: "maxillary" | "mandibular"
+  isLoading?: boolean
 }
 
 export const ImplantBrandCards: React.FC<ImplantBrandCardsProps> = ({
@@ -27,7 +29,8 @@ export const ImplantBrandCards: React.FC<ImplantBrandCardsProps> = ({
   selectedImplantId,
   onSelectImplant,
   productId,
-  arch
+  arch,
+  isLoading = false
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [hoveredImplantId, setHoveredImplantId] = useState<number | null>(null)
@@ -60,6 +63,49 @@ export const ImplantBrandCards: React.FC<ImplantBrandCardsProps> = ({
     } else if (direction === 'right' && canScrollRight) {
       setCurrentIndex(prev => Math.min(maxIndex, prev + 1))
     }
+  }
+
+  const CARDS_TO_SHOW_SKELETON = 3
+  const CARD_WIDTH_SKELETON = 155
+  const CARD_GAP_SKELETON = 15
+  const containerWidthSkeleton = (CARD_WIDTH_SKELETON * CARDS_TO_SHOW_SKELETON) + (CARD_GAP_SKELETON * (CARDS_TO_SHOW_SKELETON - 1))
+
+  if (isLoading) {
+    return (
+      <div className="relative w-full mb-2" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <Skeleton className="flex-shrink-0 rounded-full" style={{ width: '32px', height: '32px', marginRight: '15px' }} />
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: `${CARD_GAP_SKELETON}px`,
+            width: `${containerWidthSkeleton}px`,
+            height: '205px'
+          }}
+        >
+          {[1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="flex-shrink-0 flex flex-col items-center justify-center gap-4"
+              style={{
+                padding: '16px',
+                width: `${CARD_WIDTH_SKELETON}px`,
+                height: '185px',
+                background: '#FFFFFF',
+                border: '1px solid #E5E7EB',
+                borderRadius: '7px'
+              }}
+            >
+              <Skeleton className="rounded-[5px]" style={{ width: '123px', height: '123px' }} />
+              <Skeleton className="h-4 rounded" style={{ width: '80px' }} />
+            </div>
+          ))}
+        </div>
+        <Skeleton className="flex-shrink-0 rounded-full" style={{ width: '32px', height: '32px', marginLeft: '15px' }} />
+      </div>
+    )
   }
 
   if (!implants || implants.length === 0) {

@@ -4,20 +4,23 @@
  */
 
 /**
- * Clears all slip creation related data from localStorage and sessionStorage
+ * Clears all slip creation related data from localStorage and sessionStorage.
+ * Covers the full flow: choose-lab → choose-doctor → patient-input → case-design-center.
  * This includes:
  * - Selected lab, doctor, and patient data
- * - Slip drafts and pending slips
- * - Case design cache
- * - Product selections
+ * - Case design state (caseDesignCenterState, cachedAllCategories, cachedSubcategoriesByCategory)
+ * - Slip drafts and pending slips (caseDesignCache, slipDraft, etc.)
+ * - Product selections (savedProducts, selectedProduct, productDetails_*, etc.)
  * - Any other slip creation state
+ *
+ * Does NOT clear auth/session keys (user, token, role, customerId).
  */
 export function clearSlipCreationStorage() {
   if (typeof window === "undefined") {
     return
   }
 
-  // Clear localStorage items
+  // Clear localStorage items used across choose-lab, choose-doctor, patient-input, and case-design-center
   const localStorageKeysToRemove = [
     "selectedLab",
     "selectedDoctor",
@@ -25,6 +28,9 @@ export function clearSlipCreationStorage() {
     "slipDraft",
     "caseDesignCache",
     "caseDesignData",
+    "caseDesignCenterState",
+    "cachedAllCategories",
+    "cachedSubcategoriesByCategory",
     "virtualSlipData",
     "slipId",
     "productTeethSelections",

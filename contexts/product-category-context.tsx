@@ -176,7 +176,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
     null,
   )
   const { currentLanguage } = useLanguage()
-  const { user } = useAuth()
+  const { user, logout } = useAuth()
 
   // Determine user role and customerId - use state to avoid SSR issues
   const [userRole, setUserRole] = useState<string | null>(null)
@@ -860,6 +860,14 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
         
         setSubcategoriesByCategory(subcategories)
       } catch (err: any) {
+        // 401: redirect to login and don't show error UI
+        const isUnauthorized = err?.message?.includes("Unauthorized") || err?.message?.includes("401")
+        if (isUnauthorized) {
+          setSubcategoriesByCategory([])
+          setSubcategoriesLoading(false)
+          logout()
+          return
+        }
         console.error("Error fetching subcategories by category:", err)
         setSubcategoriesByCategory([])
         setSubcategoriesError(err.message)
@@ -872,7 +880,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
         setSubcategoriesLoading(false)
       }
     },
-    [isLabAdmin, customerId, toast]
+    [isLabAdmin, customerId, toast, logout]
   )
 
   const clearMessages = useCallback(() => {

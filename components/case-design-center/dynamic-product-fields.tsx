@@ -58,6 +58,7 @@ interface DynamicProductFieldsProps {
   mandibularTeeth?: number[]
   // Implant brand cards props
   showImplantBrandCards?: boolean
+  implantsLoading?: boolean
   implants?: Array<{
     id: number
     brand_name: string
@@ -287,6 +288,7 @@ export function DynamicProductFields({
   maxillaryTeeth = [],
   mandibularTeeth = [],
   showImplantBrandCards = false,
+  implantsLoading = false,
   implants = [],
   selectedImplantId = null,
   onSelectImplant,
@@ -1671,6 +1673,15 @@ export function DynamicProductFields({
                     setImplantSelectionStep('brand')
                   }}
                   arch={arch}
+                  isLoading={false}
+                />
+              ) : implantsLoading ? (
+                <ImplantBrandCards
+                  implants={[]}
+                  selectedImplantId={selectedImplantId}
+                  onSelectImplant={() => {}}
+                  arch={arch}
+                  isLoading
                 />
               ) : implants && implants.length > 0 ? (
                 <ImplantBrandCards

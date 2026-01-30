@@ -35,7 +35,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
   // Helper to get transform for flipping teeth horizontally
   const getToothTransform = (toothNumber: number, x: number, width: number) => {
     if (shouldFaceLeft(toothNumber)) {
-      // Flip to face left: translate to right edge, then scaleX(-1)
+      // Flip to face left: translate to right edge, then scale(-1, 1) (SVG transform doesn't support scaleX)
       // This flips the tooth around its right edge, keeping it in the same position
       return `translate(${x + width}, 0) scaleX(-1)`
     }
