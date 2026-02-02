@@ -748,8 +748,11 @@ export function DynamicProductFields({
         autoOpenedShadeRef.current[shadeKey] = false
       }
       if (isStumpShadeVisible && isStumpShadeEmpty && onOpenShadeModal && !autoOpenedShadeRef.current[shadeKey]) {
-        autoOpenedShadeRef.current[shadeKey] = true
         const timer = setTimeout(() => {
+          // Double-check the ref inside timeout in case another source already opened it
+          if (autoOpenedShadeRef.current[shadeKey]) return
+          // Set the ref inside the timeout to ensure it's only marked as opened when the modal actually opens
+          autoOpenedShadeRef.current[shadeKey] = true
           setFocusedFieldKey("stump_shade")
           onOpenShadeModal("stump_shade", arch)
         }, 200)
@@ -775,8 +778,11 @@ export function DynamicProductFields({
         autoOpenedShadeRef.current[shadeKey] = false
       }
       if (isToothShadeVisible && isToothShadeEmpty && onOpenShadeModal && !autoOpenedShadeRef.current[shadeKey]) {
-        autoOpenedShadeRef.current[shadeKey] = true
         const timer = setTimeout(() => {
+          // Double-check the ref inside timeout in case another source already opened it
+          if (autoOpenedShadeRef.current[shadeKey]) return
+          // Set the ref inside the timeout to ensure it's only marked as opened when the modal actually opens
+          autoOpenedShadeRef.current[shadeKey] = true
           setFocusedFieldKey("tooth_shade")
           onOpenShadeModal("tooth_shade", arch)
         }, 200)

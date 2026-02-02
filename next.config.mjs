@@ -40,7 +40,6 @@ const nextConfig = {
   },
   // Skip error page generation to avoid SSR issues with @react-three/drei
   experimental: {
-    // Configure Turbo properly
     turbo: {
       rules: {
         // Configure any custom rules here

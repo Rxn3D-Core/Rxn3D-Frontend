@@ -26,7 +26,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+import { AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -43,6 +43,14 @@ import { ImplantPlatformCards } from "@/components/implant-platform-cards"
 import { ImplantDetailForm } from "@/components/implant-detail-form"
 import { useImplants } from "@/lib/api/advance-mode-query"
 import { FooterSection } from "./sections/footer-section"
+import { CaseSummaryNotesSection } from "./sections/case-summary-notes-section"
+import { SectionNavigationArrows } from "./sections/section-navigation-arrows"
+import { MaxillarySection } from "./sections/maxillary-section"
+import { MandibularSection } from "./sections/mandibular-section"
+import { SavedProductPills } from "./sections/saved-product-pills"
+import { SavedProductAccordion } from "./sections/saved-product-accordion"
+import { SavedProductSectionProvider } from "./sections/saved-product-section-context"
+import { SavedProductSectionContent } from "./sections/saved-product-section-content"
 import { ProductSelectionBadge } from "./components/product-selection-badge"
 import { useCaseDesignStore } from "@/stores/caseDesignStore"
 import type { ProductCategoryApi, Doctor, Lab, PatientData, Product, SavedProduct } from "./sections/types"
@@ -469,8 +477,9 @@ export default function CaseDesignCenterPage() {
     prevFormStateRef.current = currentFormFields
   }, [implantSelectionStep, selectedImplantBrand])
 
-  // Unified accordion state - tracks which accordion is open (only one at a time)
-  const [openAccordion, setOpenAccordion] = useState<string | null>(null)
+  // Accordion state per section - maxillary and mandibular can each have one open at a time (independent)
+  const [openAccordionMaxillary, setOpenAccordionMaxillary] = useState<string | null>(null)
+  const [openAccordionMandibular, setOpenAccordionMandibular] = useState<string | null>(null)
 
   // State to track which stage dropdown is open: { [productId]: { [arch]: boolean } }
   const [openStageDropdown, setOpenStageDropdown] = useState<Record<string, { maxillary?: boolean; mandibular?: boolean }>>({})
@@ -486,6 +495,9 @@ export default function CaseDesignCenterPage() {
   // STL files attached to impressions: key: impressionKey, value: array of files
   const [stlFilesByImpression, setStlFilesByImpression] = useState<Record<string, Array<{ file: File, url: string, type: "stl" | "image" | "other" }>>>({})
 
+  // Validation state - when true, show red borders on required empty fields
+  const [showValidationErrors, setShowValidationErrors] = useState<boolean>(true)
+
   // Shade selection modal state
   const [showShadeModal, setShowShadeModal] = useState<boolean>(false)
   const [currentShadeField, setCurrentShadeField] = useState<"tooth_shade" | "stump_shade" | null>(null)
@@ -494,6 +506,13 @@ export default function CaseDesignCenterPage() {
   const [selectedShadesForSVG, setSelectedShadesForSVG] = useState<string[]>([])
   const [selectedShadeOption, setSelectedShadeOption] = useState<"custom" | "stump" | null>(null)
   const [selectedShadeGuide, setSelectedShadeGuide] = useState<string>("Vita Classical")
+
+  // Modal states (for add-ons, attach, rush modals - must be before savedProductSectionContextValue useMemo)
+  const [showAddOnsModal, setShowAddOnsModal] = useState(false)
+  const [showRushModal, setShowRushModal] = useState(false)
+  const [showAttachModal, setShowAttachModal] = useState(false)
+  const [currentProductForModal, setCurrentProductForModal] = useState<SavedProduct | null>(null)
+  const [currentArchForModal, setCurrentArchForModal] = useState<"maxillary" | "mandibular" | null>(null)
 
   // Shade guide options
   const shadeGuideOptions = [
@@ -1318,7 +1337,7 @@ export default function CaseDesignCenterPage() {
   const areAllRequiredFieldsFilled = (archType: "maxillary" | "mandibular"): boolean => {
     const material = archType === "maxillary" ? maxillaryMaterial : mandibularMaterial
     const retention = archType === "maxillary" ? maxillaryRetention : mandibularRetention
-    const stumpShade = archType === "maxillary" ? maxillaryStumpShade : ""
+    const stumpShade = archType === "maxillary" ? maxillaryStumpShade : mandibularStumpShade
     const toothShade = archType === "maxillary" ? maxillaryToothShade : mandibularToothShade
     const stage = archType === "maxillary" ? maxillaryStage : mandibularStage
 
@@ -1336,7 +1355,7 @@ export default function CaseDesignCenterPage() {
   const areAllCurrentProductFieldsFilled = (archType: "maxillary" | "mandibular"): boolean => {
     const material = archType === "maxillary" ? maxillaryMaterial : mandibularMaterial
     const retention = archType === "maxillary" ? maxillaryRetention : mandibularRetention
-    const stumpShade = archType === "maxillary" ? maxillaryStumpShade : ""
+    const stumpShade = archType === "maxillary" ? maxillaryStumpShade : mandibularStumpShade
     const toothShade = archType === "maxillary" ? maxillaryToothShade : mandibularToothShade
     const stage = archType === "maxillary" ? maxillaryStage : mandibularStage
 
@@ -1757,19 +1776,23 @@ export default function CaseDesignCenterPage() {
   // Ref for debounced auto-save so the debounced function always calls the latest handleAutoSaveProduct
   const handleAutoSaveProductRef = useRef<(type: "maxillary" | "mandibular") => void>(() => { })
 
-  // Handler to toggle accordion - only opens/closes on click
-  // Radix passes "" or undefined when closing (collapsible); pass string when opening
-  const handleAccordionChange = (value: string | undefined) => {
+  // Handler to toggle maxillary accordion - only opens/closes on click (independent from mandibular)
+  const handleAccordionChangeMaxillary = (value: string | undefined) => {
     const nextValue = value === undefined || value === "" ? null : String(value)
-    // If clicking the same accordion that's open, or Radix sent empty (close) - close it
     if (nextValue === null) {
-      setOpenAccordion(null)
-      setOpenStageDropdown({})
+      setOpenAccordionMaxillary(null)
+      setOpenStageDropdown((prev) => {
+        const newState = { ...prev }
+        Object.keys(newState).forEach((k) => {
+          const sp = savedProducts.find((p) => p.id === k && p.addedFrom === "maxillary")
+          if (sp || k === "maxillary-card") delete newState[k]
+        })
+        return newState
+      })
       return
     }
-    if (openAccordion === nextValue) {
-      // Same accordion clicked again - close it
-      setOpenAccordion(null)
+    if (openAccordionMaxillary === nextValue) {
+      setOpenAccordionMaxillary(null)
       setOpenStageDropdown((prev) => {
         const newState = { ...prev }
         delete newState[nextValue]
@@ -1777,14 +1800,41 @@ export default function CaseDesignCenterPage() {
       })
       return
     }
-    // Open the clicked accordion
-    setOpenAccordion(nextValue)
-    // When opening a saved product card (not maxillary-card or mandibular-card), load its details
-    if (nextValue !== "maxillary-card" && nextValue !== "mandibular-card") {
+    setOpenAccordionMaxillary(nextValue)
+    if (nextValue !== "maxillary-card") {
       const savedProduct = savedProducts.find((p) => p.id === nextValue)
-      if (savedProduct) {
-        handleSavedProductCardClick(savedProduct)
-      }
+      if (savedProduct) handleSavedProductCardClick(savedProduct)
+    }
+  }
+
+  // Handler to toggle mandibular accordion - only opens/closes on click (independent from maxillary)
+  const handleAccordionChangeMandibular = (value: string | undefined) => {
+    const nextValue = value === undefined || value === "" ? null : String(value)
+    if (nextValue === null) {
+      setOpenAccordionMandibular(null)
+      setOpenStageDropdown((prev) => {
+        const newState = { ...prev }
+        Object.keys(newState).forEach((k) => {
+          const sp = savedProducts.find((p) => p.id === k && p.addedFrom === "mandibular")
+          if (sp || k === "mandibular-card") delete newState[k]
+        })
+        return newState
+      })
+      return
+    }
+    if (openAccordionMandibular === nextValue) {
+      setOpenAccordionMandibular(null)
+      setOpenStageDropdown((prev) => {
+        const newState = { ...prev }
+        delete newState[nextValue]
+        return newState
+      })
+      return
+    }
+    setOpenAccordionMandibular(nextValue)
+    if (nextValue !== "mandibular-card") {
+      const savedProduct = savedProducts.find((p) => p.id === nextValue)
+      if (savedProduct) handleSavedProductCardClick(savedProduct)
     }
   }
 
@@ -1810,8 +1860,9 @@ export default function CaseDesignCenterPage() {
 
   // Auto-open impression modal when user expands a saved product accordion and retention is Prepped or Pontic (impression is shown in UI)
   useEffect(() => {
-    if (!openAccordion || showImpressionModal) return
-    const savedProduct = savedProducts.find((p) => p.id === openAccordion)
+    const openId = openAccordionMaxillary ?? openAccordionMandibular
+    if (!openId || showImpressionModal) return
+    const savedProduct = savedProducts.find((p) => p.id === openId)
     if (!savedProduct || (savedProduct.addedFrom !== "maxillary" && savedProduct.addedFrom !== "mandibular")) return
     const arch = savedProduct.addedFrom
     const retention = arch === "maxillary" ? savedProduct.maxillaryRetention : savedProduct.mandibularRetention
@@ -1824,7 +1875,7 @@ export default function CaseDesignCenterPage() {
     autoOpenedImpressionModalForSavedProductRef.current.add(savedProduct.id)
     const timer = setTimeout(() => handleOpenImpressionModal(savedProduct, arch), 400)
     return () => clearTimeout(timer)
-  }, [openAccordion, savedProducts, showImpressionModal])
+  }, [openAccordionMaxillary, openAccordionMandibular, savedProducts, showImpressionModal])
 
   // Initial loading state - tracks when page is first loading to determine button visibility
   const [isInitialLoading, setIsInitialLoading] = useState<boolean>(true)
@@ -1875,48 +1926,861 @@ export default function CaseDesignCenterPage() {
     return 0
   }
 
+  // Handler to delete a saved product (defined early so it can be used in savedProductSectionContextValue)
+  const handleDeleteProduct = (productId: string) => {
+    setSavedProducts((prev) => prev.filter((p) => p.id !== productId))
+
+    // Reset to category selection view
+    setShowSubcategories(false)
+    setShowProducts(false)
+    setShowProductDetails(false)
+    setSelectedCategory(null)
+    setSelectedCategoryId(null)
+    setSelectedSubcategory(null)
+    setSelectedSubcategoryId(null)
+    setSelectedProduct(null)
+    setProducts([])
+    setMaxillaryTeeth([])
+    setMandibularTeeth([])
+    setMaxillaryMaterial("")
+    setMaxillaryStumpShade("")
+    setMaxillaryRetention("")
+    setMaxillaryImplantDetails("")
+    setMandibularMaterial("")
+    setMandibularRetention("")
+    setMandibularStumpShade("")
+    setMandibularImplantDetails("")
+    setMissingTeethCardClicked(false)
+
+    toast({
+      title: "Product Removed",
+      description: "Product has been removed from your case",
+    })
+  }
+
+  // Handler to open impression modal (defined early so it can be used in savedProductSectionContextValue)
+  const handleOpenImpressionModal = (product: SavedProduct, arch: "maxillary" | "mandibular") => {
+    setCurrentProductForImpression(product)
+    setCurrentImpressionArch(arch)
+    // Hydrate selectedImpressions from saved product so modal shows current values
+    const impressions = product.productDetails?.impressions
+    const savedArr = arch === "maxillary" ? product.maxillaryImpressions : product.mandibularImpressions
+    if (impressions && Array.isArray(impressions) && savedArr && savedArr.length > 0) {
+      setSelectedImpressions(prev => {
+        const next = { ...prev }
+        const productId = product.product?.id?.toString() ?? product.id
+        savedArr.forEach(sel => {
+          const impression = impressions.find((imp: any) => imp.id === sel.impression_id)
+          if (impression) {
+            const key = `${productId}_${arch}_${impression.value || impression.name}`
+            next[key] = sel.quantity
+          }
+        })
+        return next
+      })
+    }
+    setShowImpressionModal(true)
+  }
+
+  // Helpers for impression count/display (defined early so they can be used in savedProductSectionContextValue)
+  const getImpressionDisplayText = (productId: string, arch: "maxillary" | "mandibular", impressions: any[]): string => {
+    if (!impressions || !Array.isArray(impressions)) return "Select impression"
+
+    const selections: Array<{ quantity: number, name: string }> = []
+    impressions.forEach(impression => {
+      const key = `${productId}_${arch}_${impression.value || impression.name}`
+      const quantity = selectedImpressions[key] || 0
+      if (quantity > 0) {
+        selections.push({
+          quantity,
+          name: impression.name || impression.value || "Impression"
+        })
+      }
+    })
+
+    if (selections.length === 0) return "Select impression"
+
+    const maxDisplay = 3
+    const displayedSelections = selections.slice(0, maxDisplay)
+    const remainingCount = selections.length - maxDisplay
+
+    let displayText = displayedSelections.map(sel => `${sel.quantity}x ${sel.name}`).join(", ")
+    if (remainingCount > 0) {
+      displayText += ` and ${remainingCount} more`
+    }
+
+    return displayText
+  }
+
+  const getImpressionCount = (productId: string, arch: "maxillary" | "mandibular", impressions: any[]): number => {
+    if (!impressions || !Array.isArray(impressions)) return 0
+    return impressions.reduce((sum: number, impression: any) => {
+      const key = `${productId}_${arch}_${impression.value || impression.name}`
+      return sum + (selectedImpressions[key] || 0)
+    }, 0)
+  }
+
+  const getImpressionCountFromSaved = (savedImpressions: Array<{ impression_id: number; quantity: number; name?: string }> | undefined): number => {
+    if (!savedImpressions || !Array.isArray(savedImpressions)) return 0
+    return savedImpressions.reduce((sum, sel) => sum + (sel.quantity || 0), 0)
+  }
+
+  const getImpressionDisplayTextFromSaved = (savedImpressions: Array<{ impression_id: number; quantity: number; name?: string }> | undefined): string => {
+    if (!savedImpressions || !Array.isArray(savedImpressions) || savedImpressions.length === 0) return "Select impression"
+    const maxDisplay = 3
+    const displayed = savedImpressions.slice(0, maxDisplay)
+    const remaining = savedImpressions.length - maxDisplay
+    let text = displayed.map(sel => `${sel.quantity}x ${sel.name || "Impression"}`).join(", ")
+    if (remaining > 0) text += ` and ${remaining} more`
+    return text
+  }
+
+  // Use a ref to track if we're currently setting the accordion to prevent infinite loops
+  const isSettingAccordionRef = useRef(false)
+
+  const handleOpenShadeModal = (fieldKey: string, arch?: "maxillary" | "mandibular", productId?: string) => {
+    // Prevent multiple rapid calls
+    if (isSettingAccordionRef.current) {
+      return
+    }
+
+    // When opening from a saved product accordion, track which product so shade apply updates that product
+    setCurrentShadeProductId(productId ?? null)
+
+    // Determine arch: use provided arch, or check which accordion is open, or fallback to teeth selection
+    let actualArch: "maxillary" | "mandibular"
+    if (arch) {
+      actualArch = arch
+    } else if (openAccordionMandibular) {
+      actualArch = "mandibular"
+    } else if (openAccordionMaxillary) {
+      actualArch = "maxillary"
+    } else {
+      // Fallback: check which arch has teeth selected
+      actualArch = maxillaryTeeth.length > 0 ? "maxillary" : "mandibular"
+    }
+
+    // Map field key to shade field type
+    const shadeFieldType: "tooth_shade" | "stump_shade" =
+      fieldKey === "tooth_shade" ? "tooth_shade" : "stump_shade"
+
+    // If opening tooth shade field and stump shade is already selected for THIS arch, reset tooth shade for this arch only (no cross-arch dependency)
+    if (shadeFieldType === "tooth_shade" && !productId) {
+      const stumpShadeForArch = actualArch === "maxillary" ? maxillaryStumpShade : mandibularStumpShade
+      const hasStumpShadeForArch = stumpShadeForArch && stumpShadeForArch.trim() !== ""
+
+      if (hasStumpShadeForArch) {
+        // Reset tooth shade only for the arch being opened
+        if (actualArch === "maxillary") {
+          setMaxillaryShadeId(undefined)
+          setMaxillaryToothShade("")
+          setSavedProducts(prev => prev.map(product => ({
+            ...product,
+            maxillaryToothShade: "",
+            maxillaryShadeId: undefined
+          })))
+        } else {
+          setMandibularShadeId(undefined)
+          setMandibularToothShade("")
+          setSavedProducts(prev => prev.map(product => ({
+            ...product,
+            mandibularToothShade: "",
+            mandibularShadeId: undefined
+          })))
+        }
+      }
+    }
+
+    isSettingAccordionRef.current = true
+
+    setCurrentShadeField(shadeFieldType)
+    setCurrentShadeArch(actualArch)
+    setSelectedShadesForSVG([]) // Reset selected shades
+    // Automatically open the accordion: saved product id when editing saved product, else current arch card
+    const accordionId = productId ? productId : (actualArch === "maxillary" ? "maxillary-card" : "mandibular-card")
+    if (actualArch === "maxillary") {
+      if (openAccordionMaxillary !== accordionId) setOpenAccordionMaxillary(accordionId)
+    } else {
+      if (openAccordionMandibular !== accordionId) setOpenAccordionMandibular(accordionId)
+    }
+
+    // Reset the ref after a short delay to allow state updates to complete
+    setTimeout(() => {
+      isSettingAccordionRef.current = false
+    }, 100)
+
+    // No longer opening modal - just setting the field to show SVG inline
+  }
+
+  // Handler for field changes in dynamic fields
+  const handleFieldChange = (fieldKey: string, value: string, id?: number, productId?: string, arch?: "maxillary" | "mandibular") => {
+    const actualArch = arch || (maxillaryTeeth.length > 0 ? "maxillary" : "mandibular")
+    const config = fieldConfigs.find(f => f.key === fieldKey)
+    if (!config) return
+
+    if (!productId) {
+      // For card accordion (not yet saved product) - update local state
+      if (actualArch === "maxillary") {
+        if (config.maxillaryStateKey) {
+          switch (fieldKey) {
+            case "material":
+              setMaxillaryMaterial(value)
+              break
+            case "retention":
+              setMaxillaryRetention(value)
+              break
+            case "stage":
+              setMaxillaryStage(value)
+              break
+            case "stump_shade":
+              setMaxillaryStumpShade(value)
+              // Reset tooth shade when stump shade is set
+              if (value && value.trim() !== "") {
+                setMaxillaryShadeId(undefined)
+                setMaxillaryToothShade("")
+                // Reset SVG selection sticks if currently viewing tooth shade for this arch
+                if (currentShadeField === "tooth_shade" && currentShadeArch === "maxillary") {
+                  setSelectedShadesForSVG([]) // Reset the sticks in the tooth shade container
+                }
+                // Also clear from saved products
+                setSavedProducts(prev => prev.map(product => ({
+                  ...product,
+                  maxillaryToothShade: "",
+                  maxillaryShadeId: undefined
+                })))
+              }
+              // Sync stump shade value to advanced fields if stump shade exists in advanced fields
+              if (productDetails?.advance_fields && selectedProduct) {
+                const stumpShadeField = getAdvanceFieldByName("stump_shade", productDetails.advance_fields)
+                if (stumpShadeField) {
+                  const fieldKey = `advance_${stumpShadeField.id}`
+                  setAdvanceFieldValues(prev => ({
+                    ...prev,
+                    [fieldKey]: {
+                      advance_field_id: stumpShadeField.id,
+                      advance_field_value: value,
+                      option_id: id // If stump shade has options, use the id
+                    }
+                  }))
+                }
+              }
+              break
+            case "tooth_shade":
+              setMaxillaryToothShade(value)
+              break
+          }
+        }
+        if (config.maxillaryIdKey && id !== undefined) {
+          switch (fieldKey) {
+            case "material":
+              setMaxillaryMaterialId(id)
+              break
+            case "retention":
+              setMaxillaryRetentionId(id)
+              break
+            case "retention_option":
+              setMaxillaryRetentionOptionId(id)
+              // Auto-select retention type based on retention option's tooth_chart_type
+              if (id && productDetails?.retention_options && productDetails?.retentions) {
+                // Convert id to number for comparison (handle both string and number)
+                const numericId = typeof id === 'string' ? parseInt(id, 10) : id
+
+                // Find the selected retention option - check multiple possible structures
+                const selectedRetentionOption = productDetails.retention_options.find((opt: any) => {
+                  // Check direct ID match (handle both string and number)
+                  if (opt.id === id || opt.id === numericId || String(opt.id) === String(id)) return true
+                  // Check nested lab_retention_option ID
+                  if (opt.lab_retention_option?.id === id ||
+                    opt.lab_retention_option?.id === numericId ||
+                    String(opt.lab_retention_option?.id) === String(id)) return true
+                  // Check if retention_option_id matches
+                  if (opt.retention_option_id === id ||
+                    opt.retention_option_id === numericId ||
+                    String(opt.retention_option_id) === String(id)) return true
+                  return false
+                })
+
+                if (selectedRetentionOption) {
+                  // Get tooth_chart_type from various possible locations
+                  const toothChartType = selectedRetentionOption.tooth_chart_type ||
+                    selectedRetentionOption.lab_retention_option?.tooth_chart_type ||
+                    selectedRetentionOption.retention_option?.tooth_chart_type
+
+                  // Debug logging (can be removed later)
+                  if (process.env.NODE_ENV === 'development') {
+                    console.log('Retention option selected:', {
+                      id,
+                      numericId,
+                      selectedRetentionOption,
+                      toothChartType,
+                      allRetentionOptions: productDetails.retention_options
+                    })
+                  }
+
+                  // Map tooth_chart_type to retention type
+                  let targetRetentionName = ""
+                  if (toothChartType === "Implant" || toothChartType === "Pontic") {
+                    targetRetentionName = "Screwed"
+                  } else if (toothChartType === "Prep" || toothChartType === "Prepped") {
+                    targetRetentionName = "Cemented"
+                  }
+
+                  if (targetRetentionName) {
+                    // Find the matching retention by name (case-insensitive)
+                    const targetRetention = productDetails.retentions.find((ret: any) =>
+                      ret.name === targetRetentionName ||
+                      ret.name?.toLowerCase() === targetRetentionName.toLowerCase()
+                    )
+                    if (targetRetention) {
+                      if (process.env.NODE_ENV === 'development') {
+                        console.log('Auto-selecting retention type:', targetRetention)
+                      }
+                      setMaxillaryRetention(targetRetention.name)
+                      setMaxillaryRetentionId(targetRetention.id)
+                    } else if (process.env.NODE_ENV === 'development') {
+                      console.log('Retention not found:', {
+                        targetRetentionName,
+                        availableRetentions: productDetails.retentions
+                      })
+                    }
+                  } else if (process.env.NODE_ENV === 'development') {
+                    console.log('No target retention name mapped for tooth_chart_type:', toothChartType)
+                  }
+                } else if (process.env.NODE_ENV === 'development') {
+                  console.log('Retention option not found:', {
+                    id,
+                    numericId,
+                    availableOptions: productDetails.retention_options.map((opt: any) => ({
+                      id: opt.id,
+                      name: opt.name,
+                      lab_retention_option_id: opt.lab_retention_option?.id,
+                      retention_option_id: opt.retention_option_id
+                    }))
+                  })
+                }
+              }
+              break
+            case "stump_shade":
+              setMaxillaryGumShadeId(id)
+              // Sync stump shade ID to advanced fields if stump shade exists in advanced fields
+              if (productDetails?.advance_fields && selectedProduct && id !== undefined) {
+                const stumpShadeField = getAdvanceFieldByName("stump_shade", productDetails.advance_fields)
+                if (stumpShadeField) {
+                  const fieldKey = `advance_${stumpShadeField.id}`
+                  setAdvanceFieldValues(prev => {
+                    const currentValue = prev[fieldKey]
+                    return {
+                      ...prev,
+                      [fieldKey]: {
+                        advance_field_id: stumpShadeField.id,
+                        advance_field_value: currentValue?.advance_field_value || maxillaryStumpShade || "",
+                        option_id: id
+                      }
+                    }
+                  })
+                }
+              }
+              break
+            case "tooth_shade":
+              setMaxillaryShadeId(id)
+              break
+            case "stage":
+              setMaxillaryStageId(id)
+              break
+          }
+        }
+      } else {
+        if (config.mandibularStateKey) {
+          switch (fieldKey) {
+            case "material":
+              setMandibularMaterial(value)
+              break
+            case "retention":
+              setMandibularRetention(value)
+              break
+            case "stage":
+              setMandibularStage(value)
+              break
+            case "stump_shade":
+              setMandibularStumpShade(value)
+              // Reset tooth shade when stump shade is set
+              if (value && value.trim() !== "") {
+                setMandibularShadeId(undefined)
+                setMandibularToothShade("")
+                // Reset SVG selection sticks if currently viewing tooth shade for this arch
+                if (currentShadeField === "tooth_shade" && currentShadeArch === "mandibular") {
+                  setSelectedShadesForSVG([]) // Reset the sticks in the tooth shade container
+                }
+                // Also clear from saved products
+                setSavedProducts(prev => prev.map(product => ({
+                  ...product,
+                  mandibularToothShade: "",
+                  mandibularShadeId: undefined
+                })))
+              }
+              // Sync stump shade value to advanced fields if stump shade exists in advanced fields
+              if (productDetails?.advance_fields && selectedProduct) {
+                const stumpShadeField = getAdvanceFieldByName("stump_shade", productDetails.advance_fields)
+                if (stumpShadeField) {
+                  const fieldKey = `advance_${stumpShadeField.id}`
+                  setAdvanceFieldValues(prev => ({
+                    ...prev,
+                    [fieldKey]: {
+                      advance_field_id: stumpShadeField.id,
+                      advance_field_value: value,
+                      option_id: id // If stump shade has options, use the id
+                    }
+                  }))
+                }
+              }
+              break
+            case "tooth_shade":
+              setMandibularToothShade(value)
+              break
+          }
+        }
+        if (config.mandibularIdKey && id !== undefined) {
+          switch (fieldKey) {
+            case "material":
+              setMandibularMaterialId(id)
+              break
+            case "retention":
+              setMandibularRetentionId(id)
+              break
+            case "retention_option":
+              setMandibularRetentionOptionId(id)
+              // Auto-select retention type based on retention option's tooth_chart_type
+              if (id && productDetails?.retention_options && productDetails?.retentions) {
+                // Convert id to number for comparison (handle both string and number)
+                const numericId = typeof id === 'string' ? parseInt(id, 10) : id
+
+                // Find the selected retention option - check multiple possible structures
+                const selectedRetentionOption = productDetails.retention_options.find((opt: any) => {
+                  // Check direct ID match (handle both string and number)
+                  if (opt.id === id || opt.id === numericId || String(opt.id) === String(id)) return true
+                  // Check nested lab_retention_option ID
+                  if (opt.lab_retention_option?.id === id ||
+                    opt.lab_retention_option?.id === numericId ||
+                    String(opt.lab_retention_option?.id) === String(id)) return true
+                  // Check if retention_option_id matches
+                  if (opt.retention_option_id === id ||
+                    opt.retention_option_id === numericId ||
+                    String(opt.retention_option_id) === String(id)) return true
+                  return false
+                })
+
+                if (selectedRetentionOption) {
+                  // Get tooth_chart_type from various possible locations
+                  const toothChartType = selectedRetentionOption.tooth_chart_type ||
+                    selectedRetentionOption.lab_retention_option?.tooth_chart_type ||
+                    selectedRetentionOption.retention_option?.tooth_chart_type
+
+                  // Debug logging (can be removed later)
+                  if (process.env.NODE_ENV === 'development') {
+                    console.log('Retention option selected (mandibular):', {
+                      id,
+                      numericId,
+                      selectedRetentionOption,
+                      toothChartType
+                    })
+                  }
+
+                  // Map tooth_chart_type to retention type
+                  let targetRetentionName = ""
+                  if (toothChartType === "Implant" || toothChartType === "Pontic") {
+                    targetRetentionName = "Screwed"
+                  } else if (toothChartType === "Prep" || toothChartType === "Prepped") {
+                    targetRetentionName = "Cemented"
+                  }
+
+                  if (targetRetentionName) {
+                    // Find the matching retention by name (case-insensitive)
+                    const targetRetention = productDetails.retentions.find((ret: any) =>
+                      ret.name === targetRetentionName ||
+                      ret.name?.toLowerCase() === targetRetentionName.toLowerCase()
+                    )
+                    if (targetRetention) {
+                      if (process.env.NODE_ENV === 'development') {
+                        console.log('Auto-selecting retention type (mandibular):', targetRetention)
+                      }
+                      setMandibularRetention(targetRetention.name)
+                      setMandibularRetentionId(targetRetention.id)
+                    }
+                  }
+                }
+              }
+              break
+            case "stump_shade":
+              setMandibularGumShadeId(id)
+              // Sync stump shade ID to advanced fields if stump shade exists in advanced fields
+              if (productDetails?.advance_fields && selectedProduct && id !== undefined) {
+                const stumpShadeField = getAdvanceFieldByName("stump_shade", productDetails.advance_fields)
+                if (stumpShadeField) {
+                  const fieldKey = `advance_${stumpShadeField.id}`
+                  setAdvanceFieldValues(prev => {
+                    const currentValue = prev[fieldKey]
+                    return {
+                      ...prev,
+                      [fieldKey]: {
+                        advance_field_id: stumpShadeField.id,
+                        advance_field_value: currentValue?.advance_field_value || mandibularStumpShade || "",
+                        option_id: id
+                      }
+                    }
+                  })
+                }
+              }
+              break
+            case "tooth_shade":
+              setMandibularShadeId(id)
+              break
+            case "stage":
+              setMandibularStageId(id)
+              break
+          }
+        }
+      }
+    } else {
+      // For saved products, update the product in the array
+      setSavedProducts(prev => prev.map(product => {
+        if (product.id === productId) {
+          const updated = { ...product }
+          if (actualArch === "maxillary") {
+            if (config.maxillaryStateKey) {
+              (updated as any)[config.maxillaryStateKey] = value
+            }
+            if (config.maxillaryIdKey && id !== undefined) {
+              (updated as any)[config.maxillaryIdKey] = id
+
+              // Auto-select retention type based on retention option's tooth_chart_type
+              if (fieldKey === "retention_option" && id && updated.productDetails?.retention_options && updated.productDetails?.retentions) {
+                // Convert id to number for comparison (handle both string and number)
+                const numericId = typeof id === 'string' ? parseInt(id, 10) : id
+
+                // Find the selected retention option - check multiple possible structures
+                const selectedRetentionOption = updated.productDetails.retention_options.find((opt: any) => {
+                  // Check direct ID match (handle both string and number)
+                  if (opt.id === id || opt.id === numericId || String(opt.id) === String(id)) return true
+                  // Check nested lab_retention_option ID
+                  if (opt.lab_retention_option?.id === id ||
+                    opt.lab_retention_option?.id === numericId ||
+                    String(opt.lab_retention_option?.id) === String(id)) return true
+                  // Check if retention_option_id matches
+                  if (opt.retention_option_id === id ||
+                    opt.retention_option_id === numericId ||
+                    String(opt.retention_option_id) === String(id)) return true
+                  return false
+                })
+
+                if (selectedRetentionOption) {
+                  // Get tooth_chart_type from various possible locations
+                  const toothChartType = selectedRetentionOption.tooth_chart_type ||
+                    selectedRetentionOption.lab_retention_option?.tooth_chart_type ||
+                    selectedRetentionOption.retention_option?.tooth_chart_type
+
+                  // Map tooth_chart_type to retention type
+                  let targetRetentionName = ""
+                  if (toothChartType === "Implant" || toothChartType === "Pontic") {
+                    targetRetentionName = "Screwed"
+                  } else if (toothChartType === "Prep" || toothChartType === "Prepped") {
+                    targetRetentionName = "Cemented"
+                  }
+
+                  if (targetRetentionName) {
+                    // Find the matching retention by name (case-insensitive)
+                    const targetRetention = updated.productDetails.retentions.find((ret: any) =>
+                      ret.name === targetRetentionName ||
+                      ret.name?.toLowerCase() === targetRetentionName.toLowerCase()
+                    )
+                    if (targetRetention) {
+                      updated.maxillaryRetention = targetRetention.name
+                      updated.maxillaryRetentionId = targetRetention.id
+                    }
+                  }
+                }
+              }
+            }
+          } else {
+            if (config.mandibularStateKey) {
+              (updated as any)[config.mandibularStateKey] = value
+            }
+            if (config.mandibularIdKey && id !== undefined) {
+              (updated as any)[config.mandibularIdKey] = id
+
+              // Auto-select retention type based on retention option's tooth_chart_type
+              if (fieldKey === "retention_option" && id && updated.productDetails?.retention_options && updated.productDetails?.retentions) {
+                // Convert id to number for comparison (handle both string and number)
+                const numericId = typeof id === 'string' ? parseInt(id, 10) : id
+
+                // Find the selected retention option - check multiple possible structures
+                const selectedRetentionOption = updated.productDetails.retention_options.find((opt: any) => {
+                  // Check direct ID match (handle both string and number)
+                  if (opt.id === id || opt.id === numericId || String(opt.id) === String(id)) return true
+                  // Check nested lab_retention_option ID
+                  if (opt.lab_retention_option?.id === id ||
+                    opt.lab_retention_option?.id === numericId ||
+                    String(opt.lab_retention_option?.id) === String(id)) return true
+                  // Check if retention_option_id matches
+                  if (opt.retention_option_id === id ||
+                    opt.retention_option_id === numericId ||
+                    String(opt.retention_option_id) === String(id)) return true
+                  return false
+                })
+
+                if (selectedRetentionOption) {
+                  // Get tooth_chart_type from various possible locations
+                  const toothChartType = selectedRetentionOption.tooth_chart_type ||
+                    selectedRetentionOption.lab_retention_option?.tooth_chart_type ||
+                    selectedRetentionOption.retention_option?.tooth_chart_type
+
+                  // Map tooth_chart_type to retention type
+                  let targetRetentionName = ""
+                  if (toothChartType === "Implant" || toothChartType === "Pontic") {
+                    targetRetentionName = "Screwed"
+                  } else if (toothChartType === "Prep" || toothChartType === "Prepped") {
+                    targetRetentionName = "Cemented"
+                  }
+
+                  if (targetRetentionName) {
+                    // Find the matching retention by name (case-insensitive)
+                    const targetRetention = updated.productDetails.retentions.find((ret: any) =>
+                      ret.name === targetRetentionName ||
+                      ret.name?.toLowerCase() === targetRetentionName.toLowerCase()
+                    )
+                    if (targetRetention) {
+                      updated.mandibularRetention = targetRetention.name
+                      updated.mandibularRetentionId = targetRetention.id
+                    }
+                  }
+                }
+              }
+            }
+          }
+          return updated
+        }
+        return product
+      }))
+    }
+  }
+
+  // Handler to show teeth selection when clicking a saved product card
+  const handleSavedProductCardClick = (savedProduct: SavedProduct) => {
+    // Set the selected product and show product details to make the teeth selection interface visible
+    setSelectedProduct(savedProduct.product)
+    setShowProductDetails(true)
+
+    // Set category and subcategory from saved product
+    setSelectedCategory(savedProduct.category)
+    setSelectedCategoryId(savedProduct.categoryId)
+    setSelectedSubcategory(savedProduct.subcategory)
+    setSelectedSubcategoryId(savedProduct.subcategoryId)
+
+    // Set arch-specific products and show charts based on which arch has teeth
+    const hasMaxillaryTeeth = Array.isArray(savedProduct.maxillaryTeeth) && savedProduct.maxillaryTeeth.length > 0
+    const hasMandibularTeeth = Array.isArray(savedProduct.mandibularTeeth) && savedProduct.mandibularTeeth.length > 0
+
+    if (hasMaxillaryTeeth) {
+      setSelectedProductForMaxillary(savedProduct.product)
+      setShowMaxillaryChart(true)
+      setSelectedArchForProduct("maxillary")
+    }
+
+    if (hasMandibularTeeth) {
+      setSelectedProductForMandibular(savedProduct.product)
+      setShowMandibularChart(true)
+      if (!hasMaxillaryTeeth) {
+        setSelectedArchForProduct("mandibular")
+      }
+    }
+
+    // Update teeth selection to show the teeth from the saved product
+    // Always set the arrays to ensure proper state updates, even if empty
+    // Create new array references to ensure React detects the change
+    const maxillaryTeethArray = Array.isArray(savedProduct.maxillaryTeeth) && savedProduct.maxillaryTeeth.length > 0
+      ? [...savedProduct.maxillaryTeeth]
+      : []
+    const mandibularTeethArray = Array.isArray(savedProduct.mandibularTeeth) && savedProduct.mandibularTeeth.length > 0
+      ? [...savedProduct.mandibularTeeth]
+      : []
+
+    // Use setTimeout to ensure state updates are applied correctly
+    // This helps with React batching and ensures the SVG components receive the updated values
+    setMaxillaryTeeth([])
+    setMandibularTeeth([])
+
+    // Use a small delay to ensure the state is reset before setting new values
+    setTimeout(() => {
+      setMaxillaryTeeth(maxillaryTeethArray)
+      setMandibularTeeth(mandibularTeethArray)
+    }, 0)
+
+    // Set material and other details if available
+    if (savedProduct.maxillaryMaterial) {
+      setMaxillaryMaterial(savedProduct.maxillaryMaterial)
+    }
+    if (savedProduct.maxillaryStumpShade) {
+      setMaxillaryStumpShade(savedProduct.maxillaryStumpShade)
+    }
+    if (savedProduct.maxillaryRetention) {
+      setMaxillaryRetention(savedProduct.maxillaryRetention)
+    }
+    if (savedProduct.maxillaryImplantDetails) {
+      setMaxillaryImplantDetails(savedProduct.maxillaryImplantDetails)
+    }
+    if (savedProduct.mandibularMaterial) {
+      setMandibularMaterial(savedProduct.mandibularMaterial)
+    }
+    if (savedProduct.mandibularRetention) {
+      setMandibularRetention(savedProduct.mandibularRetention)
+    }
+    if (savedProduct.mandibularStumpShade) {
+      setMandibularStumpShade(savedProduct.mandibularStumpShade)
+    }
+    if (savedProduct.mandibularImplantDetails) {
+      setMandibularImplantDetails(savedProduct.mandibularImplantDetails)
+    }
+  }
+
+  // Handler for stage selection
+  const handleStageSelect = (productId: string, arch: "maxillary" | "mandibular", stageName: string, stageId?: number) => {
+    setSavedProducts((prev) =>
+      prev.map((product) => {
+        if (product.id === productId) {
+          return {
+            ...product,
+            ...(arch === "maxillary" ? { maxillaryStage: stageName, maxillaryStageId: stageId } : { mandibularStage: stageName, mandibularStageId: stageId })
+          }
+        }
+        return product
+      })
+    )
+    // Close the dropdown after selection
+    setOpenStageDropdown((prev) => ({
+      ...prev,
+      [productId]: {
+        ...prev[productId],
+        [arch]: false
+      }
+    }))
+  }
+
+  // Context value for saved product section (accordion + cards) - so section component can access all state/handlers without 80+ props
+  const savedProductSectionContextValue = useMemo(
+    () => ({
+      showMaxillaryChart,
+      showMandibularChart,
+      maxillaryTeeth,
+      mandibularTeeth,
+      selectedProductForMaxillary,
+      selectedProductForMandibular,
+      savedProducts,
+      productDetails,
+      openAccordionMaxillary,
+      openAccordionMandibular,
+      handleAccordionChangeMaxillary,
+      handleAccordionChangeMandibular,
+      currentShadeField,
+      setSavedProducts,
+      handleDeleteProduct,
+      handleOpenImpressionModal,
+      getImpressionCount,
+      getImpressionDisplayText,
+      getImpressionCountFromSaved,
+      getImpressionDisplayTextFromSaved,
+      handleOpenShadeModal,
+      handleFieldChange,
+      handleSavedProductCardClick,
+      fieldConfigs,
+      maxillaryRetentionTypes,
+      mandibularRetentionTypes,
+      implants,
+      implantsLoading,
+      selectedImplantBrandPerProduct,
+      selectedImplantPlatformPerProduct,
+      setSelectedImplantBrandPerProduct,
+      setSelectedImplantPlatformPerProduct,
+      showImplantCardsForProduct,
+      setShowImplantCardsForProduct,
+      clickedFieldTypeInAccordion,
+      setClickedFieldTypeInAccordion,
+      openStageDropdown,
+      setOpenStageDropdown,
+      handleStageSelect,
+      productAdvanceFields,
+      setProductAdvanceFields,
+      showAdvanceFields,
+      setCurrentProductForModal,
+      setCurrentArchForModal,
+      setShowAddOnsModal,
+      setShowAttachModal,
+      setShowRushModal,
+      getTotalAddOnsCount,
+      getAttachedFilesCount,
+      isAccordionFieldVisible,
+      showValidationErrors,
+    }),
+    [
+      showMaxillaryChart,
+      showMandibularChart,
+      maxillaryTeeth,
+      mandibularTeeth,
+      selectedProductForMaxillary,
+      selectedProductForMandibular,
+      savedProducts,
+      productDetails,
+      openAccordionMaxillary,
+      openAccordionMandibular,
+      currentShadeField,
+      fieldConfigs,
+      maxillaryRetentionTypes,
+      mandibularRetentionTypes,
+      implants,
+      implantsLoading,
+      selectedImplantBrandPerProduct,
+      selectedImplantPlatformPerProduct,
+      showImplantCardsForProduct,
+      clickedFieldTypeInAccordion,
+      openStageDropdown,
+      productAdvanceFields,
+      showAdvanceFields,
+      getTotalAddOnsCount,
+    ]
+  )
+
   // Auto-open stage dropdown when accordion opens and stage field is visible with "Not specified" value
   useEffect(() => {
-    if (!openAccordion) {
-      // Close all dropdowns when accordion closes
+    if (!openAccordionMaxillary && !openAccordionMandibular) {
       setOpenStageDropdown({})
       return
     }
 
-    // Check if this is a saved product accordion
-    const savedProduct = savedProducts.find(p => p.id === openAccordion)
-    if (!savedProduct) return
+    const openIds = [openAccordionMaxillary, openAccordionMandibular].filter((id): id is string => !!id && savedProducts.some(p => p.id === id))
+    if (openIds.length === 0) return
 
-    const productDetails = savedProduct.productDetails
-    if (!productDetails?.stages || !Array.isArray(productDetails.stages) || productDetails.stages.length === 0) return
+    const helper = (accordionId: string) => {
+      const savedProduct = savedProducts.find(p => p.id === accordionId)
+      if (!savedProduct) return
+      const productDetails = savedProduct.productDetails
+      if (!productDetails?.stages || !Array.isArray(productDetails.stages) || productDetails.stages.length === 0) return
 
-    // Helper to check if value is "Not specified" or empty
-    const isNotSpecified = (value: string | undefined | null): boolean => {
-      if (!value) return true
-      const trimmed = String(value).trim().toLowerCase()
-      return trimmed === "" || trimmed === "not specified" || trimmed === "finish"
-    }
+      const isNotSpecified = (value: string | undefined | null): boolean => {
+        if (!value) return true
+        const trimmed = String(value).trim().toLowerCase()
+        return trimmed === "" || trimmed === "not specified" || trimmed === "finish"
+      }
 
-    // Function to check and open dropdowns
-    const checkAndOpenDropdowns = () => {
-      // Check if stage field should be visible for maxillary
       const isMaxillaryVisible = isAccordionFieldVisible("stage", savedProduct, "maxillary")
-      // Check if stage field should be visible for mandibular
       const isMandibularVisible = isAccordionFieldVisible("stage", savedProduct, "mandibular")
-
-      // Check maxillary stage value
       const maxillaryStageValue = savedProduct.maxillaryStage
       const shouldOpenMaxillary = isMaxillaryVisible && isNotSpecified(maxillaryStageValue)
-
-      // Check mandibular stage value
       const mandibularStageValue = savedProduct.mandibularStage
       const shouldOpenMandibular = isMandibularVisible && isNotSpecified(mandibularStageValue)
 
       if (shouldOpenMaxillary || shouldOpenMandibular) {
         setOpenStageDropdown((prev) => ({
           ...prev,
-          [openAccordion]: {
-            ...prev[openAccordion],
+          [accordionId]: {
+            ...prev[accordionId],
             ...(shouldOpenMaxillary && { maxillary: true }),
             ...(shouldOpenMandibular && { mandibular: true })
           }
@@ -1924,7 +2788,8 @@ export default function CaseDesignCenterPage() {
       }
     }
 
-    // Use multiple attempts with increasing delays to ensure the accordion content is fully rendered
+    const checkAndOpenDropdowns = () => openIds.forEach(helper)
+
     const timer1 = setTimeout(checkAndOpenDropdowns, 200)
     const timer2 = setTimeout(checkAndOpenDropdowns, 400)
     const timer3 = setTimeout(checkAndOpenDropdowns, 600)
@@ -1934,14 +2799,7 @@ export default function CaseDesignCenterPage() {
       clearTimeout(timer2)
       clearTimeout(timer3)
     }
-  }, [openAccordion, savedProducts])
-
-  // Modal states
-  const [showAddOnsModal, setShowAddOnsModal] = useState(false)
-  const [showRushModal, setShowRushModal] = useState(false)
-  const [showAttachModal, setShowAttachModal] = useState(false)
-  const [currentProductForModal, setCurrentProductForModal] = useState<SavedProduct | null>(null)
-  const [currentArchForModal, setCurrentArchForModal] = useState<"maxillary" | "mandibular" | null>(null)
+  }, [openAccordionMaxillary, openAccordionMandibular, savedProducts])
 
   // Helper function to automatically show both maxillary and mandibular charts
   const showChartsAutomatically = (product: Product) => {
@@ -2481,9 +3339,9 @@ export default function CaseDesignCenterPage() {
               sp.subcategoryId === selectedSubcategoryId &&
               JSON.stringify([...(sp.maxillaryTeeth || [])].sort()) === JSON.stringify([...maxillaryTeeth].sort())
             )
-            if (matchingProduct && openAccordion === "maxillary-card") {
+            if (matchingProduct && openAccordionMaxillary === "maxillary-card") {
               // Only open the saved product accordion if we're on the editing card
-              setOpenAccordion(matchingProduct.id)
+              setOpenAccordionMaxillary(matchingProduct.id)
             }
           }, 200)
         }
@@ -2507,7 +3365,7 @@ export default function CaseDesignCenterPage() {
     selectedImplantBrand,
     selectedImplantPlatform,
     selectedImplantSize,
-    openAccordion,
+    openAccordionMaxillary,
     maxillaryRetentionTypes,
     maxillaryImplantInclusions,
     maxillaryAbutmentDetail,
@@ -2572,9 +3430,9 @@ export default function CaseDesignCenterPage() {
               sp.subcategoryId === selectedSubcategoryId &&
               JSON.stringify([...(sp.mandibularTeeth || [])].sort()) === JSON.stringify([...mandibularTeeth].sort())
             )
-            if (matchingProduct && openAccordion === "mandibular-card") {
+            if (matchingProduct && openAccordionMandibular === "mandibular-card") {
               // Only open the saved product accordion if we're on the editing card
-              setOpenAccordion(matchingProduct.id)
+              setOpenAccordionMandibular(matchingProduct.id)
             }
           }, 200)
         }
@@ -2598,7 +3456,7 @@ export default function CaseDesignCenterPage() {
     selectedImplantBrand,
     selectedImplantPlatform,
     selectedImplantSize,
-    openAccordion,
+    openAccordionMandibular,
     mandibularRetentionTypes,
     mandibularImplantInclusions,
     mandibularAbutmentDetail,
@@ -2751,7 +3609,8 @@ export default function CaseDesignCenterPage() {
         } : null,
         showProductDetails,
         // UI state
-        openAccordion,
+        openAccordionMaxillary,
+        openAccordionMandibular,
         showAdvanceFields,
         // Advance fields data
         productAdvanceFields: Object.keys(productAdvanceFields).reduce((acc, key) => {
@@ -2790,7 +3649,8 @@ export default function CaseDesignCenterPage() {
             subcategoriesByCategory: subcategoriesByCategory || [],
             products: products || [],
             selectedProduct: selectedProduct ? { id: selectedProduct.id, name: selectedProduct.name } : null,
-            openAccordion
+            openAccordionMaxillary,
+            openAccordionMandibular
           }
           localStorage.setItem("caseDesignCenterState", JSON.stringify(minimalState))
         } catch (retryError) {
@@ -2857,8 +3717,15 @@ export default function CaseDesignCenterPage() {
           }
         }
 
-        // Restore UI state
-        if (state.openAccordion) setOpenAccordion(state.openAccordion)
+        // Restore UI state (support legacy openAccordion for backward compatibility)
+        if (state.openAccordionMaxillary != null) setOpenAccordionMaxillary(state.openAccordionMaxillary)
+        if (state.openAccordionMandibular != null) setOpenAccordionMandibular(state.openAccordionMandibular)
+        if (state.openAccordion != null && state.openAccordionMaxillary == null && state.openAccordionMandibular == null) {
+          const v = state.openAccordion
+          if (v === "maxillary-card") setOpenAccordionMaxillary(v)
+          else if (v === "mandibular-card") setOpenAccordionMandibular(v)
+          else setOpenAccordionMaxillary(v)
+        }
         if (state.showAdvanceFields) setShowAdvanceFields(state.showAdvanceFields)
         if (state.productAdvanceFields) setProductAdvanceFields(state.productAdvanceFields)
         if (state.advanceFieldValues) setAdvanceFieldValues(state.advanceFieldValues)
@@ -2891,7 +3758,8 @@ export default function CaseDesignCenterPage() {
     products,
     selectedProduct,
     showProductDetails,
-    openAccordion,
+    openAccordionMaxillary,
+    openAccordionMandibular,
     showAdvanceFields,
     productAdvanceFields,
     advanceFieldValues,
@@ -3661,6 +4529,34 @@ export default function CaseDesignCenterPage() {
     return [...new Set(teeth)].sort((a, b) => a - b)
   }
 
+  // Helpers to get/set case summary content split by arch (for separate Maxillary / Mandibular fields)
+  const getCaseSummaryMaxillaryContent = (): string => {
+    const notes = maxillaryImplantDetails || ''
+    const mandibularIndex = notes.toUpperCase().search(/\n\s*MANDIBULAR\s*\n/)
+    if (mandibularIndex === -1) {
+      const afterHeader = notes.replace(/^\s*MAXILLARY\s*\n?/i, '')
+      return afterHeader.trim()
+    }
+    const maxillaryPart = notes.slice(0, mandibularIndex).replace(/^\s*MAXILLARY\s*\n?/i, '')
+    return maxillaryPart.trim()
+  }
+  const getCaseSummaryMandibularContent = (): string => {
+    const notes = maxillaryImplantDetails || ''
+    const mandibularIndex = notes.toUpperCase().search(/\n\s*MANDIBULAR\s*\n/)
+    if (mandibularIndex === -1) return ''
+    return notes.slice(mandibularIndex).replace(/^\s*MANDIBULAR\s*\n?/i, '').trim()
+  }
+  const setCaseSummaryFromParts = (maxillaryContent: string, mandibularContent: string) => {
+    const combined = [
+      'MAXILLARY',
+      maxillaryContent,
+      '',
+      'MANDIBULAR',
+      mandibularContent,
+    ].filter(Boolean).join('\n\n')
+    setMaxillaryImplantDetails(combined)
+  }
+
   // Function to parse case notes and update products, categories, and teeth selections
   const parseCaseNotes = async (notes: string) => {
     // Prevent concurrent parsing
@@ -4066,7 +4962,7 @@ export default function CaseDesignCenterPage() {
           const productName = product.product.name || "restoration"
           const stage = product.mandibularStage || "finish"
           const toothShade = product.mandibularToothShade || "A2"
-          const stumpShade = product.maxillaryStumpShade || "A2"
+          const stumpShade = product.mandibularStumpShade || "A2"
           const retention = product.mandibularRetention || "cement-retained"
           const isImplant = retention.toLowerCase().includes("implant") || retention.toLowerCase().includes("screw")
 
@@ -4119,7 +5015,7 @@ export default function CaseDesignCenterPage() {
           const grade = product.mandibularMaterial || "Premium"
           const stage = product.mandibularStage || "finish"
           const teethShade = product.mandibularToothShade || "A2"
-          const gumShade = product.maxillaryStumpShade || "A2"
+          const gumShade = product.mandibularStumpShade || "A2"
 
           // Format impressions with quantities
           let impressionText = "STL file"
@@ -4318,100 +5214,6 @@ export default function CaseDesignCenterPage() {
     })
   }
 
-  const handleOpenImpressionModal = (product: SavedProduct, arch: "maxillary" | "mandibular") => {
-    setCurrentProductForImpression(product)
-    setCurrentImpressionArch(arch)
-    // Hydrate selectedImpressions from saved product so modal shows current values
-    const impressions = product.productDetails?.impressions
-    const savedArr = arch === "maxillary" ? product.maxillaryImpressions : product.mandibularImpressions
-    if (impressions && Array.isArray(impressions) && savedArr && savedArr.length > 0) {
-      setSelectedImpressions(prev => {
-        const next = { ...prev }
-        const productId = product.product?.id?.toString() ?? product.id
-        savedArr.forEach(sel => {
-          const impression = impressions.find((imp: any) => imp.id === sel.impression_id)
-          if (impression) {
-            const key = `${productId}_${arch}_${impression.value || impression.name}`
-            next[key] = sel.quantity
-          }
-        })
-        return next
-      })
-    }
-    setShowImpressionModal(true)
-  }
-
-  // Use a ref to track if we're currently setting the accordion to prevent infinite loops
-  const isSettingAccordionRef = useRef(false)
-
-  const handleOpenShadeModal = (fieldKey: string, arch?: "maxillary" | "mandibular", productId?: string) => {
-    // Prevent multiple rapid calls
-    if (isSettingAccordionRef.current) {
-      return
-    }
-
-    // When opening from a saved product accordion, track which product so shade apply updates that product
-    setCurrentShadeProductId(productId ?? null)
-
-    // Determine arch: use provided arch, or check which accordion is open, or fallback to teeth selection
-    let actualArch: "maxillary" | "mandibular"
-    if (arch) {
-      actualArch = arch
-    } else if (openAccordion === "mandibular-card") {
-      actualArch = "mandibular"
-    } else if (openAccordion === "maxillary-card") {
-      actualArch = "maxillary"
-    } else {
-      // Fallback: check which arch has teeth selected
-      actualArch = maxillaryTeeth.length > 0 ? "maxillary" : "mandibular"
-    }
-
-    // Map field key to shade field type
-    const shadeFieldType: "tooth_shade" | "stump_shade" =
-      fieldKey === "tooth_shade" ? "tooth_shade" : "stump_shade"
-
-    // If opening tooth shade field and stump shade is already selected, reset tooth shade for both arches (only when not editing a saved product)
-    if (shadeFieldType === "tooth_shade" && !productId) {
-      const hasMaxillaryStumpShade = maxillaryStumpShade && maxillaryStumpShade.trim() !== ""
-      const hasMandibularStumpShade = mandibularStumpShade && mandibularStumpShade.trim() !== ""
-
-      if (hasMaxillaryStumpShade || hasMandibularStumpShade) {
-        // Reset tooth shade selections for both arches
-        setMaxillaryShadeId(undefined)
-        setMandibularShadeId(undefined)
-        setMaxillaryToothShade("")
-        setMandibularToothShade("")
-
-        // Also clear from saved products if they exist
-        setSavedProducts(prev => prev.map(product => ({
-          ...product,
-          maxillaryToothShade: "",
-          mandibularToothShade: "",
-          maxillaryShadeId: undefined,
-          mandibularShadeId: undefined
-        })))
-      }
-    }
-
-    isSettingAccordionRef.current = true
-
-    setCurrentShadeField(shadeFieldType)
-    setCurrentShadeArch(actualArch)
-    setSelectedShadesForSVG([]) // Reset selected shades
-    // Automatically open the accordion: saved product id when editing saved product, else current arch card
-    const accordionId = productId ? productId : (actualArch === "maxillary" ? "maxillary-card" : "mandibular-card")
-    if (openAccordion !== accordionId) {
-      setOpenAccordion(accordionId)
-    }
-
-    // Reset the ref after a short delay to allow state updates to complete
-    setTimeout(() => {
-      isSettingAccordionRef.current = false
-    }, 100)
-
-    // No longer opening modal - just setting the field to show SVG inline
-  }
-
   // Keep accordion open when shade selection is active - using useMemo to derive accordion state
   const targetAccordionId = useMemo(() => {
     if (currentShadeField) {
@@ -4423,15 +5225,18 @@ export default function CaseDesignCenterPage() {
 
   // Update accordion when target changes, but only if different to prevent loops
   useEffect(() => {
-    if (targetAccordionId && openAccordion !== targetAccordionId && !isSettingAccordionRef.current) {
+    if (!targetAccordionId || isSettingAccordionRef.current) return
+    const isMaxillary = targetAccordionId === "maxillary-card" || savedProducts.some(p => p.id === targetAccordionId && p.addedFrom === "maxillary")
+    const current = isMaxillary ? openAccordionMaxillary : openAccordionMandibular
+    if (current !== targetAccordionId) {
       isSettingAccordionRef.current = true
-      setOpenAccordion(targetAccordionId)
-      // Reset ref after state update completes
+      if (isMaxillary) setOpenAccordionMaxillary(targetAccordionId)
+      else setOpenAccordionMandibular(targetAccordionId)
       requestAnimationFrame(() => {
         isSettingAccordionRef.current = false
       })
     }
-  }, [targetAccordionId, openAccordion])
+  }, [targetAccordionId, openAccordionMaxillary, openAccordionMandibular, savedProducts])
 
   const handleShadeSelect = (shadeId: number, shadeName: string, brandId?: number) => {
     if (!currentShadeField) return
@@ -4527,64 +5332,6 @@ export default function CaseDesignCenterPage() {
       }
     })
     return selections
-  }
-
-  // Helper to format impression display text (e.g., "1x STL, 2x alginate, 3x PVS" or "1x STL, 2x alginate, 3x PVS and 2 more")
-  const getImpressionDisplayText = (productId: string, arch: "maxillary" | "mandibular", impressions: any[]): string => {
-    if (!impressions || !Array.isArray(impressions)) return "Select impression"
-
-    const selections: Array<{ quantity: number, name: string }> = []
-    impressions.forEach(impression => {
-      const key = `${productId}_${arch}_${impression.value || impression.name}`
-      const quantity = selectedImpressions[key] || 0
-      if (quantity > 0) {
-        selections.push({
-          quantity,
-          name: impression.name || impression.value || "Impression"
-        })
-      }
-    })
-
-    if (selections.length === 0) return "Select impression"
-
-    // Show maximum 3 impressions, then add "and X more" if there are more
-    const maxDisplay = 3
-    const displayedSelections = selections.slice(0, maxDisplay)
-    const remainingCount = selections.length - maxDisplay
-
-    // Format as "1x STL, 2x alginate, 3x PVS"
-    let displayText = displayedSelections.map(sel => `${sel.quantity}x ${sel.name}`).join(", ")
-
-    // Add "and X more" if there are more than 3 selections
-    if (remainingCount > 0) {
-      displayText += ` and ${remainingCount} more`
-    }
-
-    return displayText
-  }
-
-  // Helper to get impression count for a product and arch
-  const getImpressionCount = (productId: string, arch: "maxillary" | "mandibular", impressions: any[]): number => {
-    if (!impressions || !Array.isArray(impressions)) return 0
-    return impressions.reduce((sum: number, impression: any) => {
-      const key = `${productId}_${arch}_${impression.value || impression.name}`
-      return sum + (selectedImpressions[key] || 0)
-    }, 0)
-  }
-
-  // Helpers for saved products: get count and display text from saved product's impression arrays
-  const getImpressionCountFromSaved = (savedImpressions: Array<{ impression_id: number; quantity: number; name?: string }> | undefined): number => {
-    if (!savedImpressions || !Array.isArray(savedImpressions)) return 0
-    return savedImpressions.reduce((sum, sel) => sum + (sel.quantity || 0), 0)
-  }
-  const getImpressionDisplayTextFromSaved = (savedImpressions: Array<{ impression_id: number; quantity: number; name?: string }> | undefined): string => {
-    if (!savedImpressions || !Array.isArray(savedImpressions) || savedImpressions.length === 0) return "Select impression"
-    const maxDisplay = 3
-    const displayed = savedImpressions.slice(0, maxDisplay)
-    const remaining = savedImpressions.length - maxDisplay
-    let text = displayed.map(sel => `${sel.quantity}x ${sel.name || "Impression"}`).join(", ")
-    if (remaining > 0) text += ` and ${remaining} more`
-    return text
   }
 
   // Helper to find default option from API response
@@ -4751,13 +5498,13 @@ export default function CaseDesignCenterPage() {
         const isMaxillaryVisible = isAccordionFieldVisible("stage", savedProduct, "maxillary")
         const maxillaryStageValue = savedProduct.maxillaryStage
         const shouldOpenMaxillary = isMaxillaryVisible && isNotSpecified(maxillaryStageValue) &&
-          openAccordion === savedProduct.id
+          savedProduct.addedFrom === "maxillary" && openAccordionMaxillary === savedProduct.id
 
         // Check mandibular
         const isMandibularVisible = isAccordionFieldVisible("stage", savedProduct, "mandibular")
         const mandibularStageValue = savedProduct.mandibularStage
         const shouldOpenMandibular = isMandibularVisible && isNotSpecified(mandibularStageValue) &&
-          openAccordion === savedProduct.id
+          savedProduct.addedFrom === "mandibular" && openAccordionMandibular === savedProduct.id
 
         if (shouldOpenMaxillary || shouldOpenMandibular) {
           setOpenStageDropdown((prev) => {
@@ -4780,490 +5527,48 @@ export default function CaseDesignCenterPage() {
     })
 
     // Check unsaved products (maxillary-card and mandibular-card)
-    if (openAccordion === "maxillary-card" || openAccordion === "mandibular-card") {
-      const arch = openAccordion === "maxillary-card" ? "maxillary" : "mandibular"
-      const stageValue = arch === "maxillary" ? maxillaryStage : mandibularStage
-      const toothShade = arch === "maxillary" ? maxillaryToothShade : mandibularToothShade
-
-      // Helper to check if value is "Not specified" or empty
-      const isNotSpecified = (value: string | undefined | null): boolean => {
-        if (!value) return true
-        const trimmed = String(value).trim().toLowerCase()
-        return trimmed === "" || trimmed === "not specified" || trimmed === "finish"
-      }
-
-      // Check if stage field should be visible (tooth shade must be filled)
-      const isStageVisible = toothShade && toothShade.trim() !== "" && toothShade.trim().toLowerCase() !== "not specified"
-
-      if (isStageVisible && isNotSpecified(stageValue) && productDetails?.stages && Array.isArray(productDetails.stages) && productDetails.stages.length > 0) {
-        setOpenStageDropdown((prev) => {
-          const currentState = prev[openAccordion]
-          if (!currentState?.[arch]) {
-            return {
-              ...prev,
-              [openAccordion]: {
-                ...currentState,
-                [arch]: true
-              }
+    if (openAccordionMaxillary === "maxillary-card" || openAccordionMandibular === "mandibular-card") {
+      if (openAccordionMaxillary === "maxillary-card") {
+        const stageValue = maxillaryStage
+        const toothShade = maxillaryToothShade
+        const isNotSpecified = (value: string | undefined | null): boolean => {
+          if (!value) return true
+          const trimmed = String(value).trim().toLowerCase()
+          return trimmed === "" || trimmed === "not specified" || trimmed === "finish"
+        }
+        const isStageVisible = toothShade && toothShade.trim() !== "" && toothShade.trim().toLowerCase() !== "not specified"
+        if (isStageVisible && isNotSpecified(stageValue) && productDetails?.stages && Array.isArray(productDetails.stages) && productDetails.stages.length > 0) {
+          setOpenStageDropdown((prev) => {
+            const currentState = prev["maxillary-card"]
+            if (!currentState?.maxillary) {
+              return { ...prev, "maxillary-card": { ...currentState, maxillary: true } }
             }
-          }
-          return prev
-        })
+            return prev
+          })
+        }
+      }
+      if (openAccordionMandibular === "mandibular-card") {
+        const stageValue = mandibularStage
+        const toothShade = mandibularToothShade
+        const isNotSpecified = (value: string | undefined | null): boolean => {
+          if (!value) return true
+          const trimmed = String(value).trim().toLowerCase()
+          return trimmed === "" || trimmed === "not specified" || trimmed === "finish"
+        }
+        const isStageVisible = toothShade && toothShade.trim() !== "" && toothShade.trim().toLowerCase() !== "not specified"
+        if (isStageVisible && isNotSpecified(stageValue) && productDetails?.stages && Array.isArray(productDetails.stages) && productDetails.stages.length > 0) {
+          setOpenStageDropdown((prev) => {
+            const currentState = prev["mandibular-card"]
+            if (!currentState?.mandibular) {
+              return { ...prev, "mandibular-card": { ...currentState, mandibular: true } }
+            }
+            return prev
+          })
+        }
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [savedProducts, openAccordion, maxillaryStage, mandibularStage, maxillaryToothShade, mandibularToothShade, productDetails])
-
-  // Handler for field changes in dynamic fields
-  const handleFieldChange = (fieldKey: string, value: string, id?: number, productId?: string, arch?: "maxillary" | "mandibular") => {
-    const actualArch = arch || (maxillaryTeeth.length > 0 ? "maxillary" : "mandibular")
-    const config = fieldConfigs.find(f => f.key === fieldKey)
-    if (!config) return
-
-    if (!productId) {
-      // For card accordion (not yet saved product) - update local state
-      if (actualArch === "maxillary") {
-        if (config.maxillaryStateKey) {
-          switch (fieldKey) {
-            case "material":
-              setMaxillaryMaterial(value)
-              break
-            case "retention":
-              setMaxillaryRetention(value)
-              break
-            case "stage":
-              setMaxillaryStage(value)
-              break
-            case "stump_shade":
-              setMaxillaryStumpShade(value)
-              // Reset tooth shade when stump shade is set
-              if (value && value.trim() !== "") {
-                setMaxillaryShadeId(undefined)
-                setMaxillaryToothShade("")
-                // Reset SVG selection sticks if currently viewing tooth shade for this arch
-                if (currentShadeField === "tooth_shade" && currentShadeArch === "maxillary") {
-                  setSelectedShadesForSVG([]) // Reset the sticks in the tooth shade container
-                }
-                // Also clear from saved products
-                setSavedProducts(prev => prev.map(product => ({
-                  ...product,
-                  maxillaryToothShade: "",
-                  maxillaryShadeId: undefined
-                })))
-              }
-              // Sync stump shade value to advanced fields if stump shade exists in advanced fields
-              if (productDetails?.advance_fields && selectedProduct) {
-                const stumpShadeField = getAdvanceFieldByName("stump_shade", productDetails.advance_fields)
-                if (stumpShadeField) {
-                  const fieldKey = `advance_${stumpShadeField.id}`
-                  setAdvanceFieldValues(prev => ({
-                    ...prev,
-                    [fieldKey]: {
-                      advance_field_id: stumpShadeField.id,
-                      advance_field_value: value,
-                      option_id: id // If stump shade has options, use the id
-                    }
-                  }))
-                }
-              }
-              break
-            case "tooth_shade":
-              setMaxillaryToothShade(value)
-              break
-          }
-        }
-        if (config.maxillaryIdKey && id !== undefined) {
-          switch (fieldKey) {
-            case "material":
-              setMaxillaryMaterialId(id)
-              break
-            case "retention":
-              setMaxillaryRetentionId(id)
-              break
-            case "retention_option":
-              setMaxillaryRetentionOptionId(id)
-              // Auto-select retention type based on retention option's tooth_chart_type
-              if (id && productDetails?.retention_options && productDetails?.retentions) {
-                // Convert id to number for comparison (handle both string and number)
-                const numericId = typeof id === 'string' ? parseInt(id, 10) : id
-
-                // Find the selected retention option - check multiple possible structures
-                const selectedRetentionOption = productDetails.retention_options.find((opt: any) => {
-                  // Check direct ID match (handle both string and number)
-                  if (opt.id === id || opt.id === numericId || String(opt.id) === String(id)) return true
-                  // Check nested lab_retention_option ID
-                  if (opt.lab_retention_option?.id === id ||
-                    opt.lab_retention_option?.id === numericId ||
-                    String(opt.lab_retention_option?.id) === String(id)) return true
-                  // Check if retention_option_id matches
-                  if (opt.retention_option_id === id ||
-                    opt.retention_option_id === numericId ||
-                    String(opt.retention_option_id) === String(id)) return true
-                  return false
-                })
-
-                if (selectedRetentionOption) {
-                  // Get tooth_chart_type from various possible locations
-                  const toothChartType = selectedRetentionOption.tooth_chart_type ||
-                    selectedRetentionOption.lab_retention_option?.tooth_chart_type ||
-                    selectedRetentionOption.retention_option?.tooth_chart_type
-
-                  // Debug logging (can be removed later)
-                  if (process.env.NODE_ENV === 'development') {
-                    console.log('Retention option selected:', {
-                      id,
-                      numericId,
-                      selectedRetentionOption,
-                      toothChartType,
-                      allRetentionOptions: productDetails.retention_options
-                    })
-                  }
-
-                  // Map tooth_chart_type to retention type
-                  let targetRetentionName = ""
-                  if (toothChartType === "Implant" || toothChartType === "Pontic") {
-                    targetRetentionName = "Screwed"
-                  } else if (toothChartType === "Prep" || toothChartType === "Prepped") {
-                    targetRetentionName = "Cemented"
-                  }
-
-                  if (targetRetentionName) {
-                    // Find the matching retention by name (case-insensitive)
-                    const targetRetention = productDetails.retentions.find((ret: any) =>
-                      ret.name === targetRetentionName ||
-                      ret.name?.toLowerCase() === targetRetentionName.toLowerCase()
-                    )
-                    if (targetRetention) {
-                      if (process.env.NODE_ENV === 'development') {
-                        console.log('Auto-selecting retention type:', targetRetention)
-                      }
-                      setMaxillaryRetention(targetRetention.name)
-                      setMaxillaryRetentionId(targetRetention.id)
-                    } else if (process.env.NODE_ENV === 'development') {
-                      console.log('Retention not found:', {
-                        targetRetentionName,
-                        availableRetentions: productDetails.retentions
-                      })
-                    }
-                  } else if (process.env.NODE_ENV === 'development') {
-                    console.log('No target retention name mapped for tooth_chart_type:', toothChartType)
-                  }
-                } else if (process.env.NODE_ENV === 'development') {
-                  console.log('Retention option not found:', {
-                    id,
-                    numericId,
-                    availableOptions: productDetails.retention_options.map((opt: any) => ({
-                      id: opt.id,
-                      name: opt.name,
-                      lab_retention_option_id: opt.lab_retention_option?.id,
-                      retention_option_id: opt.retention_option_id
-                    }))
-                  })
-                }
-              }
-              break
-            case "stump_shade":
-              setMaxillaryGumShadeId(id)
-              // Sync stump shade ID to advanced fields if stump shade exists in advanced fields
-              if (productDetails?.advance_fields && selectedProduct && id !== undefined) {
-                const stumpShadeField = getAdvanceFieldByName("stump_shade", productDetails.advance_fields)
-                if (stumpShadeField) {
-                  const fieldKey = `advance_${stumpShadeField.id}`
-                  setAdvanceFieldValues(prev => {
-                    const currentValue = prev[fieldKey]
-                    return {
-                      ...prev,
-                      [fieldKey]: {
-                        advance_field_id: stumpShadeField.id,
-                        advance_field_value: currentValue?.advance_field_value || maxillaryStumpShade || "",
-                        option_id: id
-                      }
-                    }
-                  })
-                }
-              }
-              break
-            case "tooth_shade":
-              setMaxillaryShadeId(id)
-              break
-            case "stage":
-              setMaxillaryStageId(id)
-              break
-          }
-        }
-      } else {
-        if (config.mandibularStateKey) {
-          switch (fieldKey) {
-            case "material":
-              setMandibularMaterial(value)
-              break
-            case "retention":
-              setMandibularRetention(value)
-              break
-            case "stage":
-              setMandibularStage(value)
-              break
-            case "stump_shade":
-              setMandibularStumpShade(value)
-              // Reset tooth shade when stump shade is set
-              if (value && value.trim() !== "") {
-                setMandibularShadeId(undefined)
-                setMandibularToothShade("")
-                // Reset SVG selection sticks if currently viewing tooth shade for this arch
-                if (currentShadeField === "tooth_shade" && currentShadeArch === "mandibular") {
-                  setSelectedShadesForSVG([]) // Reset the sticks in the tooth shade container
-                }
-                // Also clear from saved products
-                setSavedProducts(prev => prev.map(product => ({
-                  ...product,
-                  mandibularToothShade: "",
-                  mandibularShadeId: undefined
-                })))
-              }
-              // Sync stump shade value to advanced fields if stump shade exists in advanced fields
-              if (productDetails?.advance_fields && selectedProduct) {
-                const stumpShadeField = getAdvanceFieldByName("stump_shade", productDetails.advance_fields)
-                if (stumpShadeField) {
-                  const fieldKey = `advance_${stumpShadeField.id}`
-                  setAdvanceFieldValues(prev => ({
-                    ...prev,
-                    [fieldKey]: {
-                      advance_field_id: stumpShadeField.id,
-                      advance_field_value: value,
-                      option_id: id // If stump shade has options, use the id
-                    }
-                  }))
-                }
-              }
-              break
-            case "tooth_shade":
-              setMandibularToothShade(value)
-              break
-          }
-        }
-        if (config.mandibularIdKey && id !== undefined) {
-          switch (fieldKey) {
-            case "material":
-              setMandibularMaterialId(id)
-              break
-            case "retention":
-              setMandibularRetentionId(id)
-              break
-            case "retention_option":
-              setMandibularRetentionOptionId(id)
-              // Auto-select retention type based on retention option's tooth_chart_type
-              if (id && productDetails?.retention_options && productDetails?.retentions) {
-                // Convert id to number for comparison (handle both string and number)
-                const numericId = typeof id === 'string' ? parseInt(id, 10) : id
-
-                // Find the selected retention option - check multiple possible structures
-                const selectedRetentionOption = productDetails.retention_options.find((opt: any) => {
-                  // Check direct ID match (handle both string and number)
-                  if (opt.id === id || opt.id === numericId || String(opt.id) === String(id)) return true
-                  // Check nested lab_retention_option ID
-                  if (opt.lab_retention_option?.id === id ||
-                    opt.lab_retention_option?.id === numericId ||
-                    String(opt.lab_retention_option?.id) === String(id)) return true
-                  // Check if retention_option_id matches
-                  if (opt.retention_option_id === id ||
-                    opt.retention_option_id === numericId ||
-                    String(opt.retention_option_id) === String(id)) return true
-                  return false
-                })
-
-                if (selectedRetentionOption) {
-                  // Get tooth_chart_type from various possible locations
-                  const toothChartType = selectedRetentionOption.tooth_chart_type ||
-                    selectedRetentionOption.lab_retention_option?.tooth_chart_type ||
-                    selectedRetentionOption.retention_option?.tooth_chart_type
-
-                  // Debug logging (can be removed later)
-                  if (process.env.NODE_ENV === 'development') {
-                    console.log('Retention option selected (mandibular):', {
-                      id,
-                      numericId,
-                      selectedRetentionOption,
-                      toothChartType
-                    })
-                  }
-
-                  // Map tooth_chart_type to retention type
-                  let targetRetentionName = ""
-                  if (toothChartType === "Implant" || toothChartType === "Pontic") {
-                    targetRetentionName = "Screwed"
-                  } else if (toothChartType === "Prep" || toothChartType === "Prepped") {
-                    targetRetentionName = "Cemented"
-                  }
-
-                  if (targetRetentionName) {
-                    // Find the matching retention by name (case-insensitive)
-                    const targetRetention = productDetails.retentions.find((ret: any) =>
-                      ret.name === targetRetentionName ||
-                      ret.name?.toLowerCase() === targetRetentionName.toLowerCase()
-                    )
-                    if (targetRetention) {
-                      if (process.env.NODE_ENV === 'development') {
-                        console.log('Auto-selecting retention type (mandibular):', targetRetention)
-                      }
-                      setMandibularRetention(targetRetention.name)
-                      setMandibularRetentionId(targetRetention.id)
-                    }
-                  }
-                }
-              }
-              break
-            case "stump_shade":
-              setMandibularGumShadeId(id)
-              // Sync stump shade ID to advanced fields if stump shade exists in advanced fields
-              if (productDetails?.advance_fields && selectedProduct && id !== undefined) {
-                const stumpShadeField = getAdvanceFieldByName("stump_shade", productDetails.advance_fields)
-                if (stumpShadeField) {
-                  const fieldKey = `advance_${stumpShadeField.id}`
-                  setAdvanceFieldValues(prev => {
-                    const currentValue = prev[fieldKey]
-                    return {
-                      ...prev,
-                      [fieldKey]: {
-                        advance_field_id: stumpShadeField.id,
-                        advance_field_value: currentValue?.advance_field_value || mandibularStumpShade || "",
-                        option_id: id
-                      }
-                    }
-                  })
-                }
-              }
-              break
-            case "tooth_shade":
-              setMandibularShadeId(id)
-              break
-            case "stage":
-              setMandibularStageId(id)
-              break
-          }
-        }
-      }
-    } else {
-      // For saved products, update the product in the array
-      setSavedProducts(prev => prev.map(product => {
-        if (product.id === productId) {
-          const updated = { ...product }
-          if (actualArch === "maxillary") {
-            if (config.maxillaryStateKey) {
-              (updated as any)[config.maxillaryStateKey] = value
-            }
-            if (config.maxillaryIdKey && id !== undefined) {
-              (updated as any)[config.maxillaryIdKey] = id
-
-              // Auto-select retention type based on retention option's tooth_chart_type
-              if (fieldKey === "retention_option" && id && updated.productDetails?.retention_options && updated.productDetails?.retentions) {
-                // Convert id to number for comparison (handle both string and number)
-                const numericId = typeof id === 'string' ? parseInt(id, 10) : id
-
-                // Find the selected retention option - check multiple possible structures
-                const selectedRetentionOption = updated.productDetails.retention_options.find((opt: any) => {
-                  // Check direct ID match (handle both string and number)
-                  if (opt.id === id || opt.id === numericId || String(opt.id) === String(id)) return true
-                  // Check nested lab_retention_option ID
-                  if (opt.lab_retention_option?.id === id ||
-                    opt.lab_retention_option?.id === numericId ||
-                    String(opt.lab_retention_option?.id) === String(id)) return true
-                  // Check if retention_option_id matches
-                  if (opt.retention_option_id === id ||
-                    opt.retention_option_id === numericId ||
-                    String(opt.retention_option_id) === String(id)) return true
-                  return false
-                })
-
-                if (selectedRetentionOption) {
-                  // Get tooth_chart_type from various possible locations
-                  const toothChartType = selectedRetentionOption.tooth_chart_type ||
-                    selectedRetentionOption.lab_retention_option?.tooth_chart_type ||
-                    selectedRetentionOption.retention_option?.tooth_chart_type
-
-                  // Map tooth_chart_type to retention type
-                  let targetRetentionName = ""
-                  if (toothChartType === "Implant" || toothChartType === "Pontic") {
-                    targetRetentionName = "Screwed"
-                  } else if (toothChartType === "Prep" || toothChartType === "Prepped") {
-                    targetRetentionName = "Cemented"
-                  }
-
-                  if (targetRetentionName) {
-                    // Find the matching retention by name (case-insensitive)
-                    const targetRetention = updated.productDetails.retentions.find((ret: any) =>
-                      ret.name === targetRetentionName ||
-                      ret.name?.toLowerCase() === targetRetentionName.toLowerCase()
-                    )
-                    if (targetRetention) {
-                      updated.maxillaryRetention = targetRetention.name
-                      updated.maxillaryRetentionId = targetRetention.id
-                    }
-                  }
-                }
-              }
-            }
-          } else {
-            if (config.mandibularStateKey) {
-              (updated as any)[config.mandibularStateKey] = value
-            }
-            if (config.mandibularIdKey && id !== undefined) {
-              (updated as any)[config.mandibularIdKey] = id
-
-              // Auto-select retention type based on retention option's tooth_chart_type
-              if (fieldKey === "retention_option" && id && updated.productDetails?.retention_options && updated.productDetails?.retentions) {
-                // Convert id to number for comparison (handle both string and number)
-                const numericId = typeof id === 'string' ? parseInt(id, 10) : id
-
-                // Find the selected retention option - check multiple possible structures
-                const selectedRetentionOption = updated.productDetails.retention_options.find((opt: any) => {
-                  // Check direct ID match (handle both string and number)
-                  if (opt.id === id || opt.id === numericId || String(opt.id) === String(id)) return true
-                  // Check nested lab_retention_option ID
-                  if (opt.lab_retention_option?.id === id ||
-                    opt.lab_retention_option?.id === numericId ||
-                    String(opt.lab_retention_option?.id) === String(id)) return true
-                  // Check if retention_option_id matches
-                  if (opt.retention_option_id === id ||
-                    opt.retention_option_id === numericId ||
-                    String(opt.retention_option_id) === String(id)) return true
-                  return false
-                })
-
-                if (selectedRetentionOption) {
-                  // Get tooth_chart_type from various possible locations
-                  const toothChartType = selectedRetentionOption.tooth_chart_type ||
-                    selectedRetentionOption.lab_retention_option?.tooth_chart_type ||
-                    selectedRetentionOption.retention_option?.tooth_chart_type
-
-                  // Map tooth_chart_type to retention type
-                  let targetRetentionName = ""
-                  if (toothChartType === "Implant" || toothChartType === "Pontic") {
-                    targetRetentionName = "Screwed"
-                  } else if (toothChartType === "Prep" || toothChartType === "Prepped") {
-                    targetRetentionName = "Cemented"
-                  }
-
-                  if (targetRetentionName) {
-                    // Find the matching retention by name (case-insensitive)
-                    const targetRetention = updated.productDetails.retentions.find((ret: any) =>
-                      ret.name === targetRetentionName ||
-                      ret.name?.toLowerCase() === targetRetentionName.toLowerCase()
-                    )
-                    if (targetRetention) {
-                      updated.mandibularRetention = targetRetention.name
-                      updated.mandibularRetentionId = targetRetention.id
-                    }
-                  }
-                }
-              }
-            }
-          }
-          return updated
-        }
-        return product
-      }))
-    }
-  }
+  }, [savedProducts, openAccordionMaxillary, openAccordionMandibular, maxillaryStage, mandibularStage, maxillaryToothShade, mandibularToothShade, productDetails])
 
   // Auto-save unified product for both arches - creates ONE product instead of separate ones
   const handleAutoSaveUnifiedProduct = () => {
@@ -5953,8 +6258,9 @@ export default function CaseDesignCenterPage() {
             sp.subcategoryId === selectedSubcategoryId &&
             JSON.stringify([...(archType === "maxillary" ? sp.maxillaryTeeth : sp.mandibularTeeth) || []].sort()) === JSON.stringify(teethToMatch)
           )
-          if (matchingProduct && openAccordion !== matchingProduct.id) {
-            setOpenAccordion(matchingProduct.id)
+          if (matchingProduct && (archType === "maxillary" ? openAccordionMaxillary !== matchingProduct.id : openAccordionMandibular !== matchingProduct.id)) {
+            if (archType === "maxillary") setOpenAccordionMaxillary(matchingProduct.id)
+            else setOpenAccordionMandibular(matchingProduct.id)
           }
         }, 100)
       }
@@ -6267,139 +6573,6 @@ export default function CaseDesignCenterPage() {
     }
   }
 
-  // Handler to delete a saved product
-  const handleDeleteProduct = (productId: string) => {
-    setSavedProducts((prev) => prev.filter((p) => p.id !== productId))
-
-    // Reset to category selection view
-    setShowSubcategories(false)
-    setShowProducts(false)
-    setShowProductDetails(false)
-    setSelectedCategory(null)
-    setSelectedCategoryId(null)
-    setSelectedSubcategory(null)
-    setSelectedSubcategoryId(null)
-    setSelectedProduct(null)
-    setProducts([])
-    setMaxillaryTeeth([])
-    setMandibularTeeth([])
-    setMaxillaryMaterial("")
-    setMaxillaryStumpShade("")
-    setMaxillaryRetention("")
-    setMaxillaryImplantDetails("")
-    setMandibularMaterial("")
-    setMandibularRetention("")
-    setMandibularStumpShade("")
-    setMandibularImplantDetails("")
-    setMissingTeethCardClicked(false)
-
-    toast({
-      title: "Product Removed",
-      description: "Product has been removed from your case",
-    })
-  }
-
-  // Handler for stage selection
-  const handleStageSelect = (productId: string, arch: "maxillary" | "mandibular", stageName: string, stageId?: number) => {
-    setSavedProducts((prev) =>
-      prev.map((product) => {
-        if (product.id === productId) {
-          return {
-            ...product,
-            ...(arch === "maxillary" ? { maxillaryStage: stageName, maxillaryStageId: stageId } : { mandibularStage: stageName, mandibularStageId: stageId })
-          }
-        }
-        return product
-      })
-    )
-    // Close the dropdown after selection
-    setOpenStageDropdown((prev) => ({
-      ...prev,
-      [productId]: {
-        ...prev[productId],
-        [arch]: false
-      }
-    }))
-  }
-
-  // Handler to show teeth selection when clicking a saved product card
-  const handleSavedProductCardClick = (savedProduct: SavedProduct) => {
-    // Set the selected product and show product details to make the teeth selection interface visible
-    setSelectedProduct(savedProduct.product)
-    setShowProductDetails(true)
-
-    // Set category and subcategory from saved product
-    setSelectedCategory(savedProduct.category)
-    setSelectedCategoryId(savedProduct.categoryId)
-    setSelectedSubcategory(savedProduct.subcategory)
-    setSelectedSubcategoryId(savedProduct.subcategoryId)
-
-    // Set arch-specific products and show charts based on which arch has teeth
-    const hasMaxillaryTeeth = Array.isArray(savedProduct.maxillaryTeeth) && savedProduct.maxillaryTeeth.length > 0
-    const hasMandibularTeeth = Array.isArray(savedProduct.mandibularTeeth) && savedProduct.mandibularTeeth.length > 0
-
-    if (hasMaxillaryTeeth) {
-      setSelectedProductForMaxillary(savedProduct.product)
-      setShowMaxillaryChart(true)
-      setSelectedArchForProduct("maxillary")
-    }
-
-    if (hasMandibularTeeth) {
-      setSelectedProductForMandibular(savedProduct.product)
-      setShowMandibularChart(true)
-      if (!hasMaxillaryTeeth) {
-        setSelectedArchForProduct("mandibular")
-      }
-    }
-
-    // Update teeth selection to show the teeth from the saved product
-    // Always set the arrays to ensure proper state updates, even if empty
-    // Create new array references to ensure React detects the change
-    const maxillaryTeethArray = Array.isArray(savedProduct.maxillaryTeeth) && savedProduct.maxillaryTeeth.length > 0
-      ? [...savedProduct.maxillaryTeeth]
-      : []
-    const mandibularTeethArray = Array.isArray(savedProduct.mandibularTeeth) && savedProduct.mandibularTeeth.length > 0
-      ? [...savedProduct.mandibularTeeth]
-      : []
-
-    // Use setTimeout to ensure state updates are applied correctly
-    // This helps with React batching and ensures the SVG components receive the updated values
-    setMaxillaryTeeth([])
-    setMandibularTeeth([])
-
-    // Use a small delay to ensure the state is reset before setting new values
-    setTimeout(() => {
-      setMaxillaryTeeth(maxillaryTeethArray)
-      setMandibularTeeth(mandibularTeethArray)
-    }, 0)
-
-    // Set material and other details if available
-    if (savedProduct.maxillaryMaterial) {
-      setMaxillaryMaterial(savedProduct.maxillaryMaterial)
-    }
-    if (savedProduct.maxillaryStumpShade) {
-      setMaxillaryStumpShade(savedProduct.maxillaryStumpShade)
-    }
-    if (savedProduct.maxillaryRetention) {
-      setMaxillaryRetention(savedProduct.maxillaryRetention)
-    }
-    if (savedProduct.maxillaryImplantDetails) {
-      setMaxillaryImplantDetails(savedProduct.maxillaryImplantDetails)
-    }
-    if (savedProduct.mandibularMaterial) {
-      setMandibularMaterial(savedProduct.mandibularMaterial)
-    }
-    if (savedProduct.mandibularRetention) {
-      setMandibularRetention(savedProduct.mandibularRetention)
-    }
-    if (savedProduct.mandibularStumpShade) {
-      setMandibularStumpShade(savedProduct.mandibularStumpShade)
-    }
-    if (savedProduct.mandibularImplantDetails) {
-      setMandibularImplantDetails(savedProduct.mandibularImplantDetails)
-    }
-  }
-
   // Handler to clear current product and reset to category selection
   // Reset auto-saved tracking when product changes
   useEffect(() => {
@@ -6481,7 +6654,8 @@ export default function CaseDesignCenterPage() {
     setActiveImplantFieldKey(null)
 
     // Reset accordion and dropdowns
-    setOpenAccordion(null)
+    setOpenAccordionMaxillary(null)
+    setOpenAccordionMandibular(null)
     setOpenStageDropdown({})
     setOpenRetentionDropdown({})
 
@@ -6937,10 +7111,10 @@ export default function CaseDesignCenterPage() {
     const newTeeth = isAdding ? [...maxillaryTeeth, toothNumber] : maxillaryTeeth.filter(t => t !== toothNumber)
     const sortedNew = newTeeth.map((t: number) => Number(t)).sort((a, b) => a - b)
     // If a saved maxillary product's accordion is open, update that product's teeth so the header reflects the new selection
-    if (openAccordion && openAccordion !== "maxillary-card") {
-      const openSaved = savedProducts.find(sp => sp.id === openAccordion && sp.addedFrom === "maxillary")
+    if (openAccordionMaxillary && openAccordionMaxillary !== "maxillary-card") {
+      const openSaved = savedProducts.find(sp => sp.id === openAccordionMaxillary && sp.addedFrom === "maxillary")
       if (openSaved) {
-        setSavedProducts(prev => prev.map(sp => sp.id === openAccordion ? { ...sp, maxillaryTeeth: [...sortedNew] } : sp))
+        setSavedProducts(prev => prev.map(sp => sp.id === openAccordionMaxillary ? { ...sp, maxillaryTeeth: [...sortedNew] } : sp))
       }
     }
     // Check if resulting selection matches a saved product (use current product context or any maxillary saved product)
@@ -6956,18 +7130,18 @@ export default function CaseDesignCenterPage() {
     if (matchingSaved) {
       // Current selection matches a saved product: open that saved accordion and sync product context (Summary Card will hide)
       setSelectedProductForMaxillary(matchingSaved.product)
-      setOpenAccordion(matchingSaved.id)
+      setOpenAccordionMaxillary(matchingSaved.id)
     } else if (isAdding) {
       // Adding a tooth and no match: open Summary Card or most recent saved
       if (selectedProduct && showProductDetails) {
-        setOpenAccordion("maxillary-card")
+        setOpenAccordionMaxillary("maxillary-card")
       } else {
         const maxillaryProducts = savedProducts.filter(p => p.maxillaryTeeth.length > 0)
         if (maxillaryProducts.length > 0) {
           const mostRecentProduct = maxillaryProducts[maxillaryProducts.length - 1]
-          setOpenAccordion(mostRecentProduct.id)
+          setOpenAccordionMaxillary(mostRecentProduct.id)
         } else {
-          setOpenAccordion("maxillary-card")
+          setOpenAccordionMaxillary("maxillary-card")
         }
       }
     }
@@ -7006,10 +7180,10 @@ export default function CaseDesignCenterPage() {
     const newTeeth = isAdding ? [...mandibularTeeth, toothNumber] : mandibularTeeth.filter(t => t !== toothNumber)
     const sortedNew = newTeeth.map((t: number) => Number(t)).sort((a, b) => a - b)
     // If a saved mandibular product's accordion is open, update that product's teeth so the header reflects the new selection
-    if (openAccordion && openAccordion !== "mandibular-card") {
-      const openSaved = savedProducts.find(sp => sp.id === openAccordion && sp.addedFrom === "mandibular")
+    if (openAccordionMandibular && openAccordionMandibular !== "mandibular-card") {
+      const openSaved = savedProducts.find(sp => sp.id === openAccordionMandibular && sp.addedFrom === "mandibular")
       if (openSaved) {
-        setSavedProducts(prev => prev.map(sp => sp.id === openAccordion ? { ...sp, mandibularTeeth: [...sortedNew] } : sp))
+        setSavedProducts(prev => prev.map(sp => sp.id === openAccordionMandibular ? { ...sp, mandibularTeeth: [...sortedNew] } : sp))
       }
     }
     // Check if resulting selection matches a saved product (use current product context or any mandibular saved product)
@@ -7025,18 +7199,18 @@ export default function CaseDesignCenterPage() {
     if (matchingSaved) {
       // Current selection matches a saved product: open that saved accordion and sync product context (Summary Card will hide)
       setSelectedProductForMandibular(matchingSaved.product)
-      setOpenAccordion(matchingSaved.id)
+      setOpenAccordionMandibular(matchingSaved.id)
     } else if (isAdding) {
       // Adding a tooth and no match: open Summary Card or most recent saved
       if (selectedProduct && showProductDetails) {
-        setOpenAccordion("mandibular-card")
+        setOpenAccordionMandibular("mandibular-card")
       } else {
         const mandibularProducts = savedProducts.filter(p => p.mandibularTeeth.length > 0)
         if (mandibularProducts.length > 0) {
           const mostRecentProduct = mandibularProducts[mandibularProducts.length - 1]
-          setOpenAccordion(mostRecentProduct.id)
+          setOpenAccordionMandibular(mostRecentProduct.id)
         } else {
-          setOpenAccordion("mandibular-card")
+          setOpenAccordionMandibular("mandibular-card")
         }
       }
     }
@@ -7306,7 +7480,7 @@ export default function CaseDesignCenterPage() {
                 ) : productSearchResults.length === 0 ? (
                   <div className="flex items-center justify-center py-10">
                     <div className="text-center">
-                      <p className="text-gray-600">No products found matching "{searchQuery}"</p>
+                      <p className="text-gray-600">{`No products found matching "${searchQuery}"`}</p>
                     </div>
                   </div>
                 ) : (
@@ -7624,8 +7798,9 @@ export default function CaseDesignCenterPage() {
 
             {/* Product Details Split View - Show when product is selected */}
             {showProductDetails && selectedProduct && (
-              <div ref={toothSelectionRef} className="w-full">
-                {(isInitialLoading || isLoadingProductDetails) ? (
+              <SavedProductSectionProvider value={savedProductSectionContextValue}>
+                <div ref={toothSelectionRef} className="w-full">
+                  {(isInitialLoading || isLoadingProductDetails) ? (
                   <div className="grid gap-4 lg:gap-4 mb-2 grid-cols-1 lg:grid-cols-2">
                     <div className="flex flex-col w-full">
                       <div className="flex items-center justify-center gap-2 mt-1 mb-1">
@@ -7669,15 +7844,7 @@ export default function CaseDesignCenterPage() {
                     >
                       {/* MAXILLARY Section */}
                       {showMaxillaryChart && (
-                        <div
-                          ref={maxillarySectionRef}
-                          className="flex flex-col"
-                          style={{
-                            flex: '1 1 49%',
-                            background: '#FDFDFD',
-                            padding: '20px 25px',
-                          }}
-                        >
+                        <MaxillarySection sectionRef={maxillarySectionRef}>
                           {/* MAXILLARY Label */}
                           <div
                             className="flex items-center justify-center"
@@ -7702,47 +7869,12 @@ export default function CaseDesignCenterPage() {
                           </div>
 
                           {/* Product Pills - Show selected products above teeth */}
-                          {savedProducts.filter(p => p.addedFrom === "maxillary").length > 0 && (
-                            <div
-                              className="flex items-center justify-center gap-3 flex-wrap"
-                              style={{ marginBottom: '12px' }}
-                            >
-                              {savedProducts
-                                .filter(p => p.addedFrom === "maxillary")
-                                .map((savedProduct, idx) => {
-                                  const teethStr = savedProduct.maxillaryTeeth?.length > 0
-                                    ? savedProduct.maxillaryTeeth.sort((a, b) => a - b).map(t => `#${t}`).join(', ')
-                                    : '';
-                                  return (
-                                    <div
-                                      key={savedProduct.id}
-                                      className="flex items-center justify-center cursor-pointer hover:opacity-80"
-                                      style={{
-                                        padding: '6px 14px',
-                                        background: openAccordion === savedProduct.id ? '#DFEEFB' : '#FFFFFF',
-                                        boxShadow: '1px 1px 3.5px rgba(0, 0, 0, 0.25)',
-                                        borderRadius: '6px',
-                                      }}
-                                      onClick={() => setOpenAccordion(openAccordion === savedProduct.id ? null : savedProduct.id)}
-                                    >
-                                      <span
-                                        style={{
-                                          fontFamily: 'Verdana',
-                                          fontSize: '11px',
-                                          lineHeight: '22px',
-                                          letterSpacing: '-0.02em',
-                                          color: '#000000',
-                                        }}
-                                      >
-                                        {savedProduct.subcategory || savedProduct.product?.name}
-                                      </span>
-                                    </div>
-                                  );
-                                })}
-                            </div>
-                          )}
-
-                          {/* Dental Chart Container - Full width */}
+                          <SavedProductPills
+                            products={savedProducts.filter(p => p.addedFrom === "maxillary")}
+                            openId={openAccordionMaxillary}
+                            onPillClick={(id) => setOpenAccordionMaxillary(id)}
+                            getLabel={(p) => p.subcategory || p.product?.name ?? ""}
+                          />
                           <div
                             className="flex items-center justify-center relative"
                             style={{
@@ -7824,7 +7956,7 @@ export default function CaseDesignCenterPage() {
                                             return sameProduct && sameTeeth
                                           })
                                           if (matchingProduct) {
-                                            setOpenAccordion(matchingProduct.id)
+                                            setOpenAccordionMaxillary(matchingProduct.id)
                                           }
                                         }, 100)
                                       }
@@ -7844,12 +7976,9 @@ export default function CaseDesignCenterPage() {
                             const sameProduct = String(sp.product?.id ?? "") === String(selectedProductForMaxillary?.id ?? "")
                             return sameTeeth && sameProduct
                           })) || savedProducts.filter(p => p.addedFrom === "maxillary").length > 0) && (
-                                <Accordion
-                                  type="single"
-                                  collapsible
-                                  className="w-full mt-4"
-                                  value={(openAccordion === "maxillary-card" || savedProducts.some(p => p.addedFrom === "maxillary" && p.id === openAccordion)) ? openAccordion : ""}
-                                  onValueChange={handleAccordionChange}
+                                <SavedProductAccordion
+                                  value={(openAccordionMaxillary === "maxillary-card" || savedProducts.some(p => p.addedFrom === "maxillary" && p.id === openAccordionMaxillary)) ? (openAccordionMaxillary ?? "") : ""}
+                                  onValueChange={handleAccordionChangeMaxillary}
                                 >
                                   {showMaxillaryChart && maxillaryTeeth.length > 0 && selectedProductForMaxillary && !savedProducts.some(sp => {
                                     if (sp.addedFrom !== "maxillary") return false
@@ -7867,15 +7996,15 @@ export default function CaseDesignCenterPage() {
                                       style={{
                                         position: 'relative',
                                         minHeight: '38px',
-                                        background: openAccordion === "maxillary-card" ? '#E0EDF8' : '#F5F5F5',
+                                        background: openAccordionMaxillary === "maxillary-card" ? '#E0EDF8' : '#F5F5F5',
                                         boxShadow: '0.9px 0.9px 3.6px rgba(0, 0, 0, 0.25)',
-                                        borderRadius: openAccordion === "maxillary-card" ? '8px 8px 0px 0px' : '8px',
+                                        borderRadius: openAccordionMaxillary === "maxillary-card" ? '8px 8px 0px 0px' : '8px',
                                         display: currentShadeField ? 'none' : 'flex',
                                         flexDirection: 'column',
                                         alignItems: 'flex-start',
                                         padding: '8px 6px',
                                         gap: '2px',
-                                        borderBottom: openAccordion === "maxillary-card" ? '1px dotted #B0D0F0' : 'none'
+                                        borderBottom: openAccordionMaxillary === "maxillary-card" ? '1px dotted #B0D0F0' : 'none'
                                       }}
                                     >
                                       <AccordionTrigger
@@ -7978,13 +8107,13 @@ export default function CaseDesignCenterPage() {
                                           <ChevronDown
                                             className="w-full h-full transition-transform duration-200 text-black"
                                             style={{
-                                              transform: openAccordion === "maxillary-card" ? 'rotate(0deg)' : 'rotate(-180deg)'
+                                              transform: openAccordionMaxillary === "maxillary-card" ? 'rotate(0deg)' : 'rotate(-180deg)'
                                             }}
                                           />
                                         </div>
                                       </AccordionTrigger>
                                     </div>
-                                    <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto', maxHeight: '300px', overflowY: 'auto' }}>
+                                    <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto', overflowY: 'auto' }}>
                                       {/* Tooth Shade Selection - Shows at the top when active */}
                                       {currentShadeField && currentShadeArch === "maxillary" && (
                                         <div className="w-full pt-4">
@@ -8017,12 +8146,14 @@ export default function CaseDesignCenterPage() {
                                                   selectedShades={selectedShadesForSVG}
                                                   onShadeClick={handleShadeClickFromSVG}
                                                   className="max-w-full"
+                                                  showRequired={showValidationErrors}
                                                 />
                                               ) : (
                                                 <ToothShadeSelectionSVG
                                                   selectedShades={selectedShadesForSVG}
                                                   onShadeClick={handleShadeClickFromSVG}
                                                   className="max-w-full"
+                                                  showRequired={showValidationErrors}
                                                 />
                                               )}
                                             </div>
@@ -8208,6 +8339,7 @@ export default function CaseDesignCenterPage() {
                                                                 setClickedFieldTypeInImplantDetails(prev => ({ ...prev, maxillary: null }))
                                                               }}
                                                               arch="maxillary"
+                                                              showRequired={showValidationErrors}
                                                             />
                                                           )
                                                         }
@@ -8244,6 +8376,7 @@ export default function CaseDesignCenterPage() {
                                                                 }
                                                               }}
                                                               arch="maxillary"
+                                                              showRequired={showValidationErrors}
                                                             />
                                                           )
                                                         }
@@ -9047,6 +9180,7 @@ export default function CaseDesignCenterPage() {
                                                                 }, 100)
                                                               }}
                                                               arch="maxillary"
+                                                              showRequired={showValidationErrors}
                                                             />
                                                           )
                                                         }
@@ -9088,6 +9222,7 @@ export default function CaseDesignCenterPage() {
                                                                 }
                                                               }}
                                                               arch="maxillary"
+                                                              showRequired={showValidationErrors}
                                                             />
                                                           )
                                                         }
@@ -9538,15 +9673,15 @@ export default function CaseDesignCenterPage() {
                                             style={{
                                               position: 'relative',
                                               minHeight: '45px',
-                                              background: savedProduct.rushData ? '#FFE2E2' : (openAccordion === savedProduct.id ? '#E0EDF8' : '#F5F5F5'),
+                                              background: savedProduct.rushData ? '#FFE2E2' : (openAccordionMaxillary === savedProduct.id ? '#E0EDF8' : '#F5F5F5'),
                                               boxShadow: savedProduct.rushData ? '0.9px 0.9px 3.6px 0 rgba(0, 0, 0, 0.25)' : '0.9px 0.9px 3.6px rgba(0, 0, 0, 0.25)',
-                                              borderRadius: openAccordion === savedProduct.id ? '10px 10px 0px 0px' : '10px',
+                                              borderRadius: openAccordionMaxillary === savedProduct.id ? '10px 10px 0px 0px' : '10px',
                                               border: savedProduct.rushData ? '1px solid #CF0202' : 'none',
                                               flexDirection: 'column',
                                               alignItems: 'flex-start',
                                               padding: '6px 8px',
                                               gap: '8px',
-                                              borderBottom: openAccordion === savedProduct.id ? '1px dotted #B0D0F0' : 'none'
+                                              borderBottom: openAccordionMaxillary === savedProduct.id ? '1px dotted #B0D0F0' : 'none'
                                             }}
                                           >
                                             <AccordionTrigger
@@ -9701,7 +9836,7 @@ export default function CaseDesignCenterPage() {
                                             </button>
                                           </div>
 
-                                          <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto', maxHeight: '300px', overflowY: 'auto' }}>
+                                          <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto', overflowY: 'auto' }}>
                                             {/* Summary detail - Progressive field disclosure */}
                                             <div
                                               className="bg-white w-full"
@@ -10130,6 +10265,7 @@ export default function CaseDesignCenterPage() {
                                                                       }))
                                                                     }}
                                                                     arch="maxillary"
+                                                                    showRequired={showValidationErrors}
                                                                   />
                                                                 )
                                                               }
@@ -10200,6 +10336,7 @@ export default function CaseDesignCenterPage() {
                                                                       }
                                                                     }}
                                                                     arch="maxillary"
+                                                                    showRequired={showValidationErrors}
                                                                   />
                                                                 )
                                                               }
@@ -10969,90 +11106,23 @@ export default function CaseDesignCenterPage() {
                                     </AccordionItem>
                                   )
                                 })}
-                                </Accordion>
+                                </SavedProductAccordion>
                           )}
-                        </div>
+                        </MaxillarySection>
                       )}
 
-                      {/* Navigation Arrows between sections */}
-                      {showMaxillaryChart && showMandibularChart && (
-                        <div
-                          className="flex flex-col items-center justify-center gap-2 self-center"
-                          style={{
-                            minWidth: '60px',
-                            padding: '20px 10px',
-                          }}
-                        >
-                          <button
-                            className="flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors"
-                            onClick={() => {/* Navigate to previous */}}
-                            aria-label="Previous"
-                            style={{ fontSize: '24px', fontWeight: 'bold' }}
-                          >
-                            &#171;
-                          </button>
-                          <button
-                            className="flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors"
-                            onClick={() => {/* Navigate to next */}}
-                            aria-label="Next"
-                            style={{ fontSize: '24px', fontWeight: 'bold' }}
-                          >
-                            &#187;
-                          </button>
-                        </div>
-                      )}
+                      <SectionNavigationArrows show={!!(showMaxillaryChart && showMandibularChart)} />
 
                       {/* MANDIBULAR Section */}
                       {showMandibularChart && (
-                        <div
-                          ref={mandibularSectionRef}
-                          className="flex flex-col"
-                          style={{
-                            flex: '1 1 49%',
-                            background: '#FDFDFD',
-                            padding: '20px 25px',
-                          }}
-                        >
+                        <MandibularSection sectionRef={mandibularSectionRef}>
                           {/* Product Pills - Show selected products above teeth */}
-                          {savedProducts.filter(p => p.addedFrom === "mandibular").length > 0 && (
-                            <div
-                              className="flex items-center justify-center gap-3 flex-wrap"
-                              style={{ marginBottom: '12px' }}
-                            >
-                              {savedProducts
-                                .filter(p => p.addedFrom === "mandibular")
-                                .map((savedProduct, idx) => {
-                                  const teethStr = savedProduct.mandibularTeeth?.length > 0
-                                    ? savedProduct.mandibularTeeth.sort((a, b) => a - b).map(t => `#${t}`).join(', ')
-                                    : '';
-                                  return (
-                                    <div
-                                      key={savedProduct.id}
-                                      className="flex items-center justify-center cursor-pointer hover:opacity-80"
-                                      style={{
-                                        padding: '6px 14px',
-                                        background: openAccordion === savedProduct.id ? '#DFEEFB' : '#FFFFFF',
-                                        boxShadow: '1px 1px 3.5px rgba(0, 0, 0, 0.25)',
-                                        borderRadius: '6px',
-                                      }}
-                                      onClick={() => setOpenAccordion(openAccordion === savedProduct.id ? null : savedProduct.id)}
-                                    >
-                                      <span
-                                        style={{
-                                          fontFamily: 'Verdana',
-                                          fontSize: '11px',
-                                          lineHeight: '22px',
-                                          letterSpacing: '-0.02em',
-                                          color: '#000000',
-                                        }}
-                                      >
-                                        {savedProduct.subcategory || savedProduct.product?.name} {teethStr}
-                                      </span>
-                                    </div>
-                                  );
-                                })}
-                            </div>
-                          )}
+                          <SavedProductPills
+                            products={savedProducts.filter(p => p.addedFrom === "mandibular")}
+                            openId={openAccordionMandibular}
+                            onPillClick={(id) => setOpenAccordionMandibular(id)}
+                            getLabel={(p) => p.subcategory || p.product?.name ?? ""}
+                          />
 
                           {/* MANDIBULAR Label */}
                           <div
@@ -11159,7 +11229,7 @@ export default function CaseDesignCenterPage() {
                                             return sameProduct && sameTeeth
                                           })
                                           if (matchingProduct) {
-                                            setOpenAccordion(matchingProduct.id)
+                                            setOpenAccordionMandibular(matchingProduct.id)
                                           }
                                         }, 100)
                                       }
@@ -11179,12 +11249,10 @@ export default function CaseDesignCenterPage() {
                             const sameTeeth = savedTeeth.length === currentTeeth.length && savedTeeth.every((t, i) => t === currentTeeth[i])
                             return sameProduct && sameTeeth
                           })) || savedProducts.filter(p => p.addedFrom === "mandibular").length > 0) && (
-                                <Accordion
-                                  type="single"
-                                  collapsible
-                                  className="w-full mt-4"
-                                  value={(openAccordion === "mandibular-card" || savedProducts.some(p => p.addedFrom === "mandibular" && p.id === openAccordion)) ? openAccordion : ""}
-                                  onValueChange={handleAccordionChange}
+                                <SavedProductAccordion
+                                  className="w-full mt-2"
+                                  value={(openAccordionMandibular === "mandibular-card" || savedProducts.some(p => p.addedFrom === "mandibular" && p.id === openAccordionMandibular)) ? (openAccordionMandibular ?? "") : ""}
+                                  onValueChange={handleAccordionChangeMandibular}
                                 >
                                   {showMandibularChart && mandibularTeeth.length > 0 && selectedProductForMandibular && !savedProducts.some(sp => {
                                     if (sp.addedFrom !== "mandibular") return false
@@ -11202,15 +11270,15 @@ export default function CaseDesignCenterPage() {
                                       style={{
                                         position: 'relative',
                                         minHeight: '45px',
-                                        background: openAccordion === "mandibular-card" ? '#E0EDF8' : '#F5F5F5',
+                                        background: openAccordionMandibular === "mandibular-card" ? '#E0EDF8' : '#F5F5F5',
                                         boxShadow: '0.9px 0.9px 3.6px rgba(0, 0, 0, 0.25)',
-                                        borderRadius: openAccordion === "mandibular-card" ? '10px 10px 0px 0px' : '10px',
+                                        borderRadius: openAccordionMandibular === "mandibular-card" ? '10px 10px 0px 0px' : '10px',
                                         display: currentShadeField ? 'none' : 'flex',
                                         flexDirection: 'column',
                                         alignItems: 'flex-start',
-                                        padding: '6px 8px',
-                                        gap: '8px',
-                                        borderBottom: openAccordion === "mandibular-card" ? '1px dotted #B0D0F0' : 'none'
+                                        padding: '8px 6px',
+                                        gap: '2px',
+                                        borderBottom: openAccordionMandibular === "mandibular-card" ? '1px dotted #B0D0F0' : 'none'
                                       }}
                                     >
                                       <AccordionTrigger
@@ -11225,24 +11293,24 @@ export default function CaseDesignCenterPage() {
                                         }}
                                       >
                                         {/* Responsive Content Container */}
-                                        <div style={{ width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: '8px', paddingRight: '24px' }}>
+                                        <div style={{ width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: '6px', paddingRight: '20px' }}>
                                           {/* Product Image */}
                                           <div
                                             style={{
-                                              width: '32px',
-                                              minWidth: '32px',
-                                              height: '32px',
+                                              width: '28px',
+                                              minWidth: '28px',
+                                              height: '28px',
                                               background: `url(${selectedProduct?.image_url || "/images/tooth-icon.png"}), #FFFFFF`,
                                               backgroundSize: 'contain',
                                               backgroundPosition: 'center',
                                               backgroundRepeat: 'no-repeat',
-                                              borderRadius: '5.4px',
+                                              borderRadius: '4px',
                                               flexShrink: 0
                                             }}
                                           />
 
                                           {/* Content Area - Responsive */}
-                                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0, alignItems: 'flex-start' }}>
+                                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '1px', minWidth: 0, alignItems: 'flex-start' }}>
                                             {/* Product Name - Bold, plain text */}
                                             {selectedProduct?.name && (
                                               <span
@@ -11250,8 +11318,8 @@ export default function CaseDesignCenterPage() {
                                                   fontFamily: 'Verdana',
                                                   fontStyle: 'normal',
                                                   fontWeight: 600,
-                                                  fontSize: '14px',
-                                                  lineHeight: '16px',
+                                                  fontSize: '12px',
+                                                  lineHeight: '14px',
                                                   letterSpacing: '-0.02em',
                                                   color: '#000000',
                                                   wordBreak: 'break-word',
@@ -11265,14 +11333,14 @@ export default function CaseDesignCenterPage() {
                                             )}
 
                                             {/* Tooth Numbers Row - Formatted as #9 */}
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                                               <span
                                                 style={{
                                                   fontFamily: 'Verdana',
                                                   fontStyle: 'normal',
                                                   fontWeight: 400,
-                                                  fontSize: '12px',
-                                                  lineHeight: '14px',
+                                                  fontSize: '10px',
+                                                  lineHeight: '12px',
                                                   letterSpacing: '-0.02em',
                                                   color: '#000000'
                                                 }}
@@ -11285,33 +11353,41 @@ export default function CaseDesignCenterPage() {
                                             </div>
 
                                             {/* Badges and Info Row - Responsive */}
-                                            <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
                                               {/* Badge - Category - Pill shaped */}
                                               {selectedCategory && (
-                                                <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '2px 8px', background: '#F0F0F0', borderRadius: '12px', flexShrink: 0 }}>
-                                                  <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{selectedCategory}</span>
+                                                <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '1px 6px', background: '#F0F0F0', borderRadius: '10px', flexShrink: 0 }}>
+                                                  <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '9px', lineHeight: '11px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{selectedCategory}</span>
                                                 </div>
                                               )}
 
                                               {/* Badge - Subcategory - Pill shaped */}
                                               {selectedSubcategory && (
-                                                <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '2px 8px', background: '#F0F0F0', borderRadius: '12px', flexShrink: 0 }}>
-                                                  <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{selectedSubcategory}</span>
+                                                <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '1px 6px', background: '#F0F0F0', borderRadius: '10px', flexShrink: 0 }}>
+                                                  <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '9px', lineHeight: '11px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{selectedSubcategory}</span>
                                                 </div>
                                               )}
 
                                               {/* Est days */}
-                                              <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', letterSpacing: '-0.02em', color: '#B4B0B0', whiteSpace: 'nowrap' }}>
+                                              <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '9px', lineHeight: '11px', letterSpacing: '-0.02em', color: '#B4B0B0', whiteSpace: 'nowrap' }}>
                                                 Est days: {selectedProduct?.estimated_days || 10} work days after submission
                                               </span>
                                             </div>
                                           </div>
                                         </div>
 
-
+                                        {/* Chevron - Positioned relative to header */}
+                                        <div style={{ position: 'absolute', width: '21.6px', height: '21.6px', right: '8px', top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}>
+                                          <ChevronDown
+                                            className="w-full h-full transition-transform duration-200 text-black"
+                                            style={{
+                                              transform: openAccordionMandibular === "mandibular-card" ? 'rotate(0deg)' : 'rotate(-180deg)'
+                                            }}
+                                          />
+                                        </div>
                                       </AccordionTrigger>
                                     </div>
-                                    <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto', maxHeight: '300px', overflowY: 'auto' }}>
+                                    <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto', overflowY: 'auto' }}>
                                       {/* Tooth Shade Selection - Shows at the top when active */}
                                       {currentShadeField && currentShadeArch === "mandibular" && (
                                         <div className="w-full pt-4">
@@ -11344,12 +11420,14 @@ export default function CaseDesignCenterPage() {
                                                   selectedShades={selectedShadesForSVG}
                                                   onShadeClick={handleShadeClickFromSVG}
                                                   className="max-w-full"
+                                                  showRequired={showValidationErrors}
                                                 />
                                               ) : (
                                                 <ToothShadeSelectionSVG
                                                   selectedShades={selectedShadesForSVG}
                                                   onShadeClick={handleShadeClickFromSVG}
                                                   className="max-w-full"
+                                                  showRequired={showValidationErrors}
                                                 />
                                               )}
                                             </div>
@@ -11483,7 +11561,7 @@ export default function CaseDesignCenterPage() {
                                               selectedImplantPlatform={selectedImplantPlatform}
                                               selectedImplantSize={selectedImplantSize}
                                               hideFieldsDuringShadeSelection={currentShadeField !== null && currentShadeArch === "mandibular"}
-                                              hideImpression={true}
+                                              hideImpression={productDetails?.advance_fields && Array.isArray(productDetails.advance_fields) && productDetails.advance_fields.length > 0}
                                             />
 
                                             {/* Implant Brand/Platform Cards - Shows at the bottom when implant details field is clicked */}
@@ -11535,6 +11613,7 @@ export default function CaseDesignCenterPage() {
                                                                 setClickedFieldTypeInImplantDetails(prev => ({ ...prev, mandibular: null }))
                                                               }}
                                                               arch="mandibular"
+                                                              showRequired={showValidationErrors}
                                                             />
                                                           )
                                                         }
@@ -11571,6 +11650,7 @@ export default function CaseDesignCenterPage() {
                                                                 }
                                                               }}
                                                               arch="mandibular"
+                                                              showRequired={showValidationErrors}
                                                             />
                                                           )
                                                         }
@@ -11667,6 +11747,7 @@ export default function CaseDesignCenterPage() {
                                                                 }, 100)
                                                               }}
                                                               arch="mandibular"
+                                                              showRequired={showValidationErrors}
                                                             />
                                                           )
                                                         }
@@ -11708,6 +11789,7 @@ export default function CaseDesignCenterPage() {
                                                                 }
                                                               }}
                                                               arch="mandibular"
+                                                              showRequired={showValidationErrors}
                                                             />
                                                           )
                                                         }
@@ -12861,16 +12943,16 @@ export default function CaseDesignCenterPage() {
                                             style={{
                                               position: 'relative',
                                               minHeight: '45px',
-                                              background: savedProduct.rushData ? '#FFE2E2' : (openAccordion === savedProduct.id ? '#E0EDF8' : '#F5F5F5'),
+                                              background: savedProduct.rushData ? '#FFE2E2' : (openAccordionMandibular === savedProduct.id ? '#E0EDF8' : '#F5F5F5'),
                                               boxShadow: savedProduct.rushData ? '0.9px 0.9px 3.6px 0 rgba(0, 0, 0, 0.25)' : '0.9px 0.9px 3.6px rgba(0, 0, 0, 0.25)',
-                                              borderRadius: openAccordion === savedProduct.id ? '10px 10px 0px 0px' : '10px',
+                                              borderRadius: openAccordionMandibular === savedProduct.id ? '10px 10px 0px 0px' : '10px',
                                               border: savedProduct.rushData ? '1px solid #CF0202' : 'none',
                                               display: 'flex',
                                               flexDirection: 'column',
                                               alignItems: 'flex-start',
                                               padding: '6px 8px',
                                               gap: '8px',
-                                              borderBottom: openAccordion === savedProduct.id ? '1px dotted #B0D0F0' : 'none'
+                                              borderBottom: openAccordionMandibular === savedProduct.id ? '1px dotted #B0D0F0' : 'none'
                                             }}
                                           >
                                             <AccordionTrigger
@@ -13024,7 +13106,7 @@ export default function CaseDesignCenterPage() {
                                             </button>
                                           </div>
 
-                                          <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto', maxHeight: '300px', overflowY: 'auto' }}>
+                                          <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto', overflowY: 'auto' }}>
                                             {/* Tooth Shade Selection - Shows at the top when active (saved product) */}
                                             {currentShadeField && currentShadeArch === "mandibular" && currentShadeProductId === savedProduct.id && (
                                               <div className="w-full pt-4">
@@ -13054,12 +13136,14 @@ export default function CaseDesignCenterPage() {
                                                         selectedShades={selectedShadesForSVG}
                                                         onShadeClick={handleShadeClickFromSVG}
                                                         className="max-w-full"
+                                                        showRequired={showValidationErrors}
                                                       />
                                                     ) : (
                                                       <ToothShadeSelectionSVG
                                                         selectedShades={selectedShadesForSVG}
                                                         onShadeClick={handleShadeClickFromSVG}
                                                         className="max-w-full"
+                                                        showRequired={showValidationErrors}
                                                       />
                                                     )}
                                                   </div>
@@ -13224,6 +13308,7 @@ export default function CaseDesignCenterPage() {
                                                                 }))
                                                               }}
                                                               arch="mandibular"
+                                                              showRequired={showValidationErrors}
                                                             />
                                                           )
                                                         }
@@ -13284,6 +13369,7 @@ export default function CaseDesignCenterPage() {
                                                                 }
                                                               }}
                                                               arch="mandibular"
+                                                              showRequired={showValidationErrors}
                                                             />
                                                           )
                                                         }
@@ -13586,109 +13672,29 @@ export default function CaseDesignCenterPage() {
                                     </AccordionItem>
                                   )
                                 })}
-                                </Accordion>
+                                </SavedProductAccordion>
                           )}
-                        </div>
+                        </MandibularSection>
                       )}
                     </div>
                   </>
                 )}
 
-                {/* Case Summary Notes - Expandable and Responsive */}
-                {showCaseSummaryNotes && (
-                  <div className="relative bg-white border border-[#7F7F7F] rounded-[7.7px] w-full mx-auto" style={{ marginBottom: "80px" }}>
-                    {/* Clickable Header for expand/collapse */}
-                    <div
-                      className="flex items-center justify-between px-3 py-2 cursor-pointer select-none"
-                      onClick={() => setIsCaseSummaryExpanded(!isCaseSummaryExpanded)}
-                    >
-                      <span className="text-[14px] leading-[14px] text-[#7F7F7F] font-[Arial]">
-                        Case summary notes
-                      </span>
-                      <ChevronDown
-                        className={`w-5 h-5 text-[#7F7F7F] transition-transform duration-200 ${isCaseSummaryExpanded ? 'rotate-180' : ''}`}
-                      />
-                    </div>
-
-                    {/* Content Container - Collapsible */}
-                    {isCaseSummaryExpanded && (
-                      <div
-                        style={{
-                          height: '200px',
-                          maxHeight: '200px',
-                          padding: '0px 15px 5px 15px',
-                          overflowY: 'auto',
-                          overflowX: 'hidden'
-                        }}
-                      >
-                        <Textarea
-                          value={maxillaryImplantDetails}
-                          onChange={(e) => {
-                            const newValue = e.target.value
-                            setMaxillaryImplantDetails(newValue)
-                          }}
-                          onBlur={async (e) => {
-                            const notes = e.target.value
-                            // CRITICAL: Only parse if user has made SIGNIFICANT changes
-                            // This prevents clearing products when user just clicks or makes minor edits
-
-                            // Don't parse if:
-                            // 1. Notes haven't changed from previous value
-                            // 2. Notes are too short (user is still typing)
-                            // 3. We have existing products AND notes don't contain clear product information
-
-                            const hasChanged = notes !== previousNotesRef.current
-                            const hasValidSections = notes.toUpperCase().includes('MAXILLARY') || notes.toUpperCase().includes('MANDIBULAR')
-                            const isSubstantial = notes.length >= 100 || notes.includes('Fabricate') || notes.includes('fabricate')
-
-                            // Only parse if:
-                            // - Notes have changed AND
-                            // - Notes contain valid sections AND
-                            // - (No existing products OR notes are substantial enough to be a complete replacement)
-                            if (
-                              hasChanged &&
-                              hasValidSections &&
-                              (savedProducts.length === 0 || isSubstantial)
-                            ) {
-                              await parseCaseNotes(notes)
-                            }
-
-                            // Always update the ref to track current value
-                            previousNotesRef.current = notes
-                          }}
-                          onFocus={() => {
-                            // Store the current notes value when focusing to track changes
-                            previousNotesRef.current = maxillaryImplantDetails
-                          }}
-                          onKeyDown={(e) => {
-                            // Allow user to explicitly trigger parsing with Ctrl+Enter or Cmd+Enter
-                            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                              e.preventDefault()
-                              parseCaseNotes(maxillaryImplantDetails)
-                            }
-                          }}
-                          className="w-full border-0 outline-none resize-none tracking-[-0.02em] text-black bg-transparent p-0 focus:ring-0 text-[12px] sm:text-[14px] leading-[15px] sm:leading-[17px] font-[Verdana]"
-                          style={{
-                            minHeight: '100%',
-                            height: 'auto'
-                          }}
-                          placeholder="Enter case notes following the format: MAXILLARY / MANDIBULAR sections with product details..."
-                        />
-
-                        {/* Helper text */}
-                        <p className="text-[10px] sm:text-xs text-gray-500 pt-2">
-                          {generateCaseNotes().length > 0 && !maxillaryImplantDetails
-                            ? "Case notes are automatically generated from your products. Edit to customize, and changes will update your product selections."
-                            : maxillaryImplantDetails
-                              ? "Editing case notes will update your products, categories, subcategories, and teeth selections based on the content."
-                              : "Enter case notes to automatically populate products, categories, subcategories, and teeth selections. Or add products first to generate notes automatically."}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+                <div>
+                  <CaseSummaryNotesSection
+                    showCaseSummaryNotes={showCaseSummaryNotes}
+                    isCaseSummaryExpanded={isCaseSummaryExpanded}
+                    setIsCaseSummaryExpanded={setIsCaseSummaryExpanded}
+                    getCaseSummaryMaxillaryContent={getCaseSummaryMaxillaryContent}
+                    getCaseSummaryMandibularContent={getCaseSummaryMandibularContent}
+                    setCaseSummaryFromParts={setCaseSummaryFromParts}
+                    maxillaryImplantDetails={maxillaryImplantDetails}
+                    previousNotesRef={previousNotesRef}
+                    parseCaseNotes={parseCaseNotes}
+                    savedProducts={savedProducts}
+                    generateCaseNotes={generateCaseNotes}
+                  />
+                </div>
           </div>
 
           {/* Summary Accordion - Show in categories, subcategories and products steps, hide when product details are shown */}
@@ -13807,8 +13813,8 @@ export default function CaseDesignCenterPage() {
                                 category={savedProduct.category}
                                 subcategory={savedProduct.subcategory}
                                 rushData={savedProduct.rushData}
-                                isAccordionOpen={openAccordion === savedProduct.id}
-                                onAccordionChange={handleAccordionChange}
+                                isAccordionOpen={openAccordionMaxillary === savedProduct.id}
+                                onAccordionChange={handleAccordionChangeMaxillary}
                                 onDeleteProduct={handleDeleteProduct}
                                 onCardClick={handleSavedProductCardClick}
                                 showNotes={hasAddons}
@@ -13911,8 +13917,8 @@ export default function CaseDesignCenterPage() {
                                 category={savedProduct.category}
                                 subcategory={savedProduct.subcategory}
                                 rushData={savedProduct.rushData}
-                                isAccordionOpen={openAccordion === savedProduct.id}
-                                onAccordionChange={handleAccordionChange}
+                                isAccordionOpen={openAccordionMandibular === savedProduct.id}
+                                onAccordionChange={handleAccordionChangeMandibular}
                                 onDeleteProduct={handleDeleteProduct}
                                 onCardClick={handleSavedProductCardClick}
                                 showNotes={hasAddons}
@@ -13980,6 +13986,8 @@ export default function CaseDesignCenterPage() {
               </div>
             </div>
           )}
+              </SavedProductSectionProvider>
+            )}
 
         </div>
       </div>
@@ -14330,6 +14338,7 @@ export default function CaseDesignCenterPage() {
         </>
       )}
 
+    </div>
     </div>
   )
 }

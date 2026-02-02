@@ -4,12 +4,14 @@ interface TrubyeBioformIPNShadeSelectionSVGProps {
   selectedShades: string[]
   onShadeClick?: (shade: string) => void
   className?: string
+  showRequired?: boolean // Show red border when selection is required but not made
 }
 
 export const TrubyeBioformIPNShadeSelectionSVG: React.FC<TrubyeBioformIPNShadeSelectionSVGProps> = ({
   selectedShades,
   onShadeClick,
-  className = ''
+  className = '',
+  showRequired = false
 }) => {
   const [clickedShade, setClickedShade] = useState<string | null>(null)
   const [hoveredShade, setHoveredShade] = useState<string | null>(null)
@@ -51,8 +53,20 @@ export const TrubyeBioformIPNShadeSelectionSVG: React.FC<TrubyeBioformIPNShadeSe
     { shade: 'Shade23', x: 818.979, y: 70, width: 29.844, height: 110 },
   ]
 
+  // Determine if we should show the red border (required but no selection)
+  const showRedBorder = showRequired && selectedShades.length === 0
+
   return (
-    <div className={`relative w-full overflow-visible ${className}`}>
+    <div
+      className={`relative w-full overflow-visible ${className}`}
+      style={{
+        border: showRedBorder ? '2px solid #ef4444' : 'none',
+        borderRadius: showRedBorder ? '8px' : '0',
+        padding: showRedBorder ? '8px' : '0',
+        boxShadow: showRedBorder ? '0 0 8px rgba(239, 68, 68, 0.3)' : 'none',
+        transition: 'border-color 0.2s ease, box-shadow 0.2s ease'
+      }}
+    >
       <style>{`
         .shade-stick {
           transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), filter 0.3s ease;

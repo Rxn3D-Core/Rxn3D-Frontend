@@ -35,9 +35,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
   // Helper to get transform for flipping teeth horizontally
   const getToothTransform = (toothNumber: number, x: number, width: number) => {
     if (shouldFaceLeft(toothNumber)) {
-      // Flip to face left: translate to right edge, then scale(-1, 1) (SVG transform doesn't support scaleX)
+      // Flip to face left: translate to right edge, then scale(-1, 1)
+      // SVG transform uses scale(-1, 1) not scaleX(-1)
       // This flips the tooth around its right edge, keeping it in the same position
-      return `translate(${x + width}, 0) scaleX(-1)`
+      return `translate(${x + width}, 0) scale(-1, 1)`
     }
     // For teeth 17-24, they should face right - check if they need flipping
     // For now, assume they're already facing right, so no transform needed
@@ -322,7 +323,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
 
         <svg ref={svgRef} width="100%" height="150" viewBox="0 0 700 150" fill="none" xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink">
           {isImplantTooth(32) ? (
-            <g transform={getToothTransform(32, 0, 43)}>
+            <g>
               {renderImplantSVG(32, 0)}
             </g>
           ) : (
@@ -340,7 +341,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             </g>
           )}
           {isImplantTooth(26) ? (
-            <g transform={getToothTransform(26, 256, 31)}>
+            <g>
               {renderImplantSVG(26, 256)}
             </g>
           ) : (
@@ -358,7 +359,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             </g>
           )}
           {isImplantTooth(29) ? (
-            <g transform={getToothTransform(29, 148, 38)}>
+            <g>
               {renderImplantSVG(29, 148)}
             </g>
           ) : (
@@ -376,7 +377,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             </g>
           )}
           {isImplantTooth(23) ? (
-            <g transform={getToothTransform(23, 339, 30)}>
+            <g>
               {renderImplantSVG(23, 339)}
             </g>
           ) : (
@@ -394,7 +395,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             </g>
           )}
           {isImplantTooth(31) ? (
-            <g transform={getToothTransform(31, 43, 51)}>
+            <g>
               {renderImplantSVG(31, 43)}
             </g>
           ) : (
@@ -412,7 +413,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             </g>
           )}
           {isImplantTooth(25) ? (
-            <g transform={getToothTransform(25, 287, 26)}>
+            <g>
               {renderImplantSVG(25, 287)}
             </g>
           ) : (
@@ -430,7 +431,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             </g>
           )}
           {isImplantTooth(28) ? (
-            <g transform={getToothTransform(28, 186, 36)}>
+            <g>
               {renderImplantSVG(28, 186)}
             </g>
           ) : (
@@ -496,7 +497,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             </>
           )}
           {isImplantTooth(30) ? (
-            <g transform={getToothTransform(30, 94, 54)}>
+            <g>
               {renderImplantSVG(30, 94)}
             </g>
           ) : (
@@ -530,7 +531,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             </>
           )}
           {isImplantTooth(27) ? (
-            <g transform={getToothTransform(27, 222, 34)}>
+            <g>
               {renderImplantSVG(27, 222)}
             </g>
           ) : (
