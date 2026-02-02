@@ -898,6 +898,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                 size="sm"
                 className="h-8 w-8 sm:h-9 sm:w-9 p-0 hidden sm:inline-flex"
                 aria-label="Settings"
+                onClick={() => router.push("/dashboard/settings")}
               >
                 <Settings className="h-4 w-4 sm:h-5 sm:w-5 text-gray-600 dark:text-gray-400 hover:text-[#1162a8] dark:hover:text-[#1162a8]" />
               </Button>
@@ -1005,6 +1006,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                 size="sm"
                 className="h-8 w-8 p-0"
                 aria-label="Settings"
+                onClick={() => router.push("/dashboard/settings")}
               >
                 <Settings className="h-4 w-4 text-gray-600" />
               </Button>
