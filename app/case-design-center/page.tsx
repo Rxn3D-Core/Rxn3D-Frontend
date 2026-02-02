@@ -7734,7 +7734,7 @@ export default function CaseDesignCenterPage() {
                                           color: '#000000',
                                         }}
                                       >
-                                        {savedProduct.subcategory || savedProduct.product?.name} {teethStr}
+                                        {savedProduct.subcategory || savedProduct.product?.name}
                                       </span>
                                     </div>
                                   );
