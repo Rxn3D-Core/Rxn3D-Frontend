@@ -22,6 +22,7 @@ interface ImplantBrandCardsProps {
   productId?: string
   arch?: "maxillary" | "mandibular"
   isLoading?: boolean
+  showRequired?: boolean // Show red border when selection is required but not made
 }
 
 export const ImplantBrandCards: React.FC<ImplantBrandCardsProps> = ({
@@ -30,7 +31,8 @@ export const ImplantBrandCards: React.FC<ImplantBrandCardsProps> = ({
   onSelectImplant,
   productId,
   arch,
-  isLoading = false
+  isLoading = false,
+  showRequired = false
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [hoveredImplantId, setHoveredImplantId] = useState<number | null>(null)
@@ -179,13 +181,17 @@ export const ImplantBrandCards: React.FC<ImplantBrandCardsProps> = ({
                   ? '2px solid #1162A8'
                   : isHovered
                     ? '1px solid #1162A8'
-                    : '1px solid #B4B0B0',
+                    : showRequired && !selectedImplantId
+                      ? '2px solid #ef4444'
+                      : '1px solid #B4B0B0',
                 borderRadius: '7px',
                 boxShadow: isSelected
                   ? '9px 7px 21.5px rgba(0, 0, 0, 0.25)'
                   : isHovered
                     ? '0 2px 8px rgba(17, 98, 168, 0.15)'
-                    : 'none',
+                    : showRequired && !selectedImplantId
+                      ? '0 0 8px rgba(239, 68, 68, 0.3)'
+                      : 'none',
                 transition: 'border-color 0.2s ease, box-shadow 0.2s ease'
               }}
             >

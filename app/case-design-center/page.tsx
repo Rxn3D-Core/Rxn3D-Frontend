@@ -7195,7 +7195,15 @@ export default function CaseDesignCenterPage() {
   }
 
   return (
-    <div className="min-h-screen">
+    <div
+      className="min-h-screen w-full"
+      style={{
+        boxSizing: 'border-box',
+        position: 'relative',
+        background: '#fdfdfd',
+        minHeight: '100vh',
+      }}
+    >
       <SlipCreationHeader
         variant="full"
         sendingToLab={selectedLab}
@@ -7244,13 +7252,30 @@ export default function CaseDesignCenterPage() {
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="min-h-full" style={{ paddingBottom: "5px" }}>
-        <div className="container mx-auto px-5">
+      {/* Main Content - Figma Frame 76 */}
+      <div
+        className="w-full"
+        style={{
+          boxSizing: 'border-box',
+          position: 'relative',
+          minHeight: 'calc(100vh - 250px)',
+          paddingBottom: '60px',
+        }}
+      >
+        {/* Content Area - Full width with minimal padding */}
+        <div
+          className="w-full"
+          style={{
+            boxSizing: 'border-box',
+            width: '100%',
+            minHeight: '100%',
+            padding: '0 10px',
+          }}
+        >
           {/* Search and Category Selection */}
           <div className="flex flex-col items-center">
             {/* Search and Labels Row */}
-            <div className="flex items-center w-full max-w-[1400px] gap-4">
+            <div className="flex items-center w-full gap-4">
               {/* Product Selection Badge removed - charts now show directly */}
 
             </div>
@@ -7599,7 +7624,7 @@ export default function CaseDesignCenterPage() {
 
             {/* Product Details Split View - Show when product is selected */}
             {showProductDetails && selectedProduct && (
-              <div ref={toothSelectionRef} className="w-full max-w-[1400px] mx-auto">
+              <div ref={toothSelectionRef} className="w-full">
                 {(isInitialLoading || isLoadingProductDetails) ? (
                   <div className="grid gap-4 lg:gap-4 mb-2 grid-cols-1 lg:grid-cols-2">
                     <div className="flex flex-col w-full">
@@ -7633,65 +7658,98 @@ export default function CaseDesignCenterPage() {
                   <>
                     {/* Implant Selection Cards - REMOVED: Now shown inside DynamicProductFields when implant details field is clicked */}
 
-                    {/* Tooth Selection Interface */}
-                    <div className={`grid gap-16 lg:gap-[16rem] mb-2 ${showMaxillaryChart && showMandibularChart ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
-                      {/* MAXILLARY Section - Only show when maxillary chart is visible */}
+                    {/* Tooth Selection Interface - Two Column Layout per Figma */}
+                    <div
+                      className="flex items-start justify-center"
+                      style={{
+                        gap: '0px',
+                        width: '100%',
+                        marginBottom: '8px',
+                      }}
+                    >
+                      {/* MAXILLARY Section */}
                       {showMaxillaryChart && (
-                        <div ref={maxillarySectionRef} className="flex flex-col w-full">
-                          {/* Selected Product Badge - Only show when there are multiple products (more than 1 saved product) */}
-                          {selectedProductForMaxillary && maxillaryTeeth.length > 0 && savedProducts.filter(p => p.addedFrom === "maxillary").length > 1 && (
-                            <div
-                              className="relative flex items-center justify-center"
-                              style={{ width: "100%", height: "22px", flex: "none", order: 0, flexGrow: 0 }}
+                        <div
+                          ref={maxillarySectionRef}
+                          className="flex flex-col"
+                          style={{
+                            flex: '1 1 49%',
+                            background: '#FDFDFD',
+                            padding: '20px 25px',
+                          }}
+                        >
+                          {/* MAXILLARY Label */}
+                          <div
+                            className="flex items-center justify-center"
+                            style={{
+                              padding: '8px 0px',
+                              marginBottom: '5px',
+                            }}
+                          >
+                            <p
+                              style={{
+                                fontFamily: 'Verdana',
+                                fontStyle: 'normal',
+                                fontWeight: 700,
+                                fontSize: '16px',
+                                lineHeight: '20px',
+                                letterSpacing: '-0.02em',
+                                color: '#000000',
+                              }}
                             >
-                              <div
-                                className="absolute left-1/2"
-                                style={{
-                                  width: "auto",
-                                  minWidth: "129px",
-                                  maxWidth: "300px",
-                                  height: "18.53px",
-                                  top: "2px",
-                                  transform: "translateX(-50%)",
-                                  background: "#DFEEFB",
-                                  boxShadow: "1px 1px 3.5px rgba(0, 0, 0, 0.25)",
-                                  borderRadius: "6px",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  padding: "0 10px",
-                                }}
-                              >
-                                <span
-                                  className="flex items-center justify-center"
-                                  style={{
-                                    fontFamily: "Verdana",
-                                    fontStyle: "normal",
-                                    fontWeight: 400,
-                                    fontSize: "10px",
-                                    lineHeight: "22px",
-                                    textAlign: "center",
-                                    letterSpacing: "-0.02em",
-                                    color: "#000000",
-                                    whiteSpace: "nowrap",
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis"
-                                  }}
-                                >
-                                  {selectedProductForMaxillary.name}
+                              MAXILLARY
+                            </p>
+                          </div>
 
-                                </span>
-                              </div>
+                          {/* Product Pills - Show selected products above teeth */}
+                          {savedProducts.filter(p => p.addedFrom === "maxillary").length > 0 && (
+                            <div
+                              className="flex items-center justify-center gap-3 flex-wrap"
+                              style={{ marginBottom: '12px' }}
+                            >
+                              {savedProducts
+                                .filter(p => p.addedFrom === "maxillary")
+                                .map((savedProduct, idx) => {
+                                  const teethStr = savedProduct.maxillaryTeeth?.length > 0
+                                    ? savedProduct.maxillaryTeeth.sort((a, b) => a - b).map(t => `#${t}`).join(', ')
+                                    : '';
+                                  return (
+                                    <div
+                                      key={savedProduct.id}
+                                      className="flex items-center justify-center cursor-pointer hover:opacity-80"
+                                      style={{
+                                        padding: '6px 14px',
+                                        background: openAccordion === savedProduct.id ? '#DFEEFB' : '#FFFFFF',
+                                        boxShadow: '1px 1px 3.5px rgba(0, 0, 0, 0.25)',
+                                        borderRadius: '6px',
+                                      }}
+                                      onClick={() => setOpenAccordion(openAccordion === savedProduct.id ? null : savedProduct.id)}
+                                    >
+                                      <span
+                                        style={{
+                                          fontFamily: 'Verdana',
+                                          fontSize: '11px',
+                                          lineHeight: '22px',
+                                          letterSpacing: '-0.02em',
+                                          color: '#000000',
+                                        }}
+                                      >
+                                        {savedProduct.subcategory || savedProduct.product?.name} {teethStr}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
                             </div>
                           )}
 
-                          {/* MAXILLARY Label - Below Product Badge */}
-                          <div className="flex items-center justify-center gap-2 mt-1 mb-1">
-                            <p className="text-sm font-bold text-black text-center" style={{ fontWeight: 700, letterSpacing: "0.01em" }}>MAXILLARY</p>
-                          </div>
-
-                          {/* Dental Chart - Outside Card */}
-                          <div className="rounded-lg pt-1 px-2 pb-0 flex items-center justify-center relative">
+                          {/* Dental Chart Container - Full width */}
+                          <div
+                            className="flex items-center justify-center relative"
+                            style={{
+                              width: '100%',
+                              padding: '0 10px',
+                            }}
+                          >
                             {shouldShowImplantPopover && implantPopoverState.arch === 'maxillary' && implantPopoverState.toothNumber !== null && (
                               <ImplantPartsPopover
                                 onImplantPartsIncluded={() => {
@@ -7789,7 +7847,7 @@ export default function CaseDesignCenterPage() {
                                 <Accordion
                                   type="single"
                                   collapsible
-                                  className="w-full"
+                                  className="w-full mt-4"
                                   value={(openAccordion === "maxillary-card" || savedProducts.some(p => p.addedFrom === "maxillary" && p.id === openAccordion)) ? openAccordion : ""}
                                   onValueChange={handleAccordionChange}
                                 >
@@ -7808,15 +7866,15 @@ export default function CaseDesignCenterPage() {
                                       className="w-full"
                                       style={{
                                         position: 'relative',
-                                        minHeight: '45px',
+                                        minHeight: '38px',
                                         background: openAccordion === "maxillary-card" ? '#E0EDF8' : '#F5F5F5',
                                         boxShadow: '0.9px 0.9px 3.6px rgba(0, 0, 0, 0.25)',
-                                        borderRadius: openAccordion === "maxillary-card" ? '10px 10px 0px 0px' : '10px',
+                                        borderRadius: openAccordion === "maxillary-card" ? '8px 8px 0px 0px' : '8px',
                                         display: currentShadeField ? 'none' : 'flex',
                                         flexDirection: 'column',
                                         alignItems: 'flex-start',
-                                        padding: '14px 8px',
-                                        gap: '4px',
+                                        padding: '8px 6px',
+                                        gap: '2px',
                                         borderBottom: openAccordion === "maxillary-card" ? '1px dotted #B0D0F0' : 'none'
                                       }}
                                     >
@@ -7832,24 +7890,24 @@ export default function CaseDesignCenterPage() {
                                         }}
                                       >
                                         {/* Responsive Content Container */}
-                                        <div style={{ width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: '8px', paddingRight: '24px' }}>
+                                        <div style={{ width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: '6px', paddingRight: '20px' }}>
                                           {/* Product Image */}
                                           <div
                                             style={{
-                                              width: '32px',
-                                              minWidth: '32px',
-                                              height: '32px',
+                                              width: '28px',
+                                              minWidth: '28px',
+                                              height: '28px',
                                               background: `url(${selectedProductForMaxillary?.image_url || "/images/tooth-icon.png"}), #FFFFFF`,
                                               backgroundSize: 'contain',
                                               backgroundPosition: 'center',
                                               backgroundRepeat: 'no-repeat',
-                                              borderRadius: '5.4px',
+                                              borderRadius: '4px',
                                               flexShrink: 0
                                             }}
                                           />
 
                                           {/* Content Area - Responsive */}
-                                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0, alignItems: 'flex-start' }}>
+                                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '1px', minWidth: 0, alignItems: 'flex-start' }}>
                                             {/* Product Name - Bold, plain text */}
                                             {selectedProductForMaxillary?.name && (
                                               <span
@@ -7857,8 +7915,8 @@ export default function CaseDesignCenterPage() {
                                                   fontFamily: 'Verdana',
                                                   fontStyle: 'normal',
                                                   fontWeight: 600,
-                                                  fontSize: '14px',
-                                                  lineHeight: '16px',
+                                                  fontSize: '12px',
+                                                  lineHeight: '14px',
                                                   letterSpacing: '-0.02em',
                                                   color: '#000000',
                                                   wordBreak: 'break-word',
@@ -7872,14 +7930,14 @@ export default function CaseDesignCenterPage() {
                                             )}
 
                                             {/* Tooth Numbers Row - Formatted as #9 */}
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                                               <span
                                                 style={{
                                                   fontFamily: 'Verdana',
                                                   fontStyle: 'normal',
                                                   fontWeight: 400,
-                                                  fontSize: '12px',
-                                                  lineHeight: '14px',
+                                                  fontSize: '10px',
+                                                  lineHeight: '12px',
                                                   letterSpacing: '-0.02em',
                                                   color: '#000000'
                                                 }}
@@ -7892,23 +7950,23 @@ export default function CaseDesignCenterPage() {
                                             </div>
 
                                             {/* Badges and Info Row - Responsive */}
-                                            <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
                                               {/* Badge - Category - Pill shaped */}
                                               {selectedCategory && (
-                                                <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '2px 8px', background: '#F0F0F0', borderRadius: '12px', flexShrink: 0 }}>
-                                                  <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{selectedCategory}</span>
+                                                <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '1px 6px', background: '#F0F0F0', borderRadius: '10px', flexShrink: 0 }}>
+                                                  <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '9px', lineHeight: '11px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{selectedCategory}</span>
                                                 </div>
                                               )}
 
                                               {/* Badge - Subcategory - Pill shaped */}
                                               {selectedSubcategory && (
-                                                <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '2px 8px', background: '#F0F0F0', borderRadius: '12px', flexShrink: 0 }}>
-                                                  <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{selectedSubcategory}</span>
+                                                <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '1px 6px', background: '#F0F0F0', borderRadius: '10px', flexShrink: 0 }}>
+                                                  <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '9px', lineHeight: '11px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{selectedSubcategory}</span>
                                                 </div>
                                               )}
 
                                               {/* Est days */}
-                                              <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', letterSpacing: '-0.02em', color: '#B4B0B0', whiteSpace: 'nowrap' }}>
+                                              <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '9px', lineHeight: '11px', letterSpacing: '-0.02em', color: '#B4B0B0', whiteSpace: 'nowrap' }}>
                                                 Est days: {selectedProductForMaxillary?.estimated_days || 10} work days after submission
                                               </span>
                                             </div>
@@ -7926,7 +7984,7 @@ export default function CaseDesignCenterPage() {
                                         </div>
                                       </AccordionTrigger>
                                     </div>
-                                    <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto', maxHeight: '400px', overflowY: 'auto' }}>
+                                    <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto', maxHeight: '300px', overflowY: 'auto' }}>
                                       {/* Tooth Shade Selection - Shows at the top when active */}
                                       {currentShadeField && currentShadeArch === "maxillary" && (
                                         <div className="w-full pt-4">
@@ -9643,7 +9701,7 @@ export default function CaseDesignCenterPage() {
                                             </button>
                                           </div>
 
-                                          <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto', maxHeight: '400px', overflowY: 'auto' }}>
+                                          <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto', maxHeight: '300px', overflowY: 'auto' }}>
                                             {/* Summary detail - Progressive field disclosure */}
                                             <div
                                               className="bg-white w-full"
@@ -10916,75 +10974,117 @@ export default function CaseDesignCenterPage() {
                         </div>
                       )}
 
-                      {/* MANDIBULAR Section - Only show when mandibular chart is visible */}
+                      {/* Navigation Arrows between sections */}
+                      {showMaxillaryChart && showMandibularChart && (
+                        <div
+                          className="flex flex-col items-center justify-center gap-2 self-center"
+                          style={{
+                            minWidth: '60px',
+                            padding: '20px 10px',
+                          }}
+                        >
+                          <button
+                            className="flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors"
+                            onClick={() => {/* Navigate to previous */}}
+                            aria-label="Previous"
+                            style={{ fontSize: '24px', fontWeight: 'bold' }}
+                          >
+                            &#171;
+                          </button>
+                          <button
+                            className="flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors"
+                            onClick={() => {/* Navigate to next */}}
+                            aria-label="Next"
+                            style={{ fontSize: '24px', fontWeight: 'bold' }}
+                          >
+                            &#187;
+                          </button>
+                        </div>
+                      )}
+
+                      {/* MANDIBULAR Section */}
                       {showMandibularChart && (
-                        <div ref={mandibularSectionRef} className="flex flex-col w-full">
-                          {/* Selected Product Badge - Only show when there are multiple products (more than 1 saved product) */}
-                          {selectedProductForMandibular && mandibularTeeth.length > 0 && savedProducts.filter(p => p.addedFrom === "mandibular").length > 1 && (
+                        <div
+                          ref={mandibularSectionRef}
+                          className="flex flex-col"
+                          style={{
+                            flex: '1 1 49%',
+                            background: '#FDFDFD',
+                            padding: '20px 25px',
+                          }}
+                        >
+                          {/* Product Pills - Show selected products above teeth */}
+                          {savedProducts.filter(p => p.addedFrom === "mandibular").length > 0 && (
                             <div
-                              className="relative flex items-center justify-center"
-                              style={{ width: "100%", height: "22px", flex: "none", order: 0, flexGrow: 0 }}
+                              className="flex items-center justify-center gap-3 flex-wrap"
+                              style={{ marginBottom: '12px' }}
                             >
-                              <div
-                                className="absolute left-1/2"
-                                style={{
-                                  width: "auto",
-                                  minWidth: "129px",
-                                  maxWidth: "300px",
-                                  height: "18.53px",
-                                  top: "2px",
-                                  transform: "translateX(-50%)",
-                                  background: "#DFEEFB",
-                                  boxShadow: "1px 1px 3.5px rgba(0, 0, 0, 0.25)",
-                                  borderRadius: "6px",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  padding: "0 10px",
-                                }}
-                              >
-                                <span
-                                  className="flex items-center justify-center"
-                                  style={{
-                                    fontFamily: "Verdana",
-                                    fontStyle: "normal",
-                                    fontWeight: 400,
-                                    fontSize: "10px",
-                                    lineHeight: "22px",
-                                    textAlign: "center",
-                                    letterSpacing: "-0.02em",
-                                    color: "#000000",
-                                    whiteSpace: "nowrap",
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis"
-                                  }}
-                                >
-                                  {selectedProductForMandibular.name}
-                                  {mandibularTeeth && mandibularTeeth.length > 0 && (
-                                    <>
-                                      <span>
-                                        {mandibularTeeth.length === 1
-                                          ? `#${mandibularTeeth[0]}`
-                                          : mandibularTeeth
-                                            .slice()
-                                            .sort((a, b) => a - b)
-                                            .map((num) => `#${num}`)
-                                            .join(", ")}
+                              {savedProducts
+                                .filter(p => p.addedFrom === "mandibular")
+                                .map((savedProduct, idx) => {
+                                  const teethStr = savedProduct.mandibularTeeth?.length > 0
+                                    ? savedProduct.mandibularTeeth.sort((a, b) => a - b).map(t => `#${t}`).join(', ')
+                                    : '';
+                                  return (
+                                    <div
+                                      key={savedProduct.id}
+                                      className="flex items-center justify-center cursor-pointer hover:opacity-80"
+                                      style={{
+                                        padding: '6px 14px',
+                                        background: openAccordion === savedProduct.id ? '#DFEEFB' : '#FFFFFF',
+                                        boxShadow: '1px 1px 3.5px rgba(0, 0, 0, 0.25)',
+                                        borderRadius: '6px',
+                                      }}
+                                      onClick={() => setOpenAccordion(openAccordion === savedProduct.id ? null : savedProduct.id)}
+                                    >
+                                      <span
+                                        style={{
+                                          fontFamily: 'Verdana',
+                                          fontSize: '11px',
+                                          lineHeight: '22px',
+                                          letterSpacing: '-0.02em',
+                                          color: '#000000',
+                                        }}
+                                      >
+                                        {savedProduct.subcategory || savedProduct.product?.name} {teethStr}
                                       </span>
-                                    </>
-                                  )}
-                                </span>
-                              </div>
+                                    </div>
+                                  );
+                                })}
                             </div>
                           )}
 
-                          {/* MANDIBULAR Label - Below Product Badge */}
-                          <div className="flex items-center justify-center gap-2 mt-1 mb-1">
-                            <p className="text-sm font-bold text-black text-center" style={{ fontWeight: 700, letterSpacing: "0.01em" }}>MANDIBULAR</p>
+                          {/* MANDIBULAR Label */}
+                          <div
+                            className="flex items-center justify-center"
+                            style={{
+                              padding: '8px 0px',
+                              marginBottom: '10px',
+                            }}
+                          >
+                            <p
+                              style={{
+                                fontFamily: 'Verdana',
+                                fontStyle: 'normal',
+                                fontWeight: 700,
+                                fontSize: '16px',
+                                lineHeight: '18px',
+                                letterSpacing: '-0.02em',
+                                color: '#000000',
+                              }}
+                            >
+                              MANDIBULAR
+                            </p>
                           </div>
 
-                          {/* Dental Chart - Outside Card */}
-                          <div className="rounded-lg pt-1 px-2 pb-0 flex items-center justify-center relative">
+                          {/* Dental Chart Container - Full width */}
+                          <div
+                            className="flex items-center justify-center relative"
+                            style={{
+                              width: '100%',
+                              padding: '0 10px',
+                            }}
+                          >
                             {shouldShowImplantPopover && implantPopoverState.arch === 'mandibular' && implantPopoverState.toothNumber !== null && (
                               <ImplantPartsPopover
                                 onImplantPartsIncluded={() => {
@@ -11082,7 +11182,7 @@ export default function CaseDesignCenterPage() {
                                 <Accordion
                                   type="single"
                                   collapsible
-                                  className="w-full -mt-6"
+                                  className="w-full mt-4"
                                   value={(openAccordion === "mandibular-card" || savedProducts.some(p => p.addedFrom === "mandibular" && p.id === openAccordion)) ? openAccordion : ""}
                                   onValueChange={handleAccordionChange}
                                 >
@@ -11211,7 +11311,7 @@ export default function CaseDesignCenterPage() {
 
                                       </AccordionTrigger>
                                     </div>
-                                    <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto', maxHeight: '400px', overflowY: 'auto' }}>
+                                    <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto', maxHeight: '300px', overflowY: 'auto' }}>
                                       {/* Tooth Shade Selection - Shows at the top when active */}
                                       {currentShadeField && currentShadeArch === "mandibular" && (
                                         <div className="w-full pt-4">
@@ -12924,7 +13024,7 @@ export default function CaseDesignCenterPage() {
                                             </button>
                                           </div>
 
-                                          <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto', maxHeight: '400px', overflowY: 'auto' }}>
+                                          <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto', maxHeight: '300px', overflowY: 'auto' }}>
                                             {/* Tooth Shade Selection - Shows at the top when active (saved product) */}
                                             {currentShadeField && currentShadeArch === "mandibular" && currentShadeProductId === savedProduct.id && (
                                               <div className="w-full pt-4">
