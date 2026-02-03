@@ -339,19 +339,19 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
           )}
         </div>
 
-        {/* Content - auto-width grid */}
+        {/* Content - 3 column grid */}
         <div
           style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: '0px',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: '16px',
             width: '100%'
           }}
         >
           {/* Row 1: Implant Brand, Platform, Size */}
 
           {/* Implant Brand - Always visible */}
-          <div className="relative" style={{ minHeight: '50px', paddingTop: '8px', width: 'fit-content' }}>
+          <div className="relative" style={{ minHeight: '50px', paddingTop: '8px', width: '100%' }}>
             <Input
               type="text"
               value={selectedBrand?.brand_name || ""}
@@ -389,7 +389,7 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
 
           {/* Implant Platform - Show only if Brand is selected */}
           {hasValue(selectedBrand?.brand_name) && (
-            <div className="relative" style={{ minHeight: '50px', paddingTop: '8px', width: 'fit-content' }}>
+            <div className="relative" style={{ minHeight: '50px', paddingTop: '8px', width: '100%' }}>
               <Input
                 type="text"
                 value={selectedPlatform?.name || ""}
@@ -429,7 +429,7 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
 
           {/* Implant Size - Show only if Platform is selected */}
           {hasValue(selectedPlatform?.name) && (
-            <div className="relative" style={{ minHeight: '50px', paddingTop: '8px', width: 'fit-content' }}>
+            <div className="relative" style={{ minHeight: '50px', paddingTop: '8px', width: '100%' }}>
               <Select
                 value={selectedSize || ""}
                 open={sizeOpen}
@@ -478,7 +478,7 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
 
           {/* Implant Inclusions - Show only if Size is selected */}
           {showInclusions && (
-            <div className="relative" style={{ minHeight: '50px', paddingTop: '8px', width: 'fit-content' }}>
+            <div className="relative" style={{ minHeight: '50px', paddingTop: '8px', width: '100%' }}>
               <Select
                 value={inclusions}
                 open={inclusionsOpen}
@@ -532,7 +532,7 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
 
           {/* Abutment Details - Show only if Inclusions is selected */}
           {showAbutmentRow && (
-            <div className="relative" style={{ minHeight: '50px', paddingTop: '8px', width: 'fit-content' }}>
+            <div className="relative" style={{ minHeight: '50px', paddingTop: '8px', width: '100%' }}>
               <Select
                 value={abutmentDetail}
                 open={abutmentDetailOpen}
@@ -580,7 +580,7 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
 
           {/* Abutment Type - Show only if Abutment Details is selected */}
           {showAbutmentType && (
-            <div className="relative" style={{ minHeight: '50px', paddingTop: '8px', width: 'fit-content' }}>
+            <div className="relative" style={{ minHeight: '50px', paddingTop: '8px', width: '100%' }}>
               <Select
                 value={abutmentType}
                 open={abutmentTypeOpen}
