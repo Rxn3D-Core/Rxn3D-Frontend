@@ -93,7 +93,7 @@ export function MandibularSection({ sectionRef, children }: MandibularSectionPro
       </div>
 
       <div
-        className="flex items-center justify-center px-2 md:px-4"
+        className="flex items-center justify-between px-2 md:px-4"
         style={{ padding: "8px 0px", marginBottom: "10px" }}
       >
         <p
@@ -109,6 +109,12 @@ export function MandibularSection({ sectionRef, children }: MandibularSectionPro
         >
           MANDIBULAR
         </p>
+        {/* Add Product Button */}
+        {children && (
+          <div>
+            {children}
+          </div>
+        )}
       </div>
 
       <div

@@ -49,13 +49,18 @@ export function SavedProductSectionContent({
   const showAccordion = hasCurrentProductCard || productsForArch.length > 0
   if (!showChart || !showAccordion) return null
 
-  const accordionValue =
-    openAccordionId === cardValue || ctx.savedProducts.some((p) => p.addedFrom === arch && p.id === openAccordionId)
-      ? openAccordionId ?? ""
-      : ""
+  // Auto-open accordion: prioritize currently open item, or default to first saved product, or current card
+  let autoOpenValue = ""
+  if (openAccordionId) {
+    autoOpenValue = openAccordionId
+  } else if (productsForArch.length > 0) {
+    autoOpenValue = productsForArch[0].id
+  } else if (hasCurrentProductCard) {
+    autoOpenValue = cardValue
+  }
 
   return (
-    <SavedProductAccordion value={accordionValue} onValueChange={onAccordionChange} className={className}>
+    <SavedProductAccordion value={autoOpenValue} onValueChange={onAccordionChange} className={className}>
       {children !== undefined ? children : <SavedProductAccordionItems arch={arch} />}
     </SavedProductAccordion>
   )

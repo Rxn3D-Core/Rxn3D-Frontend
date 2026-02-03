@@ -84,7 +84,7 @@ export function MaxillarySection({ sectionRef, children }: MaxillarySectionProps
       aria-label="Maxillary section"
     >
       <div
-        className="flex items-center justify-center px-2 md:px-4"
+        className="flex items-center justify-between px-2 md:px-4"
         style={{ padding: "8px 0px", marginBottom: "5px" }}
       >
         <p
@@ -100,6 +100,12 @@ export function MaxillarySection({ sectionRef, children }: MaxillarySectionProps
         >
           MAXILLARY
         </p>
+        {/* Add Product Button */}
+        {children && (
+          <div>
+            {children}
+          </div>
+        )}
       </div>
 
       <SavedProductPills
