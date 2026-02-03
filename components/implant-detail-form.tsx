@@ -449,7 +449,7 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
                 >
                   <SelectValue placeholder="" />
                 </SelectTrigger>
-                <SelectContent side="top">
+                <SelectContent side="bottom">
                   {implantSizes.map((size) => (
                     <SelectItem key={size} value={size}>
                       {size}
@@ -505,7 +505,7 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
                 >
                   <SelectValue placeholder="" />
                 </SelectTrigger>
-                <SelectContent side="top">
+                <SelectContent side="bottom">
                   {inclusionOptions.map((option) => (
                     <SelectItem key={option} value={option}>
                       {option}
@@ -553,7 +553,7 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
                 >
                   <SelectValue placeholder="" />
                 </SelectTrigger>
-                <SelectContent side="top">
+                <SelectContent side="bottom">
                   {abutmentDetailOptions.map((option) => (
                     <SelectItem key={option} value={option}>
                       {option}
@@ -601,7 +601,7 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
                 >
                   <SelectValue placeholder="" />
                 </SelectTrigger>
-                <SelectContent side="top">
+                <SelectContent side="bottom">
                   {abutmentTypeOptions.map((option) => (
                     <SelectItem key={option} value={option}>
                       {option}

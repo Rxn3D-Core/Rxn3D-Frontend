@@ -337,8 +337,24 @@ export function DynamicProductFields({
 
   // Refs for field elements to enable auto-focus
   const fieldRefs = useRef<Record<string, HTMLButtonElement | HTMLDivElement | null>>({})
+  // Stable ref callbacks per key to avoid "Maximum update depth" with Radix compose-refs
+  const fieldRefCallbacks = useRef<Record<string, (el: HTMLButtonElement | HTMLDivElement | null) => void>>({})
+  const getFieldRefCallback = useCallback((key: string) => {
+    if (!fieldRefCallbacks.current[key]) {
+      fieldRefCallbacks.current[key] = (el) => {
+        fieldRefs.current[key] = el
+      }
+    }
+    return fieldRefCallbacks.current[key]
+  }, [])
   // Prevent shade auto-open from firing repeatedly (mandibular/maxillary loop)
   const autoOpenedShadeRef = useRef<Record<string, boolean>>({})
+  // Only auto-open stage modal once when conditions become true (avoids loop from unstable productDetails/savedProduct)
+  const autoOpenedStageModalRef = useRef<boolean>(false)
+  // Only notify parent for platform step once per entry (avoids loop from unstable onPlatformFieldClick)
+  const platformNotifyDoneRef = useRef<boolean>(false)
+  // Only set auto-focus once per firstEmptyField (avoids repeated setState when deps are unstable)
+  const autoFocusedKeyRef = useRef<string | null>(null)
 
   // Helper to get the first empty required field key
   const getFirstEmptyRequiredFieldKey = useCallback((): string | null => {
@@ -364,23 +380,28 @@ export function DynamicProductFields({
     return null
   }, [fieldConfigs, savedProduct, arch])
 
-  // Auto-focus the first empty required field
+  // Auto-focus the first empty required field (ref guard prevents loop when deps are unstable)
   useEffect(() => {
-    const firstEmptyField = getFirstEmptyRequiredFieldKey()
-    if (firstEmptyField && firstEmptyField !== focusedFieldKey) {
-      // Small delay to ensure fields are rendered
-      const timer = setTimeout(() => {
-        const fieldRef = fieldRefs.current[firstEmptyField]
-        if (fieldRef) {
-          // For select fields, trigger click to open dropdown
-          // For shade fields, the click handler will open the modal
-          setFocusedFieldKey(firstEmptyField)
-        }
-      }, 150)
+    if (hideFieldsDuringShadeSelection) return
 
-      return () => clearTimeout(timer)
+    const firstEmptyField = getFirstEmptyRequiredFieldKey()
+    if (!firstEmptyField) {
+      autoFocusedKeyRef.current = null
+      return
     }
-  }, [getFirstEmptyRequiredFieldKey, focusedFieldKey])
+    if (firstEmptyField === focusedFieldKey) return
+    if (autoFocusedKeyRef.current === firstEmptyField) return
+
+    const timer = setTimeout(() => {
+      const fieldRef = fieldRefs.current[firstEmptyField]
+      if (fieldRef) {
+        autoFocusedKeyRef.current = firstEmptyField
+        setFocusedFieldKey(firstEmptyField)
+      }
+    }, 150)
+
+    return () => clearTimeout(timer)
+  }, [savedProduct, arch, fieldConfigs, focusedFieldKey, hideFieldsDuringShadeSelection])
 
   // State to track implant selection step: 'brand' | 'platform'
   const [implantSelectionStep, setImplantSelectionStep] = useState<'brand' | 'platform'>('brand')
@@ -407,20 +428,23 @@ export function DynamicProductFields({
     }
   }, [showImplantBrandCards, selectedImplantId])
 
-  // Notify parent when selection step changes to platform (user clicked platform field or brand with platforms was selected)
+  // Notify parent when selection step changes to platform (ref guard prevents loop when onPlatformFieldClick is unstable)
   useEffect(() => {
-    if (showImplantBrandCards && implantSelectionStep === 'platform' && onPlatformFieldClick && selectedImplantId && platforms.length > 0) {
-      // Use a small delay to ensure state is updated
-      const timer = setTimeout(() => {
-        // Handle both function signatures: () => void and (productId, arch) => void
-        try {
-          (onPlatformFieldClick as any)()
-        } catch (e) {
-          // If it requires arguments, skip the call (it's for saved mode)
-        }
-      }, 50)
-      return () => clearTimeout(timer)
+    if (!showImplantBrandCards || implantSelectionStep !== 'platform' || !onPlatformFieldClick || !selectedImplantId || platforms.length === 0) {
+      platformNotifyDoneRef.current = false
+      return
     }
+    if (platformNotifyDoneRef.current) return
+    platformNotifyDoneRef.current = true
+
+    const timer = setTimeout(() => {
+      try {
+        (onPlatformFieldClick as any)()
+      } catch (e) {
+        // If it requires arguments, skip the call (it's for saved mode)
+      }
+    }, 50)
+    return () => clearTimeout(timer)
   }, [implantSelectionStep, showImplantBrandCards, selectedImplantId, platforms.length, onPlatformFieldClick])
   
   // Determine if we should show platform cards or brand cards
@@ -703,38 +727,36 @@ export function DynamicProductFields({
     return true
   }
 
-  // Auto-open stage modal when stage field becomes visible and value is empty or placeholder
+  // Auto-open stage modal when stage field becomes visible and value is empty (ref guard prevents loop from unstable deps)
   useEffect(() => {
-    // Skip auto-open when disabled (e.g., in accordion view)
-    if (disableAutoOpen) return
+    if (disableAutoOpen || hideFieldsDuringShadeSelection) return
 
     const stageConfig = fieldConfigs.find(f => f.key === "stage")
     if (!stageConfig) return
 
     const stageValue = getFieldValueByKey("stage")
     const stages = productDetails?.stages
-
-    // Check if stage field should be visible
     const isVisible = isFieldVisibleProgressive(stageConfig)
-
-    // Check if value is empty or placeholder
     const isNotSpecified = !hasValue(stageValue)
 
-    // Auto-open modal if field is visible and value is not specified
-    if (isVisible && isNotSpecified && stages && Array.isArray(stages) && stages.length > 0) {
-      // Small delay to ensure the component is ready
-      const timer = setTimeout(() => {
-        setIsStageModalOpen(true)
-      }, 100)
-
-      return () => clearTimeout(timer)
+    if (!isVisible || !isNotSpecified || !stages?.length) {
+      autoOpenedStageModalRef.current = false
+      return
     }
-  }, [productDetails, savedProduct, arch, fieldConfigs, disableAutoOpen])
+    if (autoOpenedStageModalRef.current) return
+    autoOpenedStageModalRef.current = true
+
+    const timer = setTimeout(() => {
+      setIsStageModalOpen(true)
+    }, 100)
+
+    return () => clearTimeout(timer)
+  }, [productDetails, savedProduct, arch, fieldConfigs, disableAutoOpen, hideFieldsDuringShadeSelection])
 
   // Auto-open shade modal when stump_shade or tooth_shade field becomes visible and value is empty (once per arch+field to avoid loop)
   useEffect(() => {
-    // Skip auto-open when disabled (e.g., in accordion view)
-    if (disableAutoOpen) return
+    // Skip auto-open when disabled (e.g., in accordion view) or when fields are hidden during shade selection
+    if (disableAutoOpen || hideFieldsDuringShadeSelection) return
 
     const shadeKey = `${arch}_stump_shade`
     // Check stump_shade field
@@ -760,12 +782,12 @@ export function DynamicProductFields({
         return () => clearTimeout(timer)
       }
     }
-  }, [productDetails, savedProduct, arch, fieldConfigs, onOpenShadeModal, disableAutoOpen])
+  }, [productDetails, savedProduct, arch, fieldConfigs, onOpenShadeModal, disableAutoOpen, hideFieldsDuringShadeSelection])
 
   // Auto-open shade modal when tooth_shade field becomes visible and value is empty (once per arch+field to avoid loop)
   useEffect(() => {
-    // Skip auto-open when disabled (e.g., in accordion view)
-    if (disableAutoOpen) return
+    // Skip auto-open when disabled (e.g., in accordion view) or when fields are hidden during shade selection
+    if (disableAutoOpen || hideFieldsDuringShadeSelection) return
 
     const shadeKey = `${arch}_tooth_shade`
     // Check tooth_shade field
@@ -790,7 +812,7 @@ export function DynamicProductFields({
         return () => clearTimeout(timer)
       }
     }
-  }, [productDetails, savedProduct, arch, fieldConfigs, onOpenShadeModal, disableAutoOpen])
+  }, [productDetails, savedProduct, arch, fieldConfigs, onOpenShadeModal, disableAutoOpen, hideFieldsDuringShadeSelection])
 
   // Note: Impression modal auto-open is disabled. It will only open when the user clicks on the impression field.
 
@@ -820,14 +842,9 @@ export function DynamicProductFields({
         return false
       }
 
-      // Hide material, retention, retention_option, and stage during shade selection
-      // to focus user only on stump shade and tooth shade selection
-      if (hideFieldsDuringShadeSelection) {
-        const hiddenFields = ["material", "retention", "retention_option", "stage"]
-        if (hiddenFields.includes(config.key)) {
-          return false
-        }
-      }
+      // Note: We no longer filter out fields during shade selection here
+      // Instead, we use CSS to hide them to avoid unmounting/remounting Select components
+      // which causes infinite loop issues with Radix UI's compose-refs
 
       // For readonly-locked mode (accordion view), check fieldVisibilityOverride first
       // This allows fields with saved values to be shown even if productDetails doesn't have the API data
@@ -1116,7 +1133,7 @@ export function DynamicProductFields({
           }}
         >
           <div
-            ref={(el) => { fieldRefs.current[config.key] = el }}
+            ref={getFieldRefCallback(config.key)}
             className={cn(
               "flex items-center cursor-pointer transition-all duration-200",
               isFocused && "ring-2 ring-[#1162A8] ring-opacity-50 shadow-[0_0_0_4px_rgba(17,98,168,0.15)]"
@@ -1201,7 +1218,7 @@ export function DynamicProductFields({
               }}
             >
               <div
-                ref={(el) => { fieldRefs.current[config.key] = el }}
+                ref={getFieldRefCallback(config.key)}
                 className={cn(
                   "flex items-center transition-all duration-200",
                   !fieldLocked && "cursor-pointer",
@@ -1325,22 +1342,23 @@ export function DynamicProductFields({
               } else {
                 onFieldChange(config.key, selectedValue)
               }
-              // Clear focus after selection
-              setFocusedFieldKey(null)
+              // Defer to avoid setState during commit (prevents "Maximum update depth" with Radix)
+              queueMicrotask(() => setFocusedFieldKey(null))
             }}
             onOpenChange={(open) => {
               if (fieldLocked) return
-              if (open) {
-                setFocusedFieldKey(config.key)
-              } else if (!hasValue(value)) {
-                // Keep focus indicator if field is still empty
-              } else {
-                setFocusedFieldKey(null)
-              }
+              // Defer setState so it never runs during Radix's commit phase
+              queueMicrotask(() => {
+                if (open) {
+                  setFocusedFieldKey(config.key)
+                } else if (hasValue(value)) {
+                  setFocusedFieldKey(null)
+                }
+              })
             }}
           >
             <SelectTrigger
-              ref={(el) => { fieldRefs.current[config.key] = el }}
+              ref={getFieldRefCallback(config.key)}
               className={cn(
                 "transition-all duration-200",
                 isFocused && !fieldLocked && "ring-2 ring-[#1162A8] ring-opacity-50 shadow-[0_0_0_4px_rgba(17,98,168,0.15)]"
@@ -1449,7 +1467,7 @@ export function DynamicProductFields({
       return (
         <div className="relative" style={{ minHeight: '32px', width: '100%' }}>
           <div
-            ref={(el) => { fieldRefs.current[config.key] = el }}
+            ref={getFieldRefCallback(config.key)}
             className={cn(
               "flex items-center justify-between transition-all duration-200",
               !fieldLocked && "cursor-pointer hover:bg-gray-50",
@@ -1634,6 +1652,13 @@ export function DynamicProductFields({
     return []
   }
 
+  // Helper to check if a field should be hidden during shade selection
+  const isFieldHiddenDuringShadeSelection = (fieldKey: string): boolean => {
+    if (!hideFieldsDuringShadeSelection) return false
+    const hiddenFields = ["material", "retention", "retention_option", "stage", "stump_shade", "tooth_shade"]
+    return hiddenFields.includes(fieldKey)
+  }
+
   // Render fields content (used in both normal and saved modes)
   const renderFieldsContent = () => (
     <>
@@ -1641,14 +1666,22 @@ export function DynamicProductFields({
         className={layout === "accordion-compact" ? "flex flex-wrap" : "grid grid-cols-2"}
         style={containerStyle}
       >
-        {visibleFields.map(field => (
-          <div
-            key={field.key}
-            style={getFieldContainerStyle()}
-          >
-            {renderField(field)}
-          </div>
-        ))}
+        {visibleFields.map(field => {
+          const isHiddenForShade = isFieldHiddenDuringShadeSelection(field.key)
+          return (
+            <div
+              key={field.key}
+              style={{
+                ...getFieldContainerStyle(),
+                // Use CSS to hide fields during shade selection instead of unmounting
+                // This prevents Radix UI compose-refs infinite loop issues
+                display: isHiddenForShade ? 'none' : undefined
+              }}
+            >
+              {renderField(field)}
+            </div>
+          )
+        })}
 
         {/* Render impression field after advance fields (or after main fields if no advance fields) */}
         {/* hideImpression prop allows parent to render impression separately after advance fields */}

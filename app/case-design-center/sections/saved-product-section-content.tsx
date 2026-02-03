@@ -3,26 +3,20 @@
 import React from "react"
 import { useSavedProductSection } from "./saved-product-section-context"
 import { SavedProductAccordion } from "./saved-product-accordion"
+import { SavedProductAccordionItems } from "./saved-product-accordion-items"
 
 export interface SavedProductSectionContentProps {
   /** Which arch this section is for */
   arch: "maxillary" | "mandibular"
   /** Optional accordion className (e.g. "w-full mt-4" for maxillary, "w-full mt-2" for mandibular) */
   className?: string
-  /** Accordion items: current product card + saved product cards. Pass from page for now; can be moved here to put the whole code in this component. */
-  children: React.ReactNode
+  /** Accordion items: when provided, rendered as children; when omitted, accordion items are rendered internally. */
+  children?: React.ReactNode
 }
 
 /**
  * Renders the saved product section for one arch: condition + accordion wrapper.
- * Uses SavedProductSectionContext for all state/handlers so the page doesn't pass 80+ props.
- *
- * To put the *whole* accordion code in this component: copy the AccordionItem JSX
- * (current product card + savedProducts.map saved cards) from the page into this file,
- * and use useSavedProductSection() + arch to derive openAccordionId, selectedProduct,
- * teeth, onAccordionChange, cardValue, productsForArch, etc. Then the page only
- * renders <SavedProductSectionContent arch="maxillary" /> and <SavedProductSectionContent arch="mandibular" />
- * with no children.
+ * When children are not provided, renders accordion items internally (current product card + saved product cards).
  */
 export function SavedProductSectionContent({
   arch,
@@ -62,7 +56,7 @@ export function SavedProductSectionContent({
 
   return (
     <SavedProductAccordion value={accordionValue} onValueChange={onAccordionChange} className={className}>
-      {children}
+      {children !== undefined ? children : <SavedProductAccordionItems arch={arch} />}
     </SavedProductAccordion>
   )
 }
