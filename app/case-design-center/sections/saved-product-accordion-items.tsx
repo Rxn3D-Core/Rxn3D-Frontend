@@ -49,7 +49,7 @@ export function SavedProductAccordionItems({ arch }: SavedProductAccordionItemsP
     <>
       {hasCurrentProductCard && (
         <AccordionItem value={cardValue} className="border-0">
-          <Card className="overflow-hidden border-0 shadow-sm w-full">
+          <Card className="border-0 shadow-sm w-full">
             <div
               className="w-full"
               style={{
@@ -239,7 +239,7 @@ export function SavedProductAccordionItems({ arch }: SavedProductAccordionItemsP
       )}
       {productsForArch.map((savedProduct: SavedProduct) => (
         <AccordionItem key={savedProduct.id} value={savedProduct.id} className="border-0">
-          <Card className="overflow-hidden border-0 shadow-sm w-full">
+          <Card className="border-0 shadow-sm w-full">
             <div
               className="w-full"
               style={{
