@@ -1529,6 +1529,12 @@ export function useCaseDesignCenter() {
     const nextValue = value === undefined || value === "" ? null : String(value)
     if (nextValue === null) {
       setOpenAccordionMaxillary(null)
+      // Clear shade selection state to allow accordion to close
+      if (currentShadeArch === "maxillary") {
+        setCurrentShadeField(null)
+        setCurrentShadeArch(null)
+        setCurrentShadeProductId(null)
+      }
       setOpenStageDropdown((prev) => {
         const newState = { ...prev }
         Object.keys(newState).forEach((k) => {
@@ -1560,6 +1566,12 @@ export function useCaseDesignCenter() {
     const nextValue = value === undefined || value === "" ? null : String(value)
     if (nextValue === null) {
       setOpenAccordionMandibular(null)
+      // Clear shade selection state to allow accordion to close
+      if (currentShadeArch === "mandibular") {
+        setCurrentShadeField(null)
+        setCurrentShadeArch(null)
+        setCurrentShadeProductId(null)
+      }
       setOpenStageDropdown((prev) => {
         const newState = { ...prev }
         Object.keys(newState).forEach((k) => {

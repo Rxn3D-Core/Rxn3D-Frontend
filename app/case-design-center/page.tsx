@@ -2297,24 +2297,24 @@ export default function CaseDesignCenterPage() {
                                                   {/* Badges and Info Row - Responsive */}
                                                   <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                                                     {/* Badge - Category - Pill shaped */}
-                                                    <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '2px 8px', background: '#F0F0F0', borderRadius: '12px', flexShrink: 0 }}>
-                                                      <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{savedProduct.category}</span>
+                                                    <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '3px 10px', background: '#F0F0F0', borderRadius: '12px', flexShrink: 0 }}>
+                                                      <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 500, fontSize: '12px', lineHeight: '14px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{savedProduct.category}</span>
                                                     </div>
 
                                                     {/* Badge - Subcategory - Pill shaped */}
-                                                    <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '2px 8px', background: '#F0F0F0', borderRadius: '12px', flexShrink: 0 }}>
-                                                      <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{savedProduct.subcategory}</span>
+                                                    <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '3px 10px', background: '#F0F0F0', borderRadius: '12px', flexShrink: 0 }}>
+                                                      <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 500, fontSize: '12px', lineHeight: '14px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{savedProduct.subcategory}</span>
                                                     </div>
 
                                                     {/* Badge - Stage - Pill shaped */}
                                                     {savedProduct.maxillaryStage && (
-                                                      <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '2px 8px', background: '#F0F0F0', borderRadius: '12px', flexShrink: 0 }}>
-                                                        <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{savedProduct.maxillaryStage}</span>
+                                                      <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '3px 10px', background: '#F0F0F0', borderRadius: '12px', flexShrink: 0 }}>
+                                                        <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 500, fontSize: '12px', lineHeight: '14px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{savedProduct.maxillaryStage}</span>
                                                       </div>
                                                     )}
 
                                                     {/* Est days */}
-                                                    <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', letterSpacing: '-0.02em', color: '#B4B0B0', whiteSpace: 'nowrap' }}>
+                                                    <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '11px', lineHeight: '13px', letterSpacing: '-0.02em', color: '#B4B0B0', whiteSpace: 'nowrap' }}>
                                                       Est days: {savedProduct.product.estimated_days || 10} work days after submission
                                                     </span>
                                                   </div>
@@ -5505,24 +5505,24 @@ export default function CaseDesignCenterPage() {
                                                   {/* Badges and Info Row - Responsive */}
                                                   <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                                                     {/* Badge - Category - Pill shaped */}
-                                                    <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '2px 8px', background: '#F0F0F0', borderRadius: '12px', flexShrink: 0 }}>
-                                                      <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{savedProduct.category}</span>
+                                                    <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '3px 10px', background: '#F0F0F0', borderRadius: '12px', flexShrink: 0 }}>
+                                                      <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 500, fontSize: '12px', lineHeight: '14px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{savedProduct.category}</span>
                                                     </div>
 
                                                     {/* Badge - Subcategory - Pill shaped */}
-                                                    <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '2px 8px', background: '#F0F0F0', borderRadius: '12px', flexShrink: 0 }}>
-                                                      <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{savedProduct.subcategory}</span>
+                                                    <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '3px 10px', background: '#F0F0F0', borderRadius: '12px', flexShrink: 0 }}>
+                                                      <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 500, fontSize: '12px', lineHeight: '14px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{savedProduct.subcategory}</span>
                                                     </div>
 
                                                     {/* Badge - Stage - Pill shaped */}
                                                     {savedProduct.mandibularStage && (
-                                                      <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '2px 8px', background: '#F0F0F0', borderRadius: '12px', flexShrink: 0 }}>
-                                                        <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{savedProduct.mandibularStage}</span>
+                                                      <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: '3px 10px', background: '#F0F0F0', borderRadius: '12px', flexShrink: 0 }}>
+                                                        <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 500, fontSize: '12px', lineHeight: '14px', textAlign: 'center', letterSpacing: '-0.02em', color: '#000000', whiteSpace: 'nowrap' }}>{savedProduct.mandibularStage}</span>
                                                       </div>
                                                     )}
 
                                                     {/* Est days */}
-                                                    <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '10px', lineHeight: '12px', letterSpacing: '-0.02em', color: '#B4B0B0', whiteSpace: 'nowrap' }}>
+                                                    <span style={{ fontFamily: 'Verdana', fontStyle: 'normal', fontWeight: 400, fontSize: '11px', lineHeight: '13px', letterSpacing: '-0.02em', color: '#B4B0B0', whiteSpace: 'nowrap' }}>
                                                       Est days: {savedProduct.product.estimated_days || 10} work days after submission
                                                     </span>
                                                   </div>
