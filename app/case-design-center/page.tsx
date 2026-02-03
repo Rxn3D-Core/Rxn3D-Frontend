@@ -2162,6 +2162,7 @@ export default function CaseDesignCenterPage() {
                                                 position: 'relative',
                                                 width: '100%',
                                                 maxWidth: '720px',
+                                                minWidth: 0,
                                                 left: '0.87px',
                                                 top: 0,
                                                 background: '#FFFFFF',
@@ -2171,7 +2172,7 @@ export default function CaseDesignCenterPage() {
                                             >
                                               {/* Header */}
                                               <div
-                                                className="w-full"
+                                                className="w-full min-w-0"
                                                 style={{
                                                   position: 'relative',
                                                   minHeight: '45px',
@@ -2187,7 +2188,7 @@ export default function CaseDesignCenterPage() {
                                                 }}
                                               >
                                                 <AccordionTrigger
-                                                  className="hover:no-underline w-full"
+                                                  className="hover:no-underline w-full group [&>svg]:hidden"
                                                   style={{
                                                     padding: '0px',
                                                     gap: '10px',
@@ -2308,9 +2309,12 @@ export default function CaseDesignCenterPage() {
                                                     </div>
                                                   </div>
 
-
+                                                  {/* Chevron - explicit, placed last (rightmost) after trash so it stays clickable */}
+                                                  <div style={{ position: 'absolute', width: '21.6px', height: '21.6px', right: '8px', top: '50%', transform: `translateY(-50%) ${String(openAccordionMaxillary) === String(savedProduct.id) ? 'rotate(0deg)' : 'rotate(-180deg)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 12 }}>
+                                                    <ChevronDown className="w-full h-full transition-transform duration-200 text-black" />
+                                                  </div>
                                                 </AccordionTrigger>
-                                                {/* Delete Button - Moved outside AccordionTrigger to avoid nested buttons */}
+                                                {/* Delete Button - left of chevron (trash first, then chevron on the right) */}
                                                 <button
                                                   onClick={(e) => {
                                                     e.stopPropagation()
@@ -2325,7 +2329,7 @@ export default function CaseDesignCenterPage() {
                                                     background: 'transparent',
                                                     border: 'none',
                                                     cursor: 'pointer',
-                                                    right: '34px',
+                                                    right: '36px',
                                                     top: '50%',
                                                     transform: 'translateY(-50%)',
                                                     display: 'flex',
@@ -5380,13 +5384,14 @@ export default function CaseDesignCenterPage() {
                                           categoryLower.includes("ortho")
 
                                         return (
-                                          <AccordionItem key={savedProduct.id} value={String(savedProduct.id)} className="border-0 flex justify-center">
+                                          <AccordionItem key={savedProduct.id} value={String(savedProduct.id)} className="border-0 flex justify-center w-full min-w-0">
                                             <Card
                                               className="overflow-hidden w-full"
                                               style={{
                                                 position: 'relative',
                                                 width: '100%',
                                                 maxWidth: '720px',
+                                                minWidth: 0,
                                                 left: '0.87px',
                                                 top: 0,
                                                 background: '#FFFFFF',
@@ -5396,7 +5401,7 @@ export default function CaseDesignCenterPage() {
                                             >
                                               {/* Header */}
                                               <div
-                                                className="w-full"
+                                                className="w-full min-w-0"
                                                 style={{
                                                   position: 'relative',
                                                   minHeight: '45px',

@@ -30,7 +30,7 @@ export function SavedProductAccordion({
     <Accordion
       type="single"
       collapsible
-      className={cn("flex flex-col items-center w-full", className)}
+      className={cn("flex flex-col border-0 flex justify-center", className)}
       value={value}
       onValueChange={onValueChange}
     >
