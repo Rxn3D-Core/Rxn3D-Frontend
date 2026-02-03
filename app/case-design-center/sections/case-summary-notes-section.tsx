@@ -35,7 +35,14 @@ export function CaseSummaryNotesSection({
   if (!showCaseSummaryNotes) return null
 
   return (
-    <div className="relative bg-white border border-[#7F7F7F] rounded-[7.7px] w-full mx-auto" style={{ marginBottom: "80px" }}>
+    <div
+      className="relative bg-white border border-[#7F7F7F] rounded-[7.7px] w-full mx-auto"
+      style={{
+        marginBottom: "80px",
+        marginTop: "10px",
+        zIndex: 10,
+      }}
+    >
       <div
         className="flex items-center justify-between px-3 py-2 cursor-pointer select-none"
         onClick={() => setIsCaseSummaryExpanded(!isCaseSummaryExpanded)}

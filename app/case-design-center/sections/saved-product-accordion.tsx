@@ -2,6 +2,7 @@
 
 import React from "react"
 import { Accordion } from "@/components/ui/accordion"
+import { cn } from "@/lib/utils"
 
 export interface SavedProductAccordionProps {
   /** Controlled value (open accordion item id) */
@@ -17,6 +18,7 @@ export interface SavedProductAccordionProps {
 /**
  * Accordion wrapper for the saved product section (current product + saved products).
  * Renders the Accordion container; items are passed as children from the page.
+ * Uses flex + items-center to center accordion cards within the column.
  */
 export function SavedProductAccordion({
   value,
@@ -28,7 +30,7 @@ export function SavedProductAccordion({
     <Accordion
       type="single"
       collapsible
-      className={className}
+      className={cn("flex flex-col items-center w-full", className)}
       value={value}
       onValueChange={onValueChange}
     >

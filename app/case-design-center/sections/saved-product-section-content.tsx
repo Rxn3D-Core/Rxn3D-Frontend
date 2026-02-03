@@ -49,6 +49,7 @@ export function SavedProductSectionContent({
   const showAccordion = hasCurrentProductCard || productsForArch.length > 0
   if (!showChart || !showAccordion) return null
 
+<<<<<<< HEAD
   // Auto-open accordion: prioritize currently open item, or default to first saved product, or current card
   let autoOpenValue = ""
   if (openAccordionId) {
@@ -61,6 +62,16 @@ export function SavedProductSectionContent({
 
   return (
     <SavedProductAccordion value={autoOpenValue} onValueChange={onAccordionChange} className={className}>
+=======
+  const openIdStr = openAccordionId != null ? String(openAccordionId) : ""
+  const accordionValue: string =
+    openIdStr === cardValue || ctx.savedProducts.some((p) => p.addedFrom === arch && String(p.id) === openIdStr)
+      ? openIdStr
+      : ""
+
+  return (
+    <SavedProductAccordion value={accordionValue ?? ""} onValueChange={onAccordionChange} className={className}>
+>>>>>>> 135a9db (update slip creation)
       {children !== undefined ? children : <SavedProductAccordionItems arch={arch} />}
     </SavedProductAccordion>
   )

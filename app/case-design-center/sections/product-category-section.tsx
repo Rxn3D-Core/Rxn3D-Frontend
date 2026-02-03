@@ -20,12 +20,8 @@ function getCategoryImage(name: string): string {
 function getSubcategoryImage(name: string): string {
   if (!name) return "/images/product-default.png"
   const lower = name.toLowerCase()
-  if (lower.includes("crown")) return "/images/crown.png"
-  if (lower.includes("bridge")) return "/images/bridge.png"
-  if (lower.includes("veneer")) return "/images/veneer.png"
-  if (lower.includes("implant")) return "/images/implant.png"
-  if (lower.includes("denture")) return "/images/denture.png"
   if (lower.includes("ortho")) return "/images/orthodontics.png"
+  // Use product-default.png as fallback - specific subcategory images should come from API's image_url
   return "/images/product-default.png"
 }
 

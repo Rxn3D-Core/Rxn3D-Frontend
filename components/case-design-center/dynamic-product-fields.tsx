@@ -1128,7 +1128,7 @@ export function DynamicProductFields({
         <div
           className="relative"
           style={{
-            minHeight: '32px',
+            minHeight: '43px',
             ...fieldWidth
           }}
         >
@@ -1143,12 +1143,12 @@ export function DynamicProductFields({
               if (onOpenImpressionModal) onOpenImpressionModal()
             }}
             style={{
-              padding: '6px 10px 4px 10px',
-              gap: '4px',
+              padding: '12px 39px 5px 15px',
+              gap: '5px',
               width: '100%',
-              height: '28px',
+              height: '37px',
               position: 'relative',
-              marginTop: '4px',
+              marginTop: '5.27px',
               background: '#FFFFFF',
               border: `0.740384px solid ${isFocused ? '#1162A8' : borderColor}`,
               borderRadius: '7.7px',
@@ -1156,12 +1156,13 @@ export function DynamicProductFields({
             }}
           >
             <span style={{
-              fontFamily: 'Arial',
+              fontFamily: 'Verdana',
               fontStyle: 'normal',
               fontWeight: 400,
-              fontSize: '14px',
-              lineHeight: '16px',
-              color: '#1F2937',
+              fontSize: '14.4px',
+              lineHeight: '20px',
+              letterSpacing: '-0.02em',
+              color: '#000000',
               whiteSpace: 'nowrap',
               paddingRight: hasImpressionValue(impressionCount, displayText) ? '24px' : '0px'
             }}>{displayText}</span>
@@ -1174,15 +1175,15 @@ export function DynamicProductFields({
           <label
             className="absolute bg-white transition-colors duration-200"
             style={{
-              padding: '0 2px',
-              height: '12px',
-              left: '8px',
-              top: '-5px',
+              padding: '0px',
+              height: '14px',
+              left: '8.9px',
+              top: '0px',
               fontFamily: 'Arial',
               fontStyle: 'normal',
               fontWeight: 400,
-              fontSize: '12px',
-              lineHeight: '12px',
+              fontSize: '14px',
+              lineHeight: '14px',
               color: isFocused ? '#1162A8' : labelColor
             }}
           >
@@ -1213,7 +1214,7 @@ export function DynamicProductFields({
             <div
               className="relative"
               style={{
-                minHeight: '32px',
+                minHeight: '43px',
                 ...fieldWidth
               }}
             >
@@ -1230,12 +1231,12 @@ export function DynamicProductFields({
                   setIsStageModalOpen(true)
                 }}
                 style={{
-                  padding: '6px 10px 4px 10px',
-                  gap: '4px',
+                  padding: '12px 39px 5px 15px',
+                  gap: '5px',
                   width: '100%',
-                  height: '28px',
+                  height: '37px',
                   position: 'relative',
-                  marginTop: '4px',
+                  marginTop: '5.27px',
                   background: fieldLocked ? '#F5F5F5' : '#FFFFFF',
                   border: fieldLocked ? '2px solid #22c55e' : `0.740384px solid ${isFocused ? '#1162A8' : borderColor}`,
                   borderRadius: '7.7px',
@@ -1245,12 +1246,13 @@ export function DynamicProductFields({
                 }}
               >
                 <span style={{
-                  fontFamily: 'Arial',
+                  fontFamily: 'Verdana',
                   fontStyle: 'normal',
                   fontWeight: 400,
-                  fontSize: '14px',
-                  lineHeight: '16px',
-                  color: fieldLocked ? '#999999' : '#1F2937',
+                  fontSize: '14.4px',
+                  lineHeight: '20px',
+                  letterSpacing: '-0.02em',
+                  color: fieldLocked ? '#999999' : '#000000',
                   whiteSpace: 'nowrap'
                 }}>{displayValue}</span>
                 {hasValue(value) && (
@@ -1262,15 +1264,15 @@ export function DynamicProductFields({
               <label
                 className="absolute bg-white transition-colors duration-200"
                 style={{
-                  padding: '0 2px',
-                  height: '12px',
-                  left: '8px',
-                  top: '-5px',
+                  padding: '0px',
+                  height: '14px',
+                  left: '8.9px',
+                  top: '0px',
                   fontFamily: 'Arial',
                   fontStyle: 'normal',
                   fontWeight: 400,
-                  fontSize: '12px',
-                  lineHeight: '12px',
+                  fontSize: '14px',
+                  lineHeight: '14px',
                   color: isFocused && !fieldLocked ? '#1162A8' : labelColor
                 }}
               >
@@ -1325,7 +1327,7 @@ export function DynamicProductFields({
         <div
           className="relative"
           style={{
-            minHeight: '32px',
+            minHeight: '43px',
             ...fieldWidth
           }}
         >
@@ -1364,19 +1366,21 @@ export function DynamicProductFields({
                 isFocused && !fieldLocked && "ring-2 ring-[#1162A8] ring-opacity-50 shadow-[0_0_0_4px_rgba(17,98,168,0.15)]"
               )}
               style={{
-                padding: '6px 10px 4px 10px',
-                gap: '4px',
+                padding: '12px 39px 5px 15px',
+                gap: '5px',
                 width: '100%',
-                height: '28px',
+                height: '37px',
                 position: 'relative',
-                marginTop: '4px',
+                marginTop: '5.27px',
                 background: fieldLocked ? '#F5F5F5' : '#FFFFFF',
                 border: fieldLocked ? '2px solid #22c55e' : `0.740384px solid ${isFocused ? '#1162A8' : borderColor}`,
                 borderRadius: '7.7px',
                 boxSizing: 'border-box',
-                fontFamily: 'Arial',
-                fontSize: '14px',
-                color: fieldLocked ? '#999999' : '#1F2937',
+                fontFamily: 'Verdana',
+                fontSize: '14.4px',
+                lineHeight: '20px',
+                letterSpacing: '-0.02em',
+                color: fieldLocked ? '#999999' : '#000000',
                 cursor: fieldLocked ? 'not-allowed' : 'pointer',
                 pointerEvents: fieldLocked ? 'none' : 'auto'
               }}
@@ -1404,15 +1408,15 @@ export function DynamicProductFields({
           <label
             className="absolute bg-white transition-colors duration-200"
             style={{
-              padding: '0 2px',
-              height: '12px',
-              left: '8px',
-              top: '-5px',
+              padding: '0px',
+              height: '14px',
+              left: '8.9px',
+              top: '0px',
               fontFamily: 'Arial',
               fontStyle: 'normal',
               fontWeight: 400,
-              fontSize: '12px',
-              lineHeight: '12px',
+              fontSize: '14px',
+              lineHeight: '14px',
               color: isFocused ? '#1162A8' : labelColor
             }}
           >
@@ -1465,7 +1469,7 @@ export function DynamicProductFields({
       const clipId = `clip-shade-${config.key}-${arch}`
 
       return (
-        <div className="relative" style={{ minHeight: '32px', width: '100%' }}>
+        <div className="relative" style={{ minHeight: '43px', width: '100%' }}>
           <div
             ref={getFieldRefCallback(config.key)}
             className={cn(
@@ -1485,27 +1489,28 @@ export function DynamicProductFields({
               }
             }}
             style={{
-              padding: '6px 10px 4px 10px',
-              gap: '4px',
+              padding: '12px 39px 5px 15px',
+              gap: '5px',
               width: '100%',
-              height: '28px',
+              height: '37px',
               background: fieldLocked ? '#F5F5F5' : '#FFFFFF',
               border: fieldLocked ? '2px solid #22c55e' : `0.740384px solid ${isFocused ? focusColor : borderColor}`,
               borderRadius: '7.7px',
               boxSizing: 'border-box',
               position: 'relative',
-              marginTop: '4px',
+              marginTop: '5.27px',
               cursor: fieldLocked ? 'not-allowed' : 'pointer',
               pointerEvents: fieldLocked ? 'none' : 'auto'
             }}
           >
             <span style={{
-              fontFamily: 'Arial',
+              fontFamily: 'Verdana',
               fontStyle: 'normal',
               fontWeight: 400,
-              fontSize: '14px',
-              lineHeight: '16px',
-              color: fieldLocked ? '#999999' : '#1F2937'
+              fontSize: '14.4px',
+              lineHeight: '20px',
+              letterSpacing: '-0.02em',
+              color: fieldLocked ? '#999999' : '#000000'
             }}>{brandName || shadeValue}</span>
             {hasValue(value) && (
               <div
@@ -1597,15 +1602,15 @@ export function DynamicProductFields({
           <label
             className="absolute bg-white transition-colors duration-200"
             style={{
-              padding: '0 2px',
-              height: '12px',
-              left: '8px',
-              top: '-5px',
+              padding: '0px',
+              height: '14px',
+              left: '8.9px',
+              top: '0px',
               fontFamily: 'Arial',
               fontStyle: 'normal',
               fontWeight: 400,
-              fontSize: '12px',
-              lineHeight: '12px',
+              fontSize: '14px',
+              lineHeight: '14px',
               color: isFocused && !fieldLocked ? focusColor : labelColor
             }}
           >

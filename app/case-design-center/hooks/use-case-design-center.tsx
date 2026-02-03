@@ -1523,6 +1523,9 @@ export function useCaseDesignCenter() {
   const impressionModalJustClosedRef = useRef<boolean>(false)
   // Ref for debounced auto-save so the debounced function always calls the latest handleAutoSaveProduct
   const handleAutoSaveProductRef = useRef<(type: "maxillary" | "mandibular") => void>(() => { })
+  // Refs to open accordion and case summary after save (set inside setSavedProducts, consumed in useEffect)
+  const justSavedProductIdRef = useRef<string | null>(null)
+  const justSavedArchRef = useRef<"maxillary" | "mandibular" | null>(null)
 
   // Handler to toggle maxillary accordion - only opens/closes on click (independent from mandibular)
   const handleAccordionChangeMaxillary = (value: string | undefined) => {
@@ -1575,14 +1578,15 @@ export function useCaseDesignCenter() {
       setOpenStageDropdown((prev) => {
         const newState = { ...prev }
         Object.keys(newState).forEach((k) => {
-          const sp = savedProducts.find((p) => p.id === k && p.addedFrom === "mandibular")
+          const sp = savedProducts.find((p) => String(p.id) === k && p.addedFrom === "mandibular")
           if (sp || k === "mandibular-card") delete newState[k]
         })
         return newState
       })
       return
     }
-    if (openAccordionMandibular === nextValue) {
+    const currentOpenStr = openAccordionMandibular != null ? String(openAccordionMandibular) : null
+    if (currentOpenStr === nextValue) {
       setOpenAccordionMandibular(null)
       setOpenStageDropdown((prev) => {
         const newState = { ...prev }
@@ -1593,7 +1597,7 @@ export function useCaseDesignCenter() {
     }
     setOpenAccordionMandibular(nextValue)
     if (nextValue !== "mandibular-card") {
-      const savedProduct = savedProducts.find((p) => p.id === nextValue)
+      const savedProduct = savedProducts.find((p) => String(p.id) === nextValue)
       if (savedProduct) handleSavedProductCardClick(savedProduct)
     }
   }
@@ -1739,6 +1743,23 @@ export function useCaseDesignCenter() {
         return next
       })
     }
+    // Auto-expand the accordion for the product when clicking on impression field
+    const isSavedProduct = savedProducts.some(sp => sp.id === product.id)
+    if (isSavedProduct) {
+      // Expand accordion for saved product
+      if (arch === "maxillary") {
+        setOpenAccordionMaxillary(String(product.id))
+      } else {
+        setOpenAccordionMandibular(String(product.id))
+      }
+    } else {
+      // Expand accordion for current product card (not yet saved)
+      if (arch === "maxillary") {
+        setOpenAccordionMaxillary("maxillary-card")
+      } else {
+        setOpenAccordionMandibular("mandibular-card")
+      }
+    }
     setShowImpressionModal(true)
   }
 
@@ -1857,7 +1878,7 @@ export function useCaseDesignCenter() {
     setCurrentShadeArch(actualArch)
     setSelectedShadesForSVG([]) // Reset selected shades
     // Automatically open the accordion: saved product id when editing saved product, else current arch card
-    const accordionId = productId ? productId : (actualArch === "maxillary" ? "maxillary-card" : "mandibular-card")
+    const accordionId = productId ? String(productId) : (actualArch === "maxillary" ? "maxillary-card" : "mandibular-card")
     if (actualArch === "maxillary") {
       if (openAccordionMaxillary !== accordionId) setOpenAccordionMaxillary(accordionId)
     } else {
@@ -2792,6 +2813,12 @@ export function useCaseDesignCenter() {
             setMandibularTeeth(mandibularProduct.mandibularTeeth || [])
           }
         }
+
+        // Show and expand case summary notes when there are saved products
+        if (productsWithDetails.length > 0) {
+          setShowCaseSummaryNotes(true)
+          setIsCaseSummaryExpanded(true)
+        }
       } catch (error) {
         console.error("Error parsing saved products:", error)
       }
@@ -3096,24 +3123,8 @@ export function useCaseDesignCenter() {
         const currentImpressionCount = getImpressionCount(selectedProductForMaxillary.id.toString(), "maxillary", productDetails.impressions || [])
         if (currentImpressionCount > 0) {
           // Debounced auto-save to avoid multiple rapid saves
+          // The useEffect that watches savedProducts will auto-open the accordion after save completes
           debouncedAutoSaveProduct("maxillary")
-
-          // After auto-save, open the saved product accordion only if currently on maxillary-card
-          // This ensures the current editing card is hidden and user sees the saved product
-          // But don't force-open if user has already closed or is viewing another accordion
-          setTimeout(() => {
-            const matchingProduct = savedProducts.find(sp =>
-              sp.addedFrom === "maxillary" &&
-              sp.product.id === selectedProductForMaxillary.id &&
-              sp.categoryId === selectedCategoryId &&
-              sp.subcategoryId === selectedSubcategoryId &&
-              JSON.stringify([...(sp.maxillaryTeeth || [])].sort()) === JSON.stringify([...maxillaryTeeth].sort())
-            )
-            if (matchingProduct && openAccordionMaxillary === "maxillary-card") {
-              // Only open the saved product accordion if we're on the editing card
-              setOpenAccordionMaxillary(matchingProduct.id)
-            }
-          }, 200)
         }
       }, 500) // Small delay to ensure state is updated
 
@@ -3135,7 +3146,6 @@ export function useCaseDesignCenter() {
     selectedImplantBrand,
     selectedImplantPlatform,
     selectedImplantSize,
-    openAccordionMaxillary,
     maxillaryRetentionTypes,
     maxillaryImplantInclusions,
     maxillaryAbutmentDetail,
@@ -3190,21 +3200,6 @@ export function useCaseDesignCenter() {
         const currentImpressionCount = getImpressionCount(selectedProductForMandibular.id.toString(), "mandibular", productDetails.impressions || [])
         if (currentImpressionCount > 0) {
           debouncedAutoSaveProduct("mandibular")
-          // After auto-save, open the saved product accordion only if currently on mandibular-card
-          // But don't force-open if user has already closed or is viewing another accordion
-          setTimeout(() => {
-            const matchingProduct = savedProducts.find(sp =>
-              sp.addedFrom === "mandibular" &&
-              sp.product.id === selectedProductForMandibular.id &&
-              sp.categoryId === selectedCategoryId &&
-              sp.subcategoryId === selectedSubcategoryId &&
-              JSON.stringify([...(sp.mandibularTeeth || [])].sort()) === JSON.stringify([...mandibularTeeth].sort())
-            )
-            if (matchingProduct && openAccordionMandibular === "mandibular-card") {
-              // Only open the saved product accordion if we're on the editing card
-              setOpenAccordionMandibular(matchingProduct.id)
-            }
-          }, 200)
         }
       }, 500)
 
@@ -3226,7 +3221,6 @@ export function useCaseDesignCenter() {
     selectedImplantBrand,
     selectedImplantPlatform,
     selectedImplantSize,
-    openAccordionMandibular,
     mandibularRetentionTypes,
     mandibularImplantInclusions,
     mandibularAbutmentDetail,
@@ -3489,7 +3483,7 @@ export function useCaseDesignCenter() {
 
         // Restore UI state (support legacy openAccordion for backward compatibility)
         if (state.openAccordionMaxillary != null) setOpenAccordionMaxillary(state.openAccordionMaxillary)
-        if (state.openAccordionMandibular != null) setOpenAccordionMandibular(state.openAccordionMandibular)
+        if (state.openAccordionMandibular != null) setOpenAccordionMandibular(state.openAccordionMandibular === "mandibular-card" ? "mandibular-card" : String(state.openAccordionMandibular))
         if (state.openAccordion != null && state.openAccordionMaxillary == null && state.openAccordionMandibular == null) {
           const v = state.openAccordion
           if (v === "maxillary-card") setOpenAccordionMaxillary(v)
@@ -4996,12 +4990,14 @@ export function useCaseDesignCenter() {
   // Update accordion when target changes, but only if different to prevent loops
   useEffect(() => {
     if (!targetAccordionId || isSettingAccordionRef.current) return
-    const isMaxillary = targetAccordionId === "maxillary-card" || savedProducts.some(p => p.id === targetAccordionId && p.addedFrom === "maxillary")
+    const targetStr = String(targetAccordionId)
+    const isMaxillary = targetStr === "maxillary-card" || savedProducts.some(p => String(p.id) === targetStr && p.addedFrom === "maxillary")
     const current = isMaxillary ? openAccordionMaxillary : openAccordionMandibular
-    if (current !== targetAccordionId) {
+    const currentStr = current != null ? String(current) : null
+    if (currentStr !== targetStr) {
       isSettingAccordionRef.current = true
-      if (isMaxillary) setOpenAccordionMaxillary(targetAccordionId)
-      else setOpenAccordionMandibular(targetAccordionId)
+      if (isMaxillary) setOpenAccordionMaxillary(targetStr)
+      else setOpenAccordionMandibular(targetStr)
       requestAnimationFrame(() => {
         isSettingAccordionRef.current = false
       })
@@ -5601,10 +5597,16 @@ export function useCaseDesignCenter() {
         const mergedMaxTeeth = [...maxillaryTeeth].sort()
         const mergedMandTeeth = [...mandibularTeeth].sort()
 
+        // Set refs to auto-open saved product accordion and case summary notes after save
+        justSavedProductIdRef.current = existingProduct.id
+        justSavedArchRef.current = addedFrom
+
         // Merge existing product data with new data, preserving existing values where new ones are empty
         const mergedProduct: SavedProduct = {
           ...existingProduct,
           ...savedProduct,
+          // Preserve the existing product ID (don't overwrite with new generated ID)
+          id: existingProduct.id,
           // Use merged teeth arrays
           maxillaryTeeth: mergedMaxTeeth,
           mandibularTeeth: mergedMandTeeth,
@@ -5650,6 +5652,9 @@ export function useCaseDesignCenter() {
         return updated
       } else {
         // Only add new product if no existing product found with same product ID, category, subcategory, and overlapping teeth
+        // Set refs to auto-open saved product accordion and case summary notes after save
+        justSavedProductIdRef.current = savedProduct.id
+        justSavedArchRef.current = addedFrom
         return [...deduplicatedProducts, savedProduct]
       }
     })
@@ -5936,9 +5941,13 @@ export function useCaseDesignCenter() {
         // Update existing product with same configuration
         const updated = [...deduplicatedProducts]
         updated[existingIndex] = savedProduct
+        justSavedProductIdRef.current = savedProduct.id
+        justSavedArchRef.current = type
         return updated
       } else {
         // Add new product to saved products array (use deduplicated to avoid duplicates)
+        justSavedProductIdRef.current = savedProduct.id
+        justSavedArchRef.current = type
         return [...deduplicatedProducts, savedProduct]
       }
     })
@@ -5954,6 +5963,40 @@ export function useCaseDesignCenter() {
   useEffect(() => {
     handleAutoSaveProductRef.current = handleAutoSaveProduct
   }, [handleAutoSaveProduct])
+
+  // After save: open the saved product accordion and case summary notes
+  useEffect(() => {
+    // Always show case summary notes when there are saved products
+    if (savedProducts.length > 0) {
+      setShowCaseSummaryNotes(true)
+    }
+
+    const id = justSavedProductIdRef.current
+    const arch = justSavedArchRef.current
+
+    // Clear refs immediately to prevent double processing in StrictMode
+    if (id && arch) {
+      justSavedProductIdRef.current = null
+      justSavedArchRef.current = null
+    }
+
+    if (!id || !arch) return
+
+    // Use string comparison to ensure IDs match regardless of type
+    const exists = savedProducts.some((p) => String(p.id) === String(id))
+    if (!exists) return
+
+    // Open the saved product accordion for the appropriate arch
+    if (arch === "maxillary") {
+      setOpenAccordionMaxillary(String(id))
+    } else {
+      setOpenAccordionMandibular(String(id))
+    }
+
+    // Also show and expand case summary notes
+    setShowCaseSummaryNotes(true)
+    setIsCaseSummaryExpanded(true)
+  }, [savedProducts])
 
   // Debounced auto-save: coalesce rapid calls (e.g. from effects + modal close) into one save after 500ms
   const debouncedAutoSaveProduct = useMemo(
@@ -6016,8 +6059,7 @@ export function useCaseDesignCenter() {
           autoSavedArchesRef.current.add(productKey)
         }
 
-        // After auto-save, open the saved product accordion instead of maxillary-card/mandibular-card
-        // This ensures user continues editing in the saved product accordion
+        // After auto-save, open the saved product accordion and show case summary notes
         setTimeout(() => {
           const archType = maxillaryComplete ? "maxillary" : "mandibular"
           const teethToMatch = archType === "maxillary" ? maxillaryTeethSorted : mandibularTeethSorted
@@ -6028,17 +6070,28 @@ export function useCaseDesignCenter() {
             sp.subcategoryId === selectedSubcategoryId &&
             JSON.stringify([...(archType === "maxillary" ? sp.maxillaryTeeth : sp.mandibularTeeth) || []].sort()) === JSON.stringify(teethToMatch)
           )
-          if (matchingProduct && (archType === "maxillary" ? openAccordionMaxillary !== matchingProduct.id : openAccordionMandibular !== matchingProduct.id)) {
-            if (archType === "maxillary") setOpenAccordionMaxillary(matchingProduct.id)
-            else setOpenAccordionMandibular(matchingProduct.id)
+          if (matchingProduct) {
+            if (archType === "maxillary") setOpenAccordionMaxillary(String(matchingProduct.id))
+            else setOpenAccordionMandibular(String(matchingProduct.id))
+            setShowCaseSummaryNotes(true)
+            setIsCaseSummaryExpanded(true)
           }
         }, 100)
       }
 
       // Show case summary notes if either arch has all fields filled
-      setShowCaseSummaryNotes(maxillaryComplete || mandibularComplete)
+      // Also expand them when a product is complete
+      if (maxillaryComplete || mandibularComplete) {
+        setShowCaseSummaryNotes(true)
+        setIsCaseSummaryExpanded(true)
+      }
     } else {
-      setShowCaseSummaryNotes(false)
+      // When not on product details view, show case summary notes if there are saved products
+      if (savedProducts.length > 0) {
+        setShowCaseSummaryNotes(true)
+      } else {
+        setShowCaseSummaryNotes(false)
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -6064,7 +6117,8 @@ export function useCaseDesignCenter() {
     selectedSubcategory,
     selectedSubcategoryId,
     advanceFieldValues,
-    showImpressionModal
+    showImpressionModal,
+    savedProducts.length
     // Note: autoSaveProductMutation removed - useMutation returns new object each render causing infinite loop
   ])
 
@@ -6322,6 +6376,9 @@ export function useCaseDesignCenter() {
         return [savedProduct, ...prev]
       }
     })
+
+    // Auto-show case summary notes when a product is saved for maxillary or mandibular
+    setShowCaseSummaryNotes(true)
 
     // Keep product details visible so DynamicProductFields continues to show
     // Don't reset form - keep all fields visible for editing
@@ -6969,7 +7026,7 @@ export function useCaseDesignCenter() {
     if (matchingSaved) {
       // Current selection matches a saved product: open that saved accordion and sync product context (Summary Card will hide)
       setSelectedProductForMandibular(matchingSaved.product)
-      setOpenAccordionMandibular(matchingSaved.id)
+      setOpenAccordionMandibular(String(matchingSaved.id))
     } else if (isAdding) {
       // Adding a tooth and no match: open Summary Card or most recent saved
       if (selectedProduct && showProductDetails) {
@@ -6978,7 +7035,7 @@ export function useCaseDesignCenter() {
         const mandibularProducts = savedProducts.filter(p => p.mandibularTeeth.length > 0)
         if (mandibularProducts.length > 0) {
           const mostRecentProduct = mandibularProducts[mandibularProducts.length - 1]
-          setOpenAccordionMandibular(mostRecentProduct.id)
+          setOpenAccordionMandibular(String(mostRecentProduct.id))
         } else {
           setOpenAccordionMandibular("mandibular-card")
         }

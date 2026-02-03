@@ -37,11 +37,11 @@ export function SavedProductPills({
           className="flex items-center justify-center cursor-pointer hover:opacity-80"
           style={{
             padding: "6px 14px",
-            background: openId === savedProduct.id ? "#DFEEFB" : "#FFFFFF",
+            background: (openId != null && String(openId) === String(savedProduct.id)) ? "#DFEEFB" : "#FFFFFF",
             boxShadow: "1px 1px 3.5px rgba(0, 0, 0, 0.25)",
             borderRadius: "6px",
           }}
-          onClick={() => onPillClick(openId === savedProduct.id ? null : savedProduct.id)}
+          onClick={() => onPillClick((openId != null && String(openId) === String(savedProduct.id)) ? null : savedProduct.id)}
         >
           <span
             style={{

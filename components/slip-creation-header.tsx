@@ -526,10 +526,20 @@ const PatientInfoSection = ({
     return ""
   }
 
+  const fieldWidth = 330
+  const fieldHeight = 36.95
+  const fieldGap = 10
+  const containerHeight = showGenderField
+    ? 10 + fieldHeight + fieldGap + fieldHeight + 10
+    : 10 + fieldHeight + 10
+
   return (
-    <div className="w-full relative" style={{ height: showGenderField ? "85px" : "32px" }}>
-      {/* Patient Name */}
-      <div className="absolute" style={{ left: "10px", top: "8px", width: "300px", height: "32px" }}>
+    <div className="w-full relative" style={{ height: `${containerHeight}px` }}>
+      {/* Patient Name - Rxn3DFloatingInput specs */}
+      <div
+        className="absolute"
+        style={{ left: "10px", top: "10px", width: `${fieldWidth}px`, height: `${fieldHeight}px` }}
+      >
         <div className="relative w-full h-full">
           <input
             ref={patientNameInputRef}
@@ -546,35 +556,35 @@ const PatientInfoSection = ({
               !isNameFocused && "hover:shadow-[0_0_8px_rgba(17,98,168,0.2)] transition-shadow duration-150"
             )}
             style={{
-              padding: "18px 10px 6px 10px",
+              padding: "25px 30.8px 9.24px 12.32px",
               borderWidth: "0.740384px",
               fontFamily: "Arial",
               fontStyle: "normal",
               fontWeight: 400,
-              fontSize: "14px",
-              lineHeight: "16px",
+              fontSize: "17px",
+              lineHeight: "18px",
               transitionDuration: isNameFocused ? "250ms" : "150ms",
               transitionTimingFunction: isNameFocused ? "ease-in-out" : "ease-out",
             }}
           />
           <label
             className={cn(
-              "absolute bg-white pointer-events-none transition-all duration-200 ease-out",
+              "absolute bg-white pointer-events-none transition-all duration-200 ease-out text-[#7F7F7F]",
               getNameLabelColor()
             )}
             style={{
-              left: "8px",
-              top: "-5px",
-              width: hasNameValue && isNameValid ? "75px" : "110px",
-              height: "12px",
+              left: "9.23px",
+              top: "-6.15px",
+              width: "83px",
+              height: "14px",
               fontFamily: "Arial",
               fontStyle: "normal",
               fontWeight: 400,
-              fontSize: "12px",
-              lineHeight: "12px",
+              fontSize: "14px",
+              lineHeight: "14px",
             }}
           >
-            {hasNameValue && isNameValid ? "Patient name" : "Type patient name"}
+            {hasNameValue && isNameValid ? "Patient name" : "Patient name"}
           </label>
           {/* Validation Icon - Only show when name is complete and valid */}
           {isNameValid && (
@@ -585,9 +595,17 @@ const PatientInfoSection = ({
         </div>
       </div>
 
-      {/* Gender - Only show when patient name has a value */}
+      {/* Gender - Only show when patient name has a value (same Rxn3DFloatingInput specs) */}
       {showGenderField && (
-        <div className="absolute" style={{ left: "10px", top: "48px", width: "300px", height: "32px" }}>
+        <div
+          className="absolute"
+          style={{
+            left: "10px",
+            top: `${10 + fieldHeight + fieldGap}px`,
+            width: `${fieldWidth}px`,
+            height: `${fieldHeight}px`,
+          }}
+        >
           <div className="relative w-full h-full">
             {/* Custom Gender Dropdown */}
             <div
@@ -599,13 +617,13 @@ const PatientInfoSection = ({
                 !isGenderFocused && "hover:shadow-[0_0_8px_rgba(17,98,168,0.2)] transition-shadow duration-150"
               )}
               style={{
-                padding: "18px 10px 6px 10px",
+                padding: "25px 30.8px 9.24px 12.32px",
                 borderWidth: "0.740384px",
                 fontFamily: "Arial",
                 fontStyle: "normal",
                 fontWeight: 400,
-                fontSize: "14px",
-                lineHeight: "16px",
+                fontSize: "17px",
+                lineHeight: "18px",
                 transitionDuration: isGenderFocused ? "250ms" : "150ms",
                 transitionTimingFunction: isGenderFocused ? "ease-in-out" : "ease-out",
               }}
@@ -664,19 +682,19 @@ const PatientInfoSection = ({
 
             <label
               className={cn(
-                "absolute bg-white pointer-events-none z-10 transition-all duration-200 ease-out",
+                "absolute bg-white pointer-events-none z-10 transition-all duration-200 ease-out text-[#7F7F7F]",
                 getGenderLabelColor()
               )}
               style={{
-                left: "8px",
-                top: "-5px",
-                width: "42px",
-                height: "12px",
+                left: "9.23px",
+                top: "-6.15px",
+                width: "56px",
+                height: "14px",
                 fontFamily: "Arial",
                 fontStyle: "normal",
                 fontWeight: 400,
-                fontSize: "12px",
-                lineHeight: "12px",
+                fontSize: "14px",
+                lineHeight: "14px",
               }}
             >
               Gender

@@ -76,21 +76,27 @@ export function MandibularSection({ sectionRef, children }: MandibularSectionPro
       ref={sectionRef as React.RefObject<HTMLDivElement>}
       className="flex flex-col w-full lg:flex-1"
       style={{
-        flex: "1 1 100%",
-        background: "#FDFDFD",
-        minHeight: "auto",
+        flex: "1 1 49%",
+        background: "#FFFFFF",
       }}
       role="region"
       aria-label="Mandibular section"
     >
-      <div className="w-full px-2 md:px-4">
-        <SavedProductPills
-          products={savedProducts.filter((p: any) => p.addedFrom === "mandibular")}
-          openId={openAccordionMandibular ?? undefined}
-          onPillClick={(id) => (id != null ? (setOpenAccordionMandibularState?.(id) ?? setOpenAccordionMandibular?.(id)) : undefined)}
-          getLabel={(p: any) => (p.subcategory || p.product?.name) ?? ""}
-        />
-      </div>
+      <SavedProductPills
+        products={savedProducts.filter((p: any) => p.addedFrom === "mandibular")}
+        openId={openAccordionMandibular != null ? String(openAccordionMandibular) : null}
+        onPillClick={(id) => {
+          if (id == null) {
+            setOpenAccordionMandibularState?.(null)
+            setOpenAccordionMandibular?.(null)
+          } else {
+            const idStr = String(id)
+            setOpenAccordionMandibularState?.(idStr)
+            setOpenAccordionMandibular?.(idStr)
+          }
+        }}
+        getLabel={(p: any) => (p.subcategory || p.product?.name) ?? ""}
+      />
 
       <div
         className="flex items-center justify-center px-2 md:px-4"

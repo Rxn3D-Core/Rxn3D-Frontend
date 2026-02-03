@@ -76,9 +76,14 @@ export function MaxillarySection({ sectionRef, children }: MaxillarySectionProps
       ref={sectionRef}
       className="flex flex-col w-full lg:flex-1"
       style={{
+<<<<<<< HEAD
         flex: "1 1 100%",
         background: "#FDFDFD",
         minHeight: "auto",
+=======
+        flex: "1 1 49%",
+        background: "#FFFFFF",
+>>>>>>> 135a9db (update slip creation)
       }}
       role="region"
       aria-label="Maxillary section"
