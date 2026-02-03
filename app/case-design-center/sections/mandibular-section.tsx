@@ -74,21 +74,26 @@ export function MandibularSection({ sectionRef, children }: MandibularSectionPro
   return (
     <div
       ref={sectionRef as React.RefObject<HTMLDivElement>}
-      className="flex flex-col"
+      className="flex flex-col w-full lg:flex-1"
       style={{
-        flex: "1 1 49%",
+        flex: "1 1 100%",
         background: "#FDFDFD",
+        minHeight: "auto",
       }}
+      role="region"
+      aria-label="Mandibular section"
     >
-      <SavedProductPills
-        products={savedProducts.filter((p: any) => p.addedFrom === "mandibular")}
-        openId={openAccordionMandibular ?? undefined}
-        onPillClick={(id) => (id != null ? (setOpenAccordionMandibularState?.(id) ?? setOpenAccordionMandibular?.(id)) : undefined)}
-        getLabel={(p: any) => (p.subcategory || p.product?.name) ?? ""}
-      />
+      <div className="w-full px-2 md:px-4">
+        <SavedProductPills
+          products={savedProducts.filter((p: any) => p.addedFrom === "mandibular")}
+          openId={openAccordionMandibular ?? undefined}
+          onPillClick={(id) => (id != null ? (setOpenAccordionMandibularState?.(id) ?? setOpenAccordionMandibular?.(id)) : undefined)}
+          getLabel={(p: any) => (p.subcategory || p.product?.name) ?? ""}
+        />
+      </div>
 
       <div
-        className="flex items-center justify-center"
+        className="flex items-center justify-center px-2 md:px-4"
         style={{ padding: "8px 0px", marginBottom: "10px" }}
       >
         <p
@@ -107,8 +112,8 @@ export function MandibularSection({ sectionRef, children }: MandibularSectionPro
       </div>
 
       <div
-        className="flex items-center justify-center relative"
-        style={{ width: "100%", padding: "0 10px" }}
+        className="flex items-center justify-center relative w-full px-2 md:px-4"
+        style={{ width: "100%", padding: "0" }}
       >
         {shouldShowImplantPopover && implantPopoverState.arch === "mandibular" && implantPopoverState.toothNumber !== null && (
           <ImplantPartsPopover
