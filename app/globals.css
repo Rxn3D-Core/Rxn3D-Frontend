@@ -1193,6 +1193,30 @@ button {
   }
 }
 
+/* ===== ACCORDION BLUE SCROLLBAR ===== */
+.scrollbar-blue {
+  scrollbar-width: thin;
+  scrollbar-color: var(--rxn-primary-blue) #f3f4f6;
+}
+
+.scrollbar-blue::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-blue::-webkit-scrollbar-track {
+  background: #f3f4f6;
+  border-radius: 3px;
+}
+
+.scrollbar-blue::-webkit-scrollbar-thumb {
+  background: var(--rxn-primary-blue);
+  border-radius: 3px;
+}
+
+.scrollbar-blue::-webkit-scrollbar-thumb:hover {
+  background: #0d4f8c;
+}
+
 /* ===== CONVERSION MODAL SCROLLING FIX ===== */
 .conversion-results-scroll {
   max-height: 25rem !important;

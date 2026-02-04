@@ -272,7 +272,6 @@ export default function CaseDesignCenterPage() {
             boxSizing: 'border-box',
             position: 'relative',
             minHeight: 'calc(100vh - 250px)',
-            paddingBottom: '60px',
           }}
         >
           {/* Content Area - Full width with minimal padding */}
@@ -577,32 +576,34 @@ export default function CaseDesignCenterPage() {
                                                         </label>
                                                       </div>
 
-                                                      {/* Tooth Shade Field */}
-                                                      <div className="relative flex-1">
-                                                        <div
-                                                          className={cn(
-                                                            "h-12 w-full rounded-md border-2 bg-white px-4 py-3 text-base transition-all duration-200 flex items-center cursor-pointer",
-                                                            maxillaryToothShade ? "border-[#119933]" : "border-[#ef4444] hover:border-[#ef4444]"
-                                                          )}
-                                                          onClick={() => handleOpenShadeModal("tooth_shade", "maxillary")}
-                                                        >
-                                                          <span className={maxillaryToothShade ? "text-black" : "text-gray-400"}>
-                                                            {maxillaryToothShade}
-                                                          </span>
-                                                          {maxillaryToothShade && (
-                                                            <div className="ml-auto flex items-center gap-2">
-                                                              <span className="text-sm bg-gray-100 px-2 py-1 rounded">{maxillaryToothShade.split(' - ')[1]}</span>
-                                                              <Check className="h-5 w-5 text-[#119933]" />
-                                                            </div>
-                                                          )}
+                                                      {/* Tooth Shade Field - shown only after Stump Shade is selected */}
+                                                      {maxillaryStumpShade && (
+                                                        <div className="relative flex-1">
+                                                          <div
+                                                            className={cn(
+                                                              "h-12 w-full rounded-md border-2 bg-white px-4 py-3 text-base transition-all duration-200 flex items-center cursor-pointer",
+                                                              maxillaryToothShade ? "border-[#119933]" : "border-[#ef4444] hover:border-[#ef4444]"
+                                                            )}
+                                                            onClick={() => handleOpenShadeModal("tooth_shade", "maxillary")}
+                                                          >
+                                                            <span className={maxillaryToothShade ? "text-black" : "text-gray-400"}>
+                                                              {maxillaryToothShade}
+                                                            </span>
+                                                            {maxillaryToothShade && (
+                                                              <div className="ml-auto flex items-center gap-2">
+                                                                <span className="text-sm bg-gray-100 px-2 py-1 rounded">{maxillaryToothShade.split(' - ')[1]}</span>
+                                                                <Check className="h-5 w-5 text-[#119933]" />
+                                                              </div>
+                                                            )}
+                                                          </div>
+                                                          <label className={cn(
+                                                            "absolute -top-2.5 left-3 bg-white px-1 text-sm z-10",
+                                                            maxillaryToothShade ? "text-[#119933]" : "text-[#ef4444]"
+                                                          )}>
+                                                            {maxillaryToothShade ? "Tooth Shade" : "Select Tooth Shade"}<span className="text-red-500">*</span>
+                                                          </label>
                                                         </div>
-                                                        <label className={cn(
-                                                          "absolute -top-2.5 left-3 bg-white px-1 text-sm z-10",
-                                                          maxillaryToothShade ? "text-[#119933]" : "text-[#ef4444]"
-                                                        )}>
-                                                          {maxillaryToothShade ? "Tooth Shade" : "Select Tooth Shade"}<span className="text-red-500">*</span>
-                                                        </label>
-                                                      </div>
+                                                      )}
 
                                                       {/* Shade Guide Dropdown */}
                                                       <div className="relative min-w-[220px]">
@@ -1861,7 +1862,7 @@ export default function CaseDesignCenterPage() {
                                               {productDetails &&
                                                 areAllCurrentProductFieldsFilled("maxillary") && (
                                                   <div
-                                                    className="flex flex-wrap justify-center items-center w-full"
+                                                    className="flex justify-center items-center w-full px-4"
                                                     style={{
                                                       gap: '7.03px',
                                                       position: 'relative',
@@ -1873,11 +1874,11 @@ export default function CaseDesignCenterPage() {
                                                       <button
                                                         className="relative flex flex-col items-center justify-center"
                                                         style={{
-                                                          width: '123.04px',
-                                                          height: '46.22px',
+                                                          flex: '1 1 0',
+                                                          height: '69.33px',
                                                           background: '#F9F9F9',
-                                                          boxShadow: '0.878154px 0.878154px 3.07354px rgba(0, 0, 0, 0.25)',
-                                                          borderRadius: '5.26893px',
+                                                          boxShadow: '1.32px 1.32px 4.61px rgba(0, 0, 0, 0.25)',
+                                                          borderRadius: '7.9px',
                                                           border: 'none',
                                                           cursor: 'pointer',
                                                           padding: '0'
@@ -1902,13 +1903,13 @@ export default function CaseDesignCenterPage() {
                                                             width: '85px',
                                                             height: '20px',
                                                             left: '50%',
-                                                            top: '23.11px',
+                                                            top: '34.67px',
                                                             transform: 'translateX(-50%)',
                                                             fontFamily: 'Verdana',
                                                             fontStyle: 'normal',
                                                             fontWeight: 400,
-                                                            fontSize: '8.78154px',
-                                                            lineHeight: '19px',
+                                                            fontSize: '13.17px',
+                                                            lineHeight: '28.5px',
                                                             textAlign: 'center',
                                                             letterSpacing: '-0.02em',
                                                             color: '#000000'
@@ -1957,11 +1958,11 @@ export default function CaseDesignCenterPage() {
                                                       }}
                                                       className="relative flex flex-col items-center justify-center"
                                                       style={{
-                                                        width: '123.04px',
-                                                        height: '46.22px',
+                                                        flex: '1 1 0',
+                                                        height: '69.33px',
                                                         background: '#F9F9F9',
-                                                        boxShadow: '0.878154px 0.878154px 3.07354px rgba(0, 0, 0, 0.25)',
-                                                        borderRadius: '5.26893px',
+                                                        boxShadow: '1.32px 1.32px 4.61px rgba(0, 0, 0, 0.25)',
+                                                        borderRadius: '7.9px',
                                                         border: 'none',
                                                         cursor: 'pointer',
                                                         padding: '0'
@@ -1970,16 +1971,16 @@ export default function CaseDesignCenterPage() {
                                                       <span
                                                         className="absolute text-center"
                                                         style={{
-                                                          width: '41.8px',
+                                                          width: '62.7px',
                                                           height: '20px',
                                                           left: '50%',
-                                                          top: '3.79px',
+                                                          top: '5.69px',
                                                           transform: 'translateX(-50%)',
                                                           fontFamily: 'Verdana',
                                                           fontStyle: 'normal',
                                                           fontWeight: 400,
-                                                          fontSize: '8.78154px',
-                                                          lineHeight: '19px',
+                                                          fontSize: '13.17px',
+                                                          lineHeight: '28.5px',
                                                           textAlign: 'center',
                                                           letterSpacing: '-0.02em',
                                                           color: '#000000'
@@ -1990,16 +1991,16 @@ export default function CaseDesignCenterPage() {
                                                       <span
                                                         className="absolute text-center"
                                                         style={{
-                                                          width: '89px',
+                                                          width: '133.5px',
                                                           height: '20px',
                                                           left: '50%',
-                                                          top: '23.11px',
+                                                          top: '34.67px',
                                                           transform: 'translateX(-50%)',
                                                           fontFamily: 'Verdana',
                                                           fontStyle: 'normal',
                                                           fontWeight: 400,
-                                                          fontSize: '8.78154px',
-                                                          lineHeight: '19px',
+                                                          fontSize: '13.17px',
+                                                          lineHeight: '28.5px',
                                                           textAlign: 'center',
                                                           letterSpacing: '-0.02em',
                                                           color: '#000000'
@@ -2014,11 +2015,11 @@ export default function CaseDesignCenterPage() {
                                                       }}
                                                       className="relative flex flex-col items-center justify-center"
                                                       style={{
-                                                        width: '123.04px',
-                                                        height: '46.22px',
+                                                        flex: '1 1 0',
+                                                        height: '69.33px',
                                                         background: '#F9F9F9',
-                                                        boxShadow: '0.878154px 0.878154px 3.07354px rgba(0, 0, 0, 0.25)',
-                                                        borderRadius: '5.26893px',
+                                                        boxShadow: '1.32px 1.32px 4.61px rgba(0, 0, 0, 0.25)',
+                                                        borderRadius: '7.9px',
                                                         border: 'none',
                                                         cursor: 'pointer',
                                                         padding: '0'
@@ -2027,28 +2028,28 @@ export default function CaseDesignCenterPage() {
                                                       <Paperclip
                                                         className="absolute"
                                                         style={{
-                                                          width: '8.78px',
-                                                          height: '10.54px',
+                                                          width: '13.17px',
+                                                          height: '15.81px',
                                                           left: '50%',
-                                                          top: '9.34px',
+                                                          top: '14.01px',
                                                           transform: 'translateX(-50%)',
                                                           color: '#1E1E1E',
-                                                          strokeWidth: '0.878154px'
+                                                          strokeWidth: '1.32px'
                                                         }}
                                                       />
                                                       <span
                                                         className="absolute text-center"
                                                         style={{
-                                                          width: '107px',
+                                                          width: '160.5px',
                                                           height: '20px',
                                                           left: '50%',
-                                                          top: '23.11px',
+                                                          top: '34.67px',
                                                           transform: 'translateX(-50%)',
                                                           fontFamily: 'Verdana',
                                                           fontStyle: 'normal',
                                                           fontWeight: 400,
-                                                          fontSize: '8.78154px',
-                                                          lineHeight: '19px',
+                                                          fontSize: '13.17px',
+                                                          lineHeight: '28.5px',
                                                           textAlign: 'center',
                                                           letterSpacing: '-0.02em',
                                                           color: '#000000'
@@ -2086,11 +2087,11 @@ export default function CaseDesignCenterPage() {
                                                       }}
                                                       className="relative flex flex-col items-center justify-center"
                                                       style={{
-                                                        width: '123.04px',
-                                                        height: '46.22px',
+                                                        flex: '1 1 0',
+                                                        height: '69.33px',
                                                         background: '#F9F9F9',
-                                                        boxShadow: '0px 0px 2.89791px rgba(207, 2, 2, 0.67)',
-                                                        borderRadius: '5.26893px',
+                                                        boxShadow: '0px 0px 4.35px rgba(207, 2, 2, 0.67)',
+                                                        borderRadius: '7.9px',
                                                         border: 'none',
                                                         cursor: 'pointer',
                                                         padding: '0'
@@ -2099,29 +2100,29 @@ export default function CaseDesignCenterPage() {
                                                       <Zap
                                                         className="absolute"
                                                         style={{
-                                                          width: '8.78px',
-                                                          height: '10.54px',
+                                                          width: '13.17px',
+                                                          height: '15.81px',
                                                           left: '50%',
-                                                          top: '9.35px',
+                                                          top: '14.03px',
                                                           transform: 'translateX(-50%)',
                                                           color: '#CF0202',
                                                           fill: '#CF0202',
-                                                          strokeWidth: '0.878154px'
+                                                          strokeWidth: '1.32px'
                                                         }}
                                                       />
                                                       <span
                                                         className="absolute text-center"
                                                         style={{
-                                                          width: '59px',
+                                                          width: '88.5px',
                                                           height: '20px',
                                                           left: '50%',
-                                                          top: '23.11px',
+                                                          top: '34.67px',
                                                           transform: 'translateX(-50%)',
                                                           fontFamily: 'Verdana',
                                                           fontStyle: 'normal',
                                                           fontWeight: 400,
-                                                          fontSize: '8.78154px',
-                                                          lineHeight: '19px',
+                                                          fontSize: '13.17px',
+                                                          lineHeight: '28.5px',
                                                           textAlign: 'center',
                                                           letterSpacing: '-0.02em',
                                                           color: '#000000'
@@ -2247,7 +2248,6 @@ export default function CaseDesignCenterPage() {
                                                           wordBreak: 'break-word',
                                                           overflowWrap: 'break-word',
                                                           textAlign: 'left',
-                                                          width: '100%'
                                                         }}
                                                       >
                                                         {savedProduct.product.name}
@@ -2342,7 +2342,7 @@ export default function CaseDesignCenterPage() {
                                                 </button>
                                               </div>
 
-                                              <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto', overflowY: 'auto' }}>
+                                              <AccordionContent className="pt-0 scrollbar-blue" style={{ position: 'relative', minHeight: 'auto', maxHeight: '250px', overflowY: 'auto' }}>
                                                 {/* Summary detail - Progressive field disclosure */}
                                                 <div
                                                   className="bg-white w-full"
@@ -2358,7 +2358,8 @@ export default function CaseDesignCenterPage() {
                                                     flexDirection: 'column',
                                                     alignItems: 'flex-start',
                                                     background: '#FFFFFF',
-                                                    boxSizing: 'border-box'
+                                                    boxSizing: 'border-box',
+                                                    width: '100%'
                                                   }}
                                                 >
                                                   {/* Dynamic Fields - Rendered based on productDetails */}
@@ -3385,7 +3386,7 @@ export default function CaseDesignCenterPage() {
                                                   return hasAdvanceFields && minFieldsFilled
                                                 })() && (
                                                     <div
-                                                      className="flex flex-wrap justify-center items-center w-full"
+                                                      className="flex justify-center items-center w-full px-4"
                                                       style={{
                                                         gap: '7.03px',
                                                         position: 'relative',
@@ -3396,11 +3397,11 @@ export default function CaseDesignCenterPage() {
                                                         <button
                                                           className="relative flex flex-col items-center justify-center"
                                                           style={{
-                                                            width: '123.04px',
-                                                            height: '46.22px',
+                                                            flex: '1 1 0',
+                                                            height: '69.33px',
                                                             background: '#F9F9F9',
-                                                            boxShadow: '0.878154px 0.878154px 3.07354px rgba(0, 0, 0, 0.25)',
-                                                            borderRadius: '5.26893px',
+                                                            boxShadow: '1.32px 1.32px 4.61px rgba(0, 0, 0, 0.25)',
+                                                            borderRadius: '7.9px',
                                                             border: 'none',
                                                             cursor: 'pointer',
                                                             padding: '0'
@@ -3425,13 +3426,13 @@ export default function CaseDesignCenterPage() {
                                                               width: '85px',
                                                               height: '20px',
                                                               left: '50%',
-                                                              top: '23.11px',
+                                                              top: '34.67px',
                                                               transform: 'translateX(-50%)',
                                                               fontFamily: 'Verdana',
                                                               fontStyle: 'normal',
                                                               fontWeight: 400,
-                                                              fontSize: '8.78154px',
-                                                              lineHeight: '19px',
+                                                              fontSize: '13.17px',
+                                                              lineHeight: '28.5px',
                                                               textAlign: 'center',
                                                               letterSpacing: '-0.02em',
                                                               color: '#000000'
@@ -3450,11 +3451,11 @@ export default function CaseDesignCenterPage() {
                                                         }}
                                                         className="relative flex flex-col items-center justify-center"
                                                         style={{
-                                                          width: '123.04px',
-                                                          height: '46.22px',
+                                                          flex: '1 1 0',
+                                                          height: '69.33px',
                                                           background: '#F9F9F9',
-                                                          boxShadow: '0.878154px 0.878154px 3.07354px rgba(0, 0, 0, 0.25)',
-                                                          borderRadius: '5.26893px',
+                                                          boxShadow: '1.32px 1.32px 4.61px rgba(0, 0, 0, 0.25)',
+                                                          borderRadius: '7.9px',
                                                           border: 'none',
                                                           cursor: 'pointer',
                                                           padding: '0'
@@ -3463,16 +3464,16 @@ export default function CaseDesignCenterPage() {
                                                         <span
                                                           className="absolute text-center"
                                                           style={{
-                                                            width: '41.8px',
+                                                            width: '62.7px',
                                                             height: '20px',
                                                             left: '50%',
-                                                            top: '3.79px',
+                                                            top: '5.69px',
                                                             transform: 'translateX(-50%)',
                                                             fontFamily: 'Verdana',
                                                             fontStyle: 'normal',
                                                             fontWeight: 400,
-                                                            fontSize: '8.78154px',
-                                                            lineHeight: '19px',
+                                                            fontSize: '13.17px',
+                                                            lineHeight: '28.5px',
                                                             textAlign: 'center',
                                                             letterSpacing: '-0.02em',
                                                             color: '#000000'
@@ -3483,16 +3484,16 @@ export default function CaseDesignCenterPage() {
                                                         <span
                                                           className="absolute text-center"
                                                           style={{
-                                                            width: '89px',
+                                                            width: '133.5px',
                                                             height: '20px',
                                                             left: '50%',
-                                                            top: '23.11px',
+                                                            top: '34.67px',
                                                             transform: 'translateX(-50%)',
                                                             fontFamily: 'Verdana',
                                                             fontStyle: 'normal',
                                                             fontWeight: 400,
-                                                            fontSize: '8.78154px',
-                                                            lineHeight: '19px',
+                                                            fontSize: '13.17px',
+                                                            lineHeight: '28.5px',
                                                             textAlign: 'center',
                                                             letterSpacing: '-0.02em',
                                                             color: '#000000'
@@ -3509,11 +3510,11 @@ export default function CaseDesignCenterPage() {
                                                         }}
                                                         className="relative flex flex-col items-center justify-center"
                                                         style={{
-                                                          width: '123.04px',
-                                                          height: '46.22px',
+                                                          flex: '1 1 0',
+                                                          height: '69.33px',
                                                           background: '#F9F9F9',
-                                                          boxShadow: '0.878154px 0.878154px 3.07354px rgba(0, 0, 0, 0.25)',
-                                                          borderRadius: '5.26893px',
+                                                          boxShadow: '1.32px 1.32px 4.61px rgba(0, 0, 0, 0.25)',
+                                                          borderRadius: '7.9px',
                                                           border: 'none',
                                                           cursor: 'pointer',
                                                           padding: '0'
@@ -3522,28 +3523,28 @@ export default function CaseDesignCenterPage() {
                                                         <Paperclip
                                                           className="absolute"
                                                           style={{
-                                                            width: '8.78px',
-                                                            height: '10.54px',
+                                                            width: '13.17px',
+                                                            height: '15.81px',
                                                             left: '50%',
-                                                            top: '9.34px',
+                                                            top: '14.01px',
                                                             transform: 'translateX(-50%)',
                                                             color: '#1E1E1E',
-                                                            strokeWidth: '0.878154px'
+                                                            strokeWidth: '1.32px'
                                                           }}
                                                         />
                                                         <span
                                                           className="absolute text-center"
                                                           style={{
-                                                            width: '107px',
+                                                            width: '160.5px',
                                                             height: '20px',
                                                             left: '50%',
-                                                            top: '23.11px',
+                                                            top: '34.67px',
                                                             transform: 'translateX(-50%)',
                                                             fontFamily: 'Verdana',
                                                             fontStyle: 'normal',
                                                             fontWeight: 400,
-                                                            fontSize: '8.78154px',
-                                                            lineHeight: '19px',
+                                                            fontSize: '13.17px',
+                                                            lineHeight: '28.5px',
                                                             textAlign: 'center',
                                                             letterSpacing: '-0.02em',
                                                             color: '#000000'
@@ -3560,11 +3561,11 @@ export default function CaseDesignCenterPage() {
                                                         }}
                                                         className="relative flex flex-col items-center justify-center"
                                                         style={{
-                                                          width: '123.04px',
-                                                          height: '46.22px',
+                                                          flex: '1 1 0',
+                                                          height: '69.33px',
                                                           background: '#F9F9F9',
-                                                          boxShadow: '0px 0px 2.89791px rgba(207, 2, 2, 0.67)',
-                                                          borderRadius: '5.26893px',
+                                                          boxShadow: '0px 0px 4.35px rgba(207, 2, 2, 0.67)',
+                                                          borderRadius: '7.9px',
                                                           border: 'none',
                                                           cursor: 'pointer',
                                                           padding: '0'
@@ -3573,29 +3574,29 @@ export default function CaseDesignCenterPage() {
                                                         <Zap
                                                           className="absolute"
                                                           style={{
-                                                            width: '8.78px',
-                                                            height: '10.54px',
+                                                            width: '13.17px',
+                                                            height: '15.81px',
                                                             left: '50%',
-                                                            top: '9.35px',
+                                                            top: '14.03px',
                                                             transform: 'translateX(-50%)',
                                                             color: '#CF0202',
                                                             fill: '#CF0202',
-                                                            strokeWidth: '0.878154px'
+                                                            strokeWidth: '1.32px'
                                                           }}
                                                         />
                                                         <span
                                                           className="absolute text-center"
                                                           style={{
-                                                            width: '59px',
+                                                            width: '88.5px',
                                                             height: '20px',
                                                             left: '50%',
-                                                            top: '23.11px',
+                                                            top: '34.67px',
                                                             transform: 'translateX(-50%)',
                                                             fontFamily: 'Verdana',
                                                             fontStyle: 'normal',
                                                             fontWeight: 400,
-                                                            fontSize: '8.78154px',
-                                                            lineHeight: '19px',
+                                                            fontSize: '13.17px',
+                                                            lineHeight: '28.5px',
                                                             textAlign: 'center',
                                                             letterSpacing: '-0.02em',
                                                             color: '#000000'
@@ -3810,32 +3811,34 @@ export default function CaseDesignCenterPage() {
                                                         </label>
                                                       </div>
 
-                                                      {/* Tooth Shade Field */}
-                                                      <div className="relative flex-1">
-                                                        <div
-                                                          className={cn(
-                                                            "h-12 w-full rounded-md border-2 bg-white px-4 py-3 text-base transition-all duration-200 flex items-center cursor-pointer",
-                                                            mandibularToothShade ? "border-[#119933]" : "border-[#ef4444] hover:border-[#ef4444]"
-                                                          )}
-                                                          onClick={() => handleOpenShadeModal("tooth_shade", "mandibular")}
-                                                        >
-                                                          <span className={mandibularToothShade ? "text-black" : "text-gray-400"}>
-                                                            {mandibularToothShade}
-                                                          </span>
-                                                          {mandibularToothShade && (
-                                                            <div className="ml-auto flex items-center gap-2">
-                                                              <span className="text-sm bg-gray-100 px-2 py-1 rounded">{mandibularToothShade.split(' - ')[1]}</span>
-                                                              <Check className="h-5 w-5 text-[#119933]" />
-                                                            </div>
-                                                          )}
+                                                      {/* Tooth Shade Field - shown only after Stump Shade is selected */}
+                                                      {mandibularStumpShade && (
+                                                        <div className="relative flex-1">
+                                                          <div
+                                                            className={cn(
+                                                              "h-12 w-full rounded-md border-2 bg-white px-4 py-3 text-base transition-all duration-200 flex items-center cursor-pointer",
+                                                              mandibularToothShade ? "border-[#119933]" : "border-[#ef4444] hover:border-[#ef4444]"
+                                                            )}
+                                                            onClick={() => handleOpenShadeModal("tooth_shade", "mandibular")}
+                                                          >
+                                                            <span className={mandibularToothShade ? "text-black" : "text-gray-400"}>
+                                                              {mandibularToothShade}
+                                                            </span>
+                                                            {mandibularToothShade && (
+                                                              <div className="ml-auto flex items-center gap-2">
+                                                                <span className="text-sm bg-gray-100 px-2 py-1 rounded">{mandibularToothShade.split(' - ')[1]}</span>
+                                                                <Check className="h-5 w-5 text-[#119933]" />
+                                                              </div>
+                                                            )}
+                                                          </div>
+                                                          <label className={cn(
+                                                            "absolute -top-2.5 left-3 bg-white px-1 text-sm z-10",
+                                                            mandibularToothShade ? "text-[#119933]" : "text-[#ef4444]"
+                                                          )}>
+                                                            {mandibularToothShade ? "Tooth Shade" : "Select Tooth Shade"}<span className="text-red-500">*</span>
+                                                          </label>
                                                         </div>
-                                                        <label className={cn(
-                                                          "absolute -top-2.5 left-3 bg-white px-1 text-sm z-10",
-                                                          mandibularToothShade ? "text-[#119933]" : "text-[#ef4444]"
-                                                        )}>
-                                                          {mandibularToothShade ? "Tooth Shade" : "Select Tooth Shade"}<span className="text-red-500">*</span>
-                                                        </label>
-                                                      </div>
+                                                      )}
 
                                                       {/* Shade Guide Dropdown */}
                                                       <div className="relative min-w-[220px]">
@@ -5096,7 +5099,7 @@ export default function CaseDesignCenterPage() {
                                               {productDetails &&
                                                 areAllCurrentProductFieldsFilled("mandibular") && (
                                                   <div
-                                                    className="flex flex-wrap justify-center items-center w-full"
+                                                    className="flex justify-center items-center w-full px-4"
                                                     style={{
                                                       gap: '7.03px',
                                                       position: 'relative',
@@ -5108,11 +5111,11 @@ export default function CaseDesignCenterPage() {
                                                       <button
                                                         className="relative flex flex-col items-center justify-center"
                                                         style={{
-                                                          width: '123.04px',
-                                                          height: '46.22px',
+                                                          flex: '1 1 0',
+                                                          height: '69.33px',
                                                           background: '#F9F9F9',
-                                                          boxShadow: '0.878154px 0.878154px 3.07354px rgba(0, 0, 0, 0.25)',
-                                                          borderRadius: '5.26893px',
+                                                          boxShadow: '1.32px 1.32px 4.61px rgba(0, 0, 0, 0.25)',
+                                                          borderRadius: '7.9px',
                                                           border: 'none',
                                                           cursor: 'pointer',
                                                           padding: '0'
@@ -5137,13 +5140,13 @@ export default function CaseDesignCenterPage() {
                                                             width: '85px',
                                                             height: '20px',
                                                             left: '50%',
-                                                            top: '23.11px',
+                                                            top: '34.67px',
                                                             transform: 'translateX(-50%)',
                                                             fontFamily: 'Verdana',
                                                             fontStyle: 'normal',
                                                             fontWeight: 400,
-                                                            fontSize: '8.78154px',
-                                                            lineHeight: '19px',
+                                                            fontSize: '13.17px',
+                                                            lineHeight: '28.5px',
                                                             textAlign: 'center',
                                                             letterSpacing: '-0.02em',
                                                             color: '#000000'
@@ -5184,11 +5187,11 @@ export default function CaseDesignCenterPage() {
                                                       }}
                                                       className="relative flex flex-col items-center justify-center"
                                                       style={{
-                                                        width: '123.04px',
-                                                        height: '46.22px',
+                                                        flex: '1 1 0',
+                                                        height: '69.33px',
                                                         background: '#F9F9F9',
-                                                        boxShadow: '0.878154px 0.878154px 3.07354px rgba(0, 0, 0, 0.25)',
-                                                        borderRadius: '5.26893px',
+                                                        boxShadow: '1.32px 1.32px 4.61px rgba(0, 0, 0, 0.25)',
+                                                        borderRadius: '7.9px',
                                                         border: 'none',
                                                         cursor: 'pointer',
                                                         padding: '0'
@@ -5197,16 +5200,16 @@ export default function CaseDesignCenterPage() {
                                                       <span
                                                         className="absolute text-center"
                                                         style={{
-                                                          width: '41.8px',
+                                                          width: '62.7px',
                                                           height: '20px',
                                                           left: '50%',
-                                                          top: '3.79px',
+                                                          top: '5.69px',
                                                           transform: 'translateX(-50%)',
                                                           fontFamily: 'Verdana',
                                                           fontStyle: 'normal',
                                                           fontWeight: 400,
-                                                          fontSize: '8.78154px',
-                                                          lineHeight: '19px',
+                                                          fontSize: '13.17px',
+                                                          lineHeight: '28.5px',
                                                           textAlign: 'center',
                                                           letterSpacing: '-0.02em',
                                                           color: '#000000'
@@ -5217,16 +5220,16 @@ export default function CaseDesignCenterPage() {
                                                       <span
                                                         className="absolute text-center"
                                                         style={{
-                                                          width: '89px',
+                                                          width: '133.5px',
                                                           height: '20px',
                                                           left: '50%',
-                                                          top: '23.11px',
+                                                          top: '34.67px',
                                                           transform: 'translateX(-50%)',
                                                           fontFamily: 'Verdana',
                                                           fontStyle: 'normal',
                                                           fontWeight: 400,
-                                                          fontSize: '8.78154px',
-                                                          lineHeight: '19px',
+                                                          fontSize: '13.17px',
+                                                          lineHeight: '28.5px',
                                                           textAlign: 'center',
                                                           letterSpacing: '-0.02em',
                                                           color: '#000000'
@@ -5242,11 +5245,11 @@ export default function CaseDesignCenterPage() {
                                                       }}
                                                       className="relative flex flex-col items-center justify-center"
                                                       style={{
-                                                        width: '123.04px',
-                                                        height: '46.22px',
+                                                        flex: '1 1 0',
+                                                        height: '69.33px',
                                                         background: '#F9F9F9',
-                                                        boxShadow: '0.878154px 0.878154px 3.07354px rgba(0, 0, 0, 0.25)',
-                                                        borderRadius: '5.26893px',
+                                                        boxShadow: '1.32px 1.32px 4.61px rgba(0, 0, 0, 0.25)',
+                                                        borderRadius: '7.9px',
                                                         border: 'none',
                                                         cursor: 'pointer',
                                                         padding: '0'
@@ -5255,28 +5258,28 @@ export default function CaseDesignCenterPage() {
                                                       <Paperclip
                                                         className="absolute"
                                                         style={{
-                                                          width: '8.78px',
-                                                          height: '10.54px',
+                                                          width: '13.17px',
+                                                          height: '15.81px',
                                                           left: '50%',
-                                                          top: '9.34px',
+                                                          top: '14.01px',
                                                           transform: 'translateX(-50%)',
                                                           color: '#1E1E1E',
-                                                          strokeWidth: '0.878154px'
+                                                          strokeWidth: '1.32px'
                                                         }}
                                                       />
                                                       <span
                                                         className="absolute text-center"
                                                         style={{
-                                                          width: '107px',
+                                                          width: '160.5px',
                                                           height: '20px',
                                                           left: '50%',
-                                                          top: '23.11px',
+                                                          top: '34.67px',
                                                           transform: 'translateX(-50%)',
                                                           fontFamily: 'Verdana',
                                                           fontStyle: 'normal',
                                                           fontWeight: 400,
-                                                          fontSize: '8.78154px',
-                                                          lineHeight: '19px',
+                                                          fontSize: '13.17px',
+                                                          lineHeight: '28.5px',
                                                           textAlign: 'center',
                                                           letterSpacing: '-0.02em',
                                                           color: '#000000'
@@ -5315,11 +5318,11 @@ export default function CaseDesignCenterPage() {
                                                       }}
                                                       className="relative flex flex-col items-center justify-center"
                                                       style={{
-                                                        width: '123.04px',
-                                                        height: '46.22px',
+                                                        flex: '1 1 0',
+                                                        height: '69.33px',
                                                         background: '#F9F9F9',
-                                                        boxShadow: '0px 0px 2.89791px rgba(207, 2, 2, 0.67)',
-                                                        borderRadius: '5.26893px',
+                                                        boxShadow: '0px 0px 4.35px rgba(207, 2, 2, 0.67)',
+                                                        borderRadius: '7.9px',
                                                         border: 'none',
                                                         cursor: 'pointer',
                                                         padding: '0'
@@ -5328,29 +5331,29 @@ export default function CaseDesignCenterPage() {
                                                       <Zap
                                                         className="absolute"
                                                         style={{
-                                                          width: '8.78px',
-                                                          height: '10.54px',
+                                                          width: '13.17px',
+                                                          height: '15.81px',
                                                           left: '50%',
-                                                          top: '9.35px',
+                                                          top: '14.03px',
                                                           transform: 'translateX(-50%)',
                                                           color: '#CF0202',
                                                           fill: '#CF0202',
-                                                          strokeWidth: '0.878154px'
+                                                          strokeWidth: '1.32px'
                                                         }}
                                                       />
                                                       <span
                                                         className="absolute text-center"
                                                         style={{
-                                                          width: '59px',
+                                                          width: '88.5px',
                                                           height: '20px',
                                                           left: '50%',
-                                                          top: '23.11px',
+                                                          top: '34.67px',
                                                           transform: 'translateX(-50%)',
                                                           fontFamily: 'Verdana',
                                                           fontStyle: 'normal',
                                                           fontWeight: 400,
-                                                          fontSize: '8.78154px',
-                                                          lineHeight: '19px',
+                                                          fontSize: '13.17px',
+                                                          lineHeight: '28.5px',
                                                           textAlign: 'center',
                                                           letterSpacing: '-0.02em',
                                                           color: '#000000'
@@ -5571,7 +5574,7 @@ export default function CaseDesignCenterPage() {
                                                 </button>
                                               </div>
 
-                                              <AccordionContent className="pt-0" style={{ position: 'relative', minHeight: 'auto', overflowY: 'auto' }}>
+                                              <AccordionContent className="pt-0 scrollbar-blue" style={{ position: 'relative', minHeight: 'auto', maxHeight: '250px', overflowY: 'auto' }}>
                                                 {/* Tooth Shade Selection - Shows at the top when active (saved product) */}
                                                 {currentShadeField && currentShadeArch === "mandibular" && currentShadeProductId === savedProduct.id && (
                                                   <div className="w-full pt-4">
@@ -5605,32 +5608,34 @@ export default function CaseDesignCenterPage() {
                                                           </label>
                                                         </div>
 
-                                                        {/* Tooth Shade Field */}
-                                                        <div className="relative flex-1">
-                                                          <div
-                                                            className={cn(
-                                                              "h-12 w-full rounded-md border-2 bg-white px-4 py-3 text-base transition-all duration-200 flex items-center cursor-pointer",
-                                                              savedProduct.mandibularToothShade ? "border-[#119933]" : "border-[#ef4444] hover:border-[#ef4444]"
-                                                            )}
-                                                            onClick={() => handleOpenShadeModal("tooth_shade", "mandibular", savedProduct.id)}
-                                                          >
-                                                            <span className={savedProduct.mandibularToothShade ? "text-black" : "text-gray-400"}>
-                                                              {savedProduct.mandibularToothShade}
-                                                            </span>
-                                                            {savedProduct.mandibularToothShade && (
-                                                              <div className="ml-auto flex items-center gap-2">
-                                                                <span className="text-sm bg-gray-100 px-2 py-1 rounded">{savedProduct.mandibularToothShade.split(' - ')[1]}</span>
-                                                                <Check className="h-5 w-5 text-[#119933]" />
-                                                              </div>
-                                                            )}
+                                                        {/* Tooth Shade Field - shown only after Stump Shade is selected */}
+                                                        {savedProduct.mandibularStumpShade && (
+                                                          <div className="relative flex-1">
+                                                            <div
+                                                              className={cn(
+                                                                "h-12 w-full rounded-md border-2 bg-white px-4 py-3 text-base transition-all duration-200 flex items-center cursor-pointer",
+                                                                savedProduct.mandibularToothShade ? "border-[#119933]" : "border-[#ef4444] hover:border-[#ef4444]"
+                                                              )}
+                                                              onClick={() => handleOpenShadeModal("tooth_shade", "mandibular", savedProduct.id)}
+                                                            >
+                                                              <span className={savedProduct.mandibularToothShade ? "text-black" : "text-gray-400"}>
+                                                                {savedProduct.mandibularToothShade}
+                                                              </span>
+                                                              {savedProduct.mandibularToothShade && (
+                                                                <div className="ml-auto flex items-center gap-2">
+                                                                  <span className="text-sm bg-gray-100 px-2 py-1 rounded">{savedProduct.mandibularToothShade.split(' - ')[1]}</span>
+                                                                  <Check className="h-5 w-5 text-[#119933]" />
+                                                                </div>
+                                                              )}
+                                                            </div>
+                                                            <label className={cn(
+                                                              "absolute -top-2.5 left-3 bg-white px-1 text-sm z-10",
+                                                              savedProduct.mandibularToothShade ? "text-[#119933]" : "text-[#ef4444]"
+                                                            )}>
+                                                              {savedProduct.mandibularToothShade ? "Tooth Shade" : "Select Tooth Shade"}<span className="text-red-500">*</span>
+                                                            </label>
                                                           </div>
-                                                          <label className={cn(
-                                                            "absolute -top-2.5 left-3 bg-white px-1 text-sm z-10",
-                                                            savedProduct.mandibularToothShade ? "text-[#119933]" : "text-[#ef4444]"
-                                                          )}>
-                                                            {savedProduct.mandibularToothShade ? "Tooth Shade" : "Select Tooth Shade"}<span className="text-red-500">*</span>
-                                                          </label>
-                                                        </div>
+                                                        )}
 
                                                         {/* Shade Guide Dropdown */}
                                                         <div className="relative min-w-[220px]">
@@ -5978,7 +5983,7 @@ export default function CaseDesignCenterPage() {
                                                       {/* Action Buttons - same as current mandibular card */}
                                                       {productDetails && (
                                                         <div
-                                                          className="flex flex-wrap justify-center items-center w-full"
+                                                          className="flex justify-center items-center w-full px-4"
                                                           style={{
                                                             gap: '7.03px',
                                                             position: 'relative',
@@ -5989,11 +5994,11 @@ export default function CaseDesignCenterPage() {
                                                             <button
                                                               className="relative flex flex-col items-center justify-center"
                                                               style={{
-                                                                width: '123.04px',
-                                                                height: '46.22px',
+                                                                flex: '1 1 0',
+                                                                height: '69.33px',
                                                                 background: '#F9F9F9',
-                                                                boxShadow: '0.878154px 0.878154px 3.07354px rgba(0, 0, 0, 0.25)',
-                                                                borderRadius: '5.26893px',
+                                                                boxShadow: '1.32px 1.32px 4.61px rgba(0, 0, 0, 0.25)',
+                                                                borderRadius: '7.9px',
                                                                 border: 'none',
                                                                 cursor: 'pointer',
                                                                 padding: '0'
@@ -6018,13 +6023,13 @@ export default function CaseDesignCenterPage() {
                                                                   width: '85px',
                                                                   height: '20px',
                                                                   left: '50%',
-                                                                  top: '23.11px',
+                                                                  top: '34.67px',
                                                                   transform: 'translateX(-50%)',
                                                                   fontFamily: 'Verdana',
                                                                   fontStyle: 'normal',
                                                                   fontWeight: 400,
-                                                                  fontSize: '8.78154px',
-                                                                  lineHeight: '19px',
+                                                                  fontSize: '13.17px',
+                                                                  lineHeight: '28.5px',
                                                                   textAlign: 'center',
                                                                   letterSpacing: '-0.02em',
                                                                   color: '#000000'
@@ -6043,11 +6048,11 @@ export default function CaseDesignCenterPage() {
                                                             }}
                                                             className="relative flex flex-col items-center justify-center"
                                                             style={{
-                                                              width: '123.04px',
-                                                              height: '46.22px',
+                                                              flex: '1 1 0',
+                                                              height: '69.33px',
                                                               background: '#F9F9F9',
-                                                              boxShadow: '0.878154px 0.878154px 3.07354px rgba(0, 0, 0, 0.25)',
-                                                              borderRadius: '5.26893px',
+                                                              boxShadow: '1.32px 1.32px 4.61px rgba(0, 0, 0, 0.25)',
+                                                              borderRadius: '7.9px',
                                                               border: 'none',
                                                               cursor: 'pointer',
                                                               padding: '0'
@@ -6056,16 +6061,16 @@ export default function CaseDesignCenterPage() {
                                                             <span
                                                               className="absolute text-center"
                                                               style={{
-                                                                width: '41.8px',
+                                                                width: '62.7px',
                                                                 height: '20px',
                                                                 left: '50%',
-                                                                top: '3.79px',
+                                                                top: '5.69px',
                                                                 transform: 'translateX(-50%)',
                                                                 fontFamily: 'Verdana',
                                                                 fontStyle: 'normal',
                                                                 fontWeight: 400,
-                                                                fontSize: '8.78154px',
-                                                                lineHeight: '19px',
+                                                                fontSize: '13.17px',
+                                                                lineHeight: '28.5px',
                                                                 textAlign: 'center',
                                                                 letterSpacing: '-0.02em',
                                                                 color: '#000000'
@@ -6076,16 +6081,16 @@ export default function CaseDesignCenterPage() {
                                                             <span
                                                               className="absolute text-center"
                                                               style={{
-                                                                width: '89px',
+                                                                width: '133.5px',
                                                                 height: '20px',
                                                                 left: '50%',
-                                                                top: '23.11px',
+                                                                top: '34.67px',
                                                                 transform: 'translateX(-50%)',
                                                                 fontFamily: 'Verdana',
                                                                 fontStyle: 'normal',
                                                                 fontWeight: 400,
-                                                                fontSize: '8.78154px',
-                                                                lineHeight: '19px',
+                                                                fontSize: '13.17px',
+                                                                lineHeight: '28.5px',
                                                                 textAlign: 'center',
                                                                 letterSpacing: '-0.02em',
                                                                 color: '#000000'
@@ -6101,11 +6106,11 @@ export default function CaseDesignCenterPage() {
                                                             }}
                                                             className="relative flex flex-col items-center justify-center"
                                                             style={{
-                                                              width: '123.04px',
-                                                              height: '46.22px',
+                                                              flex: '1 1 0',
+                                                              height: '69.33px',
                                                               background: '#F9F9F9',
-                                                              boxShadow: '0.878154px 0.878154px 3.07354px rgba(0, 0, 0, 0.25)',
-                                                              borderRadius: '5.26893px',
+                                                              boxShadow: '1.32px 1.32px 4.61px rgba(0, 0, 0, 0.25)',
+                                                              borderRadius: '7.9px',
                                                               border: 'none',
                                                               cursor: 'pointer',
                                                               padding: '0'
@@ -6114,28 +6119,28 @@ export default function CaseDesignCenterPage() {
                                                             <Paperclip
                                                               className="absolute"
                                                               style={{
-                                                                width: '8.78px',
-                                                                height: '10.54px',
+                                                                width: '13.17px',
+                                                                height: '15.81px',
                                                                 left: '50%',
-                                                                top: '9.34px',
+                                                                top: '14.01px',
                                                                 transform: 'translateX(-50%)',
                                                                 color: '#1E1E1E',
-                                                                strokeWidth: '0.878154px'
+                                                                strokeWidth: '1.32px'
                                                               }}
                                                             />
                                                             <span
                                                               className="absolute text-center"
                                                               style={{
-                                                                width: '107px',
+                                                                width: '160.5px',
                                                                 height: '20px',
                                                                 left: '50%',
-                                                                top: '23.11px',
+                                                                top: '34.67px',
                                                                 transform: 'translateX(-50%)',
                                                                 fontFamily: 'Verdana',
                                                                 fontStyle: 'normal',
                                                                 fontWeight: 400,
-                                                                fontSize: '8.78154px',
-                                                                lineHeight: '19px',
+                                                                fontSize: '13.17px',
+                                                                lineHeight: '28.5px',
                                                                 textAlign: 'center',
                                                                 letterSpacing: '-0.02em',
                                                                 color: '#000000'
@@ -6152,11 +6157,11 @@ export default function CaseDesignCenterPage() {
                                                             }}
                                                             className="relative flex flex-col items-center justify-center"
                                                             style={{
-                                                              width: '123.04px',
-                                                              height: '46.22px',
+                                                              flex: '1 1 0',
+                                                              height: '69.33px',
                                                               background: '#F9F9F9',
-                                                              boxShadow: '0px 0px 2.89791px rgba(207, 2, 2, 0.67)',
-                                                              borderRadius: '5.26893px',
+                                                              boxShadow: '0px 0px 4.35px rgba(207, 2, 2, 0.67)',
+                                                              borderRadius: '7.9px',
                                                               border: 'none',
                                                               cursor: 'pointer',
                                                               padding: '0'
@@ -6165,29 +6170,29 @@ export default function CaseDesignCenterPage() {
                                                             <Zap
                                                               className="absolute"
                                                               style={{
-                                                                width: '8.78px',
-                                                                height: '10.54px',
+                                                                width: '13.17px',
+                                                                height: '15.81px',
                                                                 left: '50%',
-                                                                top: '9.35px',
+                                                                top: '14.03px',
                                                                 transform: 'translateX(-50%)',
                                                                 color: '#CF0202',
                                                                 fill: '#CF0202',
-                                                                strokeWidth: '0.878154px'
+                                                                strokeWidth: '1.32px'
                                                               }}
                                                             />
                                                             <span
                                                               className="absolute text-center"
                                                               style={{
-                                                                width: '59px',
+                                                                width: '88.5px',
                                                                 height: '20px',
                                                                 left: '50%',
-                                                                top: '23.11px',
+                                                                top: '34.67px',
                                                                 transform: 'translateX(-50%)',
                                                                 fontFamily: 'Verdana',
                                                                 fontStyle: 'normal',
                                                                 fontWeight: 400,
-                                                                fontSize: '8.78154px',
-                                                                lineHeight: '19px',
+                                                                fontSize: '13.17px',
+                                                                lineHeight: '28.5px',
                                                                 textAlign: 'center',
                                                                 letterSpacing: '-0.02em',
                                                                 color: '#000000'

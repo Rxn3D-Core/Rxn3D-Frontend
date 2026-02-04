@@ -387,20 +387,25 @@ const PatientInfoSection = ({
   const onNameChange = editablePatientData?.onNameChange ?? (() => {})
   const onGenderChange = editablePatientData?.onGenderChange ?? (() => {})
 
-  // Show gender field only when both first name and last name have at least 2 letters each
+  // Show gender field only when first name and last name (final word) have at least 2 letters each.
+  // A single middle initial between them is allowed (e.g. "Heidi C Reyes").
   const showGenderField = (() => {
     const nameParts = name.trim().split(/\s+/).filter(part => part.length > 0)
-    return nameParts.length >= 2 && nameParts[0].length >= 2 && nameParts[1].length >= 2
+    if (nameParts.length < 2) return false
+    const lastPart = nameParts[nameParts.length - 1]
+    return nameParts[0].length >= 2 && lastPart.length >= 2
   })()
 
-  // Check if should auto-open gender dropdown
+  // Check if should auto-open gender dropdown.
+  // Triggers when the last word (last name) just reached exactly 2 characters,
+  // so it fires correctly whether or not a middle initial is present.
   const shouldAutoOpenGender = (inputName: string, inputGender: string): boolean => {
     if (inputGender.trim() !== "") return false
 
     const nameParts = inputName.trim().split(/\s+/).filter(part => part.length > 0)
     if (nameParts.length >= 2) {
-      const secondWord = nameParts[1]
-      return secondWord.length === 2
+      const lastWord = nameParts[nameParts.length - 1]
+      return lastWord.length === 2
     }
     return false
   }
@@ -446,12 +451,14 @@ const PatientInfoSection = ({
   const hasNameValue = name.trim() !== ""
   const hasGenderValue = gender.trim() !== ""
 
-  // Validation: Name should have at least 2 words, and second word should have at least 2 characters
-  // (first word + first 2 letters of second word)
+  // Validation: Name needs a first name and a last name (final word) each with at least
+  // 2 characters. An optional middle initial between them is allowed (e.g. "Heidi C Reyes").
   const isValidName = () => {
     if (!hasNameValue) return false
     const nameParts = name.trim().split(/\s+/).filter(part => part.length > 0)
-    return nameParts.length >= 2 && nameParts[1].length >= 2
+    if (nameParts.length < 2) return false
+    const lastPart = nameParts[nameParts.length - 1]
+    return nameParts[0].length >= 2 && lastPart.length >= 2
   }
 
   const isNameValid = isValidName()
