@@ -187,17 +187,13 @@ export const ImplantPlatformCards: React.FC<ImplantPlatformCardsProps> = ({
                   ? '2px solid #1162A8'
                   : isHovered
                     ? '1px solid #1162A8'
-                    : showRequired && !selectedPlatformId
-                      ? '2px solid #ef4444'
-                      : '1px solid #B4B0B0',
+                    : '1px solid #B4B0B0',
                 borderRadius: '7px',
                 boxShadow: isSelected
                   ? '9px 7px 21.5px rgba(0, 0, 0, 0.25)'
                   : isHovered
                     ? '0 2px 8px rgba(17, 98, 168, 0.15)'
-                    : showRequired && !selectedPlatformId
-                      ? '0 0 8px rgba(239, 68, 68, 0.3)'
-                      : 'none',
+                    : 'none',
                 transition: 'border-color 0.2s ease, box-shadow 0.2s ease'
               }}
             >

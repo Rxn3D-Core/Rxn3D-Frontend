@@ -11,10 +11,10 @@ export function SectionNavigationArrows({ show }: SectionNavigationArrowsProps) 
 
   return (
     <div
-      className="flex flex-col items-center justify-center gap-2 self-center"
+      className="flex flex-row items-center justify-center gap-2 self-center"
       style={{
         minWidth: "60px",
-        padding: "20px 10px",
+        padding: "0px 10px",
       }}
     >
       <button

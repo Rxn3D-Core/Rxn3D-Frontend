@@ -2384,16 +2384,10 @@ export function useCaseDesignCenter() {
       ? [...savedProduct.mandibularTeeth]
       : []
 
-    // Use setTimeout to ensure state updates are applied correctly
-    // This helps with React batching and ensures the SVG components receive the updated values
-    setMaxillaryTeeth([])
-    setMandibularTeeth([])
-
-    // Use a small delay to ensure the state is reset before setting new values
-    setTimeout(() => {
-      setMaxillaryTeeth(maxillaryTeethArray)
-      setMandibularTeeth(mandibularTeethArray)
-    }, 0)
+    // Set teeth arrays directly without intermediate empty state to avoid accordion glitch
+    // The glitch was caused by temporarily setting teeth to [] which made the temporary card disappear
+    setMaxillaryTeeth(maxillaryTeethArray)
+    setMandibularTeeth(mandibularTeethArray)
 
     // Set material and other details if available
     if (savedProduct.maxillaryMaterial) {
@@ -3048,6 +3042,105 @@ export function useCaseDesignCenter() {
       }
     })
   }, [savedProducts, implants])
+
+  // Sync temp product state to any matching saved product so edits on the temp card
+  // are reflected immediately — the saved product stays up-to-date even while the temp card is visible.
+  // Matches by product ID only (same logic as handleAutoSaveProduct) so teeth changes also propagate.
+  useEffect(() => {
+    if (!selectedProductForMaxillary || maxillaryTeeth.length === 0) return
+
+    setSavedProducts(prev => prev.map(sp => {
+      if (sp.addedFrom !== "maxillary") return sp
+      if (String(sp.product?.id ?? "") !== String(selectedProductForMaxillary?.id ?? "")) return sp
+
+      return {
+        ...sp,
+        maxillaryTeeth: [...maxillaryTeeth],
+        maxillaryMaterial: maxillaryMaterial || sp.maxillaryMaterial,
+        maxillaryMaterialId: maxillaryMaterialId ?? sp.maxillaryMaterialId,
+        maxillaryRetention: maxillaryRetention || sp.maxillaryRetention,
+        maxillaryRetentionId: maxillaryRetentionId ?? sp.maxillaryRetentionId,
+        maxillaryRetentionOptionId: maxillaryRetentionOptionId ?? sp.maxillaryRetentionOptionId,
+        maxillaryStumpShade: maxillaryStumpShade || sp.maxillaryStumpShade,
+        maxillaryGumShadeId: maxillaryGumShadeId ?? sp.maxillaryGumShadeId,
+        maxillaryToothShade: maxillaryToothShade || sp.maxillaryToothShade,
+        maxillaryShadeId: maxillaryShadeId ?? sp.maxillaryShadeId,
+        maxillaryStage: maxillaryStage || sp.maxillaryStage,
+        maxillaryStageId: maxillaryStageId ?? sp.maxillaryStageId,
+        maxillaryImplantDetails: maxillaryImplantDetails || sp.maxillaryImplantDetails,
+        maxillaryImplantInclusions: maxillaryImplantInclusions || sp.maxillaryImplantInclusions,
+        maxillaryAbutmentDetail: maxillaryAbutmentDetail || sp.maxillaryAbutmentDetail,
+        maxillaryAbutmentType: maxillaryAbutmentType || sp.maxillaryAbutmentType,
+      }
+    }))
+  }, [
+    selectedProductForMaxillary,
+    maxillaryTeeth,
+    maxillaryMaterial,
+    maxillaryMaterialId,
+    maxillaryRetention,
+    maxillaryRetentionId,
+    maxillaryRetentionOptionId,
+    maxillaryStumpShade,
+    maxillaryGumShadeId,
+    maxillaryToothShade,
+    maxillaryShadeId,
+    maxillaryStage,
+    maxillaryStageId,
+    maxillaryImplantDetails,
+    maxillaryImplantInclusions,
+    maxillaryAbutmentDetail,
+    maxillaryAbutmentType,
+  ])
+
+  // Sync temp product state to matching saved product — mandibular
+  // Matches by product ID only (same logic as handleAutoSaveProduct) so teeth changes also propagate.
+  useEffect(() => {
+    if (!selectedProductForMandibular || mandibularTeeth.length === 0) return
+
+    setSavedProducts(prev => prev.map(sp => {
+      if (sp.addedFrom !== "mandibular") return sp
+      if (String(sp.product?.id ?? "") !== String(selectedProductForMandibular?.id ?? "")) return sp
+
+      return {
+        ...sp,
+        mandibularTeeth: [...mandibularTeeth],
+        mandibularMaterial: mandibularMaterial || sp.mandibularMaterial,
+        mandibularMaterialId: mandibularMaterialId ?? sp.mandibularMaterialId,
+        mandibularRetention: mandibularRetention || sp.mandibularRetention,
+        mandibularRetentionId: mandibularRetentionId ?? sp.mandibularRetentionId,
+        mandibularRetentionOptionId: mandibularRetentionOptionId ?? sp.mandibularRetentionOptionId,
+        mandibularStumpShade: mandibularStumpShade || sp.mandibularStumpShade,
+        mandibularGumShadeId: mandibularGumShadeId ?? sp.mandibularGumShadeId,
+        mandibularToothShade: mandibularToothShade || sp.mandibularToothShade,
+        mandibularShadeId: mandibularShadeId ?? sp.mandibularShadeId,
+        mandibularStage: mandibularStage || sp.mandibularStage,
+        mandibularStageId: mandibularStageId ?? sp.mandibularStageId,
+        mandibularImplantDetails: mandibularImplantDetails || sp.mandibularImplantDetails,
+        mandibularImplantInclusions: mandibularImplantInclusions || sp.mandibularImplantInclusions,
+        mandibularAbutmentDetail: mandibularAbutmentDetail || sp.mandibularAbutmentDetail,
+        mandibularAbutmentType: mandibularAbutmentType || sp.mandibularAbutmentType,
+      }
+    }))
+  }, [
+    selectedProductForMandibular,
+    mandibularTeeth,
+    mandibularMaterial,
+    mandibularMaterialId,
+    mandibularRetention,
+    mandibularRetentionId,
+    mandibularRetentionOptionId,
+    mandibularStumpShade,
+    mandibularGumShadeId,
+    mandibularToothShade,
+    mandibularShadeId,
+    mandibularStage,
+    mandibularStageId,
+    mandibularImplantDetails,
+    mandibularImplantInclusions,
+    mandibularAbutmentDetail,
+    mandibularAbutmentType,
+  ])
 
   // Auto-save product when impression is filled in current editing card (maxillary)
   useEffect(() => {
@@ -6321,6 +6414,35 @@ export function useCaseDesignCenter() {
       }
     }
 
+    // Check if an existing product will be merged (before state update)
+    // This allows us to determine the correct accordion ID to open
+    const existingProductToMerge = savedProducts.find(p => {
+      const matchesBasic = p.product.id === productToUse.id &&
+        p.categoryId === selectedCategoryId &&
+        p.subcategoryId === selectedSubcategoryId
+
+      if (!matchesBasic) return false
+
+      // Check for overlapping teeth
+      const existingMaxTeeth = [...(p.maxillaryTeeth || [])].sort()
+      const existingMandTeeth = [...(p.mandibularTeeth || [])].sort()
+      const newMaxTeeth = [...maxillaryTeeth].sort()
+      const newMandTeeth = [...mandibularTeeth].sort()
+
+      const maxillaryOverlap = existingMaxTeeth.length > 0 && newMaxTeeth.length > 0 &&
+        (existingMaxTeeth.some(tooth => newMaxTeeth.includes(tooth)) ||
+          newMaxTeeth.some(tooth => existingMaxTeeth.includes(tooth)))
+
+      const mandibularOverlap = existingMandTeeth.length > 0 && newMandTeeth.length > 0 &&
+        (existingMandTeeth.some(tooth => newMandTeeth.includes(tooth)) ||
+          newMandTeeth.some(tooth => existingMandTeeth.includes(tooth)))
+
+      return maxillaryOverlap || mandibularOverlap
+    })
+
+    // Use existing product's ID if merging, otherwise use new product ID
+    const accordionProductId = existingProductToMerge ? existingProductToMerge.id : productId
+
     // Add to saved products array as the first product (prepend instead of append)
     setSavedProducts((prev) => {
       // Check if this product already exists (same product ID, category, subcategory, and overlapping teeth)
@@ -6379,6 +6501,13 @@ export function useCaseDesignCenter() {
 
     // Auto-show case summary notes when a product is saved for maxillary or mandibular
     setShowCaseSummaryNotes(true)
+
+    // Auto-open the accordion for the newly saved product
+    if (type === "maxillary") {
+      setOpenAccordionMaxillary(accordionProductId)
+    } else {
+      setOpenAccordionMandibular(accordionProductId)
+    }
 
     // Keep product details visible so DynamicProductFields continues to show
     // Don't reset form - keep all fields visible for editing
