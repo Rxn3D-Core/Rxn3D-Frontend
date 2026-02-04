@@ -1325,6 +1325,7 @@ export function DynamicProductFields({
 
       return (
         <div
+          ref={getFieldRefCallback(config.key)}
           className="relative"
           style={{
             minHeight: '43px',
@@ -1360,7 +1361,6 @@ export function DynamicProductFields({
             }}
           >
             <SelectTrigger
-              ref={getFieldRefCallback(config.key)}
               className={cn(
                 "transition-all duration-200",
                 isFocused && !fieldLocked && "ring-2 ring-[#1162A8] ring-opacity-50 shadow-[0_0_0_4px_rgba(17,98,168,0.15)]"
@@ -1665,43 +1665,129 @@ export function DynamicProductFields({
   }
 
   // Render fields content (used in both normal and saved modes)
-  const renderFieldsContent = () => (
-    <>
-      <div
-        className={layout === "accordion-compact" ? "flex flex-wrap" : "grid grid-cols-2"}
-        style={containerStyle}
-      >
-        {visibleFields.map(field => {
-          const isHiddenForShade = isFieldHiddenDuringShadeSelection(field.key)
+  const renderFieldsContent = () => {
+    if (layout === "accordion-compact") {
+      return (
+        <>
+          <div className="flex flex-wrap" style={containerStyle}>
+            {visibleFields.map(field => {
+              const isHiddenForShade = isFieldHiddenDuringShadeSelection(field.key)
+              return (
+                <div
+                  key={field.key}
+                  style={{
+                    ...getFieldContainerStyle(),
+                    display: isHiddenForShade ? 'none' : undefined
+                  }}
+                >
+                  {renderField(field)}
+                </div>
+              )
+            })}
+            {!hideImpression && shouldShowImpression && impressionConfig && (
+              <div key={impressionConfig.key} style={getFieldContainerStyle()}>
+                {renderField(impressionConfig)}
+              </div>
+            )}
+          </div>
+          {showImplantBrandCards && (
+            <div className="w-full pt-2">
+              <div className="flex flex-col items-center gap-2 w-full">
+                <div className="bg-white w-full flex justify-center">
+                  {shouldShowPlatformCards && mappedPlatforms.length > 0 ? (
+                    <ImplantPlatformCards
+                      platforms={mappedPlatforms}
+                      selectedPlatformId={selectedImplantPlatformId}
+                      onSelectPlatform={(platform: any) => {
+                        if (onSelectImplantPlatform) onSelectImplantPlatform(platform)
+                        setImplantSelectionStep('brand')
+                      }}
+                      arch={arch}
+                      isLoading={false}
+                    />
+                  ) : implantsLoading ? (
+                    <ImplantBrandCards implants={[]} selectedImplantId={selectedImplantId} onSelectImplant={() => {}} arch={arch} isLoading />
+                  ) : implants && implants.length > 0 ? (
+                    <ImplantBrandCards
+                      implants={implants}
+                      selectedImplantId={selectedImplantId}
+                      onSelectImplant={(implant: any) => {
+                        if (onSelectImplant) onSelectImplant(implant)
+                        if (implant.platforms && implant.platforms.length > 0) {
+                          setImplantSelectionStep('platform')
+                          if (onPlatformFieldClick) {
+                            const fn = onPlatformFieldClick as any
+                            if (fn.length === 0) setTimeout(() => fn(), 0)
+                          }
+                        } else {
+                          if (onBrandFieldClick) {
+                            const fn = onBrandFieldClick as any
+                            if (fn.length === 0) setTimeout(() => fn(), 0)
+                          }
+                        }
+                      }}
+                      arch={arch}
+                    />
+                  ) : (
+                    <div className="p-4 text-center text-gray-500">No implants available</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      )
+    }
+
+    // Grid layout: render by row groups so Stage, Stump Shade, Tooth Shade (rowGroup 2) are in one row
+    const rowGroupOrder = Object.keys(fieldsByRow).map(Number).sort((a, b) => a - b)
+    return (
+      <>
+        {rowGroupOrder.map(rowGroup => {
+          const fieldsInRow = fieldsByRow[rowGroup] || []
+          const isShadeRow = rowGroup === 2 // stage, stump_shade, tooth_shade
+          const gridCols = isShadeRow ? 3 : 2
           return (
             <div
-              key={field.key}
+              key={rowGroup}
+              className="grid w-full"
               style={{
-                ...getFieldContainerStyle(),
-                // Use CSS to hide fields during shade selection instead of unmounting
-                // This prevents Radix UI compose-refs infinite loop issues
-                display: isHiddenForShade ? 'none' : undefined
+                gridTemplateColumns: `repeat(${gridCols}, 1fr)`,
+                gap: '4px 8px',
+                marginBottom: rowGroupOrder.indexOf(rowGroup) < rowGroupOrder.length - 1 ? '4px' : 0
               }}
             >
-              {renderField(field)}
+              {fieldsInRow.map(field => {
+                const isHiddenForShade = isFieldHiddenDuringShadeSelection(field.key)
+                return (
+                  <div
+                    key={field.key}
+                    style={{
+                      width: '100%',
+                      display: isHiddenForShade ? 'none' : undefined
+                    }}
+                  >
+                    {renderField(field)}
+                  </div>
+                )
+              })}
             </div>
           )
         })}
 
         {/* Render impression field after advance fields (or after main fields if no advance fields) */}
-        {/* hideImpression prop allows parent to render impression separately after advance fields */}
         {!hideImpression && shouldShowImpression && impressionConfig && (
           <div
             key={impressionConfig.key}
-            style={getFieldContainerStyle()}
+            className="w-full"
+            style={{ marginTop: '4px' }}
           >
             {renderField(impressionConfig)}
           </div>
         )}
-      </div>
 
-      {/* Implant Brand/Platform Cards - Shows at the bottom when implant details field is clicked */}
-      {showImplantBrandCards && (
+        {/* Implant Brand/Platform Cards - Shows at the bottom when implant details field is clicked */}
+        {showImplantBrandCards && (
         <div className="w-full pt-2">
           <div className="flex flex-col items-center gap-2 w-full">
             <div className="bg-white w-full flex justify-center">
@@ -1770,8 +1856,9 @@ export function DynamicProductFields({
           </div>
         </div>
       )}
-    </>
-  )
+      </>
+    )
+  }
 
   // If mode is "saved", render accordion card wrapper
   if (mode === "saved") {
