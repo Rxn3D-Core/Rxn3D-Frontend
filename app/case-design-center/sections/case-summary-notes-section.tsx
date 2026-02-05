@@ -38,9 +38,10 @@ export function CaseSummaryNotesSection({
     <div
       className="relative bg-white border border-[#7F7F7F] rounded-[7.7px] w-full mx-auto"
       style={{
-        marginBottom: "80px",
         marginTop: "10px",
         zIndex: 10,
+        position: "relative",
+        pointerEvents: "auto",
       }}
     >
       <div
@@ -64,6 +65,9 @@ export function CaseSummaryNotesSection({
             display: "flex",
             flexDirection: "column",
             gap: "16px",
+            pointerEvents: "auto",
+            position: "relative",
+            zIndex: 11,
           }}
         >
           <div className="flex flex-col gap-1">
@@ -161,14 +165,6 @@ export function CaseSummaryNotesSection({
               placeholder="Enter mandibular case notes (e.g. Fabricate... for teeth...)"
             />
           </div>
-
-          <p className="text-[10px] sm:text-xs text-gray-500 pt-0">
-            {generateCaseNotes().length > 0 && !maxillaryImplantDetails
-              ? "Case notes are automatically generated from your products. Edit each section to customize; changes will update your product selections."
-              : maxillaryImplantDetails
-                ? "Editing case notes will update your products, categories, subcategories, and teeth selections based on the content."
-                : "Enter case notes in each section to populate products and teeth. Or add products first to generate notes automatically."}
-          </p>
         </div>
       )}
     </div>

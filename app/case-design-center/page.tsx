@@ -272,6 +272,7 @@ export default function CaseDesignCenterPage() {
             boxSizing: 'border-box',
             position: 'relative',
             minHeight: 'calc(100vh - 250px)',
+            paddingBottom: '90px', // Account for fixed footer (72px) plus some extra space
           }}
         >
           {/* Content Area - Full width with minimal padding */}
@@ -792,7 +793,7 @@ export default function CaseDesignCenterPage() {
                                                       )
                                                       return hasImplantRetention
                                                     })() && showImplantBrandCardsInFields.maxillary && implants && implants.length > 0 && (
-                                                        <div className="w-full pt-2">
+                                                        <div className="w-full pt-2" data-implant-details-form="maxillary">
                                                           <div className="flex flex-col items-center gap-2 w-full">
                                                             <div className="bg-white w-full flex justify-center">
                                                               {(() => {
@@ -830,6 +831,13 @@ export default function CaseDesignCenterPage() {
                                                                         setSelectedImplantPlatformForDetails(prev => ({ ...prev, maxillary: platform.id }))
                                                                         // Reset clicked field type after selection
                                                                         setClickedFieldTypeInImplantDetails(prev => ({ ...prev, maxillary: null }))
+                                                                        // Scroll to the implant detail form after platform selection
+                                                                        setTimeout(() => {
+                                                                          const formElement = document.querySelector('[data-implant-details-form="maxillary"]')
+                                                                          if (formElement) {
+                                                                            formElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                                                                          }
+                                                                        }, 100)
                                                                       }}
                                                                       arch="maxillary"
                                                                       showRequired={showValidationErrors}
@@ -864,8 +872,15 @@ export default function CaseDesignCenterPage() {
                                                                           // Auto-show platform cards after brand selection
                                                                           setClickedFieldTypeInImplantDetails(prev => ({ ...prev, maxillary: null }))
                                                                         } else {
-                                                                          // Reset clicked field type after selection
+                                                                          // No platforms, reset clicked field type and scroll to form
                                                                           setClickedFieldTypeInImplantDetails(prev => ({ ...prev, maxillary: null }))
+                                                                          // Scroll to the implant detail form
+                                                                          setTimeout(() => {
+                                                                            const formElement = document.querySelector('[data-implant-details-form="maxillary"]')
+                                                                            if (formElement) {
+                                                                              formElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                                                                            }
+                                                                          }, 100)
                                                                         }
                                                                       }}
                                                                       arch="maxillary"
@@ -926,7 +941,7 @@ export default function CaseDesignCenterPage() {
                                                               flex: 'none',
                                                               alignSelf: 'stretch',
                                                               flexGrow: 0,
-                                                              marginTop: '2px'
+                                                              marginTop: '2px',
                                                             }}
                                                           >
                                                             <div className="w-full">
@@ -2765,6 +2780,13 @@ export default function CaseDesignCenterPage() {
                                                                             }
                                                                             return sp
                                                                           }))
+                                                                          // Scroll to the implant detail form after platform selection
+                                                                          setTimeout(() => {
+                                                                            const formElement = document.querySelector(`[data-implant-field-key="saved_implant_maxillary_${savedProduct.id}"]`)
+                                                                            if (formElement) {
+                                                                              formElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                                                                            }
+                                                                          }, 100)
                                                                         }}
                                                                         arch="maxillary"
                                                                         showRequired={showValidationErrors}
@@ -4021,7 +4043,7 @@ export default function CaseDesignCenterPage() {
                                                       )
                                                       return hasImplantRetention
                                                     })() && showImplantBrandCardsInFields.mandibular && implants && implants.length > 0 && (
-                                                        <div className="w-full pt-2">
+                                                        <div className="w-full pt-2" data-implant-details-form="mandibular">
                                                           <div className="flex flex-col items-center gap-2 w-full">
                                                             <div className="bg-white w-full flex justify-center">
                                                               {(() => {
@@ -4059,6 +4081,13 @@ export default function CaseDesignCenterPage() {
                                                                         setSelectedImplantPlatformForDetails(prev => ({ ...prev, mandibular: platform.id }))
                                                                         // Reset clicked field type after selection
                                                                         setClickedFieldTypeInImplantDetails(prev => ({ ...prev, mandibular: null }))
+                                                                        // Scroll to the implant detail form after platform selection
+                                                                        setTimeout(() => {
+                                                                          const formElement = document.querySelector('[data-implant-details-form="mandibular"]')
+                                                                          if (formElement) {
+                                                                            formElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                                                                          }
+                                                                        }, 100)
                                                                       }}
                                                                       arch="mandibular"
                                                                       showRequired={showValidationErrors}
@@ -4093,8 +4122,15 @@ export default function CaseDesignCenterPage() {
                                                                           // Auto-show platform cards after brand selection
                                                                           setClickedFieldTypeInImplantDetails(prev => ({ ...prev, mandibular: null }))
                                                                         } else {
-                                                                          // Reset clicked field type after selection
+                                                                          // No platforms, reset clicked field type and scroll to form
                                                                           setClickedFieldTypeInImplantDetails(prev => ({ ...prev, mandibular: null }))
+                                                                          // Scroll to the implant detail form
+                                                                          setTimeout(() => {
+                                                                            const formElement = document.querySelector('[data-implant-details-form="mandibular"]')
+                                                                            if (formElement) {
+                                                                              formElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                                                                            }
+                                                                          }, 100)
                                                                         }
                                                                       }}
                                                                       arch="mandibular"
@@ -5986,6 +6022,13 @@ export default function CaseDesignCenterPage() {
                                                                           }
                                                                           return sp
                                                                         }))
+                                                                        // Scroll to the implant detail form after platform selection
+                                                                        setTimeout(() => {
+                                                                          const formElement = document.querySelector(`[data-implant-field-key="saved_implant_mandibular_${savedProduct.id}"]`)
+                                                                          if (formElement) {
+                                                                            formElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                                                                          }
+                                                                        }, 100)
                                                                       }}
                                                                       arch="mandibular"
                                                                       showRequired={showValidationErrors}
@@ -6360,7 +6403,7 @@ export default function CaseDesignCenterPage() {
                       </>
                     )}
 
-                    <div className="relative">
+                    <div className="relative" style={{ zIndex: 20, position: 'relative' }}>
                       <CaseSummaryNotesSection
                         showCaseSummaryNotes={showCaseSummaryNotes}
                         isCaseSummaryExpanded={isCaseSummaryExpanded}

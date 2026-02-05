@@ -139,25 +139,28 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
   }, [selectedPlatform?.name, selectedSize])
 
   useEffect(() => {
-    if (showInclusions && !inclusions) {
+    // Only auto-open inclusions dropdown when platform AND size are both selected
+    if (showInclusions && !inclusions && selectedPlatform?.name && selectedSize) {
       const timer = setTimeout(() => setInclusionsOpen(true), 100)
       return () => clearTimeout(timer)
     }
-  }, [showInclusions, inclusions])
+  }, [showInclusions, inclusions, selectedPlatform?.name, selectedSize])
 
   useEffect(() => {
-    if (showAbutmentRow && !abutmentDetail) {
+    // Only auto-open abutment detail dropdown when inclusions is selected
+    if (showAbutmentRow && !abutmentDetail && inclusions) {
       const timer = setTimeout(() => setAbutmentDetailOpen(true), 100)
       return () => clearTimeout(timer)
     }
-  }, [showAbutmentRow, abutmentDetail])
+  }, [showAbutmentRow, abutmentDetail, inclusions])
 
   useEffect(() => {
-    if (showAbutmentType && !abutmentType) {
+    // Only auto-open abutment type dropdown when abutment detail is selected
+    if (showAbutmentType && !abutmentType && abutmentDetail) {
       const timer = setTimeout(() => setAbutmentTypeOpen(true), 100)
       return () => clearTimeout(timer)
     }
-  }, [showAbutmentType, abutmentType])
+  }, [showAbutmentType, abutmentType, abutmentDetail])
 
   const onInclusionsChangeRef = useRef(onInclusionsChange)
   const onAbutmentDetailChangeRef = useRef(onAbutmentDetailChange)
@@ -476,8 +479,8 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
 
           {/* Row 2: Inclusions, Abutment Details, Abutment Type */}
 
-          {/* Implant Inclusions - Show only if Size is selected */}
-          {showInclusions && (
+          {/* Implant Inclusions - Show only if Platform AND Size are selected */}
+          {showInclusions && hasValue(selectedPlatform?.name) && hasValue(selectedSize) && (
             <div className="relative" style={{ minHeight: '50px', paddingTop: '8px', width: '100%' }}>
               <Select
                 value={inclusions}
@@ -531,7 +534,7 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
           )}
 
           {/* Abutment Details - Show only if Inclusions is selected */}
-          {showAbutmentRow && (
+          {showAbutmentRow && hasValue(inclusions) && (
             <div className="relative" style={{ minHeight: '50px', paddingTop: '8px', width: '100%' }}>
               <Select
                 value={abutmentDetail}
@@ -579,7 +582,7 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
           )}
 
           {/* Abutment Type - Show only if Abutment Details is selected */}
-          {showAbutmentType && (
+          {showAbutmentType && hasValue(abutmentDetail) && (
             <div className="relative" style={{ minHeight: '50px', paddingTop: '8px', width: '100%' }}>
               <Select
                 value={abutmentType}

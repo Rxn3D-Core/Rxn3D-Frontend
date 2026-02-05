@@ -3465,6 +3465,29 @@ export function useCaseDesignCenter() {
           image_url: selectedProduct.image_url?.startsWith('data:') ? undefined : selectedProduct.image_url
         } : null,
         showProductDetails,
+        // Teeth selection state
+        maxillaryTeeth,
+        mandibularTeeth,
+        maxillaryRetentionTypes,
+        mandibularRetentionTypes,
+        showMaxillaryChart,
+        showMandibularChart,
+        selectedProductForMaxillary: selectedProductForMaxillary ? {
+          id: selectedProductForMaxillary.id,
+          name: selectedProductForMaxillary.name,
+          code: selectedProductForMaxillary.code,
+          price: selectedProductForMaxillary.price,
+          estimated_days: selectedProductForMaxillary.estimated_days,
+          image_url: selectedProductForMaxillary.image_url?.startsWith('data:') ? undefined : selectedProductForMaxillary.image_url
+        } : null,
+        selectedProductForMandibular: selectedProductForMandibular ? {
+          id: selectedProductForMandibular.id,
+          name: selectedProductForMandibular.name,
+          code: selectedProductForMandibular.code,
+          price: selectedProductForMandibular.price,
+          estimated_days: selectedProductForMandibular.estimated_days,
+          image_url: selectedProductForMandibular.image_url?.startsWith('data:') ? undefined : selectedProductForMandibular.image_url
+        } : null,
         // UI state
         openAccordionMaxillary,
         openAccordionMandibular,
@@ -3574,6 +3597,32 @@ export function useCaseDesignCenter() {
           }
         }
 
+        // Restore teeth selection state
+        if (state.maxillaryTeeth && Array.isArray(state.maxillaryTeeth)) {
+          setMaxillaryTeeth(state.maxillaryTeeth)
+        }
+        if (state.mandibularTeeth && Array.isArray(state.mandibularTeeth)) {
+          setMandibularTeeth(state.mandibularTeeth)
+        }
+        if (state.maxillaryRetentionTypes) {
+          setMaxillaryRetentionTypes(state.maxillaryRetentionTypes)
+        }
+        if (state.mandibularRetentionTypes) {
+          setMandibularRetentionTypes(state.mandibularRetentionTypes)
+        }
+        if (typeof state.showMaxillaryChart === 'boolean') {
+          setShowMaxillaryChart(state.showMaxillaryChart)
+        }
+        if (typeof state.showMandibularChart === 'boolean') {
+          setShowMandibularChart(state.showMandibularChart)
+        }
+        if (state.selectedProductForMaxillary) {
+          setSelectedProductForMaxillary(state.selectedProductForMaxillary as Product)
+        }
+        if (state.selectedProductForMandibular) {
+          setSelectedProductForMandibular(state.selectedProductForMandibular as Product)
+        }
+
         // Restore UI state (support legacy openAccordion for backward compatibility)
         if (state.openAccordionMaxillary != null) setOpenAccordionMaxillary(state.openAccordionMaxillary)
         if (state.openAccordionMandibular != null) setOpenAccordionMandibular(state.openAccordionMandibular === "mandibular-card" ? "mandibular-card" : String(state.openAccordionMandibular))
@@ -3615,6 +3664,16 @@ export function useCaseDesignCenter() {
     products,
     selectedProduct,
     showProductDetails,
+    // Teeth selection state
+    maxillaryTeeth,
+    mandibularTeeth,
+    maxillaryRetentionTypes,
+    mandibularRetentionTypes,
+    showMaxillaryChart,
+    showMandibularChart,
+    selectedProductForMaxillary,
+    selectedProductForMandibular,
+    // UI state
     openAccordionMaxillary,
     openAccordionMandibular,
     showAdvanceFields,
