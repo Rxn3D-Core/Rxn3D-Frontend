@@ -2414,6 +2414,81 @@ export function useCaseDesignCenter() {
     if (savedProduct.mandibularImplantDetails) {
       setMandibularImplantDetails(savedProduct.mandibularImplantDetails)
     }
+
+    // Initialize implant brand/platform state for accordion content to display implant details
+    // This ensures ImplantDetailForm can find the selected brand when accordion opens
+    if (savedProduct.maxillaryImplantBrand) {
+      setSelectedImplantBrandPerProduct(prev => ({
+        ...prev,
+        [savedProduct.id]: {
+          ...prev[savedProduct.id],
+          maxillary: typeof savedProduct.maxillaryImplantBrand === 'number'
+            ? savedProduct.maxillaryImplantBrand
+            : Number(savedProduct.maxillaryImplantBrand) || savedProduct.maxillaryImplantBrand
+        }
+      }))
+    }
+    if (savedProduct.maxillaryImplantPlatform) {
+      // Find the platform ID from implants data
+      const brandId = savedProduct.maxillaryImplantBrand
+      const brand = brandId ? implants.find((imp: any) =>
+        imp.id === brandId ||
+        imp.id === Number(brandId) ||
+        String(imp.id) === String(brandId) ||
+        imp.brand_name === brandId
+      ) : null
+      if (brand) {
+        const platform = brand.platforms?.find((p: any) =>
+          p.name === savedProduct.maxillaryImplantPlatform ||
+          String(p.id) === String(savedProduct.maxillaryImplantPlatform)
+        )
+        if (platform) {
+          setSelectedImplantPlatformPerProduct(prev => ({
+            ...prev,
+            [savedProduct.id]: {
+              ...prev[savedProduct.id],
+              maxillary: platform.id
+            }
+          }))
+        }
+      }
+    }
+    if (savedProduct.mandibularImplantBrand) {
+      setSelectedImplantBrandPerProduct(prev => ({
+        ...prev,
+        [savedProduct.id]: {
+          ...prev[savedProduct.id],
+          mandibular: typeof savedProduct.mandibularImplantBrand === 'number'
+            ? savedProduct.mandibularImplantBrand
+            : Number(savedProduct.mandibularImplantBrand) || savedProduct.mandibularImplantBrand
+        }
+      }))
+    }
+    if (savedProduct.mandibularImplantPlatform) {
+      // Find the platform ID from implants data
+      const brandId = savedProduct.mandibularImplantBrand
+      const brand = brandId ? implants.find((imp: any) =>
+        imp.id === brandId ||
+        imp.id === Number(brandId) ||
+        String(imp.id) === String(brandId) ||
+        imp.brand_name === brandId
+      ) : null
+      if (brand) {
+        const platform = brand.platforms?.find((p: any) =>
+          p.name === savedProduct.mandibularImplantPlatform ||
+          String(p.id) === String(savedProduct.mandibularImplantPlatform)
+        )
+        if (platform) {
+          setSelectedImplantPlatformPerProduct(prev => ({
+            ...prev,
+            [savedProduct.id]: {
+              ...prev[savedProduct.id],
+              mandibular: platform.id
+            }
+          }))
+        }
+      }
+    }
   }
 
   // Handler for stage selection
