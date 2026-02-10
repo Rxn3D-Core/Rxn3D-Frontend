@@ -51,10 +51,9 @@ export function FooterSection({
     <div
       className="bg-white flex-shrink-0 z-50"
       style={{
-        minHeight: "72px",
+        height: "50px",
         background: "#FFFFFF",
-        borderTop: "1px solid #e5e7eb",
-        boxShadow: "0 -4px 16px rgba(0, 0, 0, 0.12)",
+        boxShadow: "0 -2px 8px rgba(0, 0, 0, 0.1)",
         position: "fixed",
         bottom: 0,
         left: 0,
@@ -63,7 +62,7 @@ export function FooterSection({
         zIndex: 9999,
       }}
     >
-      <div className="flex justify-between items-center h-full min-h-[72px] px-6 py-3 relative">
+      <div className="flex justify-between items-center h-full px-4 relative">
         {/* Teeth selection page footer: Cancel Slip on left, Submit and Popover on right */}
         <div className="flex justify-between items-center w-full">
             {/* Cancel Slip button on left */}
@@ -75,16 +74,16 @@ export function FooterSection({
                 flexDirection: "row",
                 justifyContent: "center",
                 alignItems: "center",
-                padding: "10px 16px",
+                padding: "8px 12px",
                 gap: "8px",
-                minWidth: "120px",
-                height: "36px",
+                minWidth: "100px",
+                height: "24px",
                 border: "2px solid #EF4444",
                 borderRadius: "5px",
                 fontFamily: "Verdana",
                 fontStyle: "normal",
                 fontWeight: 700,
-                fontSize: "14px",
+                fontSize: "11px",
                 lineHeight: "20px",
                 letterSpacing: "-0.02em",
                 color: "#fff",
@@ -99,30 +98,30 @@ export function FooterSection({
             {/* Warning, Checkbox, and Submit button on right */}
             {isAccordionComplete() && (
               <div className="flex items-center gap-2">
-                {/* Popover (checkbox with warning and submit button) */}
+                {/* Popover (checkbox with warning) */}
                 <div
-                  className="flex items-center gap-3"
+                  className="flex items-center gap-1.5"
                   style={{
-                    padding: "12px 18px",
+                    padding: "5px 10px",
                     border: "1px solid #fbbf24",
-                    borderRadius: "8px",
+                    borderRadius: "5px",
                     backgroundColor: confirmDetailsChecked ? "#fef3c7" : "transparent",
                     transition: "background-color 0.2s ease",
                   }}
                 >
                   <TriangleAlert
-                    className="h-6 w-6 flex-shrink-0"
+                    className="h-5 w-5 flex-shrink-0"
                     style={{ color: "#fbbf24" }}
                   />
                   <label
                     htmlFor="confirm-details-footer"
-                    className="cursor-pointer whitespace-nowrap"
+                    className="text-xs cursor-pointer whitespace-nowrap"
                     style={{
                       fontFamily: "Arial",
                       fontStyle: "normal",
                       fontWeight: 400,
-                      fontSize: "16px",
-                      lineHeight: "22px",
+                      fontSize: "12px",
+                      lineHeight: "16px",
                       color: "#000000",
                     }}
                   >
@@ -138,85 +137,86 @@ export function FooterSection({
                         onShowSubmitPopoverChange(false)
                       }
                     }}
-                    className="flex-shrink-0 h-5 w-5"
+                    className="flex-shrink-0 h-4 w-4"
                     style={{
                       borderColor: "#1162a8",
                       backgroundColor: confirmDetailsChecked ? "#1162a8" : "transparent",
                     }}
                   />
-                  {/* Submit Case button - Only show when checkbox is checked */}
-                  {confirmDetailsChecked && (
-                    <Button
-                      onClick={(e) => {
-                        e.preventDefault()
-                        onShowSubmitPopoverChange(false)
-                        onSubmit()
-                      }}
-                      disabled={isSubmitting}
-                      style={{
-                        display: "flex",
-                        flexDirection: "row",
-                        justifyContent: "center",
-                        alignItems: "center",
-                        padding: "10px 14px",
-                        gap: "8px",
-                        minWidth: "120px",
-                        height: "36px",
-                        background: isSubmitting ? "#9BA5B7" : "#1162A8",
-                        borderRadius: "5px",
-                        border: "none",
-                        fontFamily: "Verdana",
-                        fontStyle: "normal",
-                        fontWeight: 700,
-                        fontSize: "14px",
-                        lineHeight: "20px",
-                        letterSpacing: "-0.02em",
-                        color: "#FFFFFF",
-                        opacity: isSubmitting ? 0.5 : 1,
-                        cursor: isSubmitting ? "not-allowed" : "pointer",
-                        whiteSpace: "nowrap",
-                      }}
-                      className="hover:opacity-90 disabled:opacity-50"
-                    >
-                      {isSubmitting ? (
-                        <>
-                          <Loader2
-                            style={{
-                              width: "18px",
-                              height: "18px",
-                              flex: "none",
-                              order: 0,
-                              flexGrow: 0,
-                            }}
-                            className="animate-spin"
-                          />
-                          <span
-                            style={{
-                              flex: "none",
-                              order: 1,
-                              flexGrow: 0,
-                            }}
-                          >
-                            Submitting...
-                          </span>
-                        </>
-                      ) : (
+                </div>
+
+                {/* Submit Case button - Only show when checkbox is checked */}
+                {confirmDetailsChecked && (
+                  <Button
+                    onClick={(e) => {
+                      e.preventDefault()
+                      onShowSubmitPopoverChange(false)
+                      onSubmit()
+                    }}
+                    disabled={isSubmitting}
+                    style={{
+                      display: "flex",
+                      flexDirection: "row",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      padding: "8px 12px",
+                      gap: "8px",
+                      minWidth: "100px",
+                      height: "24px",
+                      background: isSubmitting ? "#9BA5B7" : "#1162A8",
+                      borderRadius: "5px",
+                      border: "none",
+                      fontFamily: "Verdana",
+                      fontStyle: "normal",
+                      fontWeight: 700,
+                      fontSize: "11px",
+                      lineHeight: "20px",
+                      letterSpacing: "-0.02em",
+                      color: "#FFFFFF",
+                      opacity: isSubmitting ? 0.5 : 1,
+                      cursor: isSubmitting ? "not-allowed" : "pointer",
+                      whiteSpace: "nowrap",
+                    }}
+                    className="hover:opacity-90 disabled:opacity-50"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2
+                          style={{
+                            width: "18px",
+                            height: "18px",
+                            flex: "none",
+                            order: 0,
+                            flexGrow: 0,
+                          }}
+                          className="animate-spin"
+                        />
                         <span
                           style={{
-                            height: "18px",
-                            display: "flex",
-                            alignItems: "center",
                             flex: "none",
                             order: 1,
                             flexGrow: 0,
                           }}
                         >
-                          Submit Case
+                          Submitting...
                         </span>
-                      )}
-                    </Button>
-                  )}
-                </div>
+                      </>
+                    ) : (
+                      <span
+                        style={{
+                          height: "18px",
+                          display: "flex",
+                          alignItems: "center",
+                          flex: "none",
+                          order: 1,
+                          flexGrow: 0,
+                        }}
+                      >
+                        Submit Case
+                      </span>
+                    )}
+                  </Button>
+                )}
               </div>
             )}
         </div>

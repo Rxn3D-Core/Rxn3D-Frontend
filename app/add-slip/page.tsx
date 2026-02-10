@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import DentalSlipPage from "@/dental-slip-page"
 import { useToast } from "@/hooks/use-toast"
+import { SlipCreationStepFooter } from "@/components/slip-creation-step-footer"
 
 /**
  * Standalone Add Slip Page
@@ -82,7 +83,7 @@ export default function AddSlipPage() {
   }
 
   return (
-    <div className="w-full h-full overflow-auto bg-background">
+    <div className="w-full h-full overflow-auto bg-background" style={{ paddingBottom: "50px" }}>
       <DentalSlipPage
         slipData={slipData}
         setSlipData={setSlipData}
@@ -96,6 +97,13 @@ export default function AddSlipPage() {
         hideSlipHeader={false}
         isModal={false} // This is a standalone page, not a modal
         onAddSlipComplete={handleSlipComplete} // Navigate after completion
+      />
+
+      {/* Footer - Consistent across all pages */}
+      <SlipCreationStepFooter
+        mode="navigation"
+        showPrevious={false}
+        onCancelSlip={handleCancel}
       />
     </div>
   )

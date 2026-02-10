@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useClearCaseDesignCenterStateMutation } from "@/hooks/use-case-design-center-state"
 import { SlipCreationHeader } from "@/components/slip-creation-header"
 import { clearSlipCreationStorage } from "@/utils/slip-creation-storage"
-import { SlipCreationFooter } from "@/components/slip-creation-footer"
+import { SlipCreationStepFooter } from "@/components/slip-creation-step-footer"
 import { Dialog, DialogContent, DialogOverlay, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 
 interface Doctor {
@@ -200,18 +200,19 @@ export default function PatientInputPage() {
       </div>
 
       {/* Footer - Consistent across all pages */}
-      <SlipCreationFooter 
+      <SlipCreationStepFooter
+        mode="navigation"
         showPrevious={true}
         onPrevious={() => {
           // Get user role to determine previous step
           const role = typeof window !== "undefined" ? localStorage.getItem("role") || "" : ""
           const doctorId = searchParams.get("doctorId")
           const labId = searchParams.get("labId")
-          
+
           // If office_admin, go back to choose-lab
           if (role === "office_admin") {
             router.push("/choose-lab")
-          } 
+          }
           // If doctorId exists, go back to choose-doctor
           else if (doctorId) {
             router.push(`/choose-doctor${labId ? `?labId=${labId}` : ""}`)

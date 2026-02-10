@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { Filter, Plus, Search, FileText, ChevronDown, Check } from "lucide-react";
+import { Filter, Plus, Search, ChevronDown, Check } from "lucide-react";
+import { SlipCreationStepFooter } from "@/components/slip-creation-step-footer";
 
 /* ------------------------------------------------------------------ */
 /*  Data                                                               */
@@ -25,9 +26,9 @@ const labs = [
 ];
 
 const categories = [
-  { id: "fixed", name: "Fixed Restoration", img: "/products/fixed-restoration.jpg" },
-  { id: "removable", name: "Removable Restoration", img: "/products/removable-restoration.jpg" },
-  { id: "orthodontics", name: "Orthodontics", img: "/products/orthodontics.jpg" },
+  { id: "fixed", name: "Fixed Restoration", img: "/products/fixed-restoration.png" },
+  { id: "removable", name: "Removable Restoration", img: "/products/removable-restoration.png" },
+  { id: "orthodontics", name: "Orthodontics", img: "/products/orthodontics.png" },
 ];
 
 const subProducts: Record<string, { id: string; name: string; img: string }[]> = {
@@ -130,15 +131,15 @@ function StepDoctor({
         {doctors.length} doctors found
       </p>
 
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-6 justify-items-center">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 sm:gap-6 justify-items-center">
         {doctors.map((doc) => (
           <button
             key={doc.id}
             onClick={() => onSelect(doc.id)}
-            className="group flex flex-col items-center gap-3 p-4 transition-all"
+            className="group flex flex-col items-center gap-3 p-2 sm:p-4 transition-all w-full max-w-[250px]"
           >
             <div
-              className={`w-[219.68px] h-[219.68px] rounded-full overflow-hidden flex-shrink-0 transition-all ${
+              className={`w-full aspect-square max-w-[219.68px] rounded-full overflow-hidden flex-shrink-0 transition-all ${
                 selected === doc.id
                   ? "border-[4px] border-[#1162A8]"
                   : "border-[4px] border-[#d9d9d9] group-hover:border-[#1162a8]/100"
@@ -351,7 +352,7 @@ function StepPatientInfo({
                     gender ? "text-[#1d1d1b]" : "text-[#9ba5b7]"
                   }`}
                 >
-                  {gender || "Select Gender"}
+                  {gender || "\u00A0"}
                 </button>
                 {gender.trim().length > 0 && (
                   <Check size={16} className="text-[#34a853] flex-shrink-0" />
@@ -428,40 +429,40 @@ function StepCategory({
         CASE DESIGN CENTER
       </h2>
 
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-[14px] font-bold text-[#1d1d1b] tracking-wide">
-        </h3>
-        <div className="flex items-center gap-2 border border-[#d9d9d9] rounded-full px-3 py-1.5 bg-white">
-          <Search size={14} className="text-[#9ba5b7]" />
+      <div className="flex justify-center mb-4">
+        <div className="relative w-full max-w-[373px] h-[34px] border border-[#B4B0B0] rounded-[4px] flex items-center px-3 gap-3">
           <input
             type="text"
             placeholder="Search Product"
-            className="text-[12px] text-[#1d1d1b] bg-transparent outline-none w-[140px]"
+            className="flex-1 text-[14px] font-normal text-[#1d1d1b] bg-transparent outline-none tracking-[-0.02em] leading-[22px] placeholder:text-[#B4B0B0]"
+            style={{ fontFamily: "Verdana, sans-serif" }}
           />
+          <Search size={12} className="text-[#B4B0B0] flex-shrink-0" />
         </div>
-        <h3 className="text-[14px] font-bold text-[#1d1d1b] tracking-wide">
-        </h3>
       </div>
 
-      <div className="flex justify-center gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6 max-w-[640px] mx-auto w-full">
         {categories.map((cat) => (
           <button
             key={cat.id}
             onClick={() => onSelect(cat.id)}
-            className="group relative flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all hover:border-[#1162a8] border-[#d9d9d9] bg-white w-[155px] h-[185px]"
+            className={`group flex flex-col items-center px-3 sm:px-4 py-[5px] gap-2 rounded-[7px] border-[3px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${
+              selected === cat.id
+                ? "border-[#1162A8] bg-[#1162A8]/5"
+                : "border-[#d9d9d9] bg-white"
+            }`}
           >
-            {/* "Click and select" text - shown on hover */}
-            <span className="absolute top-2 text-[11px] text-[#7f7f7f] opacity-0 group-hover:opacity-100 transition-opacity">
-              Click and select
-            </span>
-            <div className="w-[120px] h-[90px] rounded overflow-hidden">
+            <div className="w-full aspect-square rounded-[4px] overflow-hidden flex-shrink-0">
               <img
                 src={cat.img || "/placeholder.svg"}
                 alt={cat.name}
                 className="w-full h-full object-cover"
               />
             </div>
-            <span className="text-[12px] font-semibold text-[#1d1d1b] text-center">
+            <span
+              className="text-[14px] font-normal text-black text-center self-stretch tracking-[-0.02em] leading-[15px] pb-1"
+              style={{ fontFamily: "Verdana, sans-serif" }}
+            >
               {cat.name}
             </span>
           </button>
@@ -502,41 +503,41 @@ function StepSubProduct({
         CASE DESIGN CENTER
       </h2>
 
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-[14px] font-bold text-[#1d1d1b] tracking-wide">
-        </h3>
-        <div className="flex items-center gap-2 border border-[#d9d9d9] rounded-full px-3 py-1.5 bg-white">
-          <Search size={14} className="text-[#9ba5b7]" />
+      <div className="flex justify-center mb-4">
+        <div className="relative w-full max-w-[373px] h-[34px] border border-[#B4B0B0] rounded-[4px] flex items-center px-3 gap-3">
           <input
             type="text"
             placeholder="Search Product"
-            className="text-[12px] text-[#1d1d1b] bg-transparent outline-none w-[140px]"
+            className="flex-1 text-[14px] font-normal text-[#1d1d1b] bg-transparent outline-none tracking-[-0.02em] leading-[22px] placeholder:text-[#B4B0B0]"
+            style={{ fontFamily: "Verdana, sans-serif" }}
           />
+          <Search size={12} className="text-[#B4B0B0] flex-shrink-0" />
         </div>
-        <h3 className="text-[14px] font-bold text-[#1d1d1b] tracking-wide">
-        </h3>
       </div>
 
       {/* Product grid */}
-      <div className="flex flex-wrap justify-center gap-3 mb-6">
+      <div className="flex flex-wrap justify-center gap-4 mb-6">
         {products.map((prod) => (
           <button
             key={prod.id}
             onClick={() => onSelect(prod.id)}
-            className="group relative flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all hover:border-[#1162a8] border-[#d9d9d9] bg-white w-[130px]"
+            className={`group flex flex-col items-center px-4 py-[5px] gap-2 w-[155px] sm:w-[180px] md:w-[200px] rounded-[7px] border-[3px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${
+              selected === prod.id
+                ? "border-[#1162A8] bg-[#1162A8]/5"
+                : "border-[#d9d9d9] bg-white"
+            }`}
           >
-            {/* "Click and select" text - shown on hover */}
-            <span className="absolute top-1 text-[10px] text-[#7f7f7f] opacity-0 group-hover:opacity-100 transition-opacity">
-              Click and select
-            </span>
-            <div className="w-[100px] h-[80px] rounded overflow-hidden">
+            <div className="w-full aspect-square rounded-[4px] overflow-hidden flex-shrink-0">
               <img
                 src={prod.img || "/placeholder.svg"}
                 alt={prod.name}
                 className="w-full h-full object-cover"
               />
             </div>
-            <span className="text-[11px] font-semibold text-[#1d1d1b] text-center leading-tight">
+            <span
+              className="text-[14px] font-normal text-black text-center self-stretch tracking-[-0.02em] leading-[15px] pb-1"
+              style={{ fontFamily: "Verdana, sans-serif" }}
+            >
               {prod.name}
             </span>
           </button>
@@ -596,38 +597,31 @@ function StepMaterial({
         CASE DESIGN CENTER
       </h2>
 
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-[14px] font-bold text-[#1d1d1b] tracking-wide">
-        </h3>
-        <div className="flex items-center gap-2 border border-[#d9d9d9] rounded-full px-3 py-1.5 bg-white">
-          <Search size={14} className="text-[#9ba5b7]" />
+      <div className="flex justify-center mb-4">
+        <div className="relative w-full max-w-[373px] h-[34px] border border-[#B4B0B0] rounded-[4px] flex items-center px-3 gap-3">
           <input
             type="text"
             placeholder="Search Product"
-            className="text-[12px] text-[#1d1d1b] bg-transparent outline-none w-[140px]"
+            className="flex-1 text-[14px] font-normal text-[#1d1d1b] bg-transparent outline-none tracking-[-0.02em] leading-[22px] placeholder:text-[#B4B0B0]"
+            style={{ fontFamily: "Verdana, sans-serif" }}
           />
+          <Search size={12} className="text-[#B4B0B0] flex-shrink-0" />
         </div>
-        <h3 className="text-[14px] font-bold text-[#1d1d1b] tracking-wide">
-        </h3>
       </div>
 
       {/* Material cards grid */}
-      <div className="flex flex-wrap justify-center gap-[10px] mb-6">
+      <div className="flex flex-wrap justify-center gap-4 mb-6">
         {items.map((mat) => (
           <button
             key={mat.id}
             onClick={() => onSelect(mat.id)}
-            style={{ width: 155, height: 210, padding: "5px 16px", gap: 10, borderRadius: 7 }}
-            className="group relative flex flex-col items-center transition-all border border-[#d9d9d9] bg-white hover:border-[#1162a8]"
+            className="group relative flex flex-col items-center px-4 py-[5px] gap-[10px] w-[155px] sm:w-[180px] md:w-[200px] rounded-[7px] transition-all border border-[#d9d9d9] bg-white hover:border-[#1162a8]"
           >
             {/* "Click and select" text - shown on hover */}
             <span className="absolute top-1 text-[10px] text-[#7f7f7f] opacity-0 group-hover:opacity-100 transition-opacity">
               Click and select
             </span>
-            <div
-              style={{ width: 140, height: 140, borderRadius: 5 }}
-              className="overflow-hidden bg-[#080808] flex-shrink-0"
-            >
+            <div className="w-full aspect-square rounded-[5px] overflow-hidden bg-[#080808] flex-shrink-0">
               <img
                 src={mat.img || "/placeholder.svg"}
                 alt={mat.name}
@@ -693,17 +687,23 @@ function PatientMiniHeader({
         )}
 
         <div className="flex flex-col gap-2 pt-1">
-          <fieldset className="border border-[#b4b0b0] rounded px-3 pb-1 pt-0 relative">
-            <legend className="text-[10px] text-[#7f7f7f] px-1 leading-none">
+          <fieldset className="border border-[#34a853] rounded px-3 pb-1 pt-0 relative">
+            <legend className="text-[10px] text-[#34a853] px-1 leading-none">
               Patient name
             </legend>
-            <span className="text-[12px] text-[#1d1d1b]">{patientName}</span>
+            <div className="flex items-center gap-1">
+              <span className="text-[12px] text-[#1d1d1b]">{patientName}</span>
+              <Check size={14} className="text-[#34a853] flex-shrink-0" />
+            </div>
           </fieldset>
-          <fieldset className="border border-[#b4b0b0] rounded px-3 pb-1 pt-0 relative">
-            <legend className="text-[10px] text-[#7f7f7f] px-1 leading-none">
+          <fieldset className="border border-[#34a853] rounded px-3 pb-1 pt-0 relative">
+            <legend className="text-[10px] text-[#34a853] px-1 leading-none">
               Gender
             </legend>
-            <span className="text-[11px] text-[#1d1d1b]">{gender}</span>
+            <div className="flex items-center gap-1">
+              <span className="text-[11px] text-[#1d1d1b]">{gender}</span>
+              <Check size={14} className="text-[#34a853] flex-shrink-0" />
+            </div>
           </fieldset>
         </div>
       </div>
@@ -874,35 +874,43 @@ export default function NewCaseWizard({
         )}
       </div>
 
-      {/* Bottom bar */}
-      <div className="border-t border-[#d9d9d9] bg-[#fdfdfd] px-6 py-3 flex items-center justify-between flex-shrink-0">
-        <div>
-          {step >= 4 && (
-            <button className="flex items-center gap-2 border border-[#d9d9d9] text-[#1d1d1b] text-[12px] font-medium px-4 py-2 rounded hover:bg-[#eef1f4] transition-colors bg-transparent">
-              <FileText size={14} />
-              Preview
-            </button>
-          )}
-        </div>
+      {/* Bottom bar for steps 1-3 (doctor, lab, patient info) */}
+      {step <= 3 && (
+        <div className="border-t border-[#d9d9d9] bg-[#fdfdfd] px-6 py-3 flex items-center justify-between flex-shrink-0">
+          <div />
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleCancel}
-            className="border border-[#1162a8] text-[#1162a8] text-[12px] font-semibold px-6 py-2 rounded hover:bg-[#dfeefb]/30 transition-colors bg-transparent"
-          >
-            Cancel
-          </button>
-          {(step === 3 || step === 6) && (
+          <div className="flex items-center gap-3">
             <button
-              onClick={handleNext}
-              disabled={!canProceed()}
-              className="bg-[#1162a8] hover:bg-[#0d4a85] disabled:bg-[#9ba5b7] text-white text-[12px] font-semibold px-6 py-2 rounded transition-colors"
+              onClick={handleCancel}
+              className="border border-[#1162a8] text-[#1162a8] text-[12px] font-semibold px-6 py-2 rounded hover:bg-[#dfeefb]/30 transition-colors bg-transparent"
             >
-              {step === 6 ? "Submit Case" : "Next"}
+              Cancel
             </button>
-          )}
+            {step === 3 && (
+              <button
+                onClick={handleNext}
+                disabled={!canProceed()}
+                className="bg-[#1162a8] hover:bg-[#0d4a85] disabled:bg-[#9ba5b7] text-white text-[12px] font-semibold px-6 py-2 rounded transition-colors"
+              >
+                Next
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* SlipCreationStepFooter for steps 4-6 (category, subcategory, product) */}
+      {step >= 4 && (
+        <SlipCreationStepFooter
+          mode="navigation"
+          showPrevious={true}
+          onPrevious={() => {
+            if (step > 1) {
+              setStep(step - 1);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

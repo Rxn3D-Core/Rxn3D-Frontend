@@ -20,7 +20,7 @@ import { useToast } from "@/hooks/use-toast"
 import { CustomerLogo } from "@/components/customer-logo"
 import { SlipCreationHeader } from "@/components/slip-creation-header"
 import { useDebounce } from "@/lib/performance-utils"
-import { SlipCreationFooter } from "@/components/slip-creation-footer"
+import { SlipCreationStepFooter } from "@/components/slip-creation-step-footer"
 import { AddNewLabModal } from "@/components/add-new-lab-modal"
 import { useCustomerLogoStore } from "@/stores/customer-logo-store"
 import { Dialog, DialogContent, DialogOverlay, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
@@ -645,7 +645,8 @@ export default function ChooseLabPage() {
         </div>
 
         {/* Footer - Consistent across all pages */}
-        <SlipCreationFooter 
+        <SlipCreationStepFooter
+          mode="navigation"
           showPrevious={true}
           onPrevious={() => {
             // Check if we came from choose-doctor (doctorId in URL)

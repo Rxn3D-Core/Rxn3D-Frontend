@@ -20,7 +20,7 @@ import { useToast } from "@/hooks/use-toast"
 import { SlipCreationHeader } from "@/components/slip-creation-header"
 import { AddDoctorModal } from "@/components/add-doctor-modal"
 import { clearSlipCreationStorage } from "@/utils/slip-creation-storage"
-import { SlipCreationFooter } from "@/components/slip-creation-footer"
+import { SlipCreationStepFooter } from "@/components/slip-creation-step-footer"
 import { useDebounce } from "@/lib/performance-utils"
 import { Dialog, DialogContent, DialogOverlay, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -659,13 +659,14 @@ export default function ChooseDoctorPage() {
         </div>
 
         {/* Footer - Consistent across all pages */}
-        <SlipCreationFooter 
+        <SlipCreationStepFooter
+          mode="navigation"
           showPrevious={true}
           onPrevious={() => {
             // Check if we came from choose-lab (labId in URL)
             const labId = searchParams.get("labId")
             const doctorId = searchParams.get("doctorId")
-            
+
             if (labId) {
               // Preserve doctorId if it exists when navigating back to choose-lab
               if (doctorId) {
