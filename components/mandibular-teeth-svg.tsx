@@ -89,12 +89,12 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
   // Position above the specific tooth that triggered the popover
   const getPopoverPosition = () => {
     if (!showRetentionPopover || retentionPopoverTooth === null) {
-      return { left: 0, top: 0 }
+      return { left: 0, top: 0, transform: 'translateX(-50%)' }
     }
 
     // Wait for svgRef to be available
     if (!svgRef.current) {
-      return { left: 0, top: 0 }
+      return { left: 0, top: 0, transform: 'translateX(-50%)' }
     }
 
     const svgRect = svgRef.current.getBoundingClientRect()
@@ -102,30 +102,43 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
 
     // Check if we have valid dimensions
     if (!svgViewBox || svgViewBox.width === 0 || svgViewBox.height === 0) {
-      return { left: 0, top: 0 }
+      return { left: 0, top: 0, transform: 'translateX(-50%)' }
     }
 
     const scaleX = svgRect.width / svgViewBox.width
-    const scaleY = svgRect.height / svgViewBox.height
 
     // Get the position of the specific tooth that triggered the popover
     const toothPos = circlePositions[retentionPopoverTooth]
     if (!toothPos) {
-      return { left: 0, top: 0 }
+      return { left: 0, top: 0, transform: 'translateX(-50%)' }
     }
 
-    // Convert SVG coordinates to viewport coordinates
+    // Convert SVG X coordinate to viewport coordinate
     const viewportX = svgRect.left + (toothPos.cx * scaleX)
-    // Position well above the SVG to avoid covering teeth
-    // Popover height is ~60px, so position it higher above the top of SVG for clear spacing
+
+    // Position above the SVG with spacing
     const topOfSvg = svgRect.top
-    const popoverHeight = 60 // Approximate height of the popover
-    const spacing = 40 // Additional spacing above popover (increased for more clearance)
+    const popoverHeight = 60
+    const spacing = 40
     const popoverTop = topOfSvg - popoverHeight - spacing
+
+    // Determine transform based on tooth position relative to SVG
+    // For right-edge teeth, align popover's right edge to the tooth
+    // For left-edge teeth, align popover's left edge to the tooth
+    const toothRatio = toothPos.cx / svgViewBox.width
+    let transform = 'translateX(-50%)' // default: centered
+    if (toothRatio > 0.75) {
+      // Right-side teeth — align popover right edge near the tooth
+      transform = 'translateX(-95%)'
+    } else if (toothRatio < 0.25) {
+      // Left-side teeth — align popover left edge near the tooth
+      transform = 'translateX(-15%)'
+    }
 
     return {
       left: viewportX,
-      top: popoverTop
+      top: popoverTop,
+      transform
     }
   }
 
@@ -284,7 +297,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
         style={{
           left: `${popoverPosition.left}px`,
           top: `${popoverPosition.top}px`,
-          transform: 'translateX(-50%)'
+          transform: popoverPosition.transform
         }}
       >
         <RetentionTypePopover
