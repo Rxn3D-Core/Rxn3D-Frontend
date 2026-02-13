@@ -131,7 +131,7 @@ function StepDoctor({
         {doctors.length} doctors found
       </p>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 sm:gap-6 justify-items-center">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 sm:gap-6 justify-items-center max-w-[1600px] mx-auto w-full">
         {doctors.map((doc) => (
           <button
             key={doc.id}
@@ -615,7 +615,11 @@ function StepMaterial({
           <button
             key={mat.id}
             onClick={() => onSelect(mat.id)}
-            className="group relative flex flex-col items-center px-4 py-[5px] gap-[10px] w-[155px] sm:w-[180px] md:w-[200px] rounded-[7px] transition-all border border-[#d9d9d9] bg-white hover:border-[#1162a8]"
+            className={`group relative flex flex-col items-center px-4 py-[5px] gap-2 w-[155px] sm:w-[180px] md:w-[200px] rounded-[7px] border-[3px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${
+              selected === mat.id
+                ? "border-[#1162A8] bg-[#1162A8]/5"
+                : "border-[#d9d9d9] bg-white"
+            }`}
           >
             {/* "Click and select" text - shown on hover */}
             <span className="absolute top-1 text-[10px] text-[#7f7f7f] opacity-0 group-hover:opacity-100 transition-opacity">
@@ -670,57 +674,57 @@ function PatientMiniHeader({
 }) {
   return (
     <div className="flex items-start justify-between">
-      <div className="flex items-start gap-4">
+      <div className="flex items-start gap-5">
         {doctor && (
           <div className="flex flex-col items-center gap-1">
-            <div className="w-[60px] h-[60px] rounded-full overflow-hidden border-2 border-[#d9d9d9]">
+            <div className="w-[80px] h-[80px] rounded-full overflow-hidden border-2 border-[#d9d9d9]">
               <img
                 src={doctor.img || "/placeholder.svg"}
                 alt={doctor.name}
                 className="w-full h-full object-cover"
               />
             </div>
-            <span className="text-[10px] font-semibold text-[#1d1d1b]">
+            <span className="text-[11px] font-semibold text-[#1d1d1b]">
               {doctor.name}
             </span>
           </div>
         )}
 
-        <div className="flex flex-col gap-2 pt-1">
-          <fieldset className="border border-[#34a853] rounded px-3 pb-1 pt-0 relative">
-            <legend className="text-[10px] text-[#34a853] px-1 leading-none">
+        <div className="flex flex-col gap-3 pt-2">
+          <fieldset className="border border-[#34a853] rounded px-3 pb-2 pt-0 relative min-w-[280px]">
+            <legend className="text-[11px] text-[#34a853] px-1 leading-none font-medium">
               Patient name
             </legend>
             <div className="flex items-center gap-1">
-              <span className="text-[12px] text-[#1d1d1b]">{patientName}</span>
-              <Check size={14} className="text-[#34a853] flex-shrink-0" />
+              <span className="text-[13px] text-[#1d1d1b] leading-tight">{patientName}</span>
+              <Check size={16} className="text-[#34a853] flex-shrink-0" />
             </div>
           </fieldset>
-          <fieldset className="border border-[#34a853] rounded px-3 pb-1 pt-0 relative">
-            <legend className="text-[10px] text-[#34a853] px-1 leading-none">
+          <fieldset className="border border-[#34a853] rounded px-3 pb-2 pt-0 relative min-w-[280px]">
+            <legend className="text-[11px] text-[#34a853] px-1 leading-none font-medium">
               Gender
             </legend>
             <div className="flex items-center gap-1">
-              <span className="text-[11px] text-[#1d1d1b]">{gender}</span>
-              <Check size={14} className="text-[#34a853] flex-shrink-0" />
+              <span className="text-[13px] text-[#1d1d1b] leading-tight">{gender}</span>
+              <Check size={16} className="text-[#34a853] flex-shrink-0" />
             </div>
           </fieldset>
         </div>
       </div>
 
       <div className="flex flex-col items-center gap-1">
-        <div className="w-[50px] h-[50px] rounded-full overflow-hidden border-2 border-[#d9d9d9]">
+        <div className="w-[60px] h-[60px] rounded-full overflow-hidden border-2 border-[#d9d9d9]">
           <img
             src="/staff/creator.jpg"
             alt="Cassandra Vega"
             className="w-full h-full object-cover"
           />
         </div>
-        <fieldset className="border border-[#b4b0b0] rounded px-2 pb-1 pt-0 relative">
+        <fieldset className="border border-[#b4b0b0] rounded px-3 pb-1 pt-0 relative mt-1">
           <legend className="text-[10px] text-[#7f7f7f] px-1 leading-none">
             Created By
           </legend>
-          <span className="text-[11px] text-[#1d1d1b]">Cassandra Vega</span>
+          <span className="text-[12px] text-[#1d1d1b]">Cassandra Vega</span>
         </fieldset>
       </div>
     </div>

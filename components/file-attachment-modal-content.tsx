@@ -9,7 +9,6 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import {
   Paperclip,
-  Eye,
   X,
   Upload,
   ChevronDown,
@@ -18,11 +17,24 @@ import {
   Trash2,
   Download,
   FileText,
+  FolderOpen,
+  Archive,
+  Box,
 } from "lucide-react"
-import Image from "next/image"
+import dynamic from "next/dynamic"
 import SimpleSTLViewer from "./demo/simple-stl-generator"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { useSlipCreation } from "../contexts/slip-creation-context"
+
+// Lazy-load STL Viewer to avoid pulling Three.js into the initial modal bundle
+const STLViewerPane = dynamic(() => import("@/components/stl-viewer"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center h-full text-gray-400">
+      Loading 3D Viewer...
+    </div>
+  ),
+})
 
 interface SavedProduct {
   id: string
@@ -44,37 +56,6 @@ interface FileAttachmentModalContentProps {
   savedProducts?: SavedProduct[] // <-- Saved products with stages
 }
 
-const SectionHeader = ({
-  title,
-  fileCount,
-  slipNumber,
-  isExpanded,
-  onToggle,
-}: {
-  title: string
-  fileCount: number
-  slipNumber: string
-  isExpanded: boolean
-  onToggle: () => void
-}) => (
-  <div
-    className="flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-100 rounded-lg transition"
-    onClick={onToggle}
-    style={{ userSelect: "none" }}
-  >
-    {isExpanded ? (
-      <ChevronDown className="w-5 h-5 text-gray-500" />
-    ) : (
-      <ChevronRight className="w-5 h-5 text-gray-500" />
-    )}
-    <div className="flex items-center gap-2">
-      <FileText className="w-5 h-5 text-blue-600" />
-      <span className="font-semibold text-lg">{title}</span>
-      <Badge variant="secondary" className="text-xs">{fileCount} files</Badge>
-      <span className="text-xs text-gray-500">Slip # {slipNumber}</span>
-    </div>
-  </div>
-)
 
 export default function FileAttachmentModalContent({
   setShowAttachModal,
@@ -87,13 +68,12 @@ export default function FileAttachmentModalContent({
 }: FileAttachmentModalContentProps) {
   const { uploadSlipAttachment, fetchSlipAttachments } = useSlipCreation()
   const [simulatedUploads, setSimulatedUploads] = useState<
-    Array<{ file: File, url: string, type: "stl" | "image" | "other" }>
+    Array<{ file: any, url: string, type: "stl" | "image" | "3dobject" | "other", archived?: boolean, remoteId?: any, remoteMeta?: any }>
   >([])
   const [description, setDescription] = useState("")
-  const [expandedSections, setExpandedSections] = useState<string[]>(["custom-tray", "bite-block"])
-  const [showListing, setShowListing] = useState(false)
-  const [autoOpenStlUrl, setAutoOpenStlUrl] = useState<string | null>(null)
   const [showCancelModal, setShowCancelModal] = useState(false)
+  // Third-pane STL Viewer state: set to a file URL when "View File" is clicked
+  const [viewing3dUrl, setViewing3dUrl] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
@@ -151,16 +131,13 @@ export default function FileAttachmentModalContent({
     if (files) {
       const newUploads = Array.from(files).map(file => {
         const url = URL.createObjectURL(file)
-        let type: "stl" | "image" | "other" = "other"
+        let type: "stl" | "image" | "3dobject" | "other" = "other"
         if (file.name.toLowerCase().endsWith(".stl")) type = "stl"
+        else if (file.name.toLowerCase().endsWith(".3dobject")) type = "3dobject"
         else if (file.type.startsWith("image/")) type = "image"
         return { file, url, type }
       })
-      setSimulatedUploads(prev => {
-        const stlFile = newUploads.find(f => f.type === "stl")
-        if (stlFile) setAutoOpenStlUrl(stlFile.url)
-        return [...prev, ...newUploads]
-      })
+      setSimulatedUploads(prev => [...prev, ...newUploads])
     }
   }
 
@@ -185,31 +162,18 @@ export default function FileAttachmentModalContent({
     if (files && files.length > 0) {
       const newUploads = Array.from(files).map(file => {
         const url = URL.createObjectURL(file)
-        let type: "stl" | "image" | "other" = "other"
+        let type: "stl" | "image" | "3dobject" | "other" = "other"
         if (file.name.toLowerCase().endsWith(".stl")) type = "stl"
+        else if (file.name.toLowerCase().endsWith(".3dobject")) type = "3dobject"
         else if (file.type.startsWith("image/")) type = "image"
         return { file, url, type }
       })
-      setSimulatedUploads(prev => {
-        const stlFile = newUploads.find(f => f.type === "stl")
-        if (stlFile) setAutoOpenStlUrl(stlFile.url)
-        return [...prev, ...newUploads]
-      })
+      setSimulatedUploads(prev => [...prev, ...newUploads])
     }
   }, [])
 
-  const toggleSection = (sectionId: string) => {
-    setExpandedSections((prev) =>
-      prev.includes(sectionId) ? prev.filter((id) => id !== sectionId) : [...prev, sectionId],
-    )
-  }
-
-  const mockTotalSize = 0 * 1024 * 1024
   const uploadedFilesSize = simulatedUploads.reduce((sum, { file }) => sum + file.size, 0)
-  const totalSizeMB = ((mockTotalSize + uploadedFilesSize) / (1024 * 1024)).toFixed(2)
-
-  const stlUploads = simulatedUploads.filter(({ type }) => type === "stl")
-  const imageUploads = simulatedUploads.filter(({ type }) => type === "image")
+  const totalSizeMB = (uploadedFilesSize / (1024 * 1024)).toFixed(2)
 
   // If a slipId is provided, fetch remote attachments and merge them into simulatedUploads for preview
   useEffect(() => {
@@ -220,7 +184,12 @@ export default function FileAttachmentModalContent({
         const data = await fetchSlipAttachments(Number(slipId))
         if (!mounted || !data || !Array.isArray(data)) return
         const mapped = data.map((a: any) => {
-          const type = a.is_stl ? "stl" : a.is_image ? "image" : a.is_pdf ? "pdf" : "other"
+          const fileName = (a.file_name || a.download_url?.split("/").pop() || "remote-file").toLowerCase()
+          let type: "stl" | "image" | "3dobject" | "other" = "other"
+          if (a.is_stl || fileName.endsWith(".stl")) type = "stl"
+          else if (fileName.endsWith(".3dobject") || a.is_3d) type = "3dobject"
+          else if (a.is_image) type = "image"
+          else if (a.is_pdf) type = "other" // PDFs stay as "other"
           const fileLike = {
             name: a.file_name || a.download_url?.split("/").pop() || "remote-file",
             size: Number(a.file_size) || 0,
@@ -231,6 +200,7 @@ export default function FileAttachmentModalContent({
             file: fileLike,
             url: a.download_url || a.file_path,
             type,
+            archived: a.archived || a.is_archived || false,
             remoteId: a.id,
             remoteMeta: a,
           }
@@ -373,27 +343,35 @@ export default function FileAttachmentModalContent({
   const handleDeleteFile = (url: string) => {
     setSimulatedUploads(prev => prev.filter(f => f.url !== url))
     setSelectedStlUrls(prev => prev.filter(u => u !== url))
+    // Close the 3D viewer pane if the deleted file is currently being viewed
+    if (viewing3dUrl === url) setViewing3dUrl(null)
   }
 
-  // Restore view STL file function for individual STL file
-  const handleViewStlFile = (url: string) => {
-    const viewerEl = document.querySelector(`[data-viewer-key="${url}"]`)
-    if (viewerEl) {
-      viewerEl.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    }
+  // Open STL/3D file in the third-pane viewer
+  const handleViewFile = (url: string) => {
+    setViewing3dUrl(url)
   }
+
+  // Slip number for section headers
+  const displaySlipId = slipId ? String(slipId) : "------"
 
   return (
-    <div className="flex h-[90vh] bg-white rounded-lg">
-      <div className="p-6 border-r w-[400px] flex-shrink-0">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-2">
-            <Paperclip className="w-5 h-5" />
-            <h3 className="text-lg font-semibold">Attachment</h3>
-          </div>
-          <Button variant="ghost" size="sm" onClick={() => setShowAttachModal(false)}>
-            <X className="w-4 h-4" />
-          </Button>
+    <div className="flex h-[90vh] bg-white rounded-lg relative">
+      {/* Close (X) button – top-right of entire modal */}
+      <button
+        type="button"
+        className="absolute top-4 right-4 z-50 p-1 rounded hover:bg-gray-100 transition"
+        onClick={() => setShowAttachModal(false)}
+        aria-label="Close"
+      >
+        <X className="w-5 h-5 text-gray-500" />
+      </button>
+
+      {/* ===== Left Panel: Upload ===== */}
+      <div className="p-6 border-r w-[400px] flex-shrink-0 flex flex-col">
+        <div className="flex items-center gap-2 mb-6">
+          <Paperclip className="w-5 h-5" />
+          <h3 className="text-lg font-semibold">Attachment</h3>
         </div>
 
         <p className="text-sm text-gray-600 mb-6">
@@ -407,8 +385,7 @@ export default function FileAttachmentModalContent({
           onClick={handleUploadButtonClick}
         >
           <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <p className="text-sm text-gray-500 mb-2">Drag & drop files here</p>
-          <p className="text-sm text-gray-500">or click to browse files.</p>
+          <p className="text-sm text-gray-500">Drag & drop files here<br />or click to browse files.</p>
         </div>
 
         <Textarea
@@ -436,7 +413,7 @@ export default function FileAttachmentModalContent({
         {uploadError && (
           <div className="text-red-600 text-sm mb-2">{uploadError}</div>
         )}
-        <div className="flex justify-end gap-3">
+        <div className="flex justify-center gap-3 mt-auto">
           <Button
             variant="outline"
             onClick={() => setShowCancelModal(true)}
@@ -455,15 +432,13 @@ export default function FileAttachmentModalContent({
         </div>
       </div>
 
-      {/* Right side: Accordion sectioned file preview */}
-      <div className="flex-1 flex flex-col">
+      {/* ===== Middle Panel: File List ===== */}
+      <div className={`flex-1 flex flex-col min-w-0 ${viewing3dUrl ? "max-w-[50%]" : ""}`}>
         <div className="p-6 border-b">
           <div className="flex items-center justify-between mb-4">
             <div className="text-sm">
               <span className="font-medium">Dr: {doctorName || "-"}</span>
-              <span className="mx-2">•</span>
-              <span className="font-medium">Patient: {patientName || "-"}</span>
-              <span className="mx-2">•</span>
+              <span className="mx-4">Patient: {patientName ? (patientName.length > 18 ? patientName.slice(0, 18) + "..." : patientName) : "-"}</span>
               <span className="text-gray-500">Total Size: {totalSizeMB} MB</span>
             </div>
           </div>
@@ -496,8 +471,8 @@ export default function FileAttachmentModalContent({
               className="bg-[#1162A8] text-white hover:bg-[#0f5490]"
               disabled={isCaseSubmitted}
             >
-              <Eye className="w-4 h-4 mr-2" />
-              Hide Achived
+              <Archive className="w-4 h-4 mr-2" />
+              Hide Archived
             </Button>
           </div>
         </div>
@@ -510,15 +485,16 @@ export default function FileAttachmentModalContent({
               <div className="text-sm">Files you add will appear here for preview.</div>
             </div>
           ) : (
-            <div className="space-y-8">
+            <div className="space-y-4">
               {/* Dynamic Stage Sections */}
               {stages.map((stage, stageIdx) => {
                 const stageFiles = filesByStage[stage] || []
                 const stageKey = stage.toLowerCase().replace(/\s+/g, "-")
                 return (
-                  <div key={stage} className="border rounded-lg mb-8">
+                  <div key={stage} className="border rounded-lg">
+                    {/* Section Header with Folder icon and Slip # */}
                     <div
-                      className="flex items-center gap-2 p-4 cursor-pointer hover:bg-gray-100 rounded-t-lg transition"
+                      className="flex items-center gap-2 p-4 cursor-pointer hover:bg-gray-50 rounded-t-lg transition"
                       onClick={() => toggleAccordion(stageKey)}
                       style={{ userSelect: "none" }}
                     >
@@ -527,43 +503,37 @@ export default function FileAttachmentModalContent({
                       ) : (
                         <ChevronRight className="w-5 h-5 text-gray-500" />
                       )}
-                      <FileText className="w-5 h-5 text-blue-600" />
+                      <FolderOpen className="w-5 h-5 text-blue-600" />
                       <span className="font-semibold text-lg">{stage}</span>
                       <Badge variant="secondary" className="text-xs">{stageFiles.length} files</Badge>
-                      {savedProducts.length > 0 && (
-                        <span className="text-xs text-gray-500">
-                          {savedProducts.filter(p => 
-                            (p.maxillaryStage === stage && p.maxillaryTeeth.length > 0) ||
-                            (p.mandibularStage === stage && p.mandibularTeeth.length > 0)
-                          ).map(p => p.product.name).join(", ")}
-                        </span>
-                      )}
+                      <span className="text-xs text-gray-500 ml-2">Slip # {displaySlipId}</span>
                     </div>
                     {expanded[stageKey] && (
-                      <div className="p-4 grid grid-cols-3 gap-6">
-                        {stageFiles.map(({ file, url }, idx) => {
+                      <div className="p-4 grid grid-cols-3 gap-4">
+                        {stageFiles.map((item, idx) => {
+                          const { file, url, archived } = item
                           const isStl = file.name?.toLowerCase().endsWith(".stl") || url.toLowerCase().endsWith(".stl")
+                          const is3dObj = file.name?.toLowerCase().endsWith(".3dobject") || url.toLowerCase().endsWith(".3dobject")
                           const isImage = file.type?.startsWith("image/") || url.match(/\.(jpg|jpeg|png|gif|webp)$/i)
-                          
+
+                          // --- STL file card ---
                           if (isStl) {
-                            // STL file rendering
                             const imageThumbnails = selectedImageThumbnailUrls
                             return (
                               <div
                                 key={url}
-                                className={`bg-white rounded-xl shadow p-4 relative flex flex-col items-center w-full max-w-md mx-auto border-2 border-blue-200 ${
+                                className={`bg-white rounded-xl shadow p-3 relative flex flex-col items-center w-full border border-gray-200 ${
                                   selectedStlUrls.includes(url) ? "ring-2 ring-blue-500" : ""
-                                }`}
+                                } ${archived ? "opacity-70" : ""}`}
+                                style={archived ? { filter: "grayscale(60%)" } : undefined}
                               >
-                                {/* Checkbox top-left */}
-                                <input
-                                  type="checkbox"
-                                  checked={selectedStlUrls.includes(url)}
-                                  onChange={() => handleToggleStlCheckbox(url)}
-                                  className="absolute top-2 left-2 w-5 h-5 accent-blue-600 z-20"
-                                  title="Show in STL Viewer"
-                                />
-                                <div className="w-full aspect-square bg-white rounded-lg mb-2 flex items-center justify-center overflow-hidden relative">
+                                {/* Archived badge */}
+                                {archived && (
+                                  <div className="absolute top-2 left-2 z-20 bg-gray-600/80 text-white text-[10px] font-semibold px-2 py-0.5 rounded">
+                                    Archived
+                                  </div>
+                                )}
+                                <div className="w-full aspect-square bg-gray-50 rounded-lg mb-2 flex items-center justify-center overflow-hidden relative">
                                   <SimpleSTLViewer
                                     title={file.name?.replace('.stl', '') || 'STL File'}
                                     geometryType="cube"
@@ -575,120 +545,198 @@ export default function FileAttachmentModalContent({
                                     autoOpen={false}
                                     thumbnailUrls={imageThumbnails}
                                   />
-                                  <div className="absolute top-2 right-2 text-xs text-gray-700 font-semibold bg-white rounded px-2 py-1 shadow border border-gray-200 z-10">
+                                  <div className="absolute top-2 right-2 text-[10px] text-gray-600 font-semibold bg-white/90 rounded px-1.5 py-0.5 shadow border border-gray-200 z-10">
                                     ID: {547896 + idx}
                                   </div>
                                   <button
                                     type="button"
-                                    className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-blue-700 text-white px-3 py-1 rounded text-xs font-medium shadow hover:bg-blue-800 transition"
-                                    style={{ zIndex: 10 }}
+                                    className="absolute bottom-3 right-3 bg-[#1162A8] text-white px-3 py-1 rounded text-xs font-medium shadow hover:bg-[#0f5490] transition z-10"
                                     onClick={e => {
                                       e.stopPropagation()
-                                      handleViewStlFile(url)
+                                      handleViewFile(url)
                                     }}
                                   >
                                     View File
                                   </button>
                                 </div>
-                                <div className="w-full px-2">
-                                  <div className="truncate font-medium text-base mb-1">{file.name || 'STL File'}</div>
-                                  <div className="text-xs text-gray-500 mb-2">{`${(file.size / 1024 / 1024).toFixed(2)} MB`}</div>
-                                  <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
+                                <div className="w-full px-1">
+                                  <div className="truncate font-medium text-sm mb-0.5">{file.name || 'STL File'}</div>
+                                  <div className="text-xs text-gray-500 mb-1">{`${(file.size / 1024 / 1024).toFixed(2)} MB`}</div>
+                                  <div className="flex items-center gap-1.5 text-xs text-gray-400 mb-1">
                                     <Calendar className="w-3 h-3" />
-                                    <span>{new Date(file.lastModified || Date.now()).toLocaleDateString()} @ {new Date(file.lastModified || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                    <span>{new Date(file.lastModified || Date.now()).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })} @ {new Date(file.lastModified || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                   </div>
-                                  <div className="flex gap-2">
-                                    <button
-                                      className="p-1 hover:bg-gray-200 rounded"
-                                      title="Delete"
-                                      onClick={() => handleDeleteFile(url)}
-                                    >
-                                      <Trash2 className="w-4 h-4 text-gray-400" />
+                                  <div className="flex gap-1.5">
+                                    <button className="p-1 hover:bg-gray-200 rounded" title="Delete" onClick={() => handleDeleteFile(url)}>
+                                      <Trash2 className="w-3.5 h-3.5 text-gray-400" />
                                     </button>
                                     <button className="p-1 hover:bg-gray-200 rounded" title="Download">
-                                      <Download className="w-4 h-4 text-gray-400" />
+                                      <Download className="w-3.5 h-3.5 text-gray-400" />
                                     </button>
-                                  </div>
-                                </div>
-                              </div>
-                            )
-                          } else if (isImage) {
-                            // Image file rendering
-                            return (
-                              <div key={url} className="bg-white rounded-xl shadow p-4 relative flex flex-col items-center w-full max-w-md mx-auto border-2 border-blue-200">
-                                {/* Checkbox top-left for image selection (multi-select) */}
-                                <input
-                                  type="checkbox"
-                                  checked={selectedImageThumbnailUrls.includes(url)}
-                                  onChange={() => setSelectedImageThumbnailUrls(
-                                    selectedImageThumbnailUrls.includes(url)
-                                      ? selectedImageThumbnailUrls.filter(u => u !== url)
-                                      : [...selectedImageThumbnailUrls, url]
-                                  )}
-                                  className="absolute top-2 left-2 w-5 h-5 accent-blue-600 z-20"
-                                  title="Use as STL Viewer Thumbnail"
-                                />
-                                <div className="w-full aspect-square bg-white rounded-lg mb-2 flex items-center justify-center overflow-hidden relative">
-                                  <img src={url} alt={file.name || 'Image'} className="object-cover w-full h-full rounded-lg" />
-                                  <div className="absolute top-2 right-2 text-xs text-gray-700 font-semibold bg-white rounded px-2 py-1 shadow border border-gray-200 z-10">
-                                    ID: {547896 + idx}
-                                  </div>
-                                </div>
-                                <div className="w-full px-2">
-                                  <div className="truncate font-medium text-base mb-1">{file.name || 'Image'}</div>
-                                  <div className="text-xs text-gray-500 mb-2">{`${(file.size / 1024 / 1024).toFixed(2)} MB`}</div>
-                                  <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
-                                    <Calendar className="w-3 h-3" />
-                                    <span>{new Date(file.lastModified || Date.now()).toLocaleDateString()} @ {new Date(file.lastModified || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                  </div>
-                                  <div className="flex gap-2">
-                                    <button
-                                      className="p-1 hover:bg-gray-200 rounded"
-                                      title="Delete"
-                                      onClick={() => handleDeleteFile(url)}
-                                    >
-                                      <Trash2 className="w-4 h-4 text-gray-400" />
-                                    </button>
-                                    <button className="p-1 hover:bg-gray-200 rounded" title="Download">
-                                      <Download className="w-4 h-4 text-gray-400" />
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-                            )
-                          } else {
-                            // Other file types
-                            return (
-                              <div key={url} className="bg-white rounded-xl shadow p-4 relative flex flex-col items-center w-full max-w-md mx-auto border-2 border-blue-200">
-                                <div className="w-full aspect-square bg-white rounded-lg mb-2 flex items-center justify-center overflow-hidden relative">
-                                  <FileText className="w-16 h-16 text-gray-300" />
-                                  <div className="absolute top-2 right-2 text-xs text-gray-700 font-semibold bg-white rounded px-2 py-1 shadow border border-gray-200 z-10">
-                                    ID: {547896 + idx}
-                                  </div>
-                                </div>
-                                <div className="w-full px-2">
-                                  <div className="truncate font-medium text-base mb-1">{file.name || 'File'}</div>
-                                  <div className="text-xs text-gray-500 mb-2">{`${(file.size / 1024 / 1024).toFixed(2)} MB`}</div>
-                                  <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
-                                    <Calendar className="w-3 h-3" />
-                                    <span>{new Date(file.lastModified || Date.now()).toLocaleDateString()} @ {new Date(file.lastModified || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                  </div>
-                                  <div className="flex gap-2">
-                                    <button
-                                      className="p-1 hover:bg-gray-200 rounded"
-                                      title="Delete"
-                                      onClick={() => handleDeleteFile(url)}
-                                    >
-                                      <Trash2 className="w-4 h-4 text-gray-400" />
-                                    </button>
-                                    <button className="p-1 hover:bg-gray-200 rounded" title="Download">
-                                      <Download className="w-4 h-4 text-gray-400" />
+                                    <button className="p-1 hover:bg-red-100 rounded ml-auto" title="Archive">
+                                      <Archive className="w-3.5 h-3.5 text-red-400" />
                                     </button>
                                   </div>
                                 </div>
                               </div>
                             )
                           }
+
+                          // --- .3Dobject file card ---
+                          if (is3dObj) {
+                            return (
+                              <div
+                                key={url}
+                                className={`bg-white rounded-xl shadow p-3 relative flex flex-col items-center w-full border border-gray-200 ${
+                                  archived ? "opacity-70" : ""
+                                }`}
+                                style={archived ? { filter: "grayscale(60%)" } : undefined}
+                              >
+                                {archived && (
+                                  <div className="absolute top-2 left-2 z-20 bg-gray-600/80 text-white text-[10px] font-semibold px-2 py-0.5 rounded">
+                                    Archived
+                                  </div>
+                                )}
+                                <div className="w-full aspect-square bg-gray-100 rounded-lg mb-2 flex flex-col items-center justify-center overflow-hidden relative">
+                                  {/* 3D object placeholder icon */}
+                                  <Box className="w-16 h-16 text-gray-400 mb-1" />
+                                  <span className="text-xs text-gray-400 font-medium">3D Object</span>
+                                  <div className="absolute top-2 right-2 text-[10px] text-gray-600 font-semibold bg-white/90 rounded px-1.5 py-0.5 shadow border border-gray-200 z-10">
+                                    ID: {547896 + idx}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    className="absolute bottom-3 right-3 bg-[#1162A8] text-white px-3 py-1 rounded text-xs font-medium shadow hover:bg-[#0f5490] transition z-10"
+                                    onClick={e => {
+                                      e.stopPropagation()
+                                      handleViewFile(url)
+                                    }}
+                                  >
+                                    View File
+                                  </button>
+                                </div>
+                                <div className="w-full px-1">
+                                  <div className="truncate font-medium text-sm mb-0.5">{file.name || '3D Object'}</div>
+                                  <div className="text-xs text-gray-500 mb-1">{`${(file.size / 1024 / 1024).toFixed(2)} MB`}</div>
+                                  <div className="flex items-center gap-1.5 text-xs text-gray-400 mb-1">
+                                    <Calendar className="w-3 h-3" />
+                                    <span>{new Date(file.lastModified || Date.now()).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })} @ {new Date(file.lastModified || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                  </div>
+                                  <div className="flex gap-1.5">
+                                    <button className="p-1 hover:bg-gray-200 rounded" title="Delete" onClick={() => handleDeleteFile(url)}>
+                                      <Trash2 className="w-3.5 h-3.5 text-gray-400" />
+                                    </button>
+                                    <button className="p-1 hover:bg-gray-200 rounded" title="Download">
+                                      <Download className="w-3.5 h-3.5 text-gray-400" />
+                                    </button>
+                                    <button className="p-1 hover:bg-red-100 rounded ml-auto" title="Archive">
+                                      <Archive className="w-3.5 h-3.5 text-red-400" />
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          }
+
+                          // --- Image file card ---
+                          if (isImage) {
+                            return (
+                              <div
+                                key={url}
+                                className={`bg-white rounded-xl shadow p-3 relative flex flex-col items-center w-full border border-gray-200 ${
+                                  archived ? "opacity-70" : ""
+                                }`}
+                                style={archived ? { filter: "grayscale(60%)" } : undefined}
+                              >
+                                {archived && (
+                                  <div className="absolute top-2 left-2 z-20 bg-gray-600/80 text-white text-[10px] font-semibold px-2 py-0.5 rounded">
+                                    Archived
+                                  </div>
+                                )}
+                                {/* Checkbox top-left for image selection (multi-select) */}
+                                {!archived && (
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedImageThumbnailUrls.includes(url)}
+                                    onChange={() => setSelectedImageThumbnailUrls(
+                                      selectedImageThumbnailUrls.includes(url)
+                                        ? selectedImageThumbnailUrls.filter(u => u !== url)
+                                        : [...selectedImageThumbnailUrls, url]
+                                    )}
+                                    className="absolute top-2 left-2 w-4 h-4 accent-blue-600 z-20"
+                                    title="Use as STL Viewer Thumbnail"
+                                  />
+                                )}
+                                <div className="w-full aspect-square bg-gray-50 rounded-lg mb-2 flex items-center justify-center overflow-hidden relative">
+                                  <img src={url} alt={file.name || 'Image'} className="object-cover w-full h-full rounded-lg" />
+                                  <div className="absolute top-2 right-2 text-[10px] text-gray-600 font-semibold bg-white/90 rounded px-1.5 py-0.5 shadow border border-gray-200 z-10">
+                                    ID: {547896 + idx}
+                                  </div>
+                                </div>
+                                <div className="w-full px-1">
+                                  <div className="truncate font-medium text-sm mb-0.5">{file.name || 'Image'}</div>
+                                  <div className="text-xs text-gray-500 mb-1">{`${(file.size / 1024 / 1024).toFixed(2)} MB`}</div>
+                                  <div className="flex items-center gap-1.5 text-xs text-gray-400 mb-1">
+                                    <Calendar className="w-3 h-3" />
+                                    <span>{new Date(file.lastModified || Date.now()).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })} @ {new Date(file.lastModified || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                  </div>
+                                  <div className="flex gap-1.5">
+                                    <button className="p-1 hover:bg-gray-200 rounded" title="Delete" onClick={() => handleDeleteFile(url)}>
+                                      <Trash2 className="w-3.5 h-3.5 text-gray-400" />
+                                    </button>
+                                    <button className="p-1 hover:bg-gray-200 rounded" title="Download">
+                                      <Download className="w-3.5 h-3.5 text-gray-400" />
+                                    </button>
+                                    <button className="p-1 hover:bg-red-100 rounded ml-auto" title="Archive">
+                                      <Archive className="w-3.5 h-3.5 text-red-400" />
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          }
+
+                          // --- Other file types ---
+                          return (
+                            <div
+                              key={url}
+                              className={`bg-white rounded-xl shadow p-3 relative flex flex-col items-center w-full border border-gray-200 ${
+                                archived ? "opacity-70" : ""
+                              }`}
+                              style={archived ? { filter: "grayscale(60%)" } : undefined}
+                            >
+                              {archived && (
+                                <div className="absolute top-2 left-2 z-20 bg-gray-600/80 text-white text-[10px] font-semibold px-2 py-0.5 rounded">
+                                  Archived
+                                </div>
+                              )}
+                              <div className="w-full aspect-square bg-gray-100 rounded-lg mb-2 flex items-center justify-center overflow-hidden relative">
+                                <FileText className="w-16 h-16 text-gray-300" />
+                                <div className="absolute top-2 right-2 text-[10px] text-gray-600 font-semibold bg-white/90 rounded px-1.5 py-0.5 shadow border border-gray-200 z-10">
+                                  ID: {547896 + idx}
+                                </div>
+                              </div>
+                              <div className="w-full px-1">
+                                <div className="truncate font-medium text-sm mb-0.5">{file.name || 'File'}</div>
+                                <div className="text-xs text-gray-500 mb-1">{`${(file.size / 1024 / 1024).toFixed(2)} MB`}</div>
+                                <div className="flex items-center gap-1.5 text-xs text-gray-400 mb-1">
+                                  <Calendar className="w-3 h-3" />
+                                  <span>{new Date(file.lastModified || Date.now()).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })} @ {new Date(file.lastModified || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                </div>
+                                <div className="flex gap-1.5">
+                                  <button className="p-1 hover:bg-gray-200 rounded" title="Delete" onClick={() => handleDeleteFile(url)}>
+                                    <Trash2 className="w-3.5 h-3.5 text-gray-400" />
+                                  </button>
+                                  <button className="p-1 hover:bg-gray-200 rounded" title="Download">
+                                    <Download className="w-3.5 h-3.5 text-gray-400" />
+                                  </button>
+                                  <button className="p-1 hover:bg-red-100 rounded ml-auto" title="Archive">
+                                    <Archive className="w-3.5 h-3.5 text-red-400" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          )
                         })}
                       </div>
                     )}
@@ -699,8 +747,27 @@ export default function FileAttachmentModalContent({
           )}
         </div>
       </div>
-      {/* ...existing file input and cancel modal... */}
-      <input type="file" style={{ display: "none" }} onChange={handleFileChange} multiple ref={fileInputRef} />
+
+      {/* ===== Right Pane: STL Viewer (conditional, shown when View File is clicked) ===== */}
+      {viewing3dUrl && (
+        <div className="w-[420px] flex-shrink-0 border-l h-full">
+          <STLViewerPane
+            models={[{ src: viewing3dUrl, color: "#f9c74f" }]}
+            onCloseViewer={() => setViewing3dUrl(null)}
+            onClearDisplay={() => setViewing3dUrl(null)}
+          />
+        </div>
+      )}
+
+      {/* Hidden file input – accepts .stl, .3Dobject, images, and common document types */}
+      <input
+        type="file"
+        style={{ display: "none" }}
+        onChange={handleFileChange}
+        multiple
+        ref={fileInputRef}
+        accept=".jpg,.jpeg,.png,.gif,.svg,.pdf,.stl,.3Dobject,.mp4,.avi,.mov,.zip,.rar"
+      />
 
       {/* Cancel Confirmation Modal */}
       <Dialog open={showCancelModal} onOpenChange={setShowCancelModal}>
