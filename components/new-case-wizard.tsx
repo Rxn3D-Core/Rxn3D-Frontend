@@ -1,99 +1,70 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Filter, Plus, Search, ChevronDown, Check } from "lucide-react";
 import { SlipCreationStepFooter } from "@/components/slip-creation-step-footer";
+import { useConnectedOfficesOrLabs } from "@/hooks/use-connected-offices";
+import { useOfficeDoctors } from "@/hooks/use-slip-data";
+import { useLibraryCategories } from "@/hooks/use-library-categories";
+import { useLibraryProducts } from "@/hooks/use-library-products";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useRouter } from "next/navigation";
+import CancelSlipCreationModal from "@/components/cancel-slip-creation-modal";
+import { cn } from "@/lib/utils";
+
+/* ------------------------------------------------------------------ */
+/*  Role / auth helpers (client-only)                                  */
+/* ------------------------------------------------------------------ */
+function useWizardRole() {
+  const [role, setRole] = useState<string | null>(null);
+  const [customerId, setCustomerId] = useState<number | null>(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setRole(localStorage.getItem("role"));
+    const c = localStorage.getItem("customerId");
+    setCustomerId(c ? Number(c) : null);
+  }, []);
+  const isOfficeAdmin = role === "office_admin";
+  const isLabAdmin = role === "lab_admin";
+  return { role, customerId, isOfficeAdmin, isLabAdmin };
+}
 
 /* ------------------------------------------------------------------ */
 /*  Data                                                               */
 /* ------------------------------------------------------------------ */
-const doctors = [
-  { id: 1, name: "Cody Mugglestone, DDS", img: "/doctors/doctor-1.jpg" },
-  { id: 2, name: "Julian Ortega, DDS", img: "/doctors/doctor-2.jpg" },
-  { id: 3, name: "Liana Castillo, DDS", img: "/doctors/doctor-3.jpg" },
-  { id: 4, name: "Sofia Delgado, DDS", img: "/doctors/doctor-4.jpg" },
+
+/** Multiple fallback images so each doctor gets a different placeholder when they have no avatar */
+const DOCTOR_AVATAR_FALLBACKS = [
+  "/doctors/doctor-1.jpg",
+  "/doctors/doctor-2.jpg",
+  "/doctors/doctor-3.jpg",
+  "/doctors/doctor-4.jpg",
 ];
 
-const labs = [
-  { id: 1, name: "HMC3I", location: "Las Vegas, Nevada", logo: "https://rxn3d-media-files.s3.us-west-2.amazonaws.com/customers/logos/hmc_69736ca93cf31.jpeg" },
-  { id: 2, name: "Kinetic LLC", location: "Las Vegas, Nevada", logo: "/labs/kinetic.jpg" },
-  { id: 3, name: "Highlands Dental Lab", location: "Las Vegas, Nevada", logo: "/labs/highlands.jpg" },
-  { id: 4, name: "Leca Dental LLC", location: "Las Vegas, Nevada", logo: "/labs/leca.jpg" },
-  { id: 5, name: "Boris Digital Lab", location: "Las Vegas, Nevada", logo: "/labs/boris.jpg" },
-  { id: 6, name: "Leca Dental LLC", location: "Las Vegas, Nevada", logo: "/labs/leca.jpg" },
-  { id: 7, name: "HMC Innovs LLC", location: "Las Vegas, Nevada", logo: "/labs/hmc-innovs.jpg" },
-  { id: 8, name: "Highlands Dental Lab", location: "Las Vegas, Nevada", logo: "/labs/highlands.jpg" },
-];
-
-const categories = [
-  { id: "fixed", name: "Fixed Restoration", img: "/products/fixed-restoration.png" },
-  { id: "removable", name: "Removable Restoration", img: "/products/removable-restoration.png" },
-  { id: "orthodontics", name: "Orthodontics", img: "/products/orthodontics.png" },
-];
-
-const subProducts: Record<string, { id: string; name: string; img: string }[]> = {
-  fixed: [
-    { id: "single-crowns", name: "Single Crowns", img: "/products/single-crown.jpg" },
-    { id: "multi-unit", name: "Multi-Unit Bridge", img: "/products/multi-unit-bridge.jpg" },
-    { id: "implant", name: "Implant Supported", img: "/products/implant-supported.jpg" },
-    { id: "inlays", name: "Inlays / Onlays / Overlays", img: "/products/inlays-onlays.jpg" },
-    { id: "post-core", name: "Post & Core", img: "/products/post-core.jpg" },
-    { id: "specialized", name: "Specialized", img: "/products/specialized.jpg" },
-  ],
-  removable: [
-    { id: "partial", name: "Partial Denture", img: "/placeholder.svg?height=100&width=120&query=partial+denture" },
-    { id: "full", name: "Full Denture", img: "/placeholder.svg?height=100&width=120&query=full+denture" },
-    { id: "metal-frame", name: "Metal Framework", img: "/placeholder.svg?height=100&width=120&query=metal+framework+denture" },
-  ],
-  orthodontics: [
-    { id: "retainer", name: "Retainer", img: "/placeholder.svg?height=100&width=120&query=dental+retainer+clear" },
-    { id: "aligner", name: "Clear Aligner", img: "/placeholder.svg?height=100&width=120&query=clear+dental+aligner" },
-    { id: "splint", name: "Occlusal Splint", img: "/placeholder.svg?height=100&width=120&query=occlusal+splint+dental" },
-  ],
-};
-
-/* ---- Material/Product options per sub-category ---- */
-const materials: Record<string, { id: string; name: string; img: string }[]> = {
-  "single-crowns": [
-    { id: "full-contour-zirconia", name: "Full Contour Zirconia", img: "/products/full-contour-zirconia.jpg" },
-    { id: "emax", name: "E-max", img: "/products/emax.jpg" },
-    { id: "pfm", name: "PFM", img: "/products/pfm.jpg" },
-    { id: "pfz", name: "PFZ", img: "/products/pfz.jpg" },
-    { id: "full-cast", name: "Full Cast", img: "/products/full-cast.jpg" },
-  ],
-  "multi-unit": [
-    { id: "full-contour-zirconia", name: "Full Contour Zirconia", img: "/products/full-contour-zirconia.jpg" },
-    { id: "pfm", name: "PFM", img: "/products/pfm.jpg" },
-    { id: "pfz", name: "PFZ", img: "/products/pfz.jpg" },
-    { id: "full-cast", name: "Full Cast", img: "/products/full-cast.jpg" },
-  ],
-  "implant": [
-    { id: "full-contour-zirconia", name: "Full Contour Zirconia", img: "/products/full-contour-zirconia.jpg" },
-    { id: "emax", name: "E-max", img: "/products/emax.jpg" },
-    { id: "pfm", name: "PFM", img: "/products/pfm.jpg" },
-  ],
-  "inlays": [
-    { id: "emax", name: "E-max", img: "/products/emax.jpg" },
-    { id: "full-contour-zirconia", name: "Full Contour Zirconia", img: "/products/full-contour-zirconia.jpg" },
-    { id: "full-cast", name: "Full Cast", img: "/products/full-cast.jpg" },
-  ],
-  "post-core": [
-    { id: "full-cast", name: "Full Cast", img: "/products/full-cast.jpg" },
-    { id: "full-contour-zirconia", name: "Full Contour Zirconia", img: "/products/full-contour-zirconia.jpg" },
-  ],
-  "specialized": [
-    { id: "full-contour-zirconia", name: "Full Contour Zirconia", img: "/products/full-contour-zirconia.jpg" },
-    { id: "pfm", name: "PFM", img: "/products/pfm.jpg" },
-    { id: "full-cast", name: "Full Cast", img: "/products/full-cast.jpg" },
-  ],
-};
+function getDoctorFallbackImg(doctorId: number, index?: number): string {
+  const i = index ?? doctorId;
+  return DOCTOR_AVATAR_FALLBACKS[Math.abs(i) % DOCTOR_AVATAR_FALLBACKS.length] ?? DOCTOR_AVATAR_FALLBACKS[0];
+}
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
+export interface WizardDoctorShape {
+  id: number;
+  name: string;
+  img: string;
+}
+
+export interface WizardLabShape {
+  id: number;
+  name: string;
+  location: string;
+  logo: string | null;
+}
+
 interface WizardResult {
-  doctor: (typeof doctors)[0];
-  lab: (typeof labs)[0];
+  doctor: WizardDoctorShape;
+  lab: WizardLabShape;
   patientName: string;
   gender: string;
   category: string;
@@ -102,15 +73,47 @@ interface WizardResult {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Step 1 – Choose a Doctor                                           */
+/*  Step – Choose a Doctor (from API by office_id / customer_id)       */
 /* ------------------------------------------------------------------ */
 function StepDoctor({
+  doctors,
   selected,
   onSelect,
+  isLoading,
+  error,
 }: {
+  doctors: WizardDoctorShape[];
   selected: number | null;
   onSelect: (id: number) => void;
+  isLoading?: boolean;
+  error?: Error | null;
 }) {
+  if (error) {
+    return (
+      <div className="flex-1 flex flex-col px-6 py-6 items-center justify-center">
+        <p className="text-[#7f7f7f] text-center mb-4">
+          Unable to load doctors. Please try again.
+        </p>
+        <p className="text-sm text-[#b4b0b0]">{error.message}</p>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex flex-col px-6 py-6">
+        <h2 className="text-[16px] font-bold text-[#1d1d1b] text-center mb-6">
+          Choose a Doctor
+        </h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 sm:gap-6 justify-items-center max-w-[1600px] mx-auto w-full">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <Skeleton key={i} className="w-full max-w-[219.68px] aspect-square rounded-full" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 flex flex-col px-6 py-6">
       <h2 className="text-[16px] font-bold text-[#1d1d1b] text-center mb-6">
@@ -132,23 +135,28 @@ function StepDoctor({
       </p>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 sm:gap-6 justify-items-center max-w-[1600px] mx-auto w-full">
-        {doctors.map((doc) => (
+        {doctors.map((doc, i) => (
           <button
             key={doc.id}
             onClick={() => onSelect(doc.id)}
             className="group flex flex-col items-center gap-3 p-2 sm:p-4 transition-all w-full max-w-[250px]"
           >
             <div
-              className={`w-full aspect-square max-w-[219.68px] rounded-full overflow-hidden flex-shrink-0 transition-all ${
+              className={`w-full aspect-square max-w-[219.68px] rounded-full overflow-hidden flex-shrink-0 transition-all bg-[#eef1f4] ${
                 selected === doc.id
                   ? "border-[4px] border-[#1162A8]"
                   : "border-[4px] border-[#d9d9d9] group-hover:border-[#1162a8]/100"
               }`}
             >
               <img
-                src={doc.img || "/placeholder.svg"}
+                src={doc.img}
                 alt={doc.name}
                 className="w-full h-full object-cover"
+                data-fallback={getDoctorFallbackImg(doc.id, i)}
+                onError={(e) => {
+                  const fallback = e.currentTarget.dataset.fallback || DOCTOR_AVATAR_FALLBACKS[0];
+                  e.currentTarget.src = fallback;
+                }}
               />
             </div>
             <span className="text-[14px] font-weight-700 font-bold text-[#1d1d1b] text-center">
@@ -171,22 +179,67 @@ function StepDoctor({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Step 2 – Choose a Lab                                              */
+/*  Step 2 – Choose a Lab or Office (connected offices from API)       */
 /* ------------------------------------------------------------------ */
 function StepLab({
+  labs,
   selected,
   onSelect,
+  isLoading,
+  error,
+  stepTitle,
+  entityLabel = "lab",
 }: {
+  labs: WizardLabShape[];
   selected: number | null;
   onSelect: (id: number) => void;
+  isLoading?: boolean;
+  error?: Error | null;
+  stepTitle: string;
+  entityLabel?: "lab" | "office";
 }) {
+  const entityPlural = entityLabel === "office" ? "offices" : "labs";
+  const loadErrorMsg = entityLabel === "office"
+    ? "Unable to load connected offices. Please try again."
+    : "Unable to load connected labs. Please try again.";
+
+  if (error) {
+    return (
+      <div className="flex-1 flex flex-col px-6 py-6 items-center justify-center">
+        <p className="text-[#7f7f7f] text-center mb-4">
+          {loadErrorMsg}
+        </p>
+        <p className="text-sm text-[#b4b0b0]">{error.message}</p>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex flex-col px-6 py-6">
+        <h2 className="text-[16px] font-bold text-[#1d1d1b] text-center mb-6">
+          {stepTitle}
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-[1400px] mx-auto mb-6 px-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton
+              key={i}
+              style={{ height: 215, borderRadius: 6, width: "100%", maxWidth: 307.65 }}
+              className="w-full"
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 flex flex-col px-6 py-6">
       <h2 className="text-[16px] font-bold text-[#1d1d1b] text-center mb-6">
-        Choose a Lab
+        {stepTitle}
       </h2>
 
-      {/* Top bar with filter and Add New lab button */}
+      {/* Top bar with filter and Add New button */}
       <div className="flex items-center justify-between mb-2">
         <button className="p-2 hover:bg-[#eef1f4] rounded transition-colors">
           <Filter size={18} className="text-[#7f7f7f]" />
@@ -195,19 +248,19 @@ function StepLab({
           style={{ fontFamily: "Verdana, sans-serif", fontSize: 12, lineHeight: "22px", letterSpacing: "-0.02em", borderRadius: 6, padding: "8px 16px" }}
           className="flex items-center gap-2 bg-[#1162a8] hover:bg-[#0d4a85] text-white font-bold transition-colors whitespace-nowrap"
         >
-          Add New lab
+          Add New {entityLabel}
         </button>
       </div>
 
-      {/* Labs count */}
+      {/* Count */}
       <p
         style={{ fontFamily: "Verdana, sans-serif", fontSize: 14, lineHeight: "22px", letterSpacing: "-0.02em" }}
         className="text-[#b4b0b0] text-right mb-6"
       >
-        {labs.length} labs found
+        {labs.length} {entityPlural} found
       </p>
 
-      {/* Lab cards grid */}
+      {/* Cards grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-[1400px] mx-auto mb-6 px-4">
         {labs.map((lab, i) => (
           <button
@@ -221,7 +274,7 @@ function StepLab({
               Click and select
             </span>
 
-            {/* Logo area */}
+            {/* Logo area - uses logo_url from API */}
             <div
               style={{ width: 185, height: 117 }}
               className="flex items-center justify-center mb-2 overflow-hidden"
@@ -264,7 +317,7 @@ function StepLab({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Step 3 – Patient Info                                              */
+/*  Step 3 – Patient Info (logic from slip-creation-header)            */
 /* ------------------------------------------------------------------ */
 function StepPatientInfo({
   doctor,
@@ -274,128 +327,258 @@ function StepPatientInfo({
   setGender,
   onComplete,
 }: {
-  doctor: (typeof doctors)[0] | undefined;
+  doctor: WizardDoctorShape | undefined;
   patientName: string;
   setPatientName: (v: string) => void;
   gender: string;
   setGender: (v: string) => void;
   onComplete?: () => void;
 }) {
-  const [genderOpen, setGenderOpen] = useState(!gender);
+  const [isNameFocused, setIsNameFocused] = useState(false);
+  const [isGenderFocused, setIsGenderFocused] = useState(false);
+  const patientNameInputRef = useRef<HTMLInputElement>(null);
+  const refocusTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (patientNameInputRef.current && !(patientName ?? "").trim()) {
+      const focusTimer = setTimeout(() => patientNameInputRef.current?.focus(), 100);
+      return () => clearTimeout(focusTimer);
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (refocusTimerRef.current) clearTimeout(refocusTimerRef.current);
+    };
+  }, []);
+
+  const getGenderDisplay = (g?: string) => {
+    if (g === "Male" || g === "male") return "Male";
+    if (g === "Female" || g === "female") return "Female";
+    return "Select Gender";
+  };
+
+  const name = patientName ?? "";
+  const showGenderField = (() => {
+    const nameParts = name.trim().split(/\s+/).filter((part) => part.length > 0);
+    if (nameParts.length < 2) return false;
+    const lastPart = nameParts[nameParts.length - 1];
+    return nameParts[0].length >= 2 && lastPart.length >= 2;
+  })();
+
+  const shouldAutoOpenGender = (inputName: string, inputGender: string): boolean => {
+    if (inputGender.trim() !== "") return false;
+    const nameParts = inputName.trim().split(/\s+/).filter((part) => part.length > 0);
+    if (nameParts.length >= 2) {
+      const lastWord = nameParts[nameParts.length - 1];
+      return lastWord.length === 2;
+    }
+    return false;
+  };
+
+  const handleNameChange = (value: string) => {
+    setPatientName(value);
+    if (refocusTimerRef.current) {
+      clearTimeout(refocusTimerRef.current);
+    }
+    const shouldOpen = shouldAutoOpenGender(value, gender);
+    if (shouldOpen && !isGenderFocused) {
+      setIsGenderFocused(true);
+      refocusTimerRef.current = setTimeout(() => patientNameInputRef.current?.focus(), 50);
+    }
+  };
+
+  const handleGenderSelect = (value: string) => {
+    setGender(value);
+    setIsGenderFocused(false);
+    setTimeout(() => patientNameInputRef.current?.focus(), 50);
+    if (name.trim() && onComplete) setTimeout(() => onComplete(), 300);
+  };
+
+  const hasNameValue = name.trim() !== "";
+  const hasGenderValue = gender.trim() !== "";
+  const isValidName = () => {
+    if (!hasNameValue) return false;
+    const nameParts = name.trim().split(/\s+/).filter((part) => part.length > 0);
+    if (nameParts.length < 2) return false;
+    const lastPart = nameParts[nameParts.length - 1];
+    return nameParts[0].length >= 2 && lastPart.length >= 2;
+  };
+  const isNameValid = isValidName();
+  const isGenderValid = hasGenderValue;
+
+  const getNameBorderColor = () => {
+    if (isNameValid) return "border-[#119933]";
+    if (hasNameValue) return "border-[#FF9900]";
+    return "border-red-500";
+  };
+  const getGenderBorderColor = () => {
+    if (showGenderField && !isGenderValid) return "border-red-500";
+    if (isGenderValid) return "border-[#119933]";
+    if (isGenderFocused) return "border-[#1162A8]";
+    return "border-[#7F7F7F]";
+  };
+  const getNameLabelColor = () => {
+    if (isNameValid) return "text-[#119933]";
+    if (hasNameValue) return "text-[#FF9900]";
+    return "text-red-500";
+  };
+  const getGenderLabelColor = () => {
+    if (showGenderField && !isGenderValid) return "text-red-500";
+    if (isGenderValid) return "text-[#119933]";
+    if (isGenderFocused) return "text-[#1162A8]";
+    return "text-[#7F7F7F]";
+  };
+  const getNameRingEffect = () => {
+    if (isNameValid) return "ring-2 ring-[#119933] ring-opacity-20 shadow-[0_0_0_4px_rgba(17,153,51,0.15)]";
+    if (hasNameValue) return "ring-2 ring-[#FF9900] ring-opacity-20 shadow-[0_0_0_4px_rgba(255,153,0,0.15)]";
+    return "ring-2 ring-red-500 ring-opacity-20 shadow-[0_0_0_4px_rgba(239,68,68,0.15)]";
+  };
+  const getGenderRingEffect = () => {
+    if (showGenderField && !isGenderValid) return "ring-2 ring-red-500 ring-opacity-20 shadow-[0_0_0_4px_rgba(239,68,68,0.15)]";
+    if (isGenderFocused && isGenderValid) return "ring-2 ring-[#119933] ring-opacity-20 shadow-[0_0_0_4px_rgba(17,153,51,0.15)]";
+    if (isGenderFocused) return "ring-2 ring-[#1162A8] ring-opacity-20 shadow-[0_0_0_4px_rgba(17,98,168,0.15)]";
+    return "";
+  };
+
+  const fieldWidth = 330;
+  const fieldHeight = 36.95;
+  const fieldGap = 10;
+  const containerHeight = showGenderField ? 10 + fieldHeight + fieldGap + fieldHeight + 10 : 10 + fieldHeight + 10;
 
   return (
     <div className="flex-1 flex flex-col px-6 py-6">
       <div className="flex items-start justify-between">
-        {/* Left: Doctor + patient info */}
         <div className="flex items-start gap-5">
           {doctor && (
             <div className="flex flex-col items-center gap-1">
-              <div className="w-[80px] h-[80px] rounded-full overflow-hidden border-2 border-[#d9d9d9]">
+              <div className="w-[80px] h-[80px] rounded-full overflow-hidden border-2 border-[#d9d9d9] bg-[#eef1f4]">
                 <img
-                  src={doctor.img || "/placeholder.svg"}
+                  src={doctor.img}
                   alt={doctor.name}
                   className="w-full h-full object-cover"
+                  data-fallback={getDoctorFallbackImg(doctor.id)}
+                  onError={(e) => {
+                    const fallback = e.currentTarget.dataset.fallback || DOCTOR_AVATAR_FALLBACKS[0];
+                    e.currentTarget.src = fallback;
+                  }}
                 />
               </div>
-              <span className="text-[11px] font-semibold text-[#1d1d1b]">
-                {doctor.name}
-              </span>
+              <span className="text-[11px] font-semibold text-[#1d1d1b]">{doctor.name}</span>
             </div>
           )}
 
-          <div className="flex flex-col gap-3 pt-2">
-            {/* Patient name field */}
-            <fieldset
-              className={`border rounded px-3 pb-2 pt-0 relative min-w-[280px] ${
-                patientName.trim().length > 0 ? "border-[#34a853]" : "border-[#e0a030]"
-              }`}
-            >
-              <legend
-                className={`text-[11px] px-1 leading-none font-medium ${
-                  patientName.trim().length > 0 ? "text-[#34a853]" : "text-[#e0a030]"
-                }`}
-              >
-                Patient name
-              </legend>
-              <div className="flex items-center gap-1">
+          <div className="relative" style={{ width: `${fieldWidth}px`, height: `${containerHeight}px` }}>
+            {/* Patient Name - Rxn3DFloatingInput-style */}
+            <div className="absolute" style={{ left: 0, top: 10, width: `${fieldWidth}px`, height: `${fieldHeight}px` }}>
+              <div className="relative w-full h-full">
                 <input
+                  ref={patientNameInputRef}
                   type="text"
-                  value={patientName}
-                  onChange={(e) => setPatientName(e.target.value)}
-                  placeholder="Enter patient name"
-                  className="flex-1 text-[13px] text-[#1d1d1b] bg-transparent outline-none leading-tight"
+                  value={name}
+                  onChange={(e) => handleNameChange(e.target.value)}
+                  onFocus={() => setIsNameFocused(true)}
+                  onBlur={() => setIsNameFocused(false)}
+                  className={cn(
+                    "w-full h-full box-border flex items-center bg-white border border-solid rounded-[7.7px] text-[#1F2937] focus:outline-none transition-all ease-out",
+                    getNameBorderColor(),
+                    getNameRingEffect(),
+                    !isNameFocused && "hover:shadow-[0_0_8px_rgba(17,98,168,0.2)]"
+                  )}
+                  style={{
+                    padding: "25px 30.8px 9.24px 12.32px",
+                    borderWidth: "0.740384px",
+                    fontFamily: "Arial",
+                    fontSize: "17px",
+                    lineHeight: "18px",
+                  }}
                 />
-                {patientName.trim().length > 0 && (
-                  <Check size={16} className="text-[#34a853] flex-shrink-0" />
-                )}
-              </div>
-            </fieldset>
-
-            {/* Gender selector */}
-            <fieldset
-              className={`border rounded px-3 pb-2 pt-0 relative min-w-[280px] ${
-                gender.trim().length > 0 ? "border-[#34a853]" : "border-[#cf0202]"
-              }`}
-            >
-              <legend
-                className={`text-[11px] px-1 leading-none font-medium ${
-                  gender.trim().length > 0 ? "text-[#34a853]" : "text-[#cf0202]"
-                }`}
-              >
-                Select gender
-              </legend>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => setGenderOpen(!genderOpen)}
-                  className={`flex-1 text-left text-[13px] bg-transparent outline-none leading-tight ${
-                    gender ? "text-[#1d1d1b]" : "text-[#9ba5b7]"
-                  }`}
+                <label
+                  className={cn("absolute bg-white pointer-events-none transition-all text-[#7F7F7F]", getNameLabelColor())}
+                  style={{ left: "9.23px", top: "-6.15px", fontFamily: "Arial", fontWeight: 400, fontSize: "14px", lineHeight: "14px" }}
                 >
-                  {gender || "\u00A0"}
-                </button>
-                {gender.trim().length > 0 && (
-                  <Check size={16} className="text-[#34a853] flex-shrink-0" />
+                  Patient name
+                </label>
+                {isNameValid && (
+                  <div className="absolute right-[12.32px] top-1/2 -translate-y-1/2">
+                    <Check className="h-5 w-5 text-[#119933]" aria-label="Valid" />
+                  </div>
                 )}
               </div>
-              {genderOpen && (
-                <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-[#d9d9d9] rounded shadow-lg z-10">
-                  {["Male", "Female"].map((g) => (
-                    <button
-                      key={g}
-                      onClick={() => {
-                        setGender(g);
-                        setGenderOpen(false);
-                        if (patientName.trim() && onComplete) {
-                          setTimeout(() => onComplete(), 300);
-                        }
-                      }}
-                      className={`w-full text-left px-3 py-2 text-[13px] hover:bg-[#dfeefb] transition-colors ${
-                        gender === g ? "bg-[#dfeefb]/60 font-medium" : "text-[#1d1d1b]"
-                      }`}
-                    >
-                      {g}
-                    </button>
-                  ))}
+            </div>
+
+            {/* Gender - only when name has valid first + last (each ≥2 chars) */}
+            {showGenderField && (
+              <div
+                className="absolute"
+                style={{ left: 0, top: 10 + fieldHeight + fieldGap, width: `${fieldWidth}px`, height: `${fieldHeight}px` }}
+              >
+                <div className="relative w-full h-full">
+                  <div
+                    className={cn(
+                      "w-full h-full box-border flex items-center justify-between bg-white border border-solid rounded-[7.7px] text-[#1F2937] cursor-pointer transition-all",
+                      getGenderBorderColor(),
+                      getGenderRingEffect(),
+                      !isGenderFocused && "hover:shadow-[0_0_8px_rgba(17,98,168,0.2)]"
+                    )}
+                    style={{
+                      padding: "25px 30.8px 9.24px 12.32px",
+                      borderWidth: "0.740384px",
+                      fontFamily: "Arial",
+                      fontSize: "17px",
+                      lineHeight: "18px",
+                    }}
+                    onClick={() => {
+                      if (!isGenderFocused) {
+                        setIsGenderFocused(true);
+                        setTimeout(() => patientNameInputRef.current?.focus(), 50);
+                      }
+                    }}
+                  >
+                    <span>{getGenderDisplay(gender)}</span>
+                    <ChevronDown className={cn("h-4 w-4 text-[#7F7F7F] transition-transform", isGenderFocused && "rotate-180")} />
+                  </div>
+                  {isGenderFocused && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#E5E7EB] rounded-[7.7px] shadow-lg z-50 overflow-hidden">
+                      <div
+                        className="px-2.5 py-1.5 hover:bg-[#DFEEFB] cursor-pointer text-[#1F2937]"
+                        style={{ fontFamily: "Arial", fontSize: "14px", lineHeight: "16px" }}
+                        onClick={() => handleGenderSelect("Male")}
+                      >
+                        Male
+                      </div>
+                      <div
+                        className="px-2.5 py-1.5 hover:bg-[#DFEEFB] cursor-pointer text-[#1F2937]"
+                        style={{ fontFamily: "Arial", fontSize: "14px", lineHeight: "16px" }}
+                        onClick={() => handleGenderSelect("Female")}
+                      >
+                        Female
+                      </div>
+                    </div>
+                  )}
+                  <label
+                    className={cn("absolute bg-white pointer-events-none z-10 transition-all text-[#7F7F7F]", getGenderLabelColor())}
+                    style={{ left: "9.23px", top: "-6.15px", fontFamily: "Arial", fontWeight: 400, fontSize: "14px", lineHeight: "14px" }}
+                  >
+                    Gender
+                  </label>
+                  {isGenderValid && (
+                    <div className="absolute right-[12.32px] top-1/2 -translate-y-1/2 z-20 pointer-events-none">
+                      <Check className="h-5 w-5 text-[#119933]" aria-label="Valid" />
+                    </div>
+                  )}
                 </div>
-              )}
-            </fieldset>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Right: Created by */}
         <div className="flex flex-col items-center gap-1">
           <div className="w-[60px] h-[60px] rounded-full overflow-hidden border-2 border-[#d9d9d9]">
-            <img
-              src="/staff/creator.jpg"
-              alt="Cassandra Vega"
-              className="w-full h-full object-cover"
-            />
+            <img src="/images/created-by.png" alt="Creator" className="w-full h-full object-cover" />
           </div>
           <fieldset className="border border-[#b4b0b0] rounded px-3 pb-1 pt-0 relative mt-1">
-            <legend className="text-[10px] text-[#7f7f7f] px-1 leading-none">
-              Created By
-            </legend>
+            <legend className="text-[10px] text-[#7f7f7f] px-1 leading-none">Created By</legend>
             <span className="text-[12px] text-[#1d1d1b]">Cassandra Vega</span>
           </fieldset>
         </div>
@@ -405,24 +588,50 @@ function StepPatientInfo({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Step 4 – Choose Category                                           */
+/*  Step 4 – Choose Category (from API /v1/library/categories)         */
 /* ------------------------------------------------------------------ */
 function StepCategory({
+  categories,
   selected,
   onSelect,
   doctor,
   patientName,
   gender,
+  isLoading,
+  error,
 }: {
-  selected: string | null;
-  onSelect: (id: string) => void;
-  doctor: (typeof doctors)[0] | undefined;
+  categories: { id: number; name: string; img: string }[];
+  selected: number | null;
+  onSelect: (id: number) => void;
+  doctor: WizardDoctorShape | undefined;
   patientName: string;
   gender: string;
+  isLoading?: boolean;
+  error?: Error | null;
 }) {
+  if (error) {
+    return (
+      <div className="flex-1 flex flex-col px-6 py-6 items-center justify-center">
+        <p className="text-[#7f7f7f] text-center mb-4">Unable to load categories. Please try again.</p>
+        <p className="text-sm text-[#b4b0b0]">{error.message}</p>
+      </div>
+    );
+  }
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex flex-col px-6 py-4">
+        <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} />
+        <h2 className="text-[16px] font-bold text-[#1d1d1b] text-center mt-4 mb-2">CASE DESIGN CENTER</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6 max-w-[640px] mx-auto w-full">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="w-full aspect-square rounded-[4px]" />
+          ))}
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="flex-1 flex flex-col px-6 py-4">
-      {/* Patient header mini */}
       <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} />
 
       <h2 className="text-[16px] font-bold text-[#1d1d1b] text-center mt-4 mb-2">
@@ -452,11 +661,14 @@ function StepCategory({
                 : "border-[#d9d9d9] bg-white"
             }`}
           >
-            <div className="w-full aspect-square rounded-[4px] overflow-hidden flex-shrink-0">
+            <div className="w-full aspect-square rounded-[4px] overflow-hidden flex-shrink-0 bg-[#eef1f4]">
               <img
                 src={cat.img || "/placeholder.svg"}
                 alt={cat.name}
                 className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.currentTarget.src = "/placeholder.svg";
+                }}
               />
             </div>
             <span
@@ -473,25 +685,27 @@ function StepCategory({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Step 5 – Choose Sub-Product                                        */
+/*  Step 5 – Choose Sub-Product (subcategories from API)                */
 /* ------------------------------------------------------------------ */
 function StepSubProduct({
-  category,
+  categoryId,
+  subProducts,
+  categoryName,
   selected,
   onSelect,
   doctor,
   patientName,
   gender,
 }: {
-  category: string;
-  selected: string | null;
-  onSelect: (id: string) => void;
-  doctor: (typeof doctors)[0] | undefined;
+  categoryId: number;
+  subProducts: { id: number; name: string; img: string }[];
+  categoryName: string;
+  selected: number | null;
+  onSelect: (id: number) => void;
+  doctor: WizardDoctorShape | undefined;
   patientName: string;
   gender: string;
 }) {
-  const products = subProducts[category] || [];
-  const categoryName = categories.find((c) => c.id === category)?.name || "";
   const [accordionOpen, setAccordionOpen] = useState(false);
 
   return (
@@ -517,7 +731,7 @@ function StepSubProduct({
 
       {/* Product grid */}
       <div className="flex flex-wrap justify-center gap-4 mb-6">
-        {products.map((prod) => (
+        {subProducts.map((prod) => (
           <button
             key={prod.id}
             onClick={() => onSelect(prod.id)}
@@ -527,11 +741,14 @@ function StepSubProduct({
                 : "border-[#d9d9d9] bg-white"
             }`}
           >
-            <div className="w-full aspect-square rounded-[4px] overflow-hidden flex-shrink-0">
+            <div className="w-full aspect-square rounded-[4px] overflow-hidden flex-shrink-0 bg-[#eef1f4]">
               <img
                 src={prod.img || "/placeholder.svg"}
                 alt={prod.name}
                 className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.currentTarget.src = "/placeholder.svg";
+                }}
               />
             </div>
             <span
@@ -565,29 +782,54 @@ function StepSubProduct({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Step 6 – Choose Material / Product                                 */
+/*  Step 6 – Choose Material / Product (from API /v1/library/products) */
 /* ------------------------------------------------------------------ */
+const PRODUCT_IMG_FALLBACK = "/placeholder.svg"
+
 function StepMaterial({
-  category,
-  subProduct,
+  categoryName,
+  subProductName,
+  products,
   selected,
   onSelect,
   doctor,
   patientName,
   gender,
+  isLoading,
+  error,
 }: {
-  category: string;
-  subProduct: string;
+  categoryName: string;
+  subProductName: string;
+  products: { id: number; name: string; img: string }[];
   selected: string | null;
   onSelect: (id: string) => void;
-  doctor: (typeof doctors)[0] | undefined;
+  doctor: WizardDoctorShape | undefined;
   patientName: string;
   gender: string;
+  isLoading?: boolean;
+  error?: Error | null;
 }) {
-  const items = materials[subProduct] || materials["single-crowns"] || [];
-  const categoryName = categories.find((c) => c.id === category)?.name || "";
-  const subProductName =
-    (subProducts[category] || []).find((p) => p.id === subProduct)?.name || "";
+  if (error) {
+    return (
+      <div className="flex-1 flex flex-col px-6 py-6 items-center justify-center">
+        <p className="text-[#7f7f7f] text-center mb-4">Unable to load products. Please try again.</p>
+        <p className="text-sm text-[#b4b0b0]">{error.message}</p>
+      </div>
+    );
+  }
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex flex-col px-6 py-4">
+        <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} />
+        <h2 className="text-[16px] font-bold text-[#1d1d1b] text-center mt-4 mb-2">CASE DESIGN CENTER</h2>
+        <div className="flex flex-wrap justify-center gap-4 mb-6">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <Skeleton key={i} className="w-[155px] sm:w-[180px] md:w-[200px] aspect-square rounded-[5px]" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col px-6 py-4">
@@ -609,34 +851,36 @@ function StepMaterial({
         </div>
       </div>
 
-      {/* Material cards grid */}
+      {/* Product cards grid (from API) */}
       <div className="flex flex-wrap justify-center gap-4 mb-6">
-        {items.map((mat) => (
+        {products.map((prod) => (
           <button
-            key={mat.id}
-            onClick={() => onSelect(mat.id)}
+            key={prod.id}
+            onClick={() => onSelect(String(prod.id))}
             className={`group relative flex flex-col items-center px-4 py-[5px] gap-2 w-[155px] sm:w-[180px] md:w-[200px] rounded-[7px] border-[3px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${
-              selected === mat.id
+              selected === String(prod.id)
                 ? "border-[#1162A8] bg-[#1162A8]/5"
                 : "border-[#d9d9d9] bg-white"
             }`}
           >
-            {/* "Click and select" text - shown on hover */}
             <span className="absolute top-1 text-[10px] text-[#7f7f7f] opacity-0 group-hover:opacity-100 transition-opacity">
               Click and select
             </span>
             <div className="w-full aspect-square rounded-[5px] overflow-hidden bg-[#080808] flex-shrink-0">
               <img
-                src={mat.img || "/placeholder.svg"}
-                alt={mat.name}
+                src={prod.img || PRODUCT_IMG_FALLBACK}
+                alt={prod.name}
                 className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.currentTarget.src = PRODUCT_IMG_FALLBACK;
+                }}
               />
             </div>
             <span
               style={{ fontFamily: "Verdana, sans-serif", fontSize: 14, lineHeight: "15px", letterSpacing: "-0.02em" }}
               className="text-[#000000] text-center self-stretch"
             >
-              {mat.name}
+              {prod.name}
             </span>
           </button>
         ))}
@@ -668,7 +912,7 @@ function PatientMiniHeader({
   patientName,
   gender,
 }: {
-  doctor: (typeof doctors)[0] | undefined;
+  doctor: WizardDoctorShape | undefined;
   patientName: string;
   gender: string;
 }) {
@@ -677,11 +921,16 @@ function PatientMiniHeader({
       <div className="flex items-start gap-5">
         {doctor && (
           <div className="flex flex-col items-center gap-1">
-            <div className="w-[80px] h-[80px] rounded-full overflow-hidden border-2 border-[#d9d9d9]">
+            <div className="w-[80px] h-[80px] rounded-full overflow-hidden border-2 border-[#d9d9d9] bg-[#eef1f4]">
               <img
-                src={doctor.img || "/placeholder.svg"}
+                src={doctor.img}
                 alt={doctor.name}
                 className="w-full h-full object-cover"
+                data-fallback={getDoctorFallbackImg(doctor.id)}
+                onError={(e) => {
+                  const fallback = e.currentTarget.dataset.fallback || DOCTOR_AVATAR_FALLBACKS[0];
+                  e.currentTarget.src = fallback;
+                }}
               />
             </div>
             <span className="text-[11px] font-semibold text-[#1d1d1b]">
@@ -715,7 +964,11 @@ function PatientMiniHeader({
       <div className="flex flex-col items-center gap-1">
         <div className="w-[60px] h-[60px] rounded-full overflow-hidden border-2 border-[#d9d9d9]">
           <img
-            src="/staff/creator.jpg"
+            src="/images/created-by.png"
+            onError={(e) => {
+              e.currentTarget.onerror = null;
+              e.currentTarget.src = "/images/created-by.png";
+            }}
             alt="Cassandra Vega"
             className="w-full h-full object-cover"
           />
@@ -736,29 +989,123 @@ function PatientMiniHeader({
 /* ------------------------------------------------------------------ */
 export default function NewCaseWizard({
   onComplete,
+  startStep = 1,
+  mode = "initial",
 }: {
   onComplete: (result: WizardResult) => void;
+  startStep?: number;
+  mode?: "initial" | "addProduct";
 }) {
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(startStep);
   const [selectedDoctor, setSelectedDoctor] = useState<number | null>(null);
   const [selectedLab, setSelectedLab] = useState<number | null>(null);
-  const [patientName, setPatientName] = useState("Jose Protacio Rizal Mercado y Alonzo");
+  const [patientName, setPatientName] = useState("");
   const [gender, setGender] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [selectedSubProduct, setSelectedSubProduct] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
+  const [selectedSubProduct, setSelectedSubProduct] = useState<number | null>(null);
   const [selectedMaterial, setSelectedMaterial] = useState<string | null>(null);
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
-  const doctor = doctors.find((d) => d.id === selectedDoctor);
-  const lab = labs.find((l) => l.id === selectedLab);
+  const { role, customerId, isOfficeAdmin, isLabAdmin } = useWizardRole();
+  const { officesAsLabs, isLoading: labsLoading, error: labsError } = useConnectedOfficesOrLabs(role);
+  const lab = officesAsLabs.find((l) => l.id === selectedLab);
+
+  // customer_id for library/categories: office_admin = selected lab id, lab_admin = their customerId
+  const customerIdForCategories = useMemo(() => {
+    if (isOfficeAdmin && selectedLab != null) return selectedLab;
+    if ((isLabAdmin || role) && customerId != null) return customerId;
+    return undefined;
+  }, [isOfficeAdmin, isLabAdmin, role, customerId, selectedLab]);
+
+  const {
+    categoriesAsWizard,
+    subcategoriesByCategoryId,
+    isLoading: categoriesLoading,
+    error: categoriesError,
+  } = useLibraryCategories({
+    customerId: customerIdForCategories,
+    lang: "en",
+    enabled: step >= 4,
+  });
+
+  const {
+    productsAsWizard,
+    isLoading: productsLoading,
+    error: productsError,
+  } = useLibraryProducts({
+    customerId: customerIdForCategories,
+    subcategoryId: selectedSubProduct ?? undefined,
+    perPage: 50,
+    page: 1,
+    enabled: step === 6 && selectedSubProduct != null,
+  });
+
+  // Office ID for doctors: office_admin = logged-in user's customerId; lab_admin = selected lab (office) id
+  const officeIdForDoctors = useMemo(() => {
+    if (isOfficeAdmin && customerId != null) return customerId;
+    if (isLabAdmin && selectedLab != null) return selectedLab;
+    return undefined;
+  }, [isOfficeAdmin, isLabAdmin, customerId, selectedLab]);
+
+  const {
+    data: officeDoctorsRaw = [],
+    isLoading: doctorsLoading,
+    isSuccess: doctorsSuccess,
+    error: doctorsError,
+  } = useOfficeDoctors(officeIdForDoctors);
+
+  const doctorsForWizard: WizardDoctorShape[] = useMemo(
+    () =>
+      (officeDoctorsRaw as { id: number; first_name?: string; last_name?: string; image?: string; profile_image?: string }[]).map(
+        (d, i) => ({
+          id: d.id,
+          name: [d.first_name, d.last_name].filter(Boolean).join(" ").trim() || "Doctor",
+          img: d.image || d.profile_image || getDoctorFallbackImg(d.id, i),
+        })
+      ),
+    [officeDoctorsRaw]
+  );
+
+  const doctor = doctorsForWizard.find((d) => d.id === selectedDoctor);
+
+  // Step order: office_admin = Doctor(1) → Lab(2) → Patient(3)...; else (lab_admin, doctor, etc.) = Lab(1) → Doctor(2) → Patient(3)...
+  const isStepDoctor = (s: number) => (s === 1 && role === "office_admin") || (s === 2 && role !== "office_admin");
+  const isStepLab = (s: number) => (s === 1 && role !== "office_admin") || (s === 2 && role === "office_admin");
+
+  // When there is only one doctor, auto-select and proceed to next step
+  const didAutoAdvanceDoctorRef = useRef(false);
+  useEffect(() => {
+    const onDoctorStep = (step === 1 && role === "office_admin") || (step === 2 && role !== "office_admin");
+    if (!onDoctorStep) {
+      didAutoAdvanceDoctorRef.current = false;
+      return;
+    }
+    const oneDoctor = doctorsForWizard.length === 1 ? doctorsForWizard[0] : null;
+    if (
+      doctorsSuccess &&
+      oneDoctor != null &&
+      selectedDoctor === null &&
+      !didAutoAdvanceDoctorRef.current
+    ) {
+      didAutoAdvanceDoctorRef.current = true;
+      setSelectedDoctor(oneDoctor.id);
+      setStep((s) => s + 1);
+    }
+  }, [step, role, doctorsSuccess, doctorsForWizard, selectedDoctor]);
 
   const canProceed = () => {
     switch (step) {
       case 1:
-        return selectedDoctor !== null;
+        return isStepDoctor(1) ? selectedDoctor !== null : selectedLab !== null;
       case 2:
-        return selectedLab !== null;
-      case 3:
-        return patientName.trim() !== "" && gender !== "";
+        return isStepDoctor(2) ? selectedDoctor !== null : selectedLab !== null;
+      case 3: {
+        const p = patientName.trim();
+        if (!p || !gender) return false;
+        const parts = p.split(/\s+/).filter(Boolean);
+        if (parts.length < 2) return false;
+        return parts[0].length >= 2 && parts[parts.length - 1].length >= 2;
+      }
       case 4:
         return selectedCategory !== null;
       case 5:
@@ -773,46 +1120,99 @@ export default function NewCaseWizard({
   const handleNext = () => {
     if (step < 6) {
       setStep(step + 1);
+    } else if (step === 6 && mode === "addProduct") {
+      onComplete({
+        doctor: doctor ?? { id: 0, name: "", img: "" },
+        lab: lab ?? { id: 0, name: "", location: "", logo: null },
+        patientName,
+        gender,
+        category: selectedCategory != null ? String(selectedCategory) : "",
+        product: selectedSubProduct != null ? String(selectedSubProduct) : "",
+        material: selectedMaterial || "",
+      });
     } else if (step === 6 && doctor && lab) {
       onComplete({
         doctor,
         lab,
         patientName,
         gender,
-        category: selectedCategory || "",
-        product: selectedSubProduct || "",
+        category: selectedCategory != null ? String(selectedCategory) : "",
+        product: selectedSubProduct != null ? String(selectedSubProduct) : "",
         material: selectedMaterial || "",
       });
     }
   };
 
+  const router = useRouter();
+
   const handleCancel = () => {
-    if (step > 1) {
-      setStep(step - 1);
-    }
+    setShowCancelModal(true);
+  };
+
+  const handleConfirmCancel = () => {
+    setShowCancelModal(false);
+    router.push("/dashboard");
   };
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      {/* Step content */}
+      {/* Step content – step 1 & 2 order by role: office_admin = Doctor → Lab, lab_admin = Lab → Doctor */}
       <div className="flex-1 overflow-auto">
-        {step === 1 && (
+        {step <= 2 && role === null && (
+          <div className="flex-1 flex items-center justify-center px-6 py-6">
+            <Skeleton className="h-12 w-48 rounded" />
+          </div>
+        )}
+        {step === 1 && role !== null && isStepDoctor(1) && (
           <StepDoctor
+            doctors={doctorsForWizard}
             selected={selectedDoctor}
             onSelect={(id) => {
               setSelectedDoctor(id);
-              // Auto advance after selection
               setTimeout(() => setStep(2), 300);
             }}
+            isLoading={doctorsLoading}
+            error={doctorsError}
           />
         )}
-        {step === 2 && (
+        {step === 1 && role !== null && isStepLab(1) && (
           <StepLab
+            labs={officesAsLabs}
+            selected={selectedLab}
+            onSelect={(id) => {
+              setSelectedLab(id);
+              setTimeout(() => setStep(2), 300);
+            }}
+            isLoading={labsLoading}
+            error={labsError}
+            stepTitle={role === "office_admin" ? "Choose an Office" : "Choose a Lab"}
+            entityLabel={role === "office_admin" ? "office" : "lab"}
+          />
+        )}
+        {step === 2 && role !== null && isStepDoctor(2) && (
+          <StepDoctor
+            doctors={doctorsForWizard}
+            selected={selectedDoctor}
+            onSelect={(id) => {
+              setSelectedDoctor(id);
+              setTimeout(() => setStep(3), 300);
+            }}
+            isLoading={doctorsLoading}
+            error={doctorsError}
+          />
+        )}
+        {step === 2 && role !== null && isStepLab(2) && (
+          <StepLab
+            labs={officesAsLabs}
             selected={selectedLab}
             onSelect={(id) => {
               setSelectedLab(id);
               setTimeout(() => setStep(3), 300);
             }}
+            isLoading={labsLoading}
+            error={labsError}
+            stepTitle={role === "office_admin" ? "Choose an Office" : "Choose a Lab"}
+            entityLabel={role === "office_admin" ? "office" : "lab"}
           />
         )}
         {step === 3 && (
@@ -827,19 +1227,25 @@ export default function NewCaseWizard({
         )}
         {step === 4 && (
           <StepCategory
+            categories={categoriesAsWizard}
             selected={selectedCategory}
             onSelect={(id) => {
               setSelectedCategory(id);
+              setSelectedSubProduct(null);
               setTimeout(() => setStep(5), 300);
             }}
             doctor={doctor}
             patientName={patientName}
             gender={gender}
+            isLoading={categoriesLoading}
+            error={categoriesError}
           />
         )}
-        {step === 5 && selectedCategory && (
+        {step === 5 && selectedCategory != null && (
           <StepSubProduct
-            category={selectedCategory}
+            categoryId={selectedCategory}
+            subProducts={subcategoriesByCategoryId[selectedCategory] ?? []}
+            categoryName={categoriesAsWizard.find((c) => c.id === selectedCategory)?.name ?? ""}
             selected={selectedSubProduct}
             onSelect={(id) => {
               setSelectedSubProduct(id);
@@ -850,22 +1256,39 @@ export default function NewCaseWizard({
             gender={gender}
           />
         )}
-        {step === 6 && selectedCategory && selectedSubProduct && (
+        {step === 6 && selectedCategory != null && selectedSubProduct != null && (
           <StepMaterial
-            category={selectedCategory}
-            subProduct={selectedSubProduct}
+            categoryName={categoriesAsWizard.find((c) => c.id === selectedCategory)?.name ?? ""}
+            subProductName={
+              (subcategoriesByCategoryId[selectedCategory] ?? []).find((p) => p.id === selectedSubProduct)?.name ?? ""
+            }
+            products={productsAsWizard}
             selected={selectedMaterial}
+            isLoading={productsLoading}
+            error={productsError}
             onSelect={(id) => {
               setSelectedMaterial(id);
-              if (doctor && lab) {
+              if (mode === "addProduct") {
+                setTimeout(() => {
+                  onComplete({
+                    doctor: doctor ?? { id: 0, name: "", img: "" },
+                    lab: lab ?? { id: 0, name: "", location: "", logo: null },
+                    patientName,
+                    gender,
+                    category: String(selectedCategory),
+                    product: String(selectedSubProduct),
+                    material: id,
+                  });
+                }, 300);
+              } else if (doctor && lab) {
                 setTimeout(() => {
                   onComplete({
                     doctor,
                     lab,
                     patientName,
                     gender,
-                    category: selectedCategory || "",
-                    product: selectedSubProduct || "",
+                    category: String(selectedCategory),
+                    product: String(selectedSubProduct),
                     material: id,
                   });
                 }, 300);
@@ -915,6 +1338,13 @@ export default function NewCaseWizard({
           }}
         />
       )}
+
+      {/* Cancel slip creation modal (steps 1–3) */}
+      <CancelSlipCreationModal
+        open={showCancelModal}
+        onCancel={() => setShowCancelModal(false)}
+        onConfirm={handleConfirmCancel}
+      />
     </div>
   );
 }

@@ -1,0 +1,118 @@
+"use client";
+
+import { useState } from "react";
+import type { Arch } from "../types";
+import { mockImpressions } from "../constants";
+
+export function useModalState() {
+  // Impression modal state
+  const [showImpressionModal, setShowImpressionModal] = useState(false);
+  const [currentImpressionArch, setCurrentImpressionArch] = useState<Arch>("maxillary");
+  const [currentImpressionProductId, setCurrentImpressionProductId] = useState("");
+  const [selectedImpressions, setSelectedImpressions] = useState<Record<string, number>>({});
+
+  // Add-ons modal state
+  const [showAddOnsModal, setShowAddOnsModal] = useState(false);
+  const [currentAddOnsArch, setCurrentAddOnsArch] = useState<Arch>("maxillary");
+  const [currentAddOnsProductId, setCurrentAddOnsProductId] = useState("");
+
+  // File attachment modal state
+  const [showAttachModal, setShowAttachModal] = useState(false);
+
+  // Rush request modal state
+  const [showRushModal, setShowRushModal] = useState(false);
+  const [currentRushArch, setCurrentRushArch] = useState<Arch>("maxillary");
+  const [currentRushProductId, setCurrentRushProductId] = useState("");
+  const [rushedProducts, setRushedProducts] = useState<Record<string, any>>({});
+
+  // Stage modal state
+  const [isStageModalOpen, setIsStageModalOpen] = useState(false);
+  const [currentStageProductId, setCurrentStageProductId] = useState<string>("");
+  const [selectedStages, setSelectedStages] = useState<Record<string, string>>({
+    fixed_45: "Finish",
+    fixed_19: "Finish",
+  });
+
+  const handleOpenImpressionModal = (arch: Arch, productId: string) => {
+    setCurrentImpressionArch(arch);
+    setCurrentImpressionProductId(productId);
+    setShowImpressionModal(true);
+  };
+
+  const handleOpenAddOnsModal = (arch: Arch, productId: string) => {
+    setCurrentAddOnsArch(arch);
+    setCurrentAddOnsProductId(productId);
+    setShowAddOnsModal(true);
+  };
+
+  const handleOpenRushModal = (arch: Arch, productId: string) => {
+    setCurrentRushArch(arch);
+    setCurrentRushProductId(productId);
+    setShowRushModal(true);
+  };
+
+  const handleRushConfirm = (rushData: any) => {
+    const key = `${currentRushArch}_${currentRushProductId}`;
+    setRushedProducts((prev) => ({ ...prev, [key]: rushData }));
+  };
+
+  const handleOpenStageModal = (productId: string) => {
+    setCurrentStageProductId(productId);
+    setIsStageModalOpen(true);
+  };
+
+  const handleStageSelect = (stageName: string) => {
+    setSelectedStages((prev) => ({ ...prev, [currentStageProductId]: stageName }));
+    setIsStageModalOpen(false);
+  };
+
+  const getImpressionDisplayText = (productId: string, arch: Arch) => {
+    const entries = Object.entries(selectedImpressions).filter(
+      ([key, qty]) => key.startsWith(`${productId}_${arch}_`) && qty > 0
+    );
+    if (entries.length === 0) return "";
+    return entries
+      .map(([key, qty]) => {
+        const identifier = key.replace(`${productId}_${arch}_`, "");
+        const impression = mockImpressions.find((i) => i.value === identifier);
+        return `${qty}x ${impression?.name || identifier}`;
+      })
+      .join(", ");
+  };
+
+  return {
+    // Impression
+    showImpressionModal,
+    setShowImpressionModal,
+    currentImpressionArch,
+    currentImpressionProductId,
+    selectedImpressions,
+    setSelectedImpressions,
+    handleOpenImpressionModal,
+    getImpressionDisplayText,
+    // Add-ons
+    showAddOnsModal,
+    setShowAddOnsModal,
+    currentAddOnsArch,
+    currentAddOnsProductId,
+    handleOpenAddOnsModal,
+    // Attachment
+    showAttachModal,
+    setShowAttachModal,
+    // Rush
+    showRushModal,
+    setShowRushModal,
+    currentRushArch,
+    currentRushProductId,
+    rushedProducts,
+    handleOpenRushModal,
+    handleRushConfirm,
+    // Stage
+    isStageModalOpen,
+    setIsStageModalOpen,
+    currentStageProductId,
+    selectedStages,
+    handleOpenStageModal,
+    handleStageSelect,
+  };
+}
