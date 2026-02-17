@@ -38,6 +38,7 @@ import { implantBrandPlatforms, implantBrandList } from "../constants";
 interface MandibularPanelProps {
   showMandibular: boolean;
   setShowMandibular: (v: boolean) => void;
+  showDetails: boolean;
   onAddProduct?: (arch: "maxillary" | "mandibular") => void;
 
   // Teeth
@@ -106,6 +107,7 @@ interface MandibularPanelProps {
 export function MandibularPanel({
   showMandibular,
   setShowMandibular,
+  showDetails,
   onAddProduct,
   mandibularTeeth,
   handleMandibularToothClick,
@@ -152,12 +154,14 @@ export function MandibularPanel({
     <div className="flex-1 min-w-0 px-0 md:px-3 order-3 lg:order-none">
       {/* Mandibular header - centered */}
       <div className="flex flex-col md:flex-row items-center justify-center gap-2 md:gap-3 mb-3">
-        <button
-          onClick={() => onAddProduct?.('mandibular')}
-          className="flex items-center gap-1.5 bg-[#1162A8] hover:bg-[#0d4a85] shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] text-white font-[Verdana] text-[10px] leading-[22px] tracking-[-0.02em] text-center px-2.5 py-0 rounded-md">
-          <Plus size={13} strokeWidth={1.5} />
-          Add Product
-        </button>
+        {showDetails && (
+          <button
+            onClick={() => onAddProduct?.('mandibular')}
+            className="flex items-center gap-1.5 bg-[#1162A8] hover:bg-[#0d4a85] shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] text-white font-[Verdana] text-[10px] leading-[22px] tracking-[-0.02em] text-center px-2.5 py-0 rounded-md">
+            <Plus size={13} strokeWidth={1.5} />
+            Add Product
+          </button>
+        )}
         <h3 className="text-[12px] md:text-[14px] font-bold text-[#1d1d1b] tracking-wide">
           MANDIBULAR
         </h3>
@@ -212,10 +216,12 @@ export function MandibularPanel({
             />
           )}
 
-          <ToothStatusBoxes />
+          {showDetails && (
+            <>
+              <ToothStatusBoxes />
 
-          {/* ---- Case Detail Card for #19 ---- */}
-          <div className={`rounded-lg bg-white overflow-hidden ${rushedProducts["mandibular_fixed_19"] ? "border-2 border-[#CF0202]" : "border border-[#d9d9d9]"}`}>
+              {/* ---- Case Detail Card for #19 ---- */}
+              <div className={`rounded-lg bg-white overflow-hidden ${rushedProducts["mandibular_fixed_19"] ? "border-2 border-[#CF0202]" : "border border-[#d9d9d9]"}`}>
             {/* Card header - same style as left accordion */}
             <button
               type="button"
@@ -495,109 +501,109 @@ export function MandibularPanel({
                 </div>
               </div>
             )}
-          </div>
+              </div>
 
-          {/* Dynamically added mandibular products */}
-          {addedProducts
-            .filter(ap => ap.arch === "mandibular")
-            .map(ap => (
-            <div key={ap.id} className="rounded-lg bg-white overflow-hidden border border-[#d9d9d9] mt-3">
-              {/* Accordion header */}
-              <button
-                type="button"
-                onClick={() => toggleAddedProductExpanded(ap.id)}
-                className="w-full flex items-center py-[14px] px-2 gap-[10px] transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] bg-[#DFEEFB] hover:bg-[#d4e8f8]"
-              >
-                <div className="w-16 h-[62px] rounded-md bg-white flex items-center justify-center flex-shrink-0 overflow-hidden">
-                  {ap.product.image_url ? (
-                    <img src={ap.product.image_url} alt={ap.product.name || "Product"} className="w-[61.58px] h-[28.79px] object-contain" />
-                  ) : (
-                    <div className="w-[61.58px] h-[28.79px] bg-gray-100 rounded flex items-center justify-center">
-                      <span className="text-[10px] text-gray-400">No img</span>
-                    </div>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0 text-left flex flex-col">
-                  <p className="font-[Verdana] text-[14.4px] leading-[20px] tracking-[-0.02em] text-black">
-                    {ap.product.name || "Untitled Product"}
-                  </p>
-                  <div className="flex items-center gap-[5px] flex-wrap">
-                    {ap.product.category_name && (
-                      <span className="font-[Verdana] text-[10px] leading-[22px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[10px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]">
-                        {ap.product.category_name}
-                      </span>
-                    )}
-                    {ap.product.subcategory_name && (
-                      <span className="font-[Verdana] text-[10px] leading-[22px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[10px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]">
-                        {ap.product.subcategory_name}
-                      </span>
-                    )}
-                    <span className="font-[Verdana] text-[10px] leading-[22px] tracking-[-0.02em] text-[#B4B0B0]">
-                      Est days: 10 work days after submission
-                    </span>
+              {/* Dynamically added mandibular products */}
+              {addedProducts
+                .filter(ap => ap.arch === "mandibular")
+                .map(ap => (
+                  <div key={ap.id} className="rounded-lg bg-white overflow-hidden border border-[#d9d9d9] mt-3">
                     <button
                       type="button"
-                      onClick={(e) => { e.stopPropagation(); handleRemoveAddedProduct(ap.id); }}
-                      className="ml-1 hover:text-red-500 transition-colors"
-                      title="Remove product"
+                      onClick={() => toggleAddedProductExpanded(ap.id)}
+                      className="w-full flex items-center py-[14px] px-2 gap-[10px] transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] bg-[#DFEEFB] hover:bg-[#d4e8f8]"
                     >
-                      <Trash2 size={9} className="text-[#999999] hover:text-red-500" />
+                      <div className="w-16 h-[62px] rounded-md bg-white flex items-center justify-center flex-shrink-0 overflow-hidden">
+                        {ap.product.image_url ? (
+                          <img src={ap.product.image_url} alt={ap.product.name || "Product"} className="w-[61.58px] h-[28.79px] object-contain" />
+                        ) : (
+                          <div className="w-[61.58px] h-[28.79px] bg-gray-100 rounded flex items-center justify-center">
+                            <span className="text-[10px] text-gray-400">No img</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0 text-left flex flex-col">
+                        <p className="font-[Verdana] text-[14.4px] leading-[20px] tracking-[-0.02em] text-black">
+                          {ap.product.name || "Untitled Product"}
+                        </p>
+                        <div className="flex items-center gap-[5px] flex-wrap">
+                          {ap.product.category_name && (
+                            <span className="font-[Verdana] text-[10px] leading-[22px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[10px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]">
+                              {ap.product.category_name}
+                            </span>
+                          )}
+                          {ap.product.subcategory_name && (
+                            <span className="font-[Verdana] text-[10px] leading-[22px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[10px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]">
+                              {ap.product.subcategory_name}
+                            </span>
+                          )}
+                          <span className="font-[Verdana] text-[10px] leading-[22px] tracking-[-0.02em] text-[#B4B0B0]">
+                            Est days: 10 work days after submission
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleRemoveAddedProduct(ap.id); }}
+                            className="ml-1 hover:text-red-500 transition-colors"
+                            title="Remove product"
+                          >
+                            <Trash2 size={9} className="text-[#999999] hover:text-red-500" />
+                          </button>
+                        </div>
+                      </div>
+                      <ChevronDown
+                        size={21.6}
+                        className={`text-black flex-shrink-0 transition-transform ${ap.expanded ? "rotate-180" : ""}`}
+                      />
                     </button>
-                  </div>
-                </div>
-                <ChevronDown
-                  size={21.6}
-                  className={`text-black flex-shrink-0 transition-transform ${ap.expanded ? "rotate-180" : ""}`}
-                />
-              </button>
 
-              {/* Accordion body */}
-              {ap.expanded && (
-                <div className="border-t border-[#d9d9d9] p-2.5 sm:p-4 bg-white space-y-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <FieldInput
-                      label="Product - Material"
-                      value={ap.product.name || ""}
-                    />
-                    <FieldInput
-                      label="Category"
-                      value={ap.product.category_name || ap.product.category?.name || ""}
-                    />
+                    {ap.expanded && (
+                      <div className="border-t border-[#d9d9d9] p-2.5 sm:p-4 bg-white space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <FieldInput
+                            label="Product - Material"
+                            value={ap.product.name || ""}
+                          />
+                          <FieldInput
+                            label="Category"
+                            value={ap.product.category_name || ap.product.category?.name || ""}
+                          />
+                        </div>
+                        {ap.product.code && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <FieldInput
+                              label="Product Code"
+                              value={ap.product.code}
+                            />
+                            <FieldInput
+                              label="Arch"
+                              value={ap.arch === "maxillary" ? "Maxillary (Upper)" : "Mandibular (Lower)"}
+                            />
+                          </div>
+                        )}
+                        <div className="flex items-center justify-center gap-4 pt-3 border-t border-[#d9d9d9] mt-3">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenAddOnsModal("mandibular", `added_${ap.id}`)}
+                            className="flex-none flex-grow-0 w-[123.04px] h-[46.22px] rounded-[5.27px] bg-[#F9F9F9] shadow-[0.88px_0.88px_3.07px_rgba(0,0,0,0.25)] flex flex-col items-center justify-center gap-0.5 hover:bg-[#f0f0f0] transition-colors"
+                          >
+                            <Plus size={10} className="text-[#1E1E1E]" strokeWidth={1.5} />
+                            <span className="font-['Verdana'] font-normal text-[8.78px] leading-[19px] text-center tracking-[-0.02em] text-black whitespace-nowrap">Add ons</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowAttachModal(true)}
+                            className="flex-none flex-grow-0 w-[123.04px] h-[46.22px] rounded-[5.27px] bg-[#F9F9F9] shadow-[0.88px_0.88px_3.07px_rgba(0,0,0,0.25)] flex flex-col items-center justify-center gap-0.5 hover:bg-[#f0f0f0] transition-colors"
+                          >
+                            <Paperclip size={10} className="text-[#1E1E1E]" strokeWidth={1.5} />
+                            <span className="font-['Verdana'] font-normal text-[8.78px] leading-[19px] text-center tracking-[-0.02em] text-black whitespace-nowrap">Attach Files</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  {ap.product.code && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <FieldInput
-                        label="Product Code"
-                        value={ap.product.code}
-                      />
-                      <FieldInput
-                        label="Arch"
-                        value={ap.arch === "maxillary" ? "Maxillary (Upper)" : "Mandibular (Lower)"}
-                      />
-                    </div>
-                  )}
-                  <div className="flex items-center justify-center gap-4 pt-3 border-t border-[#d9d9d9] mt-3">
-                    <button
-                      type="button"
-                      onClick={() => handleOpenAddOnsModal("mandibular", `added_${ap.id}`)}
-                      className="flex-none flex-grow-0 w-[123.04px] h-[46.22px] rounded-[5.27px] bg-[#F9F9F9] shadow-[0.88px_0.88px_3.07px_rgba(0,0,0,0.25)] flex flex-col items-center justify-center gap-0.5 hover:bg-[#f0f0f0] transition-colors"
-                    >
-                      <Plus size={10} className="text-[#1E1E1E]" strokeWidth={1.5} />
-                      <span className="font-['Verdana'] font-normal text-[8.78px] leading-[19px] text-center tracking-[-0.02em] text-black whitespace-nowrap">Add ons</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowAttachModal(true)}
-                      className="flex-none flex-grow-0 w-[123.04px] h-[46.22px] rounded-[5.27px] bg-[#F9F9F9] shadow-[0.88px_0.88px_3.07px_rgba(0,0,0,0.25)] flex flex-col items-center justify-center gap-0.5 hover:bg-[#f0f0f0] transition-colors"
-                    >
-                      <Paperclip size={10} className="text-[#1E1E1E]" strokeWidth={1.5} />
-                      <span className="font-['Verdana'] font-normal text-[8.78px] leading-[19px] text-center tracking-[-0.02em] text-black whitespace-nowrap">Attach Files</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
+                ))}
+            </>
+          )}
 
         </>
       )}

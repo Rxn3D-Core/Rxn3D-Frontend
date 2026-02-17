@@ -6,6 +6,7 @@ import { MaxillaryPanel } from "./MaxillaryPanel";
 import { MandibularPanel } from "./MandibularPanel";
 import { CenterNavigation } from "./CenterNavigation";
 import { ModalOrchestrator } from "./ModalOrchestrator";
+import { CaseSummaryNotes } from "./CaseSummaryNotes";
 
 export function CaseDesignCenter(props: CaseDesignProps) {
   const state = useCaseDesignState(props);
@@ -23,6 +24,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         <MaxillaryPanel
           showMaxillary={state.showMaxillary}
           setShowMaxillary={state.setShowMaxillary}
+          showDetails={state.showDetails}
           onAddProduct={state.onAddProduct}
           // Tooth selection
           maxillaryTeeth={state.maxillaryTeeth}
@@ -46,6 +48,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           // Expansion
           expandedLeft={state.expandedLeft}
           setExpandedLeft={state.setExpandedLeft}
+          isPrepPonticExpanded={state.isPrepPonticExpanded}
+          togglePrepPonticExpanded={state.togglePrepPonticExpanded}
           // Rush
           rushedProducts={state.rushedProducts}
           // Modals
@@ -60,6 +64,15 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           addedProducts={state.addedProducts}
           toggleAddedProductExpanded={state.toggleAddedProductExpanded}
           handleRemoveAddedProduct={state.handleRemoveAddedProduct}
+          // Tooth field progress (Prep/Pontic step-by-step)
+          isFieldVisible={state.isFieldVisible}
+          isFieldCompleted={state.isFieldCompleted}
+          completeFieldStep={state.completeFieldStep}
+          getFieldValue={state.getFieldValue}
+          clearToothProgress={state.clearToothProgress}
+          setToothProduct={state.setToothProduct}
+          getToothProduct={state.getToothProduct}
+          fetchAndAssignProduct={state.fetchAndAssignProduct}
         />
 
         {/* CENTER NAVIGATION */}
@@ -74,6 +87,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         <MandibularPanel
           showMandibular={state.showMandibular}
           setShowMandibular={state.setShowMandibular}
+          showDetails={state.showDetails}
           onAddProduct={state.onAddProduct}
           // Tooth selection
           mandibularTeeth={state.mandibularTeeth}
@@ -135,18 +149,56 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         />
       </div>
 
+      {/* Case Summary Notes - shown when any tooth has impression field completed */}
+      {(() => {
+        const hasImpressionCompleted =
+          Object.entries(state.maxillaryRetentionTypes).some(([toothNum]) =>
+            state.isFieldCompleted("maxillary", Number(toothNum), "impression")
+          ) ||
+          Object.entries(state.mandibularRetentionTypes || {}).some(([toothNum]) =>
+            state.isFieldCompleted("mandibular", Number(toothNum), "impression")
+          );
+        if (!hasImpressionCompleted) return null;
+        return (
+          <CaseSummaryNotes
+            right1Brand={state.right1Brand}
+            right1Platform={state.right1Platform}
+            right2Brand={state.right2Brand}
+            right2Platform={state.right2Platform}
+          />
+        );
+      })()}
+
       {/* All Modals */}
       <ModalOrchestrator
         showImpressionModal={state.showImpressionModal}
         setShowImpressionModal={state.setShowImpressionModal}
         currentImpressionArch={state.currentImpressionArch}
         currentImpressionProductId={state.currentImpressionProductId}
+        currentImpressionToothNumber={state.currentImpressionToothNumber}
         selectedImpressions={state.selectedImpressions}
         setSelectedImpressions={state.setSelectedImpressions}
+        onImpressionConfirm={(displayText) => {
+          const toothNum = state.currentImpressionToothNumber;
+          const arch = state.currentImpressionArch;
+          if (toothNum !== null) {
+            state.completeFieldStep(arch, toothNum, "impression", displayText);
+          }
+        }}
         showAddOnsModal={state.showAddOnsModal}
         setShowAddOnsModal={state.setShowAddOnsModal}
         currentAddOnsArch={state.currentAddOnsArch}
         currentAddOnsProductId={state.currentAddOnsProductId}
+        currentAddOnsToothNumber={state.currentAddOnsToothNumber}
+        onAddOnsConfirm={(addOns) => {
+          const toothNum = state.currentAddOnsToothNumber;
+          const arch = state.currentAddOnsArch;
+          if (toothNum !== null) {
+            const totalCount = addOns.reduce((sum, a) => sum + a.qty, 0);
+            const names = addOns.map((a) => `${a.qty}x ${a.name}`).join(", ");
+            state.completeFieldStep(arch, toothNum, "addons", names || `${totalCount} selected`);
+          }
+        }}
         showAttachModal={state.showAttachModal}
         setShowAttachModal={state.setShowAttachModal}
         showRushModal={state.showRushModal}
@@ -158,7 +210,27 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         setIsStageModalOpen={state.setIsStageModalOpen}
         selectedStages={state.selectedStages}
         currentStageProductId={state.currentStageProductId}
+        currentStageArch={state.currentStageArch}
+        currentStageToothNumber={state.currentStageToothNumber}
+        currentStageOptions={(() => {
+          const toothNum = state.currentStageToothNumber;
+          const arch = state.currentStageArch;
+          if (toothNum === null) return null;
+          const product = state.getToothProduct(arch, toothNum);
+          if (!product?.stages?.length) return null;
+          return product.stages.map((s) => ({
+            name: s.name,
+            letter: s.code?.charAt(0)?.toUpperCase() || s.name.charAt(0).toUpperCase(),
+          }));
+        })()}
         handleStageSelect={state.handleStageSelect}
+        onStageConfirm={(stageName) => {
+          const toothNum = state.currentStageToothNumber;
+          const arch = state.currentStageArch;
+          if (toothNum !== null) {
+            state.completeFieldStep(arch, toothNum, "stage", stageName);
+          }
+        }}
       />
     </div>
   );

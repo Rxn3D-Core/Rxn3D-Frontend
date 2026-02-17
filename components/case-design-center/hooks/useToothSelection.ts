@@ -4,8 +4,8 @@ import { useState } from "react";
 import type { Arch, RetentionType, RetentionPopoverState } from "../types";
 
 export function useToothSelection() {
-  const [maxillaryTeeth, setMaxillaryTeeth] = useState<number[]>([4, 5]);
-  const [mandibularTeeth, setMandibularTeeth] = useState<number[]>([19, 20]);
+  const [maxillaryTeeth, setMaxillaryTeeth] = useState<number[]>([]);
+  const [mandibularTeeth, setMandibularTeeth] = useState<number[]>([]);
 
   const [maxillaryRetentionTypes, setMaxillaryRetentionTypes] = useState<Record<number, Array<RetentionType>>>({});
   const [mandibularRetentionTypes, setMandibularRetentionTypes] = useState<Record<number, Array<RetentionType>>>({});

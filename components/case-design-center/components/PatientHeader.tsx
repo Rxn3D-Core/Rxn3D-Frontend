@@ -6,12 +6,14 @@ export interface PatientHeaderProps {
   doctorImageUrl?: string | null;
   /** Selected doctor display name (from wizard). Falls back to placeholder when not provided. */
   doctorName?: string | null;
+  /** When true, show case-related fields (slip number, case number, etc.). Hidden until case is submitted. */
+  caseSubmitted?: boolean;
 }
 
 const DEFAULT_DOCTOR_IMAGE = "/images/doctor-image.png";
 const DEFAULT_DOCTOR_NAME = "Cody Mugglestone, DDS";
 
-export function PatientHeader({ doctorImageUrl, doctorName }: PatientHeaderProps = {}) {
+export function PatientHeader({ doctorImageUrl, doctorName, caseSubmitted = false }: PatientHeaderProps = {}) {
   const imgSrc = doctorImageUrl && doctorImageUrl.trim() !== "" ? doctorImageUrl : DEFAULT_DOCTOR_IMAGE;
   const displayName = doctorName && doctorName.trim() !== "" ? doctorName : DEFAULT_DOCTOR_NAME;
 
@@ -39,21 +41,35 @@ export function PatientHeader({ doctorImageUrl, doctorName }: PatientHeaderProps
           </p>
         </div>
 
-        {/* Form fields - Flexible layout */}
-        <div className="flex-1 w-full lg:w-auto flex flex-wrap gap-3 sm:gap-4 items-start content-start justify-center lg:justify-start">
-          <FieldInput
-            label="Patient name"
-            value="Jose Protacio Rizal Mercado y Alonzo"
-          />
-          <FieldInput label="Slip number" value="S687954" />
-          <FieldInput label="Case number" value="C125489" />
-          <FieldInput label="Pan number" value="A68" />
-          <FieldInput label="Status" value="In process" />
-          <FieldInput label="Gender" value="Male" />
-          <FieldInput label="Pick up Date" value="01/ 01/ 25" />
-          <FieldInput label="Due  Date" value="01/ 01/ 25" />
-          <FieldInput label="Delivery Time" value="5 pm" />
-          <FieldInput label="Location" value="In office ready to pick up" />
+        {/* Form fields - Two-row layout */}
+        <div className="flex-1 w-full lg:w-auto flex flex-col gap-3 justify-center lg:justify-start">
+          {/* Row 1: Patient name + case fields */}
+          <div className="flex flex-wrap gap-3 sm:gap-4 items-start justify-center lg:justify-start">
+            <FieldInput
+              label="Patient name"
+              value="Jose Protacio Rizal Mercado y Alonzo"
+            />
+            {caseSubmitted && (
+              <>
+                <FieldInput label="Slip number" value="S687954" />
+                <FieldInput label="Case number" value="C125489" />
+                <FieldInput label="Pan number" value="A68" />
+                <FieldInput label="Status" value="In process" />
+                <FieldInput label="Pick up Date" value="01/ 01/ 25" />
+              </>
+            )}
+          </div>
+          {/* Row 2: Gender + date/time/location fields */}
+          <div className="flex flex-wrap gap-3 sm:gap-4 items-start justify-center lg:justify-start">
+            <FieldInput label="Gender" value="Male" />
+            {caseSubmitted && (
+              <>
+                <FieldInput label="Due Date" value="01/ 01/ 25" />
+                <FieldInput label="Delivery Time" value="5 pm" />
+                <FieldInput label="Location" value="In office ready to pick up" />
+              </>
+            )}
+          </div>
         </div>
 
         {/* Created By */}

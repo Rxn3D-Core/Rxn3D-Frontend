@@ -21,6 +21,7 @@ export default function Page() {
   const [right2Platform, setRight2Platform] = useState("Active");
   const [confirmDetailsChecked, setConfirmDetailsChecked] = useState(false);
   const [caseSubmitted, setCaseSubmitted] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
 
   // ---- Add Product via wizard redirect ----
   const [wizardMode, setWizardMode] = useState<"initial" | "addProduct">("initial");
@@ -78,7 +79,7 @@ export default function Page() {
         <TopBar />
         {wizardComplete ? (
           <>
-            <PatientHeader />
+            <PatientHeader caseSubmitted={caseSubmitted} />
             <CaseDesignCenter
               right1Brand={right1Brand}
               setRight1Brand={setRight1Brand}
@@ -90,12 +91,14 @@ export default function Page() {
               setRight2Platform={setRight2Platform}
               onAddProduct={handleAddProduct}
             />
-            <CaseSummaryNotes
-              right1Brand={right1Brand}
-              right1Platform={right1Platform}
-              right2Brand={right2Brand}
-              right2Platform={right2Platform}
-            />
+            {showDetails && (
+              <CaseSummaryNotes
+                right1Brand={right1Brand}
+                right1Platform={right1Platform}
+                right2Brand={right2Brand}
+                right2Platform={right2Platform}
+              />
+            )}
             {/* Spacer for fixed footer */}
             <div style={{ height: "80px" }} />
           </>

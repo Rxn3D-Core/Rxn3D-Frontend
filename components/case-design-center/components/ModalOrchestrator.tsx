@@ -20,15 +20,19 @@ interface ModalOrchestratorProps {
   setShowImpressionModal: (v: boolean) => void;
   currentImpressionArch: Arch;
   currentImpressionProductId: string;
+  currentImpressionToothNumber: number | null;
   selectedImpressions: Record<string, number>;
   setSelectedImpressions: React.Dispatch<
     React.SetStateAction<Record<string, number>>
   >;
+  onImpressionConfirm: (displayText: string) => void;
   // Add-ons
   showAddOnsModal: boolean;
   setShowAddOnsModal: (v: boolean) => void;
   currentAddOnsArch: Arch;
   currentAddOnsProductId: string;
+  currentAddOnsToothNumber: number | null;
+  onAddOnsConfirm: (addOns: { addon_id: number; qty: number; category: string; subcategory: string; name: string; price: number }[]) => void;
   // Attachment
   showAttachModal: boolean;
   setShowAttachModal: (v: boolean) => void;
@@ -43,7 +47,11 @@ interface ModalOrchestratorProps {
   setIsStageModalOpen: (v: boolean) => void;
   selectedStages: Record<string, string>;
   currentStageProductId: string;
+  currentStageArch: Arch;
+  currentStageToothNumber: number | null;
+  currentStageOptions: { name: string; letter: string }[] | null;
   handleStageSelect: (stageName: string) => void;
+  onStageConfirm: (stageName: string) => void;
 }
 
 export function ModalOrchestrator({
@@ -52,13 +60,17 @@ export function ModalOrchestrator({
   setShowImpressionModal,
   currentImpressionArch,
   currentImpressionProductId,
+  currentImpressionToothNumber,
   selectedImpressions,
   setSelectedImpressions,
+  onImpressionConfirm,
   // Add-ons
   showAddOnsModal,
   setShowAddOnsModal,
   currentAddOnsArch,
   currentAddOnsProductId,
+  currentAddOnsToothNumber,
+  onAddOnsConfirm,
   // Attachment
   showAttachModal,
   setShowAttachModal,
@@ -73,14 +85,35 @@ export function ModalOrchestrator({
   setIsStageModalOpen,
   selectedStages,
   currentStageProductId,
+  currentStageArch,
+  currentStageToothNumber,
+  currentStageOptions,
   handleStageSelect,
+  onStageConfirm,
 }: ModalOrchestratorProps) {
   return (
     <>
       {/* Impression Selection Modal */}
       <ImpressionSelectionModal
         isOpen={showImpressionModal}
-        onClose={() => setShowImpressionModal(false)}
+        onClose={() => {
+          // Build display text from currently selected impressions for this product/arch
+          const prefix = `${currentImpressionProductId}_${currentImpressionArch}_`;
+          const entries = Object.entries(selectedImpressions).filter(
+            ([key, qty]) => key.startsWith(prefix) && qty > 0
+          );
+          if (entries.length > 0) {
+            const displayText = entries
+              .map(([key, qty]) => {
+                const identifier = key.replace(prefix, "");
+                const impression = mockImpressions.find((i) => i.value === identifier);
+                return `${qty}x ${impression?.name || identifier}`;
+              })
+              .join(", ");
+            onImpressionConfirm(displayText);
+          }
+          setShowImpressionModal(false);
+        }}
         impressions={mockImpressions}
         selectedImpressions={selectedImpressions}
         onUpdateQuantity={(key, qty) => {
@@ -102,7 +135,7 @@ export function ModalOrchestrator({
         isOpen={showAddOnsModal}
         onClose={() => setShowAddOnsModal(false)}
         onAddAddOns={(addOns) => {
-          console.log("Add-ons added:", addOns);
+          onAddOnsConfirm(addOns);
         }}
         labId={0}
         productId={currentAddOnsProductId}
@@ -112,9 +145,12 @@ export function ModalOrchestrator({
       {/* Stage Selection Modal */}
       {isStageModalOpen && (
         <StageSelectionModal
-          stages={stageOptions}
+          stages={currentStageOptions || stageOptions}
           selectedStage={selectedStages[currentStageProductId]}
-          onSelect={handleStageSelect}
+          onSelect={(stageName) => {
+            handleStageSelect(stageName);
+            onStageConfirm(stageName);
+          }}
           onClose={() => setIsStageModalOpen(false)}
         />
       )}

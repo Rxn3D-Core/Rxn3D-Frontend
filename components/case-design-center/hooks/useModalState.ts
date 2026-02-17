@@ -15,6 +15,7 @@ export function useModalState() {
   const [showAddOnsModal, setShowAddOnsModal] = useState(false);
   const [currentAddOnsArch, setCurrentAddOnsArch] = useState<Arch>("maxillary");
   const [currentAddOnsProductId, setCurrentAddOnsProductId] = useState("");
+  const [currentAddOnsToothNumber, setCurrentAddOnsToothNumber] = useState<number | null>(null);
 
   // File attachment modal state
   const [showAttachModal, setShowAttachModal] = useState(false);
@@ -28,20 +29,26 @@ export function useModalState() {
   // Stage modal state
   const [isStageModalOpen, setIsStageModalOpen] = useState(false);
   const [currentStageProductId, setCurrentStageProductId] = useState<string>("");
+  const [currentStageArch, setCurrentStageArch] = useState<Arch>("maxillary");
+  const [currentStageToothNumber, setCurrentStageToothNumber] = useState<number | null>(null);
   const [selectedStages, setSelectedStages] = useState<Record<string, string>>({
     fixed_45: "Finish",
     fixed_19: "Finish",
   });
 
-  const handleOpenImpressionModal = (arch: Arch, productId: string) => {
+  const [currentImpressionToothNumber, setCurrentImpressionToothNumber] = useState<number | null>(null);
+
+  const handleOpenImpressionModal = (arch: Arch, productId: string, toothNumber?: number) => {
     setCurrentImpressionArch(arch);
     setCurrentImpressionProductId(productId);
+    setCurrentImpressionToothNumber(toothNumber ?? null);
     setShowImpressionModal(true);
   };
 
-  const handleOpenAddOnsModal = (arch: Arch, productId: string) => {
+  const handleOpenAddOnsModal = (arch: Arch, productId: string, toothNumber?: number) => {
     setCurrentAddOnsArch(arch);
     setCurrentAddOnsProductId(productId);
+    setCurrentAddOnsToothNumber(toothNumber ?? null);
     setShowAddOnsModal(true);
   };
 
@@ -56,8 +63,10 @@ export function useModalState() {
     setRushedProducts((prev) => ({ ...prev, [key]: rushData }));
   };
 
-  const handleOpenStageModal = (productId: string) => {
+  const handleOpenStageModal = (productId: string, arch?: Arch, toothNumber?: number) => {
     setCurrentStageProductId(productId);
+    setCurrentStageArch(arch ?? "maxillary");
+    setCurrentStageToothNumber(toothNumber ?? null);
     setIsStageModalOpen(true);
   };
 
@@ -86,6 +95,7 @@ export function useModalState() {
     setShowImpressionModal,
     currentImpressionArch,
     currentImpressionProductId,
+    currentImpressionToothNumber,
     selectedImpressions,
     setSelectedImpressions,
     handleOpenImpressionModal,
@@ -95,6 +105,7 @@ export function useModalState() {
     setShowAddOnsModal,
     currentAddOnsArch,
     currentAddOnsProductId,
+    currentAddOnsToothNumber,
     handleOpenAddOnsModal,
     // Attachment
     showAttachModal,
@@ -111,6 +122,8 @@ export function useModalState() {
     isStageModalOpen,
     setIsStageModalOpen,
     currentStageProductId,
+    currentStageArch,
+    currentStageToothNumber,
     selectedStages,
     handleOpenStageModal,
     handleStageSelect,
