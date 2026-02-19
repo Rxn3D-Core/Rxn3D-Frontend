@@ -44,6 +44,11 @@ export function useToothFieldProgress() {
     Record<string, ProductApiData>
   >({});
 
+  // Tracks which tooth keys are currently loading product data
+  const [loadingProducts, setLoadingProducts] = useState<
+    Record<string, boolean>
+  >({});
+
   /** Get the current visible step index for a tooth (shows up to this index) */
   const getVisibleStepCount = useCallback(
     (arch: Arch, toothNumber: number): number => {
@@ -130,6 +135,24 @@ export function useToothFieldProgress() {
     [toothProducts]
   );
 
+  /** Set loading state for a tooth's product fetch */
+  const setProductLoading = useCallback(
+    (arch: Arch, toothNumber: number, loading: boolean) => {
+      const key = toothKey(arch, toothNumber);
+      setLoadingProducts((prev) => ({ ...prev, [key]: loading }));
+    },
+    []
+  );
+
+  /** Check if a tooth's product is currently loading */
+  const isProductLoading = useCallback(
+    (arch: Arch, toothNumber: number): boolean => {
+      const key = toothKey(arch, toothNumber);
+      return loadingProducts[key] ?? false;
+    },
+    [loadingProducts]
+  );
+
   /** Remove all progress for a tooth (when deselected) */
   const clearToothProgress = useCallback(
     (arch: Arch, toothNumber: number) => {
@@ -146,6 +169,10 @@ export function useToothFieldProgress() {
         const { [key]: _, ...rest } = prev;
         return rest;
       });
+      setLoadingProducts((prev) => {
+        const { [key]: _, ...rest } = prev;
+        return rest;
+      });
     },
     []
   );
@@ -158,6 +185,8 @@ export function useToothFieldProgress() {
     isFieldVisible,
     setToothProduct,
     getToothProduct,
+    setProductLoading,
+    isProductLoading,
     clearToothProgress,
   };
 }

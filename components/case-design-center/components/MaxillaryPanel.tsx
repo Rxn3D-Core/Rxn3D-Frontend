@@ -11,9 +11,10 @@ import {
   Paperclip,
 } from "lucide-react";
 import { MaxillaryTeethSVG } from "@/components/maxillary-teeth-svg";
-import { FieldInput, ShadeField } from "./fields";
+import { FieldInput, ShadeField, IconField } from "./fields";
 import { ShadeSelectionGuide } from "./ShadeSelectionGuide";
 import { ToothStatusBoxes } from "./ToothStatusBoxes";
+import { ImplantDetailSection } from "./ImplantDetailSection";
 import type {
   AddedProduct,
   Arch,
@@ -181,7 +182,12 @@ interface MaxillaryPanelProps {
   clearToothProgress: (arch: Arch, toothNumber: number) => void;
   setToothProduct: (arch: Arch, toothNumber: number, product: ProductApiData) => void;
   getToothProduct: (arch: Arch, toothNumber: number) => ProductApiData | null;
+  isProductLoading: (arch: Arch, toothNumber: number) => boolean;
   fetchAndAssignProduct: (arch: Arch, toothNumber: number, productId: number) => Promise<void>;
+  maxillaryToothExtractionMap: Record<number, string>;
+  handleToothExtractionToggle: (arch: Arch, toothNumber: number, extractionCode: string) => void;
+  selectAllMaxillaryTeeth: (teeth: number[]) => void;
+  clearAllMaxillaryTeeth: () => void;
 }
 
 /* ------------------------------------------------------------------ */
@@ -231,8 +237,14 @@ export function MaxillaryPanel({
   clearToothProgress,
   setToothProduct,
   getToothProduct,
+  isProductLoading,
   fetchAndAssignProduct,
+  maxillaryToothExtractionMap,
+  handleToothExtractionToggle,
+  selectAllMaxillaryTeeth,
+  clearAllMaxillaryTeeth,
 }: MaxillaryPanelProps) {
+  const MAXILLARY_ALL_TEETH = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16];
   return (
     <div className="flex-1 min-w-0 px-0 md:px-3 order-1 lg:order-none">
       {/* Maxillary header - centered */}
@@ -311,15 +323,42 @@ export function MaxillaryPanel({
             />
           )}
 
+          {/* Tooth status boxes - shown above all product accordions when any product has extractions */}
+          {(() => {
+            const seenIds = new Set<number>();
+            const allExtractions = maxillaryTeeth.flatMap((tn) => {
+              const product = getToothProduct("maxillary", tn);
+              return product?.extractions ?? [];
+            }).filter((e) => {
+              if (seenIds.has(e.extraction_id)) return false;
+              seenIds.add(e.extraction_id);
+              return true;
+            });
+            if (allExtractions.length === 0) return null;
+            return (
+              <div className="mt-3">
+                <ToothStatusBoxes
+                  extractions={allExtractions}
+                  selectedTeeth={maxillaryTeeth}
+                  allArchTeeth={MAXILLARY_ALL_TEETH}
+                  toothExtractionMap={maxillaryToothExtractionMap}
+                  onToothExtractionToggle={(tn, code) => handleToothExtractionToggle("maxillary", tn, code)}
+                  onSelectAllTeeth={selectAllMaxillaryTeeth}
+                  onClearAllTeeth={clearAllMaxillaryTeeth}
+                />
+              </div>
+            );
+          })()}
+
           {/* Progressive field cards for Prep/Pontic teeth — grouped by product */}
           {(() => {
             const prepPonticTeeth = Object.entries(maxillaryRetentionTypes)
               .filter(([_, types]) =>
-                types.some((t) => t === "Prep" || t === "Pontic")
+                types.some((t) => t === "Prep" || t === "Pontic" || t === "Implant")
               )
               .map(([toothNum, types]) => ({
                 toothNumber: Number(toothNum),
-                retentionType: types.find((t) => t === "Prep" || t === "Pontic")!,
+                retentionType: types.find((t) => t === "Prep" || t === "Pontic" || t === "Implant")!,
               }));
 
             if (prepPonticTeeth.length === 0) return null;
@@ -352,7 +391,24 @@ export function MaxillaryPanel({
               const toothNumbers = teeth.map((t) => t.toothNumber);
               const toothNumbersDisplay = toothNumbers.map((n) => `#${n}`).join(",");
               const retentionTypes = [...new Set(teeth.map((t) => t.retentionType))];
-              const hasRushed = toothNumbers.some((n) => rushedProducts[`maxillary_prep_${n}`]);
+              const hasRushed = toothNumbers.some((n) => rushedProducts[`maxillary_prep_${n}`] || rushedProducts[`maxillary_fixed_${n}`]);
+
+              // Show skeleton while product is loading
+              const isLoading = !selectedProduct && teeth.some((t) => isProductLoading("maxillary", t.toothNumber));
+              if (isLoading) {
+                return (
+                  <div key={`loading-group-${groupKey}`} className="rounded-lg bg-white overflow-hidden border border-[#d9d9d9] mt-3">
+                    <div className="w-full flex items-center py-[14px] px-2 gap-[10px] rounded-t-[5.4px]">
+                      <div className="w-16 h-[62px] rounded-md flex-shrink-0 animate-pulse bg-gray-200" />
+                      <div className="flex-1 min-w-0 flex flex-col gap-2">
+                        <div className="h-[16px] w-[140px] rounded animate-pulse bg-gray-200" />
+                        <div className="h-[14px] w-[60px] rounded animate-pulse bg-gray-200" />
+                        <div className="h-[12px] w-[200px] rounded animate-pulse bg-gray-200" />
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
 
               return (
               <div
@@ -411,11 +467,11 @@ export function MaxillaryPanel({
                           {subcategoryName}
                         </span>
                       )}
-                      {retentionTypes.map((rt) => (
-                        <span key={rt} className="font-[Verdana] text-[10px] leading-[22px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[10px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]">
-                          {rt}
+                      {(selectedStages[`maxillary_prep_${firstToothNumber}`] || selectedStages[`maxillary_fixed_${firstToothNumber}`]) && (
+                        <span className="font-[Verdana] text-[10px] leading-[22px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[10px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]">
+                          {selectedStages[`maxillary_prep_${firstToothNumber}`] || selectedStages[`maxillary_fixed_${firstToothNumber}`]}
                         </span>
-                      ))}
+                      )}
                       <span
                         className={`font-[Verdana] text-[10px] leading-[22px] tracking-[-0.02em] ${
                           hasRushed
@@ -439,298 +495,464 @@ export function MaxillaryPanel({
                   />
                 </button>
 
-                {/* Accordion body - progressive fields for each tooth in group */}
+                {/* Accordion body - single shared set of fields for the product group */}
                 {isPrepPonticExpanded(firstToothNumber) && (
                 <div className="border-t border-[#d9d9d9] p-4 bg-white space-y-3">
-                  {teeth.map(({ toothNumber }, toothIdx) => (
-                  <div key={`tooth-fields-${toothNumber}`}>
-                    {/* Tooth separator label when multiple teeth */}
-                    {teeth.length > 1 && (
-                      <p className={`text-[12px] font-semibold text-[#1162a8] ${toothIdx > 0 ? "mt-4 pt-3 border-t border-[#e5e5e5]" : ""} mb-2`}>
-                        Tooth #{toothNumber}
-                      </p>
-                    )}
 
-                  {/* Step 1: Grade */}
-                  {isFieldVisible("maxillary", toothNumber, "grade") && (
-                    <div className="grid grid-cols-2 gap-3">
-                      <fieldset
-                        className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
-                          isFieldCompleted("maxillary", toothNumber, "grade")
-                            ? "border-[#34a853]"
-                            : "border-[#CF0202]"
-                        }`}
-                        onClick={() => {
-                          if (!isFieldCompleted("maxillary", toothNumber, "grade")) {
-                            completeFieldStep("maxillary", toothNumber, "grade", "Standard");
-                          }
-                        }}
-                      >
-                        <legend
-                          className={`text-[11px] px-1 leading-none ${
-                            isFieldCompleted("maxillary", toothNumber, "grade")
-                              ? "text-[#34a853]"
-                              : "text-[#CF0202]"
-                          }`}
-                        >
-                          Grade
-                        </legend>
-                        <div className="flex items-center gap-2 w-full">
-                          <span className="text-[13px] text-[#1d1d1b]">
-                            {getFieldValue("maxillary", toothNumber, "grade")}
-                          </span>
-                          <div className="flex gap-1 ml-auto">
-                            <BlueDiamond />
-                            <BlueDiamond />
-                            <GrayDiamond />
-                            <GrayDiamond />
-                          </div>
-                          {isFieldCompleted("maxillary", toothNumber, "grade") && (
-                            <Check size={16} className="text-[#34a853]" />
-                          )}
-                        </div>
-                      </fieldset>
+                  {categoryName === "Fixed Restoration" ? (
+                    <>
+                      {/* ===== FIXED RESTORATION: All fields shown at once ===== */}
 
-                      {/* Stage - only show if grade is completed */}
-                      {isFieldVisible("maxillary", toothNumber, "stage") ? (
-                        <fieldset
-                          className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
-                            isFieldCompleted("maxillary", toothNumber, "stage")
-                              ? "border-[#34a853]"
-                              : "border-[#CF0202]"
-                          }`}
-                          onClick={() => {
-                            handleOpenStageModal(`maxillary_prep_${toothNumber}`, "maxillary", toothNumber);
-                          }}
-                        >
-                          <legend
-                            className={`text-[11px] px-1 leading-none ${
-                              isFieldCompleted("maxillary", toothNumber, "stage")
-                                ? "text-[#34a853]"
-                                : "text-[#CF0202]"
-                            }`}
-                          >
-                            Stage
-                          </legend>
-                          <div className="flex items-center gap-2 w-full">
-                            <span className="text-[13px] text-[#1d1d1b]">
-                              {getFieldValue("maxillary", toothNumber, "stage")}
-                            </span>
-                            {isFieldCompleted("maxillary", toothNumber, "stage") && (
-                              <Check size={16} className="text-[#34a853]" />
-                            )}
-                            <div className="ml-auto">
-                              <ArticulatorIcon />
-                            </div>
-                          </div>
-                        </fieldset>
-                      ) : (
-                        <div />
-                      )}
-                    </div>
-                  )}
-
-                  {/* Step 2: Teeth shade / Gum Shade */}
-                  {isFieldVisible("maxillary", toothNumber, "teeth_shade") && (
-                    <div className="grid grid-cols-2 gap-3 mt-3">
-                      <fieldset
-                        className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
-                          isFieldCompleted("maxillary", toothNumber, "teeth_shade")
-                            ? "border-[#34a853]"
-                            : "border-[#CF0202]"
-                        }`}
-                        onClick={() => {
-                          handleShadeFieldClick(
-                            "maxillary",
-                            "tooth_shade",
-                            `prep_${toothNumber}`
-                          );
-                          if (!isFieldCompleted("maxillary", toothNumber, "teeth_shade")) {
-                            completeFieldStep("maxillary", toothNumber, "teeth_shade", "Vita Classical");
-                          }
-                        }}
-                      >
-                        <legend
-                          className={`text-[11px] px-1 leading-none ${
-                            isFieldCompleted("maxillary", toothNumber, "teeth_shade")
-                              ? "text-[#34a853]"
-                              : "text-[#CF0202]"
-                          }`}
-                        >
-                          Teeth shade
-                        </legend>
-                        <div className="flex items-center gap-2 w-full">
-                          <span className="text-[13px] text-[#1d1d1b]">
-                            {getFieldValue("maxillary", toothNumber, "teeth_shade")}
-                          </span>
-                          {isFieldCompleted("maxillary", toothNumber, "teeth_shade") && (
-                            <Check size={16} className="text-[#34a853] ml-auto" />
-                          )}
-                        </div>
-                      </fieldset>
-
-                      {isFieldVisible("maxillary", toothNumber, "gum_shade") ? (
-                        <fieldset
-                          className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
-                            isFieldCompleted("maxillary", toothNumber, "gum_shade")
-                              ? "border-[#34a853]"
-                              : "border-[#CF0202]"
-                          }`}
-                          onClick={() => {
-                            if (!isFieldCompleted("maxillary", toothNumber, "gum_shade")) {
-                              completeFieldStep("maxillary", toothNumber, "gum_shade", "GC Initial Gingiva");
-                            }
-                          }}
-                        >
-                          <legend
-                            className={`text-[11px] px-1 leading-none ${
-                              isFieldCompleted("maxillary", toothNumber, "gum_shade")
-                                ? "text-[#34a853]"
-                                : "text-[#CF0202]"
-                            }`}
-                          >
-                            Gum Shade
-                          </legend>
-                          <div className="flex items-center gap-2 w-full">
-                            <span className="text-[13px] text-[#1d1d1b] truncate">
-                              {getFieldValue("maxillary", toothNumber, "gum_shade")}
-                            </span>
-                            <svg
-                              width="29"
-                              height="29"
-                              viewBox="0 0 29 29"
-                              fill="none"
-                              xmlns="http://www.w3.org/2000/svg"
-                              className="flex-shrink-0"
-                            >
-                              <rect width="28.0391" height="28.0391" rx="6" fill="#E58D8D" />
-                            </svg>
-                            {isFieldCompleted("maxillary", toothNumber, "gum_shade") && (
-                              <Check size={16} className="text-[#34a853] flex-shrink-0" />
-                            )}
-                          </div>
-                        </fieldset>
-                      ) : (
-                        <div />
-                      )}
-                    </div>
-                  )}
-
-                  {/* Step 3: Impression / Add ons */}
-                  {isFieldVisible("maxillary", toothNumber, "impression") && (
-                    <div className="grid grid-cols-2 gap-3 mt-3">
-                      <fieldset
-                        className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
-                          isFieldCompleted("maxillary", toothNumber, "impression")
-                            ? "border-[#34a853]"
-                            : "border-[#CF0202]"
-                        }`}
-                        onClick={() => {
-                          const product = getToothProduct("maxillary", toothNumber);
-                          handleOpenImpressionModal("maxillary", product?.id?.toString() || `prep_${toothNumber}`, toothNumber);
-                        }}
-                      >
-                        <legend
-                          className={`text-[11px] px-1 leading-none ${
-                            isFieldCompleted("maxillary", toothNumber, "impression")
-                              ? "text-[#34a853]"
-                              : "text-[#CF0202]"
-                          }`}
-                        >
-                          Impression
-                        </legend>
-                        <div className="flex items-center gap-2 w-full">
-                          <span className="text-[13px] text-[#1d1d1b] truncate">
-                            {getFieldValue("maxillary", toothNumber, "impression")}
-                          </span>
-                          {isFieldCompleted("maxillary", toothNumber, "impression") && (
-                            <Check size={16} className="text-[#34a853] ml-auto" />
-                          )}
-                        </div>
-                      </fieldset>
-
-                      {isFieldVisible("maxillary", toothNumber, "addons") ? (
-                        <fieldset
-                          className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
-                            isFieldCompleted("maxillary", toothNumber, "addons")
-                              ? "border-[#34a853]"
-                              : "border-[#CF0202]"
-                          }`}
-                          onClick={() => {
-                            const product = getToothProduct("maxillary", toothNumber);
-                            handleOpenAddOnsModal("maxillary", product?.id?.toString() || `prep_${toothNumber}`, toothNumber);
-                          }}
-                        >
-                          <legend
-                            className={`text-[11px] px-1 leading-none ${
-                              isFieldCompleted("maxillary", toothNumber, "addons")
-                                ? "text-[#34a853]"
-                                : "text-[#CF0202]"
-                            }`}
-                          >
-                            Add ons
-                          </legend>
-                          <div className="flex items-center gap-2 w-full">
-                            <span className="text-[13px] text-[#1d1d1b] truncate">
-                              {getFieldValue("maxillary", toothNumber, "addons")}
-                            </span>
-                            {isFieldCompleted("maxillary", toothNumber, "addons") && (
-                              <Check size={16} className="text-[#34a853] ml-auto" />
-                            )}
-                          </div>
-                        </fieldset>
-                      ) : (
-                        <div />
-                      )}
-                    </div>
-                  )}
-
-                  {/* Bottom action buttons - show after all fields for this tooth */}
-                  {isFieldCompleted("maxillary", toothNumber, "addons") && (
-                    <div className="flex items-center justify-center gap-4 pt-3 border-t border-[#d9d9d9] mt-3">
-                      <button
-                        onClick={() => {
-                          const product = getToothProduct("maxillary", toothNumber);
-                          handleOpenAddOnsModal("maxillary", product?.id?.toString() || `prep_${toothNumber}`, toothNumber);
-                        }}
-                        className="flex-none flex-grow-0 w-[123.04px] h-[46.22px] rounded-[5.27px] bg-[#F9F9F9] shadow-[0.88px_0.88px_3.07px_rgba(0,0,0,0.25)] flex flex-col items-center justify-center gap-0.5 hover:bg-[#f0f0f0] transition-colors"
-                      >
-                        <Plus size={10} className="text-[#1E1E1E]" strokeWidth={1.5} />
-                        <span className="font-['Verdana'] font-normal text-[8.78px] leading-[19px] text-center tracking-[-0.02em] text-black whitespace-nowrap">
-                          {getFieldValue("maxillary", toothNumber, "addons")
-                            ? `Add ons (${getFieldValue("maxillary", toothNumber, "addons").split(",").length} selected)`
-                            : "Add ons"}
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setShowAttachModal(true)}
-                        className="flex-none flex-grow-0 w-[123.04px] h-[46.22px] rounded-[5.27px] bg-[#F9F9F9] shadow-[0.88px_0.88px_3.07px_rgba(0,0,0,0.25)] flex flex-col items-center justify-center gap-0.5 hover:bg-[#f0f0f0] transition-colors"
-                      >
-                        <Paperclip size={10} className="text-[#1E1E1E]" strokeWidth={1.5} />
-                        <span className="font-['Verdana'] font-normal text-[8.78px] leading-[19px] text-center tracking-[-0.02em] text-black whitespace-nowrap">
-                          Attach Files
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleOpenRushModal("maxillary", `prep_${toothNumber}`)
-                        }
-                        className="relative flex-none flex-grow-0 w-[123.04px] h-[46.22px] rounded-[5.27px] bg-[#F9F9F9] shadow-[0_0_2.9px_rgba(207,2,2,0.67)] flex items-center justify-center gap-1.5 hover:bg-[#f0f0f0] transition-colors"
-                      >
-                        <span className="font-['Verdana'] font-normal text-[8.78px] leading-[19px] text-center tracking-[-0.02em] text-black whitespace-nowrap">
-                          Request Rush
-                        </span>
-                        <Zap
-                          className="w-[8.78px] h-[10.54px] flex-shrink-0 text-[#CF0202]"
-                          strokeWidth={0.878154}
+                      {/* Product - Material / Select Retention type */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <FieldInput
+                          label="Product - Material"
+                          value={selectedProduct?.name || ""}
                         />
-                      </button>
-                    </div>
+                        <FieldInput
+                          label="Retention Type"
+                          value={retentionTypes.includes("Implant") ? "Screwed" : "Cemented"}
+                        />
+                      </div>
+
+                      {/* Implant Detail - show if any tooth in group has Implant retention */}
+                      {toothNumbers.some((n) => (maxillaryRetentionTypes[n] || []).includes("Implant")) && (
+                        <ImplantDetailSection toothNumber={firstToothNumber} />
+                      )}
+
+                      {/* Stage / Stump Shade */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <FieldInput
+                          label="Stage"
+                          value={selectedStages[`maxillary_prep_${firstToothNumber}`] || selectedStages[`maxillary_fixed_${firstToothNumber}`] || ""}
+                          onClick={() => handleOpenStageModal(`maxillary_fixed_${firstToothNumber}`, "maxillary", firstToothNumber)}
+                        />
+                        <ShadeField
+                          label="Stump Shade"
+                          value=""
+                          shade={getSelectedShade(`fixed_${firstToothNumber}`, "maxillary", "stump_shade")}
+                          onClick={() => handleShadeFieldClick("maxillary", "stump_shade", `fixed_${firstToothNumber}`)}
+                        />
+                      </div>
+
+                      {/* Cervical / Incisal / Body Shade */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <ShadeField
+                          label="Cervical Shade"
+                          value=""
+                          shade={getSelectedShade(`fixed_${firstToothNumber}`, "maxillary", "tooth_shade")}
+                          onClick={() => handleShadeFieldClick("maxillary", "tooth_shade", `fixed_${firstToothNumber}`)}
+                        />
+                        <ShadeField
+                          label="Incisal Shade"
+                          value=""
+                          shade={getSelectedShade(`fixed_${firstToothNumber}`, "maxillary", "tooth_shade")}
+                          onClick={() => handleShadeFieldClick("maxillary", "tooth_shade", `fixed_${firstToothNumber}`)}
+                        />
+                        <ShadeField
+                          label="Body Shade"
+                          value=""
+                          shade={getSelectedShade(`fixed_${firstToothNumber}`, "maxillary", "tooth_shade")}
+                          onClick={() => handleShadeFieldClick("maxillary", "tooth_shade", `fixed_${firstToothNumber}`)}
+                        />
+                      </div>
+
+                      {/* Characterization / Intensity / Surface finish */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <FieldInput label="Characterization" value="" />
+                        <FieldInput label="Intensity" value="" />
+                        <FieldInput label="Surface finish" value="" />
+                      </div>
+
+                      {/* Occlusal Contact / Pontic Design / Embrasures / Proximal Contact */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <IconField label="Occlusal Contact" value="" icon="occlusal" />
+                        <IconField label="Pontic Design" value="" icon="pontic" />
+                        <IconField label="Embrasures" value="" icon="embrasures" />
+                        <IconField label="Proximal Contact" value="" icon="proximal" />
+                      </div>
+
+                      {/* Margin Design / Margin Depth / Occlusal Reduction / Axial Reduction */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <FieldInput label="Margin Design" value="" />
+                        <FieldInput label="Margin Depth" value="" />
+                        <FieldInput label="Occlusal Reduction" value="" />
+                        <FieldInput label="Axial Reduction" value="" />
+                      </div>
+
+                      {/* Metal Design / Metal Thickness / Modification */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <FieldInput label="Metal Design" value="" />
+                        <FieldInput label="Metal Thickness" value="" />
+                        <FieldInput label="Modification" value="" />
+                      </div>
+
+                      {/* Proximal Contact Mesial / Distal / Functional Guidance */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <FieldInput label="Proximal Contact – Mesial" value="" />
+                        <FieldInput label="Proximal Contact – Distal" value="" />
+                        <FieldInput label="Functional Guidance" value="" />
+                      </div>
+
+                      {/* Impression / Add ons */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <FieldInput
+                          label="Impression"
+                          value={getImpressionDisplayText(selectedProduct?.id?.toString() || `fixed_${firstToothNumber}`, "maxillary")}
+                          onClick={() => handleOpenImpressionModal("maxillary", selectedProduct?.id?.toString() || `fixed_${firstToothNumber}`, firstToothNumber)}
+                        />
+                        <FieldInput
+                          label="Add ons"
+                          value=""
+                          onClick={() => handleOpenAddOnsModal("maxillary", selectedProduct?.id?.toString() || `fixed_${firstToothNumber}`, firstToothNumber)}
+                        />
+                      </div>
+
+                      {/* Additional notes */}
+                      <fieldset className="border border-[#7f7f7f] rounded px-3 pb-2 pt-0">
+                        <legend className="text-[11px] text-[#7f7f7f] px-1 leading-none">
+                          Additional notes
+                        </legend>
+                        <textarea
+                          rows={3}
+                          placeholder="Enter additional notes..."
+                          className="w-full text-[12px] text-[#1d1d1b] bg-transparent outline-none leading-relaxed resize-none"
+                        />
+                      </fieldset>
+
+                      {/* Bottom action buttons */}
+                      <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 pt-3 border-t border-[#d9d9d9] mt-3">
+                        <button
+                          onClick={() => {
+                            handleOpenAddOnsModal("maxillary", selectedProduct?.id?.toString() || `fixed_${firstToothNumber}`, firstToothNumber);
+                          }}
+                          className="flex-none flex-grow-0 w-[123.04px] h-[46.22px] rounded-[5.27px] bg-[#F9F9F9] shadow-[0.88px_0.88px_3.07px_rgba(0,0,0,0.25)] flex flex-col items-center justify-center gap-0.5 hover:bg-[#f0f0f0] transition-colors"
+                        >
+                          <Plus size={10} className="text-[#1E1E1E]" strokeWidth={1.5} />
+                          <span className="font-['Verdana'] font-normal text-[8.78px] leading-[19px] text-center tracking-[-0.02em] text-black whitespace-nowrap">
+                            Add ons
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowAttachModal(true)}
+                          className="flex-none flex-grow-0 w-[123.04px] h-[46.22px] rounded-[5.27px] bg-[#F9F9F9] shadow-[0.88px_0.88px_3.07px_rgba(0,0,0,0.25)] flex flex-col items-center justify-center gap-0.5 hover:bg-[#f0f0f0] transition-colors"
+                        >
+                          <Paperclip size={10} className="text-[#1E1E1E]" strokeWidth={1.5} />
+                          <span className="font-['Verdana'] font-normal text-[8.78px] leading-[19px] text-center tracking-[-0.02em] text-black whitespace-nowrap">
+                            Attach Files
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleOpenRushModal("maxillary", `fixed_${firstToothNumber}`)
+                          }
+                          className={`relative flex-none flex-grow-0 w-[123.04px] h-[46.22px] rounded-[5.27px] shadow-[0_0_2.9px_rgba(207,2,2,0.67)] flex items-center justify-center gap-1.5 hover:bg-[#f0f0f0] transition-colors ${
+                            hasRushed ? "bg-[#CF0202]" : "bg-[#F9F9F9]"
+                          }`}
+                        >
+                          <span
+                            className={`font-["Verdana"] font-normal text-[8.78px] leading-[19px] text-center tracking-[-0.02em] whitespace-nowrap ${
+                              hasRushed ? "text-white" : "text-black"
+                            }`}
+                          >
+                            {hasRushed ? "Rushed" : "Request Rush"}
+                          </span>
+                          <Zap
+                            className={`w-[8.78px] h-[10.54px] flex-shrink-0 ${
+                              hasRushed ? "text-white" : "text-[#CF0202]"
+                            }`}
+                            strokeWidth={0.878154}
+                          />
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {/* ===== OTHER CATEGORIES: Progressive step-by-step fields ===== */}
+
+                      {/* Implant Detail - show if any tooth in group has Implant retention */}
+                      {toothNumbers.some((n) => (maxillaryRetentionTypes[n] || []).includes("Implant")) && (
+                        <ImplantDetailSection toothNumber={firstToothNumber} />
+                      )}
+
+                      {/* Step 1: Grade / Stage */}
+                      {isFieldVisible("maxillary", firstToothNumber, "grade") && (
+                        <div className="grid grid-cols-2 gap-3">
+                          <fieldset
+                            className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
+                              isFieldCompleted("maxillary", firstToothNumber, "grade")
+                                ? "border-[#34a853]"
+                                : "border-[#CF0202]"
+                            }`}
+                            onClick={() => {
+                              if (!isFieldCompleted("maxillary", firstToothNumber, "grade")) {
+                                completeFieldStep("maxillary", firstToothNumber, "grade", "Standard");
+                              }
+                            }}
+                          >
+                            <legend
+                              className={`text-[11px] px-1 leading-none ${
+                                isFieldCompleted("maxillary", firstToothNumber, "grade")
+                                  ? "text-[#34a853]"
+                                  : "text-[#CF0202]"
+                              }`}
+                            >
+                              Grade
+                            </legend>
+                            <div className="flex items-center gap-2 w-full">
+                              <span className="text-[13px] text-[#1d1d1b]">
+                                {getFieldValue("maxillary", firstToothNumber, "grade")}
+                              </span>
+                              <div className="flex gap-1 ml-auto">
+                                <BlueDiamond />
+                                <BlueDiamond />
+                                <GrayDiamond />
+                                <GrayDiamond />
+                              </div>
+                              {isFieldCompleted("maxillary", firstToothNumber, "grade") && (
+                                <Check size={16} className="text-[#34a853]" />
+                              )}
+                            </div>
+                          </fieldset>
+
+                          {isFieldVisible("maxillary", firstToothNumber, "stage") ? (
+                            <fieldset
+                              className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
+                                isFieldCompleted("maxillary", firstToothNumber, "stage")
+                                  ? "border-[#34a853]"
+                                  : "border-[#CF0202]"
+                              }`}
+                              onClick={() => {
+                                handleOpenStageModal(`maxillary_prep_${firstToothNumber}`, "maxillary", firstToothNumber);
+                              }}
+                            >
+                              <legend
+                                className={`text-[11px] px-1 leading-none ${
+                                  isFieldCompleted("maxillary", firstToothNumber, "stage")
+                                    ? "text-[#34a853]"
+                                    : "text-[#CF0202]"
+                                }`}
+                              >
+                                Stage
+                              </legend>
+                              <div className="flex items-center gap-2 w-full">
+                                <span className="text-[13px] text-[#1d1d1b]">
+                                  {getFieldValue("maxillary", firstToothNumber, "stage")}
+                                </span>
+                                {isFieldCompleted("maxillary", firstToothNumber, "stage") && (
+                                  <Check size={16} className="text-[#34a853]" />
+                                )}
+                                <div className="ml-auto">
+                                  <ArticulatorIcon />
+                                </div>
+                              </div>
+                            </fieldset>
+                          ) : (
+                            <div />
+                          )}
+                        </div>
+                      )}
+
+                      {/* Step 2: Teeth shade / Gum Shade */}
+                      {isFieldVisible("maxillary", firstToothNumber, "teeth_shade") && (
+                        <div className="grid grid-cols-2 gap-3 mt-3">
+                          <fieldset
+                            className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
+                              isFieldCompleted("maxillary", firstToothNumber, "teeth_shade")
+                                ? "border-[#34a853]"
+                                : "border-[#CF0202]"
+                            }`}
+                            onClick={() => {
+                              handleShadeFieldClick(
+                                "maxillary",
+                                "tooth_shade",
+                                `prep_${firstToothNumber}`
+                              );
+                              if (!isFieldCompleted("maxillary", firstToothNumber, "teeth_shade")) {
+                                completeFieldStep("maxillary", firstToothNumber, "teeth_shade", "Vita Classical");
+                              }
+                            }}
+                          >
+                            <legend
+                              className={`text-[11px] px-1 leading-none ${
+                                isFieldCompleted("maxillary", firstToothNumber, "teeth_shade")
+                                  ? "text-[#34a853]"
+                                  : "text-[#CF0202]"
+                              }`}
+                            >
+                              Teeth shade
+                            </legend>
+                            <div className="flex items-center gap-2 w-full">
+                              <span className="text-[13px] text-[#1d1d1b]">
+                                {getFieldValue("maxillary", firstToothNumber, "teeth_shade")}
+                              </span>
+                              {isFieldCompleted("maxillary", firstToothNumber, "teeth_shade") && (
+                                <Check size={16} className="text-[#34a853] ml-auto" />
+                              )}
+                            </div>
+                          </fieldset>
+
+                          {isFieldVisible("maxillary", firstToothNumber, "gum_shade") ? (
+                            <fieldset
+                              className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
+                                isFieldCompleted("maxillary", firstToothNumber, "gum_shade")
+                                  ? "border-[#34a853]"
+                                  : "border-[#CF0202]"
+                              }`}
+                              onClick={() => {
+                                if (!isFieldCompleted("maxillary", firstToothNumber, "gum_shade")) {
+                                  completeFieldStep("maxillary", firstToothNumber, "gum_shade", "GC Initial Gingiva");
+                                }
+                              }}
+                            >
+                              <legend
+                                className={`text-[11px] px-1 leading-none ${
+                                  isFieldCompleted("maxillary", firstToothNumber, "gum_shade")
+                                    ? "text-[#34a853]"
+                                    : "text-[#CF0202]"
+                                }`}
+                              >
+                                Gum Shade
+                              </legend>
+                              <div className="flex items-center gap-2 w-full">
+                                <span className="text-[13px] text-[#1d1d1b] truncate">
+                                  {getFieldValue("maxillary", firstToothNumber, "gum_shade")}
+                                </span>
+                                <svg
+                                  width="29"
+                                  height="29"
+                                  viewBox="0 0 29 29"
+                                  fill="none"
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  className="flex-shrink-0"
+                                >
+                                  <rect width="28.0391" height="28.0391" rx="6" fill="#E58D8D" />
+                                </svg>
+                                {isFieldCompleted("maxillary", firstToothNumber, "gum_shade") && (
+                                  <Check size={16} className="text-[#34a853] flex-shrink-0" />
+                                )}
+                              </div>
+                            </fieldset>
+                          ) : (
+                            <div />
+                          )}
+                        </div>
+                      )}
+
+                      {/* Step 3: Impression / Add ons */}
+                      {isFieldVisible("maxillary", firstToothNumber, "impression") && (
+                        <div className="grid grid-cols-2 gap-3 mt-3">
+                          <fieldset
+                            className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
+                              isFieldCompleted("maxillary", firstToothNumber, "impression")
+                                ? "border-[#34a853]"
+                                : "border-[#CF0202]"
+                            }`}
+                            onClick={() => {
+                              handleOpenImpressionModal("maxillary", selectedProduct?.id?.toString() || `prep_${firstToothNumber}`, firstToothNumber);
+                            }}
+                          >
+                            <legend
+                              className={`text-[11px] px-1 leading-none ${
+                                isFieldCompleted("maxillary", firstToothNumber, "impression")
+                                  ? "text-[#34a853]"
+                                  : "text-[#CF0202]"
+                              }`}
+                            >
+                              Impression
+                            </legend>
+                            <div className="flex items-center gap-2 w-full">
+                              <span className="text-[13px] text-[#1d1d1b] truncate">
+                                {getFieldValue("maxillary", firstToothNumber, "impression")}
+                              </span>
+                              {isFieldCompleted("maxillary", firstToothNumber, "impression") && (
+                                <Check size={16} className="text-[#34a853] ml-auto" />
+                              )}
+                            </div>
+                          </fieldset>
+
+                          {isFieldVisible("maxillary", firstToothNumber, "addons") ? (
+                            <fieldset
+                              className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
+                                isFieldCompleted("maxillary", firstToothNumber, "addons")
+                                  ? "border-[#34a853]"
+                                  : "border-[#CF0202]"
+                              }`}
+                              onClick={() => {
+                                handleOpenAddOnsModal("maxillary", selectedProduct?.id?.toString() || `prep_${firstToothNumber}`, firstToothNumber);
+                              }}
+                            >
+                              <legend
+                                className={`text-[11px] px-1 leading-none ${
+                                  isFieldCompleted("maxillary", firstToothNumber, "addons")
+                                    ? "text-[#34a853]"
+                                    : "text-[#CF0202]"
+                                }`}
+                              >
+                                Add ons
+                              </legend>
+                              <div className="flex items-center gap-2 w-full">
+                                <span className="text-[13px] text-[#1d1d1b] truncate">
+                                  {getFieldValue("maxillary", firstToothNumber, "addons")}
+                                </span>
+                                {isFieldCompleted("maxillary", firstToothNumber, "addons") && (
+                                  <Check size={16} className="text-[#34a853] ml-auto" />
+                                )}
+                              </div>
+                            </fieldset>
+                          ) : (
+                            <div />
+                          )}
+                        </div>
+                      )}
+
+                      {/* Bottom action buttons */}
+                      {isFieldCompleted("maxillary", firstToothNumber, "addons") && (
+                        <div className="flex items-center justify-center gap-4 pt-3 border-t border-[#d9d9d9] mt-3">
+                          <button
+                            onClick={() => {
+                              handleOpenAddOnsModal("maxillary", selectedProduct?.id?.toString() || `prep_${firstToothNumber}`, firstToothNumber);
+                            }}
+                            className="flex-none flex-grow-0 w-[123.04px] h-[46.22px] rounded-[5.27px] bg-[#F9F9F9] shadow-[0.88px_0.88px_3.07px_rgba(0,0,0,0.25)] flex flex-col items-center justify-center gap-0.5 hover:bg-[#f0f0f0] transition-colors"
+                          >
+                            <Plus size={10} className="text-[#1E1E1E]" strokeWidth={1.5} />
+                            <span className="font-['Verdana'] font-normal text-[8.78px] leading-[19px] text-center tracking-[-0.02em] text-black whitespace-nowrap">
+                              {getFieldValue("maxillary", firstToothNumber, "addons")
+                                ? `Add ons (${getFieldValue("maxillary", firstToothNumber, "addons").split(",").length} selected)`
+                                : "Add ons"}
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowAttachModal(true)}
+                            className="flex-none flex-grow-0 w-[123.04px] h-[46.22px] rounded-[5.27px] bg-[#F9F9F9] shadow-[0.88px_0.88px_3.07px_rgba(0,0,0,0.25)] flex flex-col items-center justify-center gap-0.5 hover:bg-[#f0f0f0] transition-colors"
+                          >
+                            <Paperclip size={10} className="text-[#1E1E1E]" strokeWidth={1.5} />
+                            <span className="font-['Verdana'] font-normal text-[8.78px] leading-[19px] text-center tracking-[-0.02em] text-black whitespace-nowrap">
+                              Attach Files
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleOpenRushModal("maxillary", `prep_${firstToothNumber}`)
+                            }
+                            className="relative flex-none flex-grow-0 w-[123.04px] h-[46.22px] rounded-[5.27px] bg-[#F9F9F9] shadow-[0_0_2.9px_rgba(207,2,2,0.67)] flex items-center justify-center gap-1.5 hover:bg-[#f0f0f0] transition-colors"
+                          >
+                            <span className="font-['Verdana'] font-normal text-[8.78px] leading-[19px] text-center tracking-[-0.02em] text-black whitespace-nowrap">
+                              Request Rush
+                            </span>
+                            <Zap
+                              className="w-[8.78px] h-[10.54px] flex-shrink-0 text-[#CF0202]"
+                              strokeWidth={0.878154}
+                            />
+                          </button>
+                        </div>
+                      )}
+                    </>
                   )}
-                  </div>
-                  ))}
                 </div>
                 )}
               </div>
@@ -741,8 +963,7 @@ export function MaxillaryPanel({
           {/* Status boxes, product accordions - hidden initially until showDetails */}
           {showDetails && (
             <>
-              <ToothStatusBoxes />
-
+           
               {/* Restoration product card (Metal frame acrylic) - full accordion */}
               <div
                 className={`rounded-lg bg-white overflow-hidden ${

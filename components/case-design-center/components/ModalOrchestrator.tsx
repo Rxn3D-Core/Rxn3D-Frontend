@@ -11,8 +11,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { StageSelectionModal } from "./StageSelectionModal";
-import type { Arch } from "../types";
-import { stageOptions, mockImpressions } from "../constants";
+import type { Arch, ImpressionOptionForModal } from "../types";
+import { stageOptions } from "../constants";
 
 interface ModalOrchestratorProps {
   // Impression
@@ -21,6 +21,8 @@ interface ModalOrchestratorProps {
   currentImpressionArch: Arch;
   currentImpressionProductId: string;
   currentImpressionToothNumber: number | null;
+  /** Impressions from get product response (used for modal options and display text) */
+  impressionOptions: ImpressionOptionForModal[];
   selectedImpressions: Record<string, number>;
   setSelectedImpressions: React.Dispatch<
     React.SetStateAction<Record<string, number>>
@@ -61,6 +63,7 @@ export function ModalOrchestrator({
   currentImpressionArch,
   currentImpressionProductId,
   currentImpressionToothNumber,
+  impressionOptions,
   selectedImpressions,
   setSelectedImpressions,
   onImpressionConfirm,
@@ -106,7 +109,7 @@ export function ModalOrchestrator({
             const displayText = entries
               .map(([key, qty]) => {
                 const identifier = key.replace(prefix, "");
-                const impression = mockImpressions.find((i) => i.value === identifier);
+                const impression = impressionOptions.find((i) => i.value === identifier);
                 return `${qty}x ${impression?.name || identifier}`;
               })
               .join(", ");
@@ -114,7 +117,7 @@ export function ModalOrchestrator({
           }
           setShowImpressionModal(false);
         }}
-        impressions={mockImpressions}
+        impressions={impressionOptions}
         selectedImpressions={selectedImpressions}
         onUpdateQuantity={(key, qty) => {
           setSelectedImpressions((prev) => ({ ...prev, [key]: qty }));

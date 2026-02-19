@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import NewCaseWizard from "@/components/new-case-wizard";
+import { useState, useEffect } from "react";
+import NewCaseWizard, { type WizardLabShape, type WizardDoctorShape } from "@/components/new-case-wizard";
 import { SlipCreationStepFooter } from "@/components/slip-creation-step-footer";
 import type { AddedProduct } from "./types";
 import { TopBar } from "./components/TopBar";
@@ -15,6 +15,18 @@ import { FloatingActions } from "./components/FloatingActions";
 /* ------------------------------------------------------------------ */
 export default function Page() {
   const [wizardComplete, setWizardComplete] = useState(false);
+  const [completedDoctor, setCompletedDoctor] = useState<WizardDoctorShape | null>(null);
+  const [completedLab, setCompletedLab] = useState<WizardLabShape | null>(null);
+  const [completedPatientName, setCompletedPatientName] = useState<string>("");
+  const [completedGender, setCompletedGender] = useState<string>("");
+  const [labEditMode, setLabEditMode] = useState(false);
+  const [doctorEditMode, setDoctorEditMode] = useState(false);
+  const [role, setRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    const r = typeof window !== "undefined" ? localStorage.getItem("role") : null;
+    setRole(r);
+  }, []);
   const [right1Brand, setRight1Brand] = useState("Truabutment");
   const [right1Platform, setRight1Platform] = useState("Truscan");
   const [right2Brand, setRight2Brand] = useState("Nobel Biocare");
@@ -26,6 +38,7 @@ export default function Page() {
   // ---- Add Product via wizard redirect ----
   const [wizardMode, setWizardMode] = useState<"initial" | "addProduct">("initial");
   const [pendingProductArch, setPendingProductArch] = useState<"maxillary" | "mandibular">("maxillary");
+  const [selectedProductId, setSelectedProductId] = useState<number | undefined>(undefined);
 
   // Load cached added products
   const [addedProducts, setAddedProducts] = useState<AddedProduct[]>(() => {
@@ -63,6 +76,14 @@ export default function Page() {
       setWizardMode("initial");
       setWizardComplete(true);
     } else {
+      const productId = Number(result.material);
+      if (productId) setSelectedProductId(productId);
+      setCompletedDoctor(result?.doctor ?? null);
+      setCompletedLab(result?.lab ?? null);
+      setCompletedPatientName(result?.patientName ?? "");
+      setCompletedGender(result?.gender ?? "");
+      setLabEditMode(false);
+      setDoctorEditMode(false);
       setWizardComplete(true);
     }
   };
@@ -73,13 +94,48 @@ export default function Page() {
     setWizardComplete(false);
   };
 
+  const handleBackToProducts = () => {
+    setWizardMode("addProduct");
+    setWizardComplete(false);
+  };
+
+  const handleTopBarEditLab = () => {
+    setLabEditMode(true);
+    setDoctorEditMode(false);
+    setWizardComplete(false);
+  };
+
+  const handleEditDoctor = () => {
+    setDoctorEditMode(true);
+    setLabEditMode(false);
+    setWizardComplete(false);
+  };
+
+  const wizardStartStep = wizardMode === "addProduct"
+    ? 4
+    : labEditMode
+    ? (role === "office_admin" ? 2 : 1)
+    : doctorEditMode
+    ? (role === "office_admin" ? 1 : 2)
+    : 1;
+
   return (
     <div className="flex h-screen bg-[#f5f5f5] overflow-hidden">
       <main className="flex-1 flex flex-col overflow-auto min-w-0">
-        <TopBar />
+        <TopBar
+          selectedLab={completedLab ? { logo: completedLab.logo, name: completedLab.name } : null}
+          onEditClick={wizardComplete ? handleTopBarEditLab : undefined}
+        />
         {wizardComplete ? (
           <>
-            <PatientHeader caseSubmitted={caseSubmitted} />
+            <PatientHeader
+              doctorImageUrl={completedDoctor?.img}
+              doctorName={completedDoctor?.name}
+              patientName={completedPatientName}
+              gender={completedGender}
+              caseSubmitted={caseSubmitted}
+              onEditDoctorClick={handleEditDoctor}
+            />
             <CaseDesignCenter
               right1Brand={right1Brand}
               setRight1Brand={setRight1Brand}
@@ -90,6 +146,8 @@ export default function Page() {
               right2Platform={right2Platform}
               setRight2Platform={setRight2Platform}
               onAddProduct={handleAddProduct}
+              onBackToProducts={handleBackToProducts}
+              selectedProductId={selectedProductId}
             />
             {showDetails && (
               <CaseSummaryNotes
@@ -105,8 +163,10 @@ export default function Page() {
         ) : (
           <NewCaseWizard
             onComplete={handleWizardComplete}
-            startStep={wizardMode === "addProduct" ? 4 : 1}
+            onLabSelect={(lab) => setCompletedLab(lab)}
+            startStep={wizardStartStep}
             mode={wizardMode}
+            initialLabId={doctorEditMode && completedLab ? completedLab.id : null}
           />
         )}
       </main>

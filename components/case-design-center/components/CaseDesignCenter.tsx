@@ -1,18 +1,29 @@
 "use client";
 
 import type { CaseDesignProps } from "../types";
+import { productImpressionsToModalOptions } from "../types";
 import { useCaseDesignState } from "../hooks/useCaseDesignState";
 import { MaxillaryPanel } from "./MaxillaryPanel";
 import { MandibularPanel } from "./MandibularPanel";
 import { CenterNavigation } from "./CenterNavigation";
 import { ModalOrchestrator } from "./ModalOrchestrator";
 import { CaseSummaryNotes } from "./CaseSummaryNotes";
+import { mockImpressions } from "../constants";
 
 export function CaseDesignCenter(props: CaseDesignProps) {
   const state = useCaseDesignState(props);
 
   return (
     <div className="px-2 md:px-4 py-4">
+      {props.onBackToProducts && (
+        <button
+          onClick={props.onBackToProducts}
+          className="text-[14px] font-semibold text-[#1162A8] hover:underline mb-2"
+        >
+          ← Back to Products
+        </button>
+      )}
+
       {/* Title */}
       <h2 className="text-center text-[14px] md:text-[16px] font-bold text-[#1d1d1b] tracking-wide mb-3 md:mb-4">
         CASE DESIGN CENTER
@@ -72,7 +83,12 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           clearToothProgress={state.clearToothProgress}
           setToothProduct={state.setToothProduct}
           getToothProduct={state.getToothProduct}
+          isProductLoading={state.isProductLoading}
           fetchAndAssignProduct={state.fetchAndAssignProduct}
+          maxillaryToothExtractionMap={state.maxillaryToothExtractionMap}
+          handleToothExtractionToggle={state.handleToothExtractionToggle}
+          selectAllMaxillaryTeeth={state.selectAllMaxillaryTeeth}
+          clearAllMaxillaryTeeth={state.clearAllMaxillaryTeeth}
         />
 
         {/* CENTER NAVIGATION */}
@@ -109,43 +125,36 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           handleShadeSelect={state.handleShadeSelect}
           handleShadeFieldClick={state.handleShadeFieldClick}
           // Expansion
-          expandedCard={state.expandedCard}
-          setExpandedCard={state.setExpandedCard}
-          expandedRight2={state.expandedRight2}
-          setExpandedRight2={state.setExpandedRight2}
-          // Implant
-          right1Brand={state.right1Brand}
-          setRight1Brand={state.setRight1Brand}
-          right1Platform={state.right1Platform}
-          setRight1Platform={state.setRight1Platform}
-          right2Brand={state.right2Brand}
-          setRight2Brand={state.setRight2Brand}
-          right2Platform={state.right2Platform}
-          setRight2Platform={state.setRight2Platform}
-          activeCardType={state.activeCardType}
-          setActiveCardType={state.setActiveCardType}
-          right1Inclusion={state.right1Inclusion}
-          setRight1Inclusion={state.setRight1Inclusion}
-          right1InclusionQty={state.right1InclusionQty}
-          setRight1InclusionQty={state.setRight1InclusionQty}
-          right2Inclusion={state.right2Inclusion}
-          setRight2Inclusion={state.setRight2Inclusion}
-          right2InclusionQty={state.right2InclusionQty}
-          setRight2InclusionQty={state.setRight2InclusionQty}
+          isPrepPonticExpanded={state.isPrepPonticExpanded}
+          togglePrepPonticExpanded={state.togglePrepPonticExpanded}
           // Rush
           rushedProducts={state.rushedProducts}
           // Modals
           handleOpenImpressionModal={state.handleOpenImpressionModal}
+          getImpressionDisplayText={state.getImpressionDisplayText}
           handleOpenAddOnsModal={state.handleOpenAddOnsModal}
+          selectedStages={state.selectedStages}
           handleOpenRushModal={state.handleOpenRushModal}
           handleOpenStageModal={state.handleOpenStageModal}
           setShowAttachModal={state.setShowAttachModal}
-          getImpressionDisplayText={state.getImpressionDisplayText}
-          selectedStages={state.selectedStages}
           // Added products
           addedProducts={state.addedProducts}
           toggleAddedProductExpanded={state.toggleAddedProductExpanded}
           handleRemoveAddedProduct={state.handleRemoveAddedProduct}
+          // Tooth field progress (Prep/Pontic step-by-step)
+          isFieldVisible={state.isFieldVisible}
+          isFieldCompleted={state.isFieldCompleted}
+          completeFieldStep={state.completeFieldStep}
+          getFieldValue={state.getFieldValue}
+          clearToothProgress={state.clearToothProgress}
+          setToothProduct={state.setToothProduct}
+          getToothProduct={state.getToothProduct}
+          isProductLoading={state.isProductLoading}
+          fetchAndAssignProduct={state.fetchAndAssignProduct}
+          mandibularToothExtractionMap={state.mandibularToothExtractionMap}
+          handleToothExtractionToggle={state.handleToothExtractionToggle}
+          selectAllMandibularTeeth={state.selectAllMandibularTeeth}
+          clearAllMandibularTeeth={state.clearAllMandibularTeeth}
         />
       </div>
 
@@ -176,6 +185,16 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         currentImpressionArch={state.currentImpressionArch}
         currentImpressionProductId={state.currentImpressionProductId}
         currentImpressionToothNumber={state.currentImpressionToothNumber}
+        impressionOptions={
+          (() => {
+            const toothNum = state.currentImpressionToothNumber;
+            const arch = state.currentImpressionArch;
+            if (toothNum === null) return mockImpressions;
+            const product = state.getToothProduct(arch, toothNum);
+            const options = productImpressionsToModalOptions(product?.impressions);
+            return options.length > 0 ? options : mockImpressions;
+          })()
+        }
         selectedImpressions={state.selectedImpressions}
         setSelectedImpressions={state.setSelectedImpressions}
         onImpressionConfirm={(displayText) => {

@@ -15,6 +15,11 @@ export function useToothSelection() {
     toothNumber: null,
   });
 
+  // Maps toothNumber → extractionCode for non-default extractions
+  // Teeth NOT in this map are assumed to be in the default extraction (Teeth in mouth)
+  const [maxillaryToothExtractionMap, setMaxillaryToothExtractionMap] = useState<Record<number, string>>({});
+  const [mandibularToothExtractionMap, setMandibularToothExtractionMap] = useState<Record<number, string>>({});
+
   const handleMaxillaryToothClick = (toothNumber: number) => {
     if (maxillaryTeeth.includes(toothNumber)) {
       setRetentionPopoverState({ arch: "maxillary", toothNumber });
@@ -52,6 +57,10 @@ export function useToothSelection() {
       const { [toothNumber]: _, ...rest } = prev;
       return rest;
     });
+    setMaxillaryToothExtractionMap((prev) => {
+      const { [toothNumber]: _, ...rest } = prev;
+      return rest;
+    });
     setRetentionPopoverState({ arch: null, toothNumber: null });
   };
 
@@ -61,7 +70,56 @@ export function useToothSelection() {
       const { [toothNumber]: _, ...rest } = prev;
       return rest;
     });
+    setMandibularToothExtractionMap((prev) => {
+      const { [toothNumber]: _, ...rest } = prev;
+      return rest;
+    });
     setRetentionPopoverState({ arch: null, toothNumber: null });
+  };
+
+  /**
+   * Toggle a tooth into a non-default extraction box.
+   * - If tooth is already in that extraction → move it back to default (remove from map)
+   * - If tooth is in default or another extraction → assign it to this extraction
+   */
+  const handleToothExtractionToggle = (arch: Arch, toothNumber: number, extractionCode: string) => {
+    const setter = arch === "maxillary" ? setMaxillaryToothExtractionMap : setMandibularToothExtractionMap;
+
+    setter((prev) => {
+      if (prev[toothNumber] === extractionCode) {
+        // Already in this extraction → move back to default
+        const { [toothNumber]: _, ...rest } = prev;
+        return rest;
+      }
+      // Assign to this extraction
+      return { ...prev, [toothNumber]: extractionCode };
+    });
+  };
+
+  const selectAllMaxillaryTeeth = (teeth: number[]) => {
+    setMaxillaryTeeth((prev) => {
+      const merged = [...new Set([...prev, ...teeth])];
+      return merged;
+    });
+  };
+
+  const selectAllMandibularTeeth = (teeth: number[]) => {
+    setMandibularTeeth((prev) => {
+      const merged = [...new Set([...prev, ...teeth])];
+      return merged;
+    });
+  };
+
+  const clearAllMaxillaryTeeth = () => {
+    setMaxillaryTeeth([]);
+    setMaxillaryRetentionTypes({});
+    setMaxillaryToothExtractionMap({});
+  };
+
+  const clearAllMandibularTeeth = () => {
+    setMandibularTeeth([]);
+    setMandibularRetentionTypes({});
+    setMandibularToothExtractionMap({});
   };
 
   return {
@@ -76,5 +134,12 @@ export function useToothSelection() {
     handleSelectRetentionType,
     handleMaxillaryToothDeselect,
     handleMandibularToothDeselect,
+    maxillaryToothExtractionMap,
+    mandibularToothExtractionMap,
+    handleToothExtractionToggle,
+    selectAllMaxillaryTeeth,
+    selectAllMandibularTeeth,
+    clearAllMaxillaryTeeth,
+    clearAllMandibularTeeth,
   };
 }

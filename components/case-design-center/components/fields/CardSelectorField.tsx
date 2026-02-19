@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronDown } from "lucide-react";
+import { Check } from "lucide-react";
 
 export function CardSelectorField({
   label,
@@ -30,7 +30,6 @@ export function CardSelectorField({
       <div className="flex items-center gap-2 w-full">
         <span className="text-[13px] text-[#1d1d1b] flex-1 truncate">{value || `Select ${label}`}</span>
         {hasValue && <Check size={16} className="text-[#34a853] flex-shrink-0" />}
-        <ChevronDown size={16} className={`text-[#7f7f7f] transition-transform flex-shrink-0 ${isActive ? 'rotate-180' : ''}`} />
       </div>
     </fieldset>
   );

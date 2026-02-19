@@ -693,6 +693,7 @@ function StepSubProduct({
   categoryName,
   selected,
   onSelect,
+  onBack,
   doctor,
   patientName,
   gender,
@@ -702,6 +703,7 @@ function StepSubProduct({
   categoryName: string;
   selected: number | null;
   onSelect: (id: number) => void;
+  onBack?: () => void;
   doctor: WizardDoctorShape | undefined;
   patientName: string;
   gender: string;
@@ -712,6 +714,15 @@ function StepSubProduct({
     <div className="flex-1 flex flex-col px-6 py-4">
       {/* Patient header mini */}
       <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} />
+
+      {onBack && (
+        <button
+          onClick={onBack}
+          className="self-start text-[14px] font-semibold text-[#1162A8] hover:underline mt-2 mb-1"
+        >
+          ← Back to Categories
+        </button>
+      )}
 
       <h2 className="text-[16px] font-bold text-[#1d1d1b] text-center mt-4 mb-2">
         CASE DESIGN CENTER
@@ -792,6 +803,7 @@ function StepMaterial({
   products,
   selected,
   onSelect,
+  onBack,
   doctor,
   patientName,
   gender,
@@ -803,6 +815,7 @@ function StepMaterial({
   products: { id: number; name: string; img: string }[];
   selected: string | null;
   onSelect: (id: string) => void;
+  onBack?: () => void;
   doctor: WizardDoctorShape | undefined;
   patientName: string;
   gender: string;
@@ -834,6 +847,15 @@ function StepMaterial({
   return (
     <div className="flex-1 flex flex-col px-6 py-4">
       <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} />
+
+      {onBack && (
+        <button
+          onClick={onBack}
+          className="self-start text-[14px] font-semibold text-[#1162A8] hover:underline mt-2 mb-1"
+        >
+          ← Back to Subcategories
+        </button>
+      )}
 
       <h2 className="text-[16px] font-bold text-[#1d1d1b] text-center mt-4 mb-2">
         CASE DESIGN CENTER
@@ -989,16 +1011,20 @@ function PatientMiniHeader({
 /* ------------------------------------------------------------------ */
 export default function NewCaseWizard({
   onComplete,
+  onLabSelect,
   startStep = 1,
   mode = "initial",
+  initialLabId = null,
 }: {
   onComplete: (result: WizardResult) => void;
+  onLabSelect?: (lab: WizardLabShape) => void;
   startStep?: number;
   mode?: "initial" | "addProduct";
+  initialLabId?: number | null;
 }) {
   const [step, setStep] = useState(startStep);
   const [selectedDoctor, setSelectedDoctor] = useState<number | null>(null);
-  const [selectedLab, setSelectedLab] = useState<number | null>(null);
+  const [selectedLab, setSelectedLab] = useState<number | null>(initialLabId);
   const [patientName, setPatientName] = useState("");
   const [gender, setGender] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
@@ -1181,11 +1207,13 @@ export default function NewCaseWizard({
             selected={selectedLab}
             onSelect={(id) => {
               setSelectedLab(id);
+              const selected = officesAsLabs.find((l) => l.id === id);
+              if (selected) onLabSelect?.(selected);
               setTimeout(() => setStep(2), 300);
             }}
             isLoading={labsLoading}
             error={labsError}
-            stepTitle={role === "office_admin" ? "Choose an Office" : "Choose a Lab"}
+            stepTitle={role === "office_admin" ? "Choose a Lab" : "Choose an Office"}
             entityLabel={role === "office_admin" ? "office" : "lab"}
           />
         )}
@@ -1207,6 +1235,8 @@ export default function NewCaseWizard({
             selected={selectedLab}
             onSelect={(id) => {
               setSelectedLab(id);
+              const selected = officesAsLabs.find((l) => l.id === id);
+              if (selected) onLabSelect?.(selected);
               setTimeout(() => setStep(3), 300);
             }}
             isLoading={labsLoading}
@@ -1251,6 +1281,7 @@ export default function NewCaseWizard({
               setSelectedSubProduct(id);
               setTimeout(() => setStep(6), 300);
             }}
+            onBack={() => setStep(4)}
             doctor={doctor}
             patientName={patientName}
             gender={gender}
@@ -1266,6 +1297,7 @@ export default function NewCaseWizard({
             selected={selectedMaterial}
             isLoading={productsLoading}
             error={productsError}
+            onBack={() => setStep(5)}
             onSelect={(id) => {
               setSelectedMaterial(id);
               if (mode === "addProduct") {

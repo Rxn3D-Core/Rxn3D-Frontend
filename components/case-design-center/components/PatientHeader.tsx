@@ -6,16 +6,26 @@ export interface PatientHeaderProps {
   doctorImageUrl?: string | null;
   /** Selected doctor display name (from wizard). Falls back to placeholder when not provided. */
   doctorName?: string | null;
+  /** Patient name from the selected user in the patient name section. Updates dynamically when selection changes. */
+  patientName?: string | null;
+  /** Gender from the selected user in the patient name section. Updates dynamically when selection changes. */
+  gender?: string | null;
   /** When true, show case-related fields (slip number, case number, etc.). Hidden until case is submitted. */
   caseSubmitted?: boolean;
+  /** Called when the user clicks the pencil to change doctor selection. */
+  onEditDoctorClick?: () => void;
 }
 
 const DEFAULT_DOCTOR_IMAGE = "/images/doctor-image.png";
 const DEFAULT_DOCTOR_NAME = "Cody Mugglestone, DDS";
+const DEFAULT_PATIENT_NAME = "Jose Protacio Rizal Mercado y Alonzo";
+const DEFAULT_GENDER = "Male";
 
-export function PatientHeader({ doctorImageUrl, doctorName, caseSubmitted = false }: PatientHeaderProps = {}) {
+export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender, caseSubmitted = false, onEditDoctorClick }: PatientHeaderProps = {}) {
   const imgSrc = doctorImageUrl && doctorImageUrl.trim() !== "" ? doctorImageUrl : DEFAULT_DOCTOR_IMAGE;
   const displayName = doctorName && doctorName.trim() !== "" ? doctorName : DEFAULT_DOCTOR_NAME;
+  const displayPatientName = patientName && patientName.trim() !== "" ? patientName : DEFAULT_PATIENT_NAME;
+  const displayGender = gender && gender.trim() !== "" ? gender : DEFAULT_GENDER;
 
   return (
     <div className="bg-[#fdfdfd] border-b border-[#d9d9d9] px-4 sm:px-6 py-4">
@@ -34,7 +44,14 @@ export function PatientHeader({ doctorImageUrl, doctorName, caseSubmitted = fals
             />
           </div>
           <div className="flex items-center gap-1">
-            <Pencil size={12} className="text-[#b4b0b0]" />
+            <button
+              type="button"
+              onClick={onEditDoctorClick}
+              className="p-0.5 rounded hover:bg-[#e5e7eb] transition-colors text-[#b4b0b0] hover:text-[#1d1d1b]"
+              aria-label="Change doctor"
+            >
+              <Pencil size={12} />
+            </button>
           </div>
           <p className="text-[13px] font-semibold text-[#1d1d1b] whitespace-nowrap">
             {displayName}
@@ -47,7 +64,7 @@ export function PatientHeader({ doctorImageUrl, doctorName, caseSubmitted = fals
           <div className="flex flex-wrap gap-3 sm:gap-4 items-start justify-center lg:justify-start">
             <FieldInput
               label="Patient name"
-              value="Jose Protacio Rizal Mercado y Alonzo"
+              value={displayPatientName}
             />
             {caseSubmitted && (
               <>
@@ -61,7 +78,7 @@ export function PatientHeader({ doctorImageUrl, doctorName, caseSubmitted = fals
           </div>
           {/* Row 2: Gender + date/time/location fields */}
           <div className="flex flex-wrap gap-3 sm:gap-4 items-start justify-center lg:justify-start">
-            <FieldInput label="Gender" value="Male" />
+            <FieldInput label="Gender" value={displayGender} />
             {caseSubmitted && (
               <>
                 <FieldInput label="Due Date" value="01/ 01/ 25" />

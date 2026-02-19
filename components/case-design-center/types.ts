@@ -8,6 +8,8 @@ export interface CaseDesignProps {
   right2Platform: string;
   setRight2Platform: (v: string) => void;
   onAddProduct?: (arch: "maxillary" | "mandibular") => void;
+  onBackToProducts?: () => void;
+  selectedProductId?: number;
 }
 
 export interface AddedProduct {
@@ -87,6 +89,35 @@ export interface ProductImpression {
   price: string | null;
 }
 
+/** Option shape for the impression selection modal (id, name, code, image_url, value, label) */
+export interface ImpressionOptionForModal {
+  id: number;
+  name: string;
+  code?: string;
+  description?: string;
+  image_url?: string | null;
+  value: string;
+  label: string;
+}
+
+/** Convert product API impressions to modal options; uses code as value for stable keys. */
+export function productImpressionsToModalOptions(
+  impressions: ProductImpression[] | undefined
+): ImpressionOptionForModal[] {
+  if (!impressions?.length) return [];
+  return impressions
+    .filter((i) => i.status === "Active")
+    .sort((a, b) => a.sequence - b.sequence)
+    .map((i) => ({
+      id: i.id,
+      name: i.name,
+      code: i.code,
+      image_url: i.image_url ?? undefined,
+      value: i.code,
+      label: i.name,
+    }));
+}
+
 /** Gum shade from the product API */
 export interface ProductGumShade {
   id: number;
@@ -103,6 +134,26 @@ export interface ProductGumShade {
     status: string;
     sequence: number;
   };
+}
+
+/** Extraction from the product API */
+export interface ProductExtraction {
+  id: number;
+  extraction_id: number;
+  name: string;
+  code: string;
+  color: string | null;
+  url: string | null;
+  is_default: string;
+  is_required: string;
+  is_optional: string;
+  min_teeth: number | null;
+  max_teeth: number | null;
+  is_image_extraction: string;
+  image_url: string | null;
+  sequence: number;
+  status: string;
+  price: string | null;
 }
 
 /** Product from the products API */
@@ -125,6 +176,7 @@ export interface ProductApiData {
   stages?: ProductStage[];
   impressions?: ProductImpression[];
   gum_shades?: ProductGumShade[];
+  extractions?: ProductExtraction[];
   subcategory?: {
     id: number;
     name: string;

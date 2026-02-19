@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import type { CaseDesignProps, Arch, RetentionType, ProductApiData } from "../types";
+import { productImpressionsToModalOptions } from "../types";
+import { mockImpressions } from "../constants";
 import { useToothSelection } from "./useToothSelection";
 import { useShadeSelection } from "./useShadeSelection";
 import { useModalState } from "./useModalState";
@@ -62,9 +64,18 @@ export function useCaseDesignState(props: CaseDesignProps) {
   const implants = useImplantState();
   const toothFieldProgress = useToothFieldProgress();
 
-  // Fetch and assign product details when Prep/Pontic is selected
+  // Cache product data so we only fetch from API once
+  const cachedProductRef = useRef<{ productId: number; data: ProductApiData } | null>(null);
+
+  // Fetch and assign product details when retention type is selected
   const fetchAndAssignProduct = useCallback(
     async (arch: Arch, toothNumber: number, productId: number) => {
+      // If we already fetched this product, reuse the cached data
+      if (cachedProductRef.current && cachedProductRef.current.productId === productId) {
+        toothFieldProgress.setToothProduct(arch, toothNumber, cachedProductRef.current.data);
+        return;
+      }
+
       const role = localStorage.getItem("role");
       const customerId = Number(
         role === "office_admin" || role === "doctor"
@@ -72,32 +83,56 @@ export function useCaseDesignState(props: CaseDesignProps) {
           : localStorage.getItem("customerId")
       ) || 1;
 
+      toothFieldProgress.setProductLoading(arch, toothNumber, true);
       const product = await fetchProductDetails(productId, customerId);
       if (product) {
+        cachedProductRef.current = { productId, data: product };
         toothFieldProgress.setToothProduct(arch, toothNumber, product);
       }
+      toothFieldProgress.setProductLoading(arch, toothNumber, false);
     },
     [toothFieldProgress]
   );
 
-  // Wrap handleSelectRetentionType to auto-fetch product for Prep/Pontic
+  // Wrap handleSelectRetentionType to auto-assign product for Prep/Pontic/Implant
   const originalHandleSelectRetentionType = teeth.handleSelectRetentionType;
   const handleSelectRetentionType = (arch: Arch, toothNumber: number, type: RetentionType) => {
     originalHandleSelectRetentionType(arch, toothNumber, type);
 
-    if (type === "Prep" || type === "Pontic") {
+    if (type === "Prep" || type === "Pontic" || type === "Implant") {
       // Check if already toggling off (deselecting)
       const currentTypes = arch === "maxillary"
         ? teeth.maxillaryRetentionTypes[toothNumber]
         : teeth.mandibularRetentionTypes[toothNumber];
       const isDeselecting = currentTypes?.includes(type);
 
-      if (!isDeselecting) {
-        // Fetch product details from API (product ID 1 as default, will be replaced with actual selection)
-        fetchAndAssignProduct(arch, toothNumber, 1);
+      if (!isDeselecting && props.selectedProductId) {
+        fetchAndAssignProduct(arch, toothNumber, props.selectedProductId);
       }
     }
   };
+
+  // Use product impressions from get product response when toothNumber provided; otherwise fall back to modal's mock-based resolution
+  const getImpressionDisplayText = useCallback(
+    (productId: string, arch: Arch, toothNumber?: number) => {
+      const product = toothNumber != null ? toothFieldProgress.getToothProduct(arch, toothNumber) : null;
+      const options = productImpressionsToModalOptions(product?.impressions);
+      const list = options.length > 0 ? options : mockImpressions;
+      const prefix = `${productId}_${arch}_`;
+      const entries = Object.entries(modals.selectedImpressions).filter(
+        ([key, qty]) => key.startsWith(prefix) && qty > 0
+      );
+      if (entries.length === 0) return "";
+      return entries
+        .map(([key, qty]) => {
+          const identifier = key.replace(prefix, "");
+          const impression = list.find((i) => i.value === identifier);
+          return `${qty}x ${impression?.name || identifier}`;
+        })
+        .join(", ");
+    },
+    [toothFieldProgress, modals.selectedImpressions]
+  );
 
   return {
     // Expansion
@@ -123,6 +158,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
     handleSelectRetentionType, // Override with wrapped version
     ...shades,
     ...modals,
+    getImpressionDisplayText, // Override: use product impressions when toothNumber provided
     ...products,
     ...implants,
     ...toothFieldProgress,

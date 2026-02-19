@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, ChevronDown } from "lucide-react";
+import { Check } from "lucide-react";
 
 export function ImplantInclusionsField({
   label,
@@ -35,7 +35,6 @@ export function ImplantInclusionsField({
             {value === "Model with Tissue + QTY" ? `${quantity}x Model with Tissue` : value || `Select ${label}`}
           </span>
           {hasValue && <Check size={16} className="text-[#34a853] flex-shrink-0" />}
-          <ChevronDown size={16} className={`text-[#7f7f7f] transition-transform flex-shrink-0 ${showDropdown ? 'rotate-180' : ''}`} />
         </div>
       </fieldset>
 
