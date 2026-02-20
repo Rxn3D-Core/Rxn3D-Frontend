@@ -15,9 +15,11 @@ export interface TopBarProps {
   selectedLab?: TopBarSelectedLab | null;
   /** Called when the user clicks the pencil to change lab/office selection. */
   onEditClick?: () => void;
+  /** When true, hides the pencil edit icon (case has been submitted). */
+  caseSubmitted?: boolean;
 }
 
-export function TopBar({ selectedLab, onEditClick }: TopBarProps = {}) {
+export function TopBar({ selectedLab, onEditClick, caseSubmitted = false }: TopBarProps = {}) {
   const [leftLabel, setLeftLabel] = useState("Sending To");
   const [profileLogoUrl, setProfileLogoUrl] = useState<string | null>(null);
 
@@ -81,14 +83,16 @@ export function TopBar({ selectedLab, onEditClick }: TopBarProps = {}) {
                 {selectedLab.name}
               </span>
             )}
-            <button
-              type="button"
-              onClick={onEditClick}
-              className="p-0.5 rounded hover:bg-[#e5e7eb] transition-colors text-[#7f7f7f] hover:text-[#1d1d1b] flex-shrink-0"
-              aria-label="Change lab or office"
-            >
-              <Pencil size={14} />
-            </button>
+            {!caseSubmitted && (
+              <button
+                type="button"
+                onClick={onEditClick}
+                className="p-0.5 rounded hover:bg-[#e5e7eb] transition-colors text-[#7f7f7f] hover:text-[#1d1d1b] flex-shrink-0"
+                aria-label="Change lab or office"
+              >
+                <Pencil size={14} />
+              </button>
+            )}
           </>
         )}
       </div>

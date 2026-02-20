@@ -265,14 +265,14 @@ export default function CaseDesignCenterPage() {
           </div>
         </div>
 
-        {/* Main Content - Figma Frame 76 */}
+        {/* Main Content - Figma Frame 76 - extra bottom padding so product accordion can scroll above sticky footer */}
         <div
           className="w-full"
           style={{
             boxSizing: 'border-box',
             position: 'relative',
             minHeight: 'calc(100vh - 250px)',
-            paddingBottom: '90px', // Account for fixed footer (72px) plus some extra space
+            paddingBottom: '80px',
           }}
         >
           {/* Content Area - Full width with minimal padding */}
@@ -372,7 +372,11 @@ export default function CaseDesignCenterPage() {
               {/* Product Details Split View - Show when product is selected */}
               {showProductDetails && selectedProduct && (
                 <SavedProductSectionProvider value={savedProductSectionContextValue}>
-                  <div ref={toothSelectionRef} className="w-full">
+                  <div
+                    ref={toothSelectionRef}
+                    className="w-full"
+                    style={{ paddingBottom: '80px' }}
+                  >
                     {!(isInitialLoading || isLoadingProductDetails) && (
                       <>
                         {/* Implant Selection Cards - REMOVED: Now shown inside DynamicProductFields when implant details field is clicked */}

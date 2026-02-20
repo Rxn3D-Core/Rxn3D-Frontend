@@ -43,16 +43,18 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
               className="w-full h-full object-cover"
             />
           </div>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={onEditDoctorClick}
-              className="p-0.5 rounded hover:bg-[#e5e7eb] transition-colors text-[#b4b0b0] hover:text-[#1d1d1b]"
-              aria-label="Change doctor"
-            >
-              <Pencil size={12} />
-            </button>
-          </div>
+          {!caseSubmitted && (
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={onEditDoctorClick}
+                className="p-0.5 rounded hover:bg-[#e5e7eb] transition-colors text-[#b4b0b0] hover:text-[#1d1d1b]"
+                aria-label="Change doctor"
+              >
+                <Pencil size={12} />
+              </button>
+            </div>
+          )}
           <p className="text-[13px] font-semibold text-[#1d1d1b] whitespace-nowrap">
             {displayName}
           </p>

@@ -9,7 +9,7 @@ import { useShadeSelection } from "./useShadeSelection";
 import { useModalState } from "./useModalState";
 import { useProductManagement } from "./useProductManagement";
 import { useImplantState } from "./useImplantState";
-import { useToothFieldProgress } from "./useToothFieldProgress";
+import { useToothFieldProgress, FIXED_SHADE_FIELD_TO_STEP } from "./useToothFieldProgress";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
@@ -112,6 +112,23 @@ export function useCaseDesignState(props: CaseDesignProps) {
     }
   };
 
+  // When user selects a shade, mark the corresponding fixed advance-field step completed so the next field shows (dynamic for all shade steps)
+  const handleShadeSelect = useCallback(
+    (shade: string) => {
+      const { arch, fieldType, productId } = shades.shadeSelectionState;
+      shades.handleShadeSelect(shade);
+      if (!arch || !productId || !fieldType) return;
+      const match = productId.match(/^fixed_(\d+)$/);
+      if (!match) return;
+      const toothNumber = parseInt(match[1], 10);
+      const step = FIXED_SHADE_FIELD_TO_STEP[fieldType];
+      if (step) {
+        toothFieldProgress.completeFieldStep(arch, toothNumber, step, shade);
+      }
+    },
+    [shades.shadeSelectionState, shades.handleShadeSelect, toothFieldProgress.completeFieldStep]
+  );
+
   // Use product impressions from get product response when toothNumber provided; otherwise fall back to modal's mock-based resolution
   const getImpressionDisplayText = useCallback(
     (productId: string, arch: Arch, toothNumber?: number) => {
@@ -157,6 +174,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
     ...teeth,
     handleSelectRetentionType, // Override with wrapped version
     ...shades,
+    handleShadeSelect, // Override: mark fixed_stump_shade completed when shade is selected so next fields show
     ...modals,
     getImpressionDisplayText, // Override: use product impressions when toothNumber provided
     ...products,

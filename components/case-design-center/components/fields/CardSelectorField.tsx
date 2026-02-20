@@ -16,8 +16,8 @@ export function CardSelectorField({
   onClick?: () => void;
 }) {
   const hasValue = value.trim().length > 0;
-  const borderColor = required && !value ? "border-[#cf0202]" : hasValue ? "border-[#34a853]" : "border-[#b4b0b0]";
-  const legendColor = required && !value ? "text-[#cf0202] font-semibold" : hasValue ? "text-[#34a853]" : "text-[#7f7f7f]";
+  const borderColor = hasValue ? "border-[#34a853]" : "border-[#cf0202]";
+  const legendColor = hasValue ? "text-[#34a853]" : "text-[#cf0202]";
 
   return (
     <fieldset
@@ -28,7 +28,7 @@ export function CardSelectorField({
         {label}
       </legend>
       <div className="flex items-center gap-2 w-full">
-        <span className="text-[13px] text-[#1d1d1b] flex-1 truncate">{value || `Select ${label}`}</span>
+        <span className="text-[13px] text-[#1d1d1b] flex-1 truncate">{value}</span>
         {hasValue && <Check size={16} className="text-[#34a853] flex-shrink-0" />}
       </div>
     </fieldset>

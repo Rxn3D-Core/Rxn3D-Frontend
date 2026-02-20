@@ -13,8 +13,8 @@ export function ShadeField({
   shade?: string;
   onClick?: () => void;
 }) {
-  const hasValue = value.trim().length > 0;
   const displayShade = shade || '';
+  const hasValue = value.trim().length > 0 || displayShade.trim().length > 0;
   return (
     <fieldset
       className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${hasValue ? "border-[#34a853]" : "border-[#b4b0b0]"} ${onClick ? "cursor-pointer hover:bg-gray-50 transition-colors" : ""}`}

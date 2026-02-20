@@ -125,6 +125,7 @@ export default function Page() {
         <TopBar
           selectedLab={completedLab ? { logo: completedLab.logo, name: completedLab.name } : null}
           onEditClick={wizardComplete ? handleTopBarEditLab : undefined}
+          caseSubmitted={caseSubmitted}
         />
         {wizardComplete ? (
           <>
@@ -148,6 +149,7 @@ export default function Page() {
               onAddProduct={handleAddProduct}
               onBackToProducts={handleBackToProducts}
               selectedProductId={selectedProductId}
+              caseSubmitted={caseSubmitted}
             />
             {showDetails && (
               <CaseSummaryNotes

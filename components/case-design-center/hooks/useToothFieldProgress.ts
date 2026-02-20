@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import type { Arch, RetentionType, ProductApiData } from "../types";
+import type { Arch, RetentionType, ProductApiData, ProductAdvanceField } from "../types";
 
 /**
  * The sequential fields shown one by one when Prep or Pontic is selected.
@@ -16,7 +16,74 @@ export const FIELD_STEPS = [
   "addons",
 ] as const;
 
-export type FieldStep = (typeof FIELD_STEPS)[number];
+/**
+ * Progressive steps for Fixed Restoration fields.
+ * Product-Material and Retention Type are always shown (excluded from this chain).
+ * Implant Detail section is always shown when applicable (its internal fields are excluded).
+ */
+export const FIXED_FIELD_STEPS = [
+  "fixed_stage",
+  "fixed_stump_shade",
+  "fixed_shade_trio",
+  "fixed_characterization",
+  "fixed_contact_icons",
+  "fixed_margin",
+  "fixed_metal",
+  "fixed_proximal_contact",
+  "fixed_impression",
+  "fixed_addons",
+  "fixed_notes",
+] as const;
+
+export type FieldStep = (typeof FIELD_STEPS)[number] | (typeof FIXED_FIELD_STEPS)[number];
+
+/**
+ * Steps that count as "impression completed" for Case Summary Notes.
+ * Add any new impression-type step here to keep behavior dynamic.
+ */
+export const IMPRESSION_STEP_NAMES: readonly FieldStep[] = ["impression", "fixed_impression"];
+
+/**
+ * Map shade field type (from shade picker) to the fixed restoration step name.
+ * When user selects a shade for a fixed_* product, we complete this step so the next advance field shows.
+ */
+export const FIXED_SHADE_FIELD_TO_STEP: Record<string, FieldStep> = {
+  stump_shade: "fixed_stump_shade",
+  tooth_shade: "fixed_shade_trio",
+};
+
+/** Map each fixed field step to the advance_field name patterns that must be present */
+const FIXED_STEP_ADVANCE_FIELD_PATTERNS: Record<string, (name: string) => boolean> = {
+  fixed_stump_shade:       (n) => n.includes("stump") && n.includes("shade"),
+  fixed_shade_trio:        (n) => (n.includes("crown") || n.includes("tooth") || n.includes("incisal") || n.includes("cervical") || n.includes("body")) && n.includes("shade"),
+  fixed_characterization:  (n) => n.includes("characterization"),
+  fixed_contact_icons:     (n) => n.includes("occlusal") || n.includes("pontic") || n.includes("embrasure") || (n.includes("proximal") && n.includes("contact")),
+  fixed_margin:            (n) => n.includes("margin"),
+  fixed_metal:             (n) => n.includes("metal"),
+  fixed_proximal_contact:  (n) => n.includes("proximal") && n.includes("contact"),
+};
+
+/**
+ * Build the fixed-field chain for a specific product, skipping steps whose
+ * corresponding advance_fields are not returned by the API.
+ * Steps with no pattern (stage, impression, addons, notes) are always included.
+ */
+export function getFixedFieldChain(
+  advanceFields: ProductAdvanceField[] | undefined
+): readonly (typeof FIXED_FIELD_STEPS)[number][] {
+  if (!advanceFields || advanceFields.length === 0) {
+    // No advance_fields info — show all steps (fallback)
+    return FIXED_FIELD_STEPS;
+  }
+
+  const normalizedNames = advanceFields.map((f) => (f.name ?? "").toLowerCase().trim());
+
+  return FIXED_FIELD_STEPS.filter((step) => {
+    const pattern = FIXED_STEP_ADVANCE_FIELD_PATTERNS[step];
+    if (!pattern) return true; // no gate — always show (stage, impression, addons, notes)
+    return normalizedNames.some(pattern);
+  });
+}
 
 /** Key format: "maxillary_4" or "mandibular_20" */
 function toothKey(arch: Arch, toothNumber: number) {
@@ -49,16 +116,16 @@ export function useToothFieldProgress() {
     Record<string, boolean>
   >({});
 
-  /** Get the current visible step index for a tooth (shows up to this index) */
+  /** Get the current visible step index for a tooth within a given chain */
   const getVisibleStepCount = useCallback(
-    (arch: Arch, toothNumber: number): number => {
+    (arch: Arch, toothNumber: number, chain: readonly FieldStep[] = FIELD_STEPS): number => {
       const key = toothKey(arch, toothNumber);
       const completed = completedFields[key];
       if (!completed) return 1; // Show first field by default
 
-      // Count consecutive completed fields from the start
+      // Count consecutive completed fields from the start of the chain
       let count = 0;
-      for (const step of FIELD_STEPS) {
+      for (const step of chain) {
         if (completed.has(step)) {
           count++;
         } else {
@@ -66,7 +133,7 @@ export function useToothFieldProgress() {
         }
       }
       // Show completed fields + the next one
-      return Math.min(count + 1, FIELD_STEPS.length);
+      return Math.min(count + 1, chain.length);
     },
     [completedFields]
   );
@@ -107,11 +174,17 @@ export function useToothFieldProgress() {
     [fieldValues]
   );
 
-  /** Check if a field step should be visible (based on previous steps being completed) */
+  /** Check if a field step should be visible (based on previous steps being completed).
+   *  Automatically selects the correct chain (prep/pontic vs fixed restoration).
+   *  Pass a custom fixedChain (from getFixedFieldChain) to filter steps by product advance_fields. */
   const isFieldVisible = useCallback(
-    (arch: Arch, toothNumber: number, step: FieldStep): boolean => {
-      const stepIndex = FIELD_STEPS.indexOf(step);
-      const visibleCount = getVisibleStepCount(arch, toothNumber);
+    (arch: Arch, toothNumber: number, step: FieldStep, fixedChain?: readonly string[]): boolean => {
+      const isFixedStep = (FIXED_FIELD_STEPS as readonly string[]).includes(step);
+      const chain = isFixedStep ? (fixedChain ?? FIXED_FIELD_STEPS) : FIELD_STEPS;
+      // If the step isn't in the (possibly filtered) chain, it should not be shown
+      const stepIndex = (chain as readonly string[]).indexOf(step);
+      if (stepIndex === -1) return false;
+      const visibleCount = getVisibleStepCount(arch, toothNumber, chain as readonly FieldStep[]);
       return stepIndex < visibleCount;
     },
     [getVisibleStepCount]

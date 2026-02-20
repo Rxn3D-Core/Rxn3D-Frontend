@@ -29,25 +29,19 @@ export function ImplantDetailSection({ toothNumber }: ImplantDetailSectionProps)
 
   const platforms = brand ? implantBrandPlatforms[brand] || [] : [];
 
-  const isComplete =
-    !!brand &&
-    !!platform &&
-    !!size &&
-    !!inclusions.trim() &&
-    !!abutmentDetail &&
-    !!abutmentType;
+  // Progressive visibility: each row unlocks after the previous is complete
+  const row1Complete = !!brand && !!platform && !!size;
+  const row2Visible = row1Complete;
+  const row2Complete = row1Complete && !!inclusions.trim();
+  const row3Visible = row2Complete;
+  const isComplete = row2Complete && !!abutmentDetail && !!abutmentType;
+
+  const borderColor = isComplete ? "border-[#34a853]" : "border-[#CF0202]";
+  const legendColor = isComplete ? "text-[#34a853]" : "text-[#CF0202]";
 
   return (
-    <fieldset
-      className={`border rounded-[7.7px] p-0 bg-white ${
-        isComplete ? "border-[#34a853]" : "border-[#7f7f7f]"
-      }`}
-    >
-      <legend
-        className={`text-[12.8px] px-1 leading-none ml-2 ${
-          isComplete ? "text-[#34a853]" : "text-[#7f7f7f]"
-        }`}
-      >
+    <fieldset className={`border rounded-[7.7px] p-0 bg-white ${borderColor}`}>
+      <legend className={`text-[12.8px] px-1 leading-none ml-2 ${legendColor}`}>
         Implant Detail
       </legend>
       <div className="flex flex-col sm:flex-row">
@@ -59,7 +53,7 @@ export function ImplantDetailSection({ toothNumber }: ImplantDetailSectionProps)
         </div>
         {/* Right section - form fields */}
         <div className="flex flex-col p-2.5 sm:pl-0 sm:pr-2.5 sm:py-2.5 gap-3 flex-1 min-w-0">
-          {/* Row 1: Implant Brand, Platform, Size - 3 columns */}
+          {/* Row 1: Implant Brand → Platform (after brand) → Size (after platform) */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
             <CardSelectorField
               label="Implant Brand"
@@ -70,25 +64,30 @@ export function ImplantDetailSection({ toothNumber }: ImplantDetailSectionProps)
               }}
             />
 
-            <CardSelectorField
-              label="Implant Platform"
-              value={platform}
-              required={!platform}
-              isActive={activeCardType === "platform"}
-              onClick={() => {
-                if (!brand) return;
-                setActiveCardType((prev) => (prev === "platform" ? null : "platform"));
-              }}
-            />
+            {/* Platform — only visible after brand is selected */}
+            {brand && (
+              <CardSelectorField
+                label="Implant Platform"
+                value={platform}
+                required={!platform}
+                isActive={activeCardType === "platform"}
+                onClick={() => {
+                  setActiveCardType((prev) => (prev === "platform" ? null : "platform"));
+                }}
+              />
+            )}
 
-            <SelectField
-              label="Implant Size"
-              value={size}
-              options={implantSizes}
-              onChange={setSize}
-            />
+            {/* Size — only visible after platform is selected */}
+            {brand && platform && (
+              <SelectField
+                label="Implant Size"
+                value={size}
+                options={implantSizes}
+                onChange={setSize}
+              />
+            )}
 
-            {/* Card Gallery - appears below the 3 fields when brand or platform is active */}
+            {/* Card Gallery - appears below the row when brand or platform is active */}
             {activeCardType === "brand" && (
               <CardGallery
                 options={implantBrandList}
@@ -113,30 +112,34 @@ export function ImplantDetailSection({ toothNumber }: ImplantDetailSectionProps)
             )}
           </div>
 
-          {/* Row 2: Implant Inclusions - full width */}
-          <ImplantInclusionsField
-            label="Implant inclusions"
-            value={inclusions}
-            quantity={inclusionQty}
-            onChange={setInclusions}
-            onQuantityChange={setInclusionQty}
-          />
+          {/* Row 2: Implant Inclusions — visible after Brand + Platform + Size complete */}
+          {row2Visible && (
+            <ImplantInclusionsField
+              label="Implant inclusions"
+              value={inclusions}
+              quantity={inclusionQty}
+              onChange={setInclusions}
+              onQuantityChange={setInclusionQty}
+            />
+          )}
 
-          {/* Row 3: Abutment Detail and Type - 2 columns */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            <SelectField
-              label="Abutment Detail"
-              value={abutmentDetail}
-              options={abutmentDetailOptions}
-              onChange={setAbutmentDetail}
-            />
-            <SelectField
-              label="Abutment Type"
-              value={abutmentType}
-              options={abutmentTypeOptions}
-              onChange={setAbutmentType}
-            />
-          </div>
+          {/* Row 3: Abutment Detail and Type — visible after inclusions complete */}
+          {row3Visible && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              <SelectField
+                label="Abutment Detail"
+                value={abutmentDetail}
+                options={abutmentDetailOptions}
+                onChange={setAbutmentDetail}
+              />
+              <SelectField
+                label="Abutment Type"
+                value={abutmentType}
+                options={abutmentTypeOptions}
+                onChange={setAbutmentType}
+              />
+            </div>
+          )}
         </div>
       </div>
     </fieldset>

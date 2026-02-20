@@ -54,10 +54,8 @@ export function FooterSection({
         height: "50px",
         background: "#FFFFFF",
         boxShadow: "0 -2px 8px rgba(0, 0, 0, 0.1)",
-        position: "fixed",
+        position: "sticky",
         bottom: 0,
-        left: 0,
-        right: 0,
         width: "100%",
         zIndex: 9999,
       }}

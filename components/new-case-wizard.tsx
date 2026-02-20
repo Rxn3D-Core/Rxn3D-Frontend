@@ -337,6 +337,7 @@ function StepPatientInfo({
   const [isNameFocused, setIsNameFocused] = useState(false);
   const [isGenderFocused, setIsGenderFocused] = useState(false);
   const patientNameInputRef = useRef<HTMLInputElement>(null);
+  const genderTriggerRef = useRef<HTMLDivElement>(null);
   const refocusTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -479,6 +480,13 @@ function StepPatientInfo({
                   onChange={(e) => handleNameChange(e.target.value)}
                   onFocus={() => setIsNameFocused(true)}
                   onBlur={() => setIsNameFocused(false)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Tab" && !e.shiftKey && showGenderField) {
+                      e.preventDefault();
+                      setIsGenderFocused(true);
+                      setTimeout(() => genderTriggerRef.current?.focus(), 0);
+                    }
+                  }}
                   className={cn(
                     "w-full h-full box-border flex items-center bg-white border border-solid rounded-[7.7px] text-[#1F2937] focus:outline-none transition-all ease-out",
                     getNameBorderColor(),
@@ -515,6 +523,12 @@ function StepPatientInfo({
               >
                 <div className="relative w-full h-full">
                   <div
+                    ref={genderTriggerRef}
+                    role="combobox"
+                    aria-expanded={isGenderFocused}
+                    aria-haspopup="listbox"
+                    aria-label="Gender"
+                    tabIndex={0}
                     className={cn(
                       "w-full h-full box-border flex items-center justify-between bg-white border border-solid rounded-[7.7px] text-[#1F2937] cursor-pointer transition-all",
                       getGenderBorderColor(),
@@ -528,6 +542,7 @@ function StepPatientInfo({
                       fontSize: "17px",
                       lineHeight: "18px",
                     }}
+                    onFocus={() => setIsGenderFocused(true)}
                     onClick={() => {
                       if (!isGenderFocused) {
                         setIsGenderFocused(true);

@@ -3,6 +3,7 @@
 import type { CaseDesignProps } from "../types";
 import { productImpressionsToModalOptions } from "../types";
 import { useCaseDesignState } from "../hooks/useCaseDesignState";
+import { IMPRESSION_STEP_NAMES } from "../hooks/useToothFieldProgress";
 import { MaxillaryPanel } from "./MaxillaryPanel";
 import { MandibularPanel } from "./MandibularPanel";
 import { CenterNavigation } from "./CenterNavigation";
@@ -13,9 +14,19 @@ import { mockImpressions } from "../constants";
 export function CaseDesignCenter(props: CaseDesignProps) {
   const state = useCaseDesignState(props);
 
+  const maxillaryHasImpression = Object.keys(state.maxillaryRetentionTypes).some((toothNum) => {
+    const n = Number(toothNum);
+    return IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("maxillary", n, step));
+  });
+
+  const mandibularHasImpression = Object.keys(state.mandibularRetentionTypes || {}).some((toothNum) => {
+    const n = Number(toothNum);
+    return IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("mandibular", n, step));
+  });
+
   return (
-    <div className="px-2 md:px-4 py-4">
-      {props.onBackToProducts && (
+    <div className="px-2 md:px-4 py-4 pb-20">
+      {props.onBackToProducts && !props.caseSubmitted && (
         <button
           onClick={props.onBackToProducts}
           className="text-[14px] font-semibold text-[#1162A8] hover:underline mb-2"
@@ -35,7 +46,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         <MaxillaryPanel
           showMaxillary={state.showMaxillary}
           setShowMaxillary={state.setShowMaxillary}
-          showDetails={state.showDetails}
+          showDetails={maxillaryHasImpression}
+          caseSubmitted={props.caseSubmitted}
           onAddProduct={state.onAddProduct}
           // Tooth selection
           maxillaryTeeth={state.maxillaryTeeth}
@@ -103,7 +115,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         <MandibularPanel
           showMandibular={state.showMandibular}
           setShowMandibular={state.setShowMandibular}
-          showDetails={state.showDetails}
+          showDetails={mandibularHasImpression}
+          caseSubmitted={props.caseSubmitted}
           onAddProduct={state.onAddProduct}
           // Tooth selection
           mandibularTeeth={state.mandibularTeeth}
@@ -158,15 +171,17 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         />
       </div>
 
-      {/* Case Summary Notes - shown when any tooth has impression field completed */}
+      {/* Case Summary Notes - shown when any tooth has any impression-type advance field completed (dynamic list) */}
       {(() => {
         const hasImpressionCompleted =
-          Object.entries(state.maxillaryRetentionTypes).some(([toothNum]) =>
-            state.isFieldCompleted("maxillary", Number(toothNum), "impression")
-          ) ||
-          Object.entries(state.mandibularRetentionTypes || {}).some(([toothNum]) =>
-            state.isFieldCompleted("mandibular", Number(toothNum), "impression")
-          );
+          Object.entries(state.maxillaryRetentionTypes).some(([toothNum]) => {
+            const n = Number(toothNum);
+            return IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("maxillary", n, step));
+          }) ||
+          Object.entries(state.mandibularRetentionTypes || {}).some(([toothNum]) => {
+            const n = Number(toothNum);
+            return IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("mandibular", n, step));
+          });
         if (!hasImpressionCompleted) return null;
         return (
           <CaseSummaryNotes
@@ -201,7 +216,13 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           const toothNum = state.currentImpressionToothNumber;
           const arch = state.currentImpressionArch;
           if (toothNum !== null) {
-            state.completeFieldStep(arch, toothNum, "impression", displayText);
+            const product = state.getToothProduct(arch, toothNum);
+            const isFixed = product?.subcategory?.category?.name === "Fixed Restoration";
+            if (isFixed) {
+              state.completeFieldStep(arch, toothNum, "fixed_impression", displayText);
+            } else {
+              state.completeFieldStep(arch, toothNum, "impression", displayText);
+            }
           }
         }}
         showAddOnsModal={state.showAddOnsModal}
@@ -215,7 +236,14 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           if (toothNum !== null) {
             const totalCount = addOns.reduce((sum, a) => sum + a.qty, 0);
             const names = addOns.map((a) => `${a.qty}x ${a.name}`).join(", ");
-            state.completeFieldStep(arch, toothNum, "addons", names || `${totalCount} selected`);
+            const value = names || `${totalCount} selected`;
+            const product = state.getToothProduct(arch, toothNum);
+            const isFixed = product?.subcategory?.category?.name === "Fixed Restoration";
+            if (isFixed) {
+              state.completeFieldStep(arch, toothNum, "fixed_addons", value);
+            } else {
+              state.completeFieldStep(arch, toothNum, "addons", value);
+            }
           }
         }}
         showAttachModal={state.showAttachModal}
@@ -247,7 +275,13 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           const toothNum = state.currentStageToothNumber;
           const arch = state.currentStageArch;
           if (toothNum !== null) {
-            state.completeFieldStep(arch, toothNum, "stage", stageName);
+            const product = state.getToothProduct(arch, toothNum);
+            const isFixed = product?.subcategory?.category?.name === "Fixed Restoration";
+            if (isFixed) {
+              state.completeFieldStep(arch, toothNum, "fixed_stage", stageName);
+            } else {
+              state.completeFieldStep(arch, toothNum, "stage", stageName);
+            }
           }
         }}
       />

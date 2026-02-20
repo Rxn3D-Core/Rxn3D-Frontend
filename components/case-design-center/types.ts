@@ -10,6 +10,8 @@ export interface CaseDesignProps {
   onAddProduct?: (arch: "maxillary" | "mandibular") => void;
   onBackToProducts?: () => void;
   selectedProductId?: number;
+  /** When true, hides Back to Products and makes all panel fields read-only. */
+  caseSubmitted?: boolean;
 }
 
 export interface AddedProduct {
@@ -156,6 +158,17 @@ export interface ProductExtraction {
   price: string | null;
 }
 
+/** Advance field from the product API */
+export interface ProductAdvanceField {
+  id: number;
+  name: string;
+  field_type: string;
+  sequence?: number;
+  status?: string;
+  options?: any[];
+  [key: string]: any;
+}
+
 /** Product from the products API */
 export interface ProductApiData {
   id: number;
@@ -177,6 +190,7 @@ export interface ProductApiData {
   impressions?: ProductImpression[];
   gum_shades?: ProductGumShade[];
   extractions?: ProductExtraction[];
+  advance_fields?: ProductAdvanceField[];
   subcategory?: {
     id: number;
     name: string;

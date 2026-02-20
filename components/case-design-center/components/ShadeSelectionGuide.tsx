@@ -48,37 +48,35 @@ export function ShadeSelectionGuide({
     'tooth_shade'
   );
 
+  const bothShadesFilled = !!(stumpShade && toothShade);
+
+  const handleClose = () => {
+    if (!bothShadesFilled) return;
+    setShadeSelectionState({ arch: null, fieldType: null, productId: null });
+  };
+
   return (
     <div className="mb-4 border border-[#1162A8] rounded-lg p-4 bg-white">
-      {/* Only show header if no shade is selected */}
-      {!currentShade && (
-        <div className="flex items-center justify-between mb-3">
+      {/* Header row: title (when no shade selected) + close button */}
+      <div className="flex items-center justify-between mb-3">
+        {!currentShade ? (
           <h4 className="text-[13px] font-semibold text-[#1d1d1b]">
             Select {shadeSelectionState.fieldType === 'tooth_shade' ? 'Tooth' : 'Stump'} Shade
             <span className="text-[#cf0202]">*</span>
           </h4>
-          <button
-            onClick={() => setShadeSelectionState({ arch: null, fieldType: null, productId: null })}
-            className="text-[#7f7f7f] hover:text-[#1d1d1b] text-[20px] leading-none"
-            title="Close"
-          >
-            &times;
-          </button>
-        </div>
-      )}
+        ) : (
+          <div />
+        )}
+        <button
+          onClick={handleClose}
+          className={`text-[20px] leading-none ${bothShadesFilled ? 'text-[#7f7f7f] hover:text-[#1d1d1b]' : 'text-[#b4b0b0] cursor-not-allowed'}`}
+          title={bothShadesFilled ? 'Close' : 'Fill both Stump Shade and Tooth Shade to close'}
+          disabled={!bothShadesFilled}
+        >
+          &times;
+        </button>
+      </div>
 
-      {/* Show close button in top-right when shade is selected */}
-      {currentShade && (
-        <div className="flex justify-end mb-3">
-          <button
-            onClick={() => setShadeSelectionState({ arch: null, fieldType: null, productId: null })}
-            className="text-[#7f7f7f] hover:text-[#1d1d1b] text-[20px] leading-none"
-            title="Close"
-          >
-            &times;
-          </button>
-        </div>
-      )}
 
       {/* Three fields side by side */}
       <div className="grid grid-cols-3 gap-3 mb-3">

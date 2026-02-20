@@ -5,12 +5,16 @@ interface ToothStatusBoxesProps {
   selectedTeeth: number[];
   /** All tooth numbers for this arch (e.g. 1-16 for maxillary) */
   allArchTeeth: number[];
-  /** toothNumber → extractionCode for teeth moved out of the default box */
+  /** toothNumber → extractionCode for teeth assigned to a non-TIM extraction */
   toothExtractionMap: Record<number, string>;
+  /** Currently active extraction code (null = none selected) */
+  activeExtractionCode: string | null;
+  /** Called when a box is clicked to make it active */
+  onActiveExtractionChange: (code: string | null) => void;
   onToothExtractionToggle: (toothNumber: number, extractionCode: string) => void;
-  /** Called when "Teeth in mouth" box is clicked — should select all arch teeth */
+  /** Called when "Teeth in mouth" box is clicked — selects all arch teeth */
   onSelectAllTeeth: (teeth: number[]) => void;
-  /** Called when "Missing teeth" (or optional) box is clicked — should clear all selected teeth */
+  /** Called when "Missing teeth" box is clicked — clears all selected teeth */
   onClearAllTeeth: () => void;
 }
 
@@ -24,24 +28,82 @@ const EXTRACTION_COLOR_MAP: Record<string, { bg: string; textClass: string }> = 
   CTS:   { bg: "#0CE7C6", textClass: "text-black" },           // Custom tooth status
 };
 
-const DEFAULT_STYLE = { bg: "#F3EBD7", textClass: "text-black" };
+/** Fallback color map keyed by normalized extraction name */
+const EXTRACTION_NAME_COLOR_MAP: Record<string, { bg: string; textClass: string }> = {
+  "teeth in mouth":           { bg: "#F3EBD7", textClass: "text-black" },
+  "missing teeth":            { bg: "#E9E8E7", textClass: "text-black" },
+  "will extract on delivery": { bg: "#E92520", textClass: "text-white font-bold" },
+  "fix/repair":               { bg: "#A0F69A", textClass: "text-black" },
+  "clasps":                   { bg: "#FFD1F9", textClass: "text-black" },
+  "clasp":                    { bg: "#FFD1F9", textClass: "text-black" },
+};
+
+/** Determine text class from a hex background color (dark bg → white text) */
+function textClassFromColor(hex: string): string {
+  const h = hex.replace("#", "");
+  if (h.length < 6) return "text-black";
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance < 0.5 ? "text-white font-bold" : "text-black";
+}
+
+function resolveStyle(extraction: { code: string; name: string; color: string | null }): { bg: string; textClass: string } {
+  // 1. Use API-provided color if present
+  if (extraction.color && extraction.color.trim()) {
+    const bg = extraction.color.trim();
+    return { bg, textClass: textClassFromColor(bg) };
+  }
+  // 2. Match by code
+  if (EXTRACTION_COLOR_MAP[extraction.code]) {
+    return EXTRACTION_COLOR_MAP[extraction.code];
+  }
+  // 3. Match by normalized name
+  const nameLower = (extraction.name ?? "").toLowerCase().trim();
+  if (EXTRACTION_NAME_COLOR_MAP[nameLower]) {
+    return EXTRACTION_NAME_COLOR_MAP[nameLower];
+  }
+  // 4. Default
+  return { bg: "#F3EBD7", textClass: "text-black" };
+}
+
+/** Returns true if this extraction is the "Teeth in mouth" box */
+function isTIM(extraction: ProductExtraction): boolean {
+  return (
+    extraction.is_default === "Yes" ||
+    extraction.code === "TIM" ||
+    (extraction.name ?? "").toLowerCase().trim() === "teeth in mouth"
+  );
+}
+
+/** Returns true if this extraction is the "Missing teeth" box */
+function isMT(extraction: ProductExtraction): boolean {
+  return (
+    extraction.is_optional === "Yes" ||
+    extraction.code === "MT" ||
+    (extraction.name ?? "").toLowerCase().trim() === "missing teeth"
+  );
+}
 
 export function ToothStatusBoxes({
   extractions,
   selectedTeeth,
   allArchTeeth,
   toothExtractionMap,
+  activeExtractionCode,
+  onActiveExtractionChange,
   onToothExtractionToggle,
   onSelectAllTeeth,
   onClearAllTeeth,
 }: ToothStatusBoxesProps) {
   const activeExtractions = extractions
-    .filter((e) => e.status === "Active")
+    .filter((e) => e.status === "Active" && e.name != null && e.code != null)
     .sort((a, b) => a.sequence - b.sequence);
 
   if (activeExtractions.length === 0) return null;
 
-  // Teeth in the default box = selected teeth NOT assigned to any non-default extraction
+  // Teeth in the default (TIM) box = selected teeth NOT assigned to any extraction
   const defaultTeeth = selectedTeeth.filter((tn) => !toothExtractionMap[tn]);
 
   // Build pairs for 2-column grid layout
@@ -53,30 +115,23 @@ export function ToothStatusBoxes({
   const lastRowIdx = rows.length - 1;
 
   const handleBoxClick = (extraction: ProductExtraction) => {
-    // Clicking the default (Teeth in mouth) box → auto-select all arch teeth
-    if (extraction.is_default === "Yes") {
+    if (isTIM(extraction)) {
+      // Teeth in mouth: select all arch teeth, deactivate any active box
       onSelectAllTeeth(allArchTeeth);
+      onActiveExtractionChange(null);
       return;
     }
-    // Clicking the optional (Missing teeth) box → clear all selected teeth
-    if (extraction.is_optional === "Yes") {
+    if (isMT(extraction)) {
+      // Missing teeth: clear all selected teeth, activate MT box
       onClearAllTeeth();
+      onActiveExtractionChange(extraction.code);
       return;
     }
-    // Toggle all currently-in-default teeth into this extraction
-    // If all default teeth are already in this extraction, move them back
-    const teethInThisBox = selectedTeeth.filter(
-      (tn) => toothExtractionMap[tn] === extraction.code
-    );
-    const allDefaultAreHere =
-      defaultTeeth.length === 0 && teethInThisBox.length === selectedTeeth.length;
-
-    if (allDefaultAreHere) {
-      // Move all back to default
-      selectedTeeth.forEach((tn) => onToothExtractionToggle(tn, extraction.code));
+    // Other boxes: toggle active — clicking the already-active box deactivates it
+    if (activeExtractionCode === extraction.code) {
+      onActiveExtractionChange(null);
     } else {
-      // Move all default teeth into this extraction
-      defaultTeeth.forEach((tn) => onToothExtractionToggle(tn, extraction.code));
+      onActiveExtractionChange(extraction.code);
     }
   };
 
@@ -88,14 +143,14 @@ export function ToothStatusBoxes({
           className={`grid grid-cols-2 gap-2 ${rowIdx === lastRowIdx ? "mb-4" : "mb-2"}`}
         >
           {row.map((extraction) => {
-            const isDefault = extraction.is_default === "Yes";
-            const isOptional = extraction.is_optional === "Yes";
-            const isClickable = isDefault || isOptional;
+            const isActive = activeExtractionCode === extraction.code;
+            const isTIMBox = isTIM(extraction);
+            const isMTBox = isMT(extraction);
 
             // Teeth shown in this box (sorted ascending)
-            const teethForBox = (isDefault
+            const teethForBox = (isTIMBox
               ? defaultTeeth
-              : isOptional
+              : isMTBox
               ? allArchTeeth.filter((tn) => !selectedTeeth.includes(tn))
               : selectedTeeth.filter((tn) => toothExtractionMap[tn] === extraction.code)
             ).slice().sort((a, b) => a - b);
@@ -103,16 +158,18 @@ export function ToothStatusBoxes({
             const teethDisplay =
               teethForBox.length > 0 ? `#${teethForBox.join(",")}` : "";
 
-            const style = EXTRACTION_COLOR_MAP[extraction.code] ?? DEFAULT_STYLE;
+            const style = resolveStyle(extraction);
 
             return (
               <div
                 key={extraction.id}
-                className={`flex items-center justify-center rounded-md h-[65px] ${
-                  isClickable ? "cursor-pointer hover:opacity-90 active:opacity-75" : ""
-                }`}
-                style={{ backgroundColor: style.bg }}
-                onClick={isClickable ? () => handleBoxClick(extraction) : undefined}
+                className="flex items-center justify-center rounded-md h-[65px] cursor-pointer hover:opacity-90 active:opacity-75 transition-all"
+                style={{
+                  backgroundColor: style.bg,
+                  outline: isActive ? "3px solid #1162A8" : "none",
+                  outlineOffset: isActive ? "2px" : "0px",
+                }}
+                onClick={() => handleBoxClick(extraction)}
               >
                 <p
                   className={`font-[Verdana] text-[14px] leading-[26px] tracking-[-0.02em] text-center ${style.textClass}`}

@@ -24,11 +24,26 @@ export function useShadeSelection() {
   };
 
   const handleShadeSelect = (shade: string) => {
-    if (shadeSelectionState.arch && shadeSelectionState.fieldType && shadeSelectionState.productId) {
-      const key = `${shadeSelectionState.productId}_${shadeSelectionState.arch}_${shadeSelectionState.fieldType}`;
-      setSelectedShades((prev) => ({ ...prev, [key]: shade }));
-      setShadeSelectionState({ arch: null, fieldType: null, productId: null });
-    }
+    if (!shadeSelectionState.arch || !shadeSelectionState.fieldType || !shadeSelectionState.productId) return;
+    const key = `${shadeSelectionState.productId}_${shadeSelectionState.arch}_${shadeSelectionState.fieldType}`;
+    const productId = shadeSelectionState.productId;
+    const arch = shadeSelectionState.arch;
+    const wasStumpShade = shadeSelectionState.fieldType === "stump_shade";
+    setSelectedShades((prev) => {
+      const next = { ...prev, [key]: shade };
+      const stumpKey = `${productId}_${arch}_stump_shade`;
+      const toothKey = `${productId}_${arch}_tooth_shade`;
+      const bothFilled = !!(next[stumpKey] && next[toothKey]);
+      if (bothFilled) {
+        setTimeout(() => setShadeSelectionState({ arch: null, fieldType: null, productId: null }), 0);
+      } else if (wasStumpShade) {
+        setTimeout(
+          () => setShadeSelectionState({ arch, productId, fieldType: "tooth_shade" }),
+          0
+        );
+      }
+      return next;
+    });
   };
 
   const getSelectedShade = (productId: string, arch: Arch, fieldType: ShadeFieldType) => {
