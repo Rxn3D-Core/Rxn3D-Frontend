@@ -7,20 +7,23 @@ export function ShadeField({
   value,
   shade,
   onClick,
+  submitted = false,
 }: {
   label: string;
   value: string;
   shade?: string;
   onClick?: () => void;
+  submitted?: boolean;
 }) {
   const displayShade = shade || '';
   const hasValue = value.trim().length > 0 || displayShade.trim().length > 0;
+  const showGreen = hasValue && !submitted;
   return (
     <fieldset
-      className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${hasValue ? "border-[#34a853]" : "border-[#b4b0b0]"} ${onClick ? "cursor-pointer hover:bg-gray-50 transition-colors" : ""}`}
+      className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${showGreen ? "border-[#34a853]" : "border-[#b4b0b0]"} ${onClick ? "cursor-pointer hover:bg-gray-50 transition-colors" : ""}`}
       onClick={onClick}
     >
-      <legend className={`text-[11px] px-1 leading-none ${hasValue ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>
+      <legend className={`text-[11px] px-1 leading-none ${showGreen ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>
         {label}
       </legend>
       <div className="flex items-center gap-2">
@@ -89,7 +92,7 @@ export function ShadeField({
           </defs>
         </svg>
 
-        {hasValue && <Check size={16} className="text-[#34a853] flex-shrink-0" />}
+        {showGreen && <Check size={16} className="text-[#34a853] flex-shrink-0" />}
       </div>
     </fieldset>
   );

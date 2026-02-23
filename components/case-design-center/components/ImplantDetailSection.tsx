@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { implantBrandPlatforms, implantBrandList } from "../constants";
 import { CardSelectorField } from "./fields/CardSelectorField";
 import { CardGallery } from "./fields/CardGallery";
@@ -14,13 +14,15 @@ const abutmentTypeOptions = ["Stock Abutment", "Custom Abutment", "Multi-Unit ab
 
 interface ImplantDetailSectionProps {
   toothNumber: number;
+  /** Called when the implant detail form becomes complete or incomplete (so parent can e.g. gate impression modal). */
+  onCompleteChange?: (complete: boolean) => void;
 }
 
-export function ImplantDetailSection({ toothNumber }: ImplantDetailSectionProps) {
+export function ImplantDetailSection({ toothNumber, onCompleteChange }: ImplantDetailSectionProps) {
   const [brand, setBrand] = useState("");
   const [platform, setPlatform] = useState("");
   const [size, setSize] = useState("");
-  const [inclusions, setInclusions] = useState("");
+  const [inclusions, setInclusions] = useState("No inclusion");
   const [inclusionQty, setInclusionQty] = useState(0);
   const [abutmentDetail, setAbutmentDetail] = useState("");
   const [abutmentType, setAbutmentType] = useState("");
@@ -31,6 +33,13 @@ export function ImplantDetailSection({ toothNumber }: ImplantDetailSectionProps)
   const [abutmentTypeDropdownOpen, setAbutmentTypeDropdownOpen] = useState(false);
 
   const platforms = brand ? implantBrandPlatforms[brand] || [] : [];
+
+  // Auto-show Implant Brand card gallery on initial load when brand is not selected
+  useEffect(() => {
+    if (!brand) {
+      setActiveCardType("brand");
+    }
+  }, []);
 
   // Auto-open Implant Size dropdown when it becomes visible (after platform selected)
   useEffect(() => {
@@ -59,6 +68,12 @@ export function ImplantDetailSection({ toothNumber }: ImplantDetailSectionProps)
     }
   }, [row2Complete, abutmentDetail, abutmentType]);
   const isComplete = row2Complete && !!abutmentDetail && !!abutmentType;
+
+  const onCompleteChangeRef = useRef(onCompleteChange);
+  onCompleteChangeRef.current = onCompleteChange;
+  useEffect(() => {
+    onCompleteChangeRef.current?.(isComplete);
+  }, [isComplete]);
 
   const borderColor = isComplete ? "border-[#34a853]" : "border-[#CF0202]";
   const legendColor = isComplete ? "text-[#34a853]" : "text-[#CF0202]";

@@ -57,6 +57,11 @@ interface MaxillaryTeethSVGProps {
   onSelectRetentionType?: (toothNumber: number, type: 'Implant' | 'Prep' | 'Pontic') => void
   onClosePopover?: () => void
   onDeselectTooth?: (toothNumber: number) => void
+  // Tooth status popover for removable products
+  showToothStatusPopover?: boolean
+  toothStatusPopoverTooth?: number | null
+  toothStatusByTooth?: Record<number, string>
+  onSelectToothStatus?: (toothNumber: number, status: string) => void
 }
 
 export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
@@ -68,7 +73,11 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
   retentionPopoverTooth = null,
   onSelectRetentionType,
   onClosePopover,
-  onDeselectTooth
+  onDeselectTooth,
+  showToothStatusPopover = false,
+  toothStatusPopoverTooth = null,
+  toothStatusByTooth = {},
+  onSelectToothStatus,
 }) => {
   const svgRef = React.useRef<SVGSVGElement>(null)
   const [hoveredTooth, setHoveredTooth] = React.useState<number | null>(null)
@@ -101,54 +110,44 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
     16: { cx: 673, cy: 75.7988 },
   }
 
-  // Calculate popover position in viewport coordinates
-  // Position above the specific tooth that triggered the popover
-  const getPopoverPosition = () => {
-    if (!showRetentionPopover || retentionPopoverTooth === null) {
-      return { left: 0, top: 0, containerLeft: 0, containerRight: 0 }
-    }
-
-    // Wait for svgRef to be available
+  // Calculate popover position for a given tooth number
+  const getToothPopoverPosition = (toothNumber: number) => {
     if (!svgRef.current) {
       return { left: 0, top: 0, containerLeft: 0, containerRight: 0 }
     }
-
     const svgRect = svgRef.current.getBoundingClientRect()
     const svgViewBox = svgRef.current.viewBox.baseVal
-
-    // Check if we have valid dimensions
     if (!svgViewBox || svgViewBox.width === 0 || svgViewBox.height === 0) {
       return { left: 0, top: 0, containerLeft: 0, containerRight: 0 }
     }
-
     const scaleX = svgRect.width / svgViewBox.width
     const scaleY = svgRect.height / svgViewBox.height
-
-    // Get the position of the specific tooth that triggered the popover
-    const toothPos = circlePositions[retentionPopoverTooth]
+    const toothPos = circlePositions[toothNumber]
     if (!toothPos) {
       return { left: 0, top: 0, containerLeft: 0, containerRight: 0 }
     }
-
-    // Convert SVG coordinates to viewport coordinates
     let viewportX = svgRect.left + (toothPos.cx * scaleX)
     const viewportY = svgRect.top + (toothPos.cy * scaleY)
-
     // Cap left position at 515.651px for right-side teeth to prevent edge overflow
-    if (retentionPopoverTooth >= 12 && retentionPopoverTooth <= 16) {
+    if (toothNumber >= 12 && toothNumber <= 16) {
       viewportX = Math.min(viewportX, 515.651)
     }
-
-    // Position just above the tooth circle with a small gap
     const spacing = 170
     const popoverTop = viewportY - spacing
-
     return {
       left: viewportX,
       top: popoverTop,
       containerLeft: svgRect.left,
       containerRight: svgRect.right
     }
+  }
+
+  // Position above the specific tooth that triggered the retention popover
+  const getPopoverPosition = () => {
+    if (!showRetentionPopover || retentionPopoverTooth === null) {
+      return { left: 0, top: 0, containerLeft: 0, containerRight: 0 }
+    }
+    return getToothPopoverPosition(retentionPopoverTooth)
   }
 
   // Maxillary teeth mapping: pattern0 = tooth 1 (rightmost), pattern15 = tooth 16 (leftmost)

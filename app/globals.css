@@ -243,7 +243,7 @@ body {
 }
 
 
-/* Text scaling */
+/* Text scaling — Body: 17px = 1.0625rem */
 p,
 span,
 div,
@@ -254,12 +254,20 @@ label,
 input,
 textarea,
 select {
-  font-size: calc(1rem * var(--text-scale));
+  font-size: calc(1.0625rem * var(--text-scale));
 }
 
-h1 { font-size: calc(2.25rem * var(--heading-scale)); }
-h2 { font-size: calc(1.875rem * var(--heading-scale)); }
-h3 { font-size: calc(1.5rem * var(--heading-scale)); }
+/* Text Hierarchy:
+   Headline (title):          44px = 2.75rem
+   Section headline (H1):     32px = 2rem
+   Sub section heading (H2):  24px = 1.5rem
+   Sub section heading (H3):  17px = 1.0625rem, bold
+   Body:                      17px = 1.0625rem
+*/
+.headline { font-size: calc(2.75rem * var(--heading-scale)); }
+h1 { font-size: calc(2rem * var(--heading-scale)); }
+h2 { font-size: calc(1.5rem * var(--heading-scale)); }
+h3 { font-size: calc(1.0625rem * var(--heading-scale)); font-weight: bold; }
 h4 { font-size: calc(1.25rem * var(--heading-scale)); }
 h5 { font-size: calc(1.125rem * var(--heading-scale)); }
 h6 { font-size: calc(1rem * var(--heading-scale)); }
@@ -268,14 +276,15 @@ button {
   font-size: calc(0.875rem * var(--text-scale));
 }
 
-.text-xs   { font-size: calc(0.75rem * var(--text-scale)) !important; }
-.text-sm   { font-size: calc(0.875rem * var(--text-scale)) !important; }
-.text-base { font-size: calc(1rem * var(--text-scale)) !important; }
-.text-lg   { font-size: calc(1.125rem * var(--text-scale)) !important; }
-.text-xl   { font-size: calc(1.25rem * var(--text-scale)) !important; }
-.text-2xl  { font-size: calc(1.5rem * var(--text-scale)) !important; }
-.text-3xl  { font-size: calc(1.875rem * var(--text-scale)) !important; }
-.text-4xl  { font-size: calc(2.25rem * var(--text-scale)) !important; }
+.text-xs      { font-size: calc(0.75rem * var(--text-scale)) !important; }
+.text-sm      { font-size: calc(0.875rem * var(--text-scale)) !important; }
+.text-base    { font-size: calc(1.0625rem * var(--text-scale)) !important; } /* 17px body */
+.text-lg      { font-size: calc(1.125rem * var(--text-scale)) !important; }
+.text-xl      { font-size: calc(1.25rem * var(--text-scale)) !important; }
+.text-2xl     { font-size: calc(1.5rem * var(--text-scale)) !important; }    /* 24px H2 */
+.text-3xl     { font-size: calc(2rem * var(--text-scale)) !important; }      /* 32px H1 */
+.text-4xl     { font-size: calc(2.75rem * var(--text-scale)) !important; }   /* 44px Headline */
+.text-headline { font-size: calc(2.75rem * var(--heading-scale)) !important; }
 
 /* ===== RESPONSIVE SPACING UTILITIES ===== */
 

@@ -55,6 +55,20 @@ export function MaxillarySection({ sectionRef, children }: MaxillarySectionProps
   const handleMissingTeethCardClick = ctx.handleMissingTeethCardClick
   const setMaxillaryTeeth = ctx.setMaxillaryTeeth
   const setOpenAccordionMaxillaryState = ctx.setOpenAccordionMaxillary
+  const toothStatusPopoverState = ctx.toothStatusPopoverState ?? { arch: null, toothNumber: null }
+  const setToothStatusPopoverState = ctx.setToothStatusPopoverState
+  const maxillaryToothStatuses = ctx.maxillaryToothStatuses ?? {}
+  const handleSelectToothStatus = ctx.handleSelectToothStatus
+
+  // Derive available extraction types from productDetails for removable/ortho products
+  const availableExtractionTypes = React.useMemo(() => {
+    if (!isOrthodonticsOrRemovable || !productDetails) return []
+    const extractions = productDetails.extractions || productDetails.data?.extractions || []
+    if (!Array.isArray(extractions)) return []
+    return extractions
+      .filter((e: any) => e.status === 'Active' && (e.is_default === 'Yes' || e.is_required === 'Yes' || e.is_optional === 'Yes'))
+      .map((e: any) => ({ name: e.name, color: e.color || '#D3D3D3', code: e.code, id: e.id }))
+  }, [isOrthodonticsOrRemovable, productDetails])
 
   if (!showMaxillaryChart) return null
 
@@ -125,11 +139,19 @@ export function MaxillarySection({ sectionRef, children }: MaxillarySectionProps
             onToothClick={handleMaxillaryToothToggle}
             className="max-w-full"
             retentionTypesByTooth={maxillaryRetentionTypes}
-            showRetentionPopover={retentionPopoverState.arch === "maxillary"}
+            showRetentionPopover={!isOrthodonticsOrRemovable && retentionPopoverState.arch === "maxillary"}
             retentionPopoverTooth={retentionPopoverState.toothNumber}
             onSelectRetentionType={(tooth, type) => handleSelectRetentionType?.("maxillary", tooth, type)}
-            onClosePopover={() => setRetentionPopoverState?.({ arch: null, toothNumber: null })}
+            onClosePopover={() => {
+              setRetentionPopoverState?.({ arch: null, toothNumber: null })
+              setToothStatusPopoverState?.({ arch: null, toothNumber: null })
+            }}
             onDeselectTooth={handleMaxillaryToothDeselect}
+            showToothStatusPopover={isOrthodonticsOrRemovable && toothStatusPopoverState.arch === "maxillary"}
+            toothStatusPopoverTooth={toothStatusPopoverState.toothNumber}
+            availableExtractionTypes={availableExtractionTypes}
+            toothStatusByTooth={maxillaryToothStatuses}
+            onSelectToothStatus={(tooth, status) => handleSelectToothStatus?.("maxillary", tooth, status)}
           />
         )}
       </div>

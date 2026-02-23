@@ -52,37 +52,64 @@ export function CaseDesignCenter(props: CaseDesignProps) {
       return !IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("mandibular", n, step));
     });
 
-  // Compute a human-readable label for the first incomplete required field across all teeth
+  // Compute a human-readable label for the first incomplete required field across all teeth.
+  // For Fixed Restoration, shades are stored per product group (under fixed_${firstToothNumber}), not per tooth — validate once per group.
   const incompleteFieldLabel = (() => {
     const allArchTeeth: Array<{ arch: "maxillary" | "mandibular"; toothNum: number }> = [
       ...Object.keys(state.maxillaryRetentionTypes).map((t) => ({ arch: "maxillary" as const, toothNum: Number(t) })),
       ...Object.keys(state.mandibularRetentionTypes || {}).map((t) => ({ arch: "mandibular" as const, toothNum: Number(t) })),
     ];
+    // Group teeth by arch and product so we check shade once per group (using first tooth in group)
+    const processedGroups = new Set<string>();
     for (const { arch, toothNum } of allArchTeeth) {
       const product = state.getToothProduct(arch, toothNum);
       const isFixedRestoration = product?.subcategory?.category?.name === "Fixed Restoration";
-      if (isFixedRestoration) {
-        const shadeProductId = `fixed_${toothNum}`;
+      const productKey = product?.id ?? toothNum;
+      const groupKey = `${arch}_${productKey}`;
+
+      if (isFixedRestoration && !processedGroups.has(groupKey)) {
+        processedGroups.add(groupKey);
+        // Find all teeth in this arch with the same product; shade is stored under fixed_${firstTooth}
+        const teethInGroup = allArchTeeth.filter(
+          (t) => t.arch === arch && (state.getToothProduct(t.arch, t.toothNum)?.id ?? t.toothNum) === productKey
+        ).map((t) => t.toothNum);
+        const firstToothInGroup = Math.min(...teethInGroup);
+        const shadeProductId = `fixed_${firstToothInGroup}`;
         if (!state.getSelectedShade(shadeProductId, arch, "stump_shade")) return "Stump Shade";
         if (!state.getSelectedShade(shadeProductId, arch, "tooth_shade")) return "Tooth Shade";
       }
+
       const hasImpression = IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted(arch, toothNum, step));
       if (!hasImpression) return "Impression";
     }
     return null;
   })();
 
-  // True when any maxillary tooth has an incomplete required field (shade or impression)
-  const maxillaryIncomplete = Object.keys(state.maxillaryRetentionTypes).some((toothNum) => {
-    const n = Number(toothNum);
-    const product = state.getToothProduct("maxillary", n);
-    if (product?.subcategory?.category?.name === "Fixed Restoration") {
-      const shadeId = `fixed_${n}`;
-      if (!state.getSelectedShade(shadeId, "maxillary", "stump_shade")) return true;
-      if (!state.getSelectedShade(shadeId, "maxillary", "tooth_shade")) return true;
+  // True when any maxillary tooth has an incomplete required field (shade or impression).
+  // For Fixed Restoration, shades are per product group (fixed_${firstToothInGroup}).
+  const maxillaryIncomplete = (() => {
+    const maxillaryTeeth = Object.keys(state.maxillaryRetentionTypes).map(Number);
+    const processedShadeGroups = new Set<string>();
+    for (const n of maxillaryTeeth) {
+      const product = state.getToothProduct("maxillary", n);
+      if (product?.subcategory?.category?.name === "Fixed Restoration") {
+        const productKey = String(product?.id ?? n);
+        const firstToothInGroup = Math.min(
+          ...maxillaryTeeth.filter(
+            (t) => String(state.getToothProduct("maxillary", t)?.id ?? t) === productKey
+          )
+        );
+        if (!processedShadeGroups.has(productKey)) {
+          processedShadeGroups.add(productKey);
+          const shadeId = `fixed_${firstToothInGroup}`;
+          if (!state.getSelectedShade(shadeId, "maxillary", "stump_shade")) return true;
+          if (!state.getSelectedShade(shadeId, "maxillary", "tooth_shade")) return true;
+        }
+      }
+      if (!IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("maxillary", n, step))) return true;
     }
-    return !IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("maxillary", n, step));
-  });
+    return false;
+  })();
 
   // Notify parent whenever readiness changes
   useEffect(() => {
@@ -116,7 +143,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         <MaxillaryPanel
           showMaxillary={state.showMaxillary}
           setShowMaxillary={state.setShowMaxillary}
-          showDetails={maxillaryHasImpression}
+          showDetails={maxillaryHasImpression || mandibularHasImpression}
           caseSubmitted={props.caseSubmitted}
           onAddProduct={state.onAddProduct}
           disableAddProduct={hasIncompleteAccordion}
@@ -190,7 +217,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         <MandibularPanel
           showMandibular={state.showMandibular}
           setShowMandibular={state.setShowMandibular}
-          showDetails={mandibularHasImpression}
+          showDetails={maxillaryHasImpression || mandibularHasImpression}
           caseSubmitted={props.caseSubmitted}
           disabled={maxillaryIncomplete}
           onAddProduct={state.onAddProduct}

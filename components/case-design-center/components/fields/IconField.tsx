@@ -7,10 +7,12 @@ export function IconField({
   label,
   value,
   icon,
+  submitted = false,
 }: {
   label: string;
   value: string;
   icon: string;
+  submitted?: boolean;
 }) {
   const iconPaths: Record<string, React.ReactNode> = {
     occlusal: (
@@ -53,9 +55,10 @@ export function IconField({
   };
 
   const hasValue = value.trim().length > 0;
+  const showGreen = hasValue && !submitted;
   return (
-    <fieldset className={`border rounded-[7.7px] px-3 py-0 relative h-[42px] flex items-center min-w-0 ${hasValue ? "border-[#34a853]" : "border-[#7f7f7f]"}`}>
-      <legend className={`text-[11px] px-1 leading-none whitespace-nowrap ${hasValue ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>
+    <fieldset className={`border rounded-[7.7px] px-3 py-0 relative h-[42px] flex items-center min-w-0 ${showGreen ? "border-[#34a853]" : "border-[#7f7f7f]"}`}>
+      <legend className={`text-[11px] px-1 leading-none whitespace-nowrap ${showGreen ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>
         {label}
       </legend>
       <div className="flex items-center gap-1 min-w-0 w-full">
@@ -66,7 +69,7 @@ export function IconField({
           className="flex-1 text-[13px] text-[#1d1d1b] bg-transparent outline-none leading-tight tracking-[-0.02em] min-w-0 truncate"
         />
         <div className="flex-shrink-0">{iconPaths[icon]}</div>
-        {hasValue && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
+        {showGreen && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
       </div>
     </fieldset>
   );

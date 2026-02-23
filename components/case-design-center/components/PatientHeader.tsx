@@ -67,25 +67,26 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
             <FieldInput
               label="Patient name"
               value={displayPatientName}
+              submitted={caseSubmitted}
             />
             {caseSubmitted && (
               <>
-                <FieldInput label="Slip number" value="S687954" />
-                <FieldInput label="Case number" value="C125489" />
-                <FieldInput label="Pan number" value="A68" />
-                <FieldInput label="Status" value="In process" />
-                <FieldInput label="Pick up Date" value="01/ 01/ 25" />
+                <FieldInput label="Slip number" value="S687954" submitted />
+                <FieldInput label="Case number" value="C125489" submitted />
+                <FieldInput label="Pan number" value="A68" submitted />
+                <FieldInput label="Status" value="In process" submitted />
+                <FieldInput label="Pick up Date" value="01/ 01/ 25" submitted />
               </>
             )}
           </div>
           {/* Row 2: Gender + date/time/location fields */}
           <div className="flex flex-wrap gap-3 sm:gap-4 items-start justify-center lg:justify-start">
-            <FieldInput label="Gender" value={displayGender} />
+            <FieldInput label="Gender" value={displayGender} submitted={caseSubmitted} />
             {caseSubmitted && (
               <>
-                <FieldInput label="Due Date" value="01/ 01/ 25" />
-                <FieldInput label="Delivery Time" value="5 pm" />
-                <FieldInput label="Location" value="In office ready to pick up" />
+                <FieldInput label="Due Date" value="01/ 01/ 25" submitted />
+                <FieldInput label="Delivery Time" value="5 pm" submitted />
+                <FieldInput label="Location" value="In office ready to pick up" submitted />
               </>
             )}
           </div>

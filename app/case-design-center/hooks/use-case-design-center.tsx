@@ -71,6 +71,16 @@ export function useCaseDesignCenter() {
     toothNumber: number | null
   }>({ arch: null, toothNumber: null })
 
+  // Tooth status popover state (for removable products)
+  const [toothStatusPopoverState, setToothStatusPopoverState] = useState<{
+    arch: 'maxillary' | 'mandibular' | null
+    toothNumber: number | null
+  }>({ arch: null, toothNumber: null })
+
+  // Per-tooth status for removable products: toothNumber -> extraction type name
+  const [maxillaryToothStatuses, setMaxillaryToothStatuses] = useState<Record<number, string>>({})
+  const [mandibularToothStatuses, setMandibularToothStatuses] = useState<Record<number, string>>({})
+
   // Arch selection popover state for removable restoration + complete denture
   const [showArchSelectionPopover, setShowArchSelectionPopover] = useState<boolean>(false)
   const [pendingProductForArchSelection, setPendingProductForArchSelection] = useState<Product | null>(null)
@@ -7137,6 +7147,16 @@ export function useCaseDesignCenter() {
     setRetentionPopoverState({ arch: null, toothNumber: null })
   }
 
+  // Handler for tooth status selection (removable products)
+  const handleSelectToothStatus = (arch: 'maxillary' | 'mandibular', toothNumber: number, status: string) => {
+    if (arch === 'maxillary') {
+      setMaxillaryToothStatuses(prev => ({ ...prev, [toothNumber]: status }))
+    } else {
+      setMandibularToothStatuses(prev => ({ ...prev, [toothNumber]: status }))
+    }
+    setToothStatusPopoverState({ arch: null, toothNumber: null })
+  }
+
   const handleMaxillaryToothToggle = (toothNumber: number) => {
     const isAlreadySelected = maxillaryTeeth.includes(toothNumber)
     const isAdding = !isAlreadySelected
@@ -7144,6 +7164,18 @@ export function useCaseDesignCenter() {
     // For Fixed Restoration: clicking an already selected tooth shows the popover without deselecting
     if (isFixedRestoration && isAlreadySelected) {
       setRetentionPopoverState({ arch: 'maxillary', toothNumber })
+      return
+    }
+
+    // For Removable/Ortho: clicking a selected tooth re-opens the status popover; clicking unselected adds + opens popover
+    if (isOrthodonticsOrRemovable) {
+      if (isAlreadySelected) {
+        setToothStatusPopoverState({ arch: 'maxillary', toothNumber })
+        return
+      }
+      // Add tooth then open status popover
+      setMaxillaryTeeth(prev => [...prev, toothNumber])
+      setToothStatusPopoverState({ arch: 'maxillary', toothNumber })
       return
     }
 
@@ -7216,6 +7248,17 @@ export function useCaseDesignCenter() {
       return
     }
 
+    // For Removable/Ortho: clicking a selected tooth re-opens the status popover; clicking unselected adds + opens popover
+    if (isOrthodonticsOrRemovable) {
+      if (isAlreadySelected) {
+        setToothStatusPopoverState({ arch: 'mandibular', toothNumber })
+        return
+      }
+      setMandibularTeeth(prev => [...prev, toothNumber])
+      setToothStatusPopoverState({ arch: 'mandibular', toothNumber })
+      return
+    }
+
     // Update teeth selection
     setMandibularTeeth(prev => {
       const newTeeth = isAdding
@@ -7284,9 +7327,16 @@ export function useCaseDesignCenter() {
       delete updated[toothNumber]
       return updated
     })
+    // Clear tooth status for this tooth
+    setMaxillaryToothStatuses(prev => {
+      const updated = { ...prev }
+      delete updated[toothNumber]
+      return updated
+    })
     // Close popovers
     setRetentionPopoverState({ arch: null, toothNumber: null })
     setImplantPopoverState({ arch: null, toothNumber: null })
+    setToothStatusPopoverState({ arch: null, toothNumber: null })
   }
 
   const handleMandibularToothDeselect = (toothNumber: number) => {
@@ -7297,9 +7347,16 @@ export function useCaseDesignCenter() {
       delete updated[toothNumber]
       return updated
     })
+    // Clear tooth status for this tooth
+    setMandibularToothStatuses(prev => {
+      const updated = { ...prev }
+      delete updated[toothNumber]
+      return updated
+    })
     // Close popovers
     setRetentionPopoverState({ arch: null, toothNumber: null })
     setImplantPopoverState({ arch: null, toothNumber: null })
+    setToothStatusPopoverState({ arch: null, toothNumber: null })
   }
 
   // Get subcategory image helper
@@ -7669,6 +7726,11 @@ export function useCaseDesignCenter() {
       showValidationErrors,
       retentionPopoverState,
       setRetentionPopoverState,
+      toothStatusPopoverState,
+      setToothStatusPopoverState,
+      maxillaryToothStatuses,
+      mandibularToothStatuses,
+      handleSelectToothStatus,
       handleMaxillaryToothToggle,
       handleSelectRetentionType,
       handleMaxillaryToothDeselect,
@@ -7811,6 +7873,11 @@ export function useCaseDesignCenter() {
       shadeGuideOptions,
       showValidationErrors,
       retentionPopoverState,
+      toothStatusPopoverState,
+      setToothStatusPopoverState,
+      maxillaryToothStatuses,
+      mandibularToothStatuses,
+      handleSelectToothStatus,
       implantPopoverState,
       productDetails,
       isOrthodonticsOrRemovable,

@@ -110,8 +110,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
       const isDeselecting = currentTypes?.includes(type);
 
       if (!isDeselecting) {
-        // Clear any previous field progress (tooth is moving to a new product card)
-        toothFieldProgress.clearToothProgress(arch, toothNumber);
+        // Do not clear field progress when adding retention type — keep already-filled fields (Stage, shades, etc.) as done
         // Assign ownership to the currently active product card
         toothFieldProgress.setToothProductCard(arch, toothNumber, activeProductCardId);
 

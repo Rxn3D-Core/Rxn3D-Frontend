@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { useCustomer } from "@/contexts/customer-context"
 import { useCustomerLogoStore } from "@/stores/customer-logo-store"
+import { TOP_BAR_RECOMMENDED_LOGO_SIZES } from "@/components/case-design-center/components/TopBar"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
@@ -600,24 +601,29 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
                 onChange={handleFileSelect}
                 className="hidden"
               />
-              <Button 
-                size="sm" 
-                className="bg-blue-600 text-white hover:bg-blue-700"
-                onClick={handleUploadClick}
-                disabled={isUploading}
-              >
-                {isUploading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Uploading....
-                  </>
-                ) : (
-                  <>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Upload Logo
-                  </>
-                )}
-              </Button>
+              <div className="flex flex-col gap-1">
+                <Button 
+                  size="sm" 
+                  className="bg-blue-600 text-white hover:bg-blue-700"
+                  onClick={handleUploadClick}
+                  disabled={isUploading}
+                >
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Uploading....
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload Logo
+                    </>
+                  )}
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Recommended: {TOP_BAR_RECOMMENDED_LOGO_SIZES.center.md.width} × {TOP_BAR_RECOMMENDED_LOGO_SIZES.center.md.height} px (displays in header center).
+                </p>
+              </div>
             </div>
 
             <div className="space-y-3">

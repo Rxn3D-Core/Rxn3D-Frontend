@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from "next"
 import { Toaster } from "@/components/ui/toaster"
 import { RouteAwareProviders } from "@/components/route-aware-providers"
 import { I18nProvider } from "./i18n-provider"
-// import { AccessibilitySettings } from "@/components/accessibility-settings"
-// import { AccessibilityProvider } from "@/contexts/accessibility-context"
+import { AccessibilitySettings } from "@/components/accessibility-settings"
+import { AccessibilityProvider } from "@/contexts/accessibility-context"
 import "./globals.css"
 import { ConditionalProviders } from "@/components/conditional-providers"
 import { ConditionalClientLayout } from "@/components/conditional-client-layout"
@@ -35,7 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen bg-background font-sans antialiased" suppressHydrationWarning>
         <ReactQueryProvider>
           <RouteAwareProviders>
-            {/* <AccessibilityProvider> */}
+            <AccessibilityProvider>
             <I18nProvider>
               <ConditionalProviders>
                 <OnboardingCheck />
@@ -44,8 +44,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </ConditionalClientLayout>
               </ConditionalProviders>
             </I18nProvider>
-            {/* <AccessibilitySettings />
-            </AccessibilityProvider> */}
+            <AccessibilitySettings />
+            </AccessibilityProvider>
           </RouteAwareProviders>
         </ReactQueryProvider>
         <Toaster />

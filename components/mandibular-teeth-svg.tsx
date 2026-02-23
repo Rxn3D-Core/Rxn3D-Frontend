@@ -1,50 +1,6 @@
-import React, { useLayoutEffect, useRef, useState } from 'react'
+import React from 'react'
 import ReactDOM from 'react-dom'
 import { RetentionTypePopover } from './retention-type-popover'
-
-// Wrapper that positions children above a target point, clamped to container bounds
-const PopoverPositioner: React.FC<{
-  targetX: number
-  targetY: number
-  containerLeft: number
-  containerRight: number
-  children: React.ReactNode
-}> = ({ targetX, targetY, containerLeft, containerRight, children }) => {
-  const ref = useRef<HTMLDivElement>(null)
-  const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
-
-  useLayoutEffect(() => {
-    if (!ref.current) return
-    const rect = ref.current.getBoundingClientRect()
-    const padding = 4
-    // Clamp within both the SVG container bounds and the viewport
-    const maxRight = Math.min(containerRight, window.innerWidth)
-    const minLeft = Math.max(containerLeft, 0)
-    // Center horizontally on targetX, then clamp
-    let left = targetX - rect.width / 2
-    if (left < minLeft + padding) {
-      left = minLeft + padding
-    } else if (left + rect.width > maxRight - padding) {
-      left = maxRight - padding - rect.width
-    }
-    // Position above targetY, clamped so it doesn't go above the viewport
-    const top = Math.max(padding, targetY - rect.height)
-    setPos({ left, top })
-  }, [targetX, targetY, containerLeft, containerRight])
-
-  return (
-    <div
-      ref={ref}
-      className="fixed z-50"
-      style={pos
-        ? { left: `${pos.left}px`, top: `${pos.top}px` }
-        : { left: `${targetX}px`, top: `${targetY}px`, transform: 'translate(-50%, -100%)', opacity: 0 }
-      }
-    >
-      {children}
-    </div>
-  )
-}
 
 interface MandibularTeethSVGProps {
   selectedTeeth: number[]
@@ -73,9 +29,32 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
   const [hoveredTooth, setHoveredTooth] = React.useState<number | null>(null)
   const isToothSelected = (toothNumber: number) => selectedTeeth.includes(toothNumber)
 
+  // Helper to determine if a tooth should face left (25-32) or right (17-24)
+  const shouldFaceLeft = (toothNumber: number) => toothNumber >= 25 && toothNumber <= 32
 
   // Helper to get transform for flipping teeth horizontally
+  const getToothTransform = (toothNumber: number, x: number, width: number) => {
+    if (shouldFaceLeft(toothNumber)) {
+      // Flip to face left: translate to right edge, then scale(-1, 1) (SVG transform doesn't support scaleX)
+      // This flips the tooth around its right edge, keeping it in the same position
+      return `translate(${x + width}, 0) scaleX(-1)`
+    }
+    // For teeth 17-24, they should face right - check if they need flipping
+    // For now, assume they're already facing right, so no transform needed
+    return undefined
+  }
 
+  // Helper to get CSS style for flipping teeth (for pattern fills that don't flip with SVG transform)
+  const getToothStyle = (toothNumber: number, existingStyle?: React.CSSProperties) => {
+    if (shouldFaceLeft(toothNumber)) {
+      return {
+        ...existingStyle,
+        transform: 'scaleX(-1)',
+        transformOrigin: 'center'
+      }
+    }
+    return existingStyle
+  }
 
   const handleToothClick = (toothNumber: number) => {
     if (onToothClick) {
@@ -109,12 +88,12 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
   // Position above the specific tooth that triggered the popover
   const getPopoverPosition = () => {
     if (!showRetentionPopover || retentionPopoverTooth === null) {
-      return { left: 0, top: 0, containerLeft: 0, containerRight: 0 }
+      return { left: 0, top: 0 }
     }
 
     // Wait for svgRef to be available
     if (!svgRef.current) {
-      return { left: 0, top: 0, containerLeft: 0, containerRight: 0 }
+      return { left: 0, top: 0 }
     }
 
     const svgRect = svgRef.current.getBoundingClientRect()
@@ -122,7 +101,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
 
     // Check if we have valid dimensions
     if (!svgViewBox || svgViewBox.width === 0 || svgViewBox.height === 0) {
-      return { left: 0, top: 0, containerLeft: 0, containerRight: 0 }
+      return { left: 0, top: 0 }
     }
 
     const scaleX = svgRect.width / svgViewBox.width
@@ -131,27 +110,21 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
     // Get the position of the specific tooth that triggered the popover
     const toothPos = circlePositions[retentionPopoverTooth]
     if (!toothPos) {
-      return { left: 0, top: 0, containerLeft: 0, containerRight: 0 }
+      return { left: 0, top: 0 }
     }
 
     // Convert SVG coordinates to viewport coordinates
-    let viewportX = svgRect.left + (toothPos.cx * scaleX)
-    const viewportY = svgRect.top + (toothPos.cy * scaleY)
-
-    // Cap left position at 1517px for right-side teeth to prevent edge overflow
-    if (retentionPopoverTooth >= 17 && retentionPopoverTooth <= 21) {
-      viewportX = Math.min(viewportX, 1517)
-    }
-
-    // Position just above the tooth circle with a small gap
-    const spacing = 170
-    const popoverTop = viewportY - spacing
+    const viewportX = svgRect.left + (toothPos.cx * scaleX)
+    // Position well above the SVG to avoid covering teeth
+    // Popover height is ~60px, so position it higher above the top of SVG for clear spacing
+    const topOfSvg = svgRect.top
+    const popoverHeight = 60 // Approximate height of the popover
+    const spacing = 40 // Additional spacing above popover (increased for more clearance)
+    const popoverTop = topOfSvg - popoverHeight - spacing
 
     return {
       left: viewportX,
-      top: popoverTop,
-      containerLeft: svgRect.left,
-      containerRight: svgRect.right
+      top: popoverTop
     }
   }
 
@@ -293,6 +266,28 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
     )
   }
 
+  const renderImplantOverlays = () => {
+    const implantWidth = 30
+    const implantHeight = 30
+
+    return Object.entries(retentionTypesByTooth).map(([toothKey, types]) => {
+      const toothNumber = Number(toothKey)
+      const hasImplant = types?.includes('Implant')
+      const pos = circlePositions[toothNumber]
+
+      if (!hasImplant || !pos) return null
+
+      const translateX = pos.cx - implantWidth / 2
+      const translateY = pos.cy - implantHeight / 2
+
+      return (
+        <g key={`implant-${toothNumber}`} transform={`translate(${translateX}, ${translateY})`}>
+          <ImplantIndicator />
+        </g>
+      )
+    })
+  }
+
   // Helper function to render retention popover
   const getRetentionPopover = (): React.ReactPortal | null => {
     if (!showRetentionPopover || retentionPopoverTooth === null || !onSelectRetentionType || typeof window === 'undefined') {
@@ -305,7 +300,14 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
     const retentionTypes = retentionTypesByTooth[retentionPopoverTooth] || []
     const selectedType = retentionTypes.length > 0 ? retentionTypes[0] : null
     return ReactDOM.createPortal(
-      <PopoverPositioner key={retentionPopoverTooth} targetX={popoverPosition.left} targetY={popoverPosition.top} containerLeft={popoverPosition.containerLeft} containerRight={popoverPosition.containerRight}>
+      <div
+        className="fixed z-50"
+        style={{
+          left: `${popoverPosition.left}px`,
+          top: `${popoverPosition.top}px`,
+          transform: 'translateX(-50%)'
+        }}
+      >
         <RetentionTypePopover
           onSelectRetentionType={(type) => onSelectRetentionType(retentionPopoverTooth, type)}
           selectedType={selectedType || undefined}
@@ -328,7 +330,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             }
           }}
         />
-      </PopoverPositioner>,
+      </div>,
       document.body
     )
   }
@@ -340,9 +342,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
 
       <div className={`relative ${className}`}>
 
-        <svg ref={svgRef} width="100%" height="140" viewBox="0 0 600 135" fill="none" xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink">
+        <svg ref={svgRef} width="100%" height="120" viewBox="0 0 700 150" fill="none" xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink">
+          {renderImplantOverlays()}
           {isImplantTooth(32) ? (
-            <g>
+            <g transform={getToothTransform(32, 0, 43)}>
               {renderImplantSVG(32, 0)}
             </g>
           ) : (
@@ -360,7 +363,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             </g>
           )}
           {isImplantTooth(26) ? (
-            <g>
+            <g transform={getToothTransform(26, 256, 31)}>
               {renderImplantSVG(26, 256)}
             </g>
           ) : (
@@ -378,7 +381,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             </g>
           )}
           {isImplantTooth(29) ? (
-            <g>
+            <g transform={getToothTransform(29, 148, 38)}>
               {renderImplantSVG(29, 148)}
             </g>
           ) : (
@@ -396,7 +399,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             </g>
           )}
           {isImplantTooth(23) ? (
-            <g>
+            <g transform={getToothTransform(23, 339, 30)}>
               {renderImplantSVG(23, 339)}
             </g>
           ) : (
@@ -414,7 +417,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             </g>
           )}
           {isImplantTooth(31) ? (
-            <g>
+            <g transform={getToothTransform(31, 43, 51)}>
               {renderImplantSVG(31, 43)}
             </g>
           ) : (
@@ -432,7 +435,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             </g>
           )}
           {isImplantTooth(25) ? (
-            <g>
+            <g transform={getToothTransform(25, 287, 26)}>
               {renderImplantSVG(25, 287)}
             </g>
           ) : (
@@ -450,7 +453,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             </g>
           )}
           {isImplantTooth(28) ? (
-            <g>
+            <g transform={getToothTransform(28, 186, 36)}>
               {renderImplantSVG(28, 186)}
             </g>
           ) : (
@@ -516,7 +519,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             </>
           )}
           {isImplantTooth(30) ? (
-            <g>
+            <g transform={getToothTransform(30, 94, 54)}>
               {renderImplantSVG(30, 94)}
             </g>
           ) : (
@@ -550,7 +553,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             </>
           )}
           {isImplantTooth(27) ? (
-            <g>
+            <g transform={getToothTransform(27, 222, 34)}>
               {renderImplantSVG(27, 222)}
             </g>
           ) : (

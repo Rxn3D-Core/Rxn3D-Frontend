@@ -145,8 +145,8 @@ export function ImplantInclusionsField({
         <legend className={`text-[11px] px-1 leading-none whitespace-nowrap ${legendColor}`}>
           {label}
         </legend>
-        <div className="flex items-center gap-1 min-w-0 w-full flex-1">
-          <span className="flex-1 text-[13px] text-[#1d1d1b] min-w-0 truncate">
+        <div className="flex items-center gap-2 w-full min-h-0">
+          <span className="text-[13px] leading-tight text-[#1d1d1b] flex-1 min-w-0 truncate">
             {value || "Select..."}
           </span>
           {hasValue && <Check size={16} className="text-[#34a853] flex-shrink-0" />}
