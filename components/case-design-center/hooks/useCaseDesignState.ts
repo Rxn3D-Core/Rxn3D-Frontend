@@ -41,6 +41,9 @@ async function fetchProductDetails(productId: number, customerId: number): Promi
 }
 
 export function useCaseDesignState(props: CaseDesignProps) {
+  // 0 = initial product; any other value = AddedProduct.id
+  const [activeProductCardId, setActiveProductCardId] = useState<number>(0);
+
   // Expansion states
   const [expandedCard, setExpandedCard] = useState(true);
   const [expandedLeft, setExpandedLeft] = useState(true);
@@ -60,7 +63,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
   const teeth = useToothSelection();
   const shades = useShadeSelection();
   const modals = useModalState();
-  const products = useProductManagement();
+  const products = useProductManagement(props.addedProducts, props.onProductsChange);
   const implants = useImplantState();
   const toothFieldProgress = useToothFieldProgress();
 
@@ -95,19 +98,31 @@ export function useCaseDesignState(props: CaseDesignProps) {
   );
 
   // Wrap handleSelectRetentionType to auto-assign product for Prep/Pontic/Implant
+  // Also handles tooth ownership transfer when a tooth already belongs to another product card.
   const originalHandleSelectRetentionType = teeth.handleSelectRetentionType;
   const handleSelectRetentionType = (arch: Arch, toothNumber: number, type: RetentionType) => {
     originalHandleSelectRetentionType(arch, toothNumber, type);
 
     if (type === "Prep" || type === "Pontic" || type === "Implant") {
-      // Check if already toggling off (deselecting)
       const currentTypes = arch === "maxillary"
         ? teeth.maxillaryRetentionTypes[toothNumber]
         : teeth.mandibularRetentionTypes[toothNumber];
       const isDeselecting = currentTypes?.includes(type);
 
-      if (!isDeselecting && props.selectedProductId) {
-        fetchAndAssignProduct(arch, toothNumber, props.selectedProductId);
+      if (!isDeselecting) {
+        // Clear any previous field progress (tooth is moving to a new product card)
+        toothFieldProgress.clearToothProgress(arch, toothNumber);
+        // Assign ownership to the currently active product card
+        toothFieldProgress.setToothProductCard(arch, toothNumber, activeProductCardId);
+
+        // Determine which product ID to fetch: active card's product or the initial product
+        const targetProductId = activeProductCardId !== 0
+          ? products.addedProducts.find((ap) => ap.id === activeProductCardId)?.productId
+          : props.selectedProductId;
+
+        if (targetProductId) {
+          fetchAndAssignProduct(arch, toothNumber, targetProductId);
+        }
       }
     }
   };
@@ -152,6 +167,9 @@ export function useCaseDesignState(props: CaseDesignProps) {
   );
 
   return {
+    // Active product card tracking (0 = initial product, other = AddedProduct.id)
+    activeProductCardId,
+    setActiveProductCardId,
     // Expansion
     expandedCard,
     setExpandedCard,

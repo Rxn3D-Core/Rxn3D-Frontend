@@ -220,7 +220,7 @@ function hasAdvanceField(
   step: string,
   advanceFields: Array<{ name: string; field_type: string }> | undefined
 ): boolean {
-  const alwaysShow = ["fixed_stage", "fixed_impression", "fixed_addons", "fixed_notes"];
+  const alwaysShow = ["fixed_stage", "fixed_impression"];
   if (alwaysShow.includes(step)) return true;
   if (!advanceFields || advanceFields.length === 0) return true;
 
@@ -254,6 +254,10 @@ function hasAdvanceField(
       return names.some((n) => n.includes("metal"));
     case "fixed_proximal_contact":
       return names.some((n) => n.includes("proximal") && n.includes("contact"));
+    case "fixed_addons":
+      return names.some((n) => n.includes("add") && (n.includes("on") || n.includes("addon")));
+    case "fixed_notes":
+      return names.some((n) => n.includes("note") || n.includes("additional"));
     default:
       return true;
   }
@@ -264,7 +268,10 @@ interface MandibularPanelProps {
   setShowMandibular: (v: boolean) => void;
   showDetails: boolean;
   caseSubmitted?: boolean;
+  /** When true, overlays the panel to prevent interaction until maxillary is complete */
+  disabled?: boolean;
   onAddProduct?: (arch: "maxillary" | "mandibular") => void;
+  disableAddProduct?: boolean;
 
   // Teeth
   mandibularTeeth: number[];
@@ -318,6 +325,11 @@ interface MandibularPanelProps {
   toggleAddedProductExpanded: (id: number) => void;
   handleRemoveAddedProduct: (id: number) => void;
 
+  // Active product card tracking
+  activeProductCardId: number;
+  setActiveProductCardId: (id: number) => void;
+  getToothProductCard: (arch: Arch, toothNumber: number) => number;
+
   // Tooth field progress (Prep/Pontic step-by-step)
   isFieldVisible: (arch: Arch, toothNumber: number, step: FieldStep, fixedChain?: readonly string[]) => boolean;
   isFieldCompleted: (arch: Arch, toothNumber: number, step: FieldStep) => boolean;
@@ -339,7 +351,9 @@ export function MandibularPanel({
   setShowMandibular,
   showDetails,
   caseSubmitted = false,
+  disabled = false,
   onAddProduct,
+  disableAddProduct = false,
   mandibularTeeth,
   handleMandibularToothClick,
   handleMandibularToothDeselect,
@@ -370,6 +384,9 @@ export function MandibularPanel({
   addedProducts,
   toggleAddedProductExpanded,
   handleRemoveAddedProduct,
+  activeProductCardId,
+  setActiveProductCardId,
+  getToothProductCard,
   isFieldVisible,
   isFieldCompleted,
   completeFieldStep,
@@ -387,13 +404,26 @@ export function MandibularPanel({
   const MANDIBULAR_ALL_TEETH = [17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32];
   const [activeExtractionCode, setActiveExtractionCode] = useState<string | null>(null);
   return (
-    <div className={`flex-1 min-w-0 px-0 md:px-3 order-3 lg:order-none${caseSubmitted ? " pointer-events-none select-none" : ""}`}>
+    <div className={`flex-1 min-w-0 px-0 md:px-3 order-3 lg:order-none relative${caseSubmitted ? " pointer-events-none select-none" : ""}`}>
+      {/* Overlay to block interaction while maxillary is incomplete */}
+      {disabled && (
+        <div
+          className="absolute inset-0 z-10 rounded-lg flex items-start justify-center pt-12 cursor-not-allowed"
+          style={{ backgroundColor: "rgba(245,245,245,0.75)" }}
+          title="Complete the Maxillary fields first"
+        >
+          <span className="text-[12px] text-[#7f7f7f] bg-white border border-[#d9d9d9] rounded px-3 py-1.5 shadow-sm select-none pointer-events-none">
+            Complete Maxillary fields first
+          </span>
+        </div>
+      )}
       {/* Mandibular header - centered */}
       <div className="flex flex-col md:flex-row items-center justify-center gap-2 md:gap-3 mb-3">
         {showDetails && !caseSubmitted && (
           <button
-            onClick={() => onAddProduct?.('mandibular')}
-            className="flex items-center gap-1.5 bg-[#1162A8] hover:bg-[#0d4a85] shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] text-white font-[Verdana] text-[10px] leading-[22px] tracking-[-0.02em] text-center px-2.5 py-0 rounded-md">
+            onClick={!disableAddProduct ? () => onAddProduct?.('mandibular') : undefined}
+            title={disableAddProduct ? "Complete all required fields before adding another product" : undefined}
+            className={`flex items-center gap-1.5 shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] text-white font-[Verdana] text-[10px] leading-[22px] tracking-[-0.02em] text-center px-2.5 py-0 rounded-md ${disableAddProduct ? "bg-[#b4b0b0] cursor-not-allowed opacity-60" : "bg-[#1162A8] hover:bg-[#0d4a85] cursor-pointer"}`}>
             <Plus size={13} strokeWidth={1.5} />
             Add Product
           </button>
@@ -547,6 +577,16 @@ export function MandibularPanel({
                   const isFixed = (step: FieldStep) =>
                     isFieldVisible("mandibular", firstToothNumber, step, fixedChain);
 
+                  // Gate: hide product fields while shade guide is open and incomplete for this product
+                  const _mandFixedShadeProductId = `fixed_${firstToothNumber}`;
+                  const fixedShadeIncomplete =
+                    shadeSelectionState.productId === _mandFixedShadeProductId &&
+                    shadeSelectionState.arch === "mandibular" &&
+                    !(
+                      getSelectedShade(_mandFixedShadeProductId, "mandibular", "stump_shade") &&
+                      getSelectedShade(_mandFixedShadeProductId, "mandibular", "tooth_shade")
+                    );
+
                   // ---- Product Accordion (progressive step-by-step) ----
                   return (
                     <div
@@ -658,7 +698,7 @@ export function MandibularPanel({
                             />
                             <AutoOpenImpressionIfEmpty
                               isExpanded={isPrepPonticExpanded(firstToothNumber)}
-                              isImpressionVisible={isFieldVisible("mandibular", firstToothNumber, "fixed_impression")}
+                              isImpressionVisible={!fixedShadeIncomplete && isFieldVisible("mandibular", firstToothNumber, "fixed_impression")}
                               isImpressionEmpty={!isFieldCompleted("mandibular", firstToothNumber, "fixed_impression")}
                               onOpenImpressionModal={handleOpenImpressionModal}
                               arch="mandibular"
@@ -683,6 +723,9 @@ export function MandibularPanel({
                                 value={retentionTypes.includes("Implant") ? "Screwed" : "Cemented"}
                               />
                             </div>
+
+                            {/* All remaining fields hidden until both shades are selected */}
+                            {!fixedShadeIncomplete && <>
 
                             {/* Step 1 & 2: Stage and Stump Shade in one row */}
                             {(isFieldVisible("mandibular", firstToothNumber, "fixed_stage") || (isFieldVisible("mandibular", firstToothNumber, "fixed_stump_shade") && hasAdvanceField("fixed_stump_shade", selectedProduct?.advance_fields))) && (
@@ -919,13 +962,13 @@ export function MandibularPanel({
                                 {isFieldVisible("mandibular", firstToothNumber, "fixed_addons") ? (
                                   <fieldset
                                     className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
-                                      isFieldCompleted("mandibular", firstToothNumber, "fixed_addons") ? "border-[#34a853]" : "border-[#CF0202]"
+                                      isFieldCompleted("mandibular", firstToothNumber, "fixed_addons") ? "border-[#34a853]" : "border-[#d9d9d9]"
                                     }`}
                                     onClick={() => {
                                       handleOpenAddOnsModal("mandibular", selectedProduct?.id?.toString() || `fixed_${firstToothNumber}`, firstToothNumber);
                                     }}
                                   >
-                                    <legend className={`text-[11px] px-1 leading-none ${isFieldCompleted("mandibular", firstToothNumber, "fixed_addons") ? "text-[#34a853]" : "text-[#CF0202]"}`}>
+                                    <legend className={`text-[11px] px-1 leading-none ${isFieldCompleted("mandibular", firstToothNumber, "fixed_addons") ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>
                                       Add ons
                                     </legend>
                                     <div className="flex items-center gap-2 w-full">
@@ -943,14 +986,14 @@ export function MandibularPanel({
                               </div>
                             )}
 
-                            {/* Step 10: Additional notes */}
+                            {/* Additional notes — only shown when advance_fields includes a notes field */}
                             {isFieldVisible("mandibular", firstToothNumber, "fixed_notes") && (
                               <fieldset
                                 className={`border rounded px-3 pb-2 pt-0 ${
-                                  isFieldCompleted("mandibular", firstToothNumber, "fixed_notes") ? "border-[#34a853]" : "border-[#CF0202]"
+                                  isFieldCompleted("mandibular", firstToothNumber, "fixed_notes") ? "border-[#34a853]" : "border-[#d9d9d9]"
                                 }`}
                               >
-                                <legend className={`text-[11px] px-1 leading-none ${isFieldCompleted("mandibular", firstToothNumber, "fixed_notes") ? "text-[#34a853]" : "text-[#CF0202]"}`}>
+                                <legend className={`text-[11px] px-1 leading-none ${isFieldCompleted("mandibular", firstToothNumber, "fixed_notes") ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>
                                   Additional notes
                                 </legend>
                                 <textarea
@@ -966,8 +1009,8 @@ export function MandibularPanel({
                               </fieldset>
                             )}
 
-                            {/* Bottom action buttons — shown after Add ons is completed */}
-                            {isFieldCompleted("mandibular", firstToothNumber, "fixed_addons") && (
+                            {/* Bottom action buttons — shown after Impression is completed */}
+                            {isFieldCompleted("mandibular", firstToothNumber, "fixed_impression") && (
                               <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 pt-3 border-t border-[#d9d9d9] mt-3">
                                 <button
                                   onClick={() => {
@@ -1015,6 +1058,7 @@ export function MandibularPanel({
                                 </button>
                               </div>
                             )}
+                            </>}
                           </>
                         ) : (
                           <>
@@ -1318,110 +1362,173 @@ export function MandibularPanel({
                 });
               })()}
 
-          {showDetails && (
-            <>
-              {/* Dynamically added mandibular products */}
-              {addedProducts
-                .filter(ap => ap.arch === "mandibular")
-                .map(ap => (
-                  <div key={ap.id} className="rounded-lg bg-white overflow-hidden border border-[#d9d9d9] mt-3">
-                    <button
-                      type="button"
-                      onClick={() => toggleAddedProductExpanded(ap.id)}
-                      className="w-full flex items-center py-[14px] px-2 gap-[10px] transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] bg-[#DFEEFB] hover:bg-[#d4e8f8]"
-                    >
-                      <div className="w-16 h-[62px] rounded-md bg-white flex items-center justify-center flex-shrink-0 overflow-hidden">
-                        {ap.product.image_url ? (
-                          <img src={ap.product.image_url} alt={ap.product.name || "Product"} className="w-[61.58px] h-[28.79px] object-contain" />
-                        ) : (
-                          <div className="w-[61.58px] h-[28.79px] bg-gray-100 rounded flex items-center justify-center">
-                            <span className="text-[10px] text-gray-400">No img</span>
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0 text-left flex flex-col">
-                        <p className="font-[Verdana] text-[14.4px] leading-[20px] tracking-[-0.02em] text-black">
-                          {ap.product.name || "Untitled Product"}
-                        </p>
-                        <div className="flex items-center gap-[5px] flex-wrap">
-                          {ap.product.category_name && (
-                            <span className="font-[Verdana] text-[10px] leading-[22px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[10px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]">
-                              {ap.product.category_name}
-                            </span>
-                          )}
-                          {ap.product.subcategory_name && (
-                            <span className="font-[Verdana] text-[10px] leading-[22px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[10px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]">
-                              {ap.product.subcategory_name}
-                            </span>
-                          )}
-                          <span className="font-[Verdana] text-[10px] leading-[22px] tracking-[-0.02em] text-[#B4B0B0]">
-                            Est days: 10 work days after submission
-                          </span>
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); handleRemoveAddedProduct(ap.id); }}
-                            className="ml-1 hover:text-red-500 transition-colors"
-                            title="Remove product"
-                          >
-                            <Trash2 size={9} className="text-[#999999] hover:text-red-500" />
-                          </button>
-                        </div>
-                      </div>
-                      <ChevronDown
-                        size={21.6}
-                        className={`text-black flex-shrink-0 transition-transform ${ap.expanded ? "rotate-180" : ""}`}
-                      />
-                    </button>
+          {/* Added product accordions — full field workflow, teeth owned by each card */}
+          {showDetails && !caseSubmitted && addedProducts
+            .filter(ap => ap.arch === "mandibular")
+            .map((ap, apIndex) => {
+              const cardTeeth = mandibularTeeth.filter(
+                tn => getToothProductCard("mandibular", tn) === ap.id
+              );
+              const cardProduct = cardTeeth.length > 0
+                ? getToothProduct("mandibular", cardTeeth[0])
+                : null;
+              const cardProductName = cardProduct?.name || ap.product.name || "Untitled Product";
+              const cardProductImage = cardProduct?.image_url || ap.product.image_url || null;
+              const cardCategoryName = cardProduct?.subcategory?.category?.name || ap.product.category_name || "";
+              const cardSubcategoryName = cardProduct?.subcategory?.name || ap.product.subcategory_name || "";
+              const cardToothDisplay = cardTeeth.map(n => `#${n}`).join(", ");
+              const isActive = activeProductCardId === ap.id;
 
-                    {ap.expanded && (
-                      <div className="border-t border-[#d9d9d9] p-2.5 sm:p-4 bg-white space-y-3 max-h-[600px] overflow-y-auto scrollbar-blue">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <FieldInput
-                            label="Product - Material"
-                            value={ap.product.name || ""}
-                          />
-                          <FieldInput
-                            label="Category"
-                            value={ap.product.category_name || ap.product.category?.name || ""}
-                          />
+              return (
+                <div
+                  key={ap.id}
+                  className="rounded-lg bg-white overflow-hidden border border-[#d9d9d9] mt-3"
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      toggleAddedProductExpanded(ap.id);
+                      setActiveProductCardId(isActive ? 0 : ap.id);
+                    }}
+                    className={`w-full flex items-center py-[14px] px-2 gap-[10px] transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] ${isActive ? "bg-[#c8e2f7] hover:bg-[#b8d8f4]" : "bg-[#DFEEFB] hover:bg-[#d4e8f8]"}`}
+                  >
+                    <div className="w-16 h-[62px] rounded-md bg-white flex items-center justify-center flex-shrink-0 overflow-hidden">
+                      {cardProductImage ? (
+                        <img src={cardProductImage} alt={cardProductName} className="w-[61.58px] h-[28.79px] object-contain" />
+                      ) : (
+                        <div className="w-[61.58px] h-[28.79px] bg-gray-100 rounded flex items-center justify-center">
+                          <span className="text-[10px] text-gray-400">No img</span>
                         </div>
-                        {ap.product.code && (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <FieldInput
-                              label="Product Code"
-                              value={ap.product.code}
-                            />
-                            <FieldInput
-                              label="Arch"
-                              value={ap.arch === "maxillary" ? "Maxillary (Upper)" : "Mandibular (Lower)"}
-                            />
-                          </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0 text-left flex flex-col">
+                      <p className="font-[Verdana] text-[14.4px] leading-[20px] tracking-[-0.02em] text-black">
+                        {cardProductName}
+                      </p>
+                      {cardToothDisplay && (
+                        <p className="font-[Verdana] text-[14.4px] leading-[20px] tracking-[-0.02em] text-black">
+                          {cardToothDisplay}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-[5px] flex-wrap">
+                        <span className="font-[Verdana] text-[10px] leading-[22px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[10px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]">
+                          Product {apIndex + 2}
+                        </span>
+                        {cardCategoryName && (
+                          <span className="font-[Verdana] text-[10px] leading-[22px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[10px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]">
+                            {cardCategoryName}
+                          </span>
                         )}
-                        <div className="flex items-center justify-center gap-4 pt-3 border-t border-[#d9d9d9] mt-3">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenAddOnsModal("mandibular", `added_${ap.id}`)}
-                            className="flex-none flex-grow-0 w-[123.04px] h-[46.22px] rounded-[5.27px] bg-[#F9F9F9] shadow-[0.88px_0.88px_3.07px_rgba(0,0,0,0.25)] flex flex-col items-center justify-center gap-0.5 hover:bg-[#f0f0f0] transition-colors"
-                          >
-                            <Plus size={10} className="text-[#1E1E1E]" strokeWidth={1.5} />
-                            <span className="font-['Verdana'] font-normal text-[8.78px] leading-[19px] text-center tracking-[-0.02em] text-black whitespace-nowrap">Add ons</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setShowAttachModal(true)}
-                            className="flex-none flex-grow-0 w-[123.04px] h-[46.22px] rounded-[5.27px] bg-[#F9F9F9] shadow-[0.88px_0.88px_3.07px_rgba(0,0,0,0.25)] flex flex-col items-center justify-center gap-0.5 hover:bg-[#f0f0f0] transition-colors"
-                          >
-                            <Paperclip size={10} className="text-[#1E1E1E]" strokeWidth={1.5} />
-                            <span className="font-['Verdana'] font-normal text-[8.78px] leading-[19px] text-center tracking-[-0.02em] text-black whitespace-nowrap">Attach Files</span>
-                          </button>
-                        </div>
-                        <ScrollToBottom />
+                        {cardSubcategoryName && (
+                          <span className="font-[Verdana] text-[10px] leading-[22px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[10px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]">
+                            {cardSubcategoryName}
+                          </span>
+                        )}
+                        <span className="font-[Verdana] text-[10px] leading-[22px] tracking-[-0.02em] text-[#B4B0B0]">
+                          {isActive ? "Active — click teeth to assign" : "Click to activate"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); handleRemoveAddedProduct(ap.id); }}
+                          className="ml-1 hover:text-red-500 transition-colors"
+                          title="Remove product"
+                        >
+                          <Trash2 size={9} className="text-[#999999] hover:text-red-500" />
+                        </button>
                       </div>
-                    )}
-                  </div>
-                ))}
-            </>
-          )}
+                    </div>
+                    <ChevronDown
+                      size={21.6}
+                      className={`text-black flex-shrink-0 transition-transform ${ap.expanded ? "rotate-180" : ""}`}
+                    />
+                  </button>
+
+                  {ap.expanded && (
+                    <div className="border-t border-[#d9d9d9] p-2.5 sm:p-4 bg-white space-y-3 max-h-[600px] overflow-y-auto scrollbar-blue">
+                      {cardTeeth.length === 0 ? (
+                        <p className="text-[12px] text-[#b4b0b0] text-center py-4">
+                          Select teeth from the chart above to assign them to this product.
+                        </p>
+                      ) : (
+                        cardTeeth.map(tn => {
+                          const toothProduct = getToothProduct("mandibular", tn);
+                          const isFixed = toothProduct?.subcategory?.category?.name === "Fixed Restoration";
+                          const fixedChain = isFixed ? getFixedFieldChain(toothProduct?.advance_fields) : undefined;
+                          const isF = (step: string) => isFieldVisible("mandibular", tn, step as any, fixedChain);
+                          const isFComplete = (step: string) => isFieldCompleted("mandibular", tn, step as any);
+                          const fVal = (step: string) => getFieldValue("mandibular", tn, step as any);
+
+                          return (
+                            <div key={tn} className="border border-[#e5e7eb] rounded-lg p-3 space-y-3">
+                              <p className="font-[Verdana] text-[11px] font-semibold text-[#1d1d1b]">Tooth #{tn}</p>
+
+                              {/* Product - Material */}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <fieldset className="border border-[#34a853] rounded px-3 py-0 relative h-[42px] flex items-center">
+                                  <legend className="text-[11px] text-[#34a853] px-1">Product - Material</legend>
+                                  <span className="text-[13px] text-[#1d1d1b] truncate">{toothProduct?.name || cardProductName}</span>
+                                  <Check size={14} className="text-[#34a853] ml-auto flex-shrink-0" />
+                                </fieldset>
+                              </div>
+
+                              {/* Stage */}
+                              {(isFixed ? isF("fixed_stage") : isF("stage")) && (
+                                <fieldset
+                                  className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${isFComplete(isFixed ? "fixed_stage" : "stage") ? "border-[#34a853]" : "border-[#CF0202]"}`}
+                                  onClick={() => handleOpenStageModal(isFixed ? `mandibular_fixed_${tn}` : `mandibular_prep_${tn}`, "mandibular", tn)}
+                                >
+                                  <legend className={`text-[11px] px-1 ${isFComplete(isFixed ? "fixed_stage" : "stage") ? "text-[#34a853]" : "text-[#CF0202]"}`}>Stage</legend>
+                                  <span className="text-[13px] text-[#1d1d1b] truncate flex-1">{fVal(isFixed ? "fixed_stage" : "stage") || selectedStages[isFixed ? `mandibular_fixed_${tn}` : `mandibular_prep_${tn}`] || ""}</span>
+                                  {isFComplete(isFixed ? "fixed_stage" : "stage") && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
+                                </fieldset>
+                              )}
+
+                              {/* Impression */}
+                              {(isFixed ? isF("fixed_impression") : isF("impression")) && (
+                                <fieldset
+                                  className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${isFComplete(isFixed ? "fixed_impression" : "impression") ? "border-[#34a853]" : "border-[#CF0202]"}`}
+                                  onClick={() => handleOpenImpressionModal("mandibular", isFixed ? `mandibular_fixed_${tn}` : `mandibular_prep_${tn}`, tn)}
+                                >
+                                  <legend className={`text-[11px] px-1 ${isFComplete(isFixed ? "fixed_impression" : "impression") ? "text-[#34a853]" : "text-[#CF0202]"}`}>Impression</legend>
+                                  <span className="text-[13px] text-[#1d1d1b] truncate flex-1">{fVal(isFixed ? "fixed_impression" : "impression") || getImpressionDisplayText(isFixed ? `mandibular_fixed_${tn}` : `mandibular_prep_${tn}`, "mandibular", tn)}</span>
+                                  {isFComplete(isFixed ? "fixed_impression" : "impression") && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
+                                </fieldset>
+                              )}
+
+                              {/* Add-ons */}
+                              {(isFixed ? isF("fixed_addons") : isF("addons")) && (
+                                <fieldset
+                                  className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${isFComplete(isFixed ? "fixed_addons" : "addons") ? "border-[#34a853]" : "border-[#d9d9d9]"}`}
+                                  onClick={() => handleOpenAddOnsModal("mandibular", isFixed ? `mandibular_fixed_${tn}` : `mandibular_prep_${tn}`, tn)}
+                                >
+                                  <legend className={`text-[11px] px-1 ${isFComplete(isFixed ? "fixed_addons" : "addons") ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>Add ons</legend>
+                                  <span className="text-[13px] text-[#1d1d1b] truncate flex-1">{fVal(isFixed ? "fixed_addons" : "addons") || "0 selected"}</span>
+                                  {isFComplete(isFixed ? "fixed_addons" : "addons") && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
+                                </fieldset>
+                              )}
+                            </div>
+                          );
+                        })
+                      )}
+
+                      {/* Bottom actions */}
+                      <div className="flex items-center justify-center gap-4 pt-3 border-t border-[#d9d9d9] mt-3">
+                        <button
+                          type="button"
+                          onClick={() => setShowAttachModal(true)}
+                          className="flex-none w-[123.04px] h-[46.22px] rounded-[5.27px] bg-[#F9F9F9] shadow-[0.88px_0.88px_3.07px_rgba(0,0,0,0.25)] flex flex-col items-center justify-center gap-0.5 hover:bg-[#f0f0f0] transition-colors"
+                        >
+                          <Paperclip size={10} className="text-[#1E1E1E]" strokeWidth={1.5} />
+                          <span className="font-['Verdana'] font-normal text-[8.78px] leading-[19px] text-center tracking-[-0.02em] text-black whitespace-nowrap">Attach Files</span>
+                        </button>
+                      </div>
+                      <ScrollToBottom />
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          }
 
         </>
       )}

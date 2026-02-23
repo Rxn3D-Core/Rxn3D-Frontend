@@ -10,6 +10,39 @@ import { CaseDesignCenter } from "./components/CaseDesignCenter";
 import { CaseSummaryNotes } from "./components/CaseSummaryNotes";
 import { FloatingActions } from "./components/FloatingActions";
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+
+async function fetchProductDetails(productId: number): Promise<{ name: string; image_url: string | null; category_name: string; subcategory_name: string } | null> {
+  try {
+    const token = localStorage.getItem("token");
+    if (!token) return null;
+    const role = localStorage.getItem("role");
+    const customerId = Number(
+      role === "office_admin" || role === "doctor"
+        ? localStorage.getItem("selectedLabId")
+        : localStorage.getItem("customerId")
+    ) || 1;
+    const url = new URL(`/v1/library/products/${productId}`, API_BASE_URL);
+    url.searchParams.set("lang", "en");
+    url.searchParams.set("customer_id", String(customerId));
+    const res = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const data = json.data;
+    if (!data) return null;
+    return {
+      name: data.name || "",
+      image_url: data.image_url || null,
+      category_name: data.subcategory?.category?.name || "",
+      subcategory_name: data.subcategory?.name || "",
+    };
+  } catch {
+    return null;
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /*  PAGE                                                               */
 /* ------------------------------------------------------------------ */
@@ -26,6 +59,8 @@ export default function Page() {
   useEffect(() => {
     const r = typeof window !== "undefined" ? localStorage.getItem("role") : null;
     setRole(r);
+    // Clear any stale added-products cache so each new case session starts fresh
+    localStorage.removeItem("cdc_added_products");
   }, []);
   const [right1Brand, setRight1Brand] = useState("Truabutment");
   const [right1Platform, setRight1Platform] = useState("Truscan");
@@ -34,45 +69,37 @@ export default function Page() {
   const [confirmDetailsChecked, setConfirmDetailsChecked] = useState(false);
   const [caseSubmitted, setCaseSubmitted] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
+  const [caseReady, setCaseReady] = useState(false);
+  const [incompleteFieldLabel, setIncompleteFieldLabel] = useState<string | null>(null);
+  // Once true, CaseDesignCenter stays mounted (hidden via CSS) so hook state survives Add Product wizard
+  const [caseDesignMounted, setCaseDesignMounted] = useState(false);
 
   // ---- Add Product via wizard redirect ----
   const [wizardMode, setWizardMode] = useState<"initial" | "addProduct">("initial");
   const [pendingProductArch, setPendingProductArch] = useState<"maxillary" | "mandibular">("maxillary");
   const [selectedProductId, setSelectedProductId] = useState<number | undefined>(undefined);
 
-  // Load cached added products
-  const [addedProducts, setAddedProducts] = useState<AddedProduct[]>(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      const cached = localStorage.getItem("cdc_added_products");
-      return cached ? JSON.parse(cached) : [];
-    } catch { return []; }
-  });
+  const [addedProducts, setAddedProducts] = useState<AddedProduct[]>([]);
 
-  const persistProducts = (products: AddedProduct[]) => {
-    setAddedProducts(products);
-    try {
-      localStorage.setItem("cdc_added_products", JSON.stringify(products));
-    } catch (e) {
-      console.error("Failed to cache products:", e);
-    }
-  };
-
-  const handleWizardComplete = (result: any) => {
+  const handleWizardComplete = async (result: any) => {
     if (wizardMode === "addProduct") {
+      const addedProductId = Number(result.material) || undefined;
+      // Fetch real product details so the accordion shows the correct name/image
+      const details = addedProductId ? await fetchProductDetails(addedProductId) : null;
       const newProduct: AddedProduct = {
         id: Date.now(),
+        productId: addedProductId,
         product: {
-          name: result.material || result.product || "Untitled Product",
-          category_name: result.category || "",
-          subcategory_name: result.product || "",
+          name: details?.name || result.product || "Untitled Product",
+          category_name: details?.category_name || "",
+          subcategory_name: details?.subcategory_name || "",
           code: "",
-          image_url: "",
+          image_url: details?.image_url || "",
         },
         arch: pendingProductArch,
         expanded: true,
       };
-      persistProducts([...addedProducts, newProduct]);
+      setAddedProducts((prev) => [...prev, newProduct]);
       setWizardMode("initial");
       setWizardComplete(true);
     } else {
@@ -85,6 +112,7 @@ export default function Page() {
       setLabEditMode(false);
       setDoctorEditMode(false);
       setWizardComplete(true);
+      setCaseDesignMounted(true); // Keep CaseDesignCenter mounted from here on
     }
   };
 
@@ -127,8 +155,23 @@ export default function Page() {
           onEditClick={wizardComplete ? handleTopBarEditLab : undefined}
           caseSubmitted={caseSubmitted}
         />
-        {wizardComplete ? (
-          <>
+        {/* Wizard — shown when wizardComplete is false */}
+        {!wizardComplete && (
+          <NewCaseWizard
+            onComplete={handleWizardComplete}
+            onLabSelect={(lab) => setCompletedLab(lab)}
+            startStep={wizardStartStep}
+            mode={wizardMode}
+            initialLabId={doctorEditMode && completedLab ? completedLab.id : null}
+            initialPatientName={wizardMode === "addProduct" ? completedPatientName : ""}
+            initialGender={wizardMode === "addProduct" ? completedGender : ""}
+            initialDoctor={wizardMode === "addProduct" && completedDoctor ? completedDoctor : undefined}
+          />
+        )}
+
+        {/* Case Design Center — kept mounted once initial wizard completes so hook state survives "Add Product" wizard navigation */}
+        {caseDesignMounted && (
+          <div style={{ display: wizardComplete ? undefined : "none" }}>
             <PatientHeader
               doctorImageUrl={completedDoctor?.img}
               doctorName={completedDoctor?.name}
@@ -150,6 +193,10 @@ export default function Page() {
               onBackToProducts={handleBackToProducts}
               selectedProductId={selectedProductId}
               caseSubmitted={caseSubmitted}
+              onReadinessChange={setCaseReady}
+              onIncompleteFieldChange={setIncompleteFieldLabel}
+              addedProducts={addedProducts}
+              onProductsChange={setAddedProducts}
             />
             {showDetails && (
               <CaseSummaryNotes
@@ -161,15 +208,7 @@ export default function Page() {
             )}
             {/* Spacer for fixed footer */}
             <div style={{ height: "80px" }} />
-          </>
-        ) : (
-          <NewCaseWizard
-            onComplete={handleWizardComplete}
-            onLabSelect={(lab) => setCompletedLab(lab)}
-            startStep={wizardStartStep}
-            mode={wizardMode}
-            initialLabId={doctorEditMode && completedLab ? completedLab.id : null}
-          />
+          </div>
         )}
       </main>
 
@@ -178,7 +217,8 @@ export default function Page() {
         <SlipCreationStepFooter
           mode="submit"
           confirmDetailsChecked={confirmDetailsChecked}
-          isAccordionComplete={() => true}
+          isAccordionComplete={() => caseReady}
+          incompleteFieldLabel={incompleteFieldLabel}
           onConfirmDetailsChange={setConfirmDetailsChecked}
           onSubmit={() => {
             console.log("Submit case")

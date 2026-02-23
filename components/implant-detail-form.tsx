@@ -133,31 +133,31 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
 
   useEffect(() => {
     if (selectedPlatform?.name && !selectedSize) {
-      const timer = setTimeout(() => setSizeOpen(true), 100)
+      const timer = setTimeout(() => setSizeOpen(true), 150)
       return () => clearTimeout(timer)
     }
   }, [selectedPlatform?.name, selectedSize])
 
   useEffect(() => {
-    // Only auto-open inclusions dropdown when platform AND size are both selected
+    // Auto-open inclusions dropdown when it becomes visible and is empty
     if (showInclusions && !inclusions && selectedPlatform?.name && selectedSize) {
-      const timer = setTimeout(() => setInclusionsOpen(true), 100)
+      const timer = setTimeout(() => setInclusionsOpen(true), 150)
       return () => clearTimeout(timer)
     }
   }, [showInclusions, inclusions, selectedPlatform?.name, selectedSize])
 
   useEffect(() => {
-    // Only auto-open abutment detail dropdown when inclusions is selected
+    // Auto-open abutment detail dropdown when it becomes visible and is empty
     if (showAbutmentRow && !abutmentDetail && inclusions) {
-      const timer = setTimeout(() => setAbutmentDetailOpen(true), 100)
+      const timer = setTimeout(() => setAbutmentDetailOpen(true), 150)
       return () => clearTimeout(timer)
     }
   }, [showAbutmentRow, abutmentDetail, inclusions])
 
   useEffect(() => {
-    // Only auto-open abutment type dropdown when abutment detail is selected
+    // Auto-open abutment type dropdown when it becomes visible and is empty
     if (showAbutmentType && !abutmentType && abutmentDetail) {
-      const timer = setTimeout(() => setAbutmentTypeOpen(true), 100)
+      const timer = setTimeout(() => setAbutmentTypeOpen(true), 150)
       return () => clearTimeout(timer)
     }
   }, [showAbutmentType, abutmentType, abutmentDetail])

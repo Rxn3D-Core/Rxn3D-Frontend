@@ -1,28 +1,22 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import type { AddedProduct } from "../types";
 
-export function useProductManagement() {
-  const [addedProducts, setAddedProducts] = useState<AddedProduct[]>([]);
+export function useProductManagement(
+  externalProducts?: AddedProduct[],
+  onProductsChange?: (products: AddedProduct[]) => void
+) {
+  const [internalProducts, setInternalProducts] = useState<AddedProduct[]>([]);
 
-  useEffect(() => {
-    try {
-      const cached = localStorage.getItem("cdc_added_products");
-      if (cached) {
-        setAddedProducts(JSON.parse(cached));
-      }
-    } catch (e) {
-      console.error("Failed to load cached products:", e);
-    }
-  }, []);
+  // Use external products if provided, otherwise fall back to internal state
+  const addedProducts = externalProducts ?? internalProducts;
 
   const persistAddedProducts = (products: AddedProduct[]) => {
-    setAddedProducts(products);
-    try {
-      localStorage.setItem("cdc_added_products", JSON.stringify(products));
-    } catch (e) {
-      console.error("Failed to cache products:", e);
+    if (onProductsChange) {
+      onProductsChange(products);
+    } else {
+      setInternalProducts(products);
     }
   };
 

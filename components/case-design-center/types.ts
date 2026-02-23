@@ -12,10 +12,20 @@ export interface CaseDesignProps {
   selectedProductId?: number;
   /** When true, hides Back to Products and makes all panel fields read-only. */
   caseSubmitted?: boolean;
+  /** Called whenever the "all teeth have impression complete" state changes. */
+  onReadinessChange?: (ready: boolean) => void;
+  /** Called with a human-readable label of the first incomplete required field, or null when complete. */
+  onIncompleteFieldChange?: (label: string | null) => void;
+  /** Externally controlled list of added products (from page-level state) */
+  addedProducts?: AddedProduct[];
+  /** Called when addedProducts changes internally (toggle expand, remove) */
+  onProductsChange?: (products: AddedProduct[]) => void;
 }
 
 export interface AddedProduct {
   id: number;
+  /** The real product ID from the API, used to fetch full ProductApiData when a tooth is assigned. */
+  productId?: number;
   product: any;
   arch: string;
   expanded: boolean;

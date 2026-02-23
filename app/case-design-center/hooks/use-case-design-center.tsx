@@ -4855,7 +4855,7 @@ export function useCaseDesignCenter() {
           const isImplant = retention.toLowerCase().includes("implant") || retention.toLowerCase().includes("screw")
 
           // Main fabrication line
-          notes += `Fabricate ${productName} for ${teeth} in the ${stage} stage, using tooth shade Vita 3D Master ${toothShade} and stump shade ${stumpShade}. Retention: ${retention}.`
+          notes += `Please fabricate a ${productName} for teeth ${teeth} in the ${stage} stage. Tooth shade is ${toothShade}, with stump shade ${stumpShade}. Retention is ${retention}.`
 
           // Show implant details if it's an implant case
           if (isImplant) {
@@ -4864,19 +4864,12 @@ export function useCaseDesignCenter() {
             const size = product.maxillaryImplantSize
             const inclusions = product.maxillaryImplantInclusions
             const abutmentType = product.maxillaryAbutmentType || "custom"
-            const abutmentDetail = product.maxillaryAbutmentDetail || "the office"
+            const abutmentDetail = product.maxillaryAbutmentDetail || "office to provide"
 
             if (brand && platform && size && inclusions) {
-              notes += ` Implant: ${brand}, ${platform}, ${size}, with ${inclusions}; using a ${abutmentType} abutment provided by ${abutmentDetail}.`
+              notes += ` The implant is a ${brand}, ${platform}, ${size}, with ${inclusions}. The abutment will be ${abutmentDetail}, and we'll be using a ${abutmentType}.`
             }
           }
-
-          const ponticDesign = product.maxillaryPonticDesign || "Modified ridge pontic"
-          const embrasure = product.maxillaryEmbrasure || "Type II embrasures"
-          const contourPonticType = product.maxillaryContourPonticType || "POS pontic design"
-          const proximalContact = product.maxillaryProximalContact || "open proximal contact"
-          const occlusalContact = product.maxillaryOcclusalContact || "standard occlusal contact"
-          const gap = product.maxillaryGap || ""
 
           // Format impressions with quantities
           let impressionText = "STL file"
@@ -4890,14 +4883,9 @@ export function useCaseDesignCenter() {
 
           const addOns = product.maxillaryAddOns && product.maxillaryAddOns.length > 0
             ? product.maxillaryAddOns.join(", ")
-            : "selected"
+            : "none"
 
-          // Get advance fields for maxillary
-          const advanceFieldsText = formatAdvanceFields(product, "maxillary")
-          const advanceFieldsSection = advanceFieldsText ? ` Advanced fields: ${advanceFieldsText}.` : ""
-
-          const gapText = gap ? `, gap: ${gap}` : ""
-          notes += ` Design specifications: ${ponticDesign}, ${embrasure}, ${contourPonticType}, ${proximalContact}, ${occlusalContact}${gapText}. Impression: ${impressionText}. Add-ons ${addOns}.${advanceFieldsSection}`
+          notes += ` For design, please open virtual slip. Impression used: ${impressionText}. Add-ons requested: ${addOns}.`
         } else if (isRemovable) {
           const teeth = formatTeethNumbers(product.maxillaryTeeth)
           const productName = product.product.name || "removable restoration"
@@ -4918,18 +4906,14 @@ export function useCaseDesignCenter() {
 
           const addOns = product.maxillaryAddOns && product.maxillaryAddOns.length > 0
             ? product.maxillaryAddOns.join(", ")
-            : "selected"
+            : "none"
 
-          // Get advance fields for maxillary
-          const advanceFieldsText = formatAdvanceFields(product, "maxillary")
-          const advanceFieldsSection = advanceFieldsText ? ` Advanced fields: ${advanceFieldsText}.` : ""
-
-          notes += `Fabricate a ${grade} ${productName} replacing teeth ${teeth}, in the ${stage} stage. Use ${teethShade} denture teeth with ${gumShade} gingiva. Impression: ${impressionText}. Add-ons ${addOns}.${advanceFieldsSection}`
+          notes += `Please fabricate a ${grade} ${productName} replacing teeth ${teeth}, in the ${stage} stage. Use ${teethShade} denture teeth with ${gumShade} gingiva. Impression is ${impressionText}. Add-ons include: ${addOns}.`
         } else if (isOrthodontic) {
           const productName = product.product.name || "orthodontic appliance"
           const instructions = product.maxillaryImplantDetails || "Standard specifications"
 
-          notes += `Fabricate a ${productName} with the following details: ${instructions}`
+          notes += `Maxillary: Please fabricate a ${productName} with the following details: ${instructions}.`
         }
       })
 
@@ -4957,7 +4941,8 @@ export function useCaseDesignCenter() {
           const retention = product.mandibularRetention || "cement-retained"
           const isImplant = retention.toLowerCase().includes("implant") || retention.toLowerCase().includes("screw")
 
-          notes += `Fabricate ${productName} for ${teeth} in the ${stage} stage, using tooth shade Vita 3D Master ${toothShade} and stump shade ${stumpShade}. Retention: ${retention}.`
+          // Main fabrication line
+          notes += `Please fabricate a ${productName} for teeth ${teeth} in the ${stage} stage. Tooth shade is ${toothShade}, with stump shade ${stumpShade}. Retention is ${retention}.`
 
           // Show implant details if it's an implant case
           if (isImplant) {
@@ -4966,19 +4951,12 @@ export function useCaseDesignCenter() {
             const size = product.mandibularImplantSize
             const inclusions = product.mandibularImplantInclusions
             const abutmentType = product.mandibularAbutmentType || "custom"
-            const abutmentDetail = product.mandibularAbutmentDetail || "the office"
+            const abutmentDetail = product.mandibularAbutmentDetail || "office to provide"
 
             if (brand && platform && size && inclusions) {
-              notes += ` Implant: ${brand}, ${platform}, ${size}, with ${inclusions}; using a ${abutmentType} abutment provided by ${abutmentDetail}.`
+              notes += ` The implant is a ${brand}, ${platform}, ${size}, with ${inclusions}. The abutment will be ${abutmentDetail}, and we'll be using a ${abutmentType}.`
             }
           }
-
-          const ponticDesign = product.mandibularPonticDesign || "Modified ridge pontic"
-          const embrasure = product.mandibularEmbrasure || "Type II embrasures"
-          const contourPonticType = product.mandibularContourPonticType || "POS pontic design"
-          const proximalContact = product.mandibularProximalContact || "open proximal contact"
-          const occlusalContact = product.mandibularOcclusalContact || "standard occlusal contact"
-          const gap = product.mandibularGap || ""
 
           // Format impressions with quantities
           let impressionText = "STL file"
@@ -4992,14 +4970,9 @@ export function useCaseDesignCenter() {
 
           const addOns = product.mandibularAddOns && product.mandibularAddOns.length > 0
             ? product.mandibularAddOns.join(", ")
-            : "selected"
+            : "none"
 
-          // Get advance fields for mandibular
-          const advanceFieldsText = formatAdvanceFields(product, "mandibular")
-          const advanceFieldsSection = advanceFieldsText ? ` Advanced fields: ${advanceFieldsText}.` : ""
-
-          const gapText = gap ? `, gap: ${gap}` : ""
-          notes += ` Design specifications: ${ponticDesign}, ${embrasure}, ${contourPonticType}, ${proximalContact}, ${occlusalContact}${gapText}. Impression: ${impressionText}. Add-ons ${addOns}.${advanceFieldsSection}`
+          notes += ` For design, please open virtual slip. Impression used: ${impressionText}. Add-ons requested: ${addOns}.`
         } else if (isRemovable) {
           const teeth = formatTeethNumbers(product.mandibularTeeth)
           const productName = product.product.name || "removable restoration"
@@ -5020,18 +4993,14 @@ export function useCaseDesignCenter() {
 
           const addOns = product.mandibularAddOns && product.mandibularAddOns.length > 0
             ? product.mandibularAddOns.join(", ")
-            : "Selected"
+            : "none"
 
-          // Get advance fields for mandibular
-          const advanceFieldsText = formatAdvanceFields(product, "mandibular")
-          const advanceFieldsSection = advanceFieldsText ? ` Advanced fields: ${advanceFieldsText}.` : ""
-
-          notes += `Fabricate a ${grade} ${productName} replacing teeth ${teeth}, in the ${stage} stage. Use ${teethShade} denture teeth with ${gumShade} gingiva. Impression: ${impressionText}. Add-ons ${addOns}.${advanceFieldsSection}`
+          notes += `Please fabricate a ${grade} ${productName} replacing teeth ${teeth}, in the ${stage} stage. Use ${teethShade} denture teeth with ${gumShade} gingiva. Impression is ${impressionText}. Add-ons include: ${addOns}.`
         } else if (isOrthodontic) {
           const productName = product.product.name || "orthodontic appliance"
-          const instructions = product.maxillaryImplantDetails || "Standard specifications"
+          const instructions = product.mandibularImplantDetails || "Standard specifications"
 
-          notes += `Fabricate a ${productName} with the following details: ${instructions}`
+          notes += `Mandibular: Please fabricate a ${productName} with the following details: ${instructions}.`
         }
       })
     }

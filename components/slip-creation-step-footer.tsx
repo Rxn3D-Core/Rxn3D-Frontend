@@ -24,6 +24,8 @@ interface SlipCreationStepFooterProps {
   confirmDetailsChecked?: boolean
   /** Function to check if accordion/products are complete */
   isAccordionComplete?: () => boolean
+  /** Human-readable label of the first incomplete required field */
+  incompleteFieldLabel?: string | null
   /** Handler for submit action */
   onSubmit?: () => void
   /** Handler for confirm details checkbox change */
@@ -43,6 +45,7 @@ export function SlipCreationStepFooter({
   isSubmitting = false,
   confirmDetailsChecked = false,
   isAccordionComplete,
+  incompleteFieldLabel,
   onSubmit,
   onConfirmDetailsChange,
   onShowSubmitPopoverChange,
@@ -153,6 +156,15 @@ export function SlipCreationStepFooter({
                 >
                   Previous
                 </Button>
+              )}
+
+              {mode === "submit" && !isAccordionComplete?.() && (
+                <span className="text-[13px] text-[#CF0202] flex items-center gap-1">
+                  <TriangleAlert size={14} />
+                  {incompleteFieldLabel
+                    ? `Complete ${incompleteFieldLabel} before submitting.`
+                    : "Complete all required fields before submitting."}
+                </span>
               )}
 
               {mode === "submit" && isAccordionComplete?.() && (

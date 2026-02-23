@@ -1030,18 +1030,24 @@ export default function NewCaseWizard({
   startStep = 1,
   mode = "initial",
   initialLabId = null,
+  initialPatientName = "",
+  initialGender = "",
+  initialDoctor = undefined,
 }: {
   onComplete: (result: WizardResult) => void;
   onLabSelect?: (lab: WizardLabShape) => void;
   startStep?: number;
   mode?: "initial" | "addProduct";
   initialLabId?: number | null;
+  initialPatientName?: string;
+  initialGender?: string;
+  initialDoctor?: WizardDoctorShape;
 }) {
   const [step, setStep] = useState(startStep);
   const [selectedDoctor, setSelectedDoctor] = useState<number | null>(null);
   const [selectedLab, setSelectedLab] = useState<number | null>(initialLabId);
-  const [patientName, setPatientName] = useState("");
-  const [gender, setGender] = useState("");
+  const [patientName, setPatientName] = useState(initialPatientName);
+  const [gender, setGender] = useState(initialGender);
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [selectedSubProduct, setSelectedSubProduct] = useState<number | null>(null);
   const [selectedMaterial, setSelectedMaterial] = useState<string | null>(null);
@@ -1107,7 +1113,7 @@ export default function NewCaseWizard({
     [officeDoctorsRaw]
   );
 
-  const doctor = doctorsForWizard.find((d) => d.id === selectedDoctor);
+  const doctor = doctorsForWizard.find((d) => d.id === selectedDoctor) ?? initialDoctor;
 
   // Step order: office_admin = Doctor(1) → Lab(2) → Patient(3)...; else (lab_admin, doctor, etc.) = Lab(1) → Doctor(2) → Patient(3)...
   const isStepDoctor = (s: number) => (s === 1 && role === "office_admin") || (s === 2 && role !== "office_admin");

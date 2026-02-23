@@ -224,6 +224,7 @@ interface MaxillaryPanelProps {
 
   // Add product callback
   onAddProduct?: (arch: Arch) => void;
+  disableAddProduct?: boolean;
 
   // Tooth selection
   maxillaryTeeth: number[];
@@ -283,6 +284,11 @@ interface MaxillaryPanelProps {
   toggleAddedProductExpanded: (productId: number) => void;
   handleRemoveAddedProduct: (productId: number) => void;
 
+  // Active product card tracking
+  activeProductCardId: number;
+  setActiveProductCardId: (id: number) => void;
+  getToothProductCard: (arch: Arch, toothNumber: number) => number;
+
   // Tooth field progress (Prep/Pontic step-by-step)
   isFieldVisible: (arch: Arch, toothNumber: number, step: FieldStep, fixedChain?: readonly string[]) => boolean;
   isFieldCompleted: (arch: Arch, toothNumber: number, step: FieldStep) => boolean;
@@ -308,6 +314,7 @@ export function MaxillaryPanel({
   showDetails,
   caseSubmitted = false,
   onAddProduct,
+  disableAddProduct = false,
   maxillaryTeeth,
   handleMaxillaryToothClick,
   maxillaryRetentionTypes,
@@ -340,6 +347,9 @@ export function MaxillaryPanel({
   addedProducts,
   toggleAddedProductExpanded,
   handleRemoveAddedProduct,
+  activeProductCardId,
+  setActiveProductCardId,
+  getToothProductCard,
   isFieldVisible,
   isFieldCompleted,
   completeFieldStep,
@@ -365,8 +375,9 @@ export function MaxillaryPanel({
         </h3>
         {showDetails && !caseSubmitted && (
           <button
-            onClick={() => onAddProduct?.("maxillary")}
-            className="flex items-center gap-1.5 bg-[#1162A8] hover:bg-[#0d4a85] shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] text-white font-[Verdana] text-[10px] leading-[22px] tracking-[-0.02em] text-center px-2.5 py-0 rounded-md"
+            onClick={!disableAddProduct ? () => onAddProduct?.("maxillary") : undefined}
+            title={disableAddProduct ? "Complete all required fields before adding another product" : undefined}
+            className={`flex items-center gap-1.5 shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] text-white font-[Verdana] text-[10px] leading-[22px] tracking-[-0.02em] text-center px-2.5 py-0 rounded-md ${disableAddProduct ? "bg-[#b4b0b0] cursor-not-allowed opacity-60" : "bg-[#1162A8] hover:bg-[#0d4a85] cursor-pointer"}`}
           >
             <Plus size={13} strokeWidth={1.5} />
             Add Product
@@ -529,6 +540,16 @@ export function MaxillaryPanel({
               const isFixed = (step: FieldStep) =>
                 isFieldVisible("maxillary", firstToothNumber, step, fixedChain);
 
+              // Gate: hide product fields while shade guide is open and incomplete for this product
+              const _fixedShadeProductId = `fixed_${firstToothNumber}`;
+              const fixedShadeIncomplete =
+                shadeSelectionState.productId === _fixedShadeProductId &&
+                shadeSelectionState.arch === "maxillary" &&
+                !(
+                  getSelectedShade(_fixedShadeProductId, "maxillary", "stump_shade") &&
+                  getSelectedShade(_fixedShadeProductId, "maxillary", "tooth_shade")
+                );
+
               return (
               <div
                 key={`prep-pontic-group-${groupKey}`}
@@ -639,7 +660,7 @@ export function MaxillaryPanel({
                       />
                       <AutoOpenImpressionIfEmpty
                         isExpanded={isPrepPonticExpanded(firstToothNumber)}
-                        isImpressionVisible={isFixed("fixed_impression")}
+                        isImpressionVisible={!fixedShadeIncomplete && isFixed("fixed_impression")}
                         isImpressionEmpty={!isFieldCompleted("maxillary", firstToothNumber, "fixed_impression")}
                         onOpenImpressionModal={handleOpenImpressionModal}
                         arch="maxillary"
@@ -664,6 +685,9 @@ export function MaxillaryPanel({
                           value={retentionTypes.includes("Implant") ? "Screwed" : "Cemented"}
                         />
                       </div>
+
+                      {/* All remaining fields hidden until both shades are selected */}
+                      {!fixedShadeIncomplete && <>
 
                       {/* Step 1 & 2: Stage and Stump Shade in one row */}
                       {(isFixed("fixed_stage") || isFixed("fixed_stump_shade")) && (
@@ -946,13 +970,13 @@ export function MaxillaryPanel({
                               className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
                                 isFieldCompleted("maxillary", firstToothNumber, "fixed_addons")
                                   ? "border-[#34a853]"
-                                  : "border-[#CF0202]"
+                                  : "border-[#d9d9d9]"
                               }`}
                               onClick={() => {
                                 handleOpenAddOnsModal("maxillary", selectedProduct?.id?.toString() || `fixed_${firstToothNumber}`, firstToothNumber);
                               }}
                             >
-                              <legend className={`text-[11px] px-1 leading-none ${isFieldCompleted("maxillary", firstToothNumber, "fixed_addons") ? "text-[#34a853]" : "text-[#CF0202]"}`}>
+                              <legend className={`text-[11px] px-1 leading-none ${isFieldCompleted("maxillary", firstToothNumber, "fixed_addons") ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>
                                 Add ons
                               </legend>
                               <div className="flex items-center gap-2 w-full">
@@ -970,16 +994,16 @@ export function MaxillaryPanel({
                         </div>
                       )}
 
-                      {/* Step 10: Additional notes */}
+                      {/* Additional notes — only shown when advance_fields includes a notes field */}
                       {isFixed("fixed_notes") && (
                         <fieldset
                           className={`border rounded px-3 pb-2 pt-0 ${
                             isFieldCompleted("maxillary", firstToothNumber, "fixed_notes")
                               ? "border-[#34a853]"
-                              : "border-[#CF0202]"
+                              : "border-[#d9d9d9]"
                           }`}
                         >
-                          <legend className={`text-[11px] px-1 leading-none ${isFieldCompleted("maxillary", firstToothNumber, "fixed_notes") ? "text-[#34a853]" : "text-[#CF0202]"}`}>
+                          <legend className={`text-[11px] px-1 leading-none ${isFieldCompleted("maxillary", firstToothNumber, "fixed_notes") ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>
                             Additional notes
                           </legend>
                           <textarea
@@ -995,8 +1019,8 @@ export function MaxillaryPanel({
                         </fieldset>
                       )}
 
-                      {/* Bottom action buttons — shown after Add ons is completed */}
-                      {isFieldCompleted("maxillary", firstToothNumber, "fixed_addons") && (
+                      {/* Bottom action buttons — shown after Impression is completed */}
+                      {isFieldCompleted("maxillary", firstToothNumber, "fixed_impression") && (
                         <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 pt-3 border-t border-[#d9d9d9] mt-3">
                           <button
                             onClick={() => {
@@ -1044,6 +1068,7 @@ export function MaxillaryPanel({
                           </button>
                         </div>
                       )}
+                      </>}
                     </>
                   ) : (
                     <>
@@ -1347,7 +1372,174 @@ export function MaxillaryPanel({
             });
           })()}
 
-        
+          {/* Added product accordions — full field workflow, teeth owned by each card */}
+          {showDetails && !caseSubmitted && addedProducts
+            .filter(ap => ap.arch === "maxillary")
+            .map((ap, apIndex) => {
+              const cardTeeth = maxillaryTeeth.filter(
+                tn => getToothProductCard("maxillary", tn) === ap.id
+              );
+              const cardProduct = cardTeeth.length > 0
+                ? getToothProduct("maxillary", cardTeeth[0])
+                : null;
+              const cardProductName = cardProduct?.name || ap.product.name || "Untitled Product";
+              const cardProductImage = cardProduct?.image_url || ap.product.image_url || null;
+              const cardCategoryName = cardProduct?.subcategory?.category?.name || ap.product.category_name || "";
+              const cardSubcategoryName = cardProduct?.subcategory?.name || ap.product.subcategory_name || "";
+              const cardToothDisplay = cardTeeth.map(n => `#${n}`).join(", ");
+              const isActive = activeProductCardId === ap.id;
+
+              return (
+                <div
+                  key={ap.id}
+                  className="rounded-lg bg-white overflow-hidden border border-[#d9d9d9] mt-3"
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      toggleAddedProductExpanded(ap.id);
+                      setActiveProductCardId(isActive ? 0 : ap.id);
+                    }}
+                    className={`w-full flex items-center py-[14px] px-2 gap-[10px] transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] ${isActive ? "bg-[#c8e2f7] hover:bg-[#b8d8f4]" : "bg-[#DFEEFB] hover:bg-[#d4e8f8]"}`}
+                  >
+                    <div className="w-16 h-[62px] rounded-md bg-white flex items-center justify-center flex-shrink-0 overflow-hidden">
+                      {cardProductImage ? (
+                        <img src={cardProductImage} alt={cardProductName} className="w-[61.58px] h-[28.79px] object-contain" />
+                      ) : (
+                        <div className="w-[61.58px] h-[28.79px] bg-gray-100 rounded flex items-center justify-center">
+                          <span className="text-[10px] text-gray-400">No img</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0 text-left flex flex-col">
+                      <p className="font-[Verdana] text-[14.4px] leading-[20px] tracking-[-0.02em] text-black">
+                        {cardProductName}
+                      </p>
+                      {cardToothDisplay && (
+                        <p className="font-[Verdana] text-[14.4px] leading-[20px] tracking-[-0.02em] text-black">
+                          {cardToothDisplay}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-[5px] flex-wrap">
+                        <span className="font-[Verdana] text-[10px] leading-[22px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[10px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]">
+                          Product {apIndex + 2}
+                        </span>
+                        {cardCategoryName && (
+                          <span className="font-[Verdana] text-[10px] leading-[22px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[10px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]">
+                            {cardCategoryName}
+                          </span>
+                        )}
+                        {cardSubcategoryName && (
+                          <span className="font-[Verdana] text-[10px] leading-[22px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[10px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]">
+                            {cardSubcategoryName}
+                          </span>
+                        )}
+                        <span className="font-[Verdana] text-[10px] leading-[22px] tracking-[-0.02em] text-[#B4B0B0]">
+                          {isActive ? "Active — click teeth to assign" : "Click to activate"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); handleRemoveAddedProduct(ap.id); }}
+                          className="ml-1 hover:text-red-500 transition-colors"
+                          title="Remove product"
+                        >
+                          <Trash2 size={9} className="text-[#999999] hover:text-red-500" />
+                        </button>
+                      </div>
+                    </div>
+                    <ChevronDown
+                      size={21.6}
+                      className={`text-black flex-shrink-0 transition-transform ${ap.expanded ? "rotate-180" : ""}`}
+                    />
+                  </button>
+
+                  {ap.expanded && (
+                    <div className="border-t border-[#d9d9d9] p-2.5 sm:p-4 bg-white space-y-3 max-h-[600px] overflow-y-auto scrollbar-blue">
+                      {cardTeeth.length === 0 ? (
+                        <p className="text-[12px] text-[#b4b0b0] text-center py-4">
+                          Select teeth from the chart above to assign them to this product.
+                        </p>
+                      ) : (
+                        cardTeeth.map(tn => {
+                          const toothProduct = getToothProduct("maxillary", tn);
+                          const isFixed = toothProduct?.subcategory?.category?.name === "Fixed Restoration";
+                          const fixedChain = isFixed ? getFixedFieldChain(toothProduct?.advance_fields) : undefined;
+                          const isF = (step: string) => isFieldVisible("maxillary", tn, step as any, fixedChain);
+                          const isFComplete = (step: string) => isFieldCompleted("maxillary", tn, step as any);
+                          const fVal = (step: string) => getFieldValue("maxillary", tn, step as any);
+
+                          return (
+                            <div key={tn} className="border border-[#e5e7eb] rounded-lg p-3 space-y-3">
+                              <p className="font-[Verdana] text-[11px] font-semibold text-[#1d1d1b]">Tooth #{tn}</p>
+
+                              {/* Product - Material */}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <fieldset className="border border-[#34a853] rounded px-3 py-0 relative h-[42px] flex items-center">
+                                  <legend className="text-[11px] text-[#34a853] px-1">Product - Material</legend>
+                                  <span className="text-[13px] text-[#1d1d1b] truncate">{toothProduct?.name || cardProductName}</span>
+                                  <Check size={14} className="text-[#34a853] ml-auto flex-shrink-0" />
+                                </fieldset>
+                              </div>
+
+                              {/* Stage */}
+                              {(isFixed ? isF("fixed_stage") : isF("stage")) && (
+                                <fieldset
+                                  className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${isFComplete(isFixed ? "fixed_stage" : "stage") ? "border-[#34a853]" : "border-[#CF0202]"}`}
+                                  onClick={() => handleOpenStageModal(isFixed ? `maxillary_fixed_${tn}` : `maxillary_prep_${tn}`, "maxillary", tn)}
+                                >
+                                  <legend className={`text-[11px] px-1 ${isFComplete(isFixed ? "fixed_stage" : "stage") ? "text-[#34a853]" : "text-[#CF0202]"}`}>Stage</legend>
+                                  <span className="text-[13px] text-[#1d1d1b] truncate flex-1">{fVal(isFixed ? "fixed_stage" : "stage") || selectedStages[isFixed ? `maxillary_fixed_${tn}` : `maxillary_prep_${tn}`] || ""}</span>
+                                  {isFComplete(isFixed ? "fixed_stage" : "stage") && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
+                                </fieldset>
+                              )}
+
+                              {/* Impression */}
+                              {(isFixed ? isF("fixed_impression") : isF("impression")) && (
+                                <fieldset
+                                  className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${isFComplete(isFixed ? "fixed_impression" : "impression") ? "border-[#34a853]" : "border-[#CF0202]"}`}
+                                  onClick={() => handleOpenImpressionModal("maxillary", isFixed ? `maxillary_fixed_${tn}` : `maxillary_prep_${tn}`, tn)}
+                                >
+                                  <legend className={`text-[11px] px-1 ${isFComplete(isFixed ? "fixed_impression" : "impression") ? "text-[#34a853]" : "text-[#CF0202]"}`}>Impression</legend>
+                                  <span className="text-[13px] text-[#1d1d1b] truncate flex-1">{fVal(isFixed ? "fixed_impression" : "impression") || getImpressionDisplayText(isFixed ? `maxillary_fixed_${tn}` : `maxillary_prep_${tn}`, "maxillary", tn)}</span>
+                                  {isFComplete(isFixed ? "fixed_impression" : "impression") && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
+                                </fieldset>
+                              )}
+
+                              {/* Add-ons */}
+                              {(isFixed ? isF("fixed_addons") : isF("addons")) && (
+                                <fieldset
+                                  className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${isFComplete(isFixed ? "fixed_addons" : "addons") ? "border-[#34a853]" : "border-[#d9d9d9]"}`}
+                                  onClick={() => handleOpenAddOnsModal("maxillary", isFixed ? `maxillary_fixed_${tn}` : `maxillary_prep_${tn}`, tn)}
+                                >
+                                  <legend className={`text-[11px] px-1 ${isFComplete(isFixed ? "fixed_addons" : "addons") ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>Add ons</legend>
+                                  <span className="text-[13px] text-[#1d1d1b] truncate flex-1">{fVal(isFixed ? "fixed_addons" : "addons") || "0 selected"}</span>
+                                  {isFComplete(isFixed ? "fixed_addons" : "addons") && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
+                                </fieldset>
+                              )}
+                            </div>
+                          );
+                        })
+                      )}
+
+                      {/* Bottom actions */}
+                      <div className="flex items-center justify-center gap-4 pt-3 border-t border-[#d9d9d9] mt-3">
+                        <button
+                          type="button"
+                          onClick={() => setShowAttachModal(true)}
+                          className="flex-none w-[123.04px] h-[46.22px] rounded-[5.27px] bg-[#F9F9F9] shadow-[0.88px_0.88px_3.07px_rgba(0,0,0,0.25)] flex flex-col items-center justify-center gap-0.5 hover:bg-[#f0f0f0] transition-colors"
+                        >
+                          <Paperclip size={10} className="text-[#1E1E1E]" strokeWidth={1.5} />
+                          <span className="font-['Verdana'] font-normal text-[8.78px] leading-[19px] text-center tracking-[-0.02em] text-black whitespace-nowrap">Attach Files</span>
+                        </button>
+                      </div>
+                      <ScrollToBottom />
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          }
+
         </>
       )}
     </div>

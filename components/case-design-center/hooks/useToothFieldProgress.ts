@@ -61,6 +61,8 @@ const FIXED_STEP_ADVANCE_FIELD_PATTERNS: Record<string, (name: string) => boolea
   fixed_margin:            (n) => n.includes("margin"),
   fixed_metal:             (n) => n.includes("metal"),
   fixed_proximal_contact:  (n) => n.includes("proximal") && n.includes("contact"),
+  fixed_addons:            (n) => n.includes("add") && (n.includes("on") || n.includes("addon")),
+  fixed_notes:             (n) => n.includes("note") || n.includes("additional"),
 };
 
 /**
@@ -114,6 +116,11 @@ export function useToothFieldProgress() {
   // Tracks which tooth keys are currently loading product data
   const [loadingProducts, setLoadingProducts] = useState<
     Record<string, boolean>
+  >({});
+
+  // Maps tooth key -> the AddedProduct card ID that "owns" this tooth (0 = initial product)
+  const [toothProductCardMap, setToothProductCardMap] = useState<
+    Record<string, number>
   >({});
 
   /** Get the current visible step index for a tooth within a given chain */
@@ -226,6 +233,24 @@ export function useToothFieldProgress() {
     [loadingProducts]
   );
 
+  /** Get the product card ID that owns a tooth (0 = initial product) */
+  const getToothProductCard = useCallback(
+    (arch: Arch, toothNumber: number): number => {
+      const key = toothKey(arch, toothNumber);
+      return toothProductCardMap[key] ?? 0;
+    },
+    [toothProductCardMap]
+  );
+
+  /** Assign a tooth to a product card */
+  const setToothProductCard = useCallback(
+    (arch: Arch, toothNumber: number, cardId: number) => {
+      const key = toothKey(arch, toothNumber);
+      setToothProductCardMap((prev) => ({ ...prev, [key]: cardId }));
+    },
+    []
+  );
+
   /** Remove all progress for a tooth (when deselected) */
   const clearToothProgress = useCallback(
     (arch: Arch, toothNumber: number) => {
@@ -246,6 +271,10 @@ export function useToothFieldProgress() {
         const { [key]: _, ...rest } = prev;
         return rest;
       });
+      setToothProductCardMap((prev) => {
+        const { [key]: _, ...rest } = prev;
+        return rest;
+      });
     },
     []
   );
@@ -261,5 +290,7 @@ export function useToothFieldProgress() {
     setProductLoading,
     isProductLoading,
     clearToothProgress,
+    getToothProductCard,
+    setToothProductCard,
   };
 }

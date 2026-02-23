@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import type { CaseDesignProps } from "../types";
 import { productImpressionsToModalOptions } from "../types";
 import { useCaseDesignState } from "../hooks/useCaseDesignState";
@@ -24,12 +25,81 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     return IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("mandibular", n, step));
   });
 
+  // True only when at least one tooth exists AND every tooth has impression complete
+  const hasAnyTooth =
+    Object.keys(state.maxillaryRetentionTypes).length > 0 ||
+    Object.keys(state.mandibularRetentionTypes || {}).length > 0;
+
+  const allTeethImpressionComplete =
+    hasAnyTooth &&
+    Object.keys(state.maxillaryRetentionTypes).every((toothNum) => {
+      const n = Number(toothNum);
+      return IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("maxillary", n, step));
+    }) &&
+    Object.keys(state.mandibularRetentionTypes || {}).every((toothNum) => {
+      const n = Number(toothNum);
+      return IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("mandibular", n, step));
+    });
+
+  // True if ANY tooth has a retention type but hasn't completed impression yet
+  const hasIncompleteAccordion =
+    Object.keys(state.maxillaryRetentionTypes).some((toothNum) => {
+      const n = Number(toothNum);
+      return !IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("maxillary", n, step));
+    }) ||
+    Object.keys(state.mandibularRetentionTypes || {}).some((toothNum) => {
+      const n = Number(toothNum);
+      return !IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("mandibular", n, step));
+    });
+
+  // Compute a human-readable label for the first incomplete required field across all teeth
+  const incompleteFieldLabel = (() => {
+    const allArchTeeth: Array<{ arch: "maxillary" | "mandibular"; toothNum: number }> = [
+      ...Object.keys(state.maxillaryRetentionTypes).map((t) => ({ arch: "maxillary" as const, toothNum: Number(t) })),
+      ...Object.keys(state.mandibularRetentionTypes || {}).map((t) => ({ arch: "mandibular" as const, toothNum: Number(t) })),
+    ];
+    for (const { arch, toothNum } of allArchTeeth) {
+      const product = state.getToothProduct(arch, toothNum);
+      const isFixedRestoration = product?.subcategory?.category?.name === "Fixed Restoration";
+      if (isFixedRestoration) {
+        const shadeProductId = `fixed_${toothNum}`;
+        if (!state.getSelectedShade(shadeProductId, arch, "stump_shade")) return "Stump Shade";
+        if (!state.getSelectedShade(shadeProductId, arch, "tooth_shade")) return "Tooth Shade";
+      }
+      const hasImpression = IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted(arch, toothNum, step));
+      if (!hasImpression) return "Impression";
+    }
+    return null;
+  })();
+
+  // True when any maxillary tooth has an incomplete required field (shade or impression)
+  const maxillaryIncomplete = Object.keys(state.maxillaryRetentionTypes).some((toothNum) => {
+    const n = Number(toothNum);
+    const product = state.getToothProduct("maxillary", n);
+    if (product?.subcategory?.category?.name === "Fixed Restoration") {
+      const shadeId = `fixed_${n}`;
+      if (!state.getSelectedShade(shadeId, "maxillary", "stump_shade")) return true;
+      if (!state.getSelectedShade(shadeId, "maxillary", "tooth_shade")) return true;
+    }
+    return !IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("maxillary", n, step));
+  });
+
+  // Notify parent whenever readiness changes
+  useEffect(() => {
+    props.onReadinessChange?.(allTeethImpressionComplete);
+  }, [allTeethImpressionComplete]);
+
+  useEffect(() => {
+    props.onIncompleteFieldChange?.(incompleteFieldLabel);
+  }, [incompleteFieldLabel]);
+
   return (
     <div className="px-2 md:px-4 py-4 pb-20">
       {props.onBackToProducts && !props.caseSubmitted && (
         <button
-          onClick={props.onBackToProducts}
-          className="text-[14px] font-semibold text-[#1162A8] hover:underline mb-2"
+          onClick={!hasIncompleteAccordion ? props.onBackToProducts : undefined}
+          title={hasIncompleteAccordion ? "Complete all required fields before going back" : undefined}
+          className={`text-[14px] font-semibold mb-2 ${hasIncompleteAccordion ? "text-[#b4b0b0] cursor-not-allowed" : "text-[#1162A8] hover:underline cursor-pointer"}`}
         >
           ← Back to Products
         </button>
@@ -49,6 +119,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           showDetails={maxillaryHasImpression}
           caseSubmitted={props.caseSubmitted}
           onAddProduct={state.onAddProduct}
+          disableAddProduct={hasIncompleteAccordion}
           // Tooth selection
           maxillaryTeeth={state.maxillaryTeeth}
           handleMaxillaryToothClick={state.handleMaxillaryToothClick}
@@ -87,6 +158,10 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           addedProducts={state.addedProducts}
           toggleAddedProductExpanded={state.toggleAddedProductExpanded}
           handleRemoveAddedProduct={state.handleRemoveAddedProduct}
+          // Active product card tracking
+          activeProductCardId={state.activeProductCardId}
+          setActiveProductCardId={state.setActiveProductCardId}
+          getToothProductCard={state.getToothProductCard}
           // Tooth field progress (Prep/Pontic step-by-step)
           isFieldVisible={state.isFieldVisible}
           isFieldCompleted={state.isFieldCompleted}
@@ -117,7 +192,9 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           setShowMandibular={state.setShowMandibular}
           showDetails={mandibularHasImpression}
           caseSubmitted={props.caseSubmitted}
+          disabled={maxillaryIncomplete}
           onAddProduct={state.onAddProduct}
+          disableAddProduct={hasIncompleteAccordion}
           // Tooth selection
           mandibularTeeth={state.mandibularTeeth}
           handleMandibularToothClick={state.handleMandibularToothClick}
@@ -154,6 +231,10 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           addedProducts={state.addedProducts}
           toggleAddedProductExpanded={state.toggleAddedProductExpanded}
           handleRemoveAddedProduct={state.handleRemoveAddedProduct}
+          // Active product card tracking
+          activeProductCardId={state.activeProductCardId}
+          setActiveProductCardId={state.setActiveProductCardId}
+          getToothProductCard={state.getToothProductCard}
           // Tooth field progress (Prep/Pontic step-by-step)
           isFieldVisible={state.isFieldVisible}
           isFieldCompleted={state.isFieldCompleted}
