@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { implantBrandPlatforms, implantBrandList } from "../constants";
 import { CardSelectorField } from "./fields/CardSelectorField";
 import { CardGallery } from "./fields/CardGallery";
@@ -26,14 +26,38 @@ export function ImplantDetailSection({ toothNumber }: ImplantDetailSectionProps)
   const [abutmentType, setAbutmentType] = useState("");
 
   const [activeCardType, setActiveCardType] = useState<ActiveCardType["right1"]>(null);
+  const [sizeDropdownOpen, setSizeDropdownOpen] = useState(false);
+  const [abutmentDetailDropdownOpen, setAbutmentDetailDropdownOpen] = useState(false);
+  const [abutmentTypeDropdownOpen, setAbutmentTypeDropdownOpen] = useState(false);
 
   const platforms = brand ? implantBrandPlatforms[brand] || [] : [];
+
+  // Auto-open Implant Size dropdown when it becomes visible (after platform selected)
+  useEffect(() => {
+    if (brand && platform && !size) {
+      setSizeDropdownOpen(true);
+    }
+  }, [brand, platform, size]);
 
   // Progressive visibility: each row unlocks after the previous is complete
   const row1Complete = !!brand && !!platform && !!size;
   const row2Visible = row1Complete;
   const row2Complete = row1Complete && !!inclusions.trim();
   const row3Visible = row2Complete;
+
+  // Auto-open Abutment Detail dropdown when row3 becomes visible
+  useEffect(() => {
+    if (row2Complete && !abutmentDetail) {
+      setAbutmentDetailDropdownOpen(true);
+    }
+  }, [row2Complete, abutmentDetail]);
+
+  // Auto-open Abutment Type dropdown after Abutment Detail is selected
+  useEffect(() => {
+    if (row2Complete && abutmentDetail && !abutmentType) {
+      setAbutmentTypeDropdownOpen(true);
+    }
+  }, [row2Complete, abutmentDetail, abutmentType]);
   const isComplete = row2Complete && !!abutmentDetail && !!abutmentType;
 
   const borderColor = isComplete ? "border-[#34a853]" : "border-[#CF0202]";
@@ -51,7 +75,7 @@ export function ImplantDetailSection({ toothNumber }: ImplantDetailSectionProps)
             #{toothNumber}
           </span>
         </div>
-        {/* Right section - form fields */}
+        {/* Right section - form fields (old design: grid row + progressive visibility) */}
         <div className="flex flex-col p-2.5 sm:pl-0 sm:pr-2.5 sm:py-2.5 gap-3 flex-1 min-w-0">
           {/* Row 1: Implant Brand → Platform (after brand) → Size (after platform) */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
@@ -77,13 +101,18 @@ export function ImplantDetailSection({ toothNumber }: ImplantDetailSectionProps)
               />
             )}
 
-            {/* Size — only visible after platform is selected */}
+            {/* Size — only visible after platform is selected; dropdown auto-opens */}
             {brand && platform && (
               <SelectField
                 label="Implant Size"
                 value={size}
                 options={implantSizes}
-                onChange={setSize}
+                onChange={(v) => {
+                  setSize(v);
+                  setSizeDropdownOpen(false);
+                }}
+                open={sizeDropdownOpen}
+                onOpenChange={setSizeDropdownOpen}
               />
             )}
 
@@ -112,7 +141,7 @@ export function ImplantDetailSection({ toothNumber }: ImplantDetailSectionProps)
             )}
           </div>
 
-          {/* Row 2: Implant Inclusions — visible after Brand + Platform + Size complete */}
+          {/* Row 2: Implant Inclusions — visible after Brand + Platform + Size complete; dropdown auto-opens */}
           {row2Visible && (
             <ImplantInclusionsField
               label="Implant inclusions"
@@ -120,23 +149,34 @@ export function ImplantDetailSection({ toothNumber }: ImplantDetailSectionProps)
               quantity={inclusionQty}
               onChange={setInclusions}
               onQuantityChange={setInclusionQty}
+              autoOpenWhenVisible
             />
           )}
 
-          {/* Row 3: Abutment Detail and Type — visible after inclusions complete */}
+          {/* Row 3: Abutment Detail and Type — visible after inclusions complete; dropdowns auto-open */}
           {row3Visible && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
               <SelectField
                 label="Abutment Detail"
                 value={abutmentDetail}
                 options={abutmentDetailOptions}
-                onChange={setAbutmentDetail}
+                onChange={(v) => {
+                  setAbutmentDetail(v);
+                  setAbutmentDetailDropdownOpen(false);
+                }}
+                open={abutmentDetailDropdownOpen}
+                onOpenChange={setAbutmentDetailDropdownOpen}
               />
               <SelectField
                 label="Abutment Type"
                 value={abutmentType}
                 options={abutmentTypeOptions}
-                onChange={setAbutmentType}
+                onChange={(v) => {
+                  setAbutmentType(v);
+                  setAbutmentTypeDropdownOpen(false);
+                }}
+                open={abutmentTypeDropdownOpen}
+                onOpenChange={setAbutmentTypeDropdownOpen}
               />
             </div>
           )}

@@ -10,12 +10,15 @@ export function ImplantInclusionsField({
   quantity,
   onChange,
   onQuantityChange,
+  autoOpenWhenVisible = false,
 }: {
   label: string;
   value: string;
   quantity: number;
   onChange: (v: string) => void;
   onQuantityChange: (qty: number) => void;
+  /** When true, open the dropdown automatically when the field is shown (e.g. when no value yet). */
+  autoOpenWhenVisible?: boolean;
 }) {
   const [showDropdown, setShowDropdown] = useState(false);
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
@@ -24,6 +27,13 @@ export function ImplantInclusionsField({
   const hasValue = value.trim().length > 0;
   const borderColor = hasValue ? "border-[#34a853]" : "border-[#cf0202]";
   const legendColor = hasValue ? "text-[#34a853]" : "text-[#cf0202]";
+
+  // Auto-open dropdown when field is shown and has no value yet
+  useEffect(() => {
+    if (autoOpenWhenVisible && !value.trim()) {
+      setShowDropdown(true);
+    }
+  }, [autoOpenWhenVisible, value]);
 
   useEffect(() => {
     if (showDropdown && triggerRef.current) {
@@ -129,13 +139,13 @@ export function ImplantInclusionsField({
     <>
       <fieldset
         ref={triggerRef}
-        className={`border rounded px-3 pb-2 pt-0 relative min-w-0 cursor-pointer ${borderColor}`}
+        className={`border rounded px-3 py-0 relative min-w-0 cursor-pointer h-[42px] flex items-center ${borderColor}`}
         onClick={() => setShowDropdown((prev) => !prev)}
       >
         <legend className={`text-[11px] px-1 leading-none whitespace-nowrap ${legendColor}`}>
           {label}
         </legend>
-        <div className="flex items-center gap-1 min-w-0 w-full">
+        <div className="flex items-center gap-1 min-w-0 w-full flex-1">
           <span className="flex-1 text-[13px] text-[#1d1d1b] min-w-0 truncate">
             {value || "Select..."}
           </span>

@@ -15,12 +15,17 @@ export function SelectField({
   options,
   onChange,
   required = false,
+  open,
+  onOpenChange,
 }: {
   label: string;
   value: string;
   options: string[];
   onChange: (v: string) => void;
   required?: boolean;
+  /** When set, controls the dropdown open state (e.g. for auto-open when field appears). */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const hasValue = value.trim().length > 0;
   const borderColor = hasValue ? "border-[#34a853]" : "border-[#cf0202]";
@@ -34,6 +39,8 @@ export function SelectField({
         <Select
           value={value || "__empty__"}
           onValueChange={(v) => onChange(v === "__empty__" ? "" : v)}
+          open={open}
+          onOpenChange={onOpenChange}
         >
           <SelectTrigger className="flex-1 text-[13px] text-[#1d1d1b] bg-transparent border-0 shadow-none outline-none leading-tight cursor-pointer min-w-0 h-auto py-1 px-0 focus:ring-0 [&>span]:truncate">
             <SelectValue placeholder="" />
