@@ -308,6 +308,63 @@ interface MaxillaryPanelProps {
   clearAllMaxillaryTeeth: () => void;
 }
 
+function hasAdvanceField(
+  step: string,
+  advanceFields: Array<{ name: string; field_type: string }> | undefined
+): boolean {
+  const alwaysShow = ["fixed_stage", "fixed_impression", "stage", "impression"];
+  if (alwaysShow.includes(step)) return true;
+  if (!advanceFields || advanceFields.length === 0) return true;
+
+  const names = advanceFields.map((f) => (f.name || "").toLowerCase());
+
+  switch (step) {
+    // Fixed restoration steps
+    case "fixed_stump_shade":
+      return names.some((n) => n.includes("stump") && n.includes("shade"));
+    case "fixed_shade_trio":
+      return names.some(
+        (n) =>
+          (n.includes("tooth") && n.includes("shade")) ||
+          (n.includes("crown") && n.includes("shade")) ||
+          n.includes("cervical") ||
+          n.includes("incisal") ||
+          n.includes("body shade")
+      );
+    case "fixed_characterization":
+      return names.some((n) => n.includes("characterization") || n.includes("character"));
+    case "fixed_contact_icons":
+      return names.some(
+        (n) =>
+          n.includes("occlusal") ||
+          n.includes("pontic") ||
+          n.includes("embrasure") ||
+          (n.includes("proximal") && n.includes("contact"))
+      );
+    case "fixed_margin":
+      return names.some((n) => n.includes("margin"));
+    case "fixed_metal":
+      return names.some((n) => n.includes("metal"));
+    case "fixed_proximal_contact":
+      return names.some((n) => n.includes("proximal") && n.includes("contact"));
+    case "fixed_addons":
+      return names.some((n) => n.includes("add") && (n.includes("on") || n.includes("addon")));
+    case "fixed_notes":
+      return names.some((n) => n.includes("note") || n.includes("additional"));
+    // Removable restoration steps
+    case "grade":
+      return names.some((n) => n.includes("grade"));
+    case "teeth_shade":
+      return names.some((n) => n.includes("teeth") && n.includes("shade"));
+    case "gum_shade":
+      return names.some((n) => n.includes("gum") && n.includes("shade"));
+    case "addons":
+      return names.some((n) => n.includes("add") && (n.includes("on") || n.includes("addon")));
+    default:
+      return true;
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /*  MaxillaryPanel                                                     */
 /* ------------------------------------------------------------------ */
@@ -528,6 +585,10 @@ export function MaxillaryPanel({
               const productImage = selectedProduct?.image_url || "/placeholder.svg?height=48&width=48&query=dental+crown+tooth";
               const categoryName = selectedProduct?.subcategory?.category?.name || "";
               const subcategoryName = selectedProduct?.subcategory?.name || "";
+
+              // Skip removables products — they have their own dedicated accordion section
+              const catLower = categoryName.toLowerCase();
+              if (catLower === "removables" || catLower === "removables restoration" || catLower === "removable restoration") return null;
               const estDays = selectedProduct
                 ? selectedProduct.min_days_to_process && selectedProduct.max_days_to_process
                   ? `${selectedProduct.min_days_to_process}-${selectedProduct.max_days_to_process} work days after submission`
@@ -539,7 +600,7 @@ export function MaxillaryPanel({
               // Stable key for stage so value is not lost when group order or implant section changes
               const groupStageToothNumber = Math.min(...toothNumbers);
               const groupStageProductIdFixed = `maxillary_fixed_${groupStageToothNumber}`;
-              const toothNumbersDisplay = toothNumbers.map((n) => `#${n}`).join(",");
+              const toothNumbersDisplay = `#${toothNumbers.join(",")}`;
               const retentionTypes = [...new Set(teeth.map((t) => t.retentionType))];
               const hasRushed = toothNumbers.some((n) => rushedProducts[`maxillary_prep_${n}`] || rushedProducts[`maxillary_fixed_${n}`]);
 
@@ -744,7 +805,7 @@ export function MaxillaryPanel({
                                 Stage
                               </legend>
                               <div className="flex items-center gap-2 w-full">
-                                <span className="text-[18px] font-bold text-[#000000]">
+                                <span className="text-[18px] text-[#000000]">
                                   {fixedStageValue}
                                 </span>
                                 {isStageComplete && !caseSubmitted && (
@@ -830,7 +891,7 @@ export function MaxillaryPanel({
                               Characterization
                             </legend>
                             <div className="flex items-center gap-2 w-full">
-                              <span className="text-[18px] font-bold text-[#000000]">{getFieldValue("maxillary", firstToothNumber, "fixed_characterization")}</span>
+                              <span className="text-[18px] text-[#000000]">{getFieldValue("maxillary", firstToothNumber, "fixed_characterization")}</span>
                               {isFieldCompleted("maxillary", firstToothNumber, "fixed_characterization") && !caseSubmitted && <Check size={16} className="text-[#34a853] ml-auto" />}
                             </div>
                           </fieldset>
@@ -844,7 +905,7 @@ export function MaxillaryPanel({
                             <legend className={`text-[14px] px-1 leading-none ${isFieldCompleted("maxillary", firstToothNumber, "fixed_characterization") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>
                               Intensity
                             </legend>
-                            <span className="text-[18px] font-bold text-[#000000]"></span>
+                            <span className="text-[18px] text-[#000000]"></span>
                           </fieldset>
                           <fieldset
                             className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
@@ -856,7 +917,7 @@ export function MaxillaryPanel({
                             <legend className={`text-[14px] px-1 leading-none ${isFieldCompleted("maxillary", firstToothNumber, "fixed_characterization") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>
                               Surface finish
                             </legend>
-                            <span className="text-[18px] font-bold text-[#000000]"></span>
+                            <span className="text-[18px] text-[#000000]"></span>
                           </fieldset>
                         </div>
                       )}
@@ -908,7 +969,7 @@ export function MaxillaryPanel({
                                   {label}
                                 </legend>
                                 <div className="flex items-center gap-2 w-full">
-                                  <span className="text-[18px] font-bold text-[#000000]"></span>
+                                  <span className="text-[18px] text-[#000000]"></span>
                                   {showGreen && idx === 0 && <Check size={16} className="text-[#34a853] ml-auto" />}
                                 </div>
                               </fieldset>
@@ -941,7 +1002,7 @@ export function MaxillaryPanel({
                                   {label}
                                 </legend>
                                 <div className="flex items-center gap-2 w-full">
-                                  <span className="text-[18px] font-bold text-[#000000]"></span>
+                                  <span className="text-[18px] text-[#000000]"></span>
                                   {showGreen && idx === 0 && <Check size={16} className="text-[#34a853] ml-auto" />}
                                 </div>
                               </fieldset>
@@ -974,7 +1035,7 @@ export function MaxillaryPanel({
                                   {label}
                                 </legend>
                                 <div className="flex items-center gap-2 w-full">
-                                  <span className="text-[18px] font-bold text-[#000000]"></span>
+                                  <span className="text-[18px] text-[#000000]"></span>
                                   {showGreen && idx === 0 && <Check size={16} className="text-[#34a853] ml-auto" />}
                                 </div>
                               </fieldset>
@@ -1005,7 +1066,7 @@ export function MaxillaryPanel({
                               Impression
                             </legend>
                             <div className="flex items-center gap-2 w-full">
-                              <span className="text-[18px] font-bold text-[#000000] truncate">
+                              <span className="text-[18px] text-[#000000] truncate">
                                 {getImpressionDisplayText(selectedProduct?.id?.toString() || `fixed_${firstToothNumber}`, "maxillary")}
                               </span>
                               {isFieldCompleted("maxillary", firstToothNumber, "fixed_impression") && !caseSubmitted && (
@@ -1029,7 +1090,7 @@ export function MaxillaryPanel({
                                 Add ons
                               </legend>
                               <div className="flex items-center gap-2 w-full">
-                                <span className="text-[18px] font-bold text-[#000000] truncate">
+                                <span className="text-[18px] text-[#000000] truncate">
                                   {getFieldValue("maxillary", firstToothNumber, "fixed_addons")}
                                 </span>
                                 {isFieldCompleted("maxillary", firstToothNumber, "fixed_addons") && !caseSubmitted && (
@@ -1173,7 +1234,7 @@ export function MaxillaryPanel({
                               Grade
                             </legend>
                             <div className="flex items-center gap-2 w-full">
-                              <span className="text-[18px] font-bold text-[#000000]">
+                              <span className="text-[18px] text-[#000000]">
                                 {getFieldValue("maxillary", firstToothNumber, "grade")}
                               </span>
                               <div className="flex gap-1 ml-auto">
@@ -1213,7 +1274,7 @@ export function MaxillaryPanel({
                                 Stage
                               </legend>
                               <div className="flex items-center gap-2 w-full">
-                                <span className="text-[18px] font-bold text-[#000000]">
+                                <span className="text-[18px] text-[#000000]">
                                   {getFieldValue("maxillary", firstToothNumber, "stage")}
                                 </span>
                                 {isFieldCompleted("maxillary", firstToothNumber, "stage") && !caseSubmitted && (
@@ -1277,7 +1338,7 @@ export function MaxillaryPanel({
                               Teeth shade
                             </legend>
                             <div className="flex items-center gap-2 w-full">
-                              <span className="text-[18px] font-bold text-[#000000]">
+                              <span className="text-[18px] text-[#000000]">
                                 {getFieldValue("maxillary", firstToothNumber, "teeth_shade")}
                               </span>
                               {isFieldCompleted("maxillary", firstToothNumber, "teeth_shade") && !caseSubmitted && (
@@ -1313,7 +1374,7 @@ export function MaxillaryPanel({
                                 Gum Shade
                               </legend>
                               <div className="flex items-center gap-2 w-full">
-                                <span className="text-[18px] font-bold text-[#000000] truncate">
+                                <span className="text-[18px] text-[#000000] truncate">
                                   {getFieldValue("maxillary", firstToothNumber, "gum_shade")}
                                 </span>
                                 <svg
@@ -1367,7 +1428,7 @@ export function MaxillaryPanel({
                               Impression
                             </legend>
                             <div className="flex items-center gap-2 w-full">
-                              <span className="text-[18px] font-bold text-[#000000] truncate">
+                              <span className="text-[18px] text-[#000000] truncate">
                                 {getFieldValue("maxillary", firstToothNumber, "impression")}
                               </span>
                               {isFieldCompleted("maxillary", firstToothNumber, "impression") && !caseSubmitted && (
@@ -1397,7 +1458,7 @@ export function MaxillaryPanel({
                                 Add ons
                               </legend>
                               <div className="flex items-center gap-2 w-full">
-                                <span className="text-[18px] font-bold text-[#000000] truncate">
+                                <span className="text-[18px] text-[#000000] truncate">
                                   {getFieldValue("maxillary", firstToothNumber, "addons")}
                                 </span>
                                 {isFieldCompleted("maxillary", firstToothNumber, "addons") && !caseSubmitted && (
@@ -1471,8 +1532,17 @@ export function MaxillaryPanel({
             const cardProduct = getToothProduct("maxillary", cardTeeth[0]);
             const cardProductName = cardProduct?.name || "Removable restoration";
             const cardProductImage = cardProduct?.image_url || null;
-            const cardToothDisplay = cardTeeth.map(n => `#${n}`).join(", ");
+            const cardToothDisplay = `#${cardTeeth.join(",")}`;
             const isActive = activeProductCardId === 0;
+            const estDays = cardProduct
+              ? cardProduct.min_days_to_process && cardProduct.max_days_to_process
+                ? `${cardProduct.min_days_to_process}-${cardProduct.max_days_to_process} work days after submission`
+                : cardProduct.min_days_to_process
+                  ? `${cardProduct.min_days_to_process} work days after submission`
+                  : "10 work days after submission"
+              : "10 work days after submission";
+            const repTnStage = cardTeeth[0];
+            const stageVal = selectedStages[`maxillary_prep_${repTnStage}`] || getFieldValue("maxillary", repTnStage, "stage");
 
             return (
               <div key="initial-removables-maxillary" className="rounded-lg bg-white overflow-hidden border border-[#d9d9d9] mt-3">
@@ -1496,7 +1566,7 @@ export function MaxillaryPanel({
                   <div className="flex-1 min-w-0 text-left flex flex-col">
                     <p className="font-[Verdana] text-[18px] font-bold leading-[22px] tracking-[-0.02em] text-black">{cardProductName}</p>
                     {cardToothDisplay && (
-                      <p className="font-[Verdana] text-[18px] font-bold leading-[22px] tracking-[-0.02em] text-black">{cardToothDisplay}</p>
+                      <p className="font-[Verdana] text-[18px] leading-[22px] tracking-[-0.02em] text-black">{cardToothDisplay}</p>
                     )}
                     <div className="flex items-center gap-[5px] flex-wrap">
                       {cardProduct?.subcategory?.category?.name && (
@@ -1509,7 +1579,15 @@ export function MaxillaryPanel({
                           {cardProduct.subcategory.name}
                         </span>
                       )}
-                      <span className="font-[Verdana] text-[14px] leading-[22px] tracking-[-0.02em] text-[#B4B0B0]">{isActive ? "Active — click teeth to assign" : "Click to activate"}</span>
+                      {stageVal && (
+                        <span className="font-[Verdana] text-[14px] font-medium leading-[22px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[10px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]">
+                          {stageVal}
+                        </span>
+                      )}
+                      <span className="font-[Verdana] text-[14px] leading-[22px] tracking-[-0.02em] text-[#B4B0B0]">
+                        Est days: {estDays}
+                      </span>
+                      <Trash2 size={9} className="text-[#999999]" />
                     </div>
                   </div>
                   <ChevronDown
@@ -1523,24 +1601,16 @@ export function MaxillaryPanel({
                     {(() => {
                       const repTn = cardTeeth[0];
                       const toothProduct = getToothProduct("maxillary", repTn);
+                      const advFields = toothProduct?.advance_fields;
                       const isFComplete = (step: string) => isFieldCompleted("maxillary", repTn, step as any);
                       const fVal = (step: string) => getFieldValue("maxillary", repTn, step as any);
                       const productKey = `maxillary_prep_${repTn}`;
                       return (
                         <>
                         <div className="border border-[#e5e7eb] rounded-lg p-3 space-y-3">
-                          {/* Row 1: Product - Material */}
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <fieldset className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${caseSubmitted ? "border-[#b4b0b0]" : "border-[#34a853]"}`}>
-                              <legend className={`text-[14px] px-1 ${caseSubmitted ? "text-[#7f7f7f]" : "text-[#34a853]"}`}>Product - Material</legend>
-                              <span className="text-[18px] font-bold text-[#000000] truncate">{toothProduct?.name || cardProductName}</span>
-                              {!caseSubmitted && <Check size={14} className="text-[#34a853] ml-auto flex-shrink-0" />}
-                            </fieldset>
-                          </div>
-
-                          {/* Row 2: Grade / Stage */}
+                          {/* Row 1: Grade / Stage */}
                           <div className="grid grid-cols-2 gap-3">
-                            {(() => {
+                            {hasAdvanceField("grade", advFields) && (() => {
                               const gradeVal = fVal("grade") || "";
                               const isGradeComplete = isFComplete("grade") || !!(gradeVal && gradeVal.trim());
                               const showGradeGreen = isGradeComplete && !caseSubmitted;
@@ -1555,7 +1625,7 @@ export function MaxillaryPanel({
                                 >
                                   <legend className={`text-[14px] px-1 leading-none ${showGradeGreen ? "text-[#34a853]" : isGradeComplete ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Grade</legend>
                                   <div className="flex items-center gap-2 w-full">
-                                    <span className="text-[18px] font-bold text-[#000000]">{gradeVal}</span>
+                                    <span className="text-[18px] text-[#000000]">{gradeVal}</span>
                                     <div className="flex gap-1 ml-auto">
                                       <BlueDiamond /><BlueDiamond /><GrayDiamond /><GrayDiamond />
                                     </div>
@@ -1564,7 +1634,7 @@ export function MaxillaryPanel({
                                 </fieldset>
                               );
                             })()}
-                            {(() => {
+                            {hasAdvanceField("stage", advFields) && (() => {
                               const stageVal = fVal("stage") || selectedStages[productKey] || "";
                               const isStageComplete = isFComplete("stage") || !!(stageVal && stageVal.trim());
                               const showGreen = isStageComplete && !caseSubmitted;
@@ -1574,7 +1644,7 @@ export function MaxillaryPanel({
                                   onClick={() => handleOpenStageModal(productKey, "maxillary", repTn)}
                                 >
                                   <legend className={`text-[14px] px-1 ${showGreen ? "text-[#34a853]" : isStageComplete ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Stage</legend>
-                                  <span className="text-[18px] font-bold text-[#000000] truncate flex-1">{stageVal}</span>
+                                  <span className="text-[18px] text-[#000000] truncate flex-1">{stageVal}</span>
                                   {showGreen && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                                 </fieldset>
                               );
@@ -1582,11 +1652,11 @@ export function MaxillaryPanel({
                           </div>
 
                           {/* Row 3: Teeth shade / Gum Shade */}
-                          {(() => {
+                          {(hasAdvanceField("teeth_shade", advFields) || hasAdvanceField("gum_shade", advFields)) && (() => {
                             const shadeProductId = `prep_${repTn}`;
                             return (
                               <>
-                                {!isFComplete("gum_shade") && (
+                                {hasAdvanceField("gum_shade", advFields) && !isFComplete("gum_shade") && (
                                   <GumShadePicker
                                     selected={null}
                                     onSelect={(shadeName) => {
@@ -1595,6 +1665,7 @@ export function MaxillaryPanel({
                                   />
                                 )}
                                 <div className="grid grid-cols-2 gap-3">
+                                  {hasAdvanceField("teeth_shade", advFields) && (
                                   <fieldset
                                     className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${isFComplete("teeth_shade") && !caseSubmitted ? "border-[#34a853]" : isFComplete("teeth_shade") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
                                     onClick={() => {
@@ -1606,10 +1677,12 @@ export function MaxillaryPanel({
                                   >
                                     <legend className={`text-[14px] px-1 leading-none ${isFComplete("teeth_shade") && !caseSubmitted ? "text-[#34a853]" : isFComplete("teeth_shade") ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Teeth shade</legend>
                                     <div className="flex items-center gap-2 w-full">
-                                      <span className="text-[18px] font-bold text-[#000000]">{fVal("teeth_shade")}</span>
+                                      <span className="text-[18px] text-[#000000]">{fVal("teeth_shade")}</span>
                                       {isFComplete("teeth_shade") && !caseSubmitted && <Check size={16} className="text-[#34a853] ml-auto" />}
                                     </div>
                                   </fieldset>
+                                  )}
+                                  {hasAdvanceField("gum_shade", advFields) && (
                                   <fieldset
                                     className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${isFComplete("gum_shade") && !caseSubmitted ? "border-[#34a853]" : isFComplete("gum_shade") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
                                     onClick={() => {
@@ -1620,37 +1693,44 @@ export function MaxillaryPanel({
                                   >
                                     <legend className={`text-[14px] px-1 leading-none ${isFComplete("gum_shade") && !caseSubmitted ? "text-[#34a853]" : isFComplete("gum_shade") ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Gum Shade</legend>
                                     <div className="flex items-center gap-2 w-full">
-                                      <span className="text-[18px] font-bold text-[#000000] truncate">{fVal("gum_shade")}</span>
+                                      <span className="text-[18px] text-[#000000] truncate">{fVal("gum_shade")}</span>
                                       <svg width="29" height="29" viewBox="0 0 29 29" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
                                         <rect width="28.0391" height="28.0391" rx="6" fill="#E58D8D" />
                                       </svg>
                                       {isFComplete("gum_shade") && !caseSubmitted && <Check size={16} className="text-[#34a853] flex-shrink-0" />}
                                     </div>
                                   </fieldset>
+                                  )}
                                 </div>
                               </>
                             );
                           })()}
 
                           {/* Row 4: Impression / Add ons */}
+                          {(hasAdvanceField("impression", advFields) || hasAdvanceField("addons", advFields)) && (
                           <div className="grid grid-cols-2 gap-3">
+                            {hasAdvanceField("impression", advFields) && (
                             <fieldset
                               className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${isFComplete("impression") && !caseSubmitted ? "border-[#34a853]" : isFComplete("impression") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
                               onClick={() => handleOpenImpressionModal("maxillary", productKey, repTn)}
                             >
                               <legend className={`text-[14px] px-1 ${isFComplete("impression") && !caseSubmitted ? "text-[#34a853]" : isFComplete("impression") ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Impression</legend>
-                              <span className="text-[18px] font-bold text-[#000000] truncate flex-1">{fVal("impression") || getImpressionDisplayText(productKey, "maxillary")}</span>
+                              <span className="text-[18px] text-[#000000] truncate flex-1">{fVal("impression") || getImpressionDisplayText(productKey, "maxillary")}</span>
                               {isFComplete("impression") && !caseSubmitted && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                             </fieldset>
+                            )}
+                            {hasAdvanceField("addons", advFields) && (
                             <fieldset
                               className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${isFComplete("addons") && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]"}`}
                               onClick={() => handleOpenAddOnsModal("maxillary", productKey, repTn)}
                             >
                               <legend className={`text-[14px] px-1 ${isFComplete("addons") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>Add ons</legend>
-                              <span className="text-[18px] font-bold text-[#000000] truncate flex-1">{fVal("addons") || "0 selected"}</span>
+                              <span className="text-[18px] text-[#000000] truncate flex-1">{fVal("addons") || "0 selected"}</span>
                               {isFComplete("addons") && !caseSubmitted && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                             </fieldset>
+                            )}
                           </div>
+                          )}
                         </div>
 
                         {/* Bottom action buttons */}
@@ -1704,7 +1784,7 @@ export function MaxillaryPanel({
               const cardProductImage = cardProduct?.image_url || ap.product.image_url || null;
               const cardCategoryName = cardProduct?.subcategory?.category?.name || ap.product.category_name || "";
               const cardSubcategoryName = cardProduct?.subcategory?.name || ap.product.subcategory_name || "";
-              const cardToothDisplay = cardTeeth.map(n => `#${n}`).join(", ");
+              const cardToothDisplay = `#${cardTeeth.join(",")}`;
               const isActive = activeProductCardId === ap.id;
 
               return (
@@ -1734,7 +1814,7 @@ export function MaxillaryPanel({
                         {cardProductName}
                       </p>
                       {cardToothDisplay && (
-                        <p className="font-[Verdana] text-[18px] font-bold leading-[22px] tracking-[-0.02em] text-black">
+                        <p className="font-[Verdana] text-[18px] leading-[22px] tracking-[-0.02em] text-black">
                           {cardToothDisplay}
                         </p>
                       )}
@@ -1782,7 +1862,8 @@ export function MaxillaryPanel({
                         const isFixed = categoryName === "fixed restoration";
                         const isRemovables = isCardRemovables || categoryName === "removables" || categoryName === "removables restoration" || categoryName === "removable restoration";
                         const fixedChain = isFixed ? getFixedFieldChain(toothProduct?.advance_fields) : undefined;
-                        const isF = (step: string) => isRemovables ? true : isFieldVisible("maxillary", repTn, step as any, fixedChain);
+                        const advFields = toothProduct?.advance_fields;
+                        const isF = (step: string) => isRemovables ? hasAdvanceField(step, advFields) : isFieldVisible("maxillary", repTn, step as any, fixedChain);
                         const isFComplete = (step: string) => isFieldCompleted("maxillary", repTn, step as any);
                         const fVal = (step: string) => getFieldValue("maxillary", repTn, step as any);
 
@@ -1791,18 +1872,9 @@ export function MaxillaryPanel({
                           return (
                             <>
                             <div className="border border-[#e5e7eb] rounded-lg p-3 space-y-3">
-                              {/* Row 1: Product - Material (full width) */}
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <fieldset className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${caseSubmitted ? "border-[#b4b0b0]" : "border-[#34a853]"}`}>
-                                  <legend className={`text-[14px] px-1 ${caseSubmitted ? "text-[#7f7f7f]" : "text-[#34a853]"}`}>Product - Material</legend>
-                                  <span className="text-[18px] font-bold text-[#000000] truncate">{toothProduct?.name || cardProductName}</span>
-                                  {!caseSubmitted && <Check size={14} className="text-[#34a853] ml-auto flex-shrink-0" />}
-                                </fieldset>
-                              </div>
-
-                              {/* Row 2: Grade / Stage */}
+                              {/* Row 1: Grade / Stage */}
                               <div className="grid grid-cols-2 gap-3">
-                                {(() => {
+                                {hasAdvanceField("grade", advFields) && (() => {
                                   const gradeVal = fVal("grade") || "";
                                   const isGradeComplete = isFComplete("grade") || !!(gradeVal && gradeVal.trim());
                                   const showGradeGreen = isGradeComplete && !caseSubmitted;
@@ -1817,7 +1889,7 @@ export function MaxillaryPanel({
                                     >
                                       <legend className={`text-[14px] px-1 leading-none ${showGradeGreen ? "text-[#34a853]" : isGradeComplete ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Grade</legend>
                                       <div className="flex items-center gap-2 w-full">
-                                        <span className="text-[18px] font-bold text-[#000000]">{gradeVal}</span>
+                                        <span className="text-[18px] text-[#000000]">{gradeVal}</span>
                                         <div className="flex gap-1 ml-auto">
                                           <BlueDiamond /><BlueDiamond /><GrayDiamond /><GrayDiamond />
                                         </div>
@@ -1826,7 +1898,7 @@ export function MaxillaryPanel({
                                     </fieldset>
                                   );
                                 })()}
-                                {(() => {
+                                {hasAdvanceField("stage", advFields) && (() => {
                                   const stageVal = fVal("stage") || selectedStages[productKey] || "";
                                   const isStageComplete = isFComplete("stage") || !!(stageVal && stageVal.trim());
                                   const showGreen = isStageComplete && !caseSubmitted;
@@ -1836,7 +1908,7 @@ export function MaxillaryPanel({
                                       onClick={() => handleOpenStageModal(productKey, "maxillary", repTn)}
                                     >
                                       <legend className={`text-[14px] px-1 ${showGreen ? "text-[#34a853]" : isStageComplete ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Stage</legend>
-                                      <span className="text-[18px] font-bold text-[#000000] truncate flex-1">{stageVal}</span>
+                                      <span className="text-[18px] text-[#000000] truncate flex-1">{stageVal}</span>
                                       {showGreen && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                                     </fieldset>
                                   );
@@ -1844,11 +1916,11 @@ export function MaxillaryPanel({
                               </div>
 
                               {/* Row 3: Teeth shade / Gum Shade */}
-                              {(() => {
+                              {(hasAdvanceField("teeth_shade", advFields) || hasAdvanceField("gum_shade", advFields)) && (() => {
                                 const shadeProductId = `prep_${repTn}`;
                                 return (
                                   <>
-                                    {!isFComplete("gum_shade") && (
+                                    {hasAdvanceField("gum_shade", advFields) && !isFComplete("gum_shade") && (
                                       <GumShadePicker
                                         selected={null}
                                         onSelect={(shadeName) => {
@@ -1857,6 +1929,7 @@ export function MaxillaryPanel({
                                       />
                                     )}
                                     <div className="grid grid-cols-2 gap-3">
+                                      {hasAdvanceField("teeth_shade", advFields) && (
                                       <fieldset
                                         className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${isFComplete("teeth_shade") && !caseSubmitted ? "border-[#34a853]" : isFComplete("teeth_shade") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
                                         onClick={() => {
@@ -1868,10 +1941,12 @@ export function MaxillaryPanel({
                                       >
                                         <legend className={`text-[14px] px-1 leading-none ${isFComplete("teeth_shade") && !caseSubmitted ? "text-[#34a853]" : isFComplete("teeth_shade") ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Teeth shade</legend>
                                         <div className="flex items-center gap-2 w-full">
-                                          <span className="text-[18px] font-bold text-[#000000]">{fVal("teeth_shade")}</span>
+                                          <span className="text-[18px] text-[#000000]">{fVal("teeth_shade")}</span>
                                           {isFComplete("teeth_shade") && !caseSubmitted && <Check size={16} className="text-[#34a853] ml-auto" />}
                                         </div>
                                       </fieldset>
+                                      )}
+                                      {hasAdvanceField("gum_shade", advFields) && (
                                       <fieldset
                                         className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${isFComplete("gum_shade") && !caseSubmitted ? "border-[#34a853]" : isFComplete("gum_shade") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
                                         onClick={() => {
@@ -1882,37 +1957,44 @@ export function MaxillaryPanel({
                                       >
                                         <legend className={`text-[14px] px-1 leading-none ${isFComplete("gum_shade") && !caseSubmitted ? "text-[#34a853]" : isFComplete("gum_shade") ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Gum Shade</legend>
                                         <div className="flex items-center gap-2 w-full">
-                                          <span className="text-[18px] font-bold text-[#000000] truncate">{fVal("gum_shade")}</span>
+                                          <span className="text-[18px] text-[#000000] truncate">{fVal("gum_shade")}</span>
                                           <svg width="29" height="29" viewBox="0 0 29 29" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
                                             <rect width="28.0391" height="28.0391" rx="6" fill="#E58D8D" />
                                           </svg>
                                           {isFComplete("gum_shade") && !caseSubmitted && <Check size={16} className="text-[#34a853] flex-shrink-0" />}
                                         </div>
                                       </fieldset>
+                                      )}
                                     </div>
                                   </>
                                 );
                               })()}
 
                               {/* Row 4: Impression / Add ons */}
+                              {(hasAdvanceField("impression", advFields) || hasAdvanceField("addons", advFields)) && (
                               <div className="grid grid-cols-2 gap-3">
+                                {hasAdvanceField("impression", advFields) && (
                                 <fieldset
                                   className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${isFComplete("impression") && !caseSubmitted ? "border-[#34a853]" : isFComplete("impression") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
                                   onClick={() => handleOpenImpressionModal("maxillary", productKey, repTn)}
                                 >
                                   <legend className={`text-[14px] px-1 ${isFComplete("impression") && !caseSubmitted ? "text-[#34a853]" : isFComplete("impression") ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Impression</legend>
-                                  <span className="text-[18px] font-bold text-[#000000] truncate flex-1">{fVal("impression") || getImpressionDisplayText(productKey, "maxillary")}</span>
+                                  <span className="text-[18px] text-[#000000] truncate flex-1">{fVal("impression") || getImpressionDisplayText(productKey, "maxillary")}</span>
                                   {isFComplete("impression") && !caseSubmitted && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                                 </fieldset>
+                                )}
+                                {hasAdvanceField("addons", advFields) && (
                                 <fieldset
                                   className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${isFComplete("addons") && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]"}`}
                                   onClick={() => handleOpenAddOnsModal("maxillary", productKey, repTn)}
                                 >
                                   <legend className={`text-[14px] px-1 ${isFComplete("addons") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>Add ons</legend>
-                                  <span className="text-[18px] font-bold text-[#000000] truncate flex-1">{fVal("addons") || "0 selected"}</span>
+                                  <span className="text-[18px] text-[#000000] truncate flex-1">{fVal("addons") || "0 selected"}</span>
                                   {isFComplete("addons") && !caseSubmitted && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                                 </fieldset>
+                                )}
                               </div>
+                              )}
                             </div>
 
                             {/* Bottom action buttons */}
@@ -1953,7 +2035,7 @@ export function MaxillaryPanel({
                           const fixed = catName === "fixed restoration";
                           const rem = catName === "removables" || catName === "removables restoration" || catName === "removable restoration";
                           const chain = fixed ? getFixedFieldChain(tp?.advance_fields) : undefined;
-                          const isFPerTooth = (step: string) => rem ? true : isFieldVisible("maxillary", tn, step as any, chain);
+                          const isFPerTooth = (step: string) => rem ? hasAdvanceField(step, tp?.advance_fields) : isFieldVisible("maxillary", tn, step as any, chain);
                           const isFCompletePerTooth = (step: string) => isFieldCompleted("maxillary", tn, step as any);
                           const fValPerTooth = (step: string) => getFieldValue("maxillary", tn, step as any);
 
@@ -1963,7 +2045,7 @@ export function MaxillaryPanel({
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <fieldset className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${caseSubmitted ? "border-[#b4b0b0]" : "border-[#34a853]"}`}>
                                   <legend className={`text-[14px] px-1 ${caseSubmitted ? "text-[#7f7f7f]" : "text-[#34a853]"}`}>Product - Material</legend>
-                                  <span className="text-[18px] font-bold text-[#000000] truncate">{tp?.name || cardProductName}</span>
+                                  <span className="text-[18px] text-[#000000] truncate">{tp?.name || cardProductName}</span>
                                   {!caseSubmitted && <Check size={14} className="text-[#34a853] ml-auto flex-shrink-0" />}
                                 </fieldset>
                               </div>
@@ -1978,7 +2060,7 @@ export function MaxillaryPanel({
                                     onClick={() => handleOpenStageModal(fixed ? `maxillary_fixed_${tn}` : `maxillary_prep_${tn}`, "maxillary", tn)}
                                   >
                                     <legend className={`text-[14px] px-1 ${showGreen ? "text-[#34a853]" : isStageComplete ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Stage</legend>
-                                    <span className="text-[18px] font-bold text-[#000000] truncate flex-1">{stageVal}</span>
+                                    <span className="text-[18px] text-[#000000] truncate flex-1">{stageVal}</span>
                                     {showGreen && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                                   </fieldset>
                                 );
@@ -1993,7 +2075,7 @@ export function MaxillaryPanel({
                                   }}
                                 >
                                   <legend className={`text-[14px] px-1 ${isFCompletePerTooth(fixed ? "fixed_impression" : "impression") && !caseSubmitted ? "text-[#34a853]" : isFCompletePerTooth(fixed ? "fixed_impression" : "impression") ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Impression</legend>
-                                  <span className="text-[18px] font-bold text-[#000000] truncate flex-1">{fValPerTooth(fixed ? "fixed_impression" : "impression") || getImpressionDisplayText(fixed ? `maxillary_fixed_${tn}` : `maxillary_prep_${tn}`, "maxillary")}</span>
+                                  <span className="text-[18px] text-[#000000] truncate flex-1">{fValPerTooth(fixed ? "fixed_impression" : "impression") || getImpressionDisplayText(fixed ? `maxillary_fixed_${tn}` : `maxillary_prep_${tn}`, "maxillary")}</span>
                                   {isFCompletePerTooth(fixed ? "fixed_impression" : "impression") && !caseSubmitted && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                                 </fieldset>
                               )}
@@ -2003,7 +2085,7 @@ export function MaxillaryPanel({
                                   onClick={() => handleOpenAddOnsModal("maxillary", fixed ? `maxillary_fixed_${tn}` : `maxillary_prep_${tn}`, tn)}
                                 >
                                   <legend className={`text-[14px] px-1 ${isFCompletePerTooth(fixed ? "fixed_addons" : "addons") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>Add ons</legend>
-                                  <span className="text-[18px] font-bold text-[#000000] truncate flex-1">{fValPerTooth(fixed ? "fixed_addons" : "addons") || "0 selected"}</span>
+                                  <span className="text-[18px] text-[#000000] truncate flex-1">{fValPerTooth(fixed ? "fixed_addons" : "addons") || "0 selected"}</span>
                                   {isFCompletePerTooth(fixed ? "fixed_addons" : "addons") && !caseSubmitted && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                                 </fieldset>
                               )}

@@ -221,13 +221,14 @@ function hasAdvanceField(
   step: string,
   advanceFields: Array<{ name: string; field_type: string }> | undefined
 ): boolean {
-  const alwaysShow = ["fixed_stage", "fixed_impression"];
+  const alwaysShow = ["fixed_stage", "fixed_impression", "stage", "impression"];
   if (alwaysShow.includes(step)) return true;
   if (!advanceFields || advanceFields.length === 0) return true;
 
   const names = advanceFields.map((f) => (f.name || "").toLowerCase());
 
   switch (step) {
+    // Fixed restoration steps
     case "fixed_stump_shade":
       return names.some((n) => n.includes("stump") && n.includes("shade"));
     case "fixed_shade_trio":
@@ -259,6 +260,15 @@ function hasAdvanceField(
       return names.some((n) => n.includes("add") && (n.includes("on") || n.includes("addon")));
     case "fixed_notes":
       return names.some((n) => n.includes("note") || n.includes("additional"));
+    // Removable restoration steps
+    case "grade":
+      return names.some((n) => n.includes("grade"));
+    case "teeth_shade":
+      return names.some((n) => n.includes("teeth") && n.includes("shade"));
+    case "gum_shade":
+      return names.some((n) => n.includes("gum") && n.includes("shade"));
+    case "addons":
+      return names.some((n) => n.includes("add") && (n.includes("on") || n.includes("addon")));
     default:
       return true;
   }
@@ -567,6 +577,10 @@ export function MandibularPanel({
                   const productImage = selectedProduct?.image_url || "/placeholder.svg?height=48&width=48&query=dental+crown+implant+tooth";
                   const categoryName = selectedProduct?.subcategory?.category?.name || "";
                   const subcategoryName = selectedProduct?.subcategory?.name || "";
+
+                  // Skip removables products — they have their own dedicated accordion section
+                  const catLower = categoryName.toLowerCase();
+                  if (catLower === "removables" || catLower === "removables restoration" || catLower === "removable restoration") return null;
                   const estDays = selectedProduct
                     ? selectedProduct.min_days_to_process && selectedProduct.max_days_to_process
                       ? `${selectedProduct.min_days_to_process}-${selectedProduct.max_days_to_process} work days after submission`
@@ -578,7 +592,7 @@ export function MandibularPanel({
                   // Stable key for stage so value is not lost when group order or implant section changes
                   const groupStageToothNumber = Math.min(...toothNumbers);
                   const groupStageProductIdFixed = `mandibular_fixed_${groupStageToothNumber}`;
-                  const toothNumbersDisplay = toothNumbers.map((n) => `#${n}`).join(",");
+                  const toothNumbersDisplay = `#${toothNumbers.join(",")}`;
                   const retentionTypes = [...new Set(teeth.map((t) => t.retentionType))];
                   const hasRushed = toothNumbers.some((n) => rushedProducts[`mandibular_prep_${n}`] || rushedProducts[`mandibular_fixed_${n}`]);
 
@@ -659,7 +673,7 @@ export function MandibularPanel({
                               />
                             )}
                           </p>
-                          <p className="font-[Verdana] text-[18px] font-bold leading-[22px] tracking-[-0.02em] text-black">
+                          <p className="font-[Verdana] text-[18px] leading-[22px] tracking-[-0.02em] text-black">
                             {toothNumbersDisplay}
                           </p>
                           <div className="flex items-center gap-[5px] flex-wrap">
@@ -781,7 +795,7 @@ export function MandibularPanel({
                                       Stage
                                     </legend>
                                     <div className="flex items-center gap-2 w-full">
-                                      <span className="text-[18px] font-bold text-[#000000]">
+                                      <span className="text-[18px] text-[#000000]">
                                         {fixedStageValue}
                                       </span>
                                       {showStageGreen && (
@@ -863,17 +877,17 @@ export function MandibularPanel({
                                     Characterization
                                   </legend>
                                   <div className="flex items-center gap-2 w-full">
-                                    <span className="text-[18px] font-bold text-[#000000]">{getFieldValue("mandibular", firstToothNumber, "fixed_characterization")}</span>
+                                    <span className="text-[18px] text-[#000000]">{getFieldValue("mandibular", firstToothNumber, "fixed_characterization")}</span>
                                     {isFieldCompleted("mandibular", firstToothNumber, "fixed_characterization") && !caseSubmitted && <Check size={16} className="text-[#34a853] ml-auto" />}
                                   </div>
                                 </fieldset>
                                 <fieldset className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${isFieldCompleted("mandibular", firstToothNumber, "fixed_characterization") && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]"}`}>
                                   <legend className={`text-[14px] px-1 leading-none ${isFieldCompleted("mandibular", firstToothNumber, "fixed_characterization") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>Intensity</legend>
-                                  <span className="text-[18px] font-bold text-[#000000]"></span>
+                                  <span className="text-[18px] text-[#000000]"></span>
                                 </fieldset>
                                 <fieldset className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${isFieldCompleted("mandibular", firstToothNumber, "fixed_characterization") && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]"}`}>
                                   <legend className={`text-[14px] px-1 leading-none ${isFieldCompleted("mandibular", firstToothNumber, "fixed_characterization") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>Surface finish</legend>
-                                  <span className="text-[18px] font-bold text-[#000000]"></span>
+                                  <span className="text-[18px] text-[#000000]"></span>
                                 </fieldset>
                               </div>
                             )}
@@ -919,7 +933,7 @@ export function MandibularPanel({
                                     >
                                       <legend className={`text-[14px] px-1 leading-none ${showGreen ? "text-[#34a853]" : idx === 0 ? "text-[#CF0202]" : "text-[#7f7f7f]"}`}>{label}</legend>
                                       <div className="flex items-center gap-2 w-full">
-                                        <span className="text-[18px] font-bold text-[#000000]"></span>
+                                        <span className="text-[18px] text-[#000000]"></span>
                                         {showGreen && idx === 0 && <Check size={16} className="text-[#34a853] ml-auto" />}
                                       </div>
                                     </fieldset>
@@ -946,7 +960,7 @@ export function MandibularPanel({
                                     >
                                       <legend className={`text-[14px] px-1 leading-none ${showGreen ? "text-[#34a853]" : idx === 0 ? "text-[#CF0202]" : "text-[#7f7f7f]"}`}>{label}</legend>
                                       <div className="flex items-center gap-2 w-full">
-                                        <span className="text-[18px] font-bold text-[#000000]"></span>
+                                        <span className="text-[18px] text-[#000000]"></span>
                                         {showGreen && idx === 0 && <Check size={16} className="text-[#34a853] ml-auto" />}
                                       </div>
                                     </fieldset>
@@ -973,7 +987,7 @@ export function MandibularPanel({
                                     >
                                       <legend className={`text-[14px] px-1 leading-none ${showGreen ? "text-[#34a853]" : idx === 0 ? "text-[#CF0202]" : "text-[#7f7f7f]"}`}>{label}</legend>
                                       <div className="flex items-center gap-2 w-full">
-                                        <span className="text-[18px] font-bold text-[#000000]"></span>
+                                        <span className="text-[18px] text-[#000000]"></span>
                                         {showGreen && idx === 0 && <Check size={16} className="text-[#34a853] ml-auto" />}
                                       </div>
                                     </fieldset>
@@ -999,7 +1013,7 @@ export function MandibularPanel({
                                     Impression
                                   </legend>
                                   <div className="flex items-center gap-2 w-full">
-                                    <span className="text-[18px] font-bold text-[#000000] truncate">
+                                    <span className="text-[18px] text-[#000000] truncate">
                                       {getImpressionDisplayText(selectedProduct?.id?.toString() || `fixed_${firstToothNumber}`, "mandibular")}
                                     </span>
                                     {isFieldCompleted("mandibular", firstToothNumber, "fixed_impression") && !caseSubmitted && (
@@ -1021,7 +1035,7 @@ export function MandibularPanel({
                                       Add ons
                                     </legend>
                                     <div className="flex items-center gap-2 w-full">
-                                      <span className="text-[18px] font-bold text-[#000000] truncate">
+                                      <span className="text-[18px] text-[#000000] truncate">
                                         {getFieldValue("mandibular", firstToothNumber, "fixed_addons")}
                                       </span>
                                       {isFieldCompleted("mandibular", firstToothNumber, "fixed_addons") && !caseSubmitted && (
@@ -1163,7 +1177,7 @@ export function MandibularPanel({
                                     Grade
                                   </legend>
                                   <div className="flex items-center gap-2 w-full">
-                                    <span className="text-[18px] font-bold text-[#000000]">
+                                    <span className="text-[18px] text-[#000000]">
                                       {getFieldValue("mandibular", firstToothNumber, "grade")}
                                     </span>
                                     <div className="flex gap-1 ml-auto">
@@ -1203,7 +1217,7 @@ export function MandibularPanel({
                                       Stage
                                     </legend>
                                     <div className="flex items-center gap-2 w-full">
-                                      <span className="text-[18px] font-bold text-[#000000]">
+                                      <span className="text-[18px] text-[#000000]">
                                         {getFieldValue("mandibular", firstToothNumber, "stage")}
                                       </span>
                                       {isFieldCompleted("mandibular", firstToothNumber, "stage") && !caseSubmitted && (
@@ -1267,7 +1281,7 @@ export function MandibularPanel({
                                     Teeth shade
                                   </legend>
                                   <div className="flex items-center gap-2 w-full">
-                                    <span className="text-[18px] font-bold text-[#000000]">
+                                    <span className="text-[18px] text-[#000000]">
                                       {getFieldValue("mandibular", firstToothNumber, "teeth_shade")}
                                     </span>
                                     {isFieldCompleted("mandibular", firstToothNumber, "teeth_shade") && !caseSubmitted && (
@@ -1303,7 +1317,7 @@ export function MandibularPanel({
                                       Gum Shade
                                     </legend>
                                     <div className="flex items-center gap-2 w-full">
-                                      <span className="text-[18px] font-bold text-[#000000] truncate">
+                                      <span className="text-[18px] text-[#000000] truncate">
                                         {getFieldValue("mandibular", firstToothNumber, "gum_shade")}
                                       </span>
                                       <svg
@@ -1357,7 +1371,7 @@ export function MandibularPanel({
                                     Impression
                                   </legend>
                                   <div className="flex items-center gap-2 w-full">
-                                    <span className="text-[18px] font-bold text-[#000000] truncate">
+                                    <span className="text-[18px] text-[#000000] truncate">
                                       {getFieldValue("mandibular", firstToothNumber, "impression")}
                                     </span>
                                     {isFieldCompleted("mandibular", firstToothNumber, "impression") && !caseSubmitted && (
@@ -1387,7 +1401,7 @@ export function MandibularPanel({
                                       Add ons
                                     </legend>
                                     <div className="flex items-center gap-2 w-full">
-                                      <span className="text-[18px] font-bold text-[#000000] truncate">
+                                      <span className="text-[18px] text-[#000000] truncate">
                                         {getFieldValue("mandibular", firstToothNumber, "addons")}
                                       </span>
                                       {isFieldCompleted("mandibular", firstToothNumber, "addons") && !caseSubmitted && (
@@ -1461,8 +1475,17 @@ export function MandibularPanel({
             const cardProduct = getToothProduct("mandibular", cardTeeth[0]);
             const cardProductName = cardProduct?.name || "Removable restoration";
             const cardProductImage = cardProduct?.image_url || null;
-            const cardToothDisplay = cardTeeth.map(n => `#${n}`).join(", ");
+            const cardToothDisplay = `#${cardTeeth.join(",")}`;
             const isActive = activeProductCardId === 0;
+            const estDays = cardProduct
+              ? cardProduct.min_days_to_process && cardProduct.max_days_to_process
+                ? `${cardProduct.min_days_to_process}-${cardProduct.max_days_to_process} work days after submission`
+                : cardProduct.min_days_to_process
+                  ? `${cardProduct.min_days_to_process} work days after submission`
+                  : "10 work days after submission"
+              : "10 work days after submission";
+            const repTnStage = cardTeeth[0];
+            const stageVal = selectedStages[`mandibular_prep_${repTnStage}`] || getFieldValue("mandibular", repTnStage, "stage");
 
             return (
               <div key="initial-removables-mandibular" className="rounded-lg bg-white overflow-hidden border border-[#d9d9d9] mt-3">
@@ -1486,11 +1509,28 @@ export function MandibularPanel({
                   <div className="flex-1 min-w-0 text-left flex flex-col">
                     <p className="font-[Verdana] text-[18px] font-bold leading-[22px] tracking-[-0.02em] text-black">{cardProductName}</p>
                     {cardToothDisplay && (
-                      <p className="font-[Verdana] text-[18px] font-bold leading-[22px] tracking-[-0.02em] text-black">{cardToothDisplay}</p>
+                      <p className="font-[Verdana] text-[18px] leading-[22px] tracking-[-0.02em] text-black">{cardToothDisplay}</p>
                     )}
                     <div className="flex items-center gap-[5px] flex-wrap">
-                      <span className="font-[Verdana] text-[14px] font-medium leading-[22px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[10px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]">Product 1</span>
-                      <span className="font-[Verdana] text-[14px] leading-[22px] tracking-[-0.02em] text-[#B4B0B0]">{isActive ? "Active — click teeth to assign" : "Click to expand"}</span>
+                      {cardProduct?.subcategory?.category?.name && (
+                        <span className="font-[Verdana] text-[14px] font-medium leading-[22px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[10px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]">
+                          {cardProduct.subcategory.category.name}
+                        </span>
+                      )}
+                      {cardProduct?.subcategory?.name && (
+                        <span className="font-[Verdana] text-[14px] font-medium leading-[22px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[10px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]">
+                          {cardProduct.subcategory.name}
+                        </span>
+                      )}
+                      {stageVal && (
+                        <span className="font-[Verdana] text-[14px] font-medium leading-[22px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[10px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]">
+                          {stageVal}
+                        </span>
+                      )}
+                      <span className="font-[Verdana] text-[14px] leading-[22px] tracking-[-0.02em] text-[#B4B0B0]">
+                        Est days: {estDays}
+                      </span>
+                      <Trash2 size={9} className="text-[#999999]" />
                     </div>
                   </div>
                   <ChevronDown
@@ -1504,19 +1544,12 @@ export function MandibularPanel({
                     {(() => {
                       const repTn = cardTeeth[0];
                       const toothProduct = getToothProduct("mandibular", repTn);
-                      const isF = (_step: string) => true;
+                      const advFields = toothProduct?.advance_fields;
                       const isFComplete = (step: string) => isFieldCompleted("mandibular", repTn, step as any);
                       const fVal = (step: string) => getFieldValue("mandibular", repTn, step as any);
                       return (
                         <div className="border border-[#e5e7eb] rounded-lg p-3 space-y-3">
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <fieldset className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${caseSubmitted ? "border-[#b4b0b0]" : "border-[#34a853]"}`}>
-                              <legend className={`text-[14px] px-1 ${caseSubmitted ? "text-[#7f7f7f]" : "text-[#34a853]"}`}>Product - Material</legend>
-                              <span className="text-[18px] font-bold text-[#000000] truncate">{toothProduct?.name || cardProductName}</span>
-                              {!caseSubmitted && <Check size={14} className="text-[#34a853] ml-auto flex-shrink-0" />}
-                            </fieldset>
-                          </div>
-                          {isF("stage") && (() => {
+                          {hasAdvanceField("stage", advFields) && (() => {
                             const stageVal = fVal("stage") || selectedStages[`mandibular_prep_${repTn}`] || "";
                             const isStageComplete = isFComplete("stage") || !!(stageVal && stageVal.trim());
                             const showGreen = isStageComplete && !caseSubmitted;
@@ -1526,28 +1559,28 @@ export function MandibularPanel({
                                 onClick={() => handleOpenStageModal(`mandibular_prep_${repTn}`, "mandibular", repTn)}
                               >
                                 <legend className={`text-[14px] px-1 ${showGreen ? "text-[#34a853]" : isStageComplete ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Stage</legend>
-                                <span className="text-[18px] font-bold text-[#000000] truncate flex-1">{stageVal}</span>
+                                <span className="text-[18px] text-[#000000] truncate flex-1">{stageVal}</span>
                                 {showGreen && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                               </fieldset>
                             );
                           })()}
-                          {isF("impression") && (
+                          {hasAdvanceField("impression", advFields) && (
                             <fieldset
                               className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${isFComplete("impression") && !caseSubmitted ? "border-[#34a853]" : isFComplete("impression") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
                               onClick={() => handleOpenImpressionModal("mandibular", `mandibular_prep_${repTn}`, repTn)}
                             >
                               <legend className={`text-[14px] px-1 ${isFComplete("impression") && !caseSubmitted ? "text-[#34a853]" : isFComplete("impression") ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Impression</legend>
-                              <span className="text-[18px] font-bold text-[#000000] truncate flex-1">{fVal("impression") || getImpressionDisplayText(`mandibular_prep_${repTn}`, "mandibular")}</span>
+                              <span className="text-[18px] text-[#000000] truncate flex-1">{fVal("impression") || getImpressionDisplayText(`mandibular_prep_${repTn}`, "mandibular")}</span>
                               {isFComplete("impression") && !caseSubmitted && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                             </fieldset>
                           )}
-                          {isF("addons") && (
+                          {hasAdvanceField("addons", advFields) && (
                             <fieldset
                               className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${isFComplete("addons") && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]"}`}
                               onClick={() => handleOpenAddOnsModal("mandibular", `mandibular_prep_${repTn}`, repTn)}
                             >
                               <legend className={`text-[14px] px-1 ${isFComplete("addons") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>Add ons</legend>
-                              <span className="text-[18px] font-bold text-[#000000] truncate flex-1">{fVal("addons") || "0 selected"}</span>
+                              <span className="text-[18px] text-[#000000] truncate flex-1">{fVal("addons") || "0 selected"}</span>
                               {isFComplete("addons") && !caseSubmitted && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                             </fieldset>
                           )}
@@ -1574,7 +1607,7 @@ export function MandibularPanel({
               const cardProductImage = cardProduct?.image_url || ap.product.image_url || null;
               const cardCategoryName = cardProduct?.subcategory?.category?.name || ap.product.category_name || "";
               const cardSubcategoryName = cardProduct?.subcategory?.name || ap.product.subcategory_name || "";
-              const cardToothDisplay = cardTeeth.map(n => `#${n}`).join(", ");
+              const cardToothDisplay = `#${cardTeeth.join(",")}`;
               const isActive = activeProductCardId === ap.id;
 
               return (
@@ -1604,7 +1637,7 @@ export function MandibularPanel({
                         {cardProductName}
                       </p>
                       {cardToothDisplay && (
-                        <p className="font-[Verdana] text-[18px] font-bold leading-[22px] tracking-[-0.02em] text-black">
+                        <p className="font-[Verdana] text-[18px] leading-[22px] tracking-[-0.02em] text-black">
                           {cardToothDisplay}
                         </p>
                       )}
@@ -1655,20 +1688,14 @@ export function MandibularPanel({
                         const isFixed = categoryName === "fixed restoration";
                         const isRemovables = isCardRemovables || categoryName === "removables" || categoryName === "removables restoration" || categoryName === "removable restoration";
                         const fixedChain = isFixed ? getFixedFieldChain(toothProduct?.advance_fields) : undefined;
-                        const isF = (step: string) => isRemovables ? true : isFieldVisible("mandibular", repTn, step as any, fixedChain);
+                        const advFields = toothProduct?.advance_fields;
+                        const isF = (step: string) => isRemovables ? hasAdvanceField(step, advFields) : isFieldVisible("mandibular", repTn, step as any, fixedChain);
                         const isFComplete = (step: string) => isFieldCompleted("mandibular", repTn, step as any);
                         const fVal = (step: string) => getFieldValue("mandibular", repTn, step as any);
 
                         if (isCardRemovables) {
                           return (
                             <div className="border border-[#e5e7eb] rounded-lg p-3 space-y-3">
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <fieldset className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${caseSubmitted ? "border-[#b4b0b0]" : "border-[#34a853]"}`}>
-                                  <legend className={`text-[14px] px-1 ${caseSubmitted ? "text-[#7f7f7f]" : "text-[#34a853]"}`}>Product - Material</legend>
-                                  <span className="text-[18px] font-bold text-[#000000] truncate">{toothProduct?.name || cardProductName}</span>
-                                  {!caseSubmitted && <Check size={14} className="text-[#34a853] ml-auto flex-shrink-0" />}
-                                </fieldset>
-                              </div>
                               {(isFixed ? isF("fixed_stage") : isF("stage")) && (() => {
                                 const step = isFixed ? "fixed_stage" : "stage";
                                 const stageVal = fVal(step) || selectedStages[isFixed ? `mandibular_fixed_${repTn}` : `mandibular_prep_${repTn}`] || "";
@@ -1680,7 +1707,7 @@ export function MandibularPanel({
                                     onClick={() => handleOpenStageModal(isFixed ? `mandibular_fixed_${repTn}` : `mandibular_prep_${repTn}`, "mandibular", repTn)}
                                   >
                                     <legend className={`text-[14px] px-1 ${showGreen ? "text-[#34a853]" : isStageComplete ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Stage</legend>
-                                    <span className="text-[18px] font-bold text-[#000000] truncate flex-1">{stageVal}</span>
+                                    <span className="text-[18px] text-[#000000] truncate flex-1">{stageVal}</span>
                                     {showGreen && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                                   </fieldset>
                                 );
@@ -1691,7 +1718,7 @@ export function MandibularPanel({
                                   onClick={() => handleOpenImpressionModal("mandibular", isFixed ? `mandibular_fixed_${repTn}` : `mandibular_prep_${repTn}`, repTn)}
                                 >
                                   <legend className={`text-[14px] px-1 ${isFComplete(isFixed ? "fixed_impression" : "impression") && !caseSubmitted ? "text-[#34a853]" : isFComplete(isFixed ? "fixed_impression" : "impression") ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Impression</legend>
-                                  <span className="text-[18px] font-bold text-[#000000] truncate flex-1">{fVal(isFixed ? "fixed_impression" : "impression") || getImpressionDisplayText(isFixed ? `mandibular_fixed_${repTn}` : `mandibular_prep_${repTn}`, "mandibular")}</span>
+                                  <span className="text-[18px] text-[#000000] truncate flex-1">{fVal(isFixed ? "fixed_impression" : "impression") || getImpressionDisplayText(isFixed ? `mandibular_fixed_${repTn}` : `mandibular_prep_${repTn}`, "mandibular")}</span>
                                   {isFComplete(isFixed ? "fixed_impression" : "impression") && !caseSubmitted && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                                 </fieldset>
                               )}
@@ -1701,7 +1728,7 @@ export function MandibularPanel({
                                   onClick={() => handleOpenAddOnsModal("mandibular", isFixed ? `mandibular_fixed_${repTn}` : `mandibular_prep_${repTn}`, repTn)}
                                 >
                                   <legend className={`text-[14px] px-1 ${isFComplete(isFixed ? "fixed_addons" : "addons") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>Add ons</legend>
-                                  <span className="text-[18px] font-bold text-[#000000] truncate flex-1">{fVal(isFixed ? "fixed_addons" : "addons") || "0 selected"}</span>
+                                  <span className="text-[18px] text-[#000000] truncate flex-1">{fVal(isFixed ? "fixed_addons" : "addons") || "0 selected"}</span>
                                   {isFComplete(isFixed ? "fixed_addons" : "addons") && !caseSubmitted && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                                 </fieldset>
                               )}
@@ -1715,7 +1742,7 @@ export function MandibularPanel({
                           const fixed = catName === "fixed restoration";
                           const rem = catName === "removables" || catName === "removables restoration" || catName === "removable restoration";
                           const chain = fixed ? getFixedFieldChain(tp?.advance_fields) : undefined;
-                          const isFPerTooth = (step: string) => rem ? true : isFieldVisible("mandibular", tn, step as any, chain);
+                          const isFPerTooth = (step: string) => rem ? hasAdvanceField(step, tp?.advance_fields) : isFieldVisible("mandibular", tn, step as any, chain);
                           const isFCompletePerTooth = (step: string) => isFieldCompleted("mandibular", tn, step as any);
                           const fValPerTooth = (step: string) => getFieldValue("mandibular", tn, step as any);
 
@@ -1725,7 +1752,7 @@ export function MandibularPanel({
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <fieldset className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${caseSubmitted ? "border-[#b4b0b0]" : "border-[#34a853]"}`}>
                                   <legend className={`text-[14px] px-1 ${caseSubmitted ? "text-[#7f7f7f]" : "text-[#34a853]"}`}>Product - Material</legend>
-                                  <span className="text-[18px] font-bold text-[#000000] truncate">{tp?.name || cardProductName}</span>
+                                  <span className="text-[18px] text-[#000000] truncate">{tp?.name || cardProductName}</span>
                                   {!caseSubmitted && <Check size={14} className="text-[#34a853] ml-auto flex-shrink-0" />}
                                 </fieldset>
                               </div>
@@ -1740,7 +1767,7 @@ export function MandibularPanel({
                                     onClick={() => handleOpenStageModal(fixed ? `mandibular_fixed_${tn}` : `mandibular_prep_${tn}`, "mandibular", tn)}
                                   >
                                     <legend className={`text-[14px] px-1 ${showGreen ? "text-[#34a853]" : isStageComplete ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Stage</legend>
-                                    <span className="text-[18px] font-bold text-[#000000] truncate flex-1">{stageVal}</span>
+                                    <span className="text-[18px] text-[#000000] truncate flex-1">{stageVal}</span>
                                     {showGreen && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                                   </fieldset>
                                 );
@@ -1755,7 +1782,7 @@ export function MandibularPanel({
                                   }}
                                 >
                                   <legend className={`text-[14px] px-1 ${isFCompletePerTooth(fixed ? "fixed_impression" : "impression") && !caseSubmitted ? "text-[#34a853]" : isFCompletePerTooth(fixed ? "fixed_impression" : "impression") ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Impression</legend>
-                                  <span className="text-[18px] font-bold text-[#000000] truncate flex-1">{fValPerTooth(fixed ? "fixed_impression" : "impression") || getImpressionDisplayText(fixed ? `mandibular_fixed_${tn}` : `mandibular_prep_${tn}`, "mandibular")}</span>
+                                  <span className="text-[18px] text-[#000000] truncate flex-1">{fValPerTooth(fixed ? "fixed_impression" : "impression") || getImpressionDisplayText(fixed ? `mandibular_fixed_${tn}` : `mandibular_prep_${tn}`, "mandibular")}</span>
                                   {isFCompletePerTooth(fixed ? "fixed_impression" : "impression") && !caseSubmitted && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                                 </fieldset>
                               )}
@@ -1765,7 +1792,7 @@ export function MandibularPanel({
                                   onClick={() => handleOpenAddOnsModal("mandibular", fixed ? `mandibular_fixed_${tn}` : `mandibular_prep_${tn}`, tn)}
                                 >
                                   <legend className={`text-[14px] px-1 ${isFCompletePerTooth(fixed ? "fixed_addons" : "addons") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>Add ons</legend>
-                                  <span className="text-[18px] font-bold text-[#000000] truncate flex-1">{fValPerTooth(fixed ? "fixed_addons" : "addons") || "0 selected"}</span>
+                                  <span className="text-[18px] text-[#000000] truncate flex-1">{fValPerTooth(fixed ? "fixed_addons" : "addons") || "0 selected"}</span>
                                   {isFCompletePerTooth(fixed ? "fixed_addons" : "addons") && !caseSubmitted && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                                 </fieldset>
                               )}

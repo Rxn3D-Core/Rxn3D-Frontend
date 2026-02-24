@@ -75,17 +75,24 @@ export default function Page() {
   const [caseDesignMounted, setCaseDesignMounted] = useState(false);
 
   // ---- Add Product via wizard redirect ----
-  const [wizardMode, setWizardMode] = useState<"initial" | "addProduct">("initial");
+  const [wizardMode, setWizardMode] = useState<"initial" | "addProduct" | "backToProducts">("initial");
   const [pendingProductArch, setPendingProductArch] = useState<"maxillary" | "mandibular">("maxillary");
   const [selectedProductId, setSelectedProductId] = useState<number | undefined>(undefined);
   /** Category name of the selected (initial) product — e.g. "Removable restoration". Used to hide retention popover for Removables. */
   const [selectedProductCategoryName, setSelectedProductCategoryName] = useState<string | undefined>(undefined);
   /** Arch selection from Removable Restoration product dropdown — controls which panels are initially shown */
   const [initialArch, setInitialArch] = useState<"maxillary" | "mandibular" | "both" | undefined>(undefined);
+  /** Track the last selected category & subcategory so "Back to Products" returns to product selection (step 6) instead of category (step 4) */
+  const [lastSelectedCategory, setLastSelectedCategory] = useState<number | null>(null);
+  const [lastSelectedSubProduct, setLastSelectedSubProduct] = useState<number | null>(null);
 
   const [addedProducts, setAddedProducts] = useState<AddedProduct[]>([]);
 
   const handleWizardComplete = async (result: any) => {
+    // Always track the last selected category & subcategory so "Back to Products" can return to step 6
+    if (result.category) setLastSelectedCategory(Number(result.category) || null);
+    if (result.product) setLastSelectedSubProduct(Number(result.product) || null);
+
     if (wizardMode === "addProduct") {
       const addedProductId = Number(result.material) || undefined;
       // Fetch real product details so the accordion shows the correct name/image
@@ -135,7 +142,7 @@ export default function Page() {
   };
 
   const handleBackToProducts = () => {
-    setWizardMode("addProduct");
+    setWizardMode("backToProducts");
     setWizardComplete(false);
   };
 
@@ -151,7 +158,9 @@ export default function Page() {
     setWizardComplete(false);
   };
 
-  const wizardStartStep = wizardMode === "addProduct"
+  const wizardStartStep = wizardMode === "backToProducts"
+    ? 6
+    : wizardMode === "addProduct"
     ? 4
     : labEditMode
     ? (role === "office_admin" ? 2 : 1)
@@ -173,11 +182,13 @@ export default function Page() {
             onComplete={handleWizardComplete}
             onLabSelect={(lab) => setCompletedLab(lab)}
             startStep={wizardStartStep}
-            mode={wizardMode}
+            mode={wizardMode === "backToProducts" ? "addProduct" : wizardMode}
             initialLabId={doctorEditMode && completedLab ? completedLab.id : null}
-            initialPatientName={wizardMode === "addProduct" ? completedPatientName : ""}
-            initialGender={wizardMode === "addProduct" ? completedGender : ""}
-            initialDoctor={wizardMode === "addProduct" && completedDoctor ? completedDoctor : undefined}
+            initialPatientName={wizardMode === "addProduct" || wizardMode === "backToProducts" ? completedPatientName : ""}
+            initialGender={wizardMode === "addProduct" || wizardMode === "backToProducts" ? completedGender : ""}
+            initialDoctor={((wizardMode === "addProduct" || wizardMode === "backToProducts") && completedDoctor) ? completedDoctor : undefined}
+            initialCategory={wizardMode === "backToProducts" ? lastSelectedCategory : null}
+            initialSubProduct={wizardMode === "backToProducts" ? lastSelectedSubProduct : null}
           />
         )}
 

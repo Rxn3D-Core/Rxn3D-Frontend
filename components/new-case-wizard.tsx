@@ -47,6 +47,53 @@ function getDoctorFallbackImg(doctorId: number, index?: number): string {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Fallback image component – shows name text when image is missing   */
+/* ------------------------------------------------------------------ */
+function ProductImageWithFallback({
+  src,
+  alt,
+  name,
+  className = "rounded-[4px]",
+  bgClassName = "bg-[#eef1f4]",
+  textClassName = "text-[#7f7f7f]",
+}: {
+  src: string | null | undefined;
+  alt: string;
+  name: string;
+  className?: string;
+  bgClassName?: string;
+  textClassName?: string;
+}) {
+  const [failed, setFailed] = React.useState(!src);
+  // Reset failed state when src changes
+  React.useEffect(() => { setFailed(!src); }, [src]);
+
+  if (failed) {
+    return (
+      <div className={`w-full aspect-square ${className} overflow-hidden flex-shrink-0 ${bgClassName} flex items-center justify-center p-3`}>
+        <span
+          className={`text-[13px] font-semibold ${textClassName} text-center leading-tight`}
+          style={{ fontFamily: "Verdana, sans-serif" }}
+        >
+          {name}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`w-full aspect-square ${className} overflow-hidden flex-shrink-0 ${bgClassName}`}>
+      <img
+        src={src!}
+        alt={alt}
+        className="w-full h-full object-cover"
+        onError={() => setFailed(true)}
+      />
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 export interface WizardDoctorShape {
@@ -677,16 +724,7 @@ function StepCategory({
                 : "border-[#d9d9d9] bg-white"
             }`}
           >
-            <div className="w-full aspect-square rounded-[4px] overflow-hidden flex-shrink-0 bg-[#eef1f4]">
-              <img
-                src={cat.img || "/placeholder.svg"}
-                alt={cat.name}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  e.currentTarget.src = "/placeholder.svg";
-                }}
-              />
-            </div>
+            <ProductImageWithFallback src={cat.img} alt={cat.name} name={cat.name} />
             <span
               className="text-[14px] font-normal text-black text-center self-stretch tracking-[-0.02em] leading-[15px] pb-1"
               style={{ fontFamily: "Verdana, sans-serif" }}
@@ -768,16 +806,7 @@ function StepSubProduct({
                 : "border-[#d9d9d9] bg-white"
             }`}
           >
-            <div className="w-full aspect-square rounded-[4px] overflow-hidden flex-shrink-0 bg-[#eef1f4]">
-              <img
-                src={prod.img || "/placeholder.svg"}
-                alt={prod.name}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  e.currentTarget.src = "/placeholder.svg";
-                }}
-              />
-            </div>
+            <ProductImageWithFallback src={prod.img} alt={prod.name} name={prod.name} />
             <span
               className="text-[14px] font-normal text-black text-center self-stretch tracking-[-0.02em] leading-[15px] pb-1"
               style={{ fontFamily: "Verdana, sans-serif" }}
@@ -811,8 +840,6 @@ function StepSubProduct({
 /* ------------------------------------------------------------------ */
 /*  Step 6 – Choose Material / Product (from API /v1/library/products) */
 /* ------------------------------------------------------------------ */
-const PRODUCT_IMG_FALLBACK = "/placeholder.svg"
-
 function StepMaterial({
   categoryName,
   subProductName,
@@ -926,16 +953,7 @@ function StepMaterial({
                 <span className="absolute top-1 text-[10px] text-[#7f7f7f] opacity-0 group-hover:opacity-100 transition-opacity">
                   Click and select
                 </span>
-                <div className="w-full aspect-square rounded-[5px] overflow-hidden bg-[#080808] flex-shrink-0">
-                  <img
-                    src={prod.img || PRODUCT_IMG_FALLBACK}
-                    alt={prod.name}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.currentTarget.src = PRODUCT_IMG_FALLBACK;
-                    }}
-                  />
-                </div>
+                <ProductImageWithFallback src={prod.img} alt={prod.name} name={prod.name} className="rounded-[5px]" bgClassName="bg-[#080808]" textClassName="text-[#b4b0b0]" />
                 <span
                   style={{ fontFamily: "Verdana, sans-serif", fontSize: 14, lineHeight: "15px", letterSpacing: "-0.02em" }}
                   className="text-[#000000] text-center self-stretch"
@@ -1081,6 +1099,8 @@ export default function NewCaseWizard({
   initialPatientName = "",
   initialGender = "",
   initialDoctor = undefined,
+  initialCategory = null,
+  initialSubProduct = null,
 }: {
   onComplete: (result: WizardResult) => void;
   onLabSelect?: (lab: WizardLabShape) => void;
@@ -1090,14 +1110,16 @@ export default function NewCaseWizard({
   initialPatientName?: string;
   initialGender?: string;
   initialDoctor?: WizardDoctorShape;
+  initialCategory?: number | null;
+  initialSubProduct?: number | null;
 }) {
   const [step, setStep] = useState(startStep);
   const [selectedDoctor, setSelectedDoctor] = useState<number | null>(null);
   const [selectedLab, setSelectedLab] = useState<number | null>(initialLabId);
   const [patientName, setPatientName] = useState(initialPatientName);
   const [gender, setGender] = useState(initialGender);
-  const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
-  const [selectedSubProduct, setSelectedSubProduct] = useState<number | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<number | null>(initialCategory);
+  const [selectedSubProduct, setSelectedSubProduct] = useState<number | null>(initialSubProduct);
   const [selectedMaterial, setSelectedMaterial] = useState<string | null>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
 
