@@ -61,7 +61,7 @@ export function ShadeSelectionGuide({
     <div className="mb-4 border border-[#1162A8] rounded-lg p-4 bg-white">
       {/* Header row */}
       <div className="flex items-center justify-between mb-3">
-        <h4 className="text-[13px] font-semibold text-[#1d1d1b]">
+        <h4 className="text-[16px] font-semibold text-[#1d1d1b]">
           Select {activeField === 'tooth_shade' ? 'Tooth' : 'Stump'} Shade
           <span className="text-[#cf0202]">*</span>
         </h4>
@@ -80,14 +80,14 @@ export function ShadeSelectionGuide({
         {/* Shade Guide Selector Dropdown */}
         <div className="relative">
           <fieldset className="border border-[#34a853] rounded px-3 py-0 relative h-[42px] flex items-center">
-            <legend className="text-[11px] text-[#34a853] px-1 leading-none">
+            <legend className="text-[14px] text-[#34a853] px-1 leading-none">
               Shade guide selected
             </legend>
             <button
               onClick={() => setShowShadeGuideDropdown(!showShadeGuideDropdown)}
               className="w-full flex items-center justify-between text-left"
             >
-              <span className="text-[13px] text-[#1d1d1b]">{selectedShadeGuide}</span>
+              <span className="text-[18px] font-bold text-[#000000]">{selectedShadeGuide}</span>
               <div className="flex items-center gap-2">
                 <Check size={16} className="text-[#34a853]" />
                 <ChevronDown size={16} className={`text-[#7f7f7f] transition-transform ${showShadeGuideDropdown ? 'rotate-180' : ''}`} />
@@ -128,13 +128,13 @@ export function ShadeSelectionGuide({
           } ${activeField === 'stump_shade' ? 'ring-2 ring-[#1162A8] ring-offset-1' : ''}`}
           onClick={() => setShadeSelectionState(prev => ({ ...prev, fieldType: 'stump_shade' }))}
         >
-          <legend className={`text-[11px] px-1 leading-none ${
+          <legend className={`text-[14px] px-1 leading-none ${
             stumpShade ? 'text-[#34a853]' : 'text-[#cf0202]'
           }`}>
             Stump Shade
           </legend>
           <div className="flex items-center gap-2 w-full">
-            <span className="text-[13px] text-[#1d1d1b]">
+            <span className="text-[18px] font-bold text-[#000000]">
               {stumpShade ? `${selectedShadeGuide} - ${stumpShade}` : ''}
             </span>
             {stumpShade && <Check size={16} className="text-[#34a853] ml-auto" />}
@@ -149,13 +149,13 @@ export function ShadeSelectionGuide({
             } ${activeField === 'tooth_shade' ? 'ring-2 ring-[#1162A8] ring-offset-1' : ''}`}
             onClick={() => setShadeSelectionState(prev => ({ ...prev, fieldType: 'tooth_shade' }))}
           >
-            <legend className={`text-[11px] px-1 leading-none ${
+            <legend className={`text-[14px] px-1 leading-none ${
               toothShade ? 'text-[#34a853]' : 'text-[#cf0202]'
             }`}>
               Tooth Shade
             </legend>
             <div className="flex items-center gap-2 w-full">
-              <span className="text-[13px] text-[#1d1d1b]">
+              <span className="text-[18px] font-bold text-[#000000]">
                 {toothShade ? `${selectedShadeGuide} - ${toothShade}` : ''}
               </span>
               {toothShade && <Check size={16} className="text-[#34a853] ml-auto" />}

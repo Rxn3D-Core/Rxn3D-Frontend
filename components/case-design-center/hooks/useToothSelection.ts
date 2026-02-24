@@ -1,9 +1,33 @@
 "use client";
 
 import { useState } from "react";
-import type { Arch, RetentionType, RetentionPopoverState } from "../types";
+import type { Arch, RetentionType, RetentionPopoverState, AddedProduct } from "../types";
 
-export function useToothSelection() {
+/** Exported for use in useCaseDesignState when computing active product category. */
+export function isRemovablesCategoryName(name: string | undefined): boolean {
+  if (!name) return false;
+  const n = name.toLowerCase().trim();
+  return n === "removables" || n === "removables restoration" || n === "removable restoration";
+}
+
+function isRemovablesArch(addedProducts: AddedProduct[], arch: Arch): boolean {
+  return addedProducts
+    .filter((ap) => ap.arch === arch)
+    .some((ap) => {
+      const name = (ap.product?.subcategory?.category?.name || ap.product?.category_name || "").toLowerCase();
+      return name === "removables" || name === "removables restoration" || name === "removable restoration";
+    });
+}
+
+export interface TreatArchAsRemovables {
+  maxillary?: boolean;
+  mandibular?: boolean;
+}
+
+export function useToothSelection(
+  addedProducts: AddedProduct[] = [],
+  treatArchAsRemovables?: TreatArchAsRemovables
+) {
   const [maxillaryTeeth, setMaxillaryTeeth] = useState<number[]>([]);
   const [mandibularTeeth, setMandibularTeeth] = useState<number[]>([]);
 
@@ -20,7 +44,17 @@ export function useToothSelection() {
   const [maxillaryToothExtractionMap, setMaxillaryToothExtractionMap] = useState<Record<number, string>>({});
   const [mandibularToothExtractionMap, setMandibularToothExtractionMap] = useState<Record<number, string>>({});
 
+  const maxillaryIsRemovables = treatArchAsRemovables?.maxillary ?? isRemovablesArch(addedProducts, "maxillary");
+  const mandibularIsRemovables = treatArchAsRemovables?.mandibular ?? isRemovablesArch(addedProducts, "mandibular");
+
   const handleMaxillaryToothClick = (toothNumber: number) => {
+    if (maxillaryIsRemovables) {
+      // Removables: just toggle tooth selection, no retention popover
+      setMaxillaryTeeth((prev) =>
+        prev.includes(toothNumber) ? prev.filter((t) => t !== toothNumber) : [...prev, toothNumber]
+      );
+      return;
+    }
     if (maxillaryTeeth.includes(toothNumber)) {
       setRetentionPopoverState({ arch: "maxillary", toothNumber });
     } else {
@@ -30,6 +64,13 @@ export function useToothSelection() {
   };
 
   const handleMandibularToothClick = (toothNumber: number) => {
+    if (mandibularIsRemovables) {
+      // Removables: just toggle tooth selection, no retention popover
+      setMandibularTeeth((prev) =>
+        prev.includes(toothNumber) ? prev.filter((t) => t !== toothNumber) : [...prev, toothNumber]
+      );
+      return;
+    }
     if (mandibularTeeth.includes(toothNumber)) {
       setRetentionPopoverState({ arch: "mandibular", toothNumber });
     } else {

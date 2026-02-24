@@ -31,6 +31,7 @@ import type {
 import type { FieldStep } from "../hooks/useToothFieldProgress";
 import { getFixedFieldChain } from "../hooks/useToothFieldProgress";
 import { ImplantDetailSection } from "./ImplantDetailSection";
+import { GumShadePicker } from "./GumShadePicker";
 
 /* ------------------------------------------------------------------ */
 /*  Articulator icon (Stage field)                                     */
@@ -282,6 +283,8 @@ interface MandibularPanelProps {
   // Retention popover
   retentionPopoverState: RetentionPopoverState;
   setRetentionPopoverState: (state: RetentionPopoverState) => void;
+  /** When true, active product is Removable restoration — hide retention popover and only toggle teeth */
+  activeProductIsRemovables?: boolean;
   handleSelectRetentionType: (arch: Arch, tooth: number, type: RetentionType) => void;
 
   // Shade selection
@@ -360,6 +363,7 @@ export function MandibularPanel({
   mandibularRetentionTypes,
   retentionPopoverState,
   setRetentionPopoverState,
+  activeProductIsRemovables = false,
   handleSelectRetentionType,
   shadeSelectionState,
   setShadeSelectionState,
@@ -405,19 +409,21 @@ export function MandibularPanel({
   const [activeExtractionCode, setActiveExtractionCode] = useState<string | null>(null);
   /** Tracks implant detail completion per tooth so we can block impression modal until complete. */
   const [implantDetailCompleteByTooth, setImplantDetailCompleteByTooth] = useState<Record<number, boolean>>({});
+  /** Expand/collapse for initial (card 0) Removables product accordion */
+  const [initialRemovablesExpanded, setInitialRemovablesExpanded] = useState(true);
 
-  /** Hide retention-type popover when category is Removables / Removables Restoration */
+  /** Hide retention-type popover when category is Removable(s) Restoration */
   const isRemovablesCategory =
     mandibularTeeth.some((tn) => {
       const p = getToothProduct("mandibular", tn);
-      const name = p?.subcategory?.category?.name ?? "";
-      return name === "Removables" || name === "Removables Restoration";
+      const name = (p?.subcategory?.category?.name ?? "").toLowerCase();
+      return name === "removables" || name === "removables restoration" || name === "removable restoration";
     }) ||
     addedProducts
       .filter((ap) => ap.arch === "mandibular")
       .some((ap) => {
-        const name = ap.product?.subcategory?.category?.name || ap.product?.category_name || "";
-        return name === "Removables" || name === "Removables Restoration";
+        const name = (ap.product?.subcategory?.category?.name || ap.product?.category_name || "").toLowerCase();
+        return name === "removables" || name === "removables restoration" || name === "removable restoration";
       });
 
   return (
@@ -440,12 +446,12 @@ export function MandibularPanel({
           <button
             onClick={!disableAddProduct ? () => onAddProduct?.('mandibular') : undefined}
             title={disableAddProduct ? "Complete all required fields before adding another product" : undefined}
-            className={`flex items-center gap-1.5 shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] text-white font-[Verdana] text-[10px] leading-[22px] tracking-[-0.02em] text-center px-2.5 py-0 rounded-md ${disableAddProduct ? "bg-[#b4b0b0] cursor-not-allowed opacity-60" : "bg-[#1162A8] hover:bg-[#0d4a85] cursor-pointer"}`}>
+            className={`flex items-center gap-1.5 shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] text-white font-[Verdana] text-[16px] font-semibold leading-[22px] tracking-[-0.02em] text-center px-2.5 py-1 rounded-md ${disableAddProduct ? "bg-[#b4b0b0] cursor-not-allowed opacity-60" : "bg-[#1162A8] hover:bg-[#0d4a85] cursor-pointer"}`}>
             <Plus size={13} strokeWidth={1.5} />
             Add Product
           </button>
         )}
-        <h3 className="text-[12px] md:text-[14px] font-bold text-[#1d1d1b] tracking-wide">
+        <h3 className="text-[20px] font-bold text-[#1d1d1b] tracking-wide">
           MANDIBULAR
         </h3>
       </div>
@@ -475,7 +481,7 @@ export function MandibularPanel({
                 className="w-full"
                 retentionTypesByTooth={mandibularRetentionTypes}
                 showRetentionPopover={
-                  retentionPopoverState.arch === "mandibular" && !isRemovablesCategory
+                  retentionPopoverState.arch === "mandibular" && !isRemovablesCategory && !activeProductIsRemovables
                 }
                 retentionPopoverTooth={retentionPopoverState.toothNumber}
                 onSelectRetentionType={(tooth, type) => handleSelectRetentionType('mandibular', tooth, type)}
@@ -569,6 +575,9 @@ export function MandibularPanel({
                         : "10 work days after submission"
                     : "10 work days after submission";
                   const toothNumbers = teeth.map((t) => t.toothNumber);
+                  // Stable key for stage so value is not lost when group order or implant section changes
+                  const groupStageToothNumber = Math.min(...toothNumbers);
+                  const groupStageProductIdFixed = `mandibular_fixed_${groupStageToothNumber}`;
                   const toothNumbersDisplay = toothNumbers.map((n) => `#${n}`).join(",");
                   const retentionTypes = [...new Set(teeth.map((t) => t.retentionType))];
                   const hasRushed = toothNumbers.some((n) => rushedProducts[`mandibular_prep_${n}`] || rushedProducts[`mandibular_fixed_${n}`]);
@@ -640,7 +649,7 @@ export function MandibularPanel({
                           )}
                         </div>
                         <div className="flex-1 min-w-0 text-left flex flex-col">
-                          <p className="font-[Verdana] text-[14.4px] leading-[20px] tracking-[-0.02em] text-black flex items-center gap-1">
+                          <p className="font-[Verdana] text-[18px] font-bold leading-[22px] tracking-[-0.02em] text-black flex items-center gap-1">
                             {productName}
                             {hasRushed && (
                               <Zap
@@ -650,27 +659,27 @@ export function MandibularPanel({
                               />
                             )}
                           </p>
-                          <p className="font-[Verdana] text-[14.4px] leading-[20px] tracking-[-0.02em] text-black">
+                          <p className="font-[Verdana] text-[18px] font-bold leading-[22px] tracking-[-0.02em] text-black">
                             {toothNumbersDisplay}
                           </p>
                           <div className="flex items-center gap-[5px] flex-wrap">
                             {categoryName && (
-                              <span className="font-[Verdana] text-[10px] leading-[22px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[10px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]">
+                              <span className="font-[Verdana] text-[14px] font-medium leading-[22px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[10px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]">
                                 {categoryName}
                               </span>
                             )}
                             {subcategoryName && (
-                              <span className="font-[Verdana] text-[10px] leading-[22px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[10px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]">
+                              <span className="font-[Verdana] text-[14px] font-medium leading-[22px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[10px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]">
                                 {subcategoryName}
                               </span>
                             )}
-                            {(selectedStages[`mandibular_prep_${firstToothNumber}`] || selectedStages[`mandibular_fixed_${firstToothNumber}`]) && (
-                              <span className="font-[Verdana] text-[10px] leading-[22px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[10px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]">
-                                {selectedStages[`mandibular_prep_${firstToothNumber}`] || selectedStages[`mandibular_fixed_${firstToothNumber}`]}
-                              </span>
+                            {(selectedStages[`mandibular_prep_${firstToothNumber}`] || selectedStages[groupStageProductIdFixed]) && (
+                                <span className="font-[Verdana] text-[14px] font-medium leading-[22px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[10px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]">
+                                  {selectedStages[`mandibular_prep_${firstToothNumber}`] || selectedStages[groupStageProductIdFixed]}
+                                </span>
                             )}
                             <span
-                              className={`font-[Verdana] text-[10px] leading-[22px] tracking-[-0.02em] ${
+                              className={`font-[Verdana] text-[14px] leading-[22px] tracking-[-0.02em] ${
                                 hasRushed
                                   ? "text-[#CF0202] font-medium"
                                   : "text-[#B4B0B0]"
@@ -696,12 +705,12 @@ export function MandibularPanel({
                       {isPrepPonticExpanded(firstToothNumber) && (
                       <div className="border-t border-[#d9d9d9] p-4 bg-white space-y-3 max-h-[600px] overflow-y-auto scrollbar-blue">
                         <AutoOpenStageIfEmpty
-                          productId={categoryName === "Fixed Restoration" ? `mandibular_fixed_${firstToothNumber}` : `mandibular_prep_${firstToothNumber}`}
+                          productId={categoryName === "Fixed Restoration" ? groupStageProductIdFixed : `mandibular_prep_${firstToothNumber}`}
                           arch="mandibular"
-                          toothNumber={firstToothNumber}
+                          toothNumber={categoryName === "Fixed Restoration" ? groupStageToothNumber : firstToothNumber}
                           isExpanded={true}
-                          isStageVisible={categoryName === "Fixed Restoration" ? isFieldVisible("mandibular", firstToothNumber, "fixed_stage") : isFieldVisible("mandibular", firstToothNumber, "stage")}
-                          isStageEmpty={categoryName === "Fixed Restoration" ? !(selectedStages[`mandibular_fixed_${firstToothNumber}`] || getFieldValue("mandibular", firstToothNumber, "fixed_stage")) : !(selectedStages[`mandibular_prep_${firstToothNumber}`] || getFieldValue("mandibular", firstToothNumber, "stage"))}
+                          isStageVisible={categoryName === "Fixed Restoration" ? isFixed("fixed_stage") : isFieldVisible("mandibular", firstToothNumber, "stage")}
+                          isStageEmpty={categoryName === "Fixed Restoration" ? !(selectedStages[groupStageProductIdFixed] || getFieldValue("mandibular", groupStageToothNumber, "fixed_stage")) : !(selectedStages[`mandibular_prep_${firstToothNumber}`] || getFieldValue("mandibular", firstToothNumber, "stage"))}
                           onOpenStage={handleOpenStageModal}
                         />
                         {categoryName === "Fixed Restoration" && (
@@ -710,14 +719,14 @@ export function MandibularPanel({
                               arch="mandibular"
                               productId={`fixed_${firstToothNumber}`}
                               isExpanded={true}
-                              isShadeSectionVisible={isFieldVisible("mandibular", firstToothNumber, "fixed_stump_shade") || isFieldVisible("mandibular", firstToothNumber, "fixed_shade_trio")}
+                              isShadeSectionVisible={isFixed("fixed_stump_shade") || isFixed("fixed_shade_trio")}
                               stumpShadeEmpty={!getSelectedShade(`fixed_${firstToothNumber}`, "mandibular", "stump_shade")}
                               toothShadeEmpty={!getSelectedShade(`fixed_${firstToothNumber}`, "mandibular", "tooth_shade")}
                               setShadeSelectionState={setShadeSelectionState}
                             />
                             <AutoOpenImpressionIfEmpty
                               isExpanded={isPrepPonticExpanded(firstToothNumber)}
-                              isImpressionVisible={!fixedShadeIncomplete && isFieldVisible("mandibular", firstToothNumber, "fixed_impression")}
+                              isImpressionVisible={!fixedShadeIncomplete && isFixed("fixed_impression")}
                               isImpressionEmpty={!isFieldCompleted("mandibular", firstToothNumber, "fixed_impression")}
                               onOpenImpressionModal={(arch, productId, toothNum) => {
                                 const hasImplantForm = toothNumbers.some((n) => (mandibularRetentionTypes[n] || []).includes("Implant"));
@@ -753,11 +762,11 @@ export function MandibularPanel({
                             {!fixedShadeIncomplete && <>
 
                             {/* Step 1 & 2: Stage and Stump Shade in one row */}
-                            {(isFieldVisible("mandibular", firstToothNumber, "fixed_stage") || (isFieldVisible("mandibular", firstToothNumber, "fixed_stump_shade") && hasAdvanceField("fixed_stump_shade", selectedProduct?.advance_fields))) && (
+                            {(isFixed("fixed_stage") || (isFixed("fixed_stump_shade") && hasAdvanceField("fixed_stump_shade", selectedProduct?.advance_fields))) && (
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                {isFieldVisible("mandibular", firstToothNumber, "fixed_stage") && (() => {
-                                  const fixedStageValue = selectedStages[`mandibular_fixed_${firstToothNumber}`] || getFieldValue("mandibular", firstToothNumber, "fixed_stage");
-                                  const isStageComplete = isFieldCompleted("mandibular", firstToothNumber, "fixed_stage") || !!(fixedStageValue && fixedStageValue.trim());
+                                {isFixed("fixed_stage") && (() => {
+                                  const fixedStageValue = selectedStages[groupStageProductIdFixed] || getFieldValue("mandibular", groupStageToothNumber, "fixed_stage");
+                                  const isStageComplete = isFieldCompleted("mandibular", groupStageToothNumber, "fixed_stage") || !!(fixedStageValue && fixedStageValue.trim());
                                   const showStageGreen = isStageComplete && !caseSubmitted;
                                   return (
                                   <fieldset
@@ -765,14 +774,14 @@ export function MandibularPanel({
                                       showStageGreen ? "border-[#34a853]" : isStageComplete ? "border-[#b4b0b0]" : "border-[#CF0202]"
                                     }`}
                                     onClick={() => {
-                                      handleOpenStageModal(`mandibular_fixed_${firstToothNumber}`, "mandibular", firstToothNumber);
+                                      handleOpenStageModal(groupStageProductIdFixed, "mandibular", groupStageToothNumber);
                                     }}
                                   >
-                                    <legend className={`text-[11px] px-1 leading-none ${showStageGreen ? "text-[#34a853]" : isStageComplete ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>
+                                    <legend className={`text-[14px] px-1 leading-none ${showStageGreen ? "text-[#34a853]" : isStageComplete ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>
                                       Stage
                                     </legend>
                                     <div className="flex items-center gap-2 w-full">
-                                      <span className="text-[13px] text-[#1d1d1b]">
+                                      <span className="text-[18px] font-bold text-[#000000]">
                                         {fixedStageValue}
                                       </span>
                                       {showStageGreen && (
@@ -785,7 +794,7 @@ export function MandibularPanel({
                                   </fieldset>
                                   );
                                 })()}
-                                {isFieldVisible("mandibular", firstToothNumber, "fixed_stump_shade") && hasAdvanceField("fixed_stump_shade", selectedProduct?.advance_fields) && (
+                                {isFixed("fixed_stump_shade") && hasAdvanceField("fixed_stump_shade", selectedProduct?.advance_fields) && (
                                   <ShadeField
                                     label="Stump Shade"
                                     value={selectedShadeGuide}
@@ -798,7 +807,7 @@ export function MandibularPanel({
                             )}
 
                             {/* Step 3: Cervical / Incisal / Body Shade (no Tooth Shade field) */}
-                            {isFieldVisible("mandibular", firstToothNumber, "fixed_shade_trio") && hasAdvanceField("fixed_shade_trio", selectedProduct?.advance_fields) && (
+                            {isFixed("fixed_shade_trio") && hasAdvanceField("fixed_shade_trio", selectedProduct?.advance_fields) && (
                               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <ShadeField
                                   label="Cervical Shade"
@@ -838,7 +847,7 @@ export function MandibularPanel({
                             )}
 
                             {/* Step 4: Characterization / Intensity / Surface finish */}
-                            {isFieldVisible("mandibular", firstToothNumber, "fixed_characterization") && hasAdvanceField("fixed_characterization", selectedProduct?.advance_fields) && (
+                            {isFixed("fixed_characterization") && hasAdvanceField("fixed_characterization", selectedProduct?.advance_fields) && (
                               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <fieldset
                                   className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
@@ -850,27 +859,27 @@ export function MandibularPanel({
                                     }
                                   }}
                                 >
-                                  <legend className={`text-[11px] px-1 leading-none ${isFieldCompleted("mandibular", firstToothNumber, "fixed_characterization") && !caseSubmitted ? "text-[#34a853]" : isFieldCompleted("mandibular", firstToothNumber, "fixed_characterization") ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>
+                                  <legend className={`text-[14px] px-1 leading-none ${isFieldCompleted("mandibular", firstToothNumber, "fixed_characterization") && !caseSubmitted ? "text-[#34a853]" : isFieldCompleted("mandibular", firstToothNumber, "fixed_characterization") ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>
                                     Characterization
                                   </legend>
                                   <div className="flex items-center gap-2 w-full">
-                                    <span className="text-[13px] text-[#1d1d1b]">{getFieldValue("mandibular", firstToothNumber, "fixed_characterization")}</span>
+                                    <span className="text-[18px] font-bold text-[#000000]">{getFieldValue("mandibular", firstToothNumber, "fixed_characterization")}</span>
                                     {isFieldCompleted("mandibular", firstToothNumber, "fixed_characterization") && !caseSubmitted && <Check size={16} className="text-[#34a853] ml-auto" />}
                                   </div>
                                 </fieldset>
                                 <fieldset className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${isFieldCompleted("mandibular", firstToothNumber, "fixed_characterization") && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]"}`}>
-                                  <legend className={`text-[11px] px-1 leading-none ${isFieldCompleted("mandibular", firstToothNumber, "fixed_characterization") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>Intensity</legend>
-                                  <span className="text-[13px] text-[#1d1d1b]"></span>
+                                  <legend className={`text-[14px] px-1 leading-none ${isFieldCompleted("mandibular", firstToothNumber, "fixed_characterization") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>Intensity</legend>
+                                  <span className="text-[18px] font-bold text-[#000000]"></span>
                                 </fieldset>
                                 <fieldset className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${isFieldCompleted("mandibular", firstToothNumber, "fixed_characterization") && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]"}`}>
-                                  <legend className={`text-[11px] px-1 leading-none ${isFieldCompleted("mandibular", firstToothNumber, "fixed_characterization") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>Surface finish</legend>
-                                  <span className="text-[13px] text-[#1d1d1b]"></span>
+                                  <legend className={`text-[14px] px-1 leading-none ${isFieldCompleted("mandibular", firstToothNumber, "fixed_characterization") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>Surface finish</legend>
+                                  <span className="text-[18px] font-bold text-[#000000]"></span>
                                 </fieldset>
                               </div>
                             )}
 
                             {/* Step 5: Occlusal Contact / Pontic Design / Embrasures / Proximal Contact */}
-                            {isFieldVisible("mandibular", firstToothNumber, "fixed_contact_icons") && hasAdvanceField("fixed_contact_icons", selectedProduct?.advance_fields) && (
+                            {isFixed("fixed_contact_icons") && hasAdvanceField("fixed_contact_icons", selectedProduct?.advance_fields) && (
                               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                 {(["occlusal", "pontic", "embrasures", "proximal"] as const).map((icon, idx) => {
                                   const labels = ["Occlusal Contact", "Pontic Design", "Embrasures", "Proximal Contact"];
@@ -893,7 +902,7 @@ export function MandibularPanel({
                             )}
 
                             {/* Step 6: Margin Design / Margin Depth / Occlusal Reduction / Axial Reduction */}
-                            {isFieldVisible("mandibular", firstToothNumber, "fixed_margin") && hasAdvanceField("fixed_margin", selectedProduct?.advance_fields) && (
+                            {isFixed("fixed_margin") && hasAdvanceField("fixed_margin", selectedProduct?.advance_fields) && (
                               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                 {["Margin Design", "Margin Depth", "Occlusal Reduction", "Axial Reduction"].map((label, idx) => {
                                   const isCompleted = isFieldCompleted("mandibular", firstToothNumber, "fixed_margin");
@@ -908,9 +917,9 @@ export function MandibularPanel({
                                         if (!isCompleted) completeFieldStep("mandibular", firstToothNumber, "fixed_margin", "selected");
                                       }}
                                     >
-                                      <legend className={`text-[11px] px-1 leading-none ${showGreen ? "text-[#34a853]" : idx === 0 ? "text-[#CF0202]" : "text-[#7f7f7f]"}`}>{label}</legend>
+                                      <legend className={`text-[14px] px-1 leading-none ${showGreen ? "text-[#34a853]" : idx === 0 ? "text-[#CF0202]" : "text-[#7f7f7f]"}`}>{label}</legend>
                                       <div className="flex items-center gap-2 w-full">
-                                        <span className="text-[13px] text-[#1d1d1b]"></span>
+                                        <span className="text-[18px] font-bold text-[#000000]"></span>
                                         {showGreen && idx === 0 && <Check size={16} className="text-[#34a853] ml-auto" />}
                                       </div>
                                     </fieldset>
@@ -920,7 +929,7 @@ export function MandibularPanel({
                             )}
 
                             {/* Step 7: Metal Design / Metal Thickness / Modification */}
-                            {isFieldVisible("mandibular", firstToothNumber, "fixed_metal") && hasAdvanceField("fixed_metal", selectedProduct?.advance_fields) && (
+                            {isFixed("fixed_metal") && hasAdvanceField("fixed_metal", selectedProduct?.advance_fields) && (
                               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 {["Metal Design", "Metal Thickness", "Modification"].map((label, idx) => {
                                   const isCompleted = isFieldCompleted("mandibular", firstToothNumber, "fixed_metal");
@@ -935,9 +944,9 @@ export function MandibularPanel({
                                         if (!isCompleted) completeFieldStep("mandibular", firstToothNumber, "fixed_metal", "selected");
                                       }}
                                     >
-                                      <legend className={`text-[11px] px-1 leading-none ${showGreen ? "text-[#34a853]" : idx === 0 ? "text-[#CF0202]" : "text-[#7f7f7f]"}`}>{label}</legend>
+                                      <legend className={`text-[14px] px-1 leading-none ${showGreen ? "text-[#34a853]" : idx === 0 ? "text-[#CF0202]" : "text-[#7f7f7f]"}`}>{label}</legend>
                                       <div className="flex items-center gap-2 w-full">
-                                        <span className="text-[13px] text-[#1d1d1b]"></span>
+                                        <span className="text-[18px] font-bold text-[#000000]"></span>
                                         {showGreen && idx === 0 && <Check size={16} className="text-[#34a853] ml-auto" />}
                                       </div>
                                     </fieldset>
@@ -947,7 +956,7 @@ export function MandibularPanel({
                             )}
 
                             {/* Step 8: Proximal Contact Mesial / Distal / Functional Guidance */}
-                            {isFieldVisible("mandibular", firstToothNumber, "fixed_proximal_contact") && hasAdvanceField("fixed_proximal_contact", selectedProduct?.advance_fields) && (
+                            {isFixed("fixed_proximal_contact") && hasAdvanceField("fixed_proximal_contact", selectedProduct?.advance_fields) && (
                               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 {["Proximal Contact – Mesial", "Proximal Contact – Distal", "Functional Guidance"].map((label, idx) => {
                                   const isCompleted = isFieldCompleted("mandibular", firstToothNumber, "fixed_proximal_contact");
@@ -962,9 +971,9 @@ export function MandibularPanel({
                                         if (!isCompleted) completeFieldStep("mandibular", firstToothNumber, "fixed_proximal_contact", "selected");
                                       }}
                                     >
-                                      <legend className={`text-[11px] px-1 leading-none ${showGreen ? "text-[#34a853]" : idx === 0 ? "text-[#CF0202]" : "text-[#7f7f7f]"}`}>{label}</legend>
+                                      <legend className={`text-[14px] px-1 leading-none ${showGreen ? "text-[#34a853]" : idx === 0 ? "text-[#CF0202]" : "text-[#7f7f7f]"}`}>{label}</legend>
                                       <div className="flex items-center gap-2 w-full">
-                                        <span className="text-[13px] text-[#1d1d1b]"></span>
+                                        <span className="text-[18px] font-bold text-[#000000]"></span>
                                         {showGreen && idx === 0 && <Check size={16} className="text-[#34a853] ml-auto" />}
                                       </div>
                                     </fieldset>
@@ -974,7 +983,7 @@ export function MandibularPanel({
                             )}
 
                             {/* Step 9: Impression / Add ons */}
-                            {isFieldVisible("mandibular", firstToothNumber, "fixed_impression") && (
+                            {isFixed("fixed_impression") && (
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <fieldset
                                   className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
@@ -986,11 +995,11 @@ export function MandibularPanel({
                                     handleOpenImpressionModal("mandibular", selectedProduct?.id?.toString() || `fixed_${firstToothNumber}`, firstToothNumber);
                                   }}
                                 >
-                                  <legend className={`text-[11px] px-1 leading-none ${isFieldCompleted("mandibular", firstToothNumber, "fixed_impression") && !caseSubmitted ? "text-[#34a853]" : isFieldCompleted("mandibular", firstToothNumber, "fixed_impression") ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>
+                                  <legend className={`text-[14px] px-1 leading-none ${isFieldCompleted("mandibular", firstToothNumber, "fixed_impression") && !caseSubmitted ? "text-[#34a853]" : isFieldCompleted("mandibular", firstToothNumber, "fixed_impression") ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>
                                     Impression
                                   </legend>
                                   <div className="flex items-center gap-2 w-full">
-                                    <span className="text-[13px] text-[#1d1d1b] truncate">
+                                    <span className="text-[18px] font-bold text-[#000000] truncate">
                                       {getImpressionDisplayText(selectedProduct?.id?.toString() || `fixed_${firstToothNumber}`, "mandibular")}
                                     </span>
                                     {isFieldCompleted("mandibular", firstToothNumber, "fixed_impression") && !caseSubmitted && (
@@ -999,7 +1008,7 @@ export function MandibularPanel({
                                   </div>
                                 </fieldset>
 
-                                {isFieldVisible("mandibular", firstToothNumber, "fixed_addons") ? (
+                                {isFixed("fixed_addons") ? (
                                   <fieldset
                                     className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
                                       isFieldCompleted("mandibular", firstToothNumber, "fixed_addons") && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]"
@@ -1008,11 +1017,11 @@ export function MandibularPanel({
                                       handleOpenAddOnsModal("mandibular", selectedProduct?.id?.toString() || `fixed_${firstToothNumber}`, firstToothNumber);
                                     }}
                                   >
-                                    <legend className={`text-[11px] px-1 leading-none ${isFieldCompleted("mandibular", firstToothNumber, "fixed_addons") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>
+                                    <legend className={`text-[14px] px-1 leading-none ${isFieldCompleted("mandibular", firstToothNumber, "fixed_addons") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>
                                       Add ons
                                     </legend>
                                     <div className="flex items-center gap-2 w-full">
-                                      <span className="text-[13px] text-[#1d1d1b] truncate">
+                                      <span className="text-[18px] font-bold text-[#000000] truncate">
                                         {getFieldValue("mandibular", firstToothNumber, "fixed_addons")}
                                       </span>
                                       {isFieldCompleted("mandibular", firstToothNumber, "fixed_addons") && !caseSubmitted && (
@@ -1027,13 +1036,13 @@ export function MandibularPanel({
                             )}
 
                             {/* Additional notes — only shown when advance_fields includes a notes field */}
-                            {isFieldVisible("mandibular", firstToothNumber, "fixed_notes") && (
+                            {isFixed("fixed_notes") && (
                               <fieldset
                                 className={`border rounded px-3 pb-2 pt-0 ${
                                   isFieldCompleted("mandibular", firstToothNumber, "fixed_notes") && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]"
                                 }`}
                               >
-                                <legend className={`text-[11px] px-1 leading-none ${isFieldCompleted("mandibular", firstToothNumber, "fixed_notes") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>
+                                <legend className={`text-[14px] px-1 leading-none ${isFieldCompleted("mandibular", firstToothNumber, "fixed_notes") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>
                                   Additional notes
                                 </legend>
                                 <textarea
@@ -1143,7 +1152,7 @@ export function MandibularPanel({
                                   }}
                                 >
                                   <legend
-                                    className={`text-[11px] px-1 leading-none ${
+                                    className={`text-[14px] px-1 leading-none ${
                                       isFieldCompleted("mandibular", firstToothNumber, "grade") && !caseSubmitted
                                         ? "text-[#34a853]"
                                         : isFieldCompleted("mandibular", firstToothNumber, "grade")
@@ -1154,7 +1163,7 @@ export function MandibularPanel({
                                     Grade
                                   </legend>
                                   <div className="flex items-center gap-2 w-full">
-                                    <span className="text-[13px] text-[#1d1d1b]">
+                                    <span className="text-[18px] font-bold text-[#000000]">
                                       {getFieldValue("mandibular", firstToothNumber, "grade")}
                                     </span>
                                     <div className="flex gap-1 ml-auto">
@@ -1183,7 +1192,7 @@ export function MandibularPanel({
                                     }}
                                   >
                                     <legend
-                                      className={`text-[11px] px-1 leading-none ${
+                                      className={`text-[14px] px-1 leading-none ${
                                         isFieldCompleted("mandibular", firstToothNumber, "stage") && !caseSubmitted
                                           ? "text-[#34a853]"
                                           : isFieldCompleted("mandibular", firstToothNumber, "stage")
@@ -1194,7 +1203,7 @@ export function MandibularPanel({
                                       Stage
                                     </legend>
                                     <div className="flex items-center gap-2 w-full">
-                                      <span className="text-[13px] text-[#1d1d1b]">
+                                      <span className="text-[18px] font-bold text-[#000000]">
                                         {getFieldValue("mandibular", firstToothNumber, "stage")}
                                       </span>
                                       {isFieldCompleted("mandibular", firstToothNumber, "stage") && !caseSubmitted && (
@@ -1213,6 +1222,19 @@ export function MandibularPanel({
 
                             {/* Step 2: Teeth shade / Gum Shade */}
                             {isFieldVisible("mandibular", firstToothNumber, "teeth_shade") && (
+                              <>
+                              {/* Gum Shade Picker - shown above when gum shade field is visible but not completed */}
+                              {isFieldVisible("mandibular", firstToothNumber, "gum_shade") &&
+                                !isFieldCompleted("mandibular", firstToothNumber, "gum_shade") && (
+                                <div className="mt-3">
+                                  <GumShadePicker
+                                    selected={null}
+                                    onSelect={(shadeName) => {
+                                      completeFieldStep("mandibular", firstToothNumber, "gum_shade", shadeName);
+                                    }}
+                                  />
+                                </div>
+                              )}
                               <div className="grid grid-cols-2 gap-3 mt-3">
                                 <fieldset
                                   className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
@@ -1234,7 +1256,7 @@ export function MandibularPanel({
                                   }}
                                 >
                                   <legend
-                                    className={`text-[11px] px-1 leading-none ${
+                                    className={`text-[14px] px-1 leading-none ${
                                       isFieldCompleted("mandibular", firstToothNumber, "teeth_shade") && !caseSubmitted
                                         ? "text-[#34a853]"
                                         : isFieldCompleted("mandibular", firstToothNumber, "teeth_shade")
@@ -1245,7 +1267,7 @@ export function MandibularPanel({
                                     Teeth shade
                                   </legend>
                                   <div className="flex items-center gap-2 w-full">
-                                    <span className="text-[13px] text-[#1d1d1b]">
+                                    <span className="text-[18px] font-bold text-[#000000]">
                                       {getFieldValue("mandibular", firstToothNumber, "teeth_shade")}
                                     </span>
                                     {isFieldCompleted("mandibular", firstToothNumber, "teeth_shade") && !caseSubmitted && (
@@ -1270,7 +1292,7 @@ export function MandibularPanel({
                                     }}
                                   >
                                     <legend
-                                      className={`text-[11px] px-1 leading-none ${
+                                      className={`text-[14px] px-1 leading-none ${
                                         isFieldCompleted("mandibular", firstToothNumber, "gum_shade") && !caseSubmitted
                                           ? "text-[#34a853]"
                                           : isFieldCompleted("mandibular", firstToothNumber, "gum_shade")
@@ -1281,7 +1303,7 @@ export function MandibularPanel({
                                       Gum Shade
                                     </legend>
                                     <div className="flex items-center gap-2 w-full">
-                                      <span className="text-[13px] text-[#1d1d1b] truncate">
+                                      <span className="text-[18px] font-bold text-[#000000] truncate">
                                         {getFieldValue("mandibular", firstToothNumber, "gum_shade")}
                                       </span>
                                       <svg
@@ -1303,6 +1325,7 @@ export function MandibularPanel({
                                   <div />
                                 )}
                               </div>
+                              </>
                             )}
 
                             {/* Step 3: Impression / Add ons */}
@@ -1323,7 +1346,7 @@ export function MandibularPanel({
                                   }}
                                 >
                                   <legend
-                                    className={`text-[11px] px-1 leading-none ${
+                                    className={`text-[14px] px-1 leading-none ${
                                       isFieldCompleted("mandibular", firstToothNumber, "impression") && !caseSubmitted
                                         ? "text-[#34a853]"
                                         : isFieldCompleted("mandibular", firstToothNumber, "impression")
@@ -1334,7 +1357,7 @@ export function MandibularPanel({
                                     Impression
                                   </legend>
                                   <div className="flex items-center gap-2 w-full">
-                                    <span className="text-[13px] text-[#1d1d1b] truncate">
+                                    <span className="text-[18px] font-bold text-[#000000] truncate">
                                       {getFieldValue("mandibular", firstToothNumber, "impression")}
                                     </span>
                                     {isFieldCompleted("mandibular", firstToothNumber, "impression") && !caseSubmitted && (
@@ -1355,7 +1378,7 @@ export function MandibularPanel({
                                     }}
                                   >
                                     <legend
-                                      className={`text-[11px] px-1 leading-none ${
+                                      className={`text-[14px] px-1 leading-none ${
                                         isFieldCompleted("mandibular", firstToothNumber, "addons") && !caseSubmitted
                                           ? "text-[#34a853]"
                                           : "text-[#7f7f7f]"
@@ -1364,7 +1387,7 @@ export function MandibularPanel({
                                       Add ons
                                     </legend>
                                     <div className="flex items-center gap-2 w-full">
-                                      <span className="text-[13px] text-[#1d1d1b] truncate">
+                                      <span className="text-[18px] font-bold text-[#000000] truncate">
                                         {getFieldValue("mandibular", firstToothNumber, "addons")}
                                       </span>
                                       {isFieldCompleted("mandibular", firstToothNumber, "addons") && !caseSubmitted && (
@@ -1431,6 +1454,112 @@ export function MandibularPanel({
                 });
               })()}
 
+          {/* Initial Removables product accordion — show fields when user selected Removable restoration and clicked teeth (assigned to card 0) */}
+          {showDetails && !caseSubmitted && activeProductIsRemovables && (() => {
+            const cardTeeth = mandibularTeeth.filter(tn => getToothProductCard("mandibular", tn) === 0);
+            if (cardTeeth.length === 0) return null;
+            const cardProduct = getToothProduct("mandibular", cardTeeth[0]);
+            const cardProductName = cardProduct?.name || "Removable restoration";
+            const cardProductImage = cardProduct?.image_url || null;
+            const cardToothDisplay = cardTeeth.map(n => `#${n}`).join(", ");
+            const isActive = activeProductCardId === 0;
+
+            return (
+              <div key="initial-removables-mandibular" className="rounded-lg bg-white overflow-hidden border border-[#d9d9d9] mt-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInitialRemovablesExpanded((e) => !e);
+                    if (!initialRemovablesExpanded) setActiveProductCardId(0);
+                  }}
+                  className={`w-full flex items-center py-[14px] px-2 gap-[10px] transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] ${isActive ? "bg-[#c8e2f7] hover:bg-[#b8d8f4]" : "bg-[#DFEEFB] hover:bg-[#d4e8f8]"}`}
+                >
+                  <div className="w-16 h-[62px] rounded-md bg-white flex items-center justify-center flex-shrink-0 overflow-hidden">
+                    {cardProductImage ? (
+                      <img src={cardProductImage} alt={cardProductName} className="w-[61.58px] h-[28.79px] object-contain" />
+                    ) : (
+                      <div className="w-16 h-[62px] rounded-md bg-gray-100 flex items-center justify-center">
+                        <span className="text-[10px] text-gray-400">No img</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0 text-left flex flex-col">
+                    <p className="font-[Verdana] text-[18px] font-bold leading-[22px] tracking-[-0.02em] text-black">{cardProductName}</p>
+                    {cardToothDisplay && (
+                      <p className="font-[Verdana] text-[18px] font-bold leading-[22px] tracking-[-0.02em] text-black">{cardToothDisplay}</p>
+                    )}
+                    <div className="flex items-center gap-[5px] flex-wrap">
+                      <span className="font-[Verdana] text-[14px] font-medium leading-[22px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[10px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]">Product 1</span>
+                      <span className="font-[Verdana] text-[14px] leading-[22px] tracking-[-0.02em] text-[#B4B0B0]">{isActive ? "Active — click teeth to assign" : "Click to expand"}</span>
+                    </div>
+                  </div>
+                  <ChevronDown
+                    size={21.6}
+                    className={`text-black flex-shrink-0 transition-transform ${initialRemovablesExpanded ? "rotate-180" : ""}`}
+                  />
+                </button>
+
+                {initialRemovablesExpanded && (
+                  <div className="border-t border-[#d9d9d9] p-2.5 sm:p-4 bg-white space-y-3 max-h-[600px] overflow-y-auto scrollbar-blue">
+                    {(() => {
+                      const repTn = cardTeeth[0];
+                      const toothProduct = getToothProduct("mandibular", repTn);
+                      const isF = (_step: string) => true;
+                      const isFComplete = (step: string) => isFieldCompleted("mandibular", repTn, step as any);
+                      const fVal = (step: string) => getFieldValue("mandibular", repTn, step as any);
+                      return (
+                        <div className="border border-[#e5e7eb] rounded-lg p-3 space-y-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <fieldset className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${caseSubmitted ? "border-[#b4b0b0]" : "border-[#34a853]"}`}>
+                              <legend className={`text-[14px] px-1 ${caseSubmitted ? "text-[#7f7f7f]" : "text-[#34a853]"}`}>Product - Material</legend>
+                              <span className="text-[18px] font-bold text-[#000000] truncate">{toothProduct?.name || cardProductName}</span>
+                              {!caseSubmitted && <Check size={14} className="text-[#34a853] ml-auto flex-shrink-0" />}
+                            </fieldset>
+                          </div>
+                          {isF("stage") && (() => {
+                            const stageVal = fVal("stage") || selectedStages[`mandibular_prep_${repTn}`] || "";
+                            const isStageComplete = isFComplete("stage") || !!(stageVal && stageVal.trim());
+                            const showGreen = isStageComplete && !caseSubmitted;
+                            return (
+                              <fieldset
+                                className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${showGreen ? "border-[#34a853]" : isStageComplete ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
+                                onClick={() => handleOpenStageModal(`mandibular_prep_${repTn}`, "mandibular", repTn)}
+                              >
+                                <legend className={`text-[14px] px-1 ${showGreen ? "text-[#34a853]" : isStageComplete ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Stage</legend>
+                                <span className="text-[18px] font-bold text-[#000000] truncate flex-1">{stageVal}</span>
+                                {showGreen && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
+                              </fieldset>
+                            );
+                          })()}
+                          {isF("impression") && (
+                            <fieldset
+                              className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${isFComplete("impression") && !caseSubmitted ? "border-[#34a853]" : isFComplete("impression") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
+                              onClick={() => handleOpenImpressionModal("mandibular", `mandibular_prep_${repTn}`, repTn)}
+                            >
+                              <legend className={`text-[14px] px-1 ${isFComplete("impression") && !caseSubmitted ? "text-[#34a853]" : isFComplete("impression") ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Impression</legend>
+                              <span className="text-[18px] font-bold text-[#000000] truncate flex-1">{fVal("impression") || getImpressionDisplayText(`mandibular_prep_${repTn}`, "mandibular")}</span>
+                              {isFComplete("impression") && !caseSubmitted && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
+                            </fieldset>
+                          )}
+                          {isF("addons") && (
+                            <fieldset
+                              className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${isFComplete("addons") && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]"}`}
+                              onClick={() => handleOpenAddOnsModal("mandibular", `mandibular_prep_${repTn}`, repTn)}
+                            >
+                              <legend className={`text-[14px] px-1 ${isFComplete("addons") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>Add ons</legend>
+                              <span className="text-[18px] font-bold text-[#000000] truncate flex-1">{fVal("addons") || "0 selected"}</span>
+                              {isFComplete("addons") && !caseSubmitted && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
+                            </fieldset>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           {/* Added product accordions — full field workflow, teeth owned by each card */}
           {showDetails && !caseSubmitted && addedProducts
             .filter(ap => ap.arch === "mandibular")
@@ -1471,29 +1600,29 @@ export function MandibularPanel({
                       )}
                     </div>
                     <div className="flex-1 min-w-0 text-left flex flex-col">
-                      <p className="font-[Verdana] text-[14.4px] leading-[20px] tracking-[-0.02em] text-black">
+                      <p className="font-[Verdana] text-[18px] font-bold leading-[22px] tracking-[-0.02em] text-black">
                         {cardProductName}
                       </p>
                       {cardToothDisplay && (
-                        <p className="font-[Verdana] text-[14.4px] leading-[20px] tracking-[-0.02em] text-black">
+                        <p className="font-[Verdana] text-[18px] font-bold leading-[22px] tracking-[-0.02em] text-black">
                           {cardToothDisplay}
                         </p>
                       )}
                       <div className="flex items-center gap-[5px] flex-wrap">
-                        <span className="font-[Verdana] text-[10px] leading-[22px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[10px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]">
+                        <span className="font-[Verdana] text-[14px] font-medium leading-[22px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[10px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]">
                           Product {apIndex + 2}
                         </span>
                         {cardCategoryName && (
-                          <span className="font-[Verdana] text-[10px] leading-[22px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[10px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]">
+                          <span className="font-[Verdana] text-[14px] font-medium leading-[22px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[10px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]">
                             {cardCategoryName}
                           </span>
                         )}
                         {cardSubcategoryName && (
-                          <span className="font-[Verdana] text-[10px] leading-[22px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[10px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]">
+                          <span className="font-[Verdana] text-[14px] font-medium leading-[22px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[10px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]">
                             {cardSubcategoryName}
                           </span>
                         )}
-                        <span className="font-[Verdana] text-[10px] leading-[22px] tracking-[-0.02em] text-[#B4B0B0]">
+                        <span className="font-[Verdana] text-[14px] leading-[22px] tracking-[-0.02em] text-[#B4B0B0]">
                           {isActive ? "Active — click teeth to assign" : "Click to activate"}
                         </span>
                         <button
@@ -1518,77 +1647,132 @@ export function MandibularPanel({
                         <p className="text-[12px] text-[#b4b0b0] text-center py-4">
                           Select teeth from the chart above to assign them to this product.
                         </p>
-                      ) : (
-                        cardTeeth.map(tn => {
-                          const toothProduct = getToothProduct("mandibular", tn);
-                          const isFixed = toothProduct?.subcategory?.category?.name === "Fixed Restoration";
-                          const fixedChain = isFixed ? getFixedFieldChain(toothProduct?.advance_fields) : undefined;
-                          const isF = (step: string) => isFieldVisible("mandibular", tn, step as any, fixedChain);
-                          const isFComplete = (step: string) => isFieldCompleted("mandibular", tn, step as any);
-                          const fVal = (step: string) => getFieldValue("mandibular", tn, step as any);
+                      ) : (() => {
+                        const isCardRemovables = /removables|removable restoration/i.test(cardCategoryName);
+                        const repTn = cardTeeth[0];
+                        const toothProduct = getToothProduct("mandibular", repTn);
+                        const categoryName = toothProduct?.subcategory?.category?.name?.toLowerCase() || "";
+                        const isFixed = categoryName === "fixed restoration";
+                        const isRemovables = isCardRemovables || categoryName === "removables" || categoryName === "removables restoration" || categoryName === "removable restoration";
+                        const fixedChain = isFixed ? getFixedFieldChain(toothProduct?.advance_fields) : undefined;
+                        const isF = (step: string) => isRemovables ? true : isFieldVisible("mandibular", repTn, step as any, fixedChain);
+                        const isFComplete = (step: string) => isFieldCompleted("mandibular", repTn, step as any);
+                        const fVal = (step: string) => getFieldValue("mandibular", repTn, step as any);
 
+                        if (isCardRemovables) {
                           return (
-                            <div key={tn} className="border border-[#e5e7eb] rounded-lg p-3 space-y-3">
-                              <p className="font-[Verdana] text-[11px] font-semibold text-[#1d1d1b]">Tooth #{tn}</p>
-
-                              {/* Product - Material */}
+                            <div className="border border-[#e5e7eb] rounded-lg p-3 space-y-3">
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <fieldset className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${caseSubmitted ? "border-[#b4b0b0]" : "border-[#34a853]"}`}>
-                                  <legend className={`text-[11px] px-1 ${caseSubmitted ? "text-[#7f7f7f]" : "text-[#34a853]"}`}>Product - Material</legend>
-                                  <span className="text-[13px] text-[#1d1d1b] truncate">{toothProduct?.name || cardProductName}</span>
+                                  <legend className={`text-[14px] px-1 ${caseSubmitted ? "text-[#7f7f7f]" : "text-[#34a853]"}`}>Product - Material</legend>
+                                  <span className="text-[18px] font-bold text-[#000000] truncate">{toothProduct?.name || cardProductName}</span>
                                   {!caseSubmitted && <Check size={14} className="text-[#34a853] ml-auto flex-shrink-0" />}
                                 </fieldset>
                               </div>
-
-                              {/* Stage */}
                               {(isFixed ? isF("fixed_stage") : isF("stage")) && (() => {
                                 const step = isFixed ? "fixed_stage" : "stage";
-                                const stageVal = fVal(step) || selectedStages[isFixed ? `mandibular_fixed_${tn}` : `mandibular_prep_${tn}`] || "";
+                                const stageVal = fVal(step) || selectedStages[isFixed ? `mandibular_fixed_${repTn}` : `mandibular_prep_${repTn}`] || "";
                                 const isStageComplete = isFComplete(step) || !!(stageVal && stageVal.trim());
                                 const showGreen = isStageComplete && !caseSubmitted;
                                 return (
-                                <fieldset
-                                  className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${showGreen ? "border-[#34a853]" : isStageComplete ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
-                                  onClick={() => handleOpenStageModal(isFixed ? `mandibular_fixed_${tn}` : `mandibular_prep_${tn}`, "mandibular", tn)}
-                                >
-                                  <legend className={`text-[11px] px-1 ${showGreen ? "text-[#34a853]" : isStageComplete ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Stage</legend>
-                                  <span className="text-[13px] text-[#1d1d1b] truncate flex-1">{stageVal}</span>
-                                  {showGreen && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
-                                </fieldset>
+                                  <fieldset
+                                    className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${showGreen ? "border-[#34a853]" : isStageComplete ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
+                                    onClick={() => handleOpenStageModal(isFixed ? `mandibular_fixed_${repTn}` : `mandibular_prep_${repTn}`, "mandibular", repTn)}
+                                  >
+                                    <legend className={`text-[14px] px-1 ${showGreen ? "text-[#34a853]" : isStageComplete ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Stage</legend>
+                                    <span className="text-[18px] font-bold text-[#000000] truncate flex-1">{stageVal}</span>
+                                    {showGreen && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
+                                  </fieldset>
                                 );
                               })()}
-
-                              {/* Impression */}
                               {(isFixed ? isF("fixed_impression") : isF("impression")) && (
                                 <fieldset
                                   className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${isFComplete(isFixed ? "fixed_impression" : "impression") && !caseSubmitted ? "border-[#34a853]" : isFComplete(isFixed ? "fixed_impression" : "impression") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
-                                  onClick={() => {
-                                    const hasImplantForm = (mandibularRetentionTypes[tn] || []).includes("Implant");
-                                    if (hasImplantForm && implantDetailCompleteByTooth[tn] !== true) return;
-                                    handleOpenImpressionModal("mandibular", isFixed ? `mandibular_fixed_${tn}` : `mandibular_prep_${tn}`, tn);
-                                  }}
+                                  onClick={() => handleOpenImpressionModal("mandibular", isFixed ? `mandibular_fixed_${repTn}` : `mandibular_prep_${repTn}`, repTn)}
                                 >
-                                  <legend className={`text-[11px] px-1 ${isFComplete(isFixed ? "fixed_impression" : "impression") && !caseSubmitted ? "text-[#34a853]" : isFComplete(isFixed ? "fixed_impression" : "impression") ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Impression</legend>
-                                  <span className="text-[13px] text-[#1d1d1b] truncate flex-1">{fVal(isFixed ? "fixed_impression" : "impression") || getImpressionDisplayText(isFixed ? `mandibular_fixed_${tn}` : `mandibular_prep_${tn}`, "mandibular", tn)}</span>
+                                  <legend className={`text-[14px] px-1 ${isFComplete(isFixed ? "fixed_impression" : "impression") && !caseSubmitted ? "text-[#34a853]" : isFComplete(isFixed ? "fixed_impression" : "impression") ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Impression</legend>
+                                  <span className="text-[18px] font-bold text-[#000000] truncate flex-1">{fVal(isFixed ? "fixed_impression" : "impression") || getImpressionDisplayText(isFixed ? `mandibular_fixed_${repTn}` : `mandibular_prep_${repTn}`, "mandibular")}</span>
                                   {isFComplete(isFixed ? "fixed_impression" : "impression") && !caseSubmitted && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                                 </fieldset>
                               )}
-
-                              {/* Add-ons */}
                               {(isFixed ? isF("fixed_addons") : isF("addons")) && (
                                 <fieldset
                                   className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${isFComplete(isFixed ? "fixed_addons" : "addons") && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]"}`}
-                                  onClick={() => handleOpenAddOnsModal("mandibular", isFixed ? `mandibular_fixed_${tn}` : `mandibular_prep_${tn}`, tn)}
+                                  onClick={() => handleOpenAddOnsModal("mandibular", isFixed ? `mandibular_fixed_${repTn}` : `mandibular_prep_${repTn}`, repTn)}
                                 >
-                                  <legend className={`text-[11px] px-1 ${isFComplete(isFixed ? "fixed_addons" : "addons") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>Add ons</legend>
-                                  <span className="text-[13px] text-[#1d1d1b] truncate flex-1">{fVal(isFixed ? "fixed_addons" : "addons") || "0 selected"}</span>
+                                  <legend className={`text-[14px] px-1 ${isFComplete(isFixed ? "fixed_addons" : "addons") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>Add ons</legend>
+                                  <span className="text-[18px] font-bold text-[#000000] truncate flex-1">{fVal(isFixed ? "fixed_addons" : "addons") || "0 selected"}</span>
                                   {isFComplete(isFixed ? "fixed_addons" : "addons") && !caseSubmitted && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                                 </fieldset>
                               )}
                             </div>
                           );
-                        })
-                      )}
+                        }
+
+                        return cardTeeth.map(tn => {
+                          const tp = getToothProduct("mandibular", tn);
+                          const catName = tp?.subcategory?.category?.name?.toLowerCase() || "";
+                          const fixed = catName === "fixed restoration";
+                          const rem = catName === "removables" || catName === "removables restoration" || catName === "removable restoration";
+                          const chain = fixed ? getFixedFieldChain(tp?.advance_fields) : undefined;
+                          const isFPerTooth = (step: string) => rem ? true : isFieldVisible("mandibular", tn, step as any, chain);
+                          const isFCompletePerTooth = (step: string) => isFieldCompleted("mandibular", tn, step as any);
+                          const fValPerTooth = (step: string) => getFieldValue("mandibular", tn, step as any);
+
+                          return (
+                            <div key={tn} className="border border-[#e5e7eb] rounded-lg p-3 space-y-3">
+                              <p className="font-[Verdana] text-[20px] font-bold text-[#1d1d1b]">Tooth #{tn}</p>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <fieldset className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${caseSubmitted ? "border-[#b4b0b0]" : "border-[#34a853]"}`}>
+                                  <legend className={`text-[14px] px-1 ${caseSubmitted ? "text-[#7f7f7f]" : "text-[#34a853]"}`}>Product - Material</legend>
+                                  <span className="text-[18px] font-bold text-[#000000] truncate">{tp?.name || cardProductName}</span>
+                                  {!caseSubmitted && <Check size={14} className="text-[#34a853] ml-auto flex-shrink-0" />}
+                                </fieldset>
+                              </div>
+                              {(fixed ? isFPerTooth("fixed_stage") : isFPerTooth("stage")) && (() => {
+                                const step = fixed ? "fixed_stage" : "stage";
+                                const stageVal = fValPerTooth(step) || selectedStages[fixed ? `mandibular_fixed_${tn}` : `mandibular_prep_${tn}`] || "";
+                                const isStageComplete = isFCompletePerTooth(step) || !!(stageVal && stageVal.trim());
+                                const showGreen = isStageComplete && !caseSubmitted;
+                                return (
+                                  <fieldset
+                                    className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${showGreen ? "border-[#34a853]" : isStageComplete ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
+                                    onClick={() => handleOpenStageModal(fixed ? `mandibular_fixed_${tn}` : `mandibular_prep_${tn}`, "mandibular", tn)}
+                                  >
+                                    <legend className={`text-[14px] px-1 ${showGreen ? "text-[#34a853]" : isStageComplete ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Stage</legend>
+                                    <span className="text-[18px] font-bold text-[#000000] truncate flex-1">{stageVal}</span>
+                                    {showGreen && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
+                                  </fieldset>
+                                );
+                              })()}
+                              {(fixed ? isFPerTooth("fixed_impression") : isFPerTooth("impression")) && (
+                                <fieldset
+                                  className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${isFCompletePerTooth(fixed ? "fixed_impression" : "impression") && !caseSubmitted ? "border-[#34a853]" : isFCompletePerTooth(fixed ? "fixed_impression" : "impression") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
+                                  onClick={() => {
+                                    const hasImplantForm = (mandibularRetentionTypes[tn] || []).includes("Implant");
+                                    if (hasImplantForm && implantDetailCompleteByTooth[tn] !== true) return;
+                                    handleOpenImpressionModal("mandibular", fixed ? `mandibular_fixed_${tn}` : `mandibular_prep_${tn}`, tn);
+                                  }}
+                                >
+                                  <legend className={`text-[14px] px-1 ${isFCompletePerTooth(fixed ? "fixed_impression" : "impression") && !caseSubmitted ? "text-[#34a853]" : isFCompletePerTooth(fixed ? "fixed_impression" : "impression") ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Impression</legend>
+                                  <span className="text-[18px] font-bold text-[#000000] truncate flex-1">{fValPerTooth(fixed ? "fixed_impression" : "impression") || getImpressionDisplayText(fixed ? `mandibular_fixed_${tn}` : `mandibular_prep_${tn}`, "mandibular")}</span>
+                                  {isFCompletePerTooth(fixed ? "fixed_impression" : "impression") && !caseSubmitted && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
+                                </fieldset>
+                              )}
+                              {(fixed ? isFPerTooth("fixed_addons") : isFPerTooth("addons")) && (
+                                <fieldset
+                                  className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${isFCompletePerTooth(fixed ? "fixed_addons" : "addons") && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]"}`}
+                                  onClick={() => handleOpenAddOnsModal("mandibular", fixed ? `mandibular_fixed_${tn}` : `mandibular_prep_${tn}`, tn)}
+                                >
+                                  <legend className={`text-[14px] px-1 ${isFCompletePerTooth(fixed ? "fixed_addons" : "addons") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>Add ons</legend>
+                                  <span className="text-[18px] font-bold text-[#000000] truncate flex-1">{fValPerTooth(fixed ? "fixed_addons" : "addons") || "0 selected"}</span>
+                                  {isFCompletePerTooth(fixed ? "fixed_addons" : "addons") && !caseSubmitted && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
+                                </fieldset>
+                              )}
+                            </div>
+                          );
+                        });
+                      })()}
 
                       {/* Bottom actions */}
                       <div className="flex items-center justify-center gap-4 pt-3 border-t border-[#d9d9d9] mt-3">

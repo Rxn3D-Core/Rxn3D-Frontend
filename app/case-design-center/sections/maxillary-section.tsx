@@ -200,7 +200,11 @@ export function MaxillarySection({ sectionRef, children }: MaxillarySectionProps
                         const sameTeeth = currentSaved.length === savedTeeth.length && currentSaved.every((t: number, i: number) => t === savedTeeth[i])
                         return sameProduct && sameTeeth
                       })
-                      if (matchingProduct) setOpenAccordionMaxillaryState?.(matchingProduct.id)
+                      if (matchingProduct) {
+                        setOpenAccordionMaxillaryState?.(matchingProduct.id)
+                      } else {
+                        setOpenAccordionMaxillaryState?.("maxillary-card")
+                      }
                     }, 100)
                   }
                 }}

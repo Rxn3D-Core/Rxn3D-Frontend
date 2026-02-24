@@ -88,7 +88,7 @@ export function TopBar({ selectedLab, onEditClick, caseSubmitted = false }: TopB
       <div className="w-36 sm:w-44 md:w-[360px] flex items-center gap-3 sm:gap-4 min-w-0 flex-shrink-0">
         {selectedLab && (
           <>
-            <span className="text-[14px] sm:text-[15px] md:text-base font-medium text-[#1d1d1b] whitespace-nowrap">
+            <span className="text-[16px] font-medium text-[#1d1d1b] whitespace-nowrap">
               {leftLabel}
             </span>
             {selectedLogoUrl ? (

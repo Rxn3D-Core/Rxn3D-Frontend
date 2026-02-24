@@ -70,6 +70,7 @@ interface WizardResult {
   category: string;
   product: string;
   material: string;
+  arch?: "maxillary" | "mandibular" | "both";
 }
 
 /* ------------------------------------------------------------------ */
@@ -824,19 +825,23 @@ function StepMaterial({
   gender,
   isLoading,
   error,
+  isRemovableRestoration,
 }: {
   categoryName: string;
   subProductName: string;
   products: { id: number; name: string; img: string }[];
   selected: string | null;
-  onSelect: (id: string) => void;
+  onSelect: (id: string, arch?: "maxillary" | "mandibular" | "both") => void;
   onBack?: () => void;
   doctor: WizardDoctorShape | undefined;
   patientName: string;
   gender: string;
   isLoading?: boolean;
   error?: Error | null;
+  isRemovableRestoration?: boolean;
 }) {
+  const [archPopoverProductId, setArchPopoverProductId] = useState<string | null>(null);
+  const cardRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   if (error) {
     return (
       <div className="flex-1 flex flex-col px-6 py-6 items-center justify-center">
@@ -888,39 +893,82 @@ function StepMaterial({
         </div>
       </div>
 
+      {/* Backdrop to close arch popover on outside click */}
+      {archPopoverProductId && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => setArchPopoverProductId(null)}
+        />
+      )}
+
       {/* Product cards grid (from API) */}
       <div className="flex flex-wrap justify-center gap-4 mb-6">
-        {products.map((prod) => (
-          <button
-            key={prod.id}
-            onClick={() => onSelect(String(prod.id))}
-            className={`group relative flex flex-col items-center px-4 py-[5px] gap-2 w-[155px] sm:w-[180px] md:w-[200px] rounded-[7px] border-[3px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${
-              selected === String(prod.id)
-                ? "border-[#1162A8] bg-[#1162A8]/5"
-                : "border-[#d9d9d9] bg-white"
-            }`}
-          >
-            <span className="absolute top-1 text-[10px] text-[#7f7f7f] opacity-0 group-hover:opacity-100 transition-opacity">
-              Click and select
-            </span>
-            <div className="w-full aspect-square rounded-[5px] overflow-hidden bg-[#080808] flex-shrink-0">
-              <img
-                src={prod.img || PRODUCT_IMG_FALLBACK}
-                alt={prod.name}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  e.currentTarget.src = PRODUCT_IMG_FALLBACK;
+        {products.map((prod) => {
+          const prodId = String(prod.id);
+          const isSelected = selected === prodId || archPopoverProductId === prodId;
+          return (
+            <div key={prod.id} className="relative">
+              <button
+                ref={(el) => { cardRefs.current[prodId] = el; }}
+                onClick={() => {
+                  if (isRemovableRestoration) {
+                    setArchPopoverProductId(archPopoverProductId === prodId ? null : prodId);
+                  } else {
+                    onSelect(prodId);
+                  }
                 }}
-              />
+                className={`group relative flex flex-col items-center px-4 py-[5px] gap-2 w-[155px] sm:w-[180px] md:w-[200px] rounded-[7px] border-[3px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${
+                  isSelected
+                    ? "border-[#1162A8] bg-[#1162A8]/5"
+                    : "border-[#d9d9d9] bg-white"
+                }`}
+              >
+                <span className="absolute top-1 text-[10px] text-[#7f7f7f] opacity-0 group-hover:opacity-100 transition-opacity">
+                  Click and select
+                </span>
+                <div className="w-full aspect-square rounded-[5px] overflow-hidden bg-[#080808] flex-shrink-0">
+                  <img
+                    src={prod.img || PRODUCT_IMG_FALLBACK}
+                    alt={prod.name}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.src = PRODUCT_IMG_FALLBACK;
+                    }}
+                  />
+                </div>
+                <span
+                  style={{ fontFamily: "Verdana, sans-serif", fontSize: 14, lineHeight: "15px", letterSpacing: "-0.02em" }}
+                  className="text-[#000000] text-center self-stretch"
+                >
+                  {prod.name}
+                </span>
+              </button>
+
+              {/* Arch selection popover */}
+              {archPopoverProductId === prodId && (
+                <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50 bg-white rounded-xl shadow-lg border border-[#E5E7EB] overflow-hidden min-w-[200px]">
+                  {([
+                    { label: "Upper arch only", value: "maxillary" as const },
+                    { label: "Both arches", value: "both" as const },
+                    { label: "Lower arch only", value: "mandibular" as const },
+                  ]).map((option) => (
+                    <div
+                      key={option.value}
+                      className="px-6 py-3 cursor-pointer hover:bg-[#DFEEFB] transition-colors text-[#1d1d1b]"
+                      style={{ fontFamily: "Verdana, sans-serif", fontSize: 14, lineHeight: "22px" }}
+                      onClick={() => {
+                        setArchPopoverProductId(null);
+                        onSelect(prodId, option.value);
+                      }}
+                    >
+                      {option.label}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            <span
-              style={{ fontFamily: "Verdana, sans-serif", fontSize: 14, lineHeight: "15px", letterSpacing: "-0.02em" }}
-              className="text-[#000000] text-center self-stretch"
-            >
-              {prod.name}
-            </span>
-          </button>
-        ))}
+          );
+        })}
       </div>
 
       {/* Breadcrumb bar showing category > sub-product */}
@@ -1308,50 +1356,57 @@ export default function NewCaseWizard({
             gender={gender}
           />
         )}
-        {step === 6 && selectedCategory != null && selectedSubProduct != null && (
-          <StepMaterial
-            categoryName={categoriesAsWizard.find((c) => c.id === selectedCategory)?.name ?? ""}
-            subProductName={
-              (subcategoriesByCategoryId[selectedCategory] ?? []).find((p) => p.id === selectedSubProduct)?.name ?? ""
-            }
-            products={productsAsWizard}
-            selected={selectedMaterial}
-            isLoading={productsLoading}
-            error={productsError}
-            onBack={() => setStep(5)}
-            onSelect={(id) => {
-              setSelectedMaterial(id);
-              if (mode === "addProduct") {
-                setTimeout(() => {
-                  onComplete({
-                    doctor: doctor ?? { id: 0, name: "", img: "" },
-                    lab: lab ?? { id: 0, name: "", location: "", logo: null },
-                    patientName,
-                    gender,
-                    category: String(selectedCategory),
-                    product: String(selectedSubProduct),
-                    material: id,
-                  });
-                }, 300);
-              } else if (doctor && lab) {
-                setTimeout(() => {
-                  onComplete({
-                    doctor,
-                    lab,
-                    patientName,
-                    gender,
-                    category: String(selectedCategory),
-                    product: String(selectedSubProduct),
-                    material: id,
-                  });
-                }, 300);
+        {step === 6 && selectedCategory != null && selectedSubProduct != null && (() => {
+          const selectedCategoryName = categoriesAsWizard.find((c) => c.id === selectedCategory)?.name ?? "";
+          const isRemovable = selectedCategoryName.toLowerCase().includes("removable");
+          return (
+            <StepMaterial
+              categoryName={selectedCategoryName}
+              subProductName={
+                (subcategoriesByCategoryId[selectedCategory] ?? []).find((p) => p.id === selectedSubProduct)?.name ?? ""
               }
-            }}
-            doctor={doctor}
-            patientName={patientName}
-            gender={gender}
-          />
-        )}
+              products={productsAsWizard}
+              selected={selectedMaterial}
+              isLoading={productsLoading}
+              error={productsError}
+              isRemovableRestoration={isRemovable}
+              onBack={() => setStep(5)}
+              onSelect={(id, arch) => {
+                setSelectedMaterial(id);
+                if (mode === "addProduct") {
+                  setTimeout(() => {
+                    onComplete({
+                      doctor: doctor ?? { id: 0, name: "", img: "" },
+                      lab: lab ?? { id: 0, name: "", location: "", logo: null },
+                      patientName,
+                      gender,
+                      category: String(selectedCategory),
+                      product: String(selectedSubProduct),
+                      material: id,
+                      arch,
+                    });
+                  }, 300);
+                } else if (doctor && lab) {
+                  setTimeout(() => {
+                    onComplete({
+                      doctor,
+                      lab,
+                      patientName,
+                      gender,
+                      category: String(selectedCategory),
+                      product: String(selectedSubProduct),
+                      material: id,
+                      arch,
+                    });
+                  }, 300);
+                }
+              }}
+              doctor={doctor}
+              patientName={patientName}
+              gender={gender}
+            />
+          );
+        })()}
       </div>
 
       {/* Bottom bar for steps 1-3 (doctor, lab, patient info) */}

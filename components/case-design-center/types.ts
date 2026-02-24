@@ -10,6 +10,8 @@ export interface CaseDesignProps {
   onAddProduct?: (arch: "maxillary" | "mandibular") => void;
   onBackToProducts?: () => void;
   selectedProductId?: number;
+  /** Category name of the selected/initial product (e.g. "Removable restoration"). When set, used to hide retention popover for Removables. */
+  selectedProductCategoryName?: string;
   /** When true, hides Back to Products and makes all panel fields read-only. */
   caseSubmitted?: boolean;
   /** Called whenever the "all teeth have impression complete" state changes. */
@@ -20,6 +22,8 @@ export interface CaseDesignProps {
   addedProducts?: AddedProduct[];
   /** Called when addedProducts changes internally (toggle expand, remove) */
   onProductsChange?: (products: AddedProduct[]) => void;
+  /** Initial arch selection from Removable Restoration dropdown — controls which panels are shown */
+  initialArch?: "maxillary" | "mandibular" | "both";
 }
 
 export interface AddedProduct {

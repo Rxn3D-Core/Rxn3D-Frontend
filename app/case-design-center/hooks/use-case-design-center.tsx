@@ -4015,12 +4015,24 @@ export function useCaseDesignCenter() {
     return name.includes("fixed") || name.includes("removable") || name.includes("ortho")
   }) || []
 
+  // Effective category: from nav selection or from current product details (e.g. when reached via search so selectedCategory was never set)
+  const effectiveCategoryName =
+    selectedCategory
+    || (productDetails as any)?.subcategory?.category?.name
+    || (productDetails as any)?.category_name
+    || (productDetails as any)?.data?.subcategory?.category?.name
+    || (productDetails as any)?.data?.category_name
+    || ""
+
   // Check if selected category is Fixed Restoration
   const isFixedRestoration = selectedCategory?.toLowerCase().includes("fixed") || false
-  // Check if selected category is Orthodontics or Removable Restoration (extraction should only show for these)
-  const isOrthodonticsOrRemovable = selectedCategory?.toLowerCase().includes("orthodontic") ||
-    selectedCategory?.toLowerCase().includes("ortho") ||
-    selectedCategory?.toLowerCase().includes("removable") || false
+  // Check if selected category is Orthodontics or Removable Restoration (extraction should only show for these).
+  // Use effective category so retention popover is hidden for removables even when user reached product via search (selectedCategory null).
+  const isOrthodonticsOrRemovable =
+    effectiveCategoryName?.toLowerCase().includes("orthodontic") ||
+    effectiveCategoryName?.toLowerCase().includes("ortho") ||
+    effectiveCategoryName?.toLowerCase().includes("removable") ||
+    false
 
   // Helper function to check if product has implant retention option
   const hasImplantRetentionOption = (productDetails: any): boolean => {
@@ -4181,6 +4193,14 @@ export function useCaseDesignCenter() {
         setProductDetails(details)
         console.log("Product details fetched:", details)
         console.log("Product extractions:", details.extractions)
+
+        // If user reached this product without selecting a category (e.g. via search), set category from product details so retention popover and other category-based logic work
+        const categoryFromDetails = (details as any)?.subcategory?.category?.name ?? (details as any)?.category_name ?? (details as any)?.data?.subcategory?.category?.name ?? (details as any)?.data?.category_name
+        const categoryIdFromDetails = (details as any)?.subcategory?.category?.id ?? (details as any)?.category_id ?? (details as any)?.data?.subcategory?.category?.id ?? (details as any)?.data?.category_id
+        if (categoryFromDetails && !selectedCategory) {
+          setSelectedCategory(categoryFromDetails)
+          if (categoryIdFromDetails != null) setSelectedCategoryId(categoryIdFromDetails)
+        }
 
         // Check if product has extraction data and show MissingTeethCards immediately
         const hasExtractionData = (details.extractions && Array.isArray(details.extractions) && details.extractions.length > 0) ||

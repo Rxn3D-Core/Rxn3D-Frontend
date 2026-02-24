@@ -75,6 +75,16 @@ export function useModalState() {
     setIsStageModalOpen(false);
   };
 
+  /** Migrate a selectedStages entry from one key to another (e.g. when the min tooth of a Fixed Restoration group changes). */
+  const migrateStageKey = (oldKey: string, newKey: string) => {
+    setSelectedStages((prev) => {
+      const value = prev[oldKey];
+      if (value === undefined || oldKey === newKey) return prev;
+      const { [oldKey]: _, ...rest } = prev;
+      return { ...rest, [newKey]: value };
+    });
+  };
+
   const getImpressionDisplayText = (productId: string, arch: Arch) => {
     const entries = Object.entries(selectedImpressions).filter(
       ([key, qty]) => key.startsWith(`${productId}_${arch}_`) && qty > 0
@@ -127,5 +137,6 @@ export function useModalState() {
     selectedStages,
     handleOpenStageModal,
     handleStageSelect,
+    migrateStageKey,
   };
 }

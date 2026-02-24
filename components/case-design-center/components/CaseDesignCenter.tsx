@@ -25,10 +25,30 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     return IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("mandibular", n, step));
   });
 
+  // True when any arch has a Removables/Removables Restoration product
+  const isRemovablesCategory = (arch: "maxillary" | "mandibular") =>
+    (props.addedProducts ?? []).some((ap) => {
+      if (ap.arch !== arch) return false;
+      const name = (ap.product?.subcategory?.category?.name || ap.product?.category_name || "").toLowerCase();
+      return name === "removables" || name === "removables restoration" || name === "removable restoration";
+    });
+
+  // Show panels/accordion as soon as a removables product exists (no teeth required)
+  const maxillaryHasRemovables = isRemovablesCategory("maxillary");
+  const mandibularHasRemovables = isRemovablesCategory("mandibular");
+
+  const maxillaryHasRemovablesTeeth =
+    maxillaryHasRemovables && state.maxillaryTeeth.length > 0;
+
+  const mandibularHasRemovablesTeeth =
+    mandibularHasRemovables && state.mandibularTeeth.length > 0;
+
   // True only when at least one tooth exists AND every tooth has impression complete
   const hasAnyTooth =
     Object.keys(state.maxillaryRetentionTypes).length > 0 ||
-    Object.keys(state.mandibularRetentionTypes || {}).length > 0;
+    Object.keys(state.mandibularRetentionTypes || {}).length > 0 ||
+    maxillaryHasRemovablesTeeth ||
+    mandibularHasRemovablesTeeth;
 
   const allTeethImpressionComplete =
     hasAnyTooth &&
@@ -133,7 +153,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
       )}
 
       {/* Title */}
-      <h2 className="text-center text-[14px] md:text-[16px] font-bold text-[#1d1d1b] tracking-wide mb-3 md:mb-4">
+      <h2 className="text-center text-[20px] font-bold text-[#1d1d1b] tracking-wide mb-3 md:mb-4">
         CASE DESIGN CENTER
       </h2>
 
@@ -143,7 +163,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         <MaxillaryPanel
           showMaxillary={state.showMaxillary}
           setShowMaxillary={state.setShowMaxillary}
-          showDetails={maxillaryHasImpression || mandibularHasImpression}
+          showDetails={maxillaryHasImpression || mandibularHasImpression || maxillaryHasRemovables || mandibularHasRemovables}
           caseSubmitted={props.caseSubmitted}
           onAddProduct={state.onAddProduct}
           disableAddProduct={hasIncompleteAccordion}
@@ -153,6 +173,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           maxillaryRetentionTypes={state.maxillaryRetentionTypes}
           retentionPopoverState={state.retentionPopoverState}
           setRetentionPopoverState={state.setRetentionPopoverState}
+          activeProductIsRemovables={state.activeProductIsRemovablesMaxillary}
           handleSelectRetentionType={state.handleSelectRetentionType}
           handleMaxillaryToothDeselect={state.handleMaxillaryToothDeselect}
           // Shade
@@ -217,7 +238,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         <MandibularPanel
           showMandibular={state.showMandibular}
           setShowMandibular={state.setShowMandibular}
-          showDetails={maxillaryHasImpression || mandibularHasImpression}
+          showDetails={maxillaryHasImpression || mandibularHasImpression || maxillaryHasRemovables || mandibularHasRemovables}
           caseSubmitted={props.caseSubmitted}
           disabled={maxillaryIncomplete}
           onAddProduct={state.onAddProduct}
@@ -228,6 +249,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           mandibularRetentionTypes={state.mandibularRetentionTypes}
           retentionPopoverState={state.retentionPopoverState}
           setRetentionPopoverState={state.setRetentionPopoverState}
+          activeProductIsRemovables={state.activeProductIsRemovablesMandibular}
           handleSelectRetentionType={state.handleSelectRetentionType}
           handleMandibularToothDeselect={state.handleMandibularToothDeselect}
           // Shade

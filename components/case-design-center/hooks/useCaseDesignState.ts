@@ -4,7 +4,7 @@ import { useState, useCallback, useRef } from "react";
 import type { CaseDesignProps, Arch, RetentionType, ProductApiData } from "../types";
 import { productImpressionsToModalOptions } from "../types";
 import { mockImpressions } from "../constants";
-import { useToothSelection } from "./useToothSelection";
+import { useToothSelection, isRemovablesCategoryName } from "./useToothSelection";
 import { useShadeSelection } from "./useShadeSelection";
 import { useModalState } from "./useModalState";
 import { useProductManagement } from "./useProductManagement";
@@ -56,11 +56,34 @@ export function useCaseDesignState(props: CaseDesignProps) {
     setExpandedPrepPontic((prev) => ({ ...prev, [toothNumber]: !(prev[toothNumber] !== false) }));
   };
   const isPrepPonticExpanded = (toothNumber: number) => expandedPrepPontic[toothNumber] !== false;
-  const [showMaxillary, setShowMaxillary] = useState(true);
-  const [showMandibular, setShowMandibular] = useState(true);
+  const [showMaxillary, setShowMaxillary] = useState(props.initialArch !== "mandibular");
+  const [showMandibular, setShowMandibular] = useState(props.initialArch !== "maxillary");
   const [showDetails, setShowDetails] = useState(false);
 
-  const teeth = useToothSelection();
+  // When active product is Removables (from addedProducts or initial selected product), treat arch as removables so tooth click only toggles (no retention popover)
+  const hasRemovablesInAddedProducts = (arch: Arch) =>
+    (props.addedProducts ?? []).some((ap) => {
+      if (ap.arch !== arch) return false;
+      const name = (ap.product?.subcategory?.category?.name || ap.product?.category_name || "").toLowerCase();
+      return name === "removables" || name === "removables restoration" || name === "removable restoration";
+    });
+
+  const isActiveProductRemovables = (arch: Arch): boolean => {
+    if (activeProductCardId === 0) {
+      return isRemovablesCategoryName(props.selectedProductCategoryName);
+    }
+    const ap = (props.addedProducts ?? []).find((p) => p.id === activeProductCardId);
+    if (!ap || ap.arch !== arch) return false;
+    const name = (ap.product?.subcategory?.category?.name || ap.product?.category_name || "").toLowerCase();
+    return name === "removables" || name === "removables restoration" || name === "removable restoration";
+  };
+
+  const treatArchAsRemovables = {
+    maxillary: hasRemovablesInAddedProducts("maxillary") || isActiveProductRemovables("maxillary"),
+    mandibular: hasRemovablesInAddedProducts("mandibular") || isActiveProductRemovables("mandibular"),
+  };
+
+  const teeth = useToothSelection(props.addedProducts ?? [], treatArchAsRemovables);
   const shades = useShadeSelection();
   const modals = useModalState();
   const products = useProductManagement(props.addedProducts, props.onProductsChange);
@@ -97,6 +120,52 @@ export function useCaseDesignState(props: CaseDesignProps) {
     [toothFieldProgress]
   );
 
+  // Helper: determine the target product ID for the active card
+  const getActiveProductId = () =>
+    activeProductCardId !== 0
+      ? products.addedProducts.find((ap) => ap.id === activeProductCardId)?.productId
+      : props.selectedProductId;
+
+  // Helper: find the removables AddedProduct for a given arch (if any)
+  const getRemovablesProduct = (arch: Arch) =>
+    products.addedProducts.find((ap) => {
+      if (ap.arch !== arch) return false;
+      const name = (ap.product?.subcategory?.category?.name || ap.product?.category_name || "").toLowerCase();
+      return name === "removables" || name === "removables restoration" || name === "removable restoration";
+    }) ?? null;
+
+  // Wrap tooth click handlers: for Removables arches, assign tooth to product and fetch so fields/accordion show.
+  // Handles both: (1) Removables in addedProducts, (2) initial selected product is Removables (card 0).
+  const handleMaxillaryToothClick = (toothNumber: number) => {
+    const isAdding = !teeth.maxillaryTeeth.includes(toothNumber);
+    teeth.handleMaxillaryToothClick(toothNumber);
+    if (isAdding) {
+      const removablesAp = getRemovablesProduct("maxillary");
+      if (removablesAp?.productId) {
+        toothFieldProgress.setToothProductCard("maxillary", toothNumber, removablesAp.id);
+        fetchAndAssignProduct("maxillary", toothNumber, removablesAp.productId);
+      } else if (isActiveProductRemovables("maxillary") && props.selectedProductId) {
+        toothFieldProgress.setToothProductCard("maxillary", toothNumber, 0);
+        fetchAndAssignProduct("maxillary", toothNumber, props.selectedProductId);
+      }
+    }
+  };
+
+  const handleMandibularToothClick = (toothNumber: number) => {
+    const isAdding = !teeth.mandibularTeeth.includes(toothNumber);
+    teeth.handleMandibularToothClick(toothNumber);
+    if (isAdding) {
+      const removablesAp = getRemovablesProduct("mandibular");
+      if (removablesAp?.productId) {
+        toothFieldProgress.setToothProductCard("mandibular", toothNumber, removablesAp.id);
+        fetchAndAssignProduct("mandibular", toothNumber, removablesAp.productId);
+      } else if (isActiveProductRemovables("mandibular") && props.selectedProductId) {
+        toothFieldProgress.setToothProductCard("mandibular", toothNumber, 0);
+        fetchAndAssignProduct("mandibular", toothNumber, props.selectedProductId);
+      }
+    }
+  };
+
   // Wrap handleSelectRetentionType to auto-assign product for Prep/Pontic/Implant
   // Also handles tooth ownership transfer when a tooth already belongs to another product card.
   const originalHandleSelectRetentionType = teeth.handleSelectRetentionType;
@@ -115,16 +184,91 @@ export function useCaseDesignState(props: CaseDesignProps) {
         toothFieldProgress.setToothProductCard(arch, toothNumber, activeProductCardId);
 
         // Determine which product ID to fetch: active card's product or the initial product
-        const targetProductId = activeProductCardId !== 0
-          ? products.addedProducts.find((ap) => ap.id === activeProductCardId)?.productId
-          : props.selectedProductId;
+        const targetProductId = getActiveProductId();
 
         if (targetProductId) {
           fetchAndAssignProduct(arch, toothNumber, targetProductId);
         }
+
+        // Migrate Fixed Restoration stage key if the new tooth becomes the new min
+        // (e.g. adding tooth #7 to an existing group [#8, #9] changes min from 8 to 7)
+        const retTypes = arch === "maxillary" ? teeth.maxillaryRetentionTypes : teeth.mandibularRetentionTypes;
+        const targetProduct = cachedProductRef.current?.data;
+        if (targetProduct?.subcategory?.category?.name === "Fixed Restoration" && targetProduct?.id) {
+          const siblingTeeth = Object.keys(retTypes)
+            .map(Number)
+            .filter((tn) => {
+              const p = toothFieldProgress.getToothProduct(arch, tn);
+              return p?.id === targetProduct.id;
+            });
+          if (siblingTeeth.length > 0) {
+            const oldMin = Math.min(...siblingTeeth);
+            const newMin = Math.min(toothNumber, ...siblingTeeth);
+            if (newMin !== oldMin) {
+              const prefix = `${arch}_fixed_`;
+              modals.migrateStageKey(`${prefix}${oldMin}`, `${prefix}${newMin}`);
+              toothFieldProgress.migrateToothProgress(arch, oldMin, newMin);
+            }
+          }
+        }
       }
     }
   };
+
+  // --- Fixed Restoration stage key migration on tooth deselect ---
+  // When a tooth is deselected, if it was the min tooth of a Fixed Restoration group,
+  // migrate the stage value (in selectedStages and fieldValues) to the new min tooth.
+  const migrateFixedStageIfNeeded = useCallback(
+    (arch: Arch, deselectedTooth: number) => {
+      // Check if this tooth belongs to a Fixed Restoration product
+      const product = toothFieldProgress.getToothProduct(arch, deselectedTooth);
+      const isFixed = product?.subcategory?.category?.name === "Fixed Restoration";
+      if (!isFixed || !product?.id) return;
+
+      // Find all other teeth in this arch with the same product (same group)
+      const retentionTypes = arch === "maxillary" ? teeth.maxillaryRetentionTypes : teeth.mandibularRetentionTypes;
+      const siblingTeeth = Object.keys(retentionTypes)
+        .map(Number)
+        .filter((tn) => {
+          if (tn === deselectedTooth) return false;
+          const p = toothFieldProgress.getToothProduct(arch, tn);
+          return p?.id === product.id;
+        });
+
+      if (siblingTeeth.length === 0) return; // No remaining teeth in this group
+
+      const allTeethIncluding = [deselectedTooth, ...siblingTeeth];
+      const oldMin = Math.min(...allTeethIncluding);
+      const newMin = Math.min(...siblingTeeth);
+
+      if (oldMin === deselectedTooth && oldMin !== newMin) {
+        // The deselected tooth was the min — migrate stage keys
+        const prefix = `${arch}_fixed_`;
+        modals.migrateStageKey(`${prefix}${oldMin}`, `${prefix}${newMin}`);
+        toothFieldProgress.migrateToothProgress(arch, oldMin, newMin);
+      }
+    },
+    [teeth.maxillaryRetentionTypes, teeth.mandibularRetentionTypes, toothFieldProgress, modals]
+  );
+
+  // Wrap deselect handlers to include stage migration
+  const originalHandleMaxillaryToothDeselect = teeth.handleMaxillaryToothDeselect;
+  const handleMaxillaryToothDeselect = useCallback(
+    (toothNumber: number) => {
+      migrateFixedStageIfNeeded("maxillary", toothNumber);
+      originalHandleMaxillaryToothDeselect(toothNumber);
+    },
+    [migrateFixedStageIfNeeded, originalHandleMaxillaryToothDeselect]
+  );
+
+  const originalHandleMandibularToothDeselect = teeth.handleMandibularToothDeselect;
+  const handleMandibularToothDeselect = useCallback(
+    (toothNumber: number) => {
+      migrateFixedStageIfNeeded("mandibular", toothNumber);
+      originalHandleMandibularToothDeselect(toothNumber);
+    },
+    [migrateFixedStageIfNeeded, originalHandleMandibularToothDeselect]
+  );
 
   // When user selects a shade, mark the corresponding fixed advance-field step completed so the next field shows (dynamic for all shade steps)
   const handleShadeSelect = useCallback(
@@ -189,7 +333,11 @@ export function useCaseDesignState(props: CaseDesignProps) {
     setShowDetails,
     // Composed hooks
     ...teeth,
+    handleMaxillaryToothClick, // Override: also fetch product for Removables on tooth add
+    handleMandibularToothClick, // Override: also fetch product for Removables on tooth add
     handleSelectRetentionType, // Override with wrapped version
+    handleMaxillaryToothDeselect, // Override: migrate Fixed Restoration stage key before deselect
+    handleMandibularToothDeselect, // Override: migrate Fixed Restoration stage key before deselect
     ...shades,
     handleShadeSelect, // Override: mark fixed_stump_shade completed when shade is selected so next fields show
     ...modals,
@@ -198,6 +346,9 @@ export function useCaseDesignState(props: CaseDesignProps) {
     ...implants,
     ...toothFieldProgress,
     fetchAndAssignProduct,
+    // Hide retention popover when active product is Removables (so panel can pass showRetentionPopover = false)
+    activeProductIsRemovablesMaxillary: treatArchAsRemovables.maxillary,
+    activeProductIsRemovablesMandibular: treatArchAsRemovables.mandibular,
     // Props pass-through
     ...props,
   };

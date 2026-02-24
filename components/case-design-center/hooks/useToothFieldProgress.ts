@@ -251,6 +251,41 @@ export function useToothFieldProgress() {
     []
   );
 
+  /** Migrate field progress from one tooth to another (e.g. when the representative tooth of a Fixed Restoration group changes). */
+  const migrateToothProgress = useCallback(
+    (arch: Arch, fromTooth: number, toTooth: number) => {
+      if (fromTooth === toTooth) return;
+      const fromKey = toothKey(arch, fromTooth);
+      const toKey = toothKey(arch, toTooth);
+
+      setCompletedFields((prev) => {
+        const existing = prev[fromKey];
+        if (!existing) return prev;
+        const { [fromKey]: _, ...rest } = prev;
+        return { ...rest, [toKey]: existing };
+      });
+      setFieldValues((prev) => {
+        const existing = prev[fromKey];
+        if (!existing) return prev;
+        const { [fromKey]: _, ...rest } = prev;
+        return { ...rest, [toKey]: existing };
+      });
+      setToothProducts((prev) => {
+        const existing = prev[fromKey];
+        if (!existing) return prev;
+        const { [fromKey]: _, ...rest } = prev;
+        return { ...rest, [toKey]: existing };
+      });
+      setToothProductCardMap((prev) => {
+        const existing = prev[fromKey];
+        if (existing === undefined) return prev;
+        const { [fromKey]: _, ...rest } = prev;
+        return { ...rest, [toKey]: existing };
+      });
+    },
+    []
+  );
+
   /** Remove all progress for a tooth (when deselected) */
   const clearToothProgress = useCallback(
     (arch: Arch, toothNumber: number) => {
@@ -290,6 +325,7 @@ export function useToothFieldProgress() {
     setProductLoading,
     isProductLoading,
     clearToothProgress,
+    migrateToothProgress,
     getToothProductCard,
     setToothProductCard,
   };

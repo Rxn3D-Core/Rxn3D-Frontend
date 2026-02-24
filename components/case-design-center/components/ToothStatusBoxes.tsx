@@ -172,7 +172,7 @@ export function ToothStatusBoxes({
                 onClick={() => handleBoxClick(extraction)}
               >
                 <p
-                  className={`font-[Verdana] text-[14px] leading-[26px] tracking-[-0.02em] text-center ${style.textClass}`}
+                  className={`font-[Verdana] text-[14px] leading-[26px] tracking-[0.05em] text-center ${style.textClass}`}
                 >
                   {extraction.name}
                   {teethDisplay && (

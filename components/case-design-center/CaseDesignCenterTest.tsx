@@ -78,6 +78,10 @@ export default function Page() {
   const [wizardMode, setWizardMode] = useState<"initial" | "addProduct">("initial");
   const [pendingProductArch, setPendingProductArch] = useState<"maxillary" | "mandibular">("maxillary");
   const [selectedProductId, setSelectedProductId] = useState<number | undefined>(undefined);
+  /** Category name of the selected (initial) product — e.g. "Removable restoration". Used to hide retention popover for Removables. */
+  const [selectedProductCategoryName, setSelectedProductCategoryName] = useState<string | undefined>(undefined);
+  /** Arch selection from Removable Restoration product dropdown — controls which panels are initially shown */
+  const [initialArch, setInitialArch] = useState<"maxillary" | "mandibular" | "both" | undefined>(undefined);
 
   const [addedProducts, setAddedProducts] = useState<AddedProduct[]>([]);
 
@@ -104,11 +108,19 @@ export default function Page() {
       setWizardComplete(true);
     } else {
       const productId = Number(result.material);
-      if (productId) setSelectedProductId(productId);
+      if (productId) {
+        setSelectedProductId(productId);
+        fetchProductDetails(productId).then((details) => {
+          if (details?.category_name) setSelectedProductCategoryName(details.category_name);
+        });
+      } else {
+        setSelectedProductCategoryName(undefined);
+      }
       setCompletedDoctor(result?.doctor ?? null);
       setCompletedLab(result?.lab ?? null);
       setCompletedPatientName(result?.patientName ?? "");
       setCompletedGender(result?.gender ?? "");
+      if (result?.arch) setInitialArch(result.arch);
       setLabEditMode(false);
       setDoctorEditMode(false);
       setWizardComplete(true);
@@ -192,11 +204,13 @@ export default function Page() {
               onAddProduct={handleAddProduct}
               onBackToProducts={handleBackToProducts}
               selectedProductId={selectedProductId}
+              selectedProductCategoryName={selectedProductCategoryName}
               caseSubmitted={caseSubmitted}
               onReadinessChange={setCaseReady}
               onIncompleteFieldChange={setIncompleteFieldLabel}
               addedProducts={addedProducts}
               onProductsChange={setAddedProducts}
+              initialArch={initialArch}
             />
             {showDetails && (
               <CaseSummaryNotes

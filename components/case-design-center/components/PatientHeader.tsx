@@ -55,7 +55,7 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
               </button>
             </div>
           )}
-          <p className="text-[13px] font-semibold text-[#1d1d1b] whitespace-nowrap">
+          <p className="text-[18px] font-medium text-[#1d1d1b] whitespace-nowrap">
             {displayName}
           </p>
         </div>
@@ -101,11 +101,11 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
               className="w-full h-full object-cover"
             />
           </div>
-          <fieldset className="w-[170px] h-[34px] border border-[#7f7f7f] rounded-[7px] bg-white px-[11.2px] py-0 flex items-center">
-            <legend className="text-[12px] text-[#7f7f7f] px-1 leading-[13px]">
+          <fieldset className="w-[170px] h-[38px] border border-[#7f7f7f] rounded-[7px] bg-white px-[11.2px] py-0 flex items-center">
+            <legend className="text-[14px] text-[#7f7f7f] px-1 leading-[15px]">
               Created By
             </legend>
-            <span className="text-[14px] leading-[17px] text-[#1F2937] whitespace-nowrap">
+            <span className="text-[18px] font-bold leading-[20px] text-[#000000] whitespace-nowrap">
               Cassandra Vega
             </span>
           </fieldset>

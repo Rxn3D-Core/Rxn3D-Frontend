@@ -23,11 +23,11 @@ export function ShadeField({
       className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${showGreen ? "border-[#34a853]" : "border-[#b4b0b0]"} ${onClick ? "cursor-pointer hover:bg-gray-50 transition-colors" : ""}`}
       onClick={onClick}
     >
-      <legend className={`text-[11px] px-1 leading-none ${showGreen ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>
+      <legend className={`text-[14px] px-1 leading-none ${showGreen ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>
         {label}
       </legend>
       <div className="flex items-center gap-2">
-        <span className="text-[13px] text-[#1d1d1b]">{value}{displayShade ? ` - ${displayShade}` : ''}</span>
+        <span className="text-[18px] font-bold text-[#000000]">{value}{displayShade ? ` - ${displayShade}` : ''}</span>
         <svg width="38" height="37" viewBox="0 5 38 37" fill="none" xmlns="http://www.w3.org/2000/svg">
           <g clipPath="url(#clip0_1_1245)">
             <g filter="url(#filter0_d_1_1245)">

@@ -93,7 +93,7 @@ export function CaseSummaryNotes({ right1Brand, right1Platform, right2Brand, rig
                 : "rounded-r-[8px] h-[158px]"
           }`}
         >
-          <legend className="ml-2 px-1 text-[14px] text-[#7f7f7f] font-normal">
+          <legend className="ml-2 px-1 text-[14px] text-[#7f7f7f] font-normal tracking-[0.05em]">
             Case summary notes
           </legend>
 
@@ -116,7 +116,7 @@ export function CaseSummaryNotes({ right1Brand, right1Platform, right2Brand, rig
               <textarea
                 value={getDisplayValue()}
                 onChange={(e) => handleChange(e.target.value)}
-                className="flex-1 h-full text-[17px] leading-[18px] text-black font-normal resize-none outline-none bg-transparent"
+                className="flex-1 h-full text-[18px] leading-[22px] text-black font-normal resize-none outline-none bg-transparent"
               />
               <div className="flex items-center gap-[5px] flex-shrink-0 ml-2 pt-1">
                 <button onClick={() => { setCollapsed(true); setExpanded(false); }} title="Collapse">

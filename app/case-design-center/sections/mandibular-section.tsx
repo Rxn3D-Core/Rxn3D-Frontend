@@ -209,7 +209,11 @@ export function MandibularSection({ sectionRef, children }: MandibularSectionPro
                         const sameTeeth = currentSaved.length === savedTeeth.length && currentSaved.every((t: number, i: number) => t === savedTeeth[i])
                         return sameProduct && sameTeeth
                       })
-                      if (matchingProduct) setOpenAccordionMandibularState?.(matchingProduct.id)
+                      if (matchingProduct) {
+                        setOpenAccordionMandibularState?.(matchingProduct.id)
+                      } else {
+                        setOpenAccordionMandibularState?.("mandibular-card")
+                      }
                     }, 100)
                   }
                 }}

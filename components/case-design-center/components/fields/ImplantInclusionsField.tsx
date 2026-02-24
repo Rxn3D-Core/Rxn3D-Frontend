@@ -142,11 +142,11 @@ export function ImplantInclusionsField({
         className={`border rounded px-3 py-0 relative min-w-0 cursor-pointer h-[42px] flex items-center ${borderColor}`}
         onClick={() => setShowDropdown((prev) => !prev)}
       >
-        <legend className={`text-[11px] px-1 leading-none whitespace-nowrap ${legendColor}`}>
+        <legend className={`text-[14px] px-1 leading-none whitespace-nowrap ${legendColor}`}>
           {label}
         </legend>
         <div className="flex items-center gap-2 w-full min-h-0">
-          <span className="text-[13px] leading-tight text-[#1d1d1b] flex-1 min-w-0 truncate">
+          <span className="text-[18px] font-bold leading-tight text-[#000000] flex-1 min-w-0 truncate">
             {value || "Select..."}
           </span>
           {hasValue && <Check size={16} className="text-[#34a853] flex-shrink-0" />}
