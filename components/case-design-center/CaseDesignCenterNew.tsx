@@ -78,7 +78,7 @@ function FieldInput({
       className={`border rounded px-3 py-0 relative h-[42px] flex items-center min-w-0 ${hasValue ? "border-[#34a853]" : "border-[#b4b0b0]"} ${onClick ? "cursor-pointer hover:bg-gray-50 transition-colors" : ""} ${className}`}
       onClick={onClick}
     >
-      <legend className={`text-[11px] px-1 leading-none whitespace-nowrap ${hasValue ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>
+      <legend className={`text-xs px-1 leading-none whitespace-nowrap ${hasValue ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>
         {label}
       </legend>
       <div className="flex items-center gap-2 min-w-0 w-full">
@@ -86,7 +86,7 @@ function FieldInput({
           type="text"
           readOnly
           value={value}
-          className={`text-[13px] text-[#1d1d1b] bg-transparent outline-none leading-tight min-w-0 flex-1 truncate ${onClick ? "cursor-pointer" : ""}`}
+          className={`text-xs text-[#1d1d1b] bg-transparent outline-none leading-tight min-w-0 flex-1 truncate ${onClick ? "cursor-pointer" : ""}`}
         />
         {hasValue && <Check size={16} className="text-[#34a853] flex-shrink-0" />}
       </div>
@@ -115,11 +115,11 @@ function ShadeField({
       className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${hasValue ? "border-[#34a853]" : "border-[#b4b0b0]"} ${onClick ? "cursor-pointer hover:bg-gray-50 transition-colors" : ""}`}
       onClick={onClick}
     >
-      <legend className={`text-[11px] px-1 leading-none ${hasValue ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>
+      <legend className={`text-xs px-1 leading-none ${hasValue ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>
         {label}
       </legend>
       <div className="flex items-center gap-2">
-        <span className="text-[13px] text-[#1d1d1b]">{value}{displayShade ? ` - ${displayShade}` : ''}</span>
+        <span className="text-xs text-[#1d1d1b]">{value}{displayShade ? ` - ${displayShade}` : ''}</span>
         <svg width="38" height="37" viewBox="0 5 38 37" fill="none" xmlns="http://www.w3.org/2000/svg">
           <g clipPath="url(#clip0_1_1245)">
             <g filter="url(#filter0_d_1_1245)">
@@ -248,7 +248,7 @@ function IconField({
   const hasValue = value.trim().length > 0;
   return (
     <fieldset className={`border rounded-[7.7px] px-3 py-0 relative h-[42px] flex items-center min-w-0 ${hasValue ? "border-[#34a853]" : "border-[#7f7f7f]"}`}>
-      <legend className={`text-[11px] px-1 leading-none whitespace-nowrap ${hasValue ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>
+      <legend className={`text-xs px-1 leading-none whitespace-nowrap ${hasValue ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>
         {label}
       </legend>
       <div className="flex items-center gap-1 min-w-0 w-full">
@@ -256,7 +256,7 @@ function IconField({
           type="text"
           readOnly
           value={value}
-          className="flex-1 text-[13px] text-[#1d1d1b] bg-transparent outline-none leading-tight tracking-[-0.02em] min-w-0 truncate"
+          className="flex-1 text-xs text-[#1d1d1b] bg-transparent outline-none leading-tight tracking-[-0.02em] min-w-0 truncate"
         />
         <div className="flex-shrink-0">{iconPaths[icon]}</div>
         {hasValue && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
@@ -298,14 +298,14 @@ function SelectField({
   const legendColor = required && !value ? "text-[#cf0202] font-semibold" : hasValue ? "text-[#34a853]" : "text-[#7f7f7f]";
   return (
     <fieldset className={`border rounded px-3 pb-2 pt-0 relative min-w-0 ${borderColor}`}>
-      <legend className={`text-[11px] px-1 leading-none whitespace-nowrap ${legendColor}`}>
+      <legend className={`text-xs px-1 leading-none whitespace-nowrap ${legendColor}`}>
         {label}
       </legend>
       <div className="flex items-center gap-1 min-w-0 w-full">
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="flex-1 text-[13px] text-[#1d1d1b] bg-transparent outline-none leading-tight cursor-pointer min-w-0 truncate"
+          className="flex-1 text-xs text-[#1d1d1b] bg-transparent outline-none leading-tight cursor-pointer min-w-0 truncate"
         >
           {!value && <option value="">Select {label.replace("Select ", "")}</option>}
           {options.map((opt) => (
@@ -345,11 +345,11 @@ function ImplantInclusionsField({
         className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${borderColor}`}
         onClick={() => setShowDropdown(!showDropdown)}
       >
-        <legend className={`text-[11px] px-1 leading-none whitespace-nowrap ${legendColor}`}>
+        <legend className={`text-xs px-1 leading-none whitespace-nowrap ${legendColor}`}>
           {label}
         </legend>
         <div className="flex items-center gap-2 w-full">
-          <span className="text-[13px] text-[#1d1d1b] flex-1 truncate">
+          <span className="text-xs text-[#1d1d1b] flex-1 truncate">
             {value === "Model with Tissue + QTY" ? `${quantity}x Model with Tissue` : value || `Select ${label}`}
           </span>
           {hasValue && <Check size={16} className="text-[#34a853] flex-shrink-0" />}
@@ -367,7 +367,7 @@ function ImplantInclusionsField({
               onChange("No inclusion");
               setShowDropdown(false);
             }}
-            className={`w-full text-left px-3 py-2.5 text-[13px] hover:bg-gray-50 transition-colors ${
+            className={`w-full text-left px-3 py-2.5 text-xs hover:bg-gray-50 transition-colors ${
               value === "No inclusion" ? 'bg-green-50 text-[#34a853]' : 'text-[#1d1d1b]'
             }`}
           >
@@ -386,7 +386,7 @@ function ImplantInclusionsField({
               }
             }}
           >
-            <span className={`text-[13px] ${value === "Model with Tissue + QTY" ? 'text-[#34a853]' : 'text-[#1d1d1b]'}`}>
+            <span className={`text-xs ${value === "Model with Tissue + QTY" ? 'text-[#34a853]' : 'text-[#1d1d1b]'}`}>
               Model with Tissue + QTY
             </span>
             <div className="flex items-center gap-2">
@@ -399,9 +399,9 @@ function ImplantInclusionsField({
                 }}
                 className="w-8 h-8 rounded border border-[#b4b0b0] bg-white flex items-center justify-center hover:bg-gray-100 transition-colors"
               >
-                <span className="text-[16px] text-[#7f7f7f]">−</span>
+                <span className="text-base text-[#7f7f7f]">−</span>
               </button>
-              <span className="text-[14px] font-semibold text-[#1d1d1b] min-w-[24px] text-center">
+              <span className="text-sm font-semibold text-[#1d1d1b] min-w-[24px] text-center">
                 {value === "Model with Tissue + QTY" ? quantity : 0}
               </span>
               <button
@@ -413,7 +413,7 @@ function ImplantInclusionsField({
                 }}
                 className="w-8 h-8 rounded border border-[#b4b0b0] bg-white flex items-center justify-center hover:bg-gray-100 transition-colors"
               >
-                <span className="text-[16px] text-[#7f7f7f]">+</span>
+                <span className="text-base text-[#7f7f7f]">+</span>
               </button>
             </div>
           </div>
@@ -446,11 +446,11 @@ function CardSelectorField({
       className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${borderColor}`}
       onClick={onClick}
     >
-      <legend className={`text-[11px] px-1 leading-none whitespace-nowrap ${legendColor}`}>
+      <legend className={`text-xs px-1 leading-none whitespace-nowrap ${legendColor}`}>
         {label}
       </legend>
       <div className="flex items-center gap-2 w-full">
-        <span className="text-[13px] text-[#1d1d1b] flex-1 truncate">{value || `Select ${label}`}</span>
+        <span className="text-xs text-[#1d1d1b] flex-1 truncate">{value || `Select ${label}`}</span>
         {hasValue && <Check size={16} className="text-[#34a853] flex-shrink-0" />}
         <ChevronDown size={16} className={`text-[#7f7f7f] transition-transform flex-shrink-0 ${isActive ? 'rotate-180' : ''}`} />
       </div>
@@ -938,7 +938,7 @@ function CaseDesignCenter({
   return (
     <div className="px-2 md:px-4 py-4">
       {/* Title */}
-      <h2 className="text-center text-[14px] md:text-[16px] font-bold text-[#1d1d1b] tracking-wide mb-3 md:mb-4">
+      <h2 className="text-center text-sm md:text-base font-bold text-[#1d1d1b] tracking-wide mb-3 md:mb-4">
         CASE DESIGN CENTER
       </h2>
 
@@ -948,7 +948,7 @@ function CaseDesignCenter({
         <div className="flex-1 min-w-0 px-0 md:px-3 order-1 lg:order-none">
           {/* Maxillary header - centered */}
           <div className="flex flex-col md:flex-row items-center justify-center gap-2 md:gap-3 mb-3">
-            <h3 className="text-[12px] md:text-[14px] font-bold text-[#1d1d1b] tracking-wide">
+            <h3 className="text-xs md:text-sm font-bold text-[#1d1d1b] tracking-wide">
               MAXILLARY
             </h3>
             <button 
@@ -1003,13 +1003,13 @@ function CaseDesignCenter({
                     shadeSelectionState.fieldType || 'tooth_shade'
                   ) && (
                     <div className="flex items-center justify-between mb-3">
-                      <h4 className="text-[13px] font-semibold text-[#1d1d1b]">
+                      <h4 className="text-xs font-semibold text-[#1d1d1b]">
                         Select {shadeSelectionState.fieldType === 'tooth_shade' ? 'Tooth' : 'Stump'} Shade
                         <span className="text-[#cf0202]">*</span>
                       </h4>
                       <button
                         onClick={() => setShadeSelectionState({ arch: null, fieldType: null, productId: null })}
-                        className="text-[#7f7f7f] hover:text-[#1d1d1b] text-[20px] leading-none"
+                        className="text-[#7f7f7f] hover:text-[#1d1d1b] text-xl leading-none"
                         title="Close"
                       >
                         ×
@@ -1026,7 +1026,7 @@ function CaseDesignCenter({
                     <div className="flex justify-end mb-3">
                       <button
                         onClick={() => setShadeSelectionState({ arch: null, fieldType: null, productId: null })}
-                        className="text-[#7f7f7f] hover:text-[#1d1d1b] text-[20px] leading-none"
+                        className="text-[#7f7f7f] hover:text-[#1d1d1b] text-xl leading-none"
                         title="Close"
                       >
                         ×
@@ -1039,14 +1039,14 @@ function CaseDesignCenter({
                     {/* Shade Guide Selector Dropdown */}
                     <div className="relative">
                       <fieldset className="border border-[#34a853] rounded px-3 py-0 relative h-[42px] flex items-center">
-                        <legend className="text-[11px] text-[#34a853] px-1 leading-none">
+                        <legend className="text-xs text-[#34a853] px-1 leading-none">
                           Shade guide selected
                         </legend>
                         <button
                           onClick={() => setShowShadeGuideDropdown(!showShadeGuideDropdown)}
                           className="w-full flex items-center justify-between text-left"
                         >
-                          <span className="text-[13px] text-[#1d1d1b]">{selectedShadeGuide}</span>
+                          <span className="text-xs text-[#1d1d1b]">{selectedShadeGuide}</span>
                           <div className="flex items-center gap-2">
                             <Check size={16} className="text-[#34a853]" />
                             <ChevronDown size={16} className={`text-[#7f7f7f] transition-transform ${showShadeGuideDropdown ? 'rotate-180' : ''}`} />
@@ -1064,7 +1064,7 @@ function CaseDesignCenter({
                                 setSelectedShadeGuide(option);
                                 setShowShadeGuideDropdown(false);
                               }}
-                              className={`w-full px-4 py-2.5 text-left text-[13px] hover:bg-gray-50 transition-colors flex items-center gap-2 ${
+                              className={`w-full px-4 py-2.5 text-left text-xs hover:bg-gray-50 transition-colors flex items-center gap-2 ${
                                 selectedShadeGuide === option ? 'bg-gray-50' : ''
                               }`}
                             >
@@ -1091,7 +1091,7 @@ function CaseDesignCenter({
                       }`}
                       onClick={() => setShadeSelectionState(prev => ({ ...prev, fieldType: 'stump_shade' }))}
                     >
-                      <legend className={`text-[11px] px-1 leading-none ${
+                      <legend className={`text-xs px-1 leading-none ${
                         getSelectedShade(
                           shadeSelectionState.productId || '',
                           'maxillary',
@@ -1101,7 +1101,7 @@ function CaseDesignCenter({
                         Stump Shade
                       </legend>
                       <div className="flex items-center gap-2 w-full">
-                        <span className="text-[13px] text-[#1d1d1b]">
+                        <span className="text-xs text-[#1d1d1b]">
                           {getSelectedShade(
                             shadeSelectionState.productId || '',
                             'maxillary',
@@ -1131,7 +1131,7 @@ function CaseDesignCenter({
                       }`}
                       onClick={() => setShadeSelectionState(prev => ({ ...prev, fieldType: 'tooth_shade' }))}
                     >
-                      <legend className={`text-[11px] px-1 leading-none ${
+                      <legend className={`text-xs px-1 leading-none ${
                         getSelectedShade(
                           shadeSelectionState.productId || '',
                           'maxillary',
@@ -1141,7 +1141,7 @@ function CaseDesignCenter({
                         Tooth Shade
                       </legend>
                       <div className="flex items-center gap-2 w-full">
-                        <span className="text-[13px] text-[#1d1d1b]">
+                        <span className="text-xs text-[#1d1d1b]">
                           {getSelectedShade(
                             shadeSelectionState.productId || '',
                             'maxillary',
@@ -1176,14 +1176,14 @@ function CaseDesignCenter({
               {/* Status boxes */}
               <div className="grid grid-cols-2 gap-2 mb-2">
                 <div className="flex items-center justify-center bg-[#F3EBD7] rounded-md h-[65px]">
-                  <p className="font-[Verdana] text-[14px] leading-[26px] tracking-[-0.02em] text-center text-black">
+                  <p className="font-[Verdana] text-sm leading-[26px] tracking-[-0.02em] text-center text-black">
                     Teeth in mouth
                     <br />
                     #1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16
                   </p>
                 </div>
                 <div className="flex items-center justify-center bg-[#E9E8E7] rounded-md h-[65px]">
-                  <p className="font-[Verdana] text-[14px] leading-[26px] tracking-[-0.02em] text-center text-black">
+                  <p className="font-[Verdana] text-sm leading-[26px] tracking-[-0.02em] text-center text-black">
                     Missing teeth
                     <br />
                     #1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16
@@ -1193,14 +1193,14 @@ function CaseDesignCenter({
 
               <div className="grid grid-cols-2 gap-2 mb-2">
                 <div className="flex items-center justify-center bg-[#E92520] rounded-md h-[65px]">
-                  <p className="font-[Verdana] text-[14px] font-bold leading-[26px] tracking-[-0.02em] text-center text-white">
+                  <p className="font-[Verdana] text-sm font-bold leading-[26px] tracking-[-0.02em] text-center text-white">
                     Will extract on delivery
                     <br />
                     #1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16
                   </p>
                 </div>
                 <div className="flex items-center justify-center bg-[#A0F69A] rounded-md h-[65px]">
-                  <p className="font-[Verdana] text-[14px] leading-[26px] tracking-[-0.02em] text-center text-black">
+                  <p className="font-[Verdana] text-sm leading-[26px] tracking-[-0.02em] text-center text-black">
                     Fix/Repair
                     <br />
                     #1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16
@@ -1209,14 +1209,14 @@ function CaseDesignCenter({
               </div>
               <div className="grid grid-cols-2 gap-2 mb-4">
                 <div className="flex items-center justify-center bg-[#FFD1F9] rounded-md h-[65px]">
-                  <p className="font-[Verdana] text-[14px] leading-[26px] tracking-[-0.02em] text-center text-black">
+                  <p className="font-[Verdana] text-sm leading-[26px] tracking-[-0.02em] text-center text-black">
                     Clasp
                     <br />
                     #1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16
                   </p>
                 </div>
                 <div className="flex items-center justify-center bg-[#0CE7C6] rounded-md h-[65px]">
-                  <p className="font-[Verdana] text-[14px] leading-[26px] tracking-[-0.02em] text-center text-black">
+                  <p className="font-[Verdana] text-sm leading-[26px] tracking-[-0.02em] text-center text-black">
                     Custom tooth status
                     <br />
                     #1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16
@@ -1272,11 +1272,11 @@ function CaseDesignCenter({
                 {/* Grade / Stage */}
                 <div className="grid grid-cols-2 gap-3">
                   <fieldset className="border border-[#34a853] rounded px-3 py-0 relative h-[42px] flex items-center">
-                    <legend className="text-[11px] text-[#34a853] px-1 leading-none">
+                    <legend className="text-xs text-[#34a853] px-1 leading-none">
                       Grade
                     </legend>
                     <div className="flex items-center gap-2">
-                      <span className="text-[13px] text-[#1d1d1b]">Standard</span>
+                      <span className="text-xs text-[#1d1d1b]">Standard</span>
                       <div className="flex gap-1 ml-auto">
                         {/* Diamond icons: 2 blue, 2 gray */}
                         <svg width="30" height="24" viewBox="0 0 30 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1329,11 +1329,11 @@ function CaseDesignCenter({
                     </div>
                   </fieldset>
                   <fieldset className="border border-[#34a853] rounded px-3 py-0 relative h-[42px] flex items-center">
-                    <legend className="text-[11px] text-[#34a853] px-1 leading-none">
+                    <legend className="text-xs text-[#34a853] px-1 leading-none">
                       Stage
                     </legend>
                     <div className="flex items-center gap-2">
-                      <span className="text-[13px] text-[#1d1d1b]">Try in with teeth</span>
+                      <span className="text-xs text-[#1d1d1b]">Try in with teeth</span>
                       <Check size={16} className="text-[#34a853]" />
                       <div className="ml-auto">
                         {/* Articulator icon */}
@@ -1352,14 +1352,14 @@ function CaseDesignCenter({
                     onClick={() => handleShadeFieldClick("maxillary", "tooth_shade", "removable_metal_frame")}
                   />
                   <fieldset className="border border-[#34a853] rounded px-3 py-0 relative h-[42px] flex items-center">
-                    <legend className="text-[11px] text-[#34a853] px-1 leading-none">
+                    <legend className="text-xs text-[#34a853] px-1 leading-none">
                       Gum Shade
                     </legend>
                     <div className="flex items-center gap-2">
                       <input
                         type="text"
                         defaultValue="GC Initial Gingiva, G-Intense"
-                        className="flex-1 text-[13px] text-[#1d1d1b] bg-transparent outline-none leading-tight min-w-0"
+                        className="flex-1 text-xs text-[#1d1d1b] bg-transparent outline-none leading-tight min-w-0"
                       />
                       <svg width="29" height="29" viewBox="0 0 29 29" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <rect width="28.0391" height="28.0391" rx="6" fill="#E58D8D" />
@@ -1543,7 +1543,7 @@ function CaseDesignCenter({
               <Plus size={13} strokeWidth={1.5} />
               Add Product
             </button>
-            <h3 className="text-[12px] md:text-[14px] font-bold text-[#1d1d1b] tracking-wide">
+            <h3 className="text-xs md:text-sm font-bold text-[#1d1d1b] tracking-wide">
               MANDIBULAR
             </h3>
           </div>
@@ -1591,13 +1591,13 @@ function CaseDesignCenter({
                     shadeSelectionState.fieldType || 'tooth_shade'
                   ) && (
                     <div className="flex items-center justify-between mb-3">
-                      <h4 className="text-[13px] font-semibold text-[#1d1d1b]">
+                      <h4 className="text-xs font-semibold text-[#1d1d1b]">
                         Select {shadeSelectionState.fieldType === 'tooth_shade' ? 'Tooth' : 'Stump'} Shade
                         <span className="text-[#cf0202]">*</span>
                       </h4>
                       <button
                         onClick={() => setShadeSelectionState({ arch: null, fieldType: null, productId: null })}
-                        className="text-[#7f7f7f] hover:text-[#1d1d1b] text-[20px] leading-none"
+                        className="text-[#7f7f7f] hover:text-[#1d1d1b] text-xl leading-none"
                         title="Close"
                       >
                         ×
@@ -1614,7 +1614,7 @@ function CaseDesignCenter({
                     <div className="flex justify-end mb-3">
                       <button
                         onClick={() => setShadeSelectionState({ arch: null, fieldType: null, productId: null })}
-                        className="text-[#7f7f7f] hover:text-[#1d1d1b] text-[20px] leading-none"
+                        className="text-[#7f7f7f] hover:text-[#1d1d1b] text-xl leading-none"
                         title="Close"
                       >
                         ×
@@ -1627,14 +1627,14 @@ function CaseDesignCenter({
                     {/* Shade Guide Selector Dropdown */}
                     <div className="relative">
                       <fieldset className="border border-[#34a853] rounded px-3 py-0 relative h-[42px] flex items-center">
-                        <legend className="text-[11px] text-[#34a853] px-1 leading-none">
+                        <legend className="text-xs text-[#34a853] px-1 leading-none">
                           Shade guide selected
                         </legend>
                         <button
                           onClick={() => setShowShadeGuideDropdown(!showShadeGuideDropdown)}
                           className="w-full flex items-center justify-between text-left"
                         >
-                          <span className="text-[13px] text-[#1d1d1b]">{selectedShadeGuide}</span>
+                          <span className="text-xs text-[#1d1d1b]">{selectedShadeGuide}</span>
                           <div className="flex items-center gap-2">
                             <Check size={16} className="text-[#34a853]" />
                             <ChevronDown size={16} className={`text-[#7f7f7f] transition-transform ${showShadeGuideDropdown ? 'rotate-180' : ''}`} />
@@ -1652,7 +1652,7 @@ function CaseDesignCenter({
                                 setSelectedShadeGuide(option);
                                 setShowShadeGuideDropdown(false);
                               }}
-                              className={`w-full px-4 py-2.5 text-left text-[13px] hover:bg-gray-50 transition-colors flex items-center gap-2 ${
+                              className={`w-full px-4 py-2.5 text-left text-xs hover:bg-gray-50 transition-colors flex items-center gap-2 ${
                                 selectedShadeGuide === option ? 'bg-gray-50' : ''
                               }`}
                             >
@@ -1679,7 +1679,7 @@ function CaseDesignCenter({
                       }`}
                       onClick={() => setShadeSelectionState(prev => ({ ...prev, fieldType: 'stump_shade' }))}
                     >
-                      <legend className={`text-[11px] px-1 leading-none ${
+                      <legend className={`text-xs px-1 leading-none ${
                         getSelectedShade(
                           shadeSelectionState.productId || '',
                           'mandibular',
@@ -1689,7 +1689,7 @@ function CaseDesignCenter({
                         Stump Shade
                       </legend>
                       <div className="flex items-center gap-2 w-full">
-                        <span className="text-[13px] text-[#1d1d1b]">
+                        <span className="text-xs text-[#1d1d1b]">
                           {getSelectedShade(
                             shadeSelectionState.productId || '',
                             'mandibular',
@@ -1719,7 +1719,7 @@ function CaseDesignCenter({
                       }`}
                       onClick={() => setShadeSelectionState(prev => ({ ...prev, fieldType: 'tooth_shade' }))}
                     >
-                      <legend className={`text-[11px] px-1 leading-none ${
+                      <legend className={`text-xs px-1 leading-none ${
                         getSelectedShade(
                           shadeSelectionState.productId || '',
                           'mandibular',
@@ -1729,7 +1729,7 @@ function CaseDesignCenter({
                         Tooth Shade
                       </legend>
                       <div className="flex items-center gap-2 w-full">
-                        <span className="text-[13px] text-[#1d1d1b]">
+                        <span className="text-xs text-[#1d1d1b]">
                           {getSelectedShade(
                             shadeSelectionState.productId || '',
                             'mandibular',
@@ -1826,7 +1826,7 @@ function CaseDesignCenter({
                   <div className="flex flex-col sm:flex-row">
                     {/* Left section - tooth number */}
                     <div className="flex justify-center items-center sm:w-[90px] shrink-0 py-2 sm:py-0">
-                      <span className="text-[20px] text-[#7f7f7f] text-center">
+                      <span className="text-xl text-[#7f7f7f] text-center">
                         #19
                       </span>
                     </div>
@@ -2004,14 +2004,14 @@ function CaseDesignCenter({
 
                 {/* Additional notes */}
                 <fieldset className="border border-[#34a853] rounded px-3 pb-2 pt-0">
-                  <legend className="text-[11px] text-[#34a853] px-1 leading-none flex items-center gap-1">
+                  <legend className="text-xs text-[#34a853] px-1 leading-none flex items-center gap-1">
                     Additional notes
                     <Check size={12} className="text-[#34a853]" />
                   </legend>
                   <textarea
                     defaultValue="Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident. Sunt in culpa qui officia deserunt mollit anim id est laborum. Curabitur pretium tincidunt lacus. Nulla gravida orci."
                     rows={5}
-                    className="w-full text-[12px] text-[#1d1d1b] bg-transparent outline-none leading-relaxed resize-none"
+                    className="w-full text-xs text-[#1d1d1b] bg-transparent outline-none leading-relaxed resize-none"
                   />
                 </fieldset>
 
@@ -2315,13 +2315,13 @@ function CaseSummaryNotes({ right1Brand, right1Platform, right2Brand, right2Plat
                 : "rounded-r-[8px] h-[158px]"
           }`}
         >
-          <legend className="ml-2 px-1 text-[14px] text-[#7f7f7f] font-normal">
+          <legend className="ml-2 px-1 text-sm text-[#7f7f7f] font-normal">
             Case summary notes
           </legend>
 
           {collapsed ? (
             <div className="flex items-center justify-between px-[15px] h-[20px]">
-              <span className="text-[14px] text-[#7f7f7f] truncate flex-1">
+              <span className="text-sm text-[#7f7f7f] truncate flex-1">
                 {getDisplayValue().slice(0, 80)}...
               </span>
               <div className="flex items-center gap-[5px] flex-shrink-0 ml-2">

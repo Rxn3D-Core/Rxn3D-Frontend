@@ -34,8 +34,9 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     });
 
   // Show panels/accordion as soon as a removables product exists (no teeth required)
-  const maxillaryHasRemovables = isRemovablesCategory("maxillary");
-  const mandibularHasRemovables = isRemovablesCategory("mandibular");
+  // Include both addedProducts and the initial active product (card 0)
+  const maxillaryHasRemovables = isRemovablesCategory("maxillary") || state.activeProductIsRemovablesMaxillary;
+  const mandibularHasRemovables = isRemovablesCategory("mandibular") || state.activeProductIsRemovablesMandibular;
 
   const maxillaryHasRemovablesTeeth =
     maxillaryHasRemovables && state.maxillaryTeeth.length > 0;
@@ -50,6 +51,15 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     maxillaryHasRemovablesTeeth ||
     mandibularHasRemovablesTeeth;
 
+  // Check removable teeth impression completion
+  const allMaxillaryRemovablesComplete =
+    !maxillaryHasRemovablesTeeth ||
+    state.maxillaryTeeth.every((tn) => state.isFieldCompleted("maxillary", tn, "impression"));
+
+  const allMandibularRemovablesComplete =
+    !mandibularHasRemovablesTeeth ||
+    state.mandibularTeeth.every((tn) => state.isFieldCompleted("mandibular", tn, "impression"));
+
   const allTeethImpressionComplete =
     hasAnyTooth &&
     Object.keys(state.maxillaryRetentionTypes).every((toothNum) => {
@@ -59,7 +69,9 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     Object.keys(state.mandibularRetentionTypes || {}).every((toothNum) => {
       const n = Number(toothNum);
       return IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("mandibular", n, step));
-    });
+    }) &&
+    allMaxillaryRemovablesComplete &&
+    allMandibularRemovablesComplete;
 
   // True if ANY tooth has a retention type but hasn't completed impression yet
   const hasIncompleteAccordion =
@@ -70,7 +82,9 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     Object.keys(state.mandibularRetentionTypes || {}).some((toothNum) => {
       const n = Number(toothNum);
       return !IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("mandibular", n, step));
-    });
+    }) ||
+    (maxillaryHasRemovablesTeeth && !allMaxillaryRemovablesComplete) ||
+    (mandibularHasRemovablesTeeth && !allMandibularRemovablesComplete);
 
   // Compute a human-readable label for the first incomplete required field across all teeth.
   // For Fixed Restoration, shades are stored per product group (under fixed_${firstToothNumber}), not per tooth — validate once per group.
@@ -141,19 +155,19 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   }, [incompleteFieldLabel]);
 
   return (
-    <div className="px-2 md:px-4 py-4 pb-20">
+    <div className="px-2 md:px-4 py-2 pb-20">
       {props.onBackToProducts && !props.caseSubmitted && (
         <button
           onClick={!hasIncompleteAccordion ? props.onBackToProducts : undefined}
           title={hasIncompleteAccordion ? "Complete all required fields before going back" : undefined}
-          className={`text-[14px] font-semibold mb-2 ${hasIncompleteAccordion ? "text-[#b4b0b0] cursor-not-allowed" : "text-[#1162A8] hover:underline cursor-pointer"}`}
+          className={`text-sm font-semibold mb-2 ${hasIncompleteAccordion ? "text-[#b4b0b0] cursor-not-allowed" : "text-[#1162A8] hover:underline cursor-pointer"}`}
         >
           ← Back to Products
         </button>
       )}
 
       {/* Title */}
-      <h2 className="text-center text-[20px] font-bold text-[#1d1d1b] tracking-wide mb-3 md:mb-4">
+      <h2 className="text-center text-xl font-bold text-[#1d1d1b] tracking-wide mb-1 md:mb-2">
         CASE DESIGN CENTER
       </h2>
 
@@ -223,7 +237,6 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           maxillaryToothExtractionMap={state.maxillaryToothExtractionMap}
           handleToothExtractionToggle={state.handleToothExtractionToggle}
           selectAllMaxillaryTeeth={state.selectAllMaxillaryTeeth}
-          clearAllMaxillaryTeeth={state.clearAllMaxillaryTeeth}
         />
 
         {/* CENTER NAVIGATION */}
@@ -297,7 +310,6 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           mandibularToothExtractionMap={state.mandibularToothExtractionMap}
           handleToothExtractionToggle={state.handleToothExtractionToggle}
           selectAllMandibularTeeth={state.selectAllMandibularTeeth}
-          clearAllMandibularTeeth={state.clearAllMandibularTeeth}
         />
       </div>
 
@@ -311,7 +323,14 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           Object.entries(state.mandibularRetentionTypes || {}).some(([toothNum]) => {
             const n = Number(toothNum);
             return IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("mandibular", n, step));
-          });
+          }) ||
+          // Removable products: check teeth in maxillaryTeeth/mandibularTeeth sets
+          (maxillaryHasRemovables && state.maxillaryTeeth.some((tn) =>
+            state.isFieldCompleted("maxillary", tn, "impression")
+          )) ||
+          (mandibularHasRemovables && state.mandibularTeeth.some((tn) =>
+            state.isFieldCompleted("mandibular", tn, "impression")
+          ));
         if (!hasImpressionCompleted) return null;
         return (
           <CaseSummaryNotes
@@ -364,9 +383,17 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           const toothNum = state.currentAddOnsToothNumber;
           const arch = state.currentAddOnsArch;
           if (toothNum !== null) {
-            const totalCount = addOns.reduce((sum, a) => sum + a.qty, 0);
-            const names = addOns.map((a) => `${a.qty}x ${a.name}`).join(", ");
-            const value = names || `${totalCount} selected`;
+            // Show qty in front of each name: "1x Name, 2x Other"
+            const addonLabels = addOns.map((a) => `${a.qty}x ${a.name}`);
+            const maxShow = 2;
+            let value: string;
+            if (addonLabels.length === 0) {
+              value = "0 selected";
+            } else if (addonLabels.length <= maxShow) {
+              value = addonLabels.join(", ");
+            } else {
+              value = addonLabels.slice(0, maxShow).join(", ") + ` +${addonLabels.length - maxShow} more`;
+            }
             const product = state.getToothProduct(arch, toothNum);
             const isFixed = product?.subcategory?.category?.name === "Fixed Restoration";
             if (isFixed) {

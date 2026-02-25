@@ -54,11 +54,20 @@ export default function AddOnsModal({ isOpen, onClose, onAddAddOns, labId, produ
   const { token } = useAuth()
   
   // Zustand store for add-ons management
-  const { 
-    addAddOn, 
+  const {
+    addAddOn,
     removeAddOn,
+    setProductAddOns,
     productAddOns: storeProductAddOns
   } = useCaseDesignStore()
+
+  // Reset selected add-ons when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedAddOns([])
+      setSearchTerm("")
+    }
+  }, [isOpen])
 
   // Debounced search term for React Query
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("")
@@ -220,24 +229,50 @@ export default function AddOnsModal({ isOpen, onClose, onAddAddOns, labId, produ
 
   const handleConfirmAddOns = () => {
     const newAddOns = selectedAddOns.map(({ tempId, ...rest }) => rest)
-    
-    // Add each new add-on to the Zustand store
-    newAddOns.forEach(addOn => {
-      addAddOn(productId, arch, {
-        addon_id: addOn.addon_id,
-        qty: addOn.qty,
-        quantity: addOn.qty,
-        category: addOn.category,
-        subcategory: addOn.subcategory,
-        addOn: addOn.name,
-        name: addOn.name,
-        label: addOn.name,
-        price: addOn.price
-      })
+
+    // Build the combined list: existing store addons + newly selected
+    const allAddOns = [
+      ...existingAddOns.map(a => ({
+        addon_id: a.addon_id,
+        qty: a.qty,
+        quantity: a.qty,
+        category: a.category,
+        subcategory: a.subcategory,
+        addOn: a.name,
+        name: a.name,
+        label: a.name,
+        price: a.price,
+      })),
+      ...newAddOns.map(a => ({
+        addon_id: a.addon_id,
+        qty: a.qty,
+        quantity: a.qty,
+        category: a.category,
+        subcategory: a.subcategory,
+        addOn: a.name,
+        name: a.name,
+        label: a.name,
+        price: a.price,
+      })),
+    ]
+
+    // Replace the entire arch's addons in the store (avoids duplication)
+    const currentStoreAddOns = storeProductAddOns[productId] || { maxillary: [], mandibular: [] }
+    setProductAddOns(productId, {
+      ...currentStoreAddOns,
+      [arch]: allAddOns,
     })
-    
-    // Also call the original callback for backward compatibility
-    onAddAddOns(newAddOns)
+
+    // Call the callback with ALL addons so the field value reflects the full set
+    onAddAddOns(allAddOns.map(a => ({
+      addon_id: a.addon_id,
+      qty: a.qty,
+      category: a.category,
+      subcategory: a.subcategory,
+      name: a.name,
+      price: typeof a.price === 'number' ? a.price : parseFloat(String(a.price) || '0'),
+    })))
+    setSelectedAddOns([])
     onClose()
   }
 

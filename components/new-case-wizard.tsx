@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useRouter } from "next/navigation";
 import CancelSlipCreationModal from "@/components/cancel-slip-creation-modal";
 import { cn } from "@/lib/utils";
+import { FieldInput } from "@/components/case-design-center/components/fields";
 
 /* ------------------------------------------------------------------ */
 /*  Role / auth helpers (client-only)                                  */
@@ -385,12 +386,33 @@ function StepPatientInfo({
   const [isNameFocused, setIsNameFocused] = useState(false);
   const [isGenderFocused, setIsGenderFocused] = useState(false);
   const patientNameInputRef = useRef<HTMLInputElement>(null);
+  const patientNameDesktopRef = useRef<HTMLInputElement>(null);
   const genderTriggerRef = useRef<HTMLDivElement>(null);
   const refocusTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  /** Focus whichever patient name input is currently visible */
+  const focusPatientInput = () => {
+    const isMobile = window.innerWidth < 640;
+    const ref = isMobile ? patientNameInputRef : patientNameDesktopRef;
+    ref.current?.focus();
+  };
+
+  const [createdByName, setCreatedByName] = useState("");
+  const [createdByImage, setCreatedByImage] = useState("");
   useEffect(() => {
-    if (patientNameInputRef.current && !(patientName ?? "").trim()) {
-      const focusTimer = setTimeout(() => patientNameInputRef.current?.focus(), 100);
+    try {
+      const userStr = localStorage.getItem("user");
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        setCreatedByName(`${user.first_name || ""} ${user.last_name || ""}`.trim());
+        if (user.image) setCreatedByImage(user.image);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (!(patientName ?? "").trim()) {
+      const focusTimer = setTimeout(() => focusPatientInput(), 100);
       return () => clearTimeout(focusTimer);
     }
   }, []);
@@ -433,14 +455,14 @@ function StepPatientInfo({
     const shouldOpen = shouldAutoOpenGender(value, gender);
     if (shouldOpen && !isGenderFocused) {
       setIsGenderFocused(true);
-      refocusTimerRef.current = setTimeout(() => patientNameInputRef.current?.focus(), 50);
+      refocusTimerRef.current = setTimeout(() => focusPatientInput(), 50);
     }
   };
 
   const handleGenderSelect = (value: string) => {
     setGender(value);
     setIsGenderFocused(false);
-    setTimeout(() => patientNameInputRef.current?.focus(), 50);
+    setTimeout(() => focusPatientInput(), 50);
     if (name.trim() && onComplete) setTimeout(() => onComplete(), 300);
   };
 
@@ -496,9 +518,10 @@ function StepPatientInfo({
   const containerHeight = showGenderField ? 10 + fieldHeight + fieldGap + fieldHeight + 10 : 10 + fieldHeight + 10;
 
   return (
-    <div className="flex-1 flex flex-col px-6 py-6">
-      <div className="flex items-start justify-between">
-        <div className="flex items-start gap-5">
+    <div className="flex-1 flex flex-col px-3 sm:px-6 py-4 sm:py-6">
+      {/* ── Desktop layout: doctor + fields (left) | created by (right) ── */}
+      <div className="hidden sm:flex flex-row items-start justify-between">
+        <div className="flex flex-row items-start gap-5">
           {doctor && (
             <div className="flex flex-col items-center gap-1">
               <div className="w-[80px] h-[80px] rounded-full overflow-hidden border-2 border-[#d9d9d9] bg-[#eef1f4]">
@@ -517,12 +540,11 @@ function StepPatientInfo({
             </div>
           )}
 
-          <div className="relative" style={{ width: `${fieldWidth}px`, height: `${containerHeight}px` }}>
-            {/* Patient Name - Rxn3DFloatingInput-style */}
-            <div className="absolute" style={{ left: 0, top: 10, width: `${fieldWidth}px`, height: `${fieldHeight}px` }}>
+          <div className="relative w-auto" style={{ maxWidth: `${fieldWidth}px`, minWidth: "200px", height: `${containerHeight}px` }}>
+            <div className="absolute left-0" style={{ top: 10, width: `${fieldWidth}px`, height: `${fieldHeight}px` }}>
               <div className="relative w-full h-full">
                 <input
-                  ref={patientNameInputRef}
+                  ref={patientNameDesktopRef}
                   type="text"
                   value={name}
                   onChange={(e) => handleNameChange(e.target.value)}
@@ -541,34 +563,19 @@ function StepPatientInfo({
                     getNameRingEffect(),
                     !isNameFocused && "hover:shadow-[0_0_8px_rgba(17,98,168,0.2)]"
                   )}
-                  style={{
-                    padding: "25px 30.8px 9.24px 12.32px",
-                    borderWidth: "0.740384px",
-                    fontFamily: "Arial",
-                    fontSize: "17px",
-                    lineHeight: "18px",
-                  }}
+                  style={{ padding: "25px 30.8px 9.24px 12.32px", borderWidth: "0.740384px", fontFamily: "Arial", fontSize: "17px", lineHeight: "18px" }}
                 />
-                <label
-                  className={cn("absolute bg-white pointer-events-none transition-all text-[#7F7F7F]", getNameLabelColor())}
-                  style={{ left: "9.23px", top: "-6.15px", fontFamily: "Arial", fontWeight: 400, fontSize: "14px", lineHeight: "14px" }}
-                >
+                <label className={cn("absolute bg-white pointer-events-none transition-all text-[#7F7F7F]", getNameLabelColor())} style={{ left: "9.23px", top: "-6.15px", fontFamily: "Arial", fontWeight: 400, fontSize: "14px", lineHeight: "14px" }}>
                   Patient name
                 </label>
                 {isNameValid && (
-                  <div className="absolute right-[12.32px] top-1/2 -translate-y-1/2">
-                    <Check className="h-5 w-5 text-[#119933]" aria-label="Valid" />
-                  </div>
+                  <div className="absolute right-[12.32px] top-1/2 -translate-y-1/2"><Check className="h-5 w-5 text-[#119933]" aria-label="Valid" /></div>
                 )}
               </div>
             </div>
 
-            {/* Gender - only when name has valid first + last (each ≥2 chars) */}
             {showGenderField && (
-              <div
-                className="absolute"
-                style={{ left: 0, top: 10 + fieldHeight + fieldGap, width: `${fieldWidth}px`, height: `${fieldHeight}px` }}
-              >
+              <div className="absolute left-0" style={{ top: 10 + fieldHeight + fieldGap, width: `${fieldWidth}px`, height: `${fieldHeight}px` }}>
                 <div className="relative w-full h-full">
                   <div
                     ref={genderTriggerRef}
@@ -583,52 +590,22 @@ function StepPatientInfo({
                       getGenderRingEffect(),
                       !isGenderFocused && "hover:shadow-[0_0_8px_rgba(17,98,168,0.2)]"
                     )}
-                    style={{
-                      padding: "25px 30.8px 9.24px 12.32px",
-                      borderWidth: "0.740384px",
-                      fontFamily: "Arial",
-                      fontSize: "17px",
-                      lineHeight: "18px",
-                    }}
+                    style={{ padding: "25px 30.8px 9.24px 12.32px", borderWidth: "0.740384px", fontFamily: "Arial", fontSize: "17px", lineHeight: "18px" }}
                     onFocus={() => setIsGenderFocused(true)}
-                    onClick={() => {
-                      if (!isGenderFocused) {
-                        setIsGenderFocused(true);
-                        setTimeout(() => patientNameInputRef.current?.focus(), 50);
-                      }
-                    }}
+                    onClick={() => { if (!isGenderFocused) { setIsGenderFocused(true); setTimeout(() => focusPatientInput(), 50); } }}
                   >
                     <span>{getGenderDisplay(gender)}</span>
                     <ChevronDown className={cn("h-4 w-4 text-[#7F7F7F] transition-transform", isGenderFocused && "rotate-180")} />
                   </div>
                   {isGenderFocused && (
                     <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#E5E7EB] rounded-[7.7px] shadow-lg z-50 overflow-hidden">
-                      <div
-                        className="px-2.5 py-1.5 hover:bg-[#DFEEFB] cursor-pointer text-[#1F2937]"
-                        style={{ fontFamily: "Arial", fontSize: "14px", lineHeight: "16px" }}
-                        onClick={() => handleGenderSelect("Male")}
-                      >
-                        Male
-                      </div>
-                      <div
-                        className="px-2.5 py-1.5 hover:bg-[#DFEEFB] cursor-pointer text-[#1F2937]"
-                        style={{ fontFamily: "Arial", fontSize: "14px", lineHeight: "16px" }}
-                        onClick={() => handleGenderSelect("Female")}
-                      >
-                        Female
-                      </div>
+                      <div className="px-2.5 py-1.5 hover:bg-[#DFEEFB] cursor-pointer text-[#1F2937]" style={{ fontFamily: "Arial", fontSize: "14px", lineHeight: "16px" }} onClick={() => handleGenderSelect("Male")}>Male</div>
+                      <div className="px-2.5 py-1.5 hover:bg-[#DFEEFB] cursor-pointer text-[#1F2937]" style={{ fontFamily: "Arial", fontSize: "14px", lineHeight: "16px" }} onClick={() => handleGenderSelect("Female")}>Female</div>
                     </div>
                   )}
-                  <label
-                    className={cn("absolute bg-white pointer-events-none z-10 transition-all text-[#7F7F7F]", getGenderLabelColor())}
-                    style={{ left: "9.23px", top: "-6.15px", fontFamily: "Arial", fontWeight: 400, fontSize: "14px", lineHeight: "14px" }}
-                  >
-                    Gender
-                  </label>
+                  <label className={cn("absolute bg-white pointer-events-none z-10 transition-all text-[#7F7F7F]", getGenderLabelColor())} style={{ left: "9.23px", top: "-6.15px", fontFamily: "Arial", fontWeight: 400, fontSize: "14px", lineHeight: "14px" }}>Gender</label>
                   {isGenderValid && (
-                    <div className="absolute right-[12.32px] top-1/2 -translate-y-1/2 z-20 pointer-events-none">
-                      <Check className="h-5 w-5 text-[#119933]" aria-label="Valid" />
-                    </div>
+                    <div className="absolute right-[12.32px] top-1/2 -translate-y-1/2 z-20 pointer-events-none"><Check className="h-5 w-5 text-[#119933]" aria-label="Valid" /></div>
                   )}
                 </div>
               </div>
@@ -636,15 +613,128 @@ function StepPatientInfo({
           </div>
         </div>
 
-        <div className="flex flex-col items-center gap-1">
-          <div className="w-[60px] h-[60px] rounded-full overflow-hidden border-2 border-[#d9d9d9]">
-            <img src="/images/created-by.png" alt="Creator" className="w-full h-full object-cover" />
+        <div className="flex flex-col items-center gap-1 flex-shrink-0">
+          <div className="w-[60px] h-[60px] rounded-full overflow-hidden border-2 border-[#d9d9d9] bg-gray-200 flex items-center justify-center">
+            {createdByImage ? (
+              <img src={createdByImage} onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = "/images/created-by.png"; }} alt="Creator" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-lg font-bold text-gray-500">{createdByName.split(" ").map(n => n[0]).join("").toUpperCase()}</span>
+            )}
           </div>
           <fieldset className="border border-[#b4b0b0] rounded px-3 pb-1 pt-0 relative mt-1">
             <legend className="text-[10px] text-[#7f7f7f] px-1 leading-none">Created By</legend>
-            <span className="text-[12px] text-[#1d1d1b]">Cassandra Vega</span>
+            <span className="text-[12px] text-[#1d1d1b] whitespace-nowrap">{createdByName || "—"}</span>
           </fieldset>
         </div>
+      </div>
+
+      {/* ── Mobile layout: 4 stacked rows, all centered ── */}
+      <div className="flex sm:hidden flex-col items-center gap-3">
+        {/* Row 1: Doctor avatar + name */}
+        {doctor && (
+          <div className="flex flex-col items-center gap-1">
+            <div className="w-[90px] h-[90px] rounded-full overflow-hidden border-2 border-[#d9d9d9] bg-[#eef1f4]">
+              <img
+                src={doctor.img}
+                alt={doctor.name}
+                className="w-full h-full object-cover"
+                data-fallback={getDoctorFallbackImg(doctor.id)}
+                onError={(e) => {
+                  const fallback = e.currentTarget.dataset.fallback || DOCTOR_AVATAR_FALLBACKS[0];
+                  e.currentTarget.src = fallback;
+                }}
+              />
+            </div>
+            <span className="text-[13px] font-semibold text-[#1d1d1b]">{doctor.name}</span>
+          </div>
+        )}
+
+        {/* Row 2: Patient name + gender fields (full width) */}
+        <div className="w-full relative" style={{ height: `${containerHeight}px` }}>
+          <div className="absolute left-0 right-0" style={{ top: 10, height: `${fieldHeight}px` }}>
+            <div className="relative w-full h-full">
+              <input
+                ref={patientNameInputRef}
+                type="text"
+                value={name}
+                onChange={(e) => handleNameChange(e.target.value)}
+                onFocus={() => setIsNameFocused(true)}
+                onBlur={() => setIsNameFocused(false)}
+                onKeyDown={(e) => {
+                  if (e.key === "Tab" && !e.shiftKey && showGenderField) {
+                    e.preventDefault();
+                    setIsGenderFocused(true);
+                    setTimeout(() => genderTriggerRef.current?.focus(), 0);
+                  }
+                }}
+                className={cn(
+                  "w-full h-full box-border flex items-center bg-white border border-solid rounded-[7.7px] text-[#1F2937] focus:outline-none transition-all ease-out",
+                  getNameBorderColor(),
+                  getNameRingEffect(),
+                  !isNameFocused && "hover:shadow-[0_0_8px_rgba(17,98,168,0.2)]"
+                )}
+                style={{ padding: "25px 30.8px 9.24px 12.32px", borderWidth: "0.740384px", fontFamily: "Arial", fontSize: "15px", lineHeight: "18px" }}
+              />
+              <label className={cn("absolute bg-white pointer-events-none transition-all text-[#7F7F7F]", getNameLabelColor())} style={{ left: "9.23px", top: "-6.15px", fontFamily: "Arial", fontWeight: 400, fontSize: "13px", lineHeight: "14px" }}>
+                Patient name
+              </label>
+              {isNameValid && (
+                <div className="absolute right-[12.32px] top-1/2 -translate-y-1/2"><Check className="h-5 w-5 text-[#119933]" aria-label="Valid" /></div>
+              )}
+            </div>
+          </div>
+
+          {showGenderField && (
+            <div className="absolute left-0 right-0" style={{ top: 10 + fieldHeight + fieldGap, height: `${fieldHeight}px` }}>
+              <div className="relative w-full h-full">
+                <div
+                  role="combobox"
+                  aria-expanded={isGenderFocused}
+                  aria-haspopup="listbox"
+                  aria-label="Gender"
+                  tabIndex={0}
+                  className={cn(
+                    "w-full h-full box-border flex items-center justify-between bg-white border border-solid rounded-[7.7px] text-[#1F2937] cursor-pointer transition-all",
+                    getGenderBorderColor(),
+                    getGenderRingEffect(),
+                    !isGenderFocused && "hover:shadow-[0_0_8px_rgba(17,98,168,0.2)]"
+                  )}
+                  style={{ padding: "25px 30.8px 9.24px 12.32px", borderWidth: "0.740384px", fontFamily: "Arial", fontSize: "15px", lineHeight: "18px" }}
+                  onFocus={() => setIsGenderFocused(true)}
+                  onClick={() => { if (!isGenderFocused) { setIsGenderFocused(true); setTimeout(() => focusPatientInput(), 50); } }}
+                >
+                  <span>{getGenderDisplay(gender)}</span>
+                  <ChevronDown className={cn("h-4 w-4 text-[#7F7F7F] transition-transform", isGenderFocused && "rotate-180")} />
+                </div>
+                {isGenderFocused && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#E5E7EB] rounded-[7.7px] shadow-lg z-50 overflow-hidden">
+                    <div className="px-2.5 py-1.5 hover:bg-[#DFEEFB] cursor-pointer text-[#1F2937]" style={{ fontFamily: "Arial", fontSize: "14px", lineHeight: "16px" }} onClick={() => handleGenderSelect("Male")}>Male</div>
+                    <div className="px-2.5 py-1.5 hover:bg-[#DFEEFB] cursor-pointer text-[#1F2937]" style={{ fontFamily: "Arial", fontSize: "14px", lineHeight: "16px" }} onClick={() => handleGenderSelect("Female")}>Female</div>
+                  </div>
+                )}
+                <label className={cn("absolute bg-white pointer-events-none z-10 transition-all text-[#7F7F7F]", getGenderLabelColor())} style={{ left: "9.23px", top: "-6.15px", fontFamily: "Arial", fontWeight: 400, fontSize: "13px", lineHeight: "14px" }}>Gender</label>
+                {isGenderValid && (
+                  <div className="absolute right-[12.32px] top-1/2 -translate-y-1/2 z-20 pointer-events-none"><Check className="h-5 w-5 text-[#119933]" aria-label="Valid" /></div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Row 3: Created By avatar */}
+        <div className="w-[90px] h-[90px] rounded-full overflow-hidden border-2 border-[#d9d9d9] bg-gray-200 flex items-center justify-center">
+          {createdByImage ? (
+            <img src={createdByImage} onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = "/images/created-by.png"; }} alt="Creator" className="w-full h-full object-cover" />
+          ) : (
+            <span className="text-xl font-bold text-gray-500">{createdByName.split(" ").map(n => n[0]).join("").toUpperCase()}</span>
+          )}
+        </div>
+
+        {/* Row 4: Created By field */}
+        <fieldset className="border border-[#b4b0b0] rounded px-3 pb-1 pt-0 relative">
+          <legend className="text-[10px] text-[#7f7f7f] px-1 leading-none">Created By</legend>
+          <span className="text-[12px] text-[#1d1d1b] whitespace-nowrap">{createdByName || "—"}</span>
+        </fieldset>
       </div>
     </div>
   );
@@ -684,7 +774,7 @@ function StepCategory({
     return (
       <div className="flex-1 flex flex-col px-6 py-4">
         <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} />
-        <h2 className="text-[16px] font-bold text-[#1d1d1b] text-center mt-4 mb-2">CASE DESIGN CENTER</h2>
+        <h2 className="text-center text-[20px] font-bold text-[#1d1d1b] tracking-wide mt-4 mb-2">CASE DESIGN CENTER</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6 max-w-[640px] mx-auto w-full">
           {[1, 2, 3].map((i) => (
             <Skeleton key={i} className="w-full aspect-square rounded-[4px]" />
@@ -697,7 +787,7 @@ function StepCategory({
     <div className="flex-1 flex flex-col px-6 py-4">
       <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} />
 
-      <h2 className="text-[16px] font-bold text-[#1d1d1b] text-center mt-4 mb-2">
+      <h2 className="text-center text-[20px] font-bold text-[#1d1d1b] tracking-wide mt-4 mb-2">
         CASE DESIGN CENTER
       </h2>
 
@@ -778,7 +868,7 @@ function StepSubProduct({
         </button>
       )}
 
-      <h2 className="text-[16px] font-bold text-[#1d1d1b] text-center mt-4 mb-2">
+      <h2 className="text-center text-[20px] font-bold text-[#1d1d1b] tracking-wide mt-4 mb-2">
         CASE DESIGN CENTER
       </h2>
 
@@ -881,7 +971,7 @@ function StepMaterial({
     return (
       <div className="flex-1 flex flex-col px-6 py-4">
         <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} />
-        <h2 className="text-[16px] font-bold text-[#1d1d1b] text-center mt-4 mb-2">CASE DESIGN CENTER</h2>
+        <h2 className="text-center text-[20px] font-bold text-[#1d1d1b] tracking-wide mt-4 mb-2">CASE DESIGN CENTER</h2>
         <div className="flex flex-wrap justify-center gap-4 mb-6">
           {[1, 2, 3, 4, 5, 6].map((i) => (
             <Skeleton key={i} className="w-[155px] sm:w-[180px] md:w-[200px] aspect-square rounded-[5px]" />
@@ -904,7 +994,7 @@ function StepMaterial({
         </button>
       )}
 
-      <h2 className="text-[16px] font-bold text-[#1d1d1b] text-center mt-4 mb-2">
+      <h2 className="text-center text-[20px] font-bold text-[#1d1d1b] tracking-wide mt-4 mb-2">
         CASE DESIGN CENTER
       </h2>
 
@@ -1019,12 +1109,26 @@ function PatientMiniHeader({
   patientName: string;
   gender: string;
 }) {
+  const [createdByName, setCreatedByName] = useState("");
+  const [createdByImage, setCreatedByImage] = useState("");
+  useEffect(() => {
+    try {
+      const userStr = localStorage.getItem("user");
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        setCreatedByName(`${user.first_name || ""} ${user.last_name || ""}`.trim());
+        if (user.image) setCreatedByImage(user.image);
+      }
+    } catch {}
+  }, []);
+
   return (
-    <div className="flex items-start justify-between">
-      <div className="flex items-start gap-5">
+    <div className="bg-[#fdfdfd] border-b border-[#d9d9d9] px-4 sm:px-6 py-4 -mx-6 -mt-4 mb-4">
+      <div className="flex flex-col lg:flex-row items-center lg:items-start gap-4 lg:gap-8">
+        {/* Doctor photo + name */}
         {doctor && (
-          <div className="flex flex-col items-center gap-1">
-            <div className="w-[80px] h-[80px] rounded-full overflow-hidden border-2 border-[#d9d9d9] bg-[#eef1f4]">
+          <div className="flex flex-col items-center gap-1 flex-shrink-0">
+            <div className="w-[70px] h-[70px] sm:w-[90px] sm:h-[90px] rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
               <img
                 src={doctor.img}
                 alt={doctor.name}
@@ -1036,52 +1140,50 @@ function PatientMiniHeader({
                 }}
               />
             </div>
-            <span className="text-[11px] font-semibold text-[#1d1d1b]">
+            <p className="text-[18px] font-medium text-[#1d1d1b] whitespace-nowrap">
               {doctor.name}
-            </span>
+            </p>
           </div>
         )}
 
-        <div className="flex flex-col gap-3 pt-2">
-          <fieldset className="border border-[#34a853] rounded px-3 pb-2 pt-0 relative min-w-[280px]">
-            <legend className="text-[11px] text-[#34a853] px-1 leading-none font-medium">
-              Patient name
-            </legend>
-            <div className="flex items-center gap-1">
-              <span className="text-[13px] text-[#1d1d1b] leading-tight">{patientName}</span>
-              <Check size={16} className="text-[#34a853] flex-shrink-0" />
-            </div>
-          </fieldset>
-          <fieldset className="border border-[#34a853] rounded px-3 pb-2 pt-0 relative min-w-[280px]">
-            <legend className="text-[11px] text-[#34a853] px-1 leading-none font-medium">
-              Gender
-            </legend>
-            <div className="flex items-center gap-1">
-              <span className="text-[13px] text-[#1d1d1b] leading-tight">{gender}</span>
-              <Check size={16} className="text-[#34a853] flex-shrink-0" />
-            </div>
-          </fieldset>
+        {/* Form fields */}
+        <div className="flex-1 w-full lg:w-auto flex flex-col gap-3 justify-center lg:justify-start">
+          <div className="flex flex-wrap gap-3 sm:gap-4 items-start justify-center lg:justify-start">
+            <FieldInput label="Patient name" value={patientName} />
+          </div>
+          <div className="flex flex-wrap gap-3 sm:gap-4 items-start justify-center lg:justify-start">
+            <FieldInput label="Gender" value={gender} />
+          </div>
         </div>
-      </div>
 
-      <div className="flex flex-col items-center gap-1">
-        <div className="w-[60px] h-[60px] rounded-full overflow-hidden border-2 border-[#d9d9d9]">
-          <img
-            src="/images/created-by.png"
-            onError={(e) => {
-              e.currentTarget.onerror = null;
-              e.currentTarget.src = "/images/created-by.png";
-            }}
-            alt="Cassandra Vega"
-            className="w-full h-full object-cover"
-          />
+        {/* Created By */}
+        <div className="flex flex-col justify-center items-center gap-2 sm:gap-[15px] w-auto sm:w-[170px] flex-shrink-0 lg:ml-2">
+          <div className="w-[50px] h-[50px] sm:w-[72.74px] sm:h-[72.74px] rounded-full overflow-hidden flex-shrink-0 bg-gray-200 flex items-center justify-center">
+            {createdByImage ? (
+              <img
+                src={createdByImage}
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = "/images/created-by.png";
+                }}
+                alt="Creator"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <span className="text-base sm:text-xl font-bold text-gray-500">
+                {createdByName.split(" ").map(n => n[0]).join("").toUpperCase()}
+              </span>
+            )}
+          </div>
+          <fieldset className="w-auto sm:w-[170px] h-[34px] sm:h-[38px] border border-[#7f7f7f] rounded-[7px] bg-white px-2 sm:px-[11.2px] py-0 flex items-center">
+            <legend className="text-[12px] sm:text-[14px] text-[#7f7f7f] px-1 leading-none">
+              Created By
+            </legend>
+            <span className="text-[14px] sm:text-[18px] leading-[20px] text-[#000000] whitespace-nowrap">
+              {createdByName || "—"}
+            </span>
+          </fieldset>
         </div>
-        <fieldset className="border border-[#b4b0b0] rounded px-3 pb-1 pt-0 relative mt-1">
-          <legend className="text-[10px] text-[#7f7f7f] px-1 leading-none">
-            Created By
-          </legend>
-          <span className="text-[12px] text-[#1d1d1b]">Cassandra Vega</span>
-        </fieldset>
       </div>
     </div>
   );

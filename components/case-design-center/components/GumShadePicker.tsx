@@ -47,7 +47,7 @@ export function GumShadePicker({ selected, onSelect }: GumShadePickerProps) {
               />
             </div>
             <span
-              className="text-[11px] text-center text-black tracking-[-0.02em] leading-[15px]"
+              className="text-xs text-center text-black tracking-[-0.02em] leading-[15px]"
               style={{ fontFamily: "Verdana, sans-serif" }}
             >
               {shade.name}

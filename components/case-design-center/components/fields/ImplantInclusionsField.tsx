@@ -82,7 +82,7 @@ export function ImplantInclusionsField({
               onChange("No inclusion");
               setShowDropdown(false);
             }}
-            className={`w-full text-left px-3 py-2.5 text-[13px] hover:bg-gray-50 transition-colors ${
+            className={`w-full text-left px-3 py-2.5 text-xs hover:bg-gray-50 transition-colors ${
               value === "No inclusion" ? 'bg-green-50 text-[#34a853]' : 'text-[#1d1d1b]'
             }`}
           >
@@ -101,7 +101,7 @@ export function ImplantInclusionsField({
               }
             }}
           >
-            <span className={`text-[13px] ${value === "Model with Tissue + QTY" ? 'text-[#34a853]' : 'text-[#1d1d1b]'}`}>
+            <span className={`text-xs ${value === "Model with Tissue + QTY" ? 'text-[#34a853]' : 'text-[#1d1d1b]'}`}>
               Model with Tissue + QTY
             </span>
             <div className="flex items-center gap-2">
@@ -114,9 +114,9 @@ export function ImplantInclusionsField({
                 }}
                 className="w-8 h-8 rounded border border-[#b4b0b0] bg-white flex items-center justify-center hover:bg-gray-100 transition-colors"
               >
-                <span className="text-[16px] text-[#7f7f7f]">−</span>
+                <span className="text-base text-[#7f7f7f]">−</span>
               </button>
-              <span className="text-[14px] font-semibold text-[#1d1d1b] min-w-[24px] text-center">
+              <span className="text-sm font-semibold text-[#1d1d1b] min-w-[24px] text-center">
                 {value === "Model with Tissue + QTY" ? quantity : 0}
               </span>
               <button
@@ -128,7 +128,7 @@ export function ImplantInclusionsField({
                 }}
                 className="w-8 h-8 rounded border border-[#b4b0b0] bg-white flex items-center justify-center hover:bg-gray-100 transition-colors"
               >
-                <span className="text-[16px] text-[#7f7f7f]">+</span>
+                <span className="text-base text-[#7f7f7f]">+</span>
               </button>
             </div>
           </div>
@@ -142,11 +142,11 @@ export function ImplantInclusionsField({
         className={`border rounded px-3 py-0 relative min-w-0 cursor-pointer h-[42px] flex items-center ${borderColor}`}
         onClick={() => setShowDropdown((prev) => !prev)}
       >
-        <legend className={`text-[14px] px-1 leading-none whitespace-nowrap ${legendColor}`}>
+        <legend className={`text-sm px-1 leading-none whitespace-nowrap ${legendColor}`}>
           {label}
         </legend>
         <div className="flex items-center gap-2 w-full min-h-0">
-          <span className="text-[18px] font-bold leading-tight text-[#000000] flex-1 min-w-0 truncate">
+          <span className="text-[14px] sm:text-lg font-bold leading-tight text-[#000000] flex-1 min-w-0 truncate">
             {value || "Select..."}
           </span>
           {hasValue && <Check size={16} className="text-[#34a853] flex-shrink-0" />}

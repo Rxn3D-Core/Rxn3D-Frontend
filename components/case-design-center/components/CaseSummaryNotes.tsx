@@ -53,7 +53,7 @@ export function CaseSummaryNotes({ right1Brand, right1Platform, right2Brand, rig
   ];
 
   return (
-    <div className="mx-4 mb-4">
+    <div className="mx-2 sm:mx-4 mb-4">
       <div className="flex items-start">
         {/* Left side icon buttons */}
         {!collapsed && (
@@ -67,7 +67,7 @@ export function CaseSummaryNotes({ right1Brand, right1Platform, right2Brand, rig
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
-                  className={`w-[37px] h-[53px] flex items-center justify-center border border-[#7f7f7f] -my-[1px] transition-colors ${
+                  className={`w-[30px] sm:w-[37px] h-[44px] sm:h-[53px] flex items-center justify-center border border-[#7f7f7f] -my-[1px] transition-colors ${
                     isFirst ? "rounded-tl-[11px]" : ""
                   } ${isLast ? "rounded-bl-[11px]" : ""} ${
                     isActive
@@ -85,21 +85,21 @@ export function CaseSummaryNotes({ right1Brand, right1Platform, right2Brand, rig
 
         {/* Right side - textarea as fieldset */}
         <fieldset
-          className={`flex-1 relative border border-[#7f7f7f] bg-white transition-all ${
+          className={`flex-1 min-w-0 relative border border-[#7f7f7f] bg-white transition-all ${
             collapsed
               ? "rounded-[8px] h-[40px]"
               : expanded
                 ? "rounded-r-[8px] h-[300px]"
-                : "rounded-r-[8px] h-[158px]"
+                : "rounded-r-[8px] h-[130px] sm:h-[158px]"
           }`}
         >
-          <legend className="ml-2 px-1 text-[14px] text-[#7f7f7f] font-normal tracking-[0.05em]">
+          <legend className="ml-2 px-1 text-xs sm:text-sm text-[#7f7f7f] font-normal tracking-[0.05em] leading-none">
             Case summary notes
           </legend>
 
           {collapsed ? (
-            <div className="flex items-center justify-between px-[15px] h-[20px]">
-              <span className="text-[14px] text-[#7f7f7f] truncate flex-1">
+            <div className="flex items-center justify-between px-2 sm:px-[15px] h-[20px]">
+              <span className="text-xs sm:text-sm text-[#7f7f7f] truncate flex-1">
                 {getDisplayValue().slice(0, 80)}...
               </span>
               <div className="flex items-center gap-[5px] flex-shrink-0 ml-2">
@@ -112,13 +112,13 @@ export function CaseSummaryNotes({ right1Brand, right1Platform, right2Brand, rig
               </div>
             </div>
           ) : (
-            <div className="flex items-start px-[15px] pb-[5px] h-[calc(100%-14px)]">
+            <div className="flex items-start px-2 sm:px-[15px] pb-[5px] h-[calc(100%-14px)]">
               <textarea
                 value={getDisplayValue()}
                 onChange={(e) => handleChange(e.target.value)}
-                className="flex-1 h-full text-[18px] leading-[22px] text-black font-normal resize-none outline-none bg-transparent"
+                className="flex-1 min-w-0 h-full text-[13px] sm:text-lg leading-[18px] sm:leading-[22px] text-black font-normal resize-none outline-none bg-transparent"
               />
-              <div className="flex items-center gap-[5px] flex-shrink-0 ml-2 pt-1">
+              <div className="flex items-center gap-[5px] flex-shrink-0 ml-1 sm:ml-2 pt-1">
                 <button onClick={() => { setCollapsed(true); setExpanded(false); }} title="Collapse">
                   <ChevronUp size={14} className="text-[#b4b0b0] hover:text-[#7f7f7f] transition-colors" />
                 </button>

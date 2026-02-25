@@ -32,7 +32,7 @@ export function SelectField({
   const legendColor = hasValue ? "text-[#34a853]" : "text-[#cf0202]";
   return (
     <fieldset className={`border rounded px-3 pb-2 pt-0 relative min-w-0 ${borderColor}`}>
-      <legend className={`text-[14px] px-1 leading-none whitespace-nowrap ${legendColor}`}>
+      <legend className={`text-sm px-1 leading-none whitespace-nowrap ${legendColor}`}>
         {label}
       </legend>
       <div className="flex items-center gap-1 min-w-0 w-full">
@@ -42,7 +42,7 @@ export function SelectField({
           open={open}
           onOpenChange={onOpenChange}
         >
-          <SelectTrigger className="flex-1 text-[18px] font-bold text-[#000000] bg-transparent border-0 shadow-none outline-none leading-tight cursor-pointer min-w-0 h-auto py-1 px-0 focus:ring-0 [&>span]:truncate">
+          <SelectTrigger className="flex-1 text-[14px] sm:text-lg font-bold text-[#000000] bg-transparent border-0 shadow-none outline-none leading-tight cursor-pointer min-w-0 h-auto py-1 px-0 focus:ring-0 [&>span]:truncate">
             <SelectValue placeholder="" />
           </SelectTrigger>
           <SelectContent className="z-[10050]">

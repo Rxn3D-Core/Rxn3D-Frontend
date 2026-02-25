@@ -86,7 +86,7 @@ export function ImplantDetailSection({ toothNumber, onCompleteChange }: ImplantD
       <div className="flex flex-col sm:flex-row">
         {/* Left section - tooth number */}
         <div className="flex justify-center items-center sm:w-[90px] shrink-0 py-2 sm:py-0">
-          <span className="text-[20px] text-[#7f7f7f] text-center">
+          <span className="text-xl text-[#7f7f7f] text-center">
             #{toothNumber}
           </span>
         </div>

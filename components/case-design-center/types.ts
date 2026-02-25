@@ -183,6 +183,20 @@ export interface ProductAdvanceField {
   [key: string]: any;
 }
 
+/** Grade from the product API */
+export interface ProductGrade {
+  id: number;
+  grade_id: number;
+  name: string;
+  code: string;
+  sequence: number;
+  is_default: string;
+  status: string;
+  price: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 /** Product from the products API */
 export interface ProductApiData {
   id: number;
@@ -199,7 +213,7 @@ export interface ProductApiData {
   image_url: string | null;
   min_days_to_process: number | null;
   max_days_to_process: number | null;
-  grades?: any[];
+  grades?: ProductGrade[];
   stages?: ProductStage[];
   impressions?: ProductImpression[];
   gum_shades?: ProductGumShade[];

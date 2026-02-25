@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import type { ProductExtraction } from "../types";
 
 interface ToothStatusBoxesProps {
@@ -14,8 +15,6 @@ interface ToothStatusBoxesProps {
   onToothExtractionToggle: (toothNumber: number, extractionCode: string) => void;
   /** Called when "Teeth in mouth" box is clicked — selects all arch teeth */
   onSelectAllTeeth: (teeth: number[]) => void;
-  /** Called when "Missing teeth" box is clicked — clears all selected teeth */
-  onClearAllTeeth: () => void;
 }
 
 /** Color map keyed by extraction code — matches the reference UI template */
@@ -68,8 +67,8 @@ function resolveStyle(extraction: { code: string; name: string; color: string | 
   return { bg: "#F3EBD7", textClass: "text-black" };
 }
 
-/** Returns true if this extraction is the "Teeth in mouth" box */
-function isTIM(extraction: ProductExtraction): boolean {
+/** Returns true if this extraction is the default box (is_default: "Yes", e.g. "Teeth in mouth") */
+function isDefaultExtraction(extraction: ProductExtraction): boolean {
   return (
     extraction.is_default === "Yes" ||
     extraction.code === "TIM" ||
@@ -77,13 +76,18 @@ function isTIM(extraction: ProductExtraction): boolean {
   );
 }
 
-/** Returns true if this extraction is the "Missing teeth" box */
-function isMT(extraction: ProductExtraction): boolean {
+/** Returns true if this extraction is required (is_required: "Yes", e.g. "Missing teeth") */
+function isRequiredExtraction(extraction: ProductExtraction): boolean {
   return (
-    extraction.is_optional === "Yes" ||
+    extraction.is_required === "Yes" ||
     extraction.code === "MT" ||
     (extraction.name ?? "").toLowerCase().trim() === "missing teeth"
   );
+}
+
+/** Returns true if this extraction is optional (is_optional: "Yes", e.g. "Will extract on delivery", "Clasps") */
+function isOptionalExtraction(extraction: ProductExtraction): boolean {
+  return extraction.is_optional === "Yes";
 }
 
 export function ToothStatusBoxes({
@@ -95,16 +99,30 @@ export function ToothStatusBoxes({
   onActiveExtractionChange,
   onToothExtractionToggle,
   onSelectAllTeeth,
-  onClearAllTeeth,
 }: ToothStatusBoxesProps) {
   const activeExtractions = extractions
     .filter((e) => e.status === "Active" && e.name != null && e.code != null)
     .sort((a, b) => a.sequence - b.sequence);
 
+  // Auto-select all arch teeth when a is_default extraction first appears
+  const hasAutoSelected = useRef(false);
+  const hasDefault = activeExtractions.some((e) => isDefaultExtraction(e));
+  useEffect(() => {
+    if (hasDefault && !hasAutoSelected.current) {
+      hasAutoSelected.current = true;
+      onSelectAllTeeth(allArchTeeth);
+    }
+  }, [hasDefault, allArchTeeth, onSelectAllTeeth]);
+
   if (activeExtractions.length === 0) return null;
 
   // Teeth in the default (TIM) box = selected teeth NOT assigned to any extraction
   const defaultTeeth = selectedTeeth.filter((tn) => !toothExtractionMap[tn]);
+
+  // Check if any optional extraction has teeth assigned (used for required validation)
+  const anyOptionalHasTeeth = activeExtractions
+    .filter((e) => isOptionalExtraction(e))
+    .some((e) => selectedTeeth.some((tn) => toothExtractionMap[tn] === e.code));
 
   // Build pairs for 2-column grid layout
   const rows: ProductExtraction[][] = [];
@@ -115,19 +133,13 @@ export function ToothStatusBoxes({
   const lastRowIdx = rows.length - 1;
 
   const handleBoxClick = (extraction: ProductExtraction) => {
-    if (isTIM(extraction)) {
-      // Teeth in mouth: select all arch teeth, deactivate any active box
+    if (isDefaultExtraction(extraction)) {
+      // is_default: select all arch teeth, deactivate any active box
       onSelectAllTeeth(allArchTeeth);
       onActiveExtractionChange(null);
       return;
     }
-    if (isMT(extraction)) {
-      // Missing teeth: clear all selected teeth, activate MT box
-      onClearAllTeeth();
-      onActiveExtractionChange(extraction.code);
-      return;
-    }
-    // Other boxes: toggle active — clicking the already-active box deactivates it
+    // is_required and is_optional: toggle active — user clicks teeth to assign
     if (activeExtractionCode === extraction.code) {
       onActiveExtractionChange(null);
     } else {
@@ -140,48 +152,62 @@ export function ToothStatusBoxes({
       {rows.map((row, rowIdx) => (
         <div
           key={rowIdx}
-          className={`grid grid-cols-2 gap-2 ${rowIdx === lastRowIdx ? "mb-4" : "mb-2"}`}
+          className={`grid grid-cols-1 sm:grid-cols-2 gap-2 ${rowIdx === lastRowIdx ? "mb-4" : "mb-2"}`}
         >
           {row.map((extraction) => {
             const isActive = activeExtractionCode === extraction.code;
-            const isTIMBox = isTIM(extraction);
-            const isMTBox = isMT(extraction);
+            const isDefault = isDefaultExtraction(extraction);
+            const isRequired = isRequiredExtraction(extraction);
 
             // Teeth shown in this box (sorted ascending)
-            const teethForBox = (isTIMBox
+            const teethForBox = (isDefault
               ? defaultTeeth
-              : isMTBox
-              ? allArchTeeth.filter((tn) => !selectedTeeth.includes(tn))
               : selectedTeeth.filter((tn) => toothExtractionMap[tn] === extraction.code)
             ).slice().sort((a, b) => a - b);
 
             const teethDisplay =
               teethForBox.length > 0 ? `#${teethForBox.join(",")}` : "";
 
+            // Validation: is_required box needs teeth unless an is_optional box has teeth
+            const showRequiredValidation =
+              isRequired && teethForBox.length === 0 && !anyOptionalHasTeeth;
+
+            const minTeeth = extraction.min_teeth ?? 1;
+
             const style = resolveStyle(extraction);
 
             return (
-              <div
-                key={extraction.id}
-                className="flex items-center justify-center rounded-md h-[65px] cursor-pointer hover:opacity-90 active:opacity-75 transition-all"
-                style={{
-                  backgroundColor: style.bg,
-                  outline: isActive ? "3px solid #1162A8" : "none",
-                  outlineOffset: isActive ? "2px" : "0px",
-                }}
-                onClick={() => handleBoxClick(extraction)}
-              >
-                <p
-                  className={`font-[Verdana] text-[14px] leading-[26px] tracking-[0.05em] text-center ${style.textClass}`}
+              <div key={extraction.id} className="flex flex-col min-w-0">
+                <div
+                  className="flex items-center justify-center rounded-md min-h-[50px] sm:min-h-[65px] px-2 py-1.5 cursor-pointer hover:opacity-90 active:opacity-75 transition-all"
+                  style={{
+                    backgroundColor: style.bg,
+                    outline: isActive
+                      ? "3px solid #1162A8"
+                      : showRequiredValidation
+                      ? "2px solid #CF0202"
+                      : "none",
+                    outlineOffset: isActive ? "2px" : showRequiredValidation ? "1px" : "0px",
+                  }}
+                  onClick={() => handleBoxClick(extraction)}
                 >
-                  {extraction.name}
-                  {teethDisplay && (
-                    <>
-                      <br />
-                      {teethDisplay}
-                    </>
-                  )}
-                </p>
+                  <p
+                    className={`font-[Verdana] text-xs sm:text-sm leading-tight sm:leading-[26px] tracking-[0.05em] text-center break-words max-w-full ${style.textClass}`}
+                  >
+                    {extraction.name}
+                    {teethDisplay && (
+                      <>
+                        <br />
+                        <span className="text-[10px] sm:text-xs">{teethDisplay}</span>
+                      </>
+                    )}
+                  </p>
+                </div>
+                {showRequiredValidation && (
+                  <p className="text-[10px] sm:text-xs text-[#CF0202] mt-0.5 text-center font-[Verdana]">
+                    Required: select at least {minTeeth} tooth
+                  </p>
+                )}
               </div>
             );
           })}

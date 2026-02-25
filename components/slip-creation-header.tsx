@@ -144,25 +144,25 @@ const CreatedBySection = ({ createdBy, variant = "default" }: { createdBy: strin
 
   if (variant === "compact") {
     return (
-      <div className="flex flex-col items-center gap-[10px] w-[150px]">
-        <div className="w-[55px] h-[55px] rounded-full overflow-hidden">
+      <div className="flex flex-col items-center gap-[6px] sm:gap-[10px] w-[100px] sm:w-[150px]">
+        <div className="w-[40px] h-[40px] sm:w-[55px] sm:h-[55px] rounded-full overflow-hidden">
           <Avatar className="w-full h-full">
             <AvatarImage
               src="/images/created-by.png"
               alt="Created By"
             />
-            <AvatarFallback className="bg-gray-200 text-gray-600 text-sm">
+            <AvatarFallback className="bg-gray-200 text-gray-600 text-xs sm:text-sm">
               {getInitials(createdBy)}
             </AvatarFallback>
           </Avatar>
         </div>
-        <div className="relative w-[150px] h-[30px]">
+        <div className="relative w-[100px] sm:w-[150px] h-[26px] sm:h-[30px]">
           <Input
             value={createdBy}
             readOnly
-            className="w-[150px] h-[30px] text-[12px] leading-[15px] text-[#1F2937] border-[#7F7F7F] rounded-[7px] px-[10px] py-[6px]"
+            className="w-full h-full text-[10px] sm:text-[12px] leading-[15px] text-[#1F2937] border-[#7F7F7F] rounded-[7px] px-[8px] sm:px-[10px] py-[4px] sm:py-[6px]"
           />
-          <label className="absolute -top-[5px] left-[8px] bg-white px-0 text-[11px] leading-[12px] text-[#7F7F7F]">
+          <label className="absolute -top-[5px] left-[8px] bg-white px-0 text-[10px] sm:text-[11px] leading-[12px] text-[#7F7F7F]">
             Created By
           </label>
         </div>
@@ -211,7 +211,7 @@ const SendingToSection = ({ lab }: { lab: Lab }) => {
   const hasDirectLogo = lab?.logo && typeof lab.logo === 'string'
   
   return (
-    <div className="flex items-center gap-1.5 sm:gap-2 md:gap-[7px] w-full sm:w-auto max-w-full overflow-visible">
+    <div className="flex items-center gap-1.5 sm:gap-2 md:gap-[7px] max-w-full overflow-visible">
       <p className="text-xs sm:text-sm md:text-[15.9926px] font-bold leading-tight sm:leading-[22px] tracking-[-0.02em] text-[#080808] whitespace-nowrap">
         {typeof window !== "undefined" && localStorage.getItem("role") === "lab_admin" ? "Creating For" : "Sending To"}
       </p>
@@ -222,7 +222,7 @@ const SendingToSection = ({ lab }: { lab: Lab }) => {
               <img
                 src={lab.logo}
                 alt={lab.name}
-                className="max-w-[100px] sm:max-w-[120px] md:max-w-[150px] max-h-[60px] sm:max-h-[80px] md:max-h-[120px] w-auto h-auto object-contain"
+                className="max-w-[70px] sm:max-w-[120px] md:max-w-[150px] max-h-[40px] sm:max-h-[80px] md:max-h-[120px] w-auto h-auto object-contain"
                 style={{ display: 'block' }}
                 onError={(e) => {
                   // Fallback to CustomerLogo if direct logo fails
@@ -245,7 +245,7 @@ const SendingToSection = ({ lab }: { lab: Lab }) => {
               <CustomerLogo
                 customerId={customerId}
                 alt={lab.name}
-                className="max-w-[100px] sm:max-w-[120px] md:max-w-[150px] max-h-[60px] sm:max-h-[80px] md:max-h-[120px] object-contain"
+                className="max-w-[70px] sm:max-w-[120px] md:max-w-[150px] max-h-[40px] sm:max-h-[80px] md:max-h-[120px] object-contain"
               />
             </div>
           </div>
@@ -277,15 +277,15 @@ const DoctorInfoSection = ({ doctor, variant = "default" }: { doctor: Doctor; va
 
   if (variant === "full") {
     return (
-      <div className="flex flex-col items-center gap-[6px] w-[170px] h-[105px]">
-        <div className="flex items-end gap-0 w-[85px] h-[75px]">
+      <div className="flex flex-col items-center gap-[4px] sm:gap-[6px] w-[100px] sm:w-[170px] h-auto sm:h-[105px]">
+        <div className="flex items-end gap-0 w-[50px] sm:w-[85px] h-[50px] sm:h-[75px]">
           <div className="relative">
-            <Avatar className="w-[75px] h-[75px]">
+            <Avatar className="w-[50px] h-[50px] sm:w-[75px] sm:h-[75px]">
               <AvatarImage
                 src={doctor?.image || "/images/doctor-image.png"}
                 alt={`${doctor?.first_name || ""} ${doctor?.last_name || ""}`}
               />
-              <AvatarFallback className="bg-[#1162a8] text-white text-xl font-bold">
+              <AvatarFallback className="bg-[#1162a8] text-white text-base sm:text-xl font-bold">
                 {getInitials(doctor?.first_name || "", doctor?.last_name || "")}
               </AvatarFallback>
             </Avatar>
@@ -294,11 +294,11 @@ const DoctorInfoSection = ({ doctor, variant = "default" }: { doctor: Doctor; va
               className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 border border-gray-200 hover:bg-gray-50 cursor-pointer transition-colors"
               aria-label="Edit doctor"
             >
-              <Pencil className="w-[14px] h-[14px] text-[#B4B0B0]" />
+              <Pencil className="w-[12px] h-[12px] sm:w-[14px] sm:h-[14px] text-[#B4B0B0]" />
             </button>
           </div>
         </div>
-        <p className="w-[170px] h-[18px] text-[14px] font-normal leading-[18px] tracking-[-0.02em] text-black text-center">
+        <p className="w-full max-w-[100px] sm:max-w-[170px] text-[11px] sm:text-[14px] font-normal leading-tight sm:leading-[18px] tracking-[-0.02em] text-black text-center truncate">
           {doctor?.first_name} {doctor?.last_name}, DDS
         </p>
       </div>
@@ -533,7 +533,6 @@ const PatientInfoSection = ({
     return ""
   }
 
-  const fieldWidth = 330
   const fieldHeight = 36.95
   const fieldGap = 10
   const containerHeight = showGenderField
@@ -544,8 +543,8 @@ const PatientInfoSection = ({
     <div className="w-full relative" style={{ height: `${containerHeight}px` }}>
       {/* Patient Name - Rxn3DFloatingInput specs */}
       <div
-        className="absolute"
-        style={{ left: "10px", top: "10px", width: `${fieldWidth}px`, height: `${fieldHeight}px` }}
+        className="absolute left-[10px] right-[10px] sm:right-auto sm:w-[330px]"
+        style={{ top: "10px", height: `${fieldHeight}px` }}
       >
         <div className="relative w-full h-full">
           <input
@@ -605,11 +604,9 @@ const PatientInfoSection = ({
       {/* Gender - Only show when patient name has a value (same Rxn3DFloatingInput specs) */}
       {showGenderField && (
         <div
-          className="absolute"
+          className="absolute left-[10px] right-[10px] sm:right-auto sm:w-[330px]"
           style={{
-            left: "10px",
             top: `${10 + fieldHeight + fieldGap}px`,
-            width: `${fieldWidth}px`,
             height: `${fieldHeight}px`,
           }}
         >
@@ -795,15 +792,15 @@ export function SlipCreationHeader({
       <>
         {/* Top Header - Frame 2375 */}
         <div className="bg-white border border-[#D9D9D9]">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 px-3 sm:px-4 md:px-5 py-2 sm:py-2.5 md:py-3">
+          <div className="flex flex-row items-center justify-between px-3 sm:px-4 md:px-5 py-2 sm:py-2.5 md:py-3">
             {/* Left: Sending to */}
-            <div className="w-full sm:w-auto sm:min-w-[200px] md:min-w-[250px] lg:w-[350px] flex items-center justify-start sm:justify-start">
+            <div className="min-w-0 flex items-center flex-shrink-0 max-w-[45%] sm:max-w-none sm:min-w-[200px] md:min-w-[250px] lg:w-[350px]">
               {sendingToLab && <SendingToSection lab={sendingToLab} />}
             </div>
 
             {/* Center: Customer Logo */}
             {showLogo && (
-              <div className="flex-1 flex justify-center items-center min-w-0 px-2">
+              <div className="flex-1 flex justify-center items-center min-w-0 px-1 sm:px-2">
                 <CustomerLogoFromStorage size="large" />
               </div>
             )}
@@ -816,10 +813,10 @@ export function SlipCreationHeader({
         {/* Second Header - Frame 2381 */}
         {!hideSecondHeader && (
           <div className="bg-white">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-3 px-3 sm:px-4 md:px-5 py-2 sm:py-2.5">
+            <div className="flex flex-row items-center justify-between gap-2 sm:gap-3 px-3 sm:px-4 md:px-5 py-2 sm:py-2.5">
               {/* Left: Doctor Info */}
               {doctor ? (
-                <div className="flex items-center justify-center w-full sm:w-auto">
+                <div className="flex items-center flex-shrink-0">
                   <DoctorInfoSection doctor={doctor} variant="full" />
                 </div>
               ) : (
@@ -828,9 +825,9 @@ export function SlipCreationHeader({
 
               {/* Center: Patient Info */}
               {(patientData || editablePatientData) ? (
-                <div className="flex-1 flex items-center justify-center w-full min-w-0 px-2">
-                  <PatientInfoSection 
-                    patientData={patientData} 
+                <div className="flex-1 flex items-center justify-center min-w-0 px-1 sm:px-2">
+                  <PatientInfoSection
+                    patientData={patientData}
                     editablePatientData={editablePatientData}
                   />
                 </div>
@@ -840,7 +837,7 @@ export function SlipCreationHeader({
 
               {/* Right: Created By */}
               {createdBy ? (
-                <div className="flex items-center justify-center w-full sm:w-auto">
+                <div className="flex items-center flex-shrink-0">
                   <CreatedBySection createdBy={createdBy} variant="compact" />
                 </div>
               ) : (
@@ -857,21 +854,21 @@ export function SlipCreationHeader({
   if (variant === "with-sending-to") {
     return (
       <div className="bg-white border border-[#D9D9D9]">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 px-3 sm:px-4 md:px-5 py-2 sm:py-2.5 md:py-3">
+        <div className="flex flex-row items-center justify-between px-3 sm:px-4 md:px-5 py-2 sm:py-2.5 md:py-3">
           {/* Sending to (Left) */}
-          <div className="w-full sm:w-auto sm:min-w-[200px] md:min-w-[250px] lg:w-[350px] flex items-center justify-start sm:justify-start">
+          <div className="min-w-0 flex items-center flex-shrink-0 max-w-[45%] sm:max-w-none sm:min-w-[200px] md:min-w-[250px] lg:w-[350px]">
             {sendingToLab && <SendingToSection lab={sendingToLab} />}
           </div>
 
           {/* Center: Customer Logo */}
           {showLogo && (
-            <div className="flex-1 flex justify-center items-center min-w-0 px-2">
+            <div className="flex-1 flex justify-center items-center min-w-0 px-1 sm:px-2">
               <CustomerLogoFromStorage size="large" />
             </div>
           )}
 
           {/* Right: Empty space or Created By */}
-          <div className="w-full sm:w-auto sm:min-w-[200px] md:min-w-[250px] lg:w-[350px] flex items-center justify-end">
+          <div className="flex items-center flex-shrink-0 max-w-[45%] sm:max-w-none sm:min-w-[200px] md:min-w-[250px] lg:w-[350px] justify-end">
             {createdBy && <CreatedBySection createdBy={createdBy} variant="compact" />}
           </div>
         </div>

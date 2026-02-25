@@ -31,15 +31,15 @@ export function CardGallery({
               e.stopPropagation();
               onChange(option);
             }}
-            className={`flex-shrink-0 w-[160px] h-[180px] rounded-xl border-2 transition-all ${
+            className={`flex-shrink-0 w-[120px] h-[140px] sm:w-[160px] sm:h-[180px] rounded-xl border-2 transition-all ${
               value === option
                 ? 'border-[#34a853] bg-white shadow-md'
                 : 'border-gray-300 bg-white hover:border-gray-400 hover:shadow-sm'
             }`}
           >
             <div className="flex flex-col items-center justify-center h-full p-4">
-              <div className="w-24 h-24 bg-gray-200 rounded-lg flex items-center justify-center mb-3">
-                <span className="text-4xl font-bold text-gray-400">
+              <div className="w-16 h-16 sm:w-24 sm:h-24 bg-gray-200 rounded-lg flex items-center justify-center mb-2 sm:mb-3">
+                <span className="text-2xl sm:text-4xl font-bold text-gray-400">
                   {option.charAt(0)}
                 </span>
               </div>

@@ -270,21 +270,35 @@ export function useCaseDesignState(props: CaseDesignProps) {
     [migrateFixedStageIfNeeded, originalHandleMandibularToothDeselect]
   );
 
-  // When user selects a shade, mark the corresponding fixed advance-field step completed so the next field shows (dynamic for all shade steps)
+  // When user selects a shade, mark the corresponding advance-field step completed so the next field shows
   const handleShadeSelect = useCallback(
     (shade: string) => {
       const { arch, fieldType, productId } = shades.shadeSelectionState;
       shades.handleShadeSelect(shade);
       if (!arch || !productId || !fieldType) return;
-      const match = productId.match(/^fixed_(\d+)$/);
-      if (!match) return;
-      const toothNumber = parseInt(match[1], 10);
-      const step = FIXED_SHADE_FIELD_TO_STEP[fieldType];
-      if (step) {
-        toothFieldProgress.completeFieldStep(arch, toothNumber, step, shade);
+
+      // Fixed products: fixed_NN
+      const fixedMatch = productId.match(/^fixed_(\d+)$/);
+      if (fixedMatch) {
+        const toothNumber = parseInt(fixedMatch[1], 10);
+        const step = FIXED_SHADE_FIELD_TO_STEP[fieldType];
+        if (step) {
+          toothFieldProgress.completeFieldStep(arch, toothNumber, step, shade);
+        }
+        return;
+      }
+
+      // Removable / other products: prep_NN
+      const prepMatch = productId.match(/^prep_(\d+)$/);
+      if (prepMatch) {
+        const toothNumber = parseInt(prepMatch[1], 10);
+        if (fieldType === "tooth_shade") {
+          const shadeGuide = shades.selectedShadeGuide || "Vita Classical";
+          toothFieldProgress.completeFieldStep(arch, toothNumber, "teeth_shade", `${shadeGuide} - ${shade}`);
+        }
       }
     },
-    [shades.shadeSelectionState, shades.handleShadeSelect, toothFieldProgress.completeFieldStep]
+    [shades.shadeSelectionState, shades.handleShadeSelect, shades.selectedShadeGuide, toothFieldProgress.completeFieldStep]
   );
 
   // Use product impressions from get product response when toothNumber provided; otherwise fall back to modal's mock-based resolution

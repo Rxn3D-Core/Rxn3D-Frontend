@@ -83,22 +83,22 @@ export function TopBar({ selectedLab, onEditClick, caseSubmitted = false }: TopB
   const logoAlt = selectedLab?.name ? `${selectedLab.name} logo` : "Lab or office logo";
 
   return (
-    <div className="h-14 sm:h-16 md:h-[80px] border-b border-[#d9d9d9] bg-[#fdfdfd] flex items-center px-3 sm:px-4 md:px-6 flex-shrink-0">
+    <div className="h-14 sm:h-16 md:h-[80px] border-b border-[#d9d9d9] bg-[#fdfdfd] flex items-center justify-between px-3 sm:px-4 md:px-6 flex-shrink-0">
       {/* Left: Creating For / Sending To — only shown after a lab/office is selected */}
-      <div className="w-36 sm:w-44 md:w-[360px] flex items-center gap-3 sm:gap-4 min-w-0 flex-shrink-0">
+      <div className="flex items-center gap-1.5 sm:gap-3 md:gap-4 min-w-0 flex-shrink-0 max-w-[45%] sm:max-w-none sm:w-44 md:w-[360px]">
         {selectedLab && (
           <>
-            <span className="text-[16px] font-medium text-[#1d1d1b] whitespace-nowrap">
+            <span className="text-xs sm:text-base font-medium text-[#1d1d1b] whitespace-nowrap">
               {leftLabel}
             </span>
             {selectedLogoUrl ? (
               <img
                 src={selectedLogoUrl}
                 alt={logoAlt}
-                className="h-8 w-16 sm:h-10 sm:max-w-24 md:h-[56px] md:max-w-[180px] object-contain flex-shrink-0"
+                className="h-7 max-w-[70px] sm:h-10 sm:max-w-24 md:h-[56px] md:max-w-[180px] object-contain flex-shrink-0"
               />
             ) : (
-              <span className="text-[13px] sm:text-[14px] md:text-[15px] font-semibold text-[#1d1d1b] truncate max-w-24 sm:max-w-32 md:max-w-[220px]">
+              <span className="text-xs sm:text-sm md:text-base font-semibold text-[#1d1d1b] truncate max-w-[60px] sm:max-w-32 md:max-w-[220px]">
                 {selectedLab.name}
               </span>
             )}
@@ -106,10 +106,10 @@ export function TopBar({ selectedLab, onEditClick, caseSubmitted = false }: TopB
               <button
                 type="button"
                 onClick={onEditClick}
-                className="p-1 rounded hover:bg-[#e5e7eb] transition-colors text-[#7f7f7f] hover:text-[#1d1d1b] flex-shrink-0"
+                className="p-0.5 sm:p-1 rounded hover:bg-[#e5e7eb] transition-colors text-[#7f7f7f] hover:text-[#1d1d1b] flex-shrink-0"
                 aria-label="Change lab or office"
               >
-                <Pencil size={16} />
+                <Pencil className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </button>
             )}
           </>
@@ -122,12 +122,12 @@ export function TopBar({ selectedLab, onEditClick, caseSubmitted = false }: TopB
           <img
             src={profileLogoUrl}
             alt="Profile logo"
-            className="h-10 sm:h-14 md:h-[75px] max-w-full object-contain"
+            className="h-8 sm:h-14 md:h-[75px] max-w-full object-contain"
           />
         )}
       </div>
 
-      <div className="w-36 sm:w-44 md:w-[360px] flex-shrink-0" />
+      <div className="hidden sm:block sm:w-44 md:w-[360px] flex-shrink-0" />
     </div>
   );
 }

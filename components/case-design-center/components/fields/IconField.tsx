@@ -58,7 +58,7 @@ export function IconField({
   const showGreen = hasValue && !submitted;
   return (
     <fieldset className={`border rounded-[7.7px] px-3 py-0 relative h-[42px] flex items-center min-w-0 ${showGreen ? "border-[#34a853]" : "border-[#7f7f7f]"}`}>
-      <legend className={`text-[14px] px-1 leading-none whitespace-nowrap ${showGreen ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>
+      <legend className={`text-sm px-1 leading-none whitespace-nowrap ${showGreen ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>
         {label}
       </legend>
       <div className="flex items-center gap-1 min-w-0 w-full">
@@ -66,7 +66,7 @@ export function IconField({
           type="text"
           readOnly
           value={value}
-          className="flex-1 text-[18px] font-bold text-[#000000] bg-transparent outline-none leading-tight tracking-[-0.02em] min-w-0 truncate"
+          className="flex-1 text-lg font-normal text-[#000000] bg-transparent outline-none leading-tight tracking-[-0.02em] min-w-0 truncate"
         />
         <div className="flex-shrink-0">{iconPaths[icon]}</div>
         {showGreen && <Check size={14} className="text-[#34a853] flex-shrink-0" />}

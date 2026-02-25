@@ -29,18 +29,25 @@ export function useShadeSelection() {
     const productId = shadeSelectionState.productId;
     const arch = shadeSelectionState.arch;
     const wasStumpShade = shadeSelectionState.fieldType === "stump_shade";
+    const isFixedProduct = productId.startsWith("fixed_");
     setSelectedShades((prev) => {
       const next = { ...prev, [key]: shade };
-      const stumpKey = `${productId}_${arch}_stump_shade`;
-      const toothKey = `${productId}_${arch}_tooth_shade`;
-      const bothFilled = !!(next[stumpKey] && next[toothKey]);
-      if (bothFilled) {
+      if (isFixedProduct) {
+        // Fixed products: close when both stump + tooth shades filled
+        const stumpKey = `${productId}_${arch}_stump_shade`;
+        const toothKey = `${productId}_${arch}_tooth_shade`;
+        const bothFilled = !!(next[stumpKey] && next[toothKey]);
+        if (bothFilled) {
+          setTimeout(() => setShadeSelectionState({ arch: null, fieldType: null, productId: null }), 0);
+        } else if (wasStumpShade) {
+          setTimeout(
+            () => setShadeSelectionState({ arch, productId, fieldType: "tooth_shade" }),
+            0
+          );
+        }
+      } else {
+        // Removables / other products: only tooth_shade, auto-close after selection
         setTimeout(() => setShadeSelectionState({ arch: null, fieldType: null, productId: null }), 0);
-      } else if (wasStumpShade) {
-        setTimeout(
-          () => setShadeSelectionState({ arch, productId, fieldType: "tooth_shade" }),
-          0
-        );
       }
       return next;
     });
