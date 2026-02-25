@@ -1627,6 +1627,18 @@ export function AddLabProductModal({
         payload.customer_id = formData.customer_id
       }
 
+      // Always pass the current form base_price as payload.price so it is never lost when user
+      // edits base price then switches to another section and clicks Update there. Backend expects "price".
+      if (willHaveCustomerId) {
+        const basePriceSource = payload.base_price !== undefined ? payload.base_price : formData.base_price
+        if (basePriceSource !== undefined && basePriceSource !== null && basePriceSource !== "") {
+          const numPrice = typeof basePriceSource === "string" ? parseFloat(basePriceSource) : Number(basePriceSource)
+          payload.price = !isNaN(numPrice) && numPrice >= 0 ? numPrice : 0
+        } else {
+          payload.price = 0
+        }
+      }
+
       // Special handling for stages tab: always include stages if stages field is dirty
       if (activeTab === "stages" && dirtyFields.stages) {
         // Even if changes doesn't have stages (due to comparison issues), include current stages
