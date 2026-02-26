@@ -39,10 +39,14 @@ export function useToothSelection(
     toothNumber: null,
   });
 
-  // Maps toothNumber → extractionCode for non-default extractions
+  // Maps toothNumber → extractionCode for non-default, exclusive extractions
   // Teeth NOT in this map are assumed to be in the default extraction (Teeth in mouth)
   const [maxillaryToothExtractionMap, setMaxillaryToothExtractionMap] = useState<Record<number, string>>({});
   const [mandibularToothExtractionMap, setMandibularToothExtractionMap] = useState<Record<number, string>>({});
+
+  // Clasp is an overlay — a tooth can be in Clasps AND another status simultaneously
+  const [maxillaryClaspTeeth, setMaxillaryClaspTeeth] = useState<number[]>([]);
+  const [mandibularClaspTeeth, setMandibularClaspTeeth] = useState<number[]>([]);
 
   const maxillaryIsRemovables = treatArchAsRemovables?.maxillary ?? isRemovablesArch(addedProducts, "maxillary");
   const mandibularIsRemovables = treatArchAsRemovables?.mandibular ?? isRemovablesArch(addedProducts, "mandibular");
@@ -102,6 +106,7 @@ export function useToothSelection(
       const { [toothNumber]: _, ...rest } = prev;
       return rest;
     });
+    setMaxillaryClaspTeeth((prev) => prev.filter((t) => t !== toothNumber));
     setRetentionPopoverState({ arch: null, toothNumber: null });
   };
 
@@ -115,17 +120,35 @@ export function useToothSelection(
       const { [toothNumber]: _, ...rest } = prev;
       return rest;
     });
+    setMandibularClaspTeeth((prev) => prev.filter((t) => t !== toothNumber));
     setRetentionPopoverState({ arch: null, toothNumber: null });
   };
 
+  /** Codes that act as overlays — tooth stays in its current status AND appears in this box */
+  const OVERLAY_CODES = new Set(["CLASP"]);
+
+  /** Check if a code is an overlay by code or by name */
+  const isOverlayExtraction = (code: string) =>
+    OVERLAY_CODES.has(code.toUpperCase());
+
   /**
    * Toggle a tooth into a non-default extraction box.
-   * - If tooth is already in that extraction → move it back to default (remove from map)
-   * - If tooth is in default or another extraction → assign it to this extraction
+   * - Overlay extractions (CLASP): toggle independently, tooth keeps its other status
+   * - Exclusive extractions: if already in that extraction → move back to default; otherwise assign
    */
   const handleToothExtractionToggle = (arch: Arch, toothNumber: number, extractionCode: string) => {
-    const setter = arch === "maxillary" ? setMaxillaryToothExtractionMap : setMandibularToothExtractionMap;
+    if (isOverlayExtraction(extractionCode)) {
+      // Overlay: toggle tooth in/out of the clasp set without affecting other status
+      const setter = arch === "maxillary" ? setMaxillaryClaspTeeth : setMandibularClaspTeeth;
+      setter((prev) =>
+        prev.includes(toothNumber)
+          ? prev.filter((t) => t !== toothNumber)
+          : [...prev, toothNumber]
+      );
+      return;
+    }
 
+    const setter = arch === "maxillary" ? setMaxillaryToothExtractionMap : setMandibularToothExtractionMap;
     setter((prev) => {
       if (prev[toothNumber] === extractionCode) {
         // Already in this extraction → move back to default
@@ -155,12 +178,14 @@ export function useToothSelection(
     setMaxillaryTeeth([]);
     setMaxillaryRetentionTypes({});
     setMaxillaryToothExtractionMap({});
+    setMaxillaryClaspTeeth([]);
   };
 
   const clearAllMandibularTeeth = () => {
     setMandibularTeeth([]);
     setMandibularRetentionTypes({});
     setMandibularToothExtractionMap({});
+    setMandibularClaspTeeth([]);
   };
 
   return {
@@ -177,6 +202,8 @@ export function useToothSelection(
     handleMandibularToothDeselect,
     maxillaryToothExtractionMap,
     mandibularToothExtractionMap,
+    maxillaryClaspTeeth,
+    mandibularClaspTeeth,
     handleToothExtractionToggle,
     selectAllMaxillaryTeeth,
     selectAllMandibularTeeth,

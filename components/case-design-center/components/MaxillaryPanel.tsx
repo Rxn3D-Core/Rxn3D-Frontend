@@ -352,6 +352,7 @@ interface MaxillaryPanelProps {
   isProductLoading: (arch: Arch, toothNumber: number) => boolean;
   fetchAndAssignProduct: (arch: Arch, toothNumber: number, productId: number) => Promise<void>;
   maxillaryToothExtractionMap: Record<number, string>;
+  maxillaryClaspTeeth: number[];
   handleToothExtractionToggle: (arch: Arch, toothNumber: number, extractionCode: string) => void;
   selectAllMaxillaryTeeth: (teeth: number[]) => void;
 }
@@ -413,6 +414,18 @@ function hasAdvanceField(
   }
 }
 
+/** Auto-opens the shade picker when this component mounts (i.e. shade field becomes visible) and the field has no value */
+function AutoOpenShade({ hasValue, onOpen }: { hasValue: boolean; onOpen: () => void }) {
+  const opened = useRef(false);
+  useEffect(() => {
+    if (!hasValue && !opened.current) {
+      opened.current = true;
+      onOpen();
+    }
+  }, [hasValue, onOpen]);
+  return null;
+}
+
 /* ------------------------------------------------------------------ */
 /*  MaxillaryPanel                                                     */
 /* ------------------------------------------------------------------ */
@@ -469,6 +482,7 @@ export function MaxillaryPanel({
   isProductLoading,
   fetchAndAssignProduct,
   maxillaryToothExtractionMap,
+  maxillaryClaspTeeth,
   handleToothExtractionToggle,
   selectAllMaxillaryTeeth,
 }: MaxillaryPanelProps) {
@@ -553,10 +567,32 @@ export function MaxillaryPanel({
             <div className="flex-1">
               <MaxillaryTeethSVG
                 selectedTeeth={maxillaryTeeth}
+                willExtractTeeth={(() => {
+                  // Find WED extraction codes from product extractions
+                  const wedCodes = new Set<string>();
+                  for (const tn of MAXILLARY_ALL_TEETH) {
+                    const product = getToothProduct("maxillary", tn);
+                    for (const e of product?.extractions ?? []) {
+                      const n = (e.name ?? "").toLowerCase().trim();
+                      if (e.code === "WED" || n === "will extract on delivery") {
+                        wedCodes.add(e.code);
+                      }
+                    }
+                  }
+                  return Object.entries(maxillaryToothExtractionMap)
+                    .filter(([, code]) => wedCodes.has(code))
+                    .map(([tn]) => Number(tn));
+                })()}
                 onToothClick={(toothNumber: number) => {
-                  handleMaxillaryToothClick(toothNumber);
                   if (activeExtractionCode) {
+                    // When an extraction box is active, only toggle the extraction mapping.
+                    // Ensure tooth stays selected so it appears in the extraction box.
+                    if (!maxillaryTeeth.includes(toothNumber)) {
+                      handleMaxillaryToothClick(toothNumber);
+                    }
                     handleToothExtractionToggle("maxillary", toothNumber, activeExtractionCode);
+                  } else {
+                    handleMaxillaryToothClick(toothNumber);
                   }
                 }}
                 className="w-full"
@@ -575,6 +611,8 @@ export function MaxillaryPanel({
                   })
                 }
                 onDeselectTooth={handleMaxillaryToothDeselect}
+                toothExtractionMap={maxillaryToothExtractionMap}
+                hideSelectionIndicators={isRemovablesCategory || activeProductIsRemovables}
               />
             </div>
           </div>
@@ -614,6 +652,7 @@ export function MaxillaryPanel({
                   selectedTeeth={maxillaryTeeth}
                   allArchTeeth={MAXILLARY_ALL_TEETH}
                   toothExtractionMap={maxillaryToothExtractionMap}
+                  claspTeeth={maxillaryClaspTeeth}
                   activeExtractionCode={activeExtractionCode}
                   onActiveExtractionChange={setActiveExtractionCode}
                   onToothExtractionToggle={(tn, code) => handleToothExtractionToggle("maxillary", tn, code)}
@@ -1365,6 +1404,10 @@ export function MaxillaryPanel({
                       {/* Step 2: Teeth shade / Gum Shade */}
                       {isFieldVisible("maxillary", firstToothNumber, "teeth_shade") && (
                         <>
+                        <AutoOpenShade
+                          hasValue={isFieldCompleted("maxillary", firstToothNumber, "teeth_shade")}
+                          onOpen={() => handleShadeFieldClick("maxillary", "tooth_shade", `prep_${firstToothNumber}`)}
+                        />
                         {/* Gum Shade Picker - shown above when gum shade field is visible but not completed */}
                         {isFieldVisible("maxillary", firstToothNumber, "gum_shade") &&
                           !isFieldCompleted("maxillary", firstToothNumber, "gum_shade") && (
@@ -1597,7 +1640,7 @@ export function MaxillaryPanel({
           })()}
 
           {/* Initial Removables product accordion — show fields when user selected Removable restoration and clicked teeth (assigned to card 0) */}
-          {showDetails && !caseSubmitted && activeProductIsRemovables && (() => {
+          {showDetails && activeProductIsRemovables && (() => {
             // Use all arch teeth (not just selected) so the accordion stays visible when all teeth are marked missing
             const cardTeeth = MAXILLARY_ALL_TEETH.filter(tn => getToothProduct("maxillary", tn) && getToothProductCard("maxillary", tn) === 0);
             if (cardTeeth.length === 0) return null;
@@ -1782,6 +1825,12 @@ export function MaxillaryPanel({
                             const shadeProductId = `prep_${repTn}`;
                             return (
                               <>
+                                {isF("teeth_shade") && (
+                                  <AutoOpenShade
+                                    hasValue={isFComplete("teeth_shade")}
+                                    onOpen={() => handleShadeFieldClick("maxillary", "tooth_shade", shadeProductId)}
+                                  />
+                                )}
                                 {isF("gum_shade") && !isFComplete("gum_shade") && (
                                   <GumShadePicker
                                     selected={null}
@@ -2090,6 +2139,12 @@ export function MaxillaryPanel({
                                 const shadeProductId = `prep_${repTn}`;
                                 return (
                                   <>
+                                    {hasAdvanceField("teeth_shade", advFields) && (
+                                      <AutoOpenShade
+                                        hasValue={isFComplete("teeth_shade")}
+                                        onOpen={() => handleShadeFieldClick("maxillary", "tooth_shade", shadeProductId)}
+                                      />
+                                    )}
                                     {hasAdvanceField("gum_shade", advFields) && !isFComplete("gum_shade") && (
                                       <GumShadePicker
                                         selected={null}

@@ -51,14 +51,36 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     maxillaryHasRemovablesTeeth ||
     mandibularHasRemovablesTeeth;
 
-  // Check removable teeth impression completion
+  // Check removable teeth impression completion.
+  // For Removables, fields (grade, stage, shade, impression) are stored under the representative
+  // tooth (first tooth per product card), NOT every individual tooth. So we check completion
+  // per product card rather than per tooth.
+  const MAXILLARY_ALL = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16];
+  const MANDIBULAR_ALL = [17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32];
+
+  const getRemovablesRepTeeth = (arch: "maxillary" | "mandibular") => {
+    const allTeeth = arch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
+    const cardToRepTooth = new Map<number, number>();
+    for (const tn of allTeeth) {
+      if (!state.getToothProduct(arch, tn)) continue;
+      const card = state.getToothProductCard(arch, tn);
+      if (card != null && !cardToRepTooth.has(card)) {
+        cardToRepTooth.set(card, tn);
+      }
+    }
+    return [...cardToRepTooth.values()];
+  };
+
+  const maxillaryRemovablesRepTeeth = maxillaryHasRemovablesTeeth ? getRemovablesRepTeeth("maxillary") : [];
+  const mandibularRemovablesRepTeeth = mandibularHasRemovablesTeeth ? getRemovablesRepTeeth("mandibular") : [];
+
   const allMaxillaryRemovablesComplete =
     !maxillaryHasRemovablesTeeth ||
-    state.maxillaryTeeth.every((tn) => state.isFieldCompleted("maxillary", tn, "impression"));
+    maxillaryRemovablesRepTeeth.every((tn) => state.isFieldCompleted("maxillary", tn, "impression"));
 
   const allMandibularRemovablesComplete =
     !mandibularHasRemovablesTeeth ||
-    state.mandibularTeeth.every((tn) => state.isFieldCompleted("mandibular", tn, "impression"));
+    mandibularRemovablesRepTeeth.every((tn) => state.isFieldCompleted("mandibular", tn, "impression"));
 
   const allTeethImpressionComplete =
     hasAnyTooth &&
@@ -235,6 +257,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           isProductLoading={state.isProductLoading}
           fetchAndAssignProduct={state.fetchAndAssignProduct}
           maxillaryToothExtractionMap={state.maxillaryToothExtractionMap}
+          maxillaryClaspTeeth={state.maxillaryClaspTeeth}
           handleToothExtractionToggle={state.handleToothExtractionToggle}
           selectAllMaxillaryTeeth={state.selectAllMaxillaryTeeth}
         />
@@ -308,6 +331,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           isProductLoading={state.isProductLoading}
           fetchAndAssignProduct={state.fetchAndAssignProduct}
           mandibularToothExtractionMap={state.mandibularToothExtractionMap}
+          mandibularClaspTeeth={state.mandibularClaspTeeth}
           handleToothExtractionToggle={state.handleToothExtractionToggle}
           selectAllMandibularTeeth={state.selectAllMandibularTeeth}
         />

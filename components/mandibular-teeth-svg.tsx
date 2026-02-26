@@ -12,6 +12,12 @@ interface MandibularTeethSVGProps {
   onSelectRetentionType?: (toothNumber: number, type: 'Implant' | 'Prep' | 'Pontic') => void
   onClosePopover?: () => void
   onDeselectTooth?: (toothNumber: number) => void
+  /** Maps toothNumber → extractionCode. */
+  toothExtractionMap?: Record<number, string>
+  /** Tooth numbers that should show the red X overlay (Will Extract on Delivery). */
+  willExtractTeeth?: number[]
+  /** When true, hide orange circle and gear icon indicators (used when tooth status boxes are active). */
+  hideSelectionIndicators?: boolean
 }
 
 export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
@@ -23,7 +29,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
   retentionPopoverTooth = null,
   onSelectRetentionType,
   onClosePopover,
-  onDeselectTooth
+  onDeselectTooth,
+  toothExtractionMap = {},
+  willExtractTeeth = [],
+  hideSelectionIndicators = false,
 }) => {
   const svgRef = React.useRef<SVGSVGElement>(null)
   const [hoveredTooth, setHoveredTooth] = React.useState<number | null>(null)
@@ -351,7 +360,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <g>
               <rect width="43" height="135" fill="url(#pattern0_197_3840_flipped)" onClick={() => handleToothClick(32)} onMouseEnter={() => setHoveredTooth(32)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: isToothSelected(32) ? 0.7 : 1, transition: 'all 0.2s ease' }} />
-              {isToothSelected(32) && (
+              {isToothSelected(32) && !hideSelectionIndicators && (
                 <>
                   {renderSelectionIndicator(32)}
                   <g clipPath="url(#clip0_197_3840)" transform="translate(0, 25)">
@@ -369,7 +378,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <g>
               <rect x="256" width="31" height="135" fill="url(#pattern1_197_3840_flipped)" onClick={() => handleToothClick(26)} onMouseEnter={() => setHoveredTooth(26)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: isToothSelected(26) ? 0.7 : 1, transition: 'all 0.2s ease' }} />
-              {isToothSelected(26) && (
+              {isToothSelected(26) && !hideSelectionIndicators && (
                 <>
                   {renderSelectionIndicator(26)}
                   <g clipPath="url(#clip1_197_3840)" transform="translate(0, 35)">
@@ -387,7 +396,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <g>
               <rect x="148" width="38" height="135" fill="url(#pattern2_197_3840_flipped)" onClick={() => handleToothClick(29)} onMouseEnter={() => setHoveredTooth(29)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: isToothSelected(29) ? 0.7 : 1, transition: 'all 0.2s ease' }} />
-              {isToothSelected(29) && (
+              {isToothSelected(29) && !hideSelectionIndicators && (
                 <>
                   {renderSelectionIndicator(29)}
                   <g clipPath="url(#clip2_197_3840)" transform="translate(0, 25)">
@@ -405,7 +414,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <g>
               <rect x="339" width="30" height="135" fill="url(#pattern3_197_3840_flipped)" onClick={() => handleToothClick(23)} onMouseEnter={() => setHoveredTooth(23)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: isToothSelected(23) ? 0.7 : 1, transition: 'all 0.2s ease' }} />
-              {isToothSelected(23) && (
+              {isToothSelected(23) && !hideSelectionIndicators && (
                 <>
                   {renderSelectionIndicator(23)}
                   <g clipPath="url(#clip3_197_3840)" transform="translate(0, 25)">
@@ -423,7 +432,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <g>
               <rect x="43" width="51" height="135" fill="url(#pattern4_197_3840_flipped)" onClick={() => handleToothClick(31)} onMouseEnter={() => setHoveredTooth(31)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: isToothSelected(31) ? 0.7 : 1, transition: 'all 0.2s ease' }} />
-              {isToothSelected(31) && (
+              {isToothSelected(31) && !hideSelectionIndicators && (
                 <>
                   {renderSelectionIndicator(31)}
                   <g clipPath="url(#clip4_197_3840)" transform="translate(0, 25)">
@@ -441,7 +450,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <g>
               <rect x="287" width="26" height="135" fill="url(#pattern5_197_3840_flipped)" onClick={() => handleToothClick(25)} onMouseEnter={() => setHoveredTooth(25)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: isToothSelected(25) ? 0.7 : 1, transition: 'all 0.2s ease' }} />
-              {isToothSelected(25) && (
+              {isToothSelected(25) && !hideSelectionIndicators && (
                 <>
                   {renderSelectionIndicator(25)}
                   <g clipPath="url(#clip5_197_3840)" transform="translate(0, 25)">
@@ -459,7 +468,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <g>
               <rect x="186" width="36" height="135" fill="url(#pattern6_197_3840_flipped)" onClick={() => handleToothClick(28)} onMouseEnter={() => setHoveredTooth(28)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: isToothSelected(28) ? 0.7 : 1, transition: 'all 0.2s ease' }} />
-              {isToothSelected(28) && (
+              {isToothSelected(28) && !hideSelectionIndicators && (
                 <>
                   {renderSelectionIndicator(28)}
                   <g clipPath="url(#clip6_197_3840)" transform="translate(0, 25)">
@@ -475,7 +484,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <>
               <rect x="369" width="34" height="135" fill="url(#pattern7_197_3840_flipped)" onClick={() => handleToothClick(22)} onMouseEnter={() => setHoveredTooth(22)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: isToothSelected(22) ? 0.7 : 1, transition: 'all 0.2s ease' }} />
-              {isToothSelected(22) && (
+              {isToothSelected(22) && !hideSelectionIndicators && (
                 <>
                   {renderSelectionIndicator(22)}
                   <g clipPath="url(#clip7_197_3840)" transform="translate(0, 25)">
@@ -491,7 +500,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <>
               <rect x="530" width="51" height="135" fill="url(#pattern8_197_3840_flipped)" onClick={() => handleToothClick(18)} onMouseEnter={() => setHoveredTooth(18)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: isToothSelected(18) ? 0.7 : 1, transition: 'all 0.2s ease' }} />
-              {isToothSelected(18) && (
+              {isToothSelected(18) && !hideSelectionIndicators && (
                 <>
                   {renderSelectionIndicator(18)}
                   <g clipPath="url(#clip8_197_3840)" transform="translate(0, 25)">
@@ -507,7 +516,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <>
               <rect x="439" width="38" height="135" fill="url(#pattern9_197_3840_flipped)" onClick={() => handleToothClick(20)} onMouseEnter={() => setHoveredTooth(20)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: isToothSelected(20) ? 0.7 : 1, transition: 'all 0.2s ease' }} />
-              {isToothSelected(20) && (
+              {isToothSelected(20) && !hideSelectionIndicators && (
                 <>
                   {renderSelectionIndicator(20)}
                   <g clipPath="url(#clip9_197_3840)" transform="translate(0, 25)">
@@ -525,7 +534,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <g>
               <rect x="94" width="54" height="135" fill="url(#pattern10_197_3840_flipped)" onClick={() => handleToothClick(30)} onMouseEnter={() => setHoveredTooth(30)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: isToothSelected(30) ? 0.7 : 1, transition: 'all 0.2s ease' }} />
-              {isToothSelected(30) && (
+              {isToothSelected(30) && !hideSelectionIndicators && (
                 <>
                   {renderSelectionIndicator(30)}
                   <g clipPath="url(#clip10_197_3840)" transform="translate(0, 25)">
@@ -541,7 +550,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <>
               <rect x="313" width="26" height="135" fill="url(#pattern11_197_3840_flipped)" onClick={() => handleToothClick(24)} onMouseEnter={() => setHoveredTooth(24)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: isToothSelected(24) ? 0.7 : 1, transition: 'all 0.2s ease' }} />
-              {isToothSelected(24) && (
+              {isToothSelected(24) && !hideSelectionIndicators && (
                 <>
                   {renderSelectionIndicator(24)}
                   <g clipPath="url(#clip11_197_3840)" transform="translate(0, 25)">
@@ -559,7 +568,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <g>
               <rect x="222" width="34" height="135" fill="url(#pattern12_197_3840_flipped)" onClick={() => handleToothClick(27)} onMouseEnter={() => setHoveredTooth(27)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: isToothSelected(27) ? 0.7 : 1, transition: 'all 0.2s ease' }} />
-              {isToothSelected(27) && (
+              {isToothSelected(27) && !hideSelectionIndicators && (
                 <>
                   {renderSelectionIndicator(27)}
                   <g clipPath="url(#clip12_197_3840)" transform="translate(0, 25)">
@@ -575,7 +584,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <>
               <rect x="477" width="53" height="135" fill="url(#pattern13_197_3840_flipped)" onClick={() => handleToothClick(19)} onMouseEnter={() => setHoveredTooth(19)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: isToothSelected(19) ? 0.7 : 1, transition: 'all 0.2s ease' }} />
-              {isToothSelected(19) && (
+              {isToothSelected(19) && !hideSelectionIndicators && (
                 <>
                   {renderSelectionIndicator(19)}
                   <g clipPath="url(#clip13_197_3840)" transform="translate(0, 25)">
@@ -591,7 +600,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <>
               <rect x="403" width="36" height="135" fill="url(#pattern14_197_3840_flipped)" onClick={() => handleToothClick(21)} onMouseEnter={() => setHoveredTooth(21)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: isToothSelected(21) ? 0.7 : 1, transition: 'all 0.2s ease' }} />
-              {isToothSelected(21) && (
+              {isToothSelected(21) && !hideSelectionIndicators && (
                 <>
                   {renderSelectionIndicator(21)}
                   <g clipPath="url(#clip14_197_3840)" transform="translate(0, 25)">
@@ -607,7 +616,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <>
               <rect x="581" width="43" height="135" fill="url(#pattern15_197_3840_flipped)" onClick={() => handleToothClick(17)} onMouseEnter={() => setHoveredTooth(17)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: isToothSelected(17) ? 0.7 : 1, transition: 'all 0.2s ease' }} />
-              {isToothSelected(17) && (
+              {isToothSelected(17) && !hideSelectionIndicators && (
                 <>
                   {renderSelectionIndicator(17)}
                   <g clipPath="url(#clip15_197_3840)" transform="translate(0, 25)">
@@ -818,8 +827,53 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             <image id="image14_197_3840" width="36" height="135" preserveAspectRatio="none" xlinkHref="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACQAAACHCAYAAAB+iPvYAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAA7YSURBVHgB7VtdjF1VFV773Hvn3ul0AmmJiCYGG0JqoiEGMAZM7UhLcQhtg6a8kUhCfPFJffHFpomR+EBiFPpmYoiJpKDig1WiQhughGCtTUsq41gILQU6U3pn5s7c879d+3/tc879nfGBZNbMuefcc87e69vrb6+9zrkAm7RJ6yMGYxLnPDh79vVbGo3mDsbqn2eMf4bxYAurwVqeZx9Cwt+GxuTczp07P2Z4cdh+RwJ0+PDh4MCBA5+ebAbfqk809tRq9V21Wu3GAFEw3RNXaCHPc0iS6L0sTU6Hcfz0HXd85e/D8BgK0PHjx5u33nrLfRMTrUcCFhxoNBo34KiROdcIir0yEH/iXwCLo3AZt+cWP+78aNeuXQtjAxJqmZt767GJRuMHtXpjZyBByAviQ+4EKEaA+J3jnzzHIE1jiMJwPg6jx7/05btPQvVQegM6ffr0F6anmz9rTrQeCIKgYQAQuBoc6YxVdM8csCzLIIrC1TiKvrdwbfk3MzMzaUWLMp079+ZjU1umn6jXG59SZ3IpB2GanFk85kN+sqpumTlywHKeC0nxMIp/ePnyh0/Pzs5GtGWdfhEqunDh7JEtk1Pfr9WCLXnOwYmgLBHuGirFWRzc3qAUyglUBo1GXZx88nOfvSnE/dGKoQCcOnVq2/bt00ebE81HWBAoaUg1FVRN9cIrLVoBYMxnoI9ynimDxw29MF9aXtp/1133/sm76/z5U9vqtS2/xZhyv+hH6JuxAHxZVJubNfISACgPREgSVSb6FjyE+tZWV69dXVi6Fe2pI24Lzp8/P1EPpn7SbLbuZ9qLhKvmaICiMefamKVLKbXpQ31N25G5TjeiKq5jExUuhhBotSa3b7tx64/N+SBJunc3mhPfdYbnd+AYggbDtSpzy1jeJwYhNnNei8+CE/doiPYTdxhcIaizR48dO1aTgNDAvo0KCrjh6CBppoaBYaaYi70EkGfeZoDxPPNAi2OqZwNKEGrnZgy8MxIQtpwpqdv4iWiYc9l5biSQGRAKFEhGTj2GubmfE4kxABcuuJN2HaVUqzUOiivo9uwWawPEQ6U9WfXQwXHtJQBQcc3EGweOaydh2vbFOXGT7kdcR6+uB+yrUkJ4Y8O6Nicy1aCMAVkD5lAJ1JMu56Qf7myKtrH9KApqtS++/PLhet2PM+4GZu0pp9wAiHx6+bgdCL1Bm6iUEO1F88esoblt2z3b6mioKactXHsw8UeqiQ2bqTDw4xaVlstROONEtSihoAbdbu2mAOPNmvVpDw6JLyMRL+zpN6c642nG25SNBdNBkiaXrE0QIAb5MOx536vukBdO0cZ6Vw/yND0jI6i+yMlGpVTVDycHvNDWbq4XoyCbR/laUMdBmmdvpllahlwcNy9Io3TAK7bCIS+ojDslii9ZlkZBtxu+kcTxikPuGnLClJfER8fei9x95YH430Wqw8NgOdiz58G5OA7flLmP01VFQ96TJRRVxIvWCJ5EecGYxFGG0T+C5Wsyx0ji5Hdpmlip8ILYqRPyIsZCEHQ3ErVoiXpRnXtygxRn+VdeOXtdAuLdzgsopQU6VKodGYN4Yeb3RunB7HFMzzgtmOiP4Wf+yJEjuQT0tfsPXonC+LVcpwi+jVAQ3OmIdF2UoB/WXHtPggXgqLJ/iiObFnbWOr+I4wigmGR5zHzL4PSDm7mOk+/Opqp7UZ9SEFn2ugfovvsePNntrr1jcx6dVhTtwoL0vK0XWd2a5u6AXErTFHACO+8BQjvJu2vRT9NExyRO8h2dXFEDLbAdkso+L3ikSZx/sNj+twdIUtB8Fo27bRYyVHUGkZ8FOjVRV/etzzTldm/Vpc+lWTL38MMPXysBEpl/nCa/FhkhScFApK9SWgyI2nLnkY5raaPJPvfsS/csihJxfMLKBAoUr0bPRHHsLhGPc0By67KcMqBgiFqs64HzUitpHDzGoNd6Atq9d/ZMFEVvqC6ZXk+BF9xkZ+DyZSiOnEjOuDvXYKzXcTXZJkmaLnXaL/YEJAhTkqdE5KaLRUZGbIFIDnp5k/v2lRuVArU3s2LRSsS6UhzH52ZnDy30BZRl7z8fhuGiAoK3SGAEkkhXcrL6EHueSRBiz7leAullkdpnXiiRK1c8h4D+QHlXApqZ+U4YR/EvhZQEGGZUp/dcdGZ9RYOQTFO55XZvwGVEzmoT0kdbTT682j46EJBUW5Y8E4VRV/WjO5F/AYgSnqzLSLCBOgbmSVKpL9XeGZANJBihzTROXjLuPhDQ7t0PvBcl8bNZRmpKeu2vLUMtGpUx6C2Qm1h35caE7HnmSUlEZ5w/ny3y7QlIRO4wjP6MHmcjtAluftHArend2l51zTUYU+2ghP2uxVn0apFvHfoQdjInMznhNUIUOjBKIDmvSMCM/JiuzjAyuYKtNwpCyV9cWYmvjASI88YiZ8FqUKtPAUuligw4bqTE7AfYQGMqadqmzDKd2aKVGEzw7v79+9dGAtTF6X9qa+s6djUlFnIMjVm5Lla/tDtrzqYepb6KA1GFs4tTBJBxafu1GroBFhdQWv+t4tkXEFZfMW/KQrpYFKOuNyZkgUBmerQSYoMmaEkF0uiFqrAvuToN6nWj3ksjA+p0OvkNN2xJOXCvkGWmFRYwqCGjmp10TUulOglagNGAjNJyqXa4OjKgVqsl2qZqtAwcFPCMVehCllwC5tsQgCvFgK4ScNUPVgyXq3gG/QBNT0+jNvKsuL6nKYU+U5pkzWWjPbBhw1xLV0YGhEYtmmZe76BHDayc/3Gag5s2NB1xYQD76IwMCG1ITdxczR6kfqU6hULqY4AUM01CqqCFaWsKowPasWOHxFPqtKJUZKYTqyJqTEDsTeVUSSbKQKMCwgcwKiRDxUhZYQ9ebQ1ctHYNbPTmfA0rZhGMCuj2228vVmKsDVBtcBhMRr0qgPLVOF6MRwYkO7KPJ1npE4Ak7oQx8675JCuwwJezbCqEcQCVO2WegUv2xKEGkzT2le3bt48nIVE25ZWc/KJmdawqBFBQA8HYtnLnnXemMBYgTi3VVdZ9JRWbWFQ2WjtMYhph7V5PqoewIcqUQ1EyoBkqPVbYTEWfaZpVThtDAeK2RE3jiB8J3LRhTJ7ZdJcaFjd/HNowDqC5uTmcsGmkMUSeE9LT3J3zvY204jJbrJzpBwJCwyuy1LO3O/apOGVQWOq7MnK4AuMAunjxopYQq7xuGfd47ODAczIP5kJC78E4gLZu3cpwZq0VnqF4bmwmWWU2zErN5fPqQKdUIi/HYll8eSxAk5OTmHMFAetxnXt7/y7OoTJSYk4cMtYaz6ibzSaTT2opP04n1KqcB8C7Xx8b/8OguNput1dhHECLi4t68QtaDCrW0CBXNC9ecUBvybN06aGHHurCOICazXbRTVz+XJUT9ZjLaFTPMv5uv/eJBgTGm0ElMqZbOm0wsK/lENYlnJ4QxWojm4c+NADQRyr94MyHw93KuTypQjmBMsjwS5Ik/4FxAU1Pt0QNIyuZCrPzeEUrOo34Gs8yufx+C8YF1G5vFT3YNIERnv3SRBfBudcS82h8XhiNrzK16mBZvwSs6uFw8Um3IXT5TrvdXYRxASFlyC8BvZowb86UUTnmvE/aiGnHBwcPHlyCcQEdOnRILDlCl1iUjTYvrFItxsqwkF4Y9ArhIAmJlDwpnDLzgmLsXSt8I3ObuBvrSv+CATRMkp/1mMstU4q1dM5ckgWufA7WCwg7T1zxsjdVPSWyGNVaLE4S9g4MoPqgG3CwaXHElXZdOOlHIvnKICb2qxdhAA2UEEqa1oWBBjuznod+jgfmHcb00r337rsK6wWElDIyl+mlsLf+8DVVjtDifnT5t2EIGsKGuLegK8YZVlhcs8JEbNpgkH4DNgIQiHqwx9LYB7PMzDn3ndEcVmSJaRyn/4ANApSR8btP8tKSZ9BmzQgOE8afazjLD6WyYbwsY1XGQpY7NIOkxmzOZGlyac+ePR/DEDTMUjqvciPPlsjsXhUU8UHLOeibH4wAiEAogaEvzQErqM6U95SHvQpD0lCATJ3Z8Dbn7L7XQlEXOLMsOQsbB8hIASqB2jtK9qQIH/Jm1693LsAGArKIzBNmg6L0QoE+TwFjUn+m6qlPLxroZShyVlyjlu9xUdyhUmpGd38dRqBhZvvAZ65Vxd2zD3PeZtAamHrqPFxAHBoQMg2gsPayYMF3dwbMM3Z093xlZfUlGIEGAqrXauSegltTQ2ZUQgpYmqRnZ2dnL8MINFhCjJXsjMYbaz8UkT6f58lfYEQaaNSBvYfJF2uddxHm6rJNTaRB4/qy04lfhBFpKAmxylBEbckEQQNcxp/3T548+QpsNCB8lDsh2aileWnhrt6UITm1Bh/H4Qnx1h2MSMOUhZv0oRwnxpzrgOgVQkGu4fna2vJTMAYNAsTQyZpGOrziQa9SFklbpbvH7+ze/c2hMsQi9TXqY8eOiVfkW4WcUH3y8qyvgHNYW4ueH+VHbpQGVWEF4C1GGC51NasO7u3F+TTLojjuPgdj0qAqbAOft09qrt5UTidTmiemSYK5T2PgkrkX9VVZvV5voBqmNAT758pneg92Zkd1rR6fmflGCmNSXwk1GtEEzq1TXnlD2k6u3pYBkqCJuk2SXsTc5xlYB/UFFAQNEYOmzHf6fqxD6KwqDMMXMffpW5BaFyBcRrdAB8aqJ4aUoigOu92Vn8M6aYCEaqgyxjgn63iypKaTbJLEfxNvr8M6qa9Rp2kwQe2n+O4r6FKvyHuiLP4VbAD1lVC9Hik/kp/k3VfvLQUOYdR9q7ty6a/w/wYUhrXYvrmZ+wZtjsVPReM0e3LfvkdXYQOoL6BWi68g08jO6txZkgGFgM5+dGXhBdgg6gtoaSleFoUmIZ0sy43GbMQWr3pFUfgEVmuXYIOoL6C9e/cuIcMT4mfF5rV4+0s8CSY6kee1P8IG0sB8KMu6R9GLrjkgmbKbOF7FxwSPz8zMhLCBNBDQPffsPdPprHy92w1/3w27bfHmZzcM55eW1vbNzDwwDxtMbJSbxe/tb7vttpvn5+cXMD0dewLdpE3apE3apE3apE3apE8Q/Q9W1Rv0/SjOpgAAAABJRU5ErkJggg==" />
             <image id="image15_197_3840" width="43" height="135" preserveAspectRatio="none" xlinkHref="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACsAAACHCAYAAACPg6BVAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAA+YSURBVHgB7Vt5rB5VFT93Zr7lta92FSzQQqORYEFjLeHR1tLKo1tMIZA0/mE0hviH0UBijIkh0UQSNTElJsbEoiERUJKHQFPUYKi2DShoKWtlaUtpS0Na6fq275v1eu6+zHwf75Wq/8xp5s18M3fO/d1zz3bPnQLUVFNN/zUiU204MjISXnfdokV5PnBJGBYhpeHY6Gjn2NDQ0ChcIFFKCRKdavu+YA8e/FMrjhd+qd1u3xqG4XAYhLNIEKieIEcq8vzZJItHWq0zDyxZsrbbj9/LL+/9bLvZuD0MGytIGHwaOx+kQN/Nsvz5NM0euvbac7sIWZtNC+wLL7zQmDUjuj2Imj9otVrX4OgBmQJwGdBKFlmWHE268U+u/tRntvnS2r//pZWtRvOeqNnYGEWNSgBZlkGaxruTtPPtpUuvf2lKYPfte+6amTNmPjgwMLCcBCGXIAioFlhS4sBOrGmWxXvPnz7z9WU3fP6Vvz/11Lz5V152X6s98NVAzUhF74RdoEAYgziOs25nYuvS6z73PX/QuteDBw+2upPn7mq129/H0Q8y5kyiGiNINPKevkk8RkhFUXTxOBwEZGEQhHOhCiWpACEBp2kKaRKPjE9mX16+fHmqHofsz65du6IwzLbOmDnzniiMWlySHJhhAGWZ9iDKXolwsB/F84CLkfR+X/ZT4MEEFUTRUkKKGxYsuPR3e/bs4QD43MyePfCVdmvgm42oQUjAEXKwtCjEASDAUzGIqkNJWjYDI3oK9kP1nL9nPaUcaIEXhZAiAkbDXnfHHZt/rMfDjKnVpIdnzpx1hZ52DaLgoxSjloAdYZA+EvP0xGpX8UT3x3iixGTzAHW4c358YmLFsmVDrwdxPLoJXckV7AFV029RIaWLPgqv3SPPM35mnVBpiMogy6BBzwzYswRGMGBJWZl1o9GajXp/J3sW4I8vRFGkXZMPmE9PUWi9dUGITtDXikHpzsE5TFsx1aytfZjBgplBebDJazbCDfv3jzSjgNBl3I8azhYY4kmJlG/pQTFJByC8iPuu6bvQAtAcuQ+3VMrqn4oHQIJo8Zn3530iKgr6ceJYvBmhjUoxBaoMl4AtYfFQSIqplK3/QBVXXwBSSEqX+WMqr4nwkngTXdXMVqu5JMIb86j2n9R2qtpqheTBkZTplEiJi2lmQi1QykQapUNECMM3RwWUzwhVkrYkixQE0fyIuTULgS1bMLpmYgE4z+yzlL6aIWlABGSHclBEw7M4SaBiGEIA+i8VfKMoGAxYtHE70Bg1o2po1nCoKyW7IdV3if8W+AJx1MU3oQKa6K+K99m0lRm58rW9ErWce4nEtOmzCdlV71RZKrgqp7FSEuCfd4u8cMeprFczoBWDoDZntz0Q7dwJBOALwgQd41e1dMG7lvyRXR5kaXEI01I5BdQdbPXAPbnbwMvtlberzgloyV3aP7VYuOEW3QBV4G0OVj8tS7HXtFeBplXClwbT6103EHl6C8CTmyKnE0HaTV/Ns1REKctducmJBd4PT7QCsCOxiiFZjyz1tL2m05iF+yTPRoO0CJ5JkiTL89RRbHuMBnDVTAtgTgYGahyud1H2AI61esBUz9T0WXBJFmeCTZs2jWZp+iYeVt9uwqFypco0UQ3EQmUnKErS1AboDdaZSY8XO9ABTOR5fIqbaprlj7LsnCcUriaByn8wLEMlaUC2dpgOqacyADYmV1f1YM3U8FOWZ2OnTsXvRRxsnu5GVYA2pnxhGHkSIFoqijEBV0VsKakY5WiUHSmo4eC+iv3IcKu4c3eN/4oiO3LbbbeNBWIQ8f4kiQ+naQLGhYOZYt2RCxqc2SqMCvn/tJRMpHLfBaMmtLD0Wf9+mXXHwW7YsOVMkiWPMVUQXsECp8/Ac1EbgA8M/GfUBarm3/6neIIOEvwuB8nO7Dm61gMarKB8R5okFPWjKmuRMycTbCoTZij0NeupoOY3ZSsIuYpg4ZzS3DyT7ki1wWm22lDjFaRgEe5hB+zERPBKEseHhFfwsiJ15hIuvCmSUtDXtqG4qkMVIARHacavDT/JgwsmEKEa6xb4VhfV810HLFPgJE0fZ5URyi3fK0pIjefPdOIdyIMAlYdIqMUzlhdQHWxVGzDPSciPQJ5VLkGsd1AFzhXFwFHwEcUd+nicxAlbHDoFDstwTXAgln1YgKS1U+c1lcsSCTLg0jODlQe/b72HGDBaHV+1atW5EtjBOXNejLvxU8LngmRINAMhKdtDgLFmrofUnAvzu1B6Cv5kUW9Q9g8xNJTsflVGcsCuXbs2m+gkv+p2O5QtsbXuWv5S+D1jJNxamZHk4uwf7L5YxeZO1NMewsFIHONmj3G5/5z6XaqWRVH76U6nw/IF+S7R0mRRTF3neJ1TFrflodmZKRXTbfSZvS/as/cLwUMOBuw+pHtj2WAcp/t6gsVcIU7S5N6JiUn0YkwaapUayE4DBMaW3GgYGO1CLGFGjQY/s9/6CDASskMaDz/jbxKaM+Mh6r04ECp1n8gz9ptisk1I80BPsIxardm7kcsuwgGxg4GRwPg5Eh2RwOiHp5DlOgR4AUIanXRRRPJTHoL9RoEz4xrrC5bpLp6eFMmL0SMRtUlpKW0F5LIR0eosovRceRnL/aCeH7LbBr2YTCbJi6gHMQVPQhXXCjqR9+zVsmqnIPvgCTHLc6qY6AIJHIOpgA2K8TdRZ88A9aVFKq9NRdFyHkRUVQhxZ8OtHqpB2d5aAM6y9D2YCtjh4dtPp3l8QnCEiqmU5R2wykTOfelHHTGCkRoYkHJEoFbFFrwTMBWwnGFBD6nOdAZq5aa2fhHZGVhJNvH8pj9iG5iunFGq+aDOnpwy2DTJDojgYBhaQXhKVFXX0mdVDJEgzUwpvQ//PWWw+OKroipod2NszM8ktX4SYrWXkvL0WxmWroUpjyP7EuDTMzb/CPoQ7m0dEdGFcSgsROW2lPZ1UBqk7aaUbhFKnZGzSxbZxsbiczaX/jpLi3GjBiZP6LPn4nTo3bH+9ifKw3hB586dewqmChY7jLlkCalcPJi6LqlAZ5y8KZIYxgK4b/2GULJjuAfWmTJYTMQLlkzYNmt4S4DSI1heyTwHX4/tJ+W2+hdvT4+BZ8l9wQbBAClJRTOnGqh7H6BKfanbRN+z+dvpBN4/6vPoCxb3UVva71lBwD2XjUsIvDruaX0nKkZYT+yB0OIYTAdsFBUDpd5kMLAZu3pHygLXyx2wIFfpubmFW/onYDpgm81oFm4WlzYzxG4NhWpvRSv0gHqzIAcM7j2wfmdZfhymAxYtcj7LWwVCcJgZEERvfPRKB0u76yU+dgeEL8kxiXkLpgeWLArD0GFlKkdWyqdXvFBpXdRLJatdGbX6LfLx8e5rMB2wUUQWlT9q6A2mX87QL8L5Tg2xnmSlWL9d33CLFcUrbbBaQipsAi0ty53fpFe06xXHhOfBVfM7VU8/wM+Glwmw1dm/0w2V+SvY025PL7GS8j6d4kOsW7xYiafXO9u2bWugZBcysLQyD/U3NajMG3yDsiKZ10dl8MDwjqWAv8B0wF511VUfC8NgrlnB2p2YZYj6Tb3n/uqWlkdcmeyIEE/+BhXUU2cJyRbjsnuQf4bid1oRuWhhyqF6eaKDVXU24AcXRpiLvIWr61MwHbCNRmsh1gwiXi4qFQXAAa9A6rISZcYZslKIBmqSazdvdQZAePK0F3pQ0BtstDC0P5eyLd3rpFTp5pNRWCh6OTU3gWF1CsxHnoTpgsUwu5hVY8Q2PNHZoL1kUeCEREHXqUzBopBYiVlzybNKkOzlOhbhRrOM/uMCwIZLQu1jrY0LAL3Ao15Bg60qut0u6O1VcBMckwuVU04GGIuBz69evfp4T0xVNymvxtErmXHp3Ragdq5pt9XXnW7nCB4UC9KgPj2hOn+oyA3cPlk+MNLvq89KsLt3726hf70kYG6L9mLv/sKOjhR5dygg5L48K0B9HkiAlHIDRTpkiAXimW534q/Qh3qpwRys4s3g33qVIpW9ZaSNiHY68XeGh289iZsV9+dFXmJYlRsIrRUHRq1nb7pp/RGYLlhkPDsKSdtdclBwv6gzqhfH3X+dOnV2O7s+fun772AlpyDELiOZM7XWEHZQ6XTGH4V+mRD0rM8GH0FP2dJhlbqJtshfTbUawf5sy5YtXJzN15ohEQSl5bdIIMAvgCVJemJ8PHkCPoB6qAGZhaE28oKoBmciFf989ChW9LVvnDdv3hWNRoOYCNZXWHzg6Ft/u379+gm4ELDottj3s9ZiypWu+ERPDAXd1EPYka5JhWFxfbPZlAOzhkrdwSpKswQr252fwhSoB1g6qBIYaw0AKlWkcsMCd2ImR0cnH/ZeHm61WvxSZWDKfSmwduiNu8ljQ0PDJ+FCwaLUZhI5hba7sSMW6wjPz27cuPGA/e5Aq70C1cC6Y/Refdqi9Bnd1WSaxvfDFKmHZIO2nXAUlrvS+1n4b3Ky+whYSrljx8hilOrVanWhEhugZvNODZqxx2j355Ur1zwPU6SoB9hQfX8o3CmVoAu+f8UIS/inseXv7fcarRlfHBgYIHrvTFdtwOQMUgi41B49f/7svfBBFmjj6n1be0HQuio7ZHtXWA59GPPOcfutGe2B9cy4VLtA6b1WAQCVvKAHeOSWWza9BNOgHmCL1OQDbr7KCHUtwy3Tn9tv7Nr1xJxGs7GOL4MAvF1D97tZzFnHz58f/yFMkyrB4sjHFXPVmdY/BiTPn7755k2H7XfyfNaGdqvdNjoKThIEVkG5203uXbdu3XswTarUWZTcKSqIKKPiG3gSOEacX4Kna+12Y1VDqgA3IL4oFjNi/CpbuSb7RkfHfwEXQJWSzbLumwiKFxlEZ6A7xY28N3AKd/rv4MpiTWAvLinopFxBRQMtxscnvjGVaDVlsCtX3vw26tUO1hlLpPX0Y2dZSrdu3rx50m6/ffv2Wehbr7HzBROpqE7W0yT59Zo1w3vhAqnngrHbPfktSgfP4abyndjTDC7VNH/97NnzI37bwcHGQlxbBgqoBiyfc6BZ9kaS0LvhQ1DPZc3Q0KbRG29cfVeWji5Kup0fdbrdXZOTE19j39KUmATMuYJjjOq/C4i1WXEuiZO70dV14UMQgYtAO3funD9v3kfexuX37Fz9nwVTpy2wMLx1xYrV34UPSQFcBBoeHj6NUt+A4XMP+/9sACbEYqT6Y7M54x64CBTCRaIHHvjN8csvX/TgggVzH8MJ+ySiXYxG+s+xsc4WXLFekPX/T4j55+3bH1n0zDN/mAs11VRTTTXVVFNNNdVUU0011VRTTTXVVFNNNdVUU0011VRTTTXV9P+i/wDK+BZUUCc8UwAAAABJRU5ErkJggg==" />
           </defs>
+          {/* Will Extract on Delivery (WED) X mark overlays */}
+          {(() => {
+            const mandibularToothPositions: { tooth: number; x: number; width: number }[] = [
+              { tooth: 32, x: 0, width: 43 },
+              { tooth: 31, x: 43, width: 51 },
+              { tooth: 30, x: 94, width: 54 },
+              { tooth: 29, x: 148, width: 38 },
+              { tooth: 28, x: 186, width: 36 },
+              { tooth: 27, x: 222, width: 34 },
+              { tooth: 26, x: 256, width: 31 },
+              { tooth: 25, x: 287, width: 26 },
+              { tooth: 24, x: 313, width: 26 },
+              { tooth: 23, x: 339, width: 30 },
+              { tooth: 22, x: 369, width: 34 },
+              { tooth: 21, x: 403, width: 36 },
+              { tooth: 20, x: 439, width: 38 },
+              { tooth: 19, x: 477, width: 53 },
+              { tooth: 18, x: 530, width: 51 },
+              { tooth: 17, x: 581, width: 43 },
+            ]
+            return mandibularToothPositions.map(({ tooth, x, width }) => {
+              if (!willExtractTeeth.includes(tooth)) return null
+              const maxW = 36
+              const xWidth = Math.min(width * 0.8, maxW)
+              const xHeight = xWidth * (93 / 39)
+              const xX = x + (width - xWidth) / 2
+              const xY = (135 - xHeight) / 2
+              return (
+                <svg
+                  key={`wed-${tooth}`}
+                  x={xX}
+                  y={xY}
+                  width={xWidth}
+                  height={xHeight}
+                  viewBox="0 0 39 93"
+                  fill="none"
+                  style={{ pointerEvents: 'none' }}
+                >
+                  <line y1="-0.5" x2="96.4946" y2="-0.5" transform="matrix(0.387935 -0.921687 0.783934 0.620845 0.783691 91.1812)" stroke="#CF0202" />
+                  <line y1="-0.5" x2="97.9641" y2="-0.5" transform="matrix(0.335017 0.942212 -0.831142 0.55606 3.0918 0.556152)" stroke="#CF0202" />
+                </svg>
+              )
+            })
+          })()}
+
           {/* Show gear icon and orange circle on hover (for all teeth, rendered on top) */}
-          {hoveredTooth !== null && !isToothSelected(hoveredTooth) && (
+          {hoveredTooth !== null && !isToothSelected(hoveredTooth) && !hideSelectionIndicators && (
             <>
               {renderSelectionIndicator(hoveredTooth)}
               {renderGearIcon(hoveredTooth)}

@@ -390,8 +390,21 @@ interface MandibularPanelProps {
   isProductLoading: (arch: Arch, toothNumber: number) => boolean;
   fetchAndAssignProduct: (arch: Arch, toothNumber: number, productId: number) => Promise<void>;
   mandibularToothExtractionMap: Record<number, string>;
+  mandibularClaspTeeth: number[];
   handleToothExtractionToggle: (arch: Arch, toothNumber: number, extractionCode: string) => void;
   selectAllMandibularTeeth: (teeth: number[]) => void;
+}
+
+/** Auto-opens the shade picker when this component mounts (i.e. shade field becomes visible) and the field has no value */
+function AutoOpenShade({ hasValue, onOpen }: { hasValue: boolean; onOpen: () => void }) {
+  const opened = useRef(false);
+  useEffect(() => {
+    if (!hasValue && !opened.current) {
+      opened.current = true;
+      onOpen();
+    }
+  }, [hasValue, onOpen]);
+  return null;
 }
 
 export function MandibularPanel({
@@ -446,6 +459,7 @@ export function MandibularPanel({
   isProductLoading,
   fetchAndAssignProduct,
   mandibularToothExtractionMap,
+  mandibularClaspTeeth,
   handleToothExtractionToggle,
   selectAllMandibularTeeth,
 }: MandibularPanelProps) {
@@ -539,10 +553,31 @@ export function MandibularPanel({
             <div className="flex-1">
               <MandibularTeethSVG
                 selectedTeeth={mandibularTeeth}
+                willExtractTeeth={(() => {
+                  const wedCodes = new Set<string>();
+                  for (const tn of MANDIBULAR_ALL_TEETH) {
+                    const product = getToothProduct("mandibular", tn);
+                    for (const e of product?.extractions ?? []) {
+                      const n = (e.name ?? "").toLowerCase().trim();
+                      if (e.code === "WED" || n === "will extract on delivery") {
+                        wedCodes.add(e.code);
+                      }
+                    }
+                  }
+                  return Object.entries(mandibularToothExtractionMap)
+                    .filter(([, code]) => wedCodes.has(code))
+                    .map(([tn]) => Number(tn));
+                })()}
                 onToothClick={(toothNumber: number) => {
-                  handleMandibularToothClick(toothNumber);
                   if (activeExtractionCode) {
+                    // When an extraction box is active, only toggle the extraction mapping.
+                    // Ensure tooth stays selected so it appears in the extraction box.
+                    if (!mandibularTeeth.includes(toothNumber)) {
+                      handleMandibularToothClick(toothNumber);
+                    }
                     handleToothExtractionToggle("mandibular", toothNumber, activeExtractionCode);
+                  } else {
+                    handleMandibularToothClick(toothNumber);
                   }
                 }}
                 className="w-full"
@@ -554,6 +589,7 @@ export function MandibularPanel({
                 onSelectRetentionType={(tooth, type) => handleSelectRetentionType('mandibular', tooth, type)}
                 onClosePopover={() => setRetentionPopoverState({ arch: null, toothNumber: null })}
                 onDeselectTooth={handleMandibularToothDeselect}
+                toothExtractionMap={mandibularToothExtractionMap}
               />
             </div>
           </div>
@@ -593,6 +629,7 @@ export function MandibularPanel({
                   selectedTeeth={mandibularTeeth}
                   allArchTeeth={MANDIBULAR_ALL_TEETH}
                   toothExtractionMap={mandibularToothExtractionMap}
+                  claspTeeth={mandibularClaspTeeth}
                   activeExtractionCode={activeExtractionCode}
                   onActiveExtractionChange={setActiveExtractionCode}
                   onToothExtractionToggle={(tn, code) => handleToothExtractionToggle("mandibular", tn, code)}
@@ -1295,6 +1332,10 @@ export function MandibularPanel({
                             {/* Step 2: Teeth shade / Gum Shade */}
                             {isFieldVisible("mandibular", firstToothNumber, "teeth_shade") && (
                               <>
+                              <AutoOpenShade
+                                hasValue={isFieldCompleted("mandibular", firstToothNumber, "teeth_shade")}
+                                onOpen={() => handleShadeFieldClick("mandibular", "tooth_shade", `prep_${firstToothNumber}`)}
+                              />
                               {/* Gum Shade Picker - shown above when gum shade field is visible but not completed */}
                               {isFieldVisible("mandibular", firstToothNumber, "gum_shade") &&
                                 !isFieldCompleted("mandibular", firstToothNumber, "gum_shade") && (
@@ -1527,7 +1568,7 @@ export function MandibularPanel({
               })()}
 
           {/* Initial Removables product accordion — show fields when user selected Removable restoration and clicked teeth (assigned to card 0) */}
-          {showDetails && !caseSubmitted && activeProductIsRemovables && (() => {
+          {showDetails && activeProductIsRemovables && (() => {
             // Use all arch teeth (not just selected) so the accordion stays visible when all teeth are marked missing
             const cardTeeth = MANDIBULAR_ALL_TEETH.filter(tn => getToothProduct("mandibular", tn) && getToothProductCard("mandibular", tn) === 0);
             if (cardTeeth.length === 0) return null;
@@ -1712,6 +1753,12 @@ export function MandibularPanel({
                             const shadeProductId = `prep_${repTn}`;
                             return (
                               <>
+                                {isF("teeth_shade") && (
+                                  <AutoOpenShade
+                                    hasValue={isFComplete("teeth_shade")}
+                                    onOpen={() => handleShadeFieldClick("mandibular", "tooth_shade", shadeProductId)}
+                                  />
+                                )}
                                 {isF("gum_shade") && !isFComplete("gum_shade") && (
                                   <GumShadePicker
                                     selected={null}

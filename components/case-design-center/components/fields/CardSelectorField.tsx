@@ -28,7 +28,7 @@ export function CardSelectorField({
         {label}
       </legend>
       <div className="flex items-center gap-2 w-full">
-        <span className="text-[14px] sm:text-lg font-bold leading-tight text-[#000000] flex-1 min-w-0 truncate">{value}</span>
+        <span className="text-[14px] sm:text-lg leading-tight text-[#000000] flex-1 min-w-0 truncate">{value}</span>
         {hasValue && <Check size={16} className="text-[#34a853] flex-shrink-0" />}
       </div>
     </fieldset>

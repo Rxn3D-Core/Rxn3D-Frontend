@@ -90,7 +90,7 @@ export function ShadeSelectionGuide({
               onClick={() => setShowShadeGuideDropdown(!showShadeGuideDropdown)}
               className="w-full flex items-center justify-between text-left"
             >
-              <span className="text-lg font-bold text-[#000000]">{selectedShadeGuide}</span>
+              <span className="text-lg text-[#000000]">{selectedShadeGuide}</span>
               <div className="flex items-center gap-2">
                 <Check size={16} className="text-[#34a853]" />
                 <ChevronDown size={16} className={`text-[#7f7f7f] transition-transform ${showShadeGuideDropdown ? 'rotate-180' : ''}`} />
@@ -138,7 +138,7 @@ export function ShadeSelectionGuide({
               Tooth Shade
             </legend>
             <div className="flex items-center gap-2 w-full">
-              <span className="text-lg font-bold text-[#000000]">
+              <span className="text-lg text-[#000000]">
                 {toothShade ? `${selectedShadeGuide} - ${toothShade}` : ''}
               </span>
               {toothShade && <Check size={16} className="text-[#34a853] ml-auto" />}
@@ -159,7 +159,7 @@ export function ShadeSelectionGuide({
                 Stump Shade
               </legend>
               <div className="flex items-center gap-2 w-full">
-                <span className="text-lg font-bold text-[#000000]">
+                <span className="text-lg text-[#000000]">
                   {stumpShade ? `${selectedShadeGuide} - ${stumpShade}` : ''}
                 </span>
                 {stumpShade && <Check size={16} className="text-[#34a853] ml-auto" />}
@@ -180,7 +180,7 @@ export function ShadeSelectionGuide({
                   Tooth Shade
                 </legend>
                 <div className="flex items-center gap-2 w-full">
-                  <span className="text-lg font-bold text-[#000000]">
+                  <span className="text-lg text-[#000000]">
                     {toothShade ? `${selectedShadeGuide} - ${toothShade}` : ''}
                   </span>
                   {toothShade && <Check size={16} className="text-[#34a853] ml-auto" />}

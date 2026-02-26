@@ -6,8 +6,10 @@ interface ToothStatusBoxesProps {
   selectedTeeth: number[];
   /** All tooth numbers for this arch (e.g. 1-16 for maxillary) */
   allArchTeeth: number[];
-  /** toothNumber → extractionCode for teeth assigned to a non-TIM extraction */
+  /** toothNumber → extractionCode for teeth assigned to a non-TIM exclusive extraction */
   toothExtractionMap: Record<number, string>;
+  /** Teeth assigned to the Clasp overlay (can coexist with other statuses) */
+  claspTeeth: number[];
   /** Currently active extraction code (null = none selected) */
   activeExtractionCode: string | null;
   /** Called when a box is clicked to make it active */
@@ -90,11 +92,21 @@ function isOptionalExtraction(extraction: ProductExtraction): boolean {
   return extraction.is_optional === "Yes";
 }
 
+/** Returns true if this extraction is an overlay type (Clasp) — teeth can coexist with other statuses */
+function isClaspExtraction(extraction: ProductExtraction): boolean {
+  return (
+    extraction.code === "CLASP" ||
+    (extraction.name ?? "").toLowerCase().trim() === "clasps" ||
+    (extraction.name ?? "").toLowerCase().trim() === "clasp"
+  );
+}
+
 export function ToothStatusBoxes({
   extractions,
   selectedTeeth,
   allArchTeeth,
   toothExtractionMap,
+  claspTeeth,
   activeExtractionCode,
   onActiveExtractionChange,
   onToothExtractionToggle,
@@ -122,7 +134,11 @@ export function ToothStatusBoxes({
   // Check if any optional extraction has teeth assigned (used for required validation)
   const anyOptionalHasTeeth = activeExtractions
     .filter((e) => isOptionalExtraction(e))
-    .some((e) => selectedTeeth.some((tn) => toothExtractionMap[tn] === e.code));
+    .some((e) =>
+      isClaspExtraction(e)
+        ? claspTeeth.some((tn) => selectedTeeth.includes(tn))
+        : selectedTeeth.some((tn) => toothExtractionMap[tn] === e.code)
+    );
 
   // Build pairs for 2-column grid layout
   const rows: ProductExtraction[][] = [];
@@ -159,9 +175,14 @@ export function ToothStatusBoxes({
             const isDefault = isDefaultExtraction(extraction);
             const isRequired = isRequiredExtraction(extraction);
 
+            const isClasp = isClaspExtraction(extraction);
+
             // Teeth shown in this box (sorted ascending)
+            // Clasp is an overlay — uses its own set, not the exclusive extraction map
             const teethForBox = (isDefault
               ? defaultTeeth
+              : isClasp
+              ? claspTeeth.filter((tn) => selectedTeeth.includes(tn))
               : selectedTeeth.filter((tn) => toothExtractionMap[tn] === extraction.code)
             ).slice().sort((a, b) => a - b);
 
