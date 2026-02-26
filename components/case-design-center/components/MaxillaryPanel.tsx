@@ -1317,7 +1317,7 @@ export function MaxillaryPanel({
 
                       {/* Step 1: Grade / Stage */}
                       {isFieldVisible("maxillary", firstToothNumber, "grade") && (
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <fieldset
                             className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
                               isFieldCompleted("maxillary", firstToothNumber, "grade") && !caseSubmitted
@@ -1420,7 +1420,7 @@ export function MaxillaryPanel({
                             />
                           </div>
                         )}
-                        <div className="grid grid-cols-2 gap-3 mt-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
                           <fieldset
                             className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
                               isFieldCompleted("maxillary", firstToothNumber, "teeth_shade") && !caseSubmitted
@@ -1515,7 +1515,7 @@ export function MaxillaryPanel({
 
                       {/* Step 3: Impression / Add ons */}
                       {isFieldVisible("maxillary", firstToothNumber, "impression") && (
-                        <div className="grid grid-cols-2 gap-3 mt-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
                           <fieldset
                             className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
                               isFieldCompleted("maxillary", firstToothNumber, "impression") && !caseSubmitted
@@ -1749,7 +1749,7 @@ export function MaxillaryPanel({
                         <div className="border border-[#e5e7eb] rounded-lg p-3 space-y-3">
                           {/* Row 1: Grade / Stage */}
                           {(isF("grade") || isF("stage")) && (
-                          <div className="grid grid-cols-2 gap-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             {isF("grade") && (() => {
                               const gradeVal = fVal("grade") || "";
                               const isGradeComplete = isFComplete("grade") || !!(gradeVal && gradeVal.trim());
@@ -1839,7 +1839,7 @@ export function MaxillaryPanel({
                                     }}
                                   />
                                 )}
-                                <div className="grid grid-cols-2 gap-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                   {isF("teeth_shade") && (
                                   <fieldset
                                     className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${isFComplete("teeth_shade") && !caseSubmitted ? "border-[#34a853]" : isFComplete("teeth_shade") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
@@ -2063,7 +2063,7 @@ export function MaxillaryPanel({
                             />
                             <div className="border border-[#e5e7eb] rounded-lg p-3 space-y-3">
                               {/* Row 1: Grade / Stage */}
-                              <div className="grid grid-cols-2 gap-3">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 {hasAdvanceField("grade", advFields) && (() => {
                                   const gradeVal = fVal("grade") || "";
                                   const isGradeComplete = isFComplete("grade") || !!(gradeVal && gradeVal.trim());
@@ -2153,7 +2153,7 @@ export function MaxillaryPanel({
                                         }}
                                       />
                                     )}
-                                    <div className="grid grid-cols-2 gap-3">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                       {hasAdvanceField("teeth_shade", advFields) && (
                                       <fieldset
                                         className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${isFComplete("teeth_shade") && !caseSubmitted ? "border-[#34a853]" : isFComplete("teeth_shade") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
