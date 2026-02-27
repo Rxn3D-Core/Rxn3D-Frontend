@@ -524,7 +524,7 @@ function StepPatientInfo({
         <div className="flex flex-row items-start gap-5">
           {doctor && (
             <div className="flex flex-col items-center gap-1">
-              <div className="w-[80px] h-[80px] rounded-full overflow-hidden border-2 border-[#d9d9d9] bg-[#eef1f4]">
+              <div className="w-[70px] h-[70px] sm:w-[130px] sm:h-[130px] rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
                 <img
                   src={doctor.img}
                   alt={doctor.name}
@@ -536,7 +536,7 @@ function StepPatientInfo({
                   }}
                 />
               </div>
-              <span className="text-[11px] font-semibold text-[#1d1d1b]">{doctor.name}</span>
+              <p className="text-[18px] font-medium text-[#1d1d1b] whitespace-nowrap">{doctor.name}</p>
             </div>
           )}
 
@@ -594,7 +594,7 @@ function StepPatientInfo({
                     onFocus={() => setIsGenderFocused(true)}
                     onClick={() => { if (!isGenderFocused) { setIsGenderFocused(true); setTimeout(() => focusPatientInput(), 50); } }}
                   >
-                    <span>{getGenderDisplay(gender)}</span>
+                    {isGenderValid && <span style={{ fontFamily: "Arial", fontSize: "17px", lineHeight: "18px" }}>{getGenderDisplay(gender)}</span>}
                     <ChevronDown className={cn("h-4 w-4 text-[#7F7F7F] transition-transform", isGenderFocused && "rotate-180")} />
                   </div>
                   {isGenderFocused && (
@@ -603,7 +603,7 @@ function StepPatientInfo({
                       <div className="px-2.5 py-1.5 hover:bg-[#DFEEFB] cursor-pointer text-[#1F2937]" style={{ fontFamily: "Arial", fontSize: "14px", lineHeight: "16px" }} onClick={() => handleGenderSelect("Female")}>Female</div>
                     </div>
                   )}
-                  <label className={cn("absolute bg-white pointer-events-none z-10 transition-all text-[#7F7F7F]", getGenderLabelColor())} style={{ left: "9.23px", top: "-6.15px", fontFamily: "Arial", fontWeight: 400, fontSize: "14px", lineHeight: "14px" }}>Gender</label>
+                  <label className={cn("absolute bg-white pointer-events-none z-10 transition-all text-[#7F7F7F]", getGenderLabelColor())} style={{ left: "9.23px", top: "-6.15px", fontFamily: "Arial", fontWeight: 400, fontSize: "14px", lineHeight: "14px" }}>{isGenderValid ? "Gender" : "Select Gender"}</label>
                   {isGenderValid && (
                     <div className="absolute right-[12.32px] top-1/2 -translate-y-1/2 z-20 pointer-events-none"><Check className="h-5 w-5 text-[#119933]" aria-label="Valid" /></div>
                   )}
@@ -613,17 +613,17 @@ function StepPatientInfo({
           </div>
         </div>
 
-        <div className="flex flex-col items-center gap-1 flex-shrink-0">
-          <div className="w-[60px] h-[60px] rounded-full overflow-hidden border-2 border-[#d9d9d9] bg-gray-200 flex items-center justify-center">
+        <div className="flex flex-col justify-center items-center gap-2 sm:gap-[15px] w-auto sm:w-[170px] flex-shrink-0">
+          <div className="w-[50px] h-[50px] sm:w-[72.74px] sm:h-[72.74px] rounded-full overflow-hidden flex-shrink-0 bg-gray-200 flex items-center justify-center">
             {createdByImage ? (
               <img src={createdByImage} onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = "/images/created-by.png"; }} alt="Creator" className="w-full h-full object-cover" />
             ) : (
-              <span className="text-lg font-bold text-gray-500">{createdByName.split(" ").map(n => n[0]).join("").toUpperCase()}</span>
+              <span className="text-base sm:text-xl font-bold text-gray-500">{createdByName.split(" ").map(n => n[0]).join("").toUpperCase()}</span>
             )}
           </div>
-          <fieldset className="border border-[#b4b0b0] rounded px-3 pb-1 pt-0 relative mt-1">
-            <legend className="text-[10px] text-[#7f7f7f] px-1 leading-none">Created By</legend>
-            <span className="text-[12px] text-[#1d1d1b] whitespace-nowrap">{createdByName || "—"}</span>
+          <fieldset className="w-auto sm:w-[170px] h-[34px] sm:h-[38px] border border-[#7f7f7f] rounded-[7px] bg-white px-2 sm:px-[11.2px] py-0 flex items-center">
+            <legend className="text-[12px] sm:text-[14px] text-[#7f7f7f] px-1 leading-none">Created By</legend>
+            <span className="text-[14px] sm:text-[18px] leading-[20px] text-[#000000] whitespace-nowrap">{createdByName || "—"}</span>
           </fieldset>
         </div>
       </div>
@@ -703,7 +703,7 @@ function StepPatientInfo({
                   onFocus={() => setIsGenderFocused(true)}
                   onClick={() => { if (!isGenderFocused) { setIsGenderFocused(true); setTimeout(() => focusPatientInput(), 50); } }}
                 >
-                  <span>{getGenderDisplay(gender)}</span>
+                  {isGenderValid && <span style={{ fontFamily: "Arial", fontSize: "15px", lineHeight: "18px" }}>{getGenderDisplay(gender)}</span>}
                   <ChevronDown className={cn("h-4 w-4 text-[#7F7F7F] transition-transform", isGenderFocused && "rotate-180")} />
                 </div>
                 {isGenderFocused && (
@@ -712,7 +712,7 @@ function StepPatientInfo({
                     <div className="px-2.5 py-1.5 hover:bg-[#DFEEFB] cursor-pointer text-[#1F2937]" style={{ fontFamily: "Arial", fontSize: "14px", lineHeight: "16px" }} onClick={() => handleGenderSelect("Female")}>Female</div>
                   </div>
                 )}
-                <label className={cn("absolute bg-white pointer-events-none z-10 transition-all text-[#7F7F7F]", getGenderLabelColor())} style={{ left: "9.23px", top: "-6.15px", fontFamily: "Arial", fontWeight: 400, fontSize: "13px", lineHeight: "14px" }}>Gender</label>
+                <label className={cn("absolute bg-white pointer-events-none z-10 transition-all text-[#7F7F7F]", getGenderLabelColor())} style={{ left: "9.23px", top: "-6.15px", fontFamily: "Arial", fontWeight: 400, fontSize: "13px", lineHeight: "14px" }}>{isGenderValid ? "Gender" : "Select Gender"}</label>
                 {isGenderValid && (
                   <div className="absolute right-[12.32px] top-1/2 -translate-y-1/2 z-20 pointer-events-none"><Check className="h-5 w-5 text-[#119933]" aria-label="Valid" /></div>
                 )}
@@ -1128,7 +1128,7 @@ function PatientMiniHeader({
         {/* Doctor photo + name */}
         {doctor && (
           <div className="flex flex-col items-center gap-1 flex-shrink-0">
-            <div className="w-[70px] h-[70px] sm:w-[90px] sm:h-[90px] rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
+            <div className="w-[70px] h-[70px] sm:w-[130px] sm:h-[130px] rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
               <img
                 src={doctor.img}
                 alt={doctor.name}

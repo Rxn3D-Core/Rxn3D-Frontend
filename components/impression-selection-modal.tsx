@@ -52,6 +52,7 @@ export function ImpressionSelectionModal({
 }: ImpressionSelectionModalProps) {
   const [showSTLModal, setShowSTLModal] = useState(false)
   const [selectedSTLImpression, setSelectedSTLImpression] = useState<ImpressionOption | null>(null)
+  const [lastTouchedKey, setLastTouchedKey] = useState<string | null>(null)
 
   const getImpressionKey = (impression: ImpressionOption) => {
     const identifier = impression.value || impression.name
@@ -67,19 +68,26 @@ export function ImpressionSelectionModal({
     const key = getImpressionKey(impression)
     const currentQty = getQuantity(impression)
     onUpdateQuantity(key, currentQty + 1)
+    setLastTouchedKey(key)
   }
 
   const handleDecrement = (impression: ImpressionOption) => {
     const key = getImpressionKey(impression)
     const currentQty = getQuantity(impression)
-    if (currentQty > 0) {
+    if (currentQty > 1) {
       onUpdateQuantity(key, currentQty - 1)
+      setLastTouchedKey(key)
+    } else if (currentQty === 1) {
+      // going to 0 — remove and clear last touched if it was this card
+      onUpdateQuantity(key, 0)
+      setLastTouchedKey((prev) => (prev === key ? null : prev))
     }
   }
 
   const handleDelete = (impression: ImpressionOption) => {
     const key = getImpressionKey(impression)
     onRemoveImpression(key)
+    setLastTouchedKey((prev) => (prev === key ? null : prev))
   }
 
   const isSTLImpression = (impression: ImpressionOption): boolean => {
@@ -89,6 +97,8 @@ export function ImpressionSelectionModal({
   }
 
   const handleImpressionClick = (impression: ImpressionOption) => {
+    const key = getImpressionKey(impression)
+    setLastTouchedKey(key)
     if (isSTLImpression(impression)) {
       setSelectedSTLImpression(impression)
       setShowSTLModal(true)
@@ -103,6 +113,7 @@ export function ImpressionSelectionModal({
     const fileCount = files.length
     onUpdateQuantity(key, fileCount)
     onSTLFilesAttached(files, key)
+    setLastTouchedKey(key)
     setShowSTLModal(false)
     setSelectedSTLImpression(null)
   }
@@ -119,6 +130,11 @@ export function ImpressionSelectionModal({
     return null
   }
 
+  // The "last touched" card key — valid only if it still has quantity > 0
+  const activeDoneKey = lastTouchedKey && (selectedImpressions[lastTouchedKey] ?? 0) > 0
+    ? lastTouchedKey
+    : null
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="w-screen max-w-[100vw] max-h-[100vh] sm:max-w-[100vw] overflow-hidden flex flex-col p-0 border-0 rounded-none">
@@ -134,58 +150,68 @@ export function ImpressionSelectionModal({
             {impressions.map((impression) => {
               const qty = getQuantity(impression)
               const isSelected = qty > 0
+              const isLastSelected = getImpressionKey(impression) === activeDoneKey
 
               return (
-                <div
-                  key={impression.id}
-                  onClick={() => !isSelected && handleImpressionClick(impression)}
-                  className={cn(
-                    "flex flex-col justify-center items-center px-2 py-[8px] gap-[8px] bg-white rounded-[11px] cursor-pointer transition-all duration-200 snap-center flex-shrink-0 w-[150px]",
-                    isSelected
-                      ? "border-[4px] border-[#1162A8]"
-                      : "border-2 border-[#B4B0B0] hover:border-[#1162A8]"
-                  )}
-                >
-                  {/* Image */}
-                  <div className="w-full aspect-square rounded-[8px] overflow-hidden flex items-center justify-center bg-gray-50 flex-shrink-0">
-                    {getImpressionImage(impression) ? (
-                      <img
-                        width={201}
-                        height={201}
-                        src={getImpressionImage(impression)!}
-                        alt={impression.name}
-                        className="w-full h-full object-contain"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement
-                          target.style.display = "none"
-                          const parent = target.parentElement
-                          if (parent && !parent.querySelector('.fallback-letter')) {
-                            const fallbackDiv = document.createElement('div')
-                            fallbackDiv.className = 'fallback-letter text-[#B4B0B0] text-2xl font-bold flex items-center justify-center w-full h-full'
-                            fallbackDiv.textContent = impression.name.charAt(0).toUpperCase()
-                            parent.appendChild(fallbackDiv)
-                          }
-                        }}
-                      />
-                    ) : (
-                      <div className="text-[#B4B0B0] text-2xl font-bold flex items-center justify-center w-full h-full">
-                        {impression.name.charAt(0).toUpperCase()}
-                      </div>
+                <div key={impression.id} className="flex flex-col items-center snap-center flex-shrink-0 w-[150px]">
+                  {/* Card */}
+                  <div
+                    onClick={() => !isSelected && handleImpressionClick(impression)}
+                    className={cn(
+                      "flex flex-col justify-center items-center px-2 py-[8px] gap-[8px] bg-white rounded-[11px] cursor-pointer transition-all duration-200 w-full",
+                      isSelected
+                        ? "border-[4px] border-[#1162A8]"
+                        : "border-2 border-[#B4B0B0] hover:border-[#1162A8]"
+                    )}
+                  >
+                    {/* Image */}
+                    <div className="w-full aspect-square rounded-[8px] overflow-hidden flex items-center justify-center bg-gray-50 flex-shrink-0">
+                      {getImpressionImage(impression) ? (
+                        <img
+                          width={201}
+                          height={201}
+                          src={getImpressionImage(impression)!}
+                          alt={impression.name}
+                          className="w-full h-full object-contain"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement
+                            target.style.display = "none"
+                            const parent = target.parentElement
+                            if (parent && !parent.querySelector('.fallback-letter')) {
+                              const fallbackDiv = document.createElement('div')
+                              fallbackDiv.className = 'fallback-letter text-[#B4B0B0] text-2xl font-bold flex items-center justify-center w-full h-full'
+                              fallbackDiv.textContent = impression.name.charAt(0).toUpperCase()
+                              parent.appendChild(fallbackDiv)
+                            }
+                          }}
+                        />
+                      ) : (
+                        <div className="text-[#B4B0B0] text-2xl font-bold flex items-center justify-center w-full h-full">
+                          {impression.name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Name */}
+                    <span className="font-['Verdana'] font-normal text-xs tracking-[-0.02em] text-black text-center w-full flex-shrink-0">
+                      {impression.name}
+                    </span>
+
+                    {!isSelected && impression.description && (
+                      <span className="font-['Verdana'] font-normal text-[10px] leading-[14px] tracking-[-0.02em] text-[#7F7F7F] text-center flex-shrink-0">
+                        {impression.description}
+                      </span>
                     )}
                   </div>
 
-                  {/* Name */}
-                  <span className="font-['Verdana'] font-normal text-xs tracking-[-0.02em] text-black text-center w-full flex-shrink-0">
-                    {impression.name}
-                  </span>
-
-                  {/* Selected: QTY controls row */}
-                  {isSelected ? (
-                    <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                  {/* Controls outside the card */}
+                  {isSelected && (
+                    <div className="flex flex-col items-center gap-1 mt-2">
+                      {/* + qty - */}
                       <div className="flex flex-row items-center gap-[5px]">
                         <button
-                          className="w-[22px] h-[22px] flex items-center justify-center hover:opacity-70 transition-opacity flex-shrink-0"
-                          onClick={(e) => { e.stopPropagation(); handleIncrement(impression) }}
+                          className="w-[22px] h-[22px] flex items-center justify-center hover:opacity-70 transition-opacity"
+                          onClick={() => handleIncrement(impression)}
                         >
                           <Plus className="w-[13px] h-[13px] text-[#1D1B20]" strokeWidth={1.83} />
                         </button>
@@ -193,18 +219,26 @@ export function ImpressionSelectionModal({
                           {qty}
                         </span>
                         <button
-                          className="w-[22px] h-[22px] flex items-center justify-center hover:opacity-70 transition-opacity flex-shrink-0"
-                          onClick={(e) => { e.stopPropagation(); handleDecrement(impression) }}
+                          className="w-[22px] h-[22px] flex items-center justify-center hover:opacity-70 transition-opacity"
+                          onClick={() => handleDecrement(impression)}
                         >
                           <Minus className="w-[13px] h-[13px] text-[#1E1E1E]" strokeWidth={1.83} />
                         </button>
+                        {/* Trash */}
+                        <button
+                          className="w-[22px] h-[22px] flex items-center justify-center hover:opacity-70 transition-opacity"
+                          onClick={() => handleDelete(impression)}
+                        >
+                          <Trash2 className="w-[14px] h-[16px] text-[#CF0202]" />
+                        </button>
                       </div>
-                      <div className="flex flex-row items-center gap-[6px]">
-                        {isSTLImpression(impression) ? (
+
+                      {/* Done/Files button — only on last selected card */}
+                      {isLastSelected && (
+                        isSTLImpression(impression) ? (
                           <button
                             className="flex items-center justify-center px-[8px] py-[6px] bg-[#1162A8] rounded-[4px] hover:bg-[#0e5290] transition-colors h-[26px]"
-                            onClick={(e) => {
-                              e.stopPropagation()
+                            onClick={() => {
                               setSelectedSTLImpression(impression)
                               setShowSTLModal(true)
                             }}
@@ -216,26 +250,16 @@ export function ImpressionSelectionModal({
                         ) : (
                           <button
                             className="flex items-center justify-center px-[8px] py-[6px] bg-[#1162A8] rounded-[4px] hover:bg-[#0e5290] transition-colors h-[26px]"
-                            onClick={(e) => { e.stopPropagation(); onClose() }}
+                            onClick={onClose}
                           >
                             <span className="font-['Verdana'] font-normal text-[11px] leading-[14px] tracking-[-0.02em] text-white">
                               Done
                             </span>
                           </button>
-                        )}
-                        <button
-                          className="w-[22px] h-[22px] flex items-center justify-center hover:opacity-70 transition-opacity flex-shrink-0"
-                          onClick={(e) => { e.stopPropagation(); handleDelete(impression) }}
-                        >
-                          <Trash2 className="w-[14px] h-[16px] text-[#CF0202]" />
-                        </button>
-                      </div>
+                        )
+                      )}
                     </div>
-                  ) : impression.description ? (
-                    <span className="font-['Verdana'] font-normal text-[10px] leading-[14px] tracking-[-0.02em] text-[#7F7F7F] text-center flex-shrink-0">
-                      {impression.description}
-                    </span>
-                  ) : null}
+                  )}
                 </div>
               )
             })}
@@ -246,59 +270,68 @@ export function ImpressionSelectionModal({
             {impressions.map((impression) => {
               const qty = getQuantity(impression)
               const isSelected = qty > 0
+              const isLastSelected = getImpressionKey(impression) === activeDoneKey
 
               return (
-                <div
-                  key={impression.id}
-                  onClick={() => !isSelected && handleImpressionClick(impression)}
-                  className={cn(
-                    "flex flex-col justify-center items-center px-3 lg:px-[26px] py-[8px] gap-[10px] bg-white rounded-[11px] cursor-pointer transition-all duration-200 aspect-[254/303]",
-                    isSelected
-                      ? "border-[5px] border-[#1162A8]"
-                      : "border-2 border-[#B4B0B0] hover:border-[#1162A8]"
-                  )}
-                >
-                  {/* Image */}
-                  <div className="w-full aspect-square rounded-[8px] overflow-hidden flex items-center justify-center bg-gray-50 flex-shrink-0">
-                    {getImpressionImage(impression) ? (
-                      <img
-                        width={201}
-                        height={201}
-                        src={getImpressionImage(impression)!}
-                        alt={impression.name}
-                        className="w-full h-full object-contain"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement
-                          target.style.display = "none"
-                          const parent = target.parentElement
-                          if (parent && !parent.querySelector('.fallback-letter')) {
-                            const fallbackDiv = document.createElement('div')
-                            fallbackDiv.className = 'fallback-letter text-[#B4B0B0] text-3xl lg:text-4xl font-bold flex items-center justify-center w-full h-full'
-                            fallbackDiv.textContent = impression.name.charAt(0).toUpperCase()
-                            parent.appendChild(fallbackDiv)
-                          }
-                        }}
-                      />
-                    ) : (
-                      <div className="text-[#B4B0B0] text-3xl lg:text-4xl font-bold flex items-center justify-center w-full h-full">
-                        {impression.name.charAt(0).toUpperCase()}
-                      </div>
+                <div key={impression.id} className="flex flex-col items-center">
+                  {/* Card */}
+                  <div
+                    onClick={() => !isSelected && handleImpressionClick(impression)}
+                    className={cn(
+                      "flex flex-col justify-center items-center px-3 lg:px-[26px] py-[8px] gap-[10px] bg-white rounded-[11px] cursor-pointer transition-all duration-200 w-full aspect-[254/303]",
+                      isSelected
+                        ? "border-[5px] border-[#1162A8]"
+                        : "border-2 border-[#B4B0B0] hover:border-[#1162A8]"
+                    )}
+                  >
+                    {/* Image */}
+                    <div className="w-full aspect-square rounded-[8px] overflow-hidden flex items-center justify-center bg-gray-50 flex-shrink-0">
+                      {getImpressionImage(impression) ? (
+                        <img
+                          width={201}
+                          height={201}
+                          src={getImpressionImage(impression)!}
+                          alt={impression.name}
+                          className="w-full h-full object-contain"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement
+                            target.style.display = "none"
+                            const parent = target.parentElement
+                            if (parent && !parent.querySelector('.fallback-letter')) {
+                              const fallbackDiv = document.createElement('div')
+                              fallbackDiv.className = 'fallback-letter text-[#B4B0B0] text-3xl lg:text-4xl font-bold flex items-center justify-center w-full h-full'
+                              fallbackDiv.textContent = impression.name.charAt(0).toUpperCase()
+                              parent.appendChild(fallbackDiv)
+                            }
+                          }}
+                        />
+                      ) : (
+                        <div className="text-[#B4B0B0] text-3xl lg:text-4xl font-bold flex items-center justify-center w-full h-full">
+                          {impression.name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Name */}
+                    <span className="font-['Verdana'] font-normal text-base lg:text-[23px] lg:leading-[25px] tracking-[-0.02em] text-black text-center w-full flex-shrink-0">
+                      {impression.name}
+                    </span>
+
+                    {!isSelected && impression.description && (
+                      <span className="font-['Verdana'] font-normal text-xs lg:text-[14px] leading-[22px] tracking-[-0.02em] text-[#7F7F7F] text-center flex-shrink-0">
+                        {impression.description}
+                      </span>
                     )}
                   </div>
 
-                  {/* Name */}
-                  <span className="font-['Verdana'] font-normal text-base lg:text-[23px] lg:leading-[25px] tracking-[-0.02em] text-black text-center w-full flex-shrink-0">
-                    {impression.name}
-                  </span>
-
-                  {/* Selected: QTY controls row */}
-                  {isSelected ? (
-                    <div className="flex flex-row items-center gap-2 lg:gap-[16px] flex-shrink-0">
-                      {/* Frame 2491: + qty - */}
+                  {/* Controls outside the card */}
+                  {isSelected && (
+                    <div className="flex flex-col items-center gap-2 mt-2">
+                      {/* + qty - trash */}
                       <div className="flex flex-row items-center gap-[5px]">
                         <button
-                          className="w-[22px] h-[22px] flex items-center justify-center hover:opacity-70 transition-opacity flex-shrink-0"
-                          onClick={(e) => { e.stopPropagation(); handleIncrement(impression) }}
+                          className="w-[22px] h-[22px] flex items-center justify-center hover:opacity-70 transition-opacity"
+                          onClick={() => handleIncrement(impression)}
                         >
                           <Plus className="w-[13px] h-[13px] text-[#1D1B20]" strokeWidth={1.83} />
                         </button>
@@ -306,20 +339,26 @@ export function ImpressionSelectionModal({
                           {qty}
                         </span>
                         <button
-                          className="w-[22px] h-[22px] flex items-center justify-center hover:opacity-70 transition-opacity flex-shrink-0"
-                          onClick={(e) => { e.stopPropagation(); handleDecrement(impression) }}
+                          className="w-[22px] h-[22px] flex items-center justify-center hover:opacity-70 transition-opacity"
+                          onClick={() => handleDecrement(impression)}
                         >
                           <Minus className="w-[13px] h-[13px] text-[#1E1E1E]" strokeWidth={1.83} />
                         </button>
+                        {/* Trash */}
+                        <button
+                          className="w-[22px] h-[22px] flex items-center justify-center hover:opacity-70 transition-opacity"
+                          onClick={() => handleDelete(impression)}
+                        >
+                          <Trash2 className="w-[15px] h-[17px] text-[#CF0202]" />
+                        </button>
                       </div>
 
-                      {/* Frame 2490: Done/Files + delete */}
-                      <div className="flex flex-row items-center gap-[9px]">
-                        {isSTLImpression(impression) ? (
+                      {/* Done/Files button — only on last selected card */}
+                      {isLastSelected && (
+                        isSTLImpression(impression) ? (
                           <button
                             className="flex items-center justify-center px-[10px] py-[8px] bg-[#1162A8] rounded-[4px] hover:bg-[#0e5290] transition-colors h-[31px]"
-                            onClick={(e) => {
-                              e.stopPropagation()
+                            onClick={() => {
                               setSelectedSTLImpression(impression)
                               setShowSTLModal(true)
                             }}
@@ -331,26 +370,16 @@ export function ImpressionSelectionModal({
                         ) : (
                           <button
                             className="flex items-center justify-center px-[10px] py-[8px] bg-[#1162A8] rounded-[4px] hover:bg-[#0e5290] transition-colors h-[31px]"
-                            onClick={(e) => { e.stopPropagation(); onClose() }}
+                            onClick={onClose}
                           >
                             <span className="font-['Verdana'] font-normal text-xs lg:text-[14px] leading-[14px] tracking-[-0.02em] text-white">
                               Done
                             </span>
                           </button>
-                        )}
-                        <button
-                          className="w-[22px] h-[22px] flex items-center justify-center hover:opacity-70 transition-opacity flex-shrink-0"
-                          onClick={(e) => { e.stopPropagation(); handleDelete(impression) }}
-                        >
-                          <Trash2 className="w-[15px] h-[17px] text-[#CF0202]" />
-                        </button>
-                      </div>
+                        )
+                      )}
                     </div>
-                  ) : impression.description ? (
-                    <span className="font-['Verdana'] font-normal text-xs lg:text-[14px] leading-[22px] tracking-[-0.02em] text-[#7F7F7F] text-center flex-shrink-0">
-                      {impression.description}
-                    </span>
-                  ) : null}
+                  )}
                 </div>
               )
             })}

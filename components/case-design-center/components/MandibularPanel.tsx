@@ -226,13 +226,14 @@ function AutoOpenImpressionIfEmpty({
 }) {
   const hasAutoOpenedRef = useRef(false);
   useEffect(() => {
-    if (!isExpanded) {
+    if (!isExpanded || !isImpressionVisible) {
       hasAutoOpenedRef.current = false;
       return;
     }
-    if (!isImpressionVisible || !isImpressionEmpty || hasAutoOpenedRef.current) return;
+    if (!isImpressionEmpty || hasAutoOpenedRef.current) return;
     hasAutoOpenedRef.current = true;
-    onOpenImpressionModal(arch, productId, toothNumber);
+    const timer = setTimeout(() => onOpenImpressionModal(arch, productId, toothNumber), 150);
+    return () => clearTimeout(timer);
   }, [isExpanded, isImpressionVisible, isImpressionEmpty, onOpenImpressionModal, arch, productId, toothNumber]);
   return null;
 }
@@ -317,9 +318,6 @@ interface MandibularPanelProps {
   caseSubmitted?: boolean;
   /** When true, overlays the panel to prevent interaction until maxillary is complete */
   disabled?: boolean;
-  onAddProduct?: (arch: "maxillary" | "mandibular") => void;
-  disableAddProduct?: boolean;
-
   // Teeth
   mandibularTeeth: number[];
   handleMandibularToothClick: (tooth: number) => void;
@@ -413,8 +411,6 @@ export function MandibularPanel({
   showDetails,
   caseSubmitted = false,
   disabled = false,
-  onAddProduct,
-  disableAddProduct = false,
   mandibularTeeth,
   handleMandibularToothClick,
   handleMandibularToothDeselect,
@@ -517,41 +513,12 @@ export function MandibularPanel({
           </span>
         </div>
       )}
-      {/* Mandibular header - centered */}
-      <div className="flex flex-col md:flex-row items-center justify-center gap-2 md:gap-3 mb-3">
-        {showDetails && !caseSubmitted && !disableAddProduct && (
-          <button
-            onClick={() => onAddProduct?.('mandibular')}
-            className="flex items-center gap-1.5 shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] text-white font-[Verdana] text-base font-semibold leading-[22px] tracking-[-0.02em] text-center px-2.5 py-1 rounded-md bg-[#1162A8] hover:bg-[#0d4a85] cursor-pointer">
-            <Plus size={13} strokeWidth={1.5} />
-            Add Product
-          </button>
-        )}
-        <h3 className="text-[16px] sm:text-xl font-bold text-[#1d1d1b] tracking-wide">
-          MANDIBULAR
-        </h3>
-      </div>
 
-      {/* Eye toggle - always visible */}
-      <div className="flex justify-end mb-1">
-        <button
-          onClick={() => setShowMandibular(!showMandibular)}
-          className="flex-shrink-0 w-[28.5px] h-[28.5px] flex items-center justify-center bg-white rounded-full shadow-[0.75px_0.75px_3px_rgba(0,0,0,0.25)] hover:shadow-[0.75px_0.75px_5px_rgba(0,0,0,0.35)] transition-shadow"
-          title={showMandibular ? "Hide Mandibular" : "Show Mandibular"}
-        >
-          {showMandibular
-            ? <Eye size={13.5} className="text-[#b4b0b0]" />
-            : <EyeOff size={13.5} className="text-[#b4b0b0]" />
-          }
-        </button>
-      </div>
-
-      {/* Mandibular section - conditionally shown */}
-      {showMandibular && (
-        <>
-          <div className="flex items-start gap-2">
-            <div className="flex-1">
-              <MandibularTeethSVG
+      {/* Eye toggle + Teeth row */}
+      <div className="flex items-start gap-2">
+        {showMandibular && (
+          <div className="flex-1">
+            <MandibularTeethSVG
                 selectedTeeth={mandibularTeeth}
                 willExtractTeeth={(() => {
                   const wedCodes = new Set<string>();
@@ -591,10 +558,25 @@ export function MandibularPanel({
                 onDeselectTooth={handleMandibularToothDeselect}
                 toothExtractionMap={mandibularToothExtractionMap}
                 hideSelectionIndicators={isRemovablesCategory || activeProductIsRemovables}
+                claspTeeth={mandibularClaspTeeth}
+                getAddonValue={(toothNumber) => getFieldValue("mandibular", toothNumber, "addons")}
               />
             </div>
-          </div>
+        )}
+        <button
+          onClick={() => setShowMandibular(!showMandibular)}
+          className="flex-shrink-0 w-[28.5px] h-[28.5px] flex items-center justify-center bg-white rounded-full shadow-[0.75px_0.75px_3px_rgba(0,0,0,0.25)] hover:shadow-[0.75px_0.75px_5px_rgba(0,0,0,0.35)] transition-shadow"
+          title={showMandibular ? "Hide Mandibular" : "Show Mandibular"}
+        >
+          {showMandibular
+            ? <Eye size={13.5} className="text-[#b4b0b0]" />
+            : <EyeOff size={13.5} className="text-[#b4b0b0]" />
+          }
+        </button>
+      </div>
 
+      {showMandibular && (
+        <>
           {/* Shade Selection Guide - Mandibular */}
           {shadeSelectionState.arch === 'mandibular' && (
             <ShadeSelectionGuide
@@ -786,8 +768,6 @@ export function MandibularPanel({
                                   {selectedStages[`mandibular_prep_${firstToothNumber}`] || selectedStages[groupStageProductIdFixed]}
                                 </span>
                             )}
-                          </div>
-                          <div className="flex items-center gap-1">
                             <span
                               className={`font-[Verdana] text-[11px] sm:text-[13px] leading-tight tracking-[-0.02em] whitespace-nowrap ${
                                 hasRushed
@@ -836,13 +816,9 @@ export function MandibularPanel({
                             />
                             <AutoOpenImpressionIfEmpty
                               isExpanded={isPrepPonticExpanded(firstToothNumber)}
-                              isImpressionVisible={!fixedShadeIncomplete && isFixed("fixed_impression")}
+                              isImpressionVisible={!fixedShadeIncomplete && isFixed("fixed_impression") && !(toothNumbers.some((n) => (mandibularRetentionTypes[n] || []).includes("Implant")) && implantDetailCompleteByTooth[firstToothNumber] !== true)}
                               isImpressionEmpty={!isFieldCompleted("mandibular", firstToothNumber, "fixed_impression")}
-                              onOpenImpressionModal={(arch, productId, toothNum) => {
-                                const hasImplantForm = toothNumbers.some((n) => (mandibularRetentionTypes[n] || []).includes("Implant"));
-                                if (hasImplantForm && implantDetailCompleteByTooth[firstToothNumber] !== true) return;
-                                handleOpenImpressionModal(arch, productId, toothNum);
-                              }}
+                              onOpenImpressionModal={handleOpenImpressionModal}
                               arch="mandibular"
                               productId={selectedProduct?.id?.toString() || `fixed_${firstToothNumber}`}
                               toothNumber={firstToothNumber}
@@ -953,6 +929,7 @@ export function MandibularPanel({
                               <ImplantDetailSection
                                 toothNumber={firstToothNumber}
                                 onCompleteChange={(complete) => setImplantDetailCompleteByTooth((prev) => ({ ...prev, [firstToothNumber]: complete }))}
+                                caseSubmitted={caseSubmitted}
                               />
                             )}
 
@@ -1093,7 +1070,7 @@ export function MandibularPanel({
                             )}
 
                             {/* Step 9: Impression / Add ons */}
-                            {isFixed("fixed_impression") && (
+                            {isFixed("fixed_impression") && !(toothNumbers.some((n) => (mandibularRetentionTypes[n] || []).includes("Implant")) && implantDetailCompleteByTooth[firstToothNumber] !== true) && (
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <fieldset
                                   className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
@@ -1169,7 +1146,7 @@ export function MandibularPanel({
                             )}
 
                             {/* Bottom action buttons — shown after Impression is completed */}
-                            {isFieldCompleted("mandibular", firstToothNumber, "fixed_impression") && (
+                            {isFieldCompleted("mandibular", firstToothNumber, "fixed_impression") && !caseSubmitted && (
                               <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 pt-3 border-t border-[#d9d9d9] mt-3">
                                 <button
                                   onClick={() => {
@@ -1241,6 +1218,7 @@ export function MandibularPanel({
                               <ImplantDetailSection
                                 toothNumber={firstToothNumber}
                                 onCompleteChange={(complete) => setImplantDetailCompleteByTooth((prev) => ({ ...prev, [firstToothNumber]: complete }))}
+                                caseSubmitted={caseSubmitted}
                               />
                             )}
 
@@ -1516,7 +1494,7 @@ export function MandibularPanel({
                             )}
 
                             {/* Bottom action buttons */}
-                            {isFieldCompleted("mandibular", firstToothNumber, "addons") && (
+                            {isFieldCompleted("mandibular", firstToothNumber, "addons") && !caseSubmitted && (
                               <div className="flex items-center justify-center gap-4 pt-3 border-t border-[#d9d9d9] mt-3">
                                 <button
                                   onClick={() => {
@@ -1830,7 +1808,7 @@ export function MandibularPanel({
                         </div>
 
                         {/* Bottom action buttons — only show when impression has value */}
-                        {isFComplete("impression") && (
+                        {isFComplete("impression") && !caseSubmitted && (
                         <div className="flex items-center justify-center gap-4 pt-3 border-t border-[#d9d9d9] mt-3">
                           <button
                             onClick={() => handleOpenAddOnsModal("mandibular", toothProduct?.id?.toString() || productKey, repTn)}

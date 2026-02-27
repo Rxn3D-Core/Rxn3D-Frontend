@@ -1535,9 +1535,9 @@ function CaseDesignCenter({
 
         {/* ====== RIGHT PANEL - MANDIBULAR + CASE DETAIL ====== */}
         <div className="flex-1 min-w-0 px-0 md:px-3 order-3 lg:order-none">
-          {/* Mandibular header - centered */}
-          <div className="flex flex-col md:flex-row items-center justify-center gap-2 md:gap-3 mb-3">
-            <button 
+          {/* Mandibular header - with eye toggle in same row */}
+          <div className="flex flex-row items-center justify-center gap-2 md:gap-3 mb-3 relative">
+            <button
               onClick={() => onAddProduct?.('mandibular')}
               className="flex items-center gap-1.5 bg-[#1162A8] hover:bg-[#0d4a85] shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] text-white font-[Verdana] text-[10px] leading-[22px] tracking-[-0.02em] text-center px-2.5 py-0 rounded-md">
               <Plus size={13} strokeWidth={1.5} />
@@ -1546,13 +1546,9 @@ function CaseDesignCenter({
             <h3 className="text-xs md:text-sm font-bold text-[#1d1d1b] tracking-wide">
               MANDIBULAR
             </h3>
-          </div>
-
-          {/* Eye toggle - always visible */}
-          <div className="flex justify-end mb-1">
             <button
               onClick={() => setShowMandibular(!showMandibular)}
-              className="flex-shrink-0 w-[28.5px] h-[28.5px] flex items-center justify-center bg-white rounded-full shadow-[0.75px_0.75px_3px_rgba(0,0,0,0.25)] hover:shadow-[0.75px_0.75px_5px_rgba(0,0,0,0.35)] transition-shadow"
+              className="absolute right-0 flex-shrink-0 w-[28.5px] h-[28.5px] flex items-center justify-center bg-white rounded-full shadow-[0.75px_0.75px_3px_rgba(0,0,0,0.25)] hover:shadow-[0.75px_0.75px_5px_rgba(0,0,0,0.35)] transition-shadow"
               title={showMandibular ? "Hide Mandibular" : "Show Mandibular"}
             >
               {showMandibular

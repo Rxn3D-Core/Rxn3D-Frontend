@@ -6407,21 +6407,6 @@ export default function CaseDesignCenterPage() {
                       </>
                     )}
 
-                    <div className="relative" style={{ zIndex: 20, position: 'relative' }}>
-                      <CaseSummaryNotesSection
-                        showCaseSummaryNotes={showCaseSummaryNotes}
-                        isCaseSummaryExpanded={isCaseSummaryExpanded}
-                        setIsCaseSummaryExpanded={setIsCaseSummaryExpanded}
-                        getCaseSummaryMaxillaryContent={getCaseSummaryMaxillaryContent}
-                        getCaseSummaryMandibularContent={getCaseSummaryMandibularContent}
-                        setCaseSummaryFromParts={setCaseSummaryFromParts}
-                        maxillaryImplantDetails={maxillaryImplantDetails}
-                        previousNotesRef={previousNotesRef}
-                        parseCaseNotes={parseCaseNotes}
-                        savedProducts={savedProducts}
-                        generateCaseNotes={generateCaseNotes}
-                      />
-                    </div>
                   </div>
 
                   {/* Summary Accordion - Show in categories, subcategories and products steps, hide when product details are shown */}
@@ -6717,6 +6702,23 @@ export default function CaseDesignCenterPage() {
               )}
 
             </div>
+          </div>
+
+          {/* Case Summary Notes - sits just above footer, sticky */}
+          <div style={{ position: 'sticky', bottom: '50px', zIndex: 9998, width: '100%' }}>
+            <CaseSummaryNotesSection
+              showCaseSummaryNotes={showCaseSummaryNotes}
+              isCaseSummaryExpanded={isCaseSummaryExpanded}
+              setIsCaseSummaryExpanded={setIsCaseSummaryExpanded}
+              getCaseSummaryMaxillaryContent={getCaseSummaryMaxillaryContent}
+              getCaseSummaryMandibularContent={getCaseSummaryMandibularContent}
+              setCaseSummaryFromParts={setCaseSummaryFromParts}
+              maxillaryImplantDetails={maxillaryImplantDetails}
+              previousNotesRef={previousNotesRef}
+              parseCaseNotes={parseCaseNotes}
+              savedProducts={savedProducts}
+              generateCaseNotes={generateCaseNotes}
+            />
           </div>
 
           {/* Footer - Outside scrollable container, always visible */}

@@ -47,7 +47,7 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
       <div className="flex flex-col lg:flex-row items-center lg:items-start gap-4 lg:gap-8">
         {/* Doctor photo + name (selected doctor from wizard) */}
         <div className="flex flex-col items-center gap-1 flex-shrink-0">
-          <div className="w-[70px] h-[70px] sm:w-[90px] sm:h-[90px] rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
+          <div className="w-[90px] h-[90px] sm:w-[130px] sm:h-[130px] rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
             <img
               src={imgSrc}
               onError={(e) => {
@@ -58,8 +58,11 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
               className="w-full h-full object-cover"
             />
           </div>
-          {!caseSubmitted && (
-            <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1">
+            <p className="text-lg font-medium text-[#1d1d1b] whitespace-nowrap">
+              {displayName}
+            </p>
+            {!caseSubmitted && (
               <button
                 type="button"
                 onClick={onEditDoctorClick}
@@ -68,11 +71,8 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
               >
                 <Pencil size={12} />
               </button>
-            </div>
-          )}
-          <p className="text-lg font-medium text-[#1d1d1b] whitespace-nowrap">
-            {displayName}
-          </p>
+            )}
+          </div>
         </div>
 
         {/* Form fields - Two-row layout */}

@@ -28,7 +28,7 @@ export function ShadeField({
       <legend className={`text-sm px-1 leading-none ${showGreen ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>
         {label}
       </legend>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 w-full">
         <span className="text-lg text-[#000000]">{value}{displayShade ? ` - ${displayShade}` : ''}</span>
         <svg width="38" height="37" viewBox="0 5 38 37" fill="none" xmlns="http://www.w3.org/2000/svg">
           <g clipPath={`url(#clip_${id})`}>
@@ -104,7 +104,7 @@ export function ShadeField({
           </defs>
         </svg>
 
-        {showGreen && <Check size={16} className="text-[#34a853] flex-shrink-0" />}
+        {showGreen && <Check size={16} className="text-[#34a853] flex-shrink-0 ml-auto" />}
       </div>
     </fieldset>
   );

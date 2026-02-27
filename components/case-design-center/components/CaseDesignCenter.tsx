@@ -82,14 +82,30 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     !mandibularHasRemovablesTeeth ||
     mandibularRemovablesRepTeeth.every((tn) => state.isFieldCompleted("mandibular", tn, "impression"));
 
+  // For Fixed Restoration, impression is stored under the first tooth of the product group.
+  // This helper resolves the effective tooth number to check for impression completion.
+  const getImpressionOwnerTooth = (arch: "maxillary" | "mandibular", toothNum: number): number => {
+    const product = state.getToothProduct(arch, toothNum);
+    const isFixed = product?.subcategory?.category?.name === "Fixed Restoration";
+    if (!isFixed) return toothNum;
+    const allTeeth = arch === "maxillary"
+      ? Object.keys(state.maxillaryRetentionTypes).map(Number)
+      : Object.keys(state.mandibularRetentionTypes || {}).map(Number);
+    const productKey = product?.id ?? toothNum;
+    const groupTeeth = allTeeth.filter(
+      (t) => (state.getToothProduct(arch, t)?.id ?? t) === productKey
+    );
+    return groupTeeth.length > 0 ? Math.min(...groupTeeth) : toothNum;
+  };
+
   const allTeethImpressionComplete =
     hasAnyTooth &&
     Object.keys(state.maxillaryRetentionTypes).every((toothNum) => {
-      const n = Number(toothNum);
+      const n = getImpressionOwnerTooth("maxillary", Number(toothNum));
       return IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("maxillary", n, step));
     }) &&
     Object.keys(state.mandibularRetentionTypes || {}).every((toothNum) => {
-      const n = Number(toothNum);
+      const n = getImpressionOwnerTooth("mandibular", Number(toothNum));
       return IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("mandibular", n, step));
     }) &&
     allMaxillaryRemovablesComplete &&
@@ -98,11 +114,11 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   // True if ANY tooth has a retention type but hasn't completed impression yet
   const hasIncompleteAccordion =
     Object.keys(state.maxillaryRetentionTypes).some((toothNum) => {
-      const n = Number(toothNum);
+      const n = getImpressionOwnerTooth("maxillary", Number(toothNum));
       return !IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("maxillary", n, step));
     }) ||
     Object.keys(state.mandibularRetentionTypes || {}).some((toothNum) => {
-      const n = Number(toothNum);
+      const n = getImpressionOwnerTooth("mandibular", Number(toothNum));
       return !IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("mandibular", n, step));
     }) ||
     (maxillaryHasRemovablesTeeth && !allMaxillaryRemovablesComplete) ||
@@ -135,7 +151,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         if (!state.getSelectedShade(shadeProductId, arch, "tooth_shade")) return "Tooth Shade";
       }
 
-      const hasImpression = IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted(arch, toothNum, step));
+      const impressionOwner = getImpressionOwnerTooth(arch, toothNum);
+      const hasImpression = IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted(arch, impressionOwner, step));
       if (!hasImpression) return "Impression";
     }
     return null;
@@ -162,10 +179,31 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           if (!state.getSelectedShade(shadeId, "maxillary", "tooth_shade")) return true;
         }
       }
-      if (!IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("maxillary", n, step))) return true;
+      const impressionOwner = getImpressionOwnerTooth("maxillary", n);
+      if (!IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("maxillary", impressionOwner, step))) return true;
     }
     return false;
   })();
+
+  const hasMaxillaryProducts =
+    Object.keys(state.maxillaryRetentionTypes).length > 0 || maxillaryHasRemovablesTeeth;
+
+  const hasMandibularProducts =
+    Object.keys(state.mandibularRetentionTypes || {}).length > 0 || mandibularHasRemovablesTeeth;
+
+  const hasIncompleteMaxillary =
+    !hasMaxillaryProducts ||
+    Object.keys(state.maxillaryRetentionTypes).some((toothNum) => {
+      const n = getImpressionOwnerTooth("maxillary", Number(toothNum));
+      return !IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("maxillary", n, step));
+    }) || (maxillaryHasRemovablesTeeth && !allMaxillaryRemovablesComplete);
+
+  const hasIncompleteMandibular =
+    !hasMandibularProducts ||
+    Object.keys(state.mandibularRetentionTypes || {}).some((toothNum) => {
+      const n = getImpressionOwnerTooth("mandibular", Number(toothNum));
+      return !IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("mandibular", n, step));
+    }) || (mandibularHasRemovablesTeeth && !allMandibularRemovablesComplete);
 
   // Notify parent whenever readiness changes
   useEffect(() => {
@@ -177,23 +215,47 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   }, [incompleteFieldLabel]);
 
   return (
-    <div className="px-2 md:px-4 py-2 pb-20">
-      {props.onBackToProducts && !props.caseSubmitted && (
-        <button
-          onClick={!hasIncompleteAccordion ? props.onBackToProducts : undefined}
-          title={hasIncompleteAccordion ? "Complete all required fields before going back" : undefined}
-          className={`text-sm font-semibold mb-2 ${hasIncompleteAccordion ? "text-[#b4b0b0] cursor-not-allowed" : "text-[#1162A8] hover:underline cursor-pointer"}`}
-        >
-          ← Back to Products
-        </button>
-      )}
-
-      {/* Title */}
-      <h2 className="text-center text-xl font-bold text-[#1d1d1b] tracking-wide mb-1 md:mb-2">
-        CASE DESIGN CENTER
-      </h2>
+    <div className="px-2 md:px-4 py-2">
+      {/* Title row - Back to Products | MAXILLARY | CASE DESIGN CENTER | MANDIBULAR */}
+      <div className="relative flex items-center mb-1 md:mb-2 px-4 sm:px-16 md:px-32 lg:px-64">
+        {props.onBackToProducts && !props.caseSubmitted && (
+          <button
+            onClick={!hasIncompleteAccordion ? props.onBackToProducts : undefined}
+            title={hasIncompleteAccordion ? "Complete all required fields before going back" : undefined}
+            className={`absolute left-3 text-sm font-semibold ${hasIncompleteAccordion ? "text-[#b4b0b0] cursor-not-allowed" : "text-[#1162A8] hover:underline cursor-pointer"}`}
+          >
+            ← Back to Products
+          </button>
+        )}
+        <div className="flex-1 flex items-center justify-center gap-2">
+          <span className="text-[16px] sm:text-xl text-[#1d1d1b] tracking-wide">MAXILLARY</span>
+          {!props.caseSubmitted && !hasIncompleteMaxillary && (
+            <button
+              onClick={() => state.onAddProduct?.("maxillary")}
+              className="flex items-center gap-1 shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] text-white font-[Verdana] text-xs font-semibold px-2 py-0.5 rounded-md bg-[#1162A8] hover:bg-[#0d4a85] cursor-pointer"
+            >
+              + Add Product
+            </button>
+          )}
+        </div>
+        <h2 className="flex-1 text-center text-xl font-bold text-[#1d1d1b] tracking-wide">
+          CASE DESIGN CENTER
+        </h2>
+        <div className="flex-1 flex items-center justify-center gap-2">
+          <span className="text-[16px] sm:text-xl text-[#1d1d1b] tracking-wide">MANDIBULAR</span>
+          {!props.caseSubmitted && !maxillaryIncomplete && !hasIncompleteMandibular && (
+            <button
+              onClick={() => state.onAddProduct?.("mandibular")}
+              className="flex items-center gap-1 shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] text-white font-[Verdana] text-xs font-semibold px-2 py-0.5 rounded-md bg-[#1162A8] hover:bg-[#0d4a85] cursor-pointer"
+            >
+              + Add Product
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* Main two-panel layout - responsive */}
+      <div className="relative">
       <div className="flex flex-col lg:flex-row lg:gap-0 gap-4">
         {/* LEFT PANEL - MAXILLARY */}
         <MaxillaryPanel
@@ -201,8 +263,6 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           setShowMaxillary={state.setShowMaxillary}
           showDetails={maxillaryHasImpression || mandibularHasImpression || maxillaryHasRemovables || mandibularHasRemovables}
           caseSubmitted={props.caseSubmitted}
-          onAddProduct={state.onAddProduct}
-          disableAddProduct={hasIncompleteAccordion}
           // Tooth selection
           maxillaryTeeth={state.maxillaryTeeth}
           handleMaxillaryToothClick={state.handleMaxillaryToothClick}
@@ -277,8 +337,6 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           showDetails={maxillaryHasImpression || mandibularHasImpression || maxillaryHasRemovables || mandibularHasRemovables}
           caseSubmitted={props.caseSubmitted}
           disabled={maxillaryIncomplete}
-          onAddProduct={state.onAddProduct}
-          disableAddProduct={hasIncompleteAccordion}
           // Tooth selection
           mandibularTeeth={state.mandibularTeeth}
           handleMandibularToothClick={state.handleMandibularToothClick}
@@ -337,7 +395,9 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         />
       </div>
 
-      {/* Case Summary Notes - shown when any tooth has any impression-type advance field completed (dynamic list) */}
+      </div>
+
+      {/* Case Summary Notes - below product accordion */}
       {(() => {
         const hasImpressionCompleted =
           Object.entries(state.maxillaryRetentionTypes).some(([toothNum]) => {
@@ -348,7 +408,6 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             const n = Number(toothNum);
             return IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("mandibular", n, step));
           }) ||
-          // Removable products: check teeth in maxillaryTeeth/mandibularTeeth sets
           (maxillaryHasRemovables && state.maxillaryTeeth.some((tn) =>
             state.isFieldCompleted("maxillary", tn, "impression")
           )) ||
@@ -362,6 +421,19 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             right1Platform={state.right1Platform}
             right2Brand={state.right2Brand}
             right2Platform={state.right2Platform}
+            maxillaryRetentionTypes={state.maxillaryRetentionTypes}
+            mandibularRetentionTypes={state.mandibularRetentionTypes}
+            maxillaryTeeth={state.maxillaryTeeth}
+            mandibularTeeth={state.mandibularTeeth}
+            getToothProduct={state.getToothProduct}
+            getFieldValue={state.getFieldValue}
+            getSelectedShade={state.getSelectedShade}
+            selectedStages={state.selectedStages}
+            getImpressionDisplayText={state.getImpressionDisplayText}
+            right1Inclusion={state.right1Inclusion}
+            right2Inclusion={state.right2Inclusion}
+            addedProducts={state.addedProducts}
+            getToothProductCard={state.getToothProductCard}
           />
         );
       })()}

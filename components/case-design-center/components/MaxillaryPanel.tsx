@@ -242,13 +242,14 @@ function AutoOpenImpressionIfEmpty({
 }) {
   const hasAutoOpenedRef = useRef(false);
   useEffect(() => {
-    if (!isExpanded) {
+    if (!isExpanded || !isImpressionVisible) {
       hasAutoOpenedRef.current = false;
       return;
     }
-    if (!isImpressionVisible || !isImpressionEmpty || hasAutoOpenedRef.current) return;
+    if (!isImpressionEmpty || hasAutoOpenedRef.current) return;
     hasAutoOpenedRef.current = true;
-    onOpenImpressionModal(arch, productId, toothNumber);
+    const timer = setTimeout(() => onOpenImpressionModal(arch, productId, toothNumber), 150);
+    return () => clearTimeout(timer);
   }, [isExpanded, isImpressionVisible, isImpressionEmpty, onOpenImpressionModal, arch, productId, toothNumber]);
   return null;
 }
@@ -272,9 +273,6 @@ interface MaxillaryPanelProps {
   showDetails: boolean;
   caseSubmitted?: boolean;
 
-  // Add product callback
-  onAddProduct?: (arch: Arch) => void;
-  disableAddProduct?: boolean;
 
   // Tooth selection
   maxillaryTeeth: number[];
@@ -434,8 +432,6 @@ export function MaxillaryPanel({
   setShowMaxillary,
   showDetails,
   caseSubmitted = false,
-  onAddProduct,
-  disableAddProduct = false,
   maxillaryTeeth,
   handleMaxillaryToothClick,
   maxillaryRetentionTypes,
@@ -528,24 +524,9 @@ export function MaxillaryPanel({
 
   return (
     <div className={`flex-1 min-w-0 px-0 md:px-3 order-1 lg:order-none${caseSubmitted ? " pointer-events-none select-none" : ""}`}>
-      {/* Maxillary header - centered */}
-      <div className="flex flex-col md:flex-row items-center justify-center gap-2 md:gap-3 mb-3">
-        <h3 className="text-[16px] sm:text-xl font-bold text-[#1d1d1b] tracking-wide">
-          MAXILLARY
-        </h3>
-        {showDetails && !caseSubmitted && !disableAddProduct && (
-          <button
-            onClick={() => onAddProduct?.("maxillary")}
-            className="flex items-center gap-1.5 shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] text-white font-[Verdana] text-base font-semibold leading-[22px] tracking-[-0.02em] text-center px-2.5 py-1 rounded-md bg-[#1162A8] hover:bg-[#0d4a85] cursor-pointer"
-          >
-            <Plus size={13} strokeWidth={1.5} />
-            Add Product
-          </button>
-        )}
-      </div>
 
-      {/* Eye toggle - always visible */}
-      <div className="flex justify-start mb-1">
+      {/* Eye toggle + Teeth row */}
+      <div className="flex items-start gap-2">
         <button
           onClick={() => setShowMaxillary(!showMaxillary)}
           className="flex-shrink-0 w-[28.5px] h-[28.5px] flex items-center justify-center bg-white rounded-full shadow-[0.75px_0.75px_3px_rgba(0,0,0,0.25)] hover:shadow-[0.75px_0.75px_5px_rgba(0,0,0,0.35)] transition-shadow"
@@ -557,66 +538,65 @@ export function MaxillaryPanel({
             <EyeOff size={13.5} className="text-[#b4b0b0]" />
           )}
         </button>
-      </div>
-
-      {/* Maxillary section - conditionally shown */}
-      {showMaxillary && (
-        <>
-          {/* Teeth row */}
-          <div className="flex items-start gap-2">
-            <div className="flex-1">
-              <MaxillaryTeethSVG
-                selectedTeeth={maxillaryTeeth}
-                willExtractTeeth={(() => {
-                  // Find WED extraction codes from product extractions
-                  const wedCodes = new Set<string>();
-                  for (const tn of MAXILLARY_ALL_TEETH) {
-                    const product = getToothProduct("maxillary", tn);
-                    for (const e of product?.extractions ?? []) {
-                      const n = (e.name ?? "").toLowerCase().trim();
-                      if (e.code === "WED" || n === "will extract on delivery") {
-                        wedCodes.add(e.code);
-                      }
+        {showMaxillary && (
+          <div className="flex-1">
+            <MaxillaryTeethSVG
+              selectedTeeth={maxillaryTeeth}
+              willExtractTeeth={(() => {
+                // Find WED extraction codes from product extractions
+                const wedCodes = new Set<string>();
+                for (const tn of MAXILLARY_ALL_TEETH) {
+                  const product = getToothProduct("maxillary", tn);
+                  for (const e of product?.extractions ?? []) {
+                    const n = (e.name ?? "").toLowerCase().trim();
+                    if (e.code === "WED" || n === "will extract on delivery") {
+                      wedCodes.add(e.code);
                     }
                   }
-                  return Object.entries(maxillaryToothExtractionMap)
-                    .filter(([, code]) => wedCodes.has(code))
-                    .map(([tn]) => Number(tn));
-                })()}
-                onToothClick={(toothNumber: number) => {
-                  if (activeExtractionCode) {
-                    // When an extraction box is active, only toggle the extraction mapping.
-                    // Ensure tooth stays selected so it appears in the extraction box.
-                    if (!maxillaryTeeth.includes(toothNumber)) {
-                      handleMaxillaryToothClick(toothNumber);
-                    }
-                    handleToothExtractionToggle("maxillary", toothNumber, activeExtractionCode);
-                  } else {
+                }
+                return Object.entries(maxillaryToothExtractionMap)
+                  .filter(([, code]) => wedCodes.has(code))
+                  .map(([tn]) => Number(tn));
+              })()}
+              onToothClick={(toothNumber: number) => {
+                if (activeExtractionCode) {
+                  // When an extraction box is active, only toggle the extraction mapping.
+                  // Ensure tooth stays selected so it appears in the extraction box.
+                  if (!maxillaryTeeth.includes(toothNumber)) {
                     handleMaxillaryToothClick(toothNumber);
                   }
-                }}
-                className="w-full"
-                retentionTypesByTooth={maxillaryRetentionTypes}
-                showRetentionPopover={
-                  retentionPopoverState.arch === "maxillary" && !isRemovablesCategory && !activeProductIsRemovables
+                  handleToothExtractionToggle("maxillary", toothNumber, activeExtractionCode);
+                } else {
+                  handleMaxillaryToothClick(toothNumber);
                 }
-                retentionPopoverTooth={retentionPopoverState.toothNumber}
-                onSelectRetentionType={(tooth, type) =>
-                  handleSelectRetentionType("maxillary", tooth, type)
-                }
-                onClosePopover={() =>
-                  setRetentionPopoverState({
-                    arch: null,
-                    toothNumber: null,
-                  })
-                }
-                onDeselectTooth={handleMaxillaryToothDeselect}
-                toothExtractionMap={maxillaryToothExtractionMap}
-                hideSelectionIndicators={isRemovablesCategory || activeProductIsRemovables}
-              />
-            </div>
+              }}
+              className="w-full"
+              retentionTypesByTooth={maxillaryRetentionTypes}
+              showRetentionPopover={
+                retentionPopoverState.arch === "maxillary" && !isRemovablesCategory && !activeProductIsRemovables
+              }
+              retentionPopoverTooth={retentionPopoverState.toothNumber}
+              onSelectRetentionType={(tooth, type) =>
+                handleSelectRetentionType("maxillary", tooth, type)
+              }
+              onClosePopover={() =>
+                setRetentionPopoverState({
+                  arch: null,
+                  toothNumber: null,
+                })
+              }
+              onDeselectTooth={handleMaxillaryToothDeselect}
+              toothExtractionMap={maxillaryToothExtractionMap}
+              hideSelectionIndicators={isRemovablesCategory || activeProductIsRemovables}
+              claspTeeth={maxillaryClaspTeeth}
+              getAddonValue={(toothNumber) => getFieldValue("maxillary", toothNumber, "addons")}
+            />
           </div>
+        )}
+      </div>
 
+      {showMaxillary && (
+        <>
           {/* Shade Selection Guide - Maxillary */}
           {shadeSelectionState.arch === "maxillary" && (
             <ShadeSelectionGuide
@@ -807,8 +787,6 @@ export function MaxillaryPanel({
                           {selectedStages[`maxillary_prep_${firstToothNumber}`] || selectedStages[groupStageProductIdFixed]}
                         </span>
                       )}
-                    </div>
-                    <div className="flex items-center gap-[5px]">
                       <span
                         className={`font-[Verdana] text-[11px] sm:text-[13px] leading-tight tracking-[-0.02em] whitespace-nowrap ${
                           hasRushed
@@ -857,13 +835,9 @@ export function MaxillaryPanel({
                       />
                       <AutoOpenImpressionIfEmpty
                         isExpanded={isPrepPonticExpanded(firstToothNumber)}
-                        isImpressionVisible={!fixedShadeIncomplete && isFixed("fixed_impression")}
+                        isImpressionVisible={!fixedShadeIncomplete && isFixed("fixed_impression") && !(toothNumbers.some((n) => (maxillaryRetentionTypes[n] || []).includes("Implant")) && implantDetailCompleteByTooth[firstToothNumber] !== true)}
                         isImpressionEmpty={!isFieldCompleted("maxillary", firstToothNumber, "fixed_impression")}
-                        onOpenImpressionModal={(arch, productId, toothNum) => {
-                          const hasImplantForm = toothNumbers.some((n) => (maxillaryRetentionTypes[n] || []).includes("Implant"));
-                          if (hasImplantForm && implantDetailCompleteByTooth[firstToothNumber] !== true) return;
-                          handleOpenImpressionModal(arch, productId, toothNum);
-                        }}
+                        onOpenImpressionModal={handleOpenImpressionModal}
                         arch="maxillary"
                         productId={selectedProduct?.id?.toString() || `fixed_${firstToothNumber}`}
                         toothNumber={firstToothNumber}
@@ -977,6 +951,7 @@ export function MaxillaryPanel({
                         <ImplantDetailSection
                           toothNumber={firstToothNumber}
                           onCompleteChange={(complete) => setImplantDetailCompleteByTooth((prev) => ({ ...prev, [firstToothNumber]: complete }))}
+                          caseSubmitted={caseSubmitted}
                         />
                       )}
 
@@ -1155,7 +1130,7 @@ export function MaxillaryPanel({
                       )}
 
                       {/* Step 9: Impression / Add ons */}
-                      {isFixed("fixed_impression") && (
+                      {isFixed("fixed_impression") && !(toothNumbers.some((n) => (maxillaryRetentionTypes[n] || []).includes("Implant")) && implantDetailCompleteByTooth[firstToothNumber] !== true) && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <fieldset
                             className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
@@ -1240,7 +1215,7 @@ export function MaxillaryPanel({
                       )}
 
                       {/* Bottom action buttons — shown after Impression is completed */}
-                      {isFieldCompleted("maxillary", firstToothNumber, "fixed_impression") && (
+                      {isFieldCompleted("maxillary", firstToothNumber, "fixed_impression") && !caseSubmitted && (
                         <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 pt-3 border-t border-[#d9d9d9] mt-3">
                           <button
                             onClick={() => {
@@ -1312,6 +1287,7 @@ export function MaxillaryPanel({
                         <ImplantDetailSection
                           toothNumber={firstToothNumber}
                           onCompleteChange={(complete) => setImplantDetailCompleteByTooth((prev) => ({ ...prev, [firstToothNumber]: complete }))}
+                          caseSubmitted={caseSubmitted}
                         />
                       )}
 
@@ -1587,7 +1563,7 @@ export function MaxillaryPanel({
                       )}
 
                       {/* Bottom action buttons */}
-                      {isFieldCompleted("maxillary", firstToothNumber, "addons") && (
+                      {isFieldCompleted("maxillary", firstToothNumber, "addons") && !caseSubmitted && (
                         <div className="flex items-center justify-center gap-4 pt-3 border-t border-[#d9d9d9] mt-3">
                           <button
                             onClick={() => {
@@ -1901,7 +1877,7 @@ export function MaxillaryPanel({
                         </div>
 
                         {/* Bottom action buttons — only show when impression has value */}
-                        {isFComplete("impression") && (
+                        {isFComplete("impression") && !caseSubmitted && (
                         <div className="flex items-center justify-center gap-4 pt-3 border-t border-[#d9d9d9] mt-3">
                           <button
                             onClick={() => handleOpenAddOnsModal("maxillary", toothProduct?.id?.toString() || productKey, repTn)}

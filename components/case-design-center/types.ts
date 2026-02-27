@@ -40,6 +40,29 @@ export interface NotesProps {
   right1Platform: string;
   right2Brand: string;
   right2Platform: string;
+  /** All tooth retention types per arch */
+  maxillaryRetentionTypes: Record<number, Array<RetentionType>>;
+  mandibularRetentionTypes: Record<number, Array<RetentionType>>;
+  /** Selected teeth arrays (for removables) */
+  maxillaryTeeth: number[];
+  mandibularTeeth: number[];
+  /** Get the API product assigned to a tooth */
+  getToothProduct: (arch: Arch, toothNumber: number) => ProductApiData | null;
+  /** Get the value for a field step on a tooth */
+  getFieldValue: (arch: Arch, toothNumber: number, step: any) => string;
+  /** Get the selected shade for a product/arch/fieldType */
+  getSelectedShade: (productId: string, arch: Arch, fieldType: "tooth_shade" | "stump_shade") => string;
+  /** Selected stages keyed by product key (e.g. "fixed_4") */
+  selectedStages: Record<string, string>;
+  /** Get display text for impression */
+  getImpressionDisplayText: (productId: string, arch: Arch, toothNumber?: number) => string;
+  /** Implant inclusions for right1 and right2 */
+  right1Inclusion: string;
+  right2Inclusion: string;
+  /** Added products list */
+  addedProducts: AddedProduct[];
+  /** Product card ID that "owns" a tooth */
+  getToothProductCard: (arch: Arch, toothNumber: number) => number;
 }
 
 export type Arch = "maxillary" | "mandibular";

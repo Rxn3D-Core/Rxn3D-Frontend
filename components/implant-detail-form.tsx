@@ -537,7 +537,7 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
           {showAbutmentRow && hasValue(inclusions) && (
             <div className="relative" style={{ minHeight: '50px', paddingTop: '8px', width: '100%' }}>
               <Select
-                value={abutmentDetail}
+                value={abutmentDetail || undefined}
                 open={abutmentDetailOpen}
                 onOpenChange={setAbutmentDetailOpen}
                 onValueChange={(value) => {
@@ -585,7 +585,7 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
           {showAbutmentType && hasValue(abutmentDetail) && (
             <div className="relative" style={{ minHeight: '50px', paddingTop: '8px', width: '100%' }}>
               <Select
-                value={abutmentType}
+                value={abutmentType || undefined}
                 open={abutmentTypeOpen}
                 onOpenChange={setAbutmentTypeOpen}
                 onValueChange={(value) => {

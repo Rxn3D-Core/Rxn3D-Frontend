@@ -11,6 +11,7 @@ export function ImplantInclusionsField({
   onChange,
   onQuantityChange,
   autoOpenWhenVisible = false,
+  caseSubmitted = false,
 }: {
   label: string;
   value: string;
@@ -19,14 +20,15 @@ export function ImplantInclusionsField({
   onQuantityChange: (qty: number) => void;
   /** When true, open the dropdown automatically when the field is shown (e.g. when no value yet). */
   autoOpenWhenVisible?: boolean;
+  caseSubmitted?: boolean;
 }) {
   const [showDropdown, setShowDropdown] = useState(false);
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const triggerRef = useRef<HTMLFieldSetElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const hasValue = value.trim().length > 0;
-  const borderColor = hasValue ? "border-[#34a853]" : "border-[#cf0202]";
-  const legendColor = hasValue ? "text-[#34a853]" : "text-[#cf0202]";
+  const borderColor = hasValue && !caseSubmitted ? "border-[#34a853]" : hasValue ? "border-[#b4b0b0]" : "border-[#cf0202]";
+  const legendColor = hasValue && !caseSubmitted ? "text-[#34a853]" : hasValue ? "text-[#7f7f7f]" : "text-[#cf0202]";
 
   // Auto-open dropdown when field is shown and has no value yet
   useEffect(() => {
@@ -149,7 +151,7 @@ export function ImplantInclusionsField({
           <span className="text-[14px] sm:text-lg leading-tight text-[#000000] flex-1 min-w-0 truncate">
             {value || "Select..."}
           </span>
-          {hasValue && <Check size={16} className="text-[#34a853] flex-shrink-0" />}
+          {hasValue && !caseSubmitted && <Check size={16} className="text-[#34a853] flex-shrink-0" />}
         </div>
       </fieldset>
       {createPortal(dropdown, document.body)}

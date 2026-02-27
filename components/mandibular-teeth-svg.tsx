@@ -18,6 +18,10 @@ interface MandibularTeethSVGProps {
   willExtractTeeth?: number[]
   /** When true, hide orange circle and gear icon indicators (used when tooth status boxes are active). */
   hideSelectionIndicators?: boolean
+  /** Tooth numbers that have clasp status (overlay). */
+  claspTeeth?: number[]
+  /** Returns the addon field value string for a tooth (e.g. "1x Acrylic Clasp"). */
+  getAddonValue?: (toothNumber: number) => string
 }
 
 export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
@@ -33,10 +37,70 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
   toothExtractionMap = {},
   willExtractTeeth = [],
   hideSelectionIndicators = false,
+  claspTeeth = [],
+  getAddonValue,
 }) => {
   const svgRef = React.useRef<SVGSVGElement>(null)
   const [hoveredTooth, setHoveredTooth] = React.useState<number | null>(null)
   const isToothSelected = (toothNumber: number) => selectedTeeth.includes(toothNumber)
+  const isToothMissing = (toothNumber: number) => toothExtractionMap[toothNumber] === 'MT'
+
+  const getToothOpacity = (toothNumber: number) => {
+    if (isToothMissing(toothNumber)) return 0.2
+    if (isToothSelected(toothNumber)) return 0.7
+    return 1
+  }
+
+  const isToothClasp = (toothNumber: number) => claspTeeth.includes(toothNumber)
+
+  const isAcrylicClasp = (toothNumber: number) => {
+    if (!getAddonValue) return false
+    const val = getAddonValue(toothNumber)
+    return val.toLowerCase().includes('acrylic')
+  }
+
+  // Wire/Acrylic clasp image (same base SVG, tinted for acrylic)
+  const CLASP_IMAGE_B64 = "iVBORw0KGgoAAAANSUhEUgAAACwAAAASCAYAAAAg9DzcAAAACXBIWXMAAAsSAAALEgHS3X78AAAFQUlEQVRIic3WTWycRxnA8f+8876z77vetXfXa7trO3aStrJEUZQzohLljEoBVTlyzKEOStMvJ/FH1rHzQQikKUE99MwJERAcuKEiEOIAVZsYJVZInJRskyZre73efT9nhkNICLSBpgTakeY0o2d+ejTzPCOstXxex+zh+eeF4BBaj4H9o7E8Jz6v4LmF+Z8K4XxDpCEYQ2wF0vW+404fmi07jmw4rquMMW9jzLfnZ+fe/6ygM4fnx4UQv895Xi0vDNZaVtsRG1FKX6nytGOMKWda+9pYR0j5jHXkxen6oec/C+x0vf6W68or5UJPbWLLMDu+MEGpr4/1dpfWZhdruSystUxNz6y7ntsnpMRxHLDWpkmy90i9fvr/AT0wN7dLuu6bSnmlal+Rx7cMU+4tcO3SMu+c/zN/udXCkR5bx8a2C2stL+/f/4vAD76mjUF67h00kMTx2aP1+jf/V9DXZmbGpZQ/85TamfNcRgarPDE2Ss6TXLt0gaWlJS592KKTWQb7q7d+dPr04L1H99LUVJrzA9cag5dTCCEAyNJ0PUmSnScWF68+SuzU7OxZlct93RFCBDmP7SPDbBsbxbGaKxeXuLB0jpXbbVYTi/QU27aMTRxfXFh27gYwxh5L4hghBGmSYIwGwPW8kp8Prrw2PXP2UUBfOTh9dPrw4TTn+8+50hGlQsBT28d5ctsYNotYPvcnLpx/j+vNNq3EYIVgeHDwx8cXF5YB/qmsTe598Td+4D/teYpMa5RSSFfey7bWOgvD6Hsnjyzuf1joywcOvqWU9y1PqZIQ4DmCgVKRJ8bH6O/vp9NqcvG9d7i2ssKHGyHN2BALyfDA0K/PvH7qq3fjfKQO757cc6NYLAx5niJNM6Tn4nouUkrE3/dorbMoin9pMn3y+8eP/vZByH1TB3a5rpxSOfVFKaUrBEgBeddh9LEBto6N4+cUzZsNls+/S+N6g2Y3phlbEhxqA0Nvn3n91Ffuj/mxjWP35J4b+VwwFAR50iTFWIOnFFJKXFeCEAjAAlmWhVrrhjX2r/eCSmfClbJ6F+kIAdagHEupx2fr6CiDg0PEYYf3Ly/TuHaV26trrHZT1hJLJiQjteEfnjpxYs+/2h7Y6XZPTt7M5fzBQrGI0ZokSVAqx8hjQzjSIdOGJE3IdIbWBmPuTGstVoBA4AhwHYuHJfAEld4itdoInudy++Z1bjYarK3eZmMzpNlNWY8NUuXMluHRXd89sviTj3P929Y8+eK+31lrvlQoFJHSIe8H7Nyxg75iEYslTVPSNCOOI6IoZjPs0ul0icIuVico15KTAk9YisUCPT0F4m6X1WaT9kaLjc0urU7EWpTRTQ39/dWVN994Y9sDQf8JDPDqwYMvrK2v/yDv+15PsUitWmWkVqM6MEBOKRzHQQiBtXeym6YpWZqw1rzBrRvXcdBkaYpAkKYJnW5MuxPS6oRshDFhkiFcz47Uhs+cPHbsI1fgocH3sr137/kwjp/K+z69xSLVSoWBapVKuUKQD1BKIQAhBEkS8UGjwdWrl9FZSpplRFFCGEV0o5huHBOnGoRDtVJZqZQrzy7WD537JI6H+q3N1OsTa+trP99otyc8zyPI+fTk8wSBj68UAoExhihJ2Nhs0w0jMp2SJilJlpFpjdEGIR2G+qsrlUrl2YW5uU8E/VTg+8e+V1/5Vau9+eXNzmaPRSDEP9asBWvve4T2TkUp9/ZG5b7ePxQKxRfmZ2eXPs25j+Q/vH9m+ngYhs9kWpe11j1JkpaCIPgALMrzriil3j22sPjSf30Q8DfYcYQVVJu/eAAAAABJRU5ErkJggg=="
+
+  const renderClaspOverlay = (toothNumber: number, x: number, width: number, yOffset: number = 0) => {
+    if (!isToothClasp(toothNumber)) return null
+    const acrylic = isAcrylicClasp(toothNumber)
+    const claspW = Math.max(width, 20)
+    const claspH = Math.round(claspW * (17 / 41))
+    return (
+      <svg
+        key={`clasp-${toothNumber}`}
+        x={x}
+        y={yOffset}
+        width={claspW}
+        height={claspH}
+        viewBox="0 0 41 17"
+        preserveAspectRatio="none"
+        style={{ pointerEvents: 'none' }}
+      >
+        <rect
+          x="0"
+          y="0"
+          width="40.8594"
+          height="16.7152"
+          fill={`url(#clasp-pattern-${toothNumber})`}
+          style={{ filter: acrylic ? 'sepia(1) saturate(3) hue-rotate(290deg) brightness(1.1)' : 'none' }}
+        />
+        <defs>
+          <pattern id={`clasp-pattern-${toothNumber}`} patternContentUnits="objectBoundingBox" width="1" height="1">
+            <use xlinkHref={`#clasp-image-${toothNumber}`} transform="scale(0.0227273 0.0555556)" />
+          </pattern>
+          <image id={`clasp-image-${toothNumber}`} width="44" height="18" preserveAspectRatio="none" xlinkHref={`data:image/png;base64,${CLASP_IMAGE_B64}`} />
+        </defs>
+      </svg>
+    )
+  }
+
+  const WIRE_CLASP_HREF = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACwAAAASCAYAAAAg9DzcAAAACXBIWXMAAAsSAAALEgHS3X78AAAFQUlEQVRIic3WTWycRxnA8f+8876z77vetXfXa7trO3aStrJEUZQzohLljEoBVTlyzKEOStMvJ/FH1rHzQQikKUE99MwJERAcuKEiEOIAVZsYJVZInJRskyZre73efT9nhkNICLSBpgTakeY0o2d+ejTzPCOstXxex+zh+eeF4BBaj4H9o7E8Jz6v4LmF+Z8K4XxDpCEYQ2wF0vW+404fmi07jmw4rquMMW9jzLfnZ+fe/6ygM4fnx4UQv895Xi0vDNZaVtsRG1FKX6nytGOMKWda+9pYR0j5jHXkxen6oec/C+x0vf6W68or5UJPbWLLMDu+MEGpr4/1dpfWZhdruSystUxNz6y7ntsnpMRxHLDWpkmy90i9fvr/AT0wN7dLuu6bSnmlal+Rx7cMU+4tcO3SMu+c/zN/udXCkR5bx8a2C2stL+/f/4vAD76mjUF67h00kMTx2aP1+jf/V9DXZmbGpZQ/85TamfNcRgarPDE2Ss6TXLt0gaWlJS592KKTWQb7q7d+dPr04L1H99LUVJrzA9cag5dTCCEAyNJ0PUmSnScWF68+SuzU7OxZlct93RFCBDmP7SPDbBsbxbGaKxeXuLB0jpXbbVYTi/QU27aMTRxfXFh27gYwxh5L4hghBGmSYIwGwPW8kp8Prrw2PXP2UUBfOTh9dPrw4TTn+8+50hGlQsBT28d5ctsYNotYPvcnLpx/j+vNNq3EYIVgeHDwx8cXF5YB/qmsTe958Td+4D/teYpMa5RSSFfey7bWOgvD6Hsnjyzuf1joywcOvqWU9y1PqZIQ4DmCgVKRJ8bH6O/vp9NqcvG9d7i2ssKHGyHN2BALyfDA0K/PvH7qq3fjfKQO757cc6NYLAx5niJNM6Tn4nouUkrE3/dorbMoin9pMn3y+8eP/vZByH1TB3a5rpxSOfVFKaUrBEgBeddh9LEBto6N4+cUzZsNls+/S+N6g2Y3phlbEhxqA0Nvn3n91Ffuj/mxjWP35J4b+XwwFAR50iTFWIOnFFJKXFeCEAjAAlmWhVrrhjX2r/eCSmfClbJ6F+kIAdagHEupx2fr6CiDg0PEYYf3Ly/TuHaV26trrHZT1hJLJiQjteEfnjpxYs+/2h7Y6XZPTt7M5fzBQrGI0ZokSVAqx8hjQzjSIdOGJE3IdIbWBmPuTGstVoBA4AhwHYuHJfAEld4itdoInudy++Z1bjYarK3eZmMzpNlNWY8NUuXMluHRXd89sviTj3P929Y8+eK+31lrvlQoFJHSIe8H7Nyxg75iEYslTVPSNCOOI6IoZjPs0ul0icIuVico15KTAk9YisUCPT0F4m6X1WaT9kaLjc0urU7EWpTRTQ39/dWVN994Y9sDQf8JDPDqwYMvrK2v/yDv+15PsUitWmWkVqM6MEBOKRzHQQiBNXeym6YpWZqw1rzBrRvXcdBkaYpAkKYJnW5MuxPS6oRshDFhkiFcz47Uhs+cPHbsI1fgocH3sr177/kwjp/K+z69xSLVSoWBapVKuUKQD1BKIQAhBEkS8UGjwdWrl9FZSpplRFFCGEV0o5huHBOnGoRDtVJZqZQrzy7WD537JI6H+q3N1OsTa+trP99otyc8zyPI+fTk8wSBj68UAoExhihJ2Nhs0w0jMp2SJilJlpFpjdEGIR2G+qsrlUrl2YW5uU8E/VTg+8e+V1/5Vau9+eXNzmaPRSDEP9asBWvve4T2TkUp9/ZG5b7ePxQKxRfmZ2eXPs25j+Q/vH9m+ngYhs9kWpe11j1JkpaCIPgALMrzriil3j22sPjSf30Q8DfYcYQVVJu/eAAAAABJRU5ErkJggg=="
+
+  const ACRYLIC_CLASP_HREF = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACwAAAASCAYAAAAg9DzcAAAACXBIWXMAAAsSAAALEgHS3X78AAAFQUlEQVRIic3WTWycRxnA8f+8876z77vetXfXa7trO3aStrJEUZQzohLljEoBVTlyzKEOStMvJ/FH1rHzQQikKUE99MwJERAcuKEiEOIAVZsYJVZInJRskyZre73efT9nhkNICLSBpgTakeY0o2d+ejTzPCOstXxex+zh+eeF4BBaj4H9o7E8Jz6v4LmF+Z8K4XxDpCEYQ2wF0vW+404fmi07jmw4rquMMW9jzLfnZ+fe/6ygM4fnx4UQv895Xi0vDNZaVtsRG1FKX6nytGOMKWda+9pYR0j5jHXkxen6oec/C+x0vf6W68or5UJPbWLLMDu+MEGpr4/1dpfWZhdruSystUxNz6y7ntsnpMRxHLDWpkmy90i9fvr/AT0wN7dLuu6bSnmlal+Rx7cMU+4tcO3SMu+c/zN/udXCkR5bx8a2C2stL+/f/4vAD76mjUF67h00kMTx2aP1+jf/V9DXZmbGpZQ/85TamfNcRgarPDE2Ss6TXLt0gaWlJS592KKTWQb7q7d+dPr04L1H99LUVJrzA9cag5dTCCEAyNJ0PUmSnScWF68+SuzU7OxZlct93RFCBDmP7SPDbBsbxbGaKxeXuLB0jpXbbVYTi/QU27aMTRxfXFh27gYwxh5L4hghBGmSYIwGwPW8kp8Prrw2PXP2UUBfOTh9dPrw4TTn+8+50hGlQsBT28d5ctsYNotYPvcnLpx/j+vNNq3EYIVgeHDwx8cXF5YB/qmsTe958Td+4D/teYpMa5RSSFfey7bWOgvD6Hsnjyzuf1joywcOvqWU9y1PqZIQ4DmCgVKRJ8bH6O/vp9NqcvG9d7i2ssKHGyHN2BALyfDA0K/PvH7qq3fjfKQO757cc6NYLAx5niJNM6Tn4nouUkrE3/dorbMoin9pMn3y+8eP/vZByH1TB3a5rpxSOfVFKaUrBEgBeddh9LEBto6N4+cUzZsNls+/S+N6g2Y3phlbEhxqA0Pvn3n91Ffuj/mxjWP35J4b+XwwFAR50iTFWIOnFFJKXFeCEAjAAlmWhVrrhjX2r/eCSmfClbJ6F+kIAdagHEupx2fr6CiDg0PEYYf3Ly/TuHaV26trrHZT1hJLJiQjteEfnjpxYs+/2h7Y6XZPTt7M5fzBQrGI0ZokSVAqx8hjQzjSIdOGJE3IdIbWBmPuTGstVoBA4AhwHYuHJfAEld4itdoInudy++Z1bjYarK3eZmMzpNlNWY8NUuXMluHRXd89sviTj3P929Y8+eK+31lrvlQoFJHSIe8H7Nyxg75iEYslTVPSNCOOI6IoZjPs0ul0icIuVico15KTAk9YisUCPT0F4m6X1WaT9kaLjc0urU7EWpTRTQ39/dWVN994Y9sDQf8JDPDqwYMvrK2v/yDv+15PsUitWmWkVqM6MEBOKRzHQQiBNXeym6YpWZqw1rzBrRvXcdBkaYpAkKYJnW5MuxPS6oRshDFhkiFcz47Uhs+cPHbsI1fgocH3sr177/kwjp/K+z69xSLVSoWBapVKuUKQD1BKIQAhBEkS8UGjwdWrl9FZSpplRFFCGEV0o5huHBOnGoRDtVJZqZQrzy7WD537JI6H+q3N1OsTa+trP99otyc8zyPI+fTk8wSBj68UAoExhihJ2Nhs0w0jMp2SJilJlpFpjdEGIR2G+qsrlUrl2YW5uU8E/VTg+8e+V1/5Vau9+eXNzmaPRSDEP9asBWvve4T2TkUp9/ZG5b7ePxQKxRfmZ2eXPs25j+Q/vH9m+ngYhs9kWpe11j1JkpaCIPgALMrzriil3j22sPjSf30Q8DfYcYQVVJu/eAAAAABJRU5ErkJggg=="
+
+  // Mandibular teeth are rendered bottom-up; clasp sits at the top (crown side, y near 0)
 
   // Helper to determine if a tooth should face left (25-32) or right (17-24)
   const shouldFaceLeft = (toothNumber: number) => toothNumber >= 25 && toothNumber <= 32
@@ -258,7 +322,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
         onMouseLeave={() => setHoveredTooth(null)}
         style={{
           cursor: 'pointer',
-          opacity: isToothSelected(toothNumber) ? 0.7 : 1,
+          opacity: getToothOpacity(toothNumber),
           transition: 'all 0.2s ease'
         }}
       >
@@ -351,7 +415,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
 
       <div className={`relative ${className}`}>
 
-        <svg ref={svgRef} width="100%" height="120" viewBox="0 0 700 150" fill="none" xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink">
+        <svg ref={svgRef} width="100%" height="99" viewBox="0 0 700 120" fill="none" xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink">
           {renderImplantOverlays()}
           {isImplantTooth(32) ? (
             <g transform={getToothTransform(32, 0, 43)}>
@@ -359,7 +423,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             </g>
           ) : (
             <g>
-              <rect width="43" height="135" fill="url(#pattern0_197_3840_flipped)" onClick={() => handleToothClick(32)} onMouseEnter={() => setHoveredTooth(32)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: isToothSelected(32) ? 0.7 : 1, transition: 'all 0.2s ease' }} />
+              <g>
+              <rect width="43" height="135" fill="url(#pattern0_197_3840_flipped)" onClick={() => handleToothClick(32)} onMouseEnter={() => setHoveredTooth(32)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(32), transition: 'all 0.2s ease' }} />
+              {renderClaspOverlay(32, 0, 43, 10)}
+            </g>
               {isToothSelected(32) && !hideSelectionIndicators && (
                 <>
                   {renderSelectionIndicator(32)}
@@ -377,7 +444,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             </g>
           ) : (
             <g>
-              <rect x="256" width="31" height="135" fill="url(#pattern1_197_3840_flipped)" onClick={() => handleToothClick(26)} onMouseEnter={() => setHoveredTooth(26)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: isToothSelected(26) ? 0.7 : 1, transition: 'all 0.2s ease' }} />
+              <g>
+              <rect x="256" width="31" height="135" fill="url(#pattern1_197_3840_flipped)" onClick={() => handleToothClick(26)} onMouseEnter={() => setHoveredTooth(26)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(26), transition: 'all 0.2s ease' }} />
+              {renderClaspOverlay(26, 256, 31, 10)}
+            </g>
               {isToothSelected(26) && !hideSelectionIndicators && (
                 <>
                   {renderSelectionIndicator(26)}
@@ -395,7 +465,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             </g>
           ) : (
             <g>
-              <rect x="148" width="38" height="135" fill="url(#pattern2_197_3840_flipped)" onClick={() => handleToothClick(29)} onMouseEnter={() => setHoveredTooth(29)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: isToothSelected(29) ? 0.7 : 1, transition: 'all 0.2s ease' }} />
+              <g>
+              <rect x="148" width="38" height="135" fill="url(#pattern2_197_3840_flipped)" onClick={() => handleToothClick(29)} onMouseEnter={() => setHoveredTooth(29)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(29), transition: 'all 0.2s ease' }} />
+              {renderClaspOverlay(29, 148, 38, 10)}
+            </g>
               {isToothSelected(29) && !hideSelectionIndicators && (
                 <>
                   {renderSelectionIndicator(29)}
@@ -413,7 +486,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             </g>
           ) : (
             <g>
-              <rect x="339" width="30" height="135" fill="url(#pattern3_197_3840_flipped)" onClick={() => handleToothClick(23)} onMouseEnter={() => setHoveredTooth(23)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: isToothSelected(23) ? 0.7 : 1, transition: 'all 0.2s ease' }} />
+              <g>
+              <rect x="339" width="30" height="135" fill="url(#pattern3_197_3840_flipped)" onClick={() => handleToothClick(23)} onMouseEnter={() => setHoveredTooth(23)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(23), transition: 'all 0.2s ease' }} />
+              {renderClaspOverlay(23, 339, 30, 10)}
+            </g>
               {isToothSelected(23) && !hideSelectionIndicators && (
                 <>
                   {renderSelectionIndicator(23)}
@@ -431,7 +507,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             </g>
           ) : (
             <g>
-              <rect x="43" width="51" height="135" fill="url(#pattern4_197_3840_flipped)" onClick={() => handleToothClick(31)} onMouseEnter={() => setHoveredTooth(31)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: isToothSelected(31) ? 0.7 : 1, transition: 'all 0.2s ease' }} />
+              <g>
+              <rect x="43" width="51" height="135" fill="url(#pattern4_197_3840_flipped)" onClick={() => handleToothClick(31)} onMouseEnter={() => setHoveredTooth(31)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(31), transition: 'all 0.2s ease' }} />
+              {renderClaspOverlay(31, 43, 51, 10)}
+            </g>
               {isToothSelected(31) && !hideSelectionIndicators && (
                 <>
                   {renderSelectionIndicator(31)}
@@ -449,7 +528,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             </g>
           ) : (
             <g>
-              <rect x="287" width="26" height="135" fill="url(#pattern5_197_3840_flipped)" onClick={() => handleToothClick(25)} onMouseEnter={() => setHoveredTooth(25)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: isToothSelected(25) ? 0.7 : 1, transition: 'all 0.2s ease' }} />
+              <g>
+              <rect x="287" width="26" height="135" fill="url(#pattern5_197_3840_flipped)" onClick={() => handleToothClick(25)} onMouseEnter={() => setHoveredTooth(25)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(25), transition: 'all 0.2s ease' }} />
+              {renderClaspOverlay(25, 287, 26, 10)}
+            </g>
               {isToothSelected(25) && !hideSelectionIndicators && (
                 <>
                   {renderSelectionIndicator(25)}
@@ -467,7 +549,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             </g>
           ) : (
             <g>
-              <rect x="186" width="36" height="135" fill="url(#pattern6_197_3840_flipped)" onClick={() => handleToothClick(28)} onMouseEnter={() => setHoveredTooth(28)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: isToothSelected(28) ? 0.7 : 1, transition: 'all 0.2s ease' }} />
+              <g>
+              <rect x="186" width="36" height="135" fill="url(#pattern6_197_3840_flipped)" onClick={() => handleToothClick(28)} onMouseEnter={() => setHoveredTooth(28)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(28), transition: 'all 0.2s ease' }} />
+              {renderClaspOverlay(28, 186, 36, 10)}
+            </g>
               {isToothSelected(28) && !hideSelectionIndicators && (
                 <>
                   {renderSelectionIndicator(28)}
@@ -483,7 +568,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             renderImplantSVG(22, 369)
           ) : (
             <>
-              <rect x="369" width="34" height="135" fill="url(#pattern7_197_3840_flipped)" onClick={() => handleToothClick(22)} onMouseEnter={() => setHoveredTooth(22)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: isToothSelected(22) ? 0.7 : 1, transition: 'all 0.2s ease' }} />
+              <g>
+              <rect x="369" width="34" height="135" fill="url(#pattern7_197_3840_flipped)" onClick={() => handleToothClick(22)} onMouseEnter={() => setHoveredTooth(22)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(22), transition: 'all 0.2s ease' }} />
+              {renderClaspOverlay(22, 369, 34, 10)}
+            </g>
               {isToothSelected(22) && !hideSelectionIndicators && (
                 <>
                   {renderSelectionIndicator(22)}
@@ -499,7 +587,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             renderImplantSVG(18, 530)
           ) : (
             <>
-              <rect x="530" width="51" height="135" fill="url(#pattern8_197_3840_flipped)" onClick={() => handleToothClick(18)} onMouseEnter={() => setHoveredTooth(18)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: isToothSelected(18) ? 0.7 : 1, transition: 'all 0.2s ease' }} />
+              <g>
+              <rect x="530" width="51" height="135" fill="url(#pattern8_197_3840_flipped)" onClick={() => handleToothClick(18)} onMouseEnter={() => setHoveredTooth(18)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(18), transition: 'all 0.2s ease' }} />
+              {renderClaspOverlay(18, 530, 51, 10)}
+            </g>
               {isToothSelected(18) && !hideSelectionIndicators && (
                 <>
                   {renderSelectionIndicator(18)}
@@ -515,7 +606,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             renderImplantSVG(20, 439)
           ) : (
             <>
-              <rect x="439" width="38" height="135" fill="url(#pattern9_197_3840_flipped)" onClick={() => handleToothClick(20)} onMouseEnter={() => setHoveredTooth(20)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: isToothSelected(20) ? 0.7 : 1, transition: 'all 0.2s ease' }} />
+              <g>
+              <rect x="439" width="38" height="135" fill="url(#pattern9_197_3840_flipped)" onClick={() => handleToothClick(20)} onMouseEnter={() => setHoveredTooth(20)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(20), transition: 'all 0.2s ease' }} />
+              {renderClaspOverlay(20, 439, 38, 10)}
+            </g>
               {isToothSelected(20) && !hideSelectionIndicators && (
                 <>
                   {renderSelectionIndicator(20)}
@@ -533,7 +627,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             </g>
           ) : (
             <g>
-              <rect x="94" width="54" height="135" fill="url(#pattern10_197_3840_flipped)" onClick={() => handleToothClick(30)} onMouseEnter={() => setHoveredTooth(30)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: isToothSelected(30) ? 0.7 : 1, transition: 'all 0.2s ease' }} />
+              <g>
+              <rect x="94" width="54" height="135" fill="url(#pattern10_197_3840_flipped)" onClick={() => handleToothClick(30)} onMouseEnter={() => setHoveredTooth(30)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(30), transition: 'all 0.2s ease' }} />
+              {renderClaspOverlay(30, 94, 54, 10)}
+            </g>
               {isToothSelected(30) && !hideSelectionIndicators && (
                 <>
                   {renderSelectionIndicator(30)}
@@ -549,7 +646,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             renderImplantSVG(24, 313)
           ) : (
             <>
-              <rect x="313" width="26" height="135" fill="url(#pattern11_197_3840_flipped)" onClick={() => handleToothClick(24)} onMouseEnter={() => setHoveredTooth(24)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: isToothSelected(24) ? 0.7 : 1, transition: 'all 0.2s ease' }} />
+              <g>
+              <rect x="313" width="26" height="135" fill="url(#pattern11_197_3840_flipped)" onClick={() => handleToothClick(24)} onMouseEnter={() => setHoveredTooth(24)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(24), transition: 'all 0.2s ease' }} />
+              {renderClaspOverlay(24, 313, 26, 10)}
+            </g>
               {isToothSelected(24) && !hideSelectionIndicators && (
                 <>
                   {renderSelectionIndicator(24)}
@@ -567,7 +667,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             </g>
           ) : (
             <g>
-              <rect x="222" width="34" height="135" fill="url(#pattern12_197_3840_flipped)" onClick={() => handleToothClick(27)} onMouseEnter={() => setHoveredTooth(27)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: isToothSelected(27) ? 0.7 : 1, transition: 'all 0.2s ease' }} />
+              <g>
+              <rect x="222" width="34" height="135" fill="url(#pattern12_197_3840_flipped)" onClick={() => handleToothClick(27)} onMouseEnter={() => setHoveredTooth(27)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(27), transition: 'all 0.2s ease' }} />
+              {renderClaspOverlay(27, 222, 34, 10)}
+            </g>
               {isToothSelected(27) && !hideSelectionIndicators && (
                 <>
                   {renderSelectionIndicator(27)}
@@ -583,7 +686,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             renderImplantSVG(19, 477)
           ) : (
             <>
-              <rect x="477" width="53" height="135" fill="url(#pattern13_197_3840_flipped)" onClick={() => handleToothClick(19)} onMouseEnter={() => setHoveredTooth(19)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: isToothSelected(19) ? 0.7 : 1, transition: 'all 0.2s ease' }} />
+              <g>
+              <rect x="477" width="53" height="135" fill="url(#pattern13_197_3840_flipped)" onClick={() => handleToothClick(19)} onMouseEnter={() => setHoveredTooth(19)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(19), transition: 'all 0.2s ease' }} />
+              {renderClaspOverlay(19, 477, 53, 10)}
+            </g>
               {isToothSelected(19) && !hideSelectionIndicators && (
                 <>
                   {renderSelectionIndicator(19)}
@@ -599,7 +705,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             renderImplantSVG(21, 403)
           ) : (
             <>
-              <rect x="403" width="36" height="135" fill="url(#pattern14_197_3840_flipped)" onClick={() => handleToothClick(21)} onMouseEnter={() => setHoveredTooth(21)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: isToothSelected(21) ? 0.7 : 1, transition: 'all 0.2s ease' }} />
+              <g>
+              <rect x="403" width="36" height="135" fill="url(#pattern14_197_3840_flipped)" onClick={() => handleToothClick(21)} onMouseEnter={() => setHoveredTooth(21)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(21), transition: 'all 0.2s ease' }} />
+              {renderClaspOverlay(21, 403, 36, 10)}
+            </g>
               {isToothSelected(21) && !hideSelectionIndicators && (
                 <>
                   {renderSelectionIndicator(21)}
@@ -615,7 +724,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             renderImplantSVG(17, 581)
           ) : (
             <>
-              <rect x="581" width="43" height="135" fill="url(#pattern15_197_3840_flipped)" onClick={() => handleToothClick(17)} onMouseEnter={() => setHoveredTooth(17)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: isToothSelected(17) ? 0.7 : 1, transition: 'all 0.2s ease' }} />
+              <g>
+              <rect x="581" width="43" height="135" fill="url(#pattern15_197_3840_flipped)" onClick={() => handleToothClick(17)} onMouseEnter={() => setHoveredTooth(17)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(17), transition: 'all 0.2s ease' }} />
+              {renderClaspOverlay(17, 581, 43, 10)}
+            </g>
               {isToothSelected(17) && !hideSelectionIndicators && (
                 <>
                   {renderSelectionIndicator(17)}
