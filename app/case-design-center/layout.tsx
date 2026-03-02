@@ -15,7 +15,7 @@ export default function CaseDesignCenterLayout({
           </main>
         </div>
       </div>
-    </ProtectedRoute>
+    </ProtectedRoute> 
   )
 }
 
