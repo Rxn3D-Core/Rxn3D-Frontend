@@ -513,13 +513,13 @@ export function MaxillaryPanel({
     maxillaryTeeth.some((tn) => {
       const p = getToothProduct("maxillary", tn);
       const name = (p?.subcategory?.category?.name ?? "").toLowerCase();
-      return name === "removables" || name === "removables restoration" || name === "removable restoration";
+      return name === "removables" || name === "removables restoration" || name === "removable restoration" || name === "orthodontics";
     }) ||
     addedProducts
       .filter((ap) => ap.arch === "maxillary")
       .some((ap) => {
         const name = (ap.product?.subcategory?.category?.name || ap.product?.category_name || "").toLowerCase();
-        return name === "removables" || name === "removables restoration" || name === "removable restoration";
+        return name === "removables" || name === "removables restoration" || name === "removable restoration" || name === "orthodontics";
       });
 
   return (
@@ -676,7 +676,7 @@ export function MaxillaryPanel({
 
               // Skip removables products — they have their own dedicated accordion section
               const catLower = categoryName.toLowerCase();
-              if (catLower === "removables" || catLower === "removables restoration" || catLower === "removable restoration") return null;
+              if (catLower === "removables" || catLower === "removables restoration" || catLower === "removable restoration" || catLower === "orthodontics") return null;
               const estDays = selectedProduct
                 ? selectedProduct.min_days_to_process && selectedProduct.max_days_to_process
                   ? `${selectedProduct.min_days_to_process}-${selectedProduct.max_days_to_process} work days after submission`
@@ -688,7 +688,12 @@ export function MaxillaryPanel({
               // Stable key for stage so value is not lost when group order or implant section changes
               const groupStageToothNumber = Math.min(...toothNumbers);
               const groupStageProductIdFixed = `maxillary_fixed_${groupStageToothNumber}`;
-              const toothNumbersDisplay = `#${toothNumbers.join(",")}`;
+              const HEADER_EXTRACTION_CODES = new Set(["MT", "WED", "WEOD", "FR", "CTS"]);
+              const headerTeeth = toothNumbers.filter(tn => {
+                const code = maxillaryToothExtractionMap[tn];
+                return code && HEADER_EXTRACTION_CODES.has(code);
+              });
+              const toothNumbersDisplay = headerTeeth.length > 0 ? `#${headerTeeth.join(",")}` : "";
               const retentionTypes = [...new Set(teeth.map((t) => t.retentionType))];
               const hasRushed = toothNumbers.some((n) => rushedProducts[`maxillary_prep_${n}`] || rushedProducts[`maxillary_fixed_${n}`]);
 
@@ -1393,6 +1398,7 @@ export function MaxillaryPanel({
                               onSelect={(shadeName) => {
                                 completeFieldStep("maxillary", firstToothNumber, "gum_shade", shadeName);
                               }}
+                              gumShades={selectedProduct?.gum_shades || []}
                             />
                           </div>
                         )}
@@ -1467,16 +1473,15 @@ export function MaxillaryPanel({
                                 <span className="text-[14px] sm:text-lg text-[#000000] truncate">
                                   {getFieldValue("maxillary", firstToothNumber, "gum_shade")}
                                 </span>
-                                <svg
-                                  width="29"
-                                  height="29"
-                                  viewBox="0 0 29 29"
-                                  fill="none"
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  className="flex-shrink-0"
-                                >
-                                  <rect width="28.0391" height="28.0391" rx="6" fill="#E58D8D" />
-                                </svg>
+                                {(() => {
+                                  const selectedShadeName = getFieldValue("maxillary", firstToothNumber, "gum_shade");
+                                  const matchedShade = selectedProduct?.gum_shades?.find((s) => s.name === selectedShadeName);
+                                  return matchedShade ? (
+                                    <svg width="29" height="29" viewBox="0 0 29 29" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0 ml-auto">
+                                      <rect width="28.0391" height="28.0391" rx="6" fill={matchedShade.color_code_middle} />
+                                    </svg>
+                                  ) : null;
+                                })()}
                                 {isFieldCompleted("maxillary", firstToothNumber, "gum_shade") && !caseSubmitted && (
                                   <Check size={16} className="text-[#34a853] flex-shrink-0" />
                                 )}
@@ -1623,8 +1628,12 @@ export function MaxillaryPanel({
             const cardProduct = getToothProduct("maxillary", cardTeeth[0]);
             const cardProductName = cardProduct?.name || "Removable restoration";
             const cardProductImage = cardProduct?.image_url || null;
-            // For removable products, show all selected teeth from the chart (maxillaryTeeth)
-            const displayTeeth = [...maxillaryTeeth].sort((a, b) => a - b);
+            // For removable products, show only teeth with extraction statuses (MT, WED, WEOD, FR, CTS)
+            const HEADER_EXTRACTION_CODES_REM = new Set(["MT", "WED", "WEOD", "FR", "CTS"]);
+            const displayTeeth = [...maxillaryTeeth].sort((a, b) => a - b).filter(tn => {
+              const code = maxillaryToothExtractionMap[tn];
+              return code && HEADER_EXTRACTION_CODES_REM.has(code);
+            });
             const cardToothDisplay = displayTeeth.length > 0 ? `#${displayTeeth.join(",")}` : "";
             const isActive = activeProductCardId === 0;
             const estDays = cardProduct
@@ -1677,8 +1686,6 @@ export function MaxillaryPanel({
                           {stageVal}
                         </span>
                       )}
-                    </div>
-                    <div className="flex items-center gap-[5px]">
                       <span className="font-[Verdana] text-[11px] sm:text-[13px] leading-tight tracking-[-0.02em] text-[#B4B0B0] whitespace-nowrap">
                         Est days: {estDays}
                       </span>
@@ -1813,6 +1820,7 @@ export function MaxillaryPanel({
                                     onSelect={(shadeName) => {
                                       completeFieldStep("maxillary", repTn, "gum_shade", shadeName);
                                     }}
+                                    gumShades={toothProduct?.gum_shades || []}
                                   />
                                 )}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1840,9 +1848,14 @@ export function MaxillaryPanel({
                                     <legend className={`text-sm px-1 leading-none ${isFComplete("gum_shade") && !caseSubmitted ? "text-[#34a853]" : isFComplete("gum_shade") ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Gum Shade</legend>
                                     <div className="flex items-center gap-2 w-full">
                                       <span className="text-[14px] sm:text-lg text-[#000000] truncate">{fVal("gum_shade")}</span>
-                                      <svg width="29" height="29" viewBox="0 0 29 29" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
-                                        <rect width="28.0391" height="28.0391" rx="6" fill="#E58D8D" />
-                                      </svg>
+                                      {(() => {
+                                        const matchedShade = toothProduct?.gum_shades?.find((s) => s.name === fVal("gum_shade"));
+                                        return matchedShade ? (
+                                          <svg width="29" height="29" viewBox="0 0 29 29" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0 ml-auto">
+                                            <rect width="28.0391" height="28.0391" rx="6" fill={matchedShade.color_code_middle} />
+                                          </svg>
+                                        ) : null;
+                                      })()}
                                       {isFComplete("gum_shade") && !caseSubmitted && <Check size={16} className="text-[#34a853] flex-shrink-0" />}
                                     </div>
                                   </fieldset>
@@ -1921,7 +1934,7 @@ export function MaxillaryPanel({
             .map((ap, apIndex) => {
               // For removable restoration products, use all arch teeth so accordion stays visible when teeth are marked missing
               const apCatName = (ap.product?.subcategory?.category?.name || ap.product?.category_name || "").toLowerCase();
-              const isApRemovables = apCatName === "removables" || apCatName === "removables restoration" || apCatName === "removable restoration";
+              const isApRemovables = apCatName === "removables" || apCatName === "removables restoration" || apCatName === "removable restoration" || apCatName === "orthodontics";
               const cardTeethSource = isApRemovables ? MAXILLARY_ALL_TEETH : maxillaryTeeth;
               const cardTeeth = cardTeethSource.filter(
                 tn => isApRemovables
@@ -1939,7 +1952,13 @@ export function MaxillaryPanel({
               const apDisplayTeeth = isApRemovables
                 ? [...maxillaryTeeth].sort((a, b) => a - b)
                 : cardTeeth;
-              const cardToothDisplay = apDisplayTeeth.length > 0 ? `#${apDisplayTeeth.join(",")}` : "";
+              // Filter to only show teeth with extraction statuses (MT, WED, WEOD, FR, CTS)
+              const HEADER_EXTRACTION_CODES_AP = new Set(["MT", "WED", "WEOD", "FR", "CTS"]);
+              const apFilteredTeeth = apDisplayTeeth.filter(tn => {
+                const code = maxillaryToothExtractionMap[tn];
+                return code && HEADER_EXTRACTION_CODES_AP.has(code);
+              });
+              const cardToothDisplay = apFilteredTeeth.length > 0 ? `#${apFilteredTeeth.join(",")}` : "";
               const isActive = activeProductCardId === ap.id;
 
               return (
@@ -2012,12 +2031,12 @@ export function MaxillaryPanel({
                           Select teeth from the chart above to assign them to this product.
                         </p>
                       ) : (() => {
-                        const isCardRemovables = /removables|removable restoration/i.test(cardCategoryName);
+                        const isCardRemovables = /removables|removable restoration|orthodontics/i.test(cardCategoryName);
                         const repTn = cardTeeth[0];
                         const toothProduct = getToothProduct("maxillary", repTn);
                         const categoryName = toothProduct?.subcategory?.category?.name?.toLowerCase() || "";
                         const isFixed = categoryName === "fixed restoration";
-                        const isRemovables = isCardRemovables || categoryName === "removables" || categoryName === "removables restoration" || categoryName === "removable restoration";
+                        const isRemovables = isCardRemovables || categoryName === "removables" || categoryName === "removables restoration" || categoryName === "removable restoration" || categoryName === "orthodontics";
                         const fixedChain = isFixed ? getFixedFieldChain(toothProduct?.advance_fields) : undefined;
                         const advFields = toothProduct?.advance_fields;
                         const isF = (step: string) => isRemovables ? hasAdvanceField(step, advFields) : isFieldVisible("maxillary", repTn, step as any, fixedChain);
@@ -2127,6 +2146,7 @@ export function MaxillaryPanel({
                                         onSelect={(shadeName) => {
                                           completeFieldStep("maxillary", repTn, "gum_shade", shadeName);
                                         }}
+                                        gumShades={toothProduct?.gum_shades || []}
                                       />
                                     )}
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -2154,9 +2174,14 @@ export function MaxillaryPanel({
                                         <legend className={`text-sm px-1 leading-none ${isFComplete("gum_shade") && !caseSubmitted ? "text-[#34a853]" : isFComplete("gum_shade") ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Gum Shade</legend>
                                         <div className="flex items-center gap-2 w-full">
                                           <span className="text-[14px] sm:text-lg text-[#000000] truncate">{fVal("gum_shade")}</span>
-                                          <svg width="29" height="29" viewBox="0 0 29 29" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
-                                            <rect width="28.0391" height="28.0391" rx="6" fill="#E58D8D" />
-                                          </svg>
+                                          {(() => {
+                                            const matchedShade = toothProduct?.gum_shades?.find((s) => s.name === fVal("gum_shade"));
+                                            return matchedShade ? (
+                                              <svg width="29" height="29" viewBox="0 0 29 29" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0 ml-auto">
+                                                <rect width="28.0391" height="28.0391" rx="6" fill={matchedShade.color_code_middle} />
+                                              </svg>
+                                            ) : null;
+                                          })()}
                                           {isFComplete("gum_shade") && !caseSubmitted && <Check size={16} className="text-[#34a853] flex-shrink-0" />}
                                         </div>
                                       </fieldset>
@@ -2228,7 +2253,7 @@ export function MaxillaryPanel({
                           const tp = getToothProduct("maxillary", tn);
                           const catName = tp?.subcategory?.category?.name?.toLowerCase() || "";
                           const fixed = catName === "fixed restoration";
-                          const rem = catName === "removables" || catName === "removables restoration" || catName === "removable restoration";
+                          const rem = catName === "removables" || catName === "removables restoration" || catName === "removable restoration" || catName === "orthodontics";
                           const chain = fixed ? getFixedFieldChain(tp?.advance_fields) : undefined;
                           const isFPerTooth = (step: string) => rem ? hasAdvanceField(step, tp?.advance_fields) : isFieldVisible("maxillary", tn, step as any, chain);
                           const isFCompletePerTooth = (step: string) => isFieldCompleted("maxillary", tn, step as any);

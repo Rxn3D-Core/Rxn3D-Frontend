@@ -42,8 +42,13 @@ export function SavedProductAccordionItems({ arch }: SavedProductAccordionItemsP
   })
 
   const hasCurrentProductCard = teeth.length > 0 && !!selectedProduct && !hasMatchingSaved
+  const toothExtractionMap = isMaxillary ? ctx.maxillaryToothExtractionMap : ctx.mandibularToothExtractionMap
+  const HEADER_EXTRACTION_CODES = new Set(["MT", "WED", "WEOD", "FR", "CTS"])
   const sortedTeeth = [...teeth].sort((a, b) => a - b)
-  const teethDisplay = sortedTeeth.length > 0 ? sortedTeeth.map((t) => `#${t}`).join(", ") : ""
+  const filteredTeeth = toothExtractionMap
+    ? sortedTeeth.filter((t) => { const code = toothExtractionMap[t]; return code && HEADER_EXTRACTION_CODES.has(code); })
+    : sortedTeeth
+  const teethDisplay = filteredTeeth.length > 0 ? filteredTeeth.map((t) => `#${t}`).join(", ") : ""
 
   return (
     <>
@@ -314,13 +319,14 @@ export function SavedProductAccordionItems({ arch }: SavedProductAccordionItemsP
                           color: "#000000",
                         }}
                       >
-                        {(isMaxillary ? savedProduct.maxillaryTeeth : savedProduct.mandibularTeeth)?.length
-                          ? (isMaxillary ? savedProduct.maxillaryTeeth : savedProduct.mandibularTeeth)
-                              ?.slice()
-                              .sort((a: number, b: number) => a - b)
-                              .map((t: number) => `#${t}`)
-                              .join(", ")
-                          : ""}
+                        {(() => {
+                          const savedTeethArr = (isMaxillary ? savedProduct.maxillaryTeeth : savedProduct.mandibularTeeth) || [];
+                          const sorted = savedTeethArr.slice().sort((a: number, b: number) => a - b);
+                          const filtered = toothExtractionMap
+                            ? sorted.filter((t: number) => { const code = toothExtractionMap[t]; return code && HEADER_EXTRACTION_CODES.has(code); })
+                            : sorted;
+                          return filtered.length > 0 ? filtered.map((t: number) => `#${t}`).join(", ") : "";
+                        })()}
                       </span>
                     </div>
                     <div style={{ display: "flex", flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: "4px" }}>

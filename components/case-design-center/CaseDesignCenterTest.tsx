@@ -117,9 +117,15 @@ export default function Page() {
       const productId = Number(result.material);
       if (productId) {
         setSelectedProductId(productId);
-        fetchProductDetails(productId).then((details) => {
-          if (details?.category_name) setSelectedProductCategoryName(details.category_name);
-        });
+        // Set category name immediately from wizard result so removables detection
+        // works on the very first tooth click (no need to wait for async fetch)
+        if (result.categoryName) {
+          setSelectedProductCategoryName(result.categoryName);
+        } else {
+          fetchProductDetails(productId).then((details) => {
+            if (details?.category_name) setSelectedProductCategoryName(details.category_name);
+          });
+        }
       } else {
         setSelectedProductCategoryName(undefined);
       }

@@ -774,14 +774,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                   onClick={() => {
                     clearSlipCreationStorage();
                     clearCaseDesignCenterStateMutation.mutate();
-                    if (isOfficeAdmin) {
-                      router.replace("/choose-doctor");
-                    } else {
-                      router.replace("/choose-lab");
-                    }
-                    if (onNewSlip) {
-                      onNewSlip();
-                    }
+                    router.replace("/case-design-center");
                   }}
                 >
                   <span className="hidden lg:inline">{t("header.newSlip", "+ New slip")}</span>

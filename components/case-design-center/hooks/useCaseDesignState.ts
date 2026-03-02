@@ -65,7 +65,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
     (props.addedProducts ?? []).some((ap) => {
       if (ap.arch !== arch) return false;
       const name = (ap.product?.subcategory?.category?.name || ap.product?.category_name || "").toLowerCase();
-      return name === "removables" || name === "removables restoration" || name === "removable restoration";
+      return name === "removables" || name === "removables restoration" || name === "removable restoration" || name === "orthodontics";
     });
 
   const isActiveProductRemovables = (arch: Arch): boolean => {
@@ -75,7 +75,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
     const ap = (props.addedProducts ?? []).find((p) => p.id === activeProductCardId);
     if (!ap || ap.arch !== arch) return false;
     const name = (ap.product?.subcategory?.category?.name || ap.product?.category_name || "").toLowerCase();
-    return name === "removables" || name === "removables restoration" || name === "removable restoration";
+    return name === "removables" || name === "removables restoration" || name === "removable restoration" || name === "orthodontics";
   };
 
   const treatArchAsRemovables = {
@@ -131,7 +131,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
     products.addedProducts.find((ap) => {
       if (ap.arch !== arch) return false;
       const name = (ap.product?.subcategory?.category?.name || ap.product?.category_name || "").toLowerCase();
-      return name === "removables" || name === "removables restoration" || name === "removable restoration";
+      return name === "removables" || name === "removables restoration" || name === "removable restoration" || name === "orthodontics";
     }) ?? null;
 
   // Wrap tooth click handlers: for Removables arches, assign tooth to product and fetch so fields/accordion show.

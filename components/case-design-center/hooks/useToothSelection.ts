@@ -7,7 +7,7 @@ import type { Arch, RetentionType, RetentionPopoverState, AddedProduct } from ".
 export function isRemovablesCategoryName(name: string | undefined): boolean {
   if (!name) return false;
   const n = name.toLowerCase().trim();
-  return n === "removables" || n === "removables restoration" || n === "removable restoration";
+  return n === "removables" || n === "removables restoration" || n === "removable restoration" || n === "orthodontics";
 }
 
 function isRemovablesArch(addedProducts: AddedProduct[], arch: Arch): boolean {
@@ -15,7 +15,7 @@ function isRemovablesArch(addedProducts: AddedProduct[], arch: Arch): boolean {
     .filter((ap) => ap.arch === arch)
     .some((ap) => {
       const name = (ap.product?.subcategory?.category?.name || ap.product?.category_name || "").toLowerCase();
-      return name === "removables" || name === "removables restoration" || name === "removable restoration";
+      return name === "removables" || name === "removables restoration" || name === "removable restoration" || name === "orthodontics";
     });
 }
 
@@ -54,9 +54,18 @@ export function useToothSelection(
   const handleMaxillaryToothClick = (toothNumber: number) => {
     if (maxillaryIsRemovables) {
       // Removables: just toggle tooth selection, no retention popover
-      setMaxillaryTeeth((prev) =>
-        prev.includes(toothNumber) ? prev.filter((t) => t !== toothNumber) : [...prev, toothNumber]
-      );
+      setMaxillaryTeeth((prev) => {
+        if (prev.includes(toothNumber)) {
+          // Deselecting: also clean up extraction map and clasp set
+          setMaxillaryToothExtractionMap((m) => {
+            const { [toothNumber]: _, ...rest } = m;
+            return rest;
+          });
+          setMaxillaryClaspTeeth((c) => c.filter((t) => t !== toothNumber));
+          return prev.filter((t) => t !== toothNumber);
+        }
+        return [...prev, toothNumber];
+      });
       return;
     }
     if (maxillaryTeeth.includes(toothNumber)) {
@@ -70,9 +79,18 @@ export function useToothSelection(
   const handleMandibularToothClick = (toothNumber: number) => {
     if (mandibularIsRemovables) {
       // Removables: just toggle tooth selection, no retention popover
-      setMandibularTeeth((prev) =>
-        prev.includes(toothNumber) ? prev.filter((t) => t !== toothNumber) : [...prev, toothNumber]
-      );
+      setMandibularTeeth((prev) => {
+        if (prev.includes(toothNumber)) {
+          // Deselecting: also clean up extraction map and clasp set
+          setMandibularToothExtractionMap((m) => {
+            const { [toothNumber]: _, ...rest } = m;
+            return rest;
+          });
+          setMandibularClaspTeeth((c) => c.filter((t) => t !== toothNumber));
+          return prev.filter((t) => t !== toothNumber);
+        }
+        return [...prev, toothNumber];
+      });
       return;
     }
     if (mandibularTeeth.includes(toothNumber)) {

@@ -9,10 +9,22 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Search, Plus, CheckCircle, X, ChevronDown, Loader2, AlertCircle } from "lucide-react"
-import Image from "next/image"
 import { useToast } from "@/hooks/use-toast"
 import { useInvitation } from "@/contexts/invitation-context"
 import { userInvitationService } from "@/services/user-invitation-service"
+
+/** Multiple fallback images so each doctor gets a different placeholder when they have no avatar */
+const DOCTOR_AVATAR_FALLBACKS = [
+  "/doctors/doctor-1.jpg",
+  "/doctors/doctor-2.jpg",
+  "/doctors/doctor-3.jpg",
+  "/doctors/doctor-4.jpg",
+]
+
+function getDoctorFallbackImg(doctorId: string, index: number): string {
+  const numId = parseInt(doctorId, 10) || index
+  return DOCTOR_AVATAR_FALLBACKS[Math.abs(numId) % DOCTOR_AVATAR_FALLBACKS.length] ?? DOCTOR_AVATAR_FALLBACKS[0]
+}
 
 interface Doctor {
   id: string
@@ -410,14 +422,15 @@ export function AddDoctorModal({ isOpen, onClose, onDoctorConnect }: AddDoctorMo
                           onClick={() => handleDoctorSelect(doctor)}
                         >
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
-                              {doctor.image ? (
-                                <Image src={doctor.image} alt={doctor.name} width={32} height={32} className="rounded-full object-cover" />
-                              ) : (
-                                <div className="w-full h-full bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white font-medium text-xs">
-                                  {doctor.name.split(' ').map(n => n[0]).join('')}
-                                </div>
-                              )}
+                            <div className="w-8 h-8 bg-gray-200 rounded-full overflow-hidden flex items-center justify-center">
+                              <img
+                                src={doctor.image || getDoctorFallbackImg(doctor.id, filteredDoctors.indexOf(doctor))}
+                                alt={doctor.name}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.src = getDoctorFallbackImg(doctor.id, filteredDoctors.indexOf(doctor))
+                                }}
+                              />
                             </div>
                             <div className="flex-1">
                               <div className="flex items-center gap-2">
@@ -539,14 +552,15 @@ export function AddDoctorModal({ isOpen, onClose, onDoctorConnect }: AddDoctorMo
                   }`}
                   onClick={() => handleDoctorSelect(doctor)}
                 >
-                  <div className="w-20 h-20 mx-auto mb-4 bg-gray-200 rounded-full flex items-center justify-center">
-                    {doctor.image ? (
-                      <Image src={doctor.image} alt={doctor.name} width={80} height={80} className="rounded-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white font-medium text-lg">
-                        {doctor.name.split(' ').map(n => n[0]).join('')}
-                      </div>
-                    )}
+                  <div className="w-20 h-20 mx-auto mb-4 bg-gray-200 rounded-full overflow-hidden flex items-center justify-center">
+                    <img
+                      src={doctor.image || getDoctorFallbackImg(doctor.id, filteredDoctors.indexOf(doctor))}
+                      alt={doctor.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.src = getDoctorFallbackImg(doctor.id, filteredDoctors.indexOf(doctor))
+                      }}
+                    />
                   </div>
                   <h3 className="font-medium text-base mb-1">{doctor.name}, {doctor.title}</h3>
                   <p className="text-sm text-gray-500 mb-4">{doctor.email}</p>

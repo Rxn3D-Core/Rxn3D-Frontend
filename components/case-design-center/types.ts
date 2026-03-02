@@ -173,6 +173,9 @@ export interface ProductGumShade {
     status: string;
     sequence: number;
   };
+  color_code_top: string;
+  color_code_middle: string;
+  color_code_bottom: string;
 }
 
 /** Extraction from the product API */

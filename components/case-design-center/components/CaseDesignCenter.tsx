@@ -30,7 +30,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     (props.addedProducts ?? []).some((ap) => {
       if (ap.arch !== arch) return false;
       const name = (ap.product?.subcategory?.category?.name || ap.product?.category_name || "").toLowerCase();
-      return name === "removables" || name === "removables restoration" || name === "removable restoration";
+      return name === "removables" || name === "removables restoration" || name === "removable restoration" || name === "orthodontics";
     });
 
   // Show panels/accordion as soon as a removables product exists (no teeth required)
@@ -254,14 +254,14 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         </div>
       </div>
 
-      {/* Main two-panel layout - responsive */}
-      <div className="relative">
-      <div className="flex flex-col lg:flex-row lg:gap-0 gap-4">
-        {/* LEFT PANEL - MAXILLARY */}
-        <MaxillaryPanel
-          showMaxillary={state.showMaxillary}
-          setShowMaxillary={state.setShowMaxillary}
-          showDetails={maxillaryHasImpression || mandibularHasImpression || maxillaryHasRemovables || mandibularHasRemovables}
+        {/* Main two-panel layout - responsive */}
+        <div className="relative">
+        <div className="flex flex-col lg:flex-row lg:gap-0 gap-4">
+          {/* LEFT PANEL - MAXILLARY */}
+          <MaxillaryPanel
+            showMaxillary={state.showMaxillary}
+            setShowMaxillary={state.setShowMaxillary}
+            showDetails={maxillaryHasImpression || mandibularHasImpression || maxillaryHasRemovables || mandibularHasRemovables}
           caseSubmitted={props.caseSubmitted}
           // Tooth selection
           maxillaryTeeth={state.maxillaryTeeth}

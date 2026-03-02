@@ -5,7 +5,7 @@ import {
   Dialog,
   DialogContent,
 } from "@/components/ui/dialog"
-import { Trash2, Plus, Minus } from "lucide-react"
+import { Plus, Minus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { STLFileSelectionModal } from "./stl-file-selection-modal"
 
@@ -78,16 +78,17 @@ export function ImpressionSelectionModal({
       onUpdateQuantity(key, currentQty - 1)
       setLastTouchedKey(key)
     } else if (currentQty === 1) {
-      // going to 0 — remove and clear last touched if it was this card
+      // going to 0 — move "last touched" to another card that still has quantity
       onUpdateQuantity(key, 0)
-      setLastTouchedKey((prev) => (prev === key ? null : prev))
+      setLastTouchedKey((prev) => {
+        if (prev !== key) return prev
+        // Find another impression that still has quantity > 0
+        const otherKey = impressions
+          .map(getImpressionKey)
+          .find((k) => k !== key && (selectedImpressions[k] ?? 0) > 0)
+        return otherKey ?? null
+      })
     }
-  }
-
-  const handleDelete = (impression: ImpressionOption) => {
-    const key = getImpressionKey(impression)
-    onRemoveImpression(key)
-    setLastTouchedKey((prev) => (prev === key ? null : prev))
   }
 
   const isSTLImpression = (impression: ImpressionOption): boolean => {
@@ -156,12 +157,11 @@ export function ImpressionSelectionModal({
                 <div key={impression.id} className="flex flex-col items-center snap-center flex-shrink-0 w-[150px]">
                   {/* Card */}
                   <div
-                    onClick={() => !isSelected && handleImpressionClick(impression)}
                     className={cn(
-                      "flex flex-col justify-center items-center px-2 py-[8px] gap-[8px] bg-white rounded-[11px] cursor-pointer transition-all duration-200 w-full",
+                      "flex flex-col justify-center items-center px-2 py-[8px] gap-[8px] bg-white rounded-[11px] transition-all duration-200 w-full",
                       isSelected
                         ? "border-[4px] border-[#1162A8]"
-                        : "border-2 border-[#B4B0B0] hover:border-[#1162A8]"
+                        : "border-2 border-[#B4B0B0]"
                     )}
                   >
                     {/* Image */}
@@ -204,62 +204,53 @@ export function ImpressionSelectionModal({
                     )}
                   </div>
 
-                  {/* Controls outside the card */}
-                  {isSelected && (
-                    <div className="flex flex-col items-center gap-1 mt-2">
-                      {/* + qty - */}
-                      <div className="flex flex-row items-center gap-[5px]">
-                        <button
-                          className="w-[22px] h-[22px] flex items-center justify-center hover:opacity-70 transition-opacity"
-                          onClick={() => handleIncrement(impression)}
-                        >
-                          <Plus className="w-[13px] h-[13px] text-[#1D1B20]" strokeWidth={1.83} />
-                        </button>
-                        <span className="font-['Verdana'] font-normal text-sm leading-[14px] tracking-[-0.02em] text-black text-center min-w-[30px] flex items-center justify-center h-[26px]">
-                          {qty}
-                        </span>
-                        <button
-                          className="w-[22px] h-[22px] flex items-center justify-center hover:opacity-70 transition-opacity"
-                          onClick={() => handleDecrement(impression)}
-                        >
-                          <Minus className="w-[13px] h-[13px] text-[#1E1E1E]" strokeWidth={1.83} />
-                        </button>
-                        {/* Trash */}
-                        <button
-                          className="w-[22px] h-[22px] flex items-center justify-center hover:opacity-70 transition-opacity"
-                          onClick={() => handleDelete(impression)}
-                        >
-                          <Trash2 className="w-[14px] h-[16px] text-[#CF0202]" />
-                        </button>
-                      </div>
-
-                      {/* Done/Files button — only on last selected card */}
-                      {isLastSelected && (
-                        isSTLImpression(impression) ? (
-                          <button
-                            className="flex items-center justify-center px-[8px] py-[6px] bg-[#1162A8] rounded-[4px] hover:bg-[#0e5290] transition-colors h-[26px]"
-                            onClick={() => {
-                              setSelectedSTLImpression(impression)
-                              setShowSTLModal(true)
-                            }}
-                          >
-                            <span className="font-['Verdana'] font-normal text-[11px] leading-[14px] tracking-[-0.02em] text-white">
-                              Files
-                            </span>
-                          </button>
-                        ) : (
-                          <button
-                            className="flex items-center justify-center px-[8px] py-[6px] bg-[#1162A8] rounded-[4px] hover:bg-[#0e5290] transition-colors h-[26px]"
-                            onClick={onClose}
-                          >
-                            <span className="font-['Verdana'] font-normal text-[11px] leading-[14px] tracking-[-0.02em] text-white">
-                              Done
-                            </span>
-                          </button>
-                        )
-                      )}
+                  {/* Controls outside the card — always visible */}
+                  <div className="flex flex-col items-center gap-1 mt-2">
+                    {/* - qty + */}
+                    <div className="flex flex-row items-center gap-[5px]">
+                      <button
+                        className="w-[30px] h-[30px] flex items-center justify-center rounded-[8px] border border-[#B4B0B0] bg-white hover:bg-gray-50 transition-all"
+                        onClick={() => handleDecrement(impression)}
+                      >
+                        <Minus className="w-[13px] h-[13px] text-[#1E1E1E]" strokeWidth={1.83} />
+                      </button>
+                      <span className="font-['Verdana'] font-normal text-sm leading-[14px] tracking-[-0.02em] text-black text-center min-w-[30px] flex items-center justify-center h-[26px]">
+                        {qty}
+                      </span>
+                      <button
+                        className="w-[30px] h-[30px] flex items-center justify-center rounded-[8px] border border-[#B4B0B0] bg-white hover:bg-gray-50 transition-all"
+                        onClick={() => handleImpressionClick(impression)}
+                      >
+                        <Plus className="w-[13px] h-[13px] text-[#1D1B20]" strokeWidth={1.83} />
+                      </button>
                     </div>
-                  )}
+
+                    {/* Done/Files button — only on last selected card */}
+                    {isSelected && isLastSelected && (
+                      isSTLImpression(impression) ? (
+                        <button
+                          className="flex items-center justify-center px-[8px] py-[6px] bg-[#1162A8] rounded-[4px] hover:bg-[#0e5290] transition-colors h-[26px]"
+                          onClick={() => {
+                            setSelectedSTLImpression(impression)
+                            setShowSTLModal(true)
+                          }}
+                        >
+                          <span className="font-['Verdana'] font-normal text-[11px] leading-[14px] tracking-[-0.02em] text-white">
+                            Files
+                          </span>
+                        </button>
+                      ) : (
+                        <button
+                          className="flex items-center justify-center px-[8px] py-[6px] bg-[#1162A8] rounded-[4px] hover:bg-[#0e5290] transition-colors h-[26px]"
+                          onClick={onClose}
+                        >
+                          <span className="font-['Verdana'] font-normal text-[11px] leading-[14px] tracking-[-0.02em] text-white">
+                            Done
+                          </span>
+                        </button>
+                      )
+                    )}
+                  </div>
                 </div>
               )
             })}
@@ -276,12 +267,11 @@ export function ImpressionSelectionModal({
                 <div key={impression.id} className="flex flex-col items-center">
                   {/* Card */}
                   <div
-                    onClick={() => !isSelected && handleImpressionClick(impression)}
                     className={cn(
-                      "flex flex-col justify-center items-center px-3 lg:px-[26px] py-[8px] gap-[10px] bg-white rounded-[11px] cursor-pointer transition-all duration-200 w-full aspect-[254/303]",
+                      "flex flex-col justify-center items-center px-3 lg:px-[26px] py-[8px] gap-[10px] bg-white rounded-[11px] transition-all duration-200 w-full aspect-[254/303]",
                       isSelected
                         ? "border-[5px] border-[#1162A8]"
-                        : "border-2 border-[#B4B0B0] hover:border-[#1162A8]"
+                        : "border-2 border-[#B4B0B0]"
                     )}
                   >
                     {/* Image */}
@@ -324,62 +314,53 @@ export function ImpressionSelectionModal({
                     )}
                   </div>
 
-                  {/* Controls outside the card */}
-                  {isSelected && (
-                    <div className="flex flex-col items-center gap-2 mt-2">
-                      {/* + qty - trash */}
-                      <div className="flex flex-row items-center gap-[5px]">
-                        <button
-                          className="w-[22px] h-[22px] flex items-center justify-center hover:opacity-70 transition-opacity"
-                          onClick={() => handleIncrement(impression)}
-                        >
-                          <Plus className="w-[13px] h-[13px] text-[#1D1B20]" strokeWidth={1.83} />
-                        </button>
-                        <span className="font-['Verdana'] font-normal text-sm lg:text-[18px] leading-[14px] tracking-[-0.02em] text-black text-center min-w-[30px] lg:min-w-[46px] flex items-center justify-center h-[31px]">
-                          {qty}
-                        </span>
-                        <button
-                          className="w-[22px] h-[22px] flex items-center justify-center hover:opacity-70 transition-opacity"
-                          onClick={() => handleDecrement(impression)}
-                        >
-                          <Minus className="w-[13px] h-[13px] text-[#1E1E1E]" strokeWidth={1.83} />
-                        </button>
-                        {/* Trash */}
-                        <button
-                          className="w-[22px] h-[22px] flex items-center justify-center hover:opacity-70 transition-opacity"
-                          onClick={() => handleDelete(impression)}
-                        >
-                          <Trash2 className="w-[15px] h-[17px] text-[#CF0202]" />
-                        </button>
-                      </div>
-
-                      {/* Done/Files button — only on last selected card */}
-                      {isLastSelected && (
-                        isSTLImpression(impression) ? (
-                          <button
-                            className="flex items-center justify-center px-[10px] py-[8px] bg-[#1162A8] rounded-[4px] hover:bg-[#0e5290] transition-colors h-[31px]"
-                            onClick={() => {
-                              setSelectedSTLImpression(impression)
-                              setShowSTLModal(true)
-                            }}
-                          >
-                            <span className="font-['Verdana'] font-normal text-xs lg:text-[14px] leading-[14px] tracking-[-0.02em] text-white">
-                              Files
-                            </span>
-                          </button>
-                        ) : (
-                          <button
-                            className="flex items-center justify-center px-[10px] py-[8px] bg-[#1162A8] rounded-[4px] hover:bg-[#0e5290] transition-colors h-[31px]"
-                            onClick={onClose}
-                          >
-                            <span className="font-['Verdana'] font-normal text-xs lg:text-[14px] leading-[14px] tracking-[-0.02em] text-white">
-                              Done
-                            </span>
-                          </button>
-                        )
-                      )}
+                  {/* Controls outside the card — always visible */}
+                  <div className="flex flex-col items-center gap-2 mt-2">
+                    {/* - qty + */}
+                    <div className="flex flex-row items-center gap-[5px]">
+                      <button
+                        className="w-[36px] h-[36px] flex items-center justify-center rounded-[8px] border border-[#B4B0B0] bg-white hover:bg-gray-50 transition-all"
+                        onClick={() => handleDecrement(impression)}
+                      >
+                        <Minus className="w-[15px] h-[15px] text-[#1E1E1E]" strokeWidth={1.83} />
+                      </button>
+                      <span className="font-['Verdana'] font-normal text-sm lg:text-[18px] leading-[14px] tracking-[-0.02em] text-black text-center min-w-[30px] lg:min-w-[46px] flex items-center justify-center h-[31px]">
+                        {qty}
+                      </span>
+                      <button
+                        className="w-[36px] h-[36px] flex items-center justify-center rounded-[8px] border border-[#B4B0B0] bg-white hover:bg-gray-50 transition-all"
+                        onClick={() => handleImpressionClick(impression)}
+                      >
+                        <Plus className="w-[15px] h-[15px] text-[#1D1B20]" strokeWidth={1.83} />
+                      </button>
                     </div>
-                  )}
+
+                    {/* Done/Files button — only on last selected card */}
+                    {isSelected && isLastSelected && (
+                      isSTLImpression(impression) ? (
+                        <button
+                          className="flex items-center justify-center px-[10px] py-[8px] bg-[#1162A8] rounded-[4px] hover:bg-[#0e5290] transition-colors h-[31px]"
+                          onClick={() => {
+                            setSelectedSTLImpression(impression)
+                            setShowSTLModal(true)
+                          }}
+                        >
+                          <span className="font-['Verdana'] font-normal text-xs lg:text-[14px] leading-[14px] tracking-[-0.02em] text-white">
+                            Files
+                          </span>
+                        </button>
+                      ) : (
+                        <button
+                          className="flex items-center justify-center px-[10px] py-[8px] bg-[#1162A8] rounded-[4px] hover:bg-[#0e5290] transition-colors h-[31px]"
+                          onClick={onClose}
+                        >
+                          <span className="font-['Verdana'] font-normal text-xs lg:text-[14px] leading-[14px] tracking-[-0.02em] text-white">
+                            Done
+                          </span>
+                        </button>
+                      )
+                    )}
+                  </div>
                 </div>
               )
             })}

@@ -19,20 +19,21 @@ interface ToothStatusBoxesProps {
   onSelectAllTeeth: (teeth: number[]) => void;
 }
 
-/** Color map keyed by extraction code — matches the reference UI template */
+/** Fallback color map keyed by extraction code — used only when API color is null */
 const EXTRACTION_COLOR_MAP: Record<string, { bg: string; textClass: string }> = {
   TIM:   { bg: "#F3EBD7", textClass: "text-black" },           // Teeth in mouth
-  MT:    { bg: "#E9E8E7", textClass: "text-black" },           // Missing teeth
-  WED:   { bg: "#E92520", textClass: "text-white font-bold" }, // Will extract on delivery
+  MT:    { bg: "#D3D3D3", textClass: "text-black" },           // Missing teeth
+  WEOD:  { bg: "#E92520", textClass: "text-white font-bold" }, // Will extract on delivery
+  WED:   { bg: "#E92520", textClass: "text-white font-bold" }, // Will extract on delivery (legacy)
   FR:    { bg: "#A0F69A", textClass: "text-black" },           // Fix/Repair
   CLASP: { bg: "#FFD1F9", textClass: "text-black" },           // Clasp
   CTS:   { bg: "#0CE7C6", textClass: "text-black" },           // Custom tooth status
 };
 
-/** Fallback color map keyed by normalized extraction name */
+/** Fallback color map keyed by normalized extraction name — used only when API color and code map are null */
 const EXTRACTION_NAME_COLOR_MAP: Record<string, { bg: string; textClass: string }> = {
   "teeth in mouth":           { bg: "#F3EBD7", textClass: "text-black" },
-  "missing teeth":            { bg: "#E9E8E7", textClass: "text-black" },
+  "missing teeth":            { bg: "#D3D3D3", textClass: "text-black" },
   "will extract on delivery": { bg: "#E92520", textClass: "text-white font-bold" },
   "fix/repair":               { bg: "#A0F69A", textClass: "text-black" },
   "clasps":                   { bg: "#FFD1F9", textClass: "text-black" },
@@ -51,7 +52,7 @@ function textClassFromColor(hex: string): string {
 }
 
 function resolveStyle(extraction: { code: string; name: string; color: string | null }): { bg: string; textClass: string } {
-  // 1. Use API-provided color if present
+  // Priority: 1. API color → 2. code fallback → 3. name fallback → 4. default
   if (extraction.color && extraction.color.trim()) {
     const bg = extraction.color.trim();
     return { bg, textClass: textClassFromColor(bg) };

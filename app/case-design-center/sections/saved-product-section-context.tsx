@@ -66,6 +66,9 @@ export interface SavedProductSectionContextValue {
   setShowRushModal: (show: boolean) => void
   getTotalAddOnsCount: number
   getAttachedFilesCount: () => number
+  // Tooth extraction maps
+  maxillaryToothExtractionMap?: Record<number, string>
+  mandibularToothExtractionMap?: Record<number, string>
   // Helpers
   isAccordionFieldVisible: (fieldName: "stump_shade" | "tooth_shade" | "stage" | "notes" | "implant_details", savedProduct: SavedProduct, archType: "maxillary" | "mandibular") => boolean
   showValidationErrors: boolean

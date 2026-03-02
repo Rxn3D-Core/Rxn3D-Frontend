@@ -10,6 +10,10 @@ import { useLibraryProducts } from "@/hooks/use-library-products";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRouter } from "next/navigation";
 import CancelSlipCreationModal from "@/components/cancel-slip-creation-modal";
+import { AddNewLabModal } from "@/components/add-new-lab-modal";
+import { AddDoctorModal } from "@/components/add-doctor-modal";
+import { useToast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { FieldInput } from "@/components/case-design-center/components/fields";
 
@@ -130,12 +134,14 @@ function StepDoctor({
   onSelect,
   isLoading,
   error,
+  onAddNew,
 }: {
   doctors: WizardDoctorShape[];
   selected: number | null;
   onSelect: (id: number) => void;
   isLoading?: boolean;
   error?: Error | null;
+  onAddNew?: () => void;
 }) {
   if (error) {
     return (
@@ -173,7 +179,10 @@ function StepDoctor({
         <button className="p-2 hover:bg-[#eef1f4] rounded transition-colors">
           <Filter size={18} className="text-[#7f7f7f]" />
         </button>
-        <button className="flex items-center gap-1 bg-[#1162a8] hover:bg-[#0d4a85] text-white text-[12px] font-semibold px-4 py-2 rounded transition-colors">
+        <button
+          onClick={onAddNew}
+          className="flex items-center gap-1 bg-[#1162a8] hover:bg-[#0d4a85] text-white text-[12px] font-semibold px-4 py-2 rounded transition-colors"
+        >
           <Plus size={14} />
           Add Doctor
         </button>
@@ -238,6 +247,7 @@ function StepLab({
   error,
   stepTitle,
   entityLabel = "lab",
+  onAddNew,
 }: {
   labs: WizardLabShape[];
   selected: number | null;
@@ -246,6 +256,7 @@ function StepLab({
   error?: Error | null;
   stepTitle: string;
   entityLabel?: "lab" | "office";
+  onAddNew?: () => void;
 }) {
   const entityPlural = entityLabel === "office" ? "offices" : "labs";
   const loadErrorMsg = entityLabel === "office"
@@ -294,6 +305,7 @@ function StepLab({
           <Filter size={18} className="text-[#7f7f7f]" />
         </button>
         <button
+          onClick={onAddNew}
           style={{ fontFamily: "Verdana, sans-serif", fontSize: 12, lineHeight: "22px", letterSpacing: "-0.02em", borderRadius: 6, padding: "8px 16px" }}
           className="flex items-center gap-2 bg-[#1162a8] hover:bg-[#0d4a85] text-white font-bold transition-colors whitespace-nowrap"
         >
@@ -1224,9 +1236,13 @@ export default function NewCaseWizard({
   const [selectedSubProduct, setSelectedSubProduct] = useState<number | null>(initialSubProduct);
   const [selectedMaterial, setSelectedMaterial] = useState<string | null>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showAddLabModal, setShowAddLabModal] = useState(false);
+  const [showAddDoctorModal, setShowAddDoctorModal] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { role, customerId, isOfficeAdmin, isLabAdmin } = useWizardRole();
-  const { officesAsLabs, isLoading: labsLoading, error: labsError } = useConnectedOfficesOrLabs(role);
+  const { officesAsLabs, isLoading: labsLoading, error: labsError, refetch } = useConnectedOfficesOrLabs(role);
   const lab = officesAsLabs.find((l) => l.id === selectedLab);
 
   // customer_id for library/categories: office_admin = selected lab id, lab_admin = their customerId
@@ -1271,6 +1287,7 @@ export default function NewCaseWizard({
     isLoading: doctorsLoading,
     isSuccess: doctorsSuccess,
     error: doctorsError,
+    refetch: refetchDoctors,
   } = useOfficeDoctors(officeIdForDoctors);
 
   const doctorsForWizard: WizardDoctorShape[] = useMemo(
@@ -1337,6 +1354,9 @@ export default function NewCaseWizard({
   };
 
   const handleNext = () => {
+    const resolvedCategoryName = selectedCategory != null
+      ? categoriesAsWizard.find((c) => c.id === selectedCategory)?.name ?? ""
+      : "";
     if (step < 6) {
       setStep(step + 1);
     } else if (step === 6 && mode === "addProduct") {
@@ -1346,6 +1366,7 @@ export default function NewCaseWizard({
         patientName,
         gender,
         category: selectedCategory != null ? String(selectedCategory) : "",
+        categoryName: resolvedCategoryName,
         product: selectedSubProduct != null ? String(selectedSubProduct) : "",
         material: selectedMaterial || "",
       });
@@ -1356,6 +1377,7 @@ export default function NewCaseWizard({
         patientName,
         gender,
         category: selectedCategory != null ? String(selectedCategory) : "",
+        categoryName: resolvedCategoryName,
         product: selectedSubProduct != null ? String(selectedSubProduct) : "",
         material: selectedMaterial || "",
       });
@@ -1392,6 +1414,7 @@ export default function NewCaseWizard({
             }}
             isLoading={doctorsLoading}
             error={doctorsError}
+            onAddNew={() => setShowAddDoctorModal(true)}
           />
         )}
         {step === 1 && role !== null && isStepLab(1) && (
@@ -1408,6 +1431,7 @@ export default function NewCaseWizard({
             error={labsError}
             stepTitle={role === "office_admin" ? "Choose a Lab" : "Choose an Office"}
             entityLabel={role === "office_admin" ? "office" : "lab"}
+            onAddNew={() => setShowAddLabModal(true)}
           />
         )}
         {step === 2 && role !== null && isStepDoctor(2) && (
@@ -1420,6 +1444,7 @@ export default function NewCaseWizard({
             }}
             isLoading={doctorsLoading}
             error={doctorsError}
+            onAddNew={() => setShowAddDoctorModal(true)}
           />
         )}
         {step === 2 && role !== null && isStepLab(2) && (
@@ -1436,6 +1461,7 @@ export default function NewCaseWizard({
             error={labsError}
             stepTitle={role === "office_admin" ? "Choose an Office" : "Choose a Lab"}
             entityLabel={role === "office_admin" ? "office" : "lab"}
+            onAddNew={() => setShowAddLabModal(true)}
           />
         )}
         {step === 3 && (
@@ -1505,6 +1531,7 @@ export default function NewCaseWizard({
                       patientName,
                       gender,
                       category: String(selectedCategory),
+                      categoryName: selectedCategoryName,
                       product: String(selectedSubProduct),
                       material: id,
                       arch,
@@ -1518,6 +1545,7 @@ export default function NewCaseWizard({
                       patientName,
                       gender,
                       category: String(selectedCategory),
+                      categoryName: selectedCategoryName,
                       product: String(selectedSubProduct),
                       material: id,
                       arch,
@@ -1576,6 +1604,52 @@ export default function NewCaseWizard({
         open={showCancelModal}
         onCancel={() => setShowCancelModal(false)}
         onConfirm={handleConfirmCancel}
+      />
+
+      {/* Add New Lab Modal */}
+      <AddNewLabModal
+        open={showAddLabModal}
+        onOpenChange={(open) => {
+          setShowAddLabModal(open)
+          if (!open) {
+            refetch()
+          }
+        }}
+        onLabSelect={(lab: any) => {
+          setShowAddLabModal(false)
+          refetch()
+        }}
+      />
+
+      {/* Add Doctor Modal */}
+      <AddDoctorModal
+        isOpen={showAddDoctorModal}
+        onClose={() => {
+          setShowAddDoctorModal(false)
+        }}
+        onDoctorConnect={(doctorId: string, doctorData?: any) => {
+          setShowAddDoctorModal(false)
+
+          // Refresh the doctors list to show the newly connected doctor
+          setTimeout(() => {
+            refetchDoctors()
+            queryClient.invalidateQueries({ queryKey: ["doctors-total"] })
+          }, 100)
+
+          // Show success message
+          if (doctorData) {
+            const doctorName = doctorData.name || `${doctorData.first_name || ""} ${doctorData.last_name || ""}`.trim()
+            toast({
+              title: "Doctor Connected",
+              description: `${doctorName} has been connected successfully.`,
+            })
+          } else {
+            toast({
+              title: "Doctor Connected",
+              description: "Doctor has been connected successfully.",
+            })
+          }
+        }}
       />
     </div>
   );
