@@ -3403,8 +3403,13 @@ export default function CaseDesignCenterPage() {
                                                   const hasAdvanceFields = advanceFields && Array.isArray(advanceFields) && advanceFields.length > 0
                                                   // Show advance fields if they exist and material/retention are filled
                                                   const minFieldsFilled = savedProduct.maxillaryMaterial && savedProduct.maxillaryRetention
-                                                  // Always show if material and retention are set
-                                                  return hasAdvanceFields && minFieldsFilled
+                                                  // For removable/ortho products, show action buttons when productDetails exist (no retention required)
+                                                  const categoryLowerForButtons = savedProduct.category?.toLowerCase() || ""
+                                                  const isRemovableOrOrthoProduct = categoryLowerForButtons.includes("removable") ||
+                                                    categoryLowerForButtons.includes("orthodontic") ||
+                                                    categoryLowerForButtons.includes("ortho")
+                                                  // Always show if material and retention are set, or for removable/ortho when productDetails exist
+                                                  return (hasAdvanceFields && minFieldsFilled) || (isRemovableOrOrthoProduct && productDetails)
                                                 })() && (
                                                     <div
                                                       className="flex flex-wrap justify-center items-center w-full"

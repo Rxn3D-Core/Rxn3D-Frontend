@@ -201,7 +201,7 @@ export function ToothStatusBoxes({
             return (
               <div key={extraction.id} className="flex flex-col min-w-0">
                 <div
-                  className="flex items-center justify-center rounded-md min-h-[50px] sm:min-h-[65px] px-2 py-1.5 cursor-pointer hover:opacity-90 active:opacity-75 transition-all"
+                  className="flex flex-col items-center justify-center rounded-md min-h-[50px] sm:min-h-[65px] px-2 py-1.5 cursor-pointer hover:opacity-90 active:opacity-75 transition-all"
                   style={{
                     backgroundColor: style.bg,
                     outline: isActive
@@ -224,12 +224,12 @@ export function ToothStatusBoxes({
                       </>
                     )}
                   </p>
+                  {showRequiredValidation && (
+                    <p className="text-[10px] sm:text-xs text-[#CF0202] text-center font-[Verdana]">
+                      Required: select at least {minTeeth} tooth
+                    </p>
+                  )}
                 </div>
-                {showRequiredValidation && (
-                  <p className="text-[10px] sm:text-xs text-[#CF0202] mt-0.5 text-center font-[Verdana]">
-                    Required: select at least {minTeeth} tooth
-                  </p>
-                )}
               </div>
             );
           })}

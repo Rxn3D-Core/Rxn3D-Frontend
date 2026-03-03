@@ -84,8 +84,8 @@ export function ImplantInclusionsField({
               onChange("No inclusion");
               setShowDropdown(false);
             }}
-            className={`w-full text-left px-3 py-2.5 text-xs hover:bg-gray-50 transition-colors ${
-              value === "No inclusion" ? 'bg-green-50 text-[#34a853]' : 'text-[#1d1d1b]'
+            className={`w-full text-left px-3 py-2.5 text-xs hover:bg-[#DFEEFB] transition-colors ${
+              value === "No inclusion" ? 'text-[#34a853]' : 'text-[#1d1d1b]'
             }`}
           >
             No inclusion
@@ -93,9 +93,7 @@ export function ImplantInclusionsField({
 
           {/* Model with Tissue + inline quantity controls */}
           <div
-            className={`flex items-center justify-between px-3 py-2.5 hover:bg-gray-50 transition-colors cursor-pointer ${
-              value === "Model with Tissue + QTY" ? 'bg-green-50' : ''
-            }`}
+            className="flex items-center justify-between px-3 py-2.5 hover:bg-[#DFEEFB] transition-colors cursor-pointer"
             onClick={(e) => {
               e.stopPropagation();
               if (value !== "Model with Tissue + QTY") {
@@ -149,7 +147,9 @@ export function ImplantInclusionsField({
         </legend>
         <div className="flex items-center gap-2 w-full min-h-0">
           <span className="text-[14px] sm:text-lg leading-tight text-[#000000] flex-1 min-w-0 truncate">
-            {value || "Select..."}
+            {value === "Model with Tissue + QTY" && quantity > 1
+              ? `${quantity} X Model with Tissue + QTY`
+              : value || "Select..."}
           </span>
           {hasValue && !caseSubmitted && <Check size={16} className="text-[#34a853] flex-shrink-0" />}
         </div>

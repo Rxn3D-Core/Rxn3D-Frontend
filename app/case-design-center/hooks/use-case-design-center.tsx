@@ -11,6 +11,13 @@ import { useSlipCreation } from "@/contexts/slip-creation-context"
 import { useImplants } from "@/lib/api/advance-mode-query"
 import { useCaseDesignStore } from "@/stores/caseDesignStore"
 import { clearSlipCreationStorage } from "@/utils/slip-creation-storage"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import type { Doctor, Lab, PatientData, Product, SavedProduct } from "../sections/types"
 
 export function useCaseDesignCenter() {
@@ -531,70 +538,88 @@ export function useCaseDesignCenter() {
 
     const showRedBorder = isFieldRequired && isEmptyOrNotSpecified
 
+    // Helper to update advance field value in savedProduct
+    const updateAdvanceFieldInSavedProduct = (selectedOpt: any) => {
+      const newFieldData = {
+        advance_field_id: field.id,
+        advance_field_value: selectedOpt.name,
+        option_id: selectedOpt.id
+      }
+      setSavedProducts(prev => prev.map(sp => {
+        if (sp.id !== savedProduct.id) return sp
+        const existingAdvanceFields = sp.advanceFields || []
+        const fieldIndex = existingAdvanceFields.findIndex((af: any) => af.advance_field_id === field.id)
+        const updatedAdvanceFields = fieldIndex >= 0
+          ? existingAdvanceFields.map((af: any, i: number) => i === fieldIndex ? newFieldData : af)
+          : [...existingAdvanceFields, newFieldData]
+        return { ...sp, advanceFields: updatedAdvanceFields }
+      }))
+      setAdvanceFieldValues(prev => ({
+        ...prev,
+        [`advance_${field.id}`]: newFieldData
+      }))
+    }
+
     // Render based on field_type
-    if (field.field_type === "dropdown" && field.options && Array.isArray(field.options)) {
-      const activeOptions = field.options.filter((opt: any) => opt.status === "Active" || opt.status === undefined)
+    if ((field.field_type === "dropdown" || field.field_type === "radio") && field.options && Array.isArray(field.options)) {
+      const activeOptions = field.options
+        .filter((opt: any) => opt.status === "Active" || opt.status === undefined)
+        .sort((a: any, b: any) => (a.sequence || 0) - (b.sequence || 0))
+
+      // Find selected option by saved value
+      const currentOptionId = savedField?.option_id?.toString() || ""
       const selectedOption = activeOptions.find((opt: any) =>
-        opt.id === displayValue ||
+        opt.id?.toString() === currentOptionId ||
         opt.name === displayValue ||
         String(opt.id) === String(displayValue)
       )
 
+      // Determine effective selected value for the Select component
+      const selectValue = selectedOption?.id?.toString() || ""
+
+      // Determine border color: green if value selected, red if required and empty
+      const hasValue = !!selectedOption
+      const borderColor = showRedBorder ? '#ef4444' : hasValue ? '#119933' : '#7F7F7F'
+      const labelColor = showRedBorder ? '#ef4444' : hasValue ? '#119933' : '#7F7F7F'
+
       return (
-        <div className="relative flex-1 min-w-[180px] max-w-[31%]" style={{ minHeight: '38px' }}>
-          <div
-            className="flex items-center justify-between"
-            style={{
-              padding: '8px 12px 4px 12px',
-              gap: '5px',
-              width: '100%',
-              height: '32px',
-              background: '#FFFFFF',
-              border: showRedBorder ? '0.740384px solid #ef4444' : '0.740384px solid #7F7F7F',
-              borderRadius: '7.7px',
-              boxSizing: 'border-box',
-              position: 'relative',
-              marginTop: '5.27px'
+        <div className="relative flex-1 min-w-[180px]" style={{ minHeight: '38px' }}>
+          <Select
+            value={selectValue}
+            onValueChange={(value) => {
+              const opt = activeOptions.find((o: any) => o.id?.toString() === value)
+              if (opt) {
+                updateAdvanceFieldInSavedProduct(opt)
+              }
             }}
           >
-            <span style={{
-              fontFamily: 'Verdana',
-              fontStyle: 'normal',
-              fontWeight: 400,
-              fontSize: '13px',
-              lineHeight: '20px',
-              letterSpacing: '-0.02em',
-              color: '#000000'
-            }}>{selectedOption ? selectedOption.name : (displayValue || 'Select')}</span>
-            {isStumpShade && displayValue && (
-              <div
-                className="flex items-center justify-center"
-                style={{
-                  width: '37.51px',
-                  height: '41.97px',
-                  background: 'linear-gradient(0deg, #DED2C7 0.05%, #E3D4C4 7.04%, #EDD9C1 25.04%, #F0DBC0 50.02%, #F0DCC2 76.01%, #F1E0CA 90%, #F3E7D7 100%)',
-                  borderRadius: '8px',
-                  position: 'absolute',
-                  right: '0px',
-                  top: '-1px'
-                }}
-              >
-                <span style={{
-                  fontFamily: 'Verdana',
-                  fontStyle: 'normal',
-                  fontWeight: 400,
-                  fontSize: '12.8603px',
-                  lineHeight: '18px',
-                  letterSpacing: '-0.02em',
-                  color: '#000000'
-                }}>{displayValue}</span>
-              </div>
-            )}
-          </div>
+            <SelectTrigger
+              className="h-[32px] mt-[5.27px] rounded-[7.7px] text-[13px] font-normal"
+              style={{
+                padding: '8px 12px 4px 12px',
+                gap: '5px',
+                background: '#FFFFFF',
+                border: `0.740384px solid ${borderColor}`,
+                boxSizing: 'border-box',
+                width: '100%',
+              }}
+            >
+              <SelectValue placeholder={`Select ${field.name}`}>
+                {selectedOption ? selectedOption.name : `Select ${field.name}`}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {activeOptions.map((option: any) => (
+                <SelectItem key={option.id} value={option.id.toString()}>
+                  {option.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <label
             className="absolute bg-white"
             style={{
-              padding: '0px',
+              padding: '0px 2px',
               height: '14px',
               left: '8.9px',
               top: '0px',
@@ -603,7 +628,7 @@ export function useCaseDesignCenter() {
               fontWeight: 400,
               fontSize: '14px',
               lineHeight: '14px',
-              color: '#7F7F7F'
+              color: labelColor
             }}
           >
             {isStumpShade ? "Stump Shade" : isToothShade ? "Tooth Shade" : (field.name || "Advanced Field")}
@@ -1203,6 +1228,16 @@ export function useCaseDesignCenter() {
             (field.field_type !== "dropdown" || displayValue !== `Select ${field.name}`)
         })
       }
+    }
+
+    // For removable/ortho products, retention, stumpShade, and toothShade fields are not used
+    const categoryLowerCheck = (selectedCategory || "").toLowerCase()
+    const isRemovableOrOrthoCategory = categoryLowerCheck.includes("removable") ||
+      categoryLowerCheck.includes("orthodontic") ||
+      categoryLowerCheck.includes("ortho")
+
+    if (isRemovableOrOrthoCategory) {
+      return hasMaterial && hasRequiredAdvanceFields
     }
 
     return hasMaterial && hasRetention && hasStumpShade && hasToothShade && hasStage && hasRequiredAdvanceFields
@@ -5789,8 +5824,14 @@ export function useCaseDesignCenter() {
       }
 
       // If both material and retention are set for either arch, show advance fields and fetch them
+      // For removable/ortho products, show advance fields when material is set (no retention required)
+      const savedCategoryLower = (selectedCategory || "").toLowerCase()
+      const isSavedRemovableOrOrtho = savedCategoryLower.includes("removable") ||
+        savedCategoryLower.includes("orthodontic") ||
+        savedCategoryLower.includes("ortho")
       if ((finalMaxillaryMaterial && finalMaxillaryRetention) ||
-        (finalMandibularMaterial && finalMandibularRetention)) {
+        (finalMandibularMaterial && finalMandibularRetention) ||
+        (isSavedRemovableOrOrtho && (finalMaxillaryMaterial || finalMandibularMaterial))) {
         setShowAdvanceFields(prev => ({ ...prev, [savedProduct.id]: true }))
 
         if (productDetails?.advance_fields && Array.isArray(productDetails.advance_fields)) {
@@ -6140,8 +6181,14 @@ export function useCaseDesignCenter() {
       }
 
       // If both material and retention are set, show advance fields and fetch them
+      // For removable/ortho products, show advance fields when material is set (no retention required)
+      const singleSaveCategoryLower = (selectedCategory || "").toLowerCase()
+      const isSingleSaveRemovableOrOrtho = singleSaveCategoryLower.includes("removable") ||
+        singleSaveCategoryLower.includes("orthodontic") ||
+        singleSaveCategoryLower.includes("ortho")
       if ((type === "maxillary" && finalMaxillaryMaterial && finalMaxillaryRetention) ||
-        (type === "mandibular" && finalMandibularMaterial && finalMandibularRetention)) {
+        (type === "mandibular" && finalMandibularMaterial && finalMandibularRetention) ||
+        (isSingleSaveRemovableOrOrtho && (type === "maxillary" ? finalMaxillaryMaterial : finalMandibularMaterial))) {
         setShowAdvanceFields(prev => ({ ...prev, [savedProduct.id]: true }))
 
         if (productDetails?.advance_fields && Array.isArray(productDetails.advance_fields)) {
@@ -6523,8 +6570,14 @@ export function useCaseDesignCenter() {
     }
 
     // If both material and retention are set, show advance fields and fetch them
+    // For removable/ortho products, show advance fields when material is set (no retention required)
+    const updateSaveCategoryLower = (selectedCategory || "").toLowerCase()
+    const isUpdateSaveRemovableOrOrtho = updateSaveCategoryLower.includes("removable") ||
+      updateSaveCategoryLower.includes("orthodontic") ||
+      updateSaveCategoryLower.includes("ortho")
     if ((type === "maxillary" && finalMaxillaryMaterial && finalMaxillaryRetention) ||
-      (type === "mandibular" && finalMandibularMaterial && finalMandibularRetention)) {
+      (type === "mandibular" && finalMandibularMaterial && finalMandibularRetention) ||
+      (isUpdateSaveRemovableOrOrtho && (type === "maxillary" ? finalMaxillaryMaterial : finalMandibularMaterial))) {
       setShowAdvanceFields(prev => ({ ...prev, [savedProduct.id]: true }))
 
       // Fetch advance fields from productDetails if available, otherwise fetch from API

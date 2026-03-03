@@ -488,7 +488,8 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
                 onOpenChange={setInclusionsOpen}
                 onValueChange={(value) => {
                   setInclusions(value)
-                  if (hasCache) setCachedState({ inclusions: value, inclusionsQuantity: value === "Model with Tissue + QTY" ? 1 : undefined })
+                  const qty = value === "Model with Tissue + QTY" ? 1 : undefined
+                  if (hasCache) setCachedState({ inclusions: value, inclusionsQuantity: qty })
                   onInclusionsChange(value)
                   if (value === "Model with Tissue + QTY") {
                     setInclusionsQuantity(1)
@@ -506,7 +507,11 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
                     border: `1px solid ${getFieldBorderColor(inclusions)}`
                   }}
                 >
-                  <SelectValue placeholder="" />
+                  <SelectValue placeholder="">
+                    {inclusions === "Model with Tissue + QTY" && inclusionsQuantity > 1
+                      ? `${inclusionsQuantity} X Model with Tissue + QTY`
+                      : inclusions}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent side="bottom">
                   {inclusionOptions.map((option) => (
@@ -647,6 +652,7 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
                 setInclusionsQuantity(newQuantity)
                 if (hasCache) setCachedState({ inclusionsQuantity: newQuantity })
                 if (onInclusionsQuantityChange) onInclusionsQuantityChange(newQuantity)
+                onInclusionsChange(inclusions)
               }}
               style={{
                 height: '28px',
@@ -669,6 +675,7 @@ export const ImplantDetailForm: React.FC<ImplantDetailFormProps> = ({
                 setInclusionsQuantity(newQuantity)
                 if (hasCache) setCachedState({ inclusionsQuantity: newQuantity })
                 if (onInclusionsQuantityChange) onInclusionsQuantityChange(newQuantity)
+                onInclusionsChange(inclusions)
               }}
               style={{
                 height: '28px',

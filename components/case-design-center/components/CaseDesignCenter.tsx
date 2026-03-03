@@ -191,19 +191,23 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   const hasMandibularProducts =
     Object.keys(state.mandibularRetentionTypes || {}).length > 0 || mandibularHasRemovablesTeeth;
 
-  const hasIncompleteMaxillary =
-    !hasMaxillaryProducts ||
-    Object.keys(state.maxillaryRetentionTypes).some((toothNum) => {
+  // True when the arch has products AND all of them have completed their accordion fields.
+  // The "+ Add Product" button only shows after the first product accordion is fully complete.
+  const allMaxillaryAccordionsComplete =
+    hasMaxillaryProducts &&
+    Object.keys(state.maxillaryRetentionTypes).every((toothNum) => {
       const n = getImpressionOwnerTooth("maxillary", Number(toothNum));
-      return !IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("maxillary", n, step));
-    }) || (maxillaryHasRemovablesTeeth && !allMaxillaryRemovablesComplete);
+      return IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("maxillary", n, step));
+    }) &&
+    allMaxillaryRemovablesComplete;
 
-  const hasIncompleteMandibular =
-    !hasMandibularProducts ||
-    Object.keys(state.mandibularRetentionTypes || {}).some((toothNum) => {
+  const allMandibularAccordionsComplete =
+    hasMandibularProducts &&
+    Object.keys(state.mandibularRetentionTypes || {}).every((toothNum) => {
       const n = getImpressionOwnerTooth("mandibular", Number(toothNum));
-      return !IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("mandibular", n, step));
-    }) || (mandibularHasRemovablesTeeth && !allMandibularRemovablesComplete);
+      return IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("mandibular", n, step));
+    }) &&
+    allMandibularRemovablesComplete;
 
   // Notify parent whenever readiness changes
   useEffect(() => {
@@ -229,7 +233,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         )}
         <div className="flex-1 flex items-center justify-center gap-2">
           <span className="text-[16px] sm:text-xl text-[#1d1d1b] tracking-wide">MAXILLARY</span>
-          {!props.caseSubmitted && !hasIncompleteMaxillary && (
+          {!props.caseSubmitted && allMaxillaryAccordionsComplete && (
             <button
               onClick={() => state.onAddProduct?.("maxillary")}
               className="flex items-center gap-1 shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] text-white font-[Verdana] text-xs font-semibold px-2 py-0.5 rounded-md bg-[#1162A8] hover:bg-[#0d4a85] cursor-pointer"
@@ -243,7 +247,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         </h2>
         <div className="flex-1 flex items-center justify-center gap-2">
           <span className="text-[16px] sm:text-xl text-[#1d1d1b] tracking-wide">MANDIBULAR</span>
-          {!props.caseSubmitted && !maxillaryIncomplete && !hasIncompleteMandibular && (
+          {!props.caseSubmitted && allMandibularAccordionsComplete && (
             <button
               onClick={() => state.onAddProduct?.("mandibular")}
               className="flex items-center gap-1 shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] text-white font-[Verdana] text-xs font-semibold px-2 py-0.5 rounded-md bg-[#1162A8] hover:bg-[#0d4a85] cursor-pointer"
@@ -310,6 +314,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           isFieldVisible={state.isFieldVisible}
           isFieldCompleted={state.isFieldCompleted}
           completeFieldStep={state.completeFieldStep}
+          storeFieldValue={state.storeFieldValue}
+          uncompleteFieldStep={state.uncompleteFieldStep}
           getFieldValue={state.getFieldValue}
           clearToothProgress={state.clearToothProgress}
           setToothProduct={state.setToothProduct}
@@ -382,6 +388,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           isFieldVisible={state.isFieldVisible}
           isFieldCompleted={state.isFieldCompleted}
           completeFieldStep={state.completeFieldStep}
+          storeFieldValue={state.storeFieldValue}
+          uncompleteFieldStep={state.uncompleteFieldStep}
           getFieldValue={state.getFieldValue}
           clearToothProgress={state.clearToothProgress}
           setToothProduct={state.setToothProduct}

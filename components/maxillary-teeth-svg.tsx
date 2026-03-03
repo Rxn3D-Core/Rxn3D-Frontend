@@ -379,6 +379,7 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
             const isHovered = hoveredTooth === tooth
             const retentionTypes = retentionTypesByTooth[tooth] || []
             const isImplant = retentionTypes.includes('Implant')
+            const isPontic = retentionTypes.includes('Pontic')
 
             // Mapping for implant x positions by tooth number
             const implantXPositions: Record<number, number> = {
@@ -434,6 +435,39 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
                   {renderClaspOverlay(tooth, implantXPositions[tooth] ?? x, 23, 70)}
                 </g>
               )
+            }
+
+            // For any tooth with Pontic, use the half-tooth image instead of the pattern
+            if (isPontic) {
+              // Pontic base64 PNG data per tooth number
+              const ponticImages: Record<number, string> = {
+                1: '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'
+              }
+
+              const ponticBase64 = ponticImages[tooth]
+              if (ponticBase64) {
+                return (
+                  <g key={tooth}>
+                    <image
+                      x={x}
+                      y="0"
+                      width={width}
+                      height="141"
+                      preserveAspectRatio="none"
+                      xlinkHref={`data:image/png;base64,${ponticBase64}`}
+                      onClick={() => handleToothClick(tooth)}
+                      onMouseEnter={() => setHoveredTooth(tooth)}
+                      onMouseLeave={() => setHoveredTooth(null)}
+                      style={{
+                        cursor: 'pointer',
+                        opacity: getToothOpacity(tooth),
+                        transition: 'all 0.2s ease'
+                      }}
+                    />
+                    {renderClaspOverlay(tooth, x, width, 80)}
+                  </g>
+                )
+              }
             }
 
             const isWillExtract = willExtractTeeth.includes(tooth)

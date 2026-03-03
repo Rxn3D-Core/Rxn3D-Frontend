@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { ImpressionSelectionModal } from "@/components/impression-selection-modal";
 import AddOnsModal from "@/components/add-ons-modal";
 import FileAttachmentModalContent from "@/components/file-attachment-modal-content";
@@ -54,6 +55,31 @@ interface ModalOrchestratorProps {
   currentStageOptions: { name: string; letter: string }[] | null;
   handleStageSelect: (stageName: string) => void;
   onStageConfirm: (stageName: string) => void;
+}
+
+/** When only 1 stage is available, auto-selects it and closes — skipping the modal entirely. */
+function AutoSelectSingleStage({
+  stages,
+  onAutoSelect,
+  onClose,
+  children,
+}: {
+  stages: { name: string; letter: string }[];
+  onAutoSelect: (stageName: string) => void;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  const didAutoSelect = useRef(false);
+  useEffect(() => {
+    if (stages.length === 1 && !didAutoSelect.current) {
+      didAutoSelect.current = true;
+      onAutoSelect(stages[0].name);
+    }
+  }, [stages, onAutoSelect]);
+
+  // Don't render the modal when auto-selecting
+  if (stages.length === 1) return null;
+  return <>{children}</>;
 }
 
 export function ModalOrchestrator({
@@ -145,17 +171,26 @@ export function ModalOrchestrator({
         arch={currentAddOnsArch}
       />
 
-      {/* Stage Selection Modal */}
+      {/* Stage Selection Modal — auto-selects when only 1 stage is available */}
       {isStageModalOpen && (
-        <StageSelectionModal
+        <AutoSelectSingleStage
           stages={currentStageOptions || stageOptions}
-          selectedStage={selectedStages[currentStageProductId]}
-          onSelect={(stageName) => {
+          onAutoSelect={(stageName) => {
             handleStageSelect(stageName);
             onStageConfirm(stageName);
           }}
           onClose={() => setIsStageModalOpen(false)}
-        />
+        >
+          <StageSelectionModal
+            stages={currentStageOptions || stageOptions}
+            selectedStage={selectedStages[currentStageProductId]}
+            onSelect={(stageName) => {
+              handleStageSelect(stageName);
+              onStageConfirm(stageName);
+            }}
+            onClose={() => setIsStageModalOpen(false)}
+          />
+        </AutoSelectSingleStage>
       )}
 
       {/* File Attachment Modal */}

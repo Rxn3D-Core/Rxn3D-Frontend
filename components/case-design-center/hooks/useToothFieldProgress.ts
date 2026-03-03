@@ -38,6 +38,12 @@ export const FIXED_FIELD_STEPS = [
 export type FieldStep = (typeof FIELD_STEPS)[number] | (typeof FIXED_FIELD_STEPS)[number];
 
 /**
+ * Optional steps that are shown but do NOT block progression to the next step.
+ * Completing them is not required for the chain to advance.
+ */
+const OPTIONAL_STEPS: ReadonlySet<string> = new Set(["fixed_addons"]);
+
+/**
  * Steps that count as "impression completed" for Case Summary Notes.
  * Add any new impression-type step here to keep behavior dynamic.
  */
@@ -61,7 +67,6 @@ const FIXED_STEP_ADVANCE_FIELD_PATTERNS: Record<string, (name: string) => boolea
   fixed_margin:            (n) => n.includes("margin"),
   fixed_metal:             (n) => n.includes("metal"),
   fixed_proximal_contact:  (n) => n.includes("proximal") && n.includes("contact"),
-  fixed_addons:            (n) => n.includes("add") && (n.includes("on") || n.includes("addon")),
   fixed_notes:             (n) => n.includes("note") || n.includes("additional"),
 };
 
@@ -130,10 +135,10 @@ export function useToothFieldProgress() {
       const completed = completedFields[key];
       if (!completed) return 1; // Show first field by default
 
-      // Count consecutive completed fields from the start of the chain
+      // Count consecutive completed (or optional) fields from the start of the chain
       let count = 0;
       for (const step of chain) {
-        if (completed.has(step)) {
+        if (completed.has(step) || OPTIONAL_STEPS.has(step)) {
           count++;
         } else {
           break;
@@ -159,6 +164,35 @@ export function useToothFieldProgress() {
         ...prev,
         [key]: { ...(prev[key] || {}), [step]: value },
       }));
+    },
+    []
+  );
+
+  /** Store a field value WITHOUT marking the step as completed.
+   *  Use this for partial progress (e.g. filling 1 of 4 sub-fields). */
+  const storeFieldValue = useCallback(
+    (arch: Arch, toothNumber: number, step: FieldStep, value: string) => {
+      const key = toothKey(arch, toothNumber);
+      setFieldValues((prev) => ({
+        ...prev,
+        [key]: { ...(prev[key] || {}), [step]: value },
+      }));
+    },
+    []
+  );
+
+  /** Remove a step from completed fields (un-complete it).
+   *  Use when a previously-completed step becomes incomplete (e.g. sub-field cleared). */
+  const uncompleteFieldStep = useCallback(
+    (arch: Arch, toothNumber: number, step: FieldStep) => {
+      const key = toothKey(arch, toothNumber);
+      setCompletedFields((prev) => {
+        const existing = prev[key];
+        if (!existing || !existing.has(step)) return prev;
+        const updated = new Set(existing);
+        updated.delete(step);
+        return { ...prev, [key]: updated };
+      });
     },
     []
   );
@@ -317,6 +351,8 @@ export function useToothFieldProgress() {
   return {
     getVisibleStepCount,
     completeFieldStep,
+    storeFieldValue,
+    uncompleteFieldStep,
     isFieldCompleted,
     getFieldValue,
     isFieldVisible,

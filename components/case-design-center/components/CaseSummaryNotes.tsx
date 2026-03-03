@@ -263,7 +263,7 @@ function buildSectionText(arch: Arch, groups: NoteGroup[]): string {
 // ─── component ───────────────────────────────────────────────────────────────
 
 export function CaseSummaryNotes(props: NotesProps) {
-  const [activeTab, setActiveTab] = useState<"summary" | "maxillary" | "mandibular">("mandibular");
+  const [activeTab, setActiveTab] = useState<"summary" | "maxillary" | "mandibular">("summary");
   const [collapsed, setCollapsed] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [manualOverride, setManualOverride] = useState<string | null>(null);

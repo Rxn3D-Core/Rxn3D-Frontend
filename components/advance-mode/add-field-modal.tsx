@@ -1265,10 +1265,11 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
   }
 
   const toggleDefault = (id: string) => {
+    const clickedOption = options.find((opt) => opt.id === id)
     setOptions(
       options.map((opt) => ({
         ...opt,
-        isDefault: opt.id === id,
+        isDefault: opt.id === id ? !clickedOption?.isDefault : false,
       }))
     )
   }
