@@ -8,7 +8,7 @@ const ITEMS_PER_PAGE = 8;
 
 interface GumShadePickerProps {
   selected?: string | null;
-  onSelect: (shadeName: string) => void;
+  onSelect: (shade: ProductGumShade) => void;
   gumShades: ProductGumShade[];
 }
 
@@ -121,7 +121,7 @@ export function GumShadePicker({ selected, onSelect, gumShades }: GumShadePicker
               <button
                 key={shade.id}
                 type="button"
-                onClick={() => onSelect(shade.name)}
+                onClick={() => onSelect(shade)}
                 className="flex flex-col items-center justify-center flex-1 min-w-0 py-[7px] gap-[7px]"
               >
                 <div className="relative flex-shrink-0" style={{ width: "63px", height: "63px" }}>

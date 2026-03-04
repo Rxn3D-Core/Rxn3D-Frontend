@@ -26,6 +26,8 @@ interface SlipCreationStepFooterProps {
   isAccordionComplete?: () => boolean
   /** Human-readable label of the first incomplete required field */
   incompleteFieldLabel?: string | null
+  /** When true, a tooth-status required field has a validation error — hides the acknowledgement label */
+  hasToothStatusValidation?: boolean
   /** Handler for submit action */
   onSubmit?: () => void
   /** Handler for confirm details checkbox change */
@@ -46,6 +48,7 @@ export function SlipCreationStepFooter({
   confirmDetailsChecked = false,
   isAccordionComplete,
   incompleteFieldLabel,
+  hasToothStatusValidation = false,
   onSubmit,
   onConfirmDetailsChange,
   onShowSubmitPopoverChange,
@@ -167,7 +170,7 @@ export function SlipCreationStepFooter({
                 </span>
               )}
 
-              {mode === "submit" && isAccordionComplete?.() && (
+              {mode === "submit" && isAccordionComplete?.() && !hasToothStatusValidation && (
                 <>
                   {/* Confirmation checkbox with warning */}
                   <div

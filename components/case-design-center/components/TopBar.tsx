@@ -88,9 +88,11 @@ export function TopBar({ selectedLab, onEditClick, caseSubmitted = false }: TopB
       <div className="flex items-center gap-1.5 sm:gap-3 md:gap-4 min-w-0 flex-shrink-0 max-w-[45%] sm:max-w-none sm:w-44 md:w-[360px]">
         {selectedLab && (
           <>
-            <span className="text-xs sm:text-base font-medium text-[#1d1d1b] whitespace-nowrap">
-              {leftLabel}
-            </span>
+            {!caseSubmitted && (
+              <span className="text-xs sm:text-base font-medium text-[#1d1d1b] whitespace-nowrap">
+                {leftLabel}
+              </span>
+            )}
             {selectedLogoUrl ? (
               <img
                 src={selectedLogoUrl}

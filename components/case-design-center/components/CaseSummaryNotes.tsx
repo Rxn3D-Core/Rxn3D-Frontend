@@ -106,10 +106,16 @@ function buildRemovableNote(
 ): string {
   const productName = product?.name || "removable";
   const teethStr = formatTeethNumbers(teeth);
-  const grade = props.getFieldValue(arch, repTooth, "grade");
+  const gradeRaw = props.getFieldValue(arch, repTooth, "grade");
+  let grade = gradeRaw;
+  try { const p = JSON.parse(gradeRaw); grade = p.name ?? gradeRaw; } catch {}
   const stage = props.getFieldValue(arch, repTooth, "stage");
-  const teethShade = props.getFieldValue(arch, repTooth, "teeth_shade");
-  const gumShade = props.getFieldValue(arch, repTooth, "gum_shade");
+  const teethShadeRaw = props.getFieldValue(arch, repTooth, "teeth_shade");
+  let teethShade = teethShadeRaw;
+  try { const p = JSON.parse(teethShadeRaw); teethShade = p.name ?? teethShadeRaw; } catch {}
+  const gumShadeRaw = props.getFieldValue(arch, repTooth, "gum_shade");
+  let gumShade = gumShadeRaw;
+  try { const p = JSON.parse(gumShadeRaw); gumShade = p.name ?? gumShadeRaw; } catch {}
   const impression = props.getImpressionDisplayText(`prep_${repTooth}`, arch, repTooth);
   const addons = props.getFieldValue(arch, repTooth, "addons");
 

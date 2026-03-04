@@ -84,9 +84,7 @@ export function ImplantInclusionsField({
               onChange("No inclusion");
               setShowDropdown(false);
             }}
-            className={`w-full text-left px-3 py-2.5 text-xs hover:bg-[#DFEEFB] transition-colors ${
-              value === "No inclusion" ? 'text-[#34a853]' : 'text-[#1d1d1b]'
-            }`}
+            className="w-full text-left px-3 py-2.5 text-xs hover:bg-[#DFEEFB] transition-colors text-[#1d1d1b]"
           >
             No inclusion
           </button>
@@ -98,10 +96,11 @@ export function ImplantInclusionsField({
               e.stopPropagation();
               if (value !== "Model with Tissue + QTY") {
                 onChange("Model with Tissue + QTY");
+                if (quantity === 0) onQuantityChange(1);
               }
             }}
           >
-            <span className={`text-xs ${value === "Model with Tissue + QTY" ? 'text-[#34a853]' : 'text-[#1d1d1b]'}`}>
+            <span className="text-xs text-[#1d1d1b]">
               Model with Tissue + QTY
             </span>
             <div className="flex items-center gap-2">
@@ -147,7 +146,7 @@ export function ImplantInclusionsField({
         </legend>
         <div className="flex items-center gap-2 w-full min-h-0">
           <span className="text-[14px] sm:text-lg leading-tight text-[#000000] flex-1 min-w-0 truncate">
-            {value === "Model with Tissue + QTY" && quantity > 1
+            {value === "Model with Tissue + QTY" && quantity >= 1
               ? `${quantity} X Model with Tissue + QTY`
               : value || "Select..."}
           </span>

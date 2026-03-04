@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
-import type { CaseDesignProps } from "../types";
+import { useEffect, useCallback } from "react";
+import type { CaseDesignProps, SlipProductSnapshot } from "../types";
 import { productImpressionsToModalOptions } from "../types";
 import { useCaseDesignState } from "../hooks/useCaseDesignState";
 import { IMPRESSION_STEP_NAMES } from "../hooks/useToothFieldProgress";
@@ -218,6 +218,145 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     props.onIncompleteFieldChange?.(incompleteFieldLabel);
   }, [incompleteFieldLabel]);
 
+  // Build a snapshot of all product selections for the slip payload.
+  // Groups teeth by (arch × product card) so each unique product+arch combo becomes one entry.
+  const collectSlipProducts = useCallback((): SlipProductSnapshot[] => {
+    const MAXILLARY_ALL = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16];
+    const MANDIBULAR_ALL = [17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32];
+
+    const snapshots: SlipProductSnapshot[] = [];
+
+    const processArch = (arch: "maxillary" | "mandibular", type: "Upper" | "Lower", allTeeth: number[]) => {
+      // Group teeth by product card ID
+      const cardGroups = new Map<number, number[]>();
+      for (const tn of allTeeth) {
+        if (!state.getToothProduct(arch, tn) && !state.maxillaryTeeth.includes(tn) && !state.mandibularTeeth?.includes(tn)) {
+          // Check retention types too
+          const hasRetention = arch === "maxillary"
+            ? Object.prototype.hasOwnProperty.call(state.maxillaryRetentionTypes, tn)
+            : Object.prototype.hasOwnProperty.call(state.mandibularRetentionTypes || {}, tn);
+          if (!hasRetention) continue;
+        }
+        const cardId = state.getToothProductCard(arch, tn);
+        // Only include teeth that have a product assigned OR are part of a removables selection
+        const toothProduct = state.getToothProduct(arch, tn);
+        const isInRetentionTypes = arch === "maxillary"
+          ? Object.prototype.hasOwnProperty.call(state.maxillaryRetentionTypes, tn)
+          : Object.prototype.hasOwnProperty.call(state.mandibularRetentionTypes || {}, tn);
+        const isInRemovables = arch === "maxillary"
+          ? state.maxillaryTeeth.includes(tn)
+          : (state.mandibularTeeth ?? []).includes(tn);
+        if (!toothProduct && !isInRetentionTypes && !isInRemovables) continue;
+        const existing = cardGroups.get(cardId);
+        if (existing) {
+          existing.push(tn);
+        } else {
+          cardGroups.set(cardId, [tn]);
+        }
+      }
+
+      const HEADER_EXTRACTION_CODES = new Set(["MT", "WED", "WEOD", "FR", "CTS"]);
+      const extractionMap = arch === "maxillary"
+        ? state.maxillaryToothExtractionMap
+        : state.mandibularToothExtractionMap;
+
+      cardGroups.forEach((teethNums, cardId) => {
+        const sortedTeeth = [...teethNums].sort((a, b) => a - b);
+
+        // Use the first tooth that has productApiData as representative (panel stores fields there)
+        const repTooth = sortedTeeth.find((tn) => !!state.getToothProduct(arch, tn)) ?? sortedTeeth[0];
+        const productApiData = state.getToothProduct(arch, repTooth);
+        const productId = productApiData?.id
+          ?? (props.addedProducts?.find((ap) => ap.id === cardId)?.productId)
+          ?? props.selectedProductId
+          ?? 0;
+
+        const fieldValues: Record<string, string> = {};
+        const allSteps = [
+          "grade", "stage", "teeth_shade", "gum_shade", "impression", "addons",
+          "fixed_stage", "fixed_stump_shade", "fixed_shade_trio", "fixed_characterization",
+          "fixed_contact_icons", "fixed_margin", "fixed_metal", "fixed_proximal_contact",
+          "fixed_impression", "fixed_addons", "fixed_notes",
+        ] as const;
+        for (const step of allSteps) {
+          const val = state.getFieldValue(arch, repTooth, step as any);
+          if (val) fieldValues[step] = val;
+        }
+
+        // Stage: look up from selectedStages using the product key format used in the panels
+        const isFixedCategory = productApiData?.subcategory?.category?.name === "Fixed Restoration";
+        const stageKey = isFixedCategory
+          ? `${arch}_fixed_${repTooth}`
+          : `${arch}_prep_${repTooth}`;
+        const stageName = state.selectedStages?.[stageKey] ?? fieldValues["stage"] ?? fieldValues["fixed_stage"] ?? null;
+
+        // teeth_selection: use only teeth with extraction codes (matching accordion header display)
+        // If none have extraction codes, fall back to all selected teeth
+        const filteredByExtraction = sortedTeeth.filter((tn) => {
+          const code = extractionMap?.[tn];
+          return code && HEADER_EXTRACTION_CODES.has(code);
+        });
+        const teethSelection = filteredByExtraction.length > 0 ? filteredByExtraction : sortedTeeth;
+
+        // Impressions: filter selectedImpressions for this product+arch
+        const impressionPrefix = `${cardId}_${arch}_`;
+        const impressions: Record<string, number> = {};
+        Object.entries(state.selectedImpressions ?? {}).forEach(([key, qty]) => {
+          if (key.startsWith(impressionPrefix) && qty > 0) {
+            const code = key.slice(impressionPrefix.length);
+            impressions[code] = qty;
+          }
+        });
+
+        // Rush: look up from rushedProducts
+        const rushKey = `${arch}_${cardId}`;
+        const rush = state.rushedProducts?.[rushKey] ?? null;
+
+        snapshots.push({
+          type,
+          productId,
+          productApiData: productApiData ?? null,
+          teethNumbers: teethSelection,
+          repToothNumber: repTooth,
+          fieldValues,
+          stageName,
+          impressions,
+          rush,
+          cardId,
+          selectedShades: { ...(state.selectedShades ?? {}) },
+          shadeGuide: state.selectedShadeGuide ?? "Vita Classical",
+        });
+      });
+    };
+
+    processArch("maxillary", "Upper", MAXILLARY_ALL);
+    processArch("mandibular", "Lower", MANDIBULAR_ALL);
+
+    return snapshots;
+  }, [
+    state.getToothProduct,
+    state.getToothProductCard,
+    state.getFieldValue,
+    state.maxillaryRetentionTypes,
+    state.mandibularRetentionTypes,
+    state.maxillaryTeeth,
+    state.mandibularTeeth,
+    state.selectedStages,
+    state.selectedImpressions,
+    state.rushedProducts,
+    state.maxillaryToothExtractionMap,
+    state.mandibularToothExtractionMap,
+    props.addedProducts,
+    props.selectedProductId,
+  ]);
+
+  // Assign collector to ref so parent can call it at submit time
+  useEffect(() => {
+    if (props.slipCollectorRef) {
+      props.slipCollectorRef.current = collectSlipProducts;
+    }
+  });
+
   return (
     <div className="px-2 md:px-4 py-2">
       {/* Title row - Back to Products | MAXILLARY | CASE DESIGN CENTER | MANDIBULAR */}
@@ -233,7 +372,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         )}
         <div className="flex-1 flex items-center justify-center gap-2">
           <span className="text-[16px] sm:text-xl text-[#1d1d1b] tracking-wide">MAXILLARY</span>
-          {!props.caseSubmitted && allMaxillaryAccordionsComplete && (
+          {!props.caseSubmitted && (allMaxillaryAccordionsComplete || allMandibularAccordionsComplete) && (
             <button
               onClick={() => state.onAddProduct?.("maxillary")}
               className="flex items-center gap-1 shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] text-white font-[Verdana] text-xs font-semibold px-2 py-0.5 rounded-md bg-[#1162A8] hover:bg-[#0d4a85] cursor-pointer"
@@ -247,7 +386,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         </h2>
         <div className="flex-1 flex items-center justify-center gap-2">
           <span className="text-[16px] sm:text-xl text-[#1d1d1b] tracking-wide">MANDIBULAR</span>
-          {!props.caseSubmitted && allMandibularAccordionsComplete && (
+          {!props.caseSubmitted && (allMaxillaryAccordionsComplete || allMandibularAccordionsComplete) && (
             <button
               onClick={() => state.onAddProduct?.("mandibular")}
               className="flex items-center gap-1 shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] text-white font-[Verdana] text-xs font-semibold px-2 py-0.5 rounded-md bg-[#1162A8] hover:bg-[#0d4a85] cursor-pointer"
@@ -326,6 +465,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           maxillaryClaspTeeth={state.maxillaryClaspTeeth}
           handleToothExtractionToggle={state.handleToothExtractionToggle}
           selectAllMaxillaryTeeth={state.selectAllMaxillaryTeeth}
+          onToothStatusValidationChange={props.onToothStatusValidationChange}
         />
 
         {/* CENTER NAVIGATION */}
@@ -400,6 +540,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           mandibularClaspTeeth={state.mandibularClaspTeeth}
           handleToothExtractionToggle={state.handleToothExtractionToggle}
           selectAllMandibularTeeth={state.selectAllMandibularTeeth}
+          onToothStatusValidationChange={props.onToothStatusValidationChange}
         />
       </div>
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Pencil } from "lucide-react";
 import { FieldInput } from "./fields";
+import type { SlipCreationResponse } from "@/services/slip-creation-service";
 
 export interface PatientHeaderProps {
   /** Selected doctor image URL (from wizard). Falls back to placeholder when not provided. */
@@ -13,8 +14,23 @@ export interface PatientHeaderProps {
   gender?: string | null;
   /** When true, show case-related fields (slip number, case number, etc.). Hidden until case is submitted. */
   caseSubmitted?: boolean;
+  /** When true, show skeleton placeholders while slip response is loading. */
+  slipHeaderLoading?: boolean;
+  /** Slip creation response data used to populate the submitted header fields. */
+  slipResponseData?: SlipCreationResponse["data"] | null;
   /** Called when the user clicks the pencil to change doctor selection. */
   onEditDoctorClick?: () => void;
+}
+
+function SkeletonField({ width = "w-32" }: { width?: string }) {
+  return (
+    <fieldset className={`border rounded px-3 py-0 relative h-[42px] flex items-center border-[#b4b0b0] ${width}`}>
+      <legend className="text-sm px-1 leading-none whitespace-nowrap text-[#7f7f7f]">
+        <span className="inline-block w-16 h-3 bg-gray-200 rounded animate-pulse" />
+      </legend>
+      <span className="inline-block w-full h-4 bg-gray-200 rounded animate-pulse" />
+    </fieldset>
+  );
 }
 
 const DEFAULT_DOCTOR_IMAGE = "/images/doctor-image.png";
@@ -22,11 +38,41 @@ const DEFAULT_DOCTOR_NAME = "Cody Mugglestone, DDS";
 const DEFAULT_PATIENT_NAME = "Jose Protacio Rizal Mercado y Alonzo";
 const DEFAULT_GENDER = "Male";
 
-export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender, caseSubmitted = false, onEditDoctorClick }: PatientHeaderProps = {}) {
+export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender, caseSubmitted = false, slipHeaderLoading = false, slipResponseData, onEditDoctorClick }: PatientHeaderProps = {}) {
   const imgSrc = doctorImageUrl && doctorImageUrl.trim() !== "" ? doctorImageUrl : DEFAULT_DOCTOR_IMAGE;
   const displayName = doctorName && doctorName.trim() !== "" ? doctorName : DEFAULT_DOCTOR_NAME;
   const displayPatientName = patientName && patientName.trim() !== "" ? patientName : DEFAULT_PATIENT_NAME;
   const displayGender = gender && gender.trim() !== "" ? gender : DEFAULT_GENDER;
+
+  const firstSlip = slipResponseData?.slips?.[0];
+
+  const slipNumber = firstSlip?.slip_number ?? "";
+  const caseNumber = slipResponseData?.case_number ?? "";
+  const panNumber = firstSlip?.casepan?.number ?? "";
+  const status = firstSlip?.status ?? slipResponseData?.case_status ?? "";
+  const location = firstSlip?.location?.name ?? "";
+
+  const formatDate = (iso: string | null | undefined) => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    return `${String(d.getMonth() + 1).padStart(2, "0")}/ ${String(d.getDate()).padStart(2, "0")}/ ${String(d.getFullYear()).slice(2)}`;
+  };
+
+  const formatTime = (iso: string | null | undefined) => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    const h = d.getHours();
+    const m = d.getMinutes();
+    const ampm = h >= 12 ? "pm" : "am";
+    const hour = h % 12 || 12;
+    return m === 0 ? `${hour} ${ampm}` : `${hour}:${String(m).padStart(2, "0")} ${ampm}`;
+  };
+
+  const pickupDate = formatDate(firstSlip?.delivery?.pickup_date);
+  const dueDate = formatDate(firstSlip?.delivery?.delivery_date);
+  const deliveryTime = formatTime(firstSlip?.delivery?.delivery_time);
 
   const [createdByName, setCreatedByName] = useState("");
   const [createdByImage, setCreatedByImage] = useState("");
@@ -84,24 +130,46 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
               value={displayPatientName}
               submitted={caseSubmitted}
             />
-            {caseSubmitted && (
+            {(caseSubmitted || slipHeaderLoading) && (
               <>
-                <FieldInput label="Slip number" value="S687954" submitted />
-                <FieldInput label="Case number" value="C125489" submitted />
-                <FieldInput label="Pan number" value="A68" submitted />
-                <FieldInput label="Status" value="In process" submitted />
+                {slipHeaderLoading ? (
+                  <>
+                    <SkeletonField width="w-32" />
+                    <SkeletonField width="w-32" />
+                    <SkeletonField width="w-24" />
+                    <SkeletonField width="w-28" />
+                  </>
+                ) : (
+                  <>
+                    <FieldInput label="Slip number" value={slipNumber} submitted />
+                    <FieldInput label="Case number" value={caseNumber} submitted />
+                    <FieldInput label="Pan number" value={panNumber} submitted />
+                    <FieldInput label="Status" value={status} submitted />
+                  </>
+                )}
               </>
             )}
           </div>
           {/* Row 2: Gender, Pick up Date, Due Date, Delivery Time, Location */}
           <div className="flex flex-wrap gap-3 sm:gap-4 items-start justify-center lg:justify-start">
             <FieldInput label="Gender" value={displayGender} submitted={caseSubmitted} />
-            {caseSubmitted && (
+            {(caseSubmitted || slipHeaderLoading) && (
               <>
-                <FieldInput label="Pick up Date" value="01/ 01/ 25" submitted />
-                <FieldInput label="Due Date" value="01/ 01/ 25" submitted />
-                <FieldInput label="Delivery Time" value="5 pm" submitted />
-                <FieldInput label="Location" value="In office ready to pick up" submitted />
+                {slipHeaderLoading ? (
+                  <>
+                    <SkeletonField width="w-28" />
+                    <SkeletonField width="w-28" />
+                    <SkeletonField width="w-28" />
+                    <SkeletonField width="w-44" />
+                  </>
+                ) : (
+                  <>
+                    <FieldInput label="Pick up Date" value={pickupDate} submitted />
+                    <FieldInput label="Due Date" value={dueDate} submitted />
+                    <FieldInput label="Delivery Time" value={deliveryTime} submitted />
+                    <FieldInput label="Location" value={location} submitted />
+                  </>
+                )}
               </>
             )}
           </div>

@@ -17,6 +17,8 @@ interface ToothStatusBoxesProps {
   onToothExtractionToggle: (toothNumber: number, extractionCode: string) => void;
   /** Called when "Teeth in mouth" box is clicked — selects all arch teeth */
   onSelectAllTeeth: (teeth: number[]) => void;
+  /** Called whenever the required-validation error state changes */
+  onRequiredValidationChange?: (hasValidation: boolean) => void;
 }
 
 /** Fallback color map keyed by extraction code — used only when API color is null */
@@ -112,6 +114,7 @@ export function ToothStatusBoxes({
   onActiveExtractionChange,
   onToothExtractionToggle,
   onSelectAllTeeth,
+  onRequiredValidationChange,
 }: ToothStatusBoxesProps) {
   const activeExtractions = extractions
     .filter((e) => e.status === "Active" && e.name != null && e.code != null)
@@ -140,6 +143,21 @@ export function ToothStatusBoxes({
         ? claspTeeth.some((tn) => selectedTeeth.includes(tn))
         : selectedTeeth.some((tn) => toothExtractionMap[tn] === e.code)
     );
+
+  // Compute whether any required box is showing a validation error
+  const hasRequiredValidation = activeExtractions.some((e) => {
+    if (!isRequiredExtraction(e)) return false;
+    const isClasp = isClaspExtraction(e);
+    const teethForBox = isClasp
+      ? claspTeeth.filter((tn) => selectedTeeth.includes(tn))
+      : selectedTeeth.filter((tn) => toothExtractionMap[tn] === e.code);
+    return teethForBox.length === 0 && !anyOptionalHasTeeth;
+  });
+
+  // Notify parent whenever validation state changes
+  useEffect(() => {
+    onRequiredValidationChange?.(hasRequiredValidation);
+  }, [hasRequiredValidation, onRequiredValidationChange]);
 
   // Build pairs for 2-column grid layout
   const rows: ProductExtraction[][] = [];

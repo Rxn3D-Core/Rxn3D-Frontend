@@ -331,6 +331,7 @@ function AdvanceFieldSelect({
   borderColor,
   labelColor,
   onSelect,
+  caseSubmitted,
 }: {
   fieldId: number;
   fieldName: string;
@@ -339,6 +340,7 @@ function AdvanceFieldSelect({
   borderColor: string;
   labelColor: string;
   onSelect: (opt: { id: number; name: string }) => void;
+  caseSubmitted?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const hasAutoSelected = useRef(false);
@@ -389,7 +391,7 @@ function AdvanceFieldSelect({
           ))}
         </SelectContent>
       </Select>
-      {hasVal && <Check size={16} className="text-[#34a853] ml-auto flex-shrink-0" />}
+      {hasVal && !caseSubmitted && <Check size={16} className="text-[#34a853] ml-auto flex-shrink-0" />}
     </fieldset>
   );
 }
@@ -486,6 +488,7 @@ interface MaxillaryPanelProps {
   maxillaryClaspTeeth: number[];
   handleToothExtractionToggle: (arch: Arch, toothNumber: number, extractionCode: string) => void;
   selectAllMaxillaryTeeth: (teeth: number[]) => void;
+  onToothStatusValidationChange?: (hasValidation: boolean) => void;
 }
 
 function hasAdvanceField(
@@ -579,6 +582,20 @@ function AutoOpenShade({ hasValue, onOpen }: { hasValue: boolean; onOpen: () => 
   return null;
 }
 
+function AutoOpenGumShade({ visible, hasValue, onOpen }: { visible: boolean; hasValue: boolean; onOpen: () => void }) {
+  const opened = useRef(false);
+  useEffect(() => {
+    if (visible && !hasValue && !opened.current) {
+      opened.current = true;
+      onOpen();
+    }
+    if (!visible || hasValue) {
+      opened.current = false;
+    }
+  }, [visible, hasValue, onOpen]);
+  return null;
+}
+
 /* ------------------------------------------------------------------ */
 /*  MaxillaryPanel                                                     */
 /* ------------------------------------------------------------------ */
@@ -638,6 +655,7 @@ export function MaxillaryPanel({
   maxillaryClaspTeeth,
   handleToothExtractionToggle,
   selectAllMaxillaryTeeth,
+  onToothStatusValidationChange,
 }: MaxillaryPanelProps) {
   const MAXILLARY_ALL_TEETH = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16];
   const [activeExtractionCode, setActiveExtractionCode] = useState<string | null>(null);
@@ -645,6 +663,8 @@ export function MaxillaryPanel({
   const [implantDetailCompleteByTooth, setImplantDetailCompleteByTooth] = useState<Record<number, boolean>>({});
   /** Expand/collapse for initial (card 0) Removables product accordion */
   const [initialRemovablesExpanded, setInitialRemovablesExpanded] = useState(true);
+  /** Panel-level gum shade picker state — shown above tooth status boxes */
+  const [panelGumShadePicker, setPanelGumShadePicker] = useState<{ toothNumber: number; gumShades: { gum_shade_id: number; name: string; color_code_middle: string; brand: { id: number } }[] } | null>(null);
   // Auto-select default grade for removable products when product loads
   const autoGradeApplied = useRef<Set<string>>(new Set());
   useEffect(() => {
@@ -658,7 +678,7 @@ export function MaxillaryPanel({
       const def = getDefaultGrade(tp.grades);
       if (def) {
         autoGradeApplied.current.add(key);
-        completeFieldStep("maxillary", tn, "grade", def.name);
+        completeFieldStep("maxillary", tn, "grade", JSON.stringify({ grade_id: def.grade_id, name: def.name }));
       }
     }
   }, [getFieldValue, completeFieldStep, getToothProduct]);
@@ -768,6 +788,20 @@ export function MaxillaryPanel({
             />
           )}
 
+          {/* Panel-level Gum Shade Picker — shown above tooth status boxes when triggered from removable accordion */}
+          {panelGumShadePicker && (
+            <div className="mt-3">
+              <GumShadePicker
+                selected={null}
+                onSelect={(shade) => {
+                  completeFieldStep("maxillary", panelGumShadePicker.toothNumber, "gum_shade", JSON.stringify({ gum_shade_id: shade.gum_shade_id, brand_id: shade.brand.id, name: shade.name }));
+                  setPanelGumShadePicker(null);
+                }}
+                gumShades={panelGumShadePicker.gumShades}
+              />
+            </div>
+          )}
+
           {/* Tooth status boxes - shown above all product accordions when any product has extractions */}
           {(() => {
             const seenIds = new Set<number>();
@@ -792,6 +826,7 @@ export function MaxillaryPanel({
                   onActiveExtractionChange={setActiveExtractionCode}
                   onToothExtractionToggle={(tn, code) => handleToothExtractionToggle("maxillary", tn, code)}
                   onSelectAllTeeth={selectAllMaxillaryTeeth}
+                  onRequiredValidationChange={onToothStatusValidationChange}
                 />
               </div>
             );
@@ -1213,8 +1248,8 @@ export function MaxillaryPanel({
                               const currentSelection = storedValues[field.id];
                               const hasFieldOptions = activeOptions.length > 0;
                               const hasVal = !!currentSelection;
-                              const borderColor = hasVal ? '#119933' : '#CF0202';
-                              const labelColor = hasVal ? '#119933' : '#CF0202';
+                              const borderColor = hasVal && !caseSubmitted ? '#119933' : hasVal ? '#b4b0b0' : '#CF0202';
+                              const labelColor = hasVal && !caseSubmitted ? '#119933' : hasVal ? '#b4b0b0' : '#CF0202';
 
                               if (!hasFieldOptions) {
                                 const stepCompleted = isFieldCompleted("maxillary", firstToothNumber, "fixed_contact_icons");
@@ -1242,6 +1277,7 @@ export function MaxillaryPanel({
                                   currentSelection={currentSelection}
                                   borderColor={borderColor}
                                   labelColor={labelColor}
+                                  caseSubmitted={caseSubmitted}
                                   onSelect={(opt) => {
                                     const updated = { ...storedValues, [field.id]: { name: opt.name, optionId: opt.id } };
                                     const allFilled = fieldsWithOptions.every((f) => updated[f.id]);
@@ -1367,8 +1403,8 @@ export function MaxillaryPanel({
                               const currentSelection = storedValues[field.id];
                               const hasFieldOptions = activeOptions.length > 0;
                               const hasVal = !!currentSelection;
-                              const borderColor = hasVal ? '#119933' : '#CF0202';
-                              const labelColor = hasVal ? '#119933' : '#CF0202';
+                              const borderColor = hasVal && !caseSubmitted ? '#119933' : hasVal ? '#b4b0b0' : '#CF0202';
+                              const labelColor = hasVal && !caseSubmitted ? '#119933' : hasVal ? '#b4b0b0' : '#CF0202';
 
                               if (!hasFieldOptions) {
                                 const stepCompleted = isFieldCompleted("maxillary", firstToothNumber, "fixed_proximal_contact");
@@ -1396,6 +1432,7 @@ export function MaxillaryPanel({
                                   currentSelection={currentSelection}
                                   borderColor={borderColor}
                                   labelColor={labelColor}
+                                  caseSubmitted={caseSubmitted}
                                   onSelect={(opt) => {
                                     const updated = { ...storedValues, [field.id]: { name: opt.name, optionId: opt.id } };
                                     const allFilled = fieldsWithOptions.every((f) => updated[f.id]);
@@ -1460,7 +1497,7 @@ export function MaxillaryPanel({
                               </legend>
                               <div className="flex items-center gap-2 w-full">
                                 <span className="text-[14px] sm:text-lg text-[#000000] truncate">
-                                  {getFieldValue("maxillary", firstToothNumber, "fixed_addons")}
+                                  {getFieldValue("maxillary", firstToothNumber, "fixed_addons") || "No add on selected"}
                                 </span>
                                 {isFieldCompleted("maxillary", firstToothNumber, "fixed_addons") && !caseSubmitted && (
                                   <Check size={16} className="text-[#34a853] ml-auto" />
@@ -1577,7 +1614,9 @@ export function MaxillaryPanel({
 
                       {/* Step 1: Grade / Stage */}
                       {isFieldVisible("maxillary", firstToothNumber, "grade") && (() => {
-                        const gradeVal = getFieldValue("maxillary", firstToothNumber, "grade") || "";
+                        const gradeRaw = getFieldValue("maxillary", firstToothNumber, "grade") || "";
+                        let gradeVal = gradeRaw;
+                        try { const p = JSON.parse(gradeRaw); gradeVal = p.name ?? gradeRaw; } catch {}
                         const isGradeComplete = isFieldCompleted("maxillary", firstToothNumber, "grade");
                         const showGradeGreen = isGradeComplete && !caseSubmitted;
                         const productGrades = getActiveGrades(selectedProduct?.grades);
@@ -1607,7 +1646,7 @@ export function MaxillaryPanel({
                               grades={productGrades}
                               currentGradeName={gradeVal}
                               disabled={caseSubmitted}
-                              onSelect={(g) => completeFieldStep("maxillary", firstToothNumber, "grade", g.name)}
+                              onSelect={(g) => completeFieldStep("maxillary", firstToothNumber, "grade", JSON.stringify({ grade_id: g.grade_id, name: g.name }))}
                             />
                             {showGradeGreen && (
                               <Check size={16} className="text-[#34a853] ml-1 flex-shrink-0" />
@@ -1664,19 +1703,11 @@ export function MaxillaryPanel({
                           hasValue={isFieldCompleted("maxillary", firstToothNumber, "teeth_shade")}
                           onOpen={() => handleShadeFieldClick("maxillary", "tooth_shade", `prep_${firstToothNumber}`)}
                         />
-                        {/* Gum Shade Picker - shown above when gum shade field is visible but not completed */}
-                        {isFieldVisible("maxillary", firstToothNumber, "gum_shade") &&
-                          !isFieldCompleted("maxillary", firstToothNumber, "gum_shade") && (
-                          <div className="mt-3">
-                            <GumShadePicker
-                              selected={null}
-                              onSelect={(shadeName) => {
-                                completeFieldStep("maxillary", firstToothNumber, "gum_shade", shadeName);
-                              }}
-                              gumShades={selectedProduct?.gum_shades || []}
-                            />
-                          </div>
-                        )}
+                        <AutoOpenGumShade
+                          visible={isFieldVisible("maxillary", firstToothNumber, "gum_shade")}
+                          hasValue={isFieldCompleted("maxillary", firstToothNumber, "gum_shade")}
+                          onOpen={() => setPanelGumShadePicker({ toothNumber: firstToothNumber, gumShades: selectedProduct?.gum_shades || [] })}
+                        />
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
                           <fieldset
                             className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
@@ -1710,7 +1741,7 @@ export function MaxillaryPanel({
                             </legend>
                             <div className="flex items-center gap-2 w-full">
                               <span className="text-[14px] sm:text-lg text-[#000000]">
-                                {getFieldValue("maxillary", firstToothNumber, "teeth_shade")}
+                                {(() => { const r = getFieldValue("maxillary", firstToothNumber, "teeth_shade"); try { return JSON.parse(r).name ?? r; } catch { return r; } })()}
                               </span>
                               {isFieldCompleted("maxillary", firstToothNumber, "teeth_shade") && !caseSubmitted && (
                                 <Check size={16} className="text-[#34a853] ml-auto" />
@@ -1728,8 +1759,9 @@ export function MaxillaryPanel({
                                     : "border-[#CF0202]"
                               }`}
                               onClick={() => {
-                                if (!isFieldCompleted("maxillary", firstToothNumber, "gum_shade")) {
-                                  completeFieldStep("maxillary", firstToothNumber, "gum_shade", "GC Initial Gingiva");
+                                if (!caseSubmitted) {
+                                  uncompleteFieldStep("maxillary", firstToothNumber, "gum_shade");
+                                  setPanelGumShadePicker({ toothNumber: firstToothNumber, gumShades: selectedProduct?.gum_shades || [] });
                                 }
                               }}
                             >
@@ -1745,17 +1777,23 @@ export function MaxillaryPanel({
                                 Gum Shade
                               </legend>
                               <div className="flex items-center gap-2 w-full">
-                                <span className="text-[14px] sm:text-lg text-[#000000] truncate">
-                                  {getFieldValue("maxillary", firstToothNumber, "gum_shade")}
-                                </span>
                                 {(() => {
-                                  const selectedShadeName = getFieldValue("maxillary", firstToothNumber, "gum_shade");
-                                  const matchedShade = selectedProduct?.gum_shades?.find((s) => s.name === selectedShadeName);
-                                  return matchedShade ? (
-                                    <svg width="29" height="29" viewBox="0 0 29 29" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0 ml-auto">
-                                      <rect width="28.0391" height="28.0391" rx="6" fill={matchedShade.color_code_middle} />
-                                    </svg>
-                                  ) : null;
+                                  const raw = getFieldValue("maxillary", firstToothNumber, "gum_shade");
+                                  let displayName = raw;
+                                  let color: string | null = null;
+                                  try { const p = JSON.parse(raw); displayName = p.name ?? raw; } catch {}
+                                  const matchedShade = selectedProduct?.gum_shades?.find((s) => s.name === displayName);
+                                  if (matchedShade) color = matchedShade.color_code_middle;
+                                  return (
+                                    <>
+                                      <span className="text-[14px] sm:text-lg text-[#000000] truncate">{displayName}</span>
+                                      {color && (
+                                        <svg width="29" height="29" viewBox="0 0 29 29" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0 ml-auto">
+                                          <rect width="28.0391" height="28.0391" rx="6" fill={color} />
+                                        </svg>
+                                      )}
+                                    </>
+                                  );
                                 })()}
                                 {isFieldCompleted("maxillary", firstToothNumber, "gum_shade") && !caseSubmitted && (
                                   <Check size={16} className="text-[#34a853] flex-shrink-0" />
@@ -1829,7 +1867,7 @@ export function MaxillaryPanel({
                               </legend>
                               <div className="flex items-center gap-2 w-full">
                                 <span className="text-[14px] sm:text-lg text-[#000000] truncate">
-                                  {getFieldValue("maxillary", firstToothNumber, "addons")}
+                                  {getFieldValue("maxillary", firstToothNumber, "addons") || "No add on selected"}
                                 </span>
                                 {isFieldCompleted("maxillary", firstToothNumber, "addons") && !caseSubmitted && (
                                   <Check size={16} className="text-[#34a853] ml-auto" />
@@ -2014,7 +2052,9 @@ export function MaxillaryPanel({
                           {(isF("grade") || isF("stage")) && (
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             {isF("grade") && (() => {
-                              const gradeVal = fVal("grade") || "";
+                              const gradeRaw = fVal("grade") || "";
+                              let gradeVal = gradeRaw;
+                              try { const p = JSON.parse(gradeRaw); gradeVal = p.name ?? gradeRaw; } catch {}
                               const isGradeComplete = isFComplete("grade") || !!(gradeVal && gradeVal.trim());
                               const showGradeGreen = isGradeComplete && !caseSubmitted;
                               const productGrades = getActiveGrades(toothProduct?.grades);
@@ -2027,7 +2067,7 @@ export function MaxillaryPanel({
                                     grades={productGrades}
                                     currentGradeName={gradeVal}
                                     disabled={caseSubmitted}
-                                    onSelect={(g) => completeFieldStep("maxillary", repTn, "grade", g.name)}
+                                    onSelect={(g) => completeFieldStep("maxillary", repTn, "grade", JSON.stringify({ grade_id: g.grade_id, name: g.name }))}
                                   />
                                   {showGradeGreen && <Check size={16} className="text-[#34a853] ml-1 flex-shrink-0" />}
                                 </fieldset>
@@ -2062,15 +2102,11 @@ export function MaxillaryPanel({
                                     onOpen={() => handleShadeFieldClick("maxillary", "tooth_shade", shadeProductId)}
                                   />
                                 )}
-                                {isF("gum_shade") && !isFComplete("gum_shade") && (
-                                  <GumShadePicker
-                                    selected={null}
-                                    onSelect={(shadeName) => {
-                                      completeFieldStep("maxillary", repTn, "gum_shade", shadeName);
-                                    }}
-                                    gumShades={toothProduct?.gum_shades || []}
-                                  />
-                                )}
+                                <AutoOpenGumShade
+                                  visible={isF("gum_shade")}
+                                  hasValue={isFComplete("gum_shade")}
+                                  onOpen={() => setPanelGumShadePicker({ toothNumber: repTn, gumShades: toothProduct?.gum_shades || [] })}
+                                />
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                   {isF("teeth_shade") && (
                                   <fieldset
@@ -2079,7 +2115,7 @@ export function MaxillaryPanel({
                                   >
                                     <legend className={`text-sm px-1 leading-none ${isFComplete("teeth_shade") && !caseSubmitted ? "text-[#34a853]" : isFComplete("teeth_shade") ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Teeth shade</legend>
                                     <div className="flex items-center gap-2 w-full">
-                                      <span className="text-[14px] sm:text-lg text-[#000000]">{fVal("teeth_shade")}</span>
+                                      <span className="text-[14px] sm:text-lg text-[#000000]">{(() => { const r = fVal("teeth_shade"); try { return JSON.parse(r).name ?? r; } catch { return r; } })()}</span>
                                       {isFComplete("teeth_shade") && !caseSubmitted && <Check size={16} className="text-[#34a853] ml-auto" />}
                                     </div>
                                   </fieldset>
@@ -2088,21 +2124,31 @@ export function MaxillaryPanel({
                                   <fieldset
                                     className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${isFComplete("gum_shade") && !caseSubmitted ? "border-[#34a853]" : isFComplete("gum_shade") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
                                     onClick={() => {
-                                      if (!isFComplete("gum_shade")) {
-                                        completeFieldStep("maxillary", repTn, "gum_shade", "GC Initial Gingiva");
+                                      if (!caseSubmitted) {
+                                        uncompleteFieldStep("maxillary", repTn, "gum_shade");
+                                        setPanelGumShadePicker({ toothNumber: repTn, gumShades: toothProduct?.gum_shades || [] });
                                       }
                                     }}
                                   >
                                     <legend className={`text-sm px-1 leading-none ${isFComplete("gum_shade") && !caseSubmitted ? "text-[#34a853]" : isFComplete("gum_shade") ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Gum Shade</legend>
                                     <div className="flex items-center gap-2 w-full">
-                                      <span className="text-[14px] sm:text-lg text-[#000000] truncate">{fVal("gum_shade")}</span>
                                       {(() => {
-                                        const matchedShade = toothProduct?.gum_shades?.find((s) => s.name === fVal("gum_shade"));
-                                        return matchedShade ? (
-                                          <svg width="29" height="29" viewBox="0 0 29 29" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0 ml-auto">
-                                            <rect width="28.0391" height="28.0391" rx="6" fill={matchedShade.color_code_middle} />
-                                          </svg>
-                                        ) : null;
+                                        const raw = fVal("gum_shade");
+                                        let displayName = raw;
+                                        let color: string | null = null;
+                                        try { const p = JSON.parse(raw); displayName = p.name ?? raw; } catch {}
+                                        const matchedShade = toothProduct?.gum_shades?.find((s) => s.name === displayName);
+                                        if (matchedShade) color = matchedShade.color_code_middle;
+                                        return (
+                                          <>
+                                            <span className="text-[14px] sm:text-lg text-[#000000] truncate">{displayName}</span>
+                                            {color && (
+                                              <svg width="29" height="29" viewBox="0 0 29 29" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0 ml-auto">
+                                                <rect width="28.0391" height="28.0391" rx="6" fill={color} />
+                                              </svg>
+                                            )}
+                                          </>
+                                        );
                                       })()}
                                       {isFComplete("gum_shade") && !caseSubmitted && <Check size={16} className="text-[#34a853] flex-shrink-0" />}
                                     </div>
@@ -2131,7 +2177,7 @@ export function MaxillaryPanel({
                               onClick={() => handleOpenAddOnsModal("maxillary", toothProduct?.id?.toString() || productKey, repTn)}
                             >
                               <legend className={`text-sm px-1 leading-none ${isFComplete("addons") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>Add ons</legend>
-                              <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{fVal("addons") || "0 selected"}</span>
+                              <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{fVal("addons") || "No add on selected"}</span>
                               {isFComplete("addons") && !caseSubmitted && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                             </fieldset>
                           )}
@@ -2310,7 +2356,9 @@ export function MaxillaryPanel({
                               {/* Row 1: Grade / Stage */}
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 {hasAdvanceField("grade", advFields) && (() => {
-                                  const gradeVal = fVal("grade") || "";
+                                  const gradeRaw = fVal("grade") || "";
+                                  let gradeVal = gradeRaw;
+                                  try { const p = JSON.parse(gradeRaw); gradeVal = p.name ?? gradeRaw; } catch {}
                                   const isGradeComplete = isFComplete("grade") || !!(gradeVal && gradeVal.trim());
                                   const showGradeGreen = isGradeComplete && !caseSubmitted;
                                   const productGrades = getActiveGrades(toothProduct?.grades);
@@ -2323,7 +2371,7 @@ export function MaxillaryPanel({
                                         grades={productGrades}
                                         currentGradeName={gradeVal}
                                         disabled={caseSubmitted}
-                                        onSelect={(g) => completeFieldStep("maxillary", repTn, "grade", g.name)}
+                                        onSelect={(g) => completeFieldStep("maxillary", repTn, "grade", JSON.stringify({ grade_id: g.grade_id, name: g.name }))}
                                       />
                                       {showGradeGreen && <Check size={16} className="text-[#34a853] ml-1 flex-shrink-0" />}
                                     </fieldset>
@@ -2357,15 +2405,11 @@ export function MaxillaryPanel({
                                         onOpen={() => handleShadeFieldClick("maxillary", "tooth_shade", shadeProductId)}
                                       />
                                     )}
-                                    {hasAdvanceField("gum_shade", advFields) && !isFComplete("gum_shade") && (
-                                      <GumShadePicker
-                                        selected={null}
-                                        onSelect={(shadeName) => {
-                                          completeFieldStep("maxillary", repTn, "gum_shade", shadeName);
-                                        }}
-                                        gumShades={toothProduct?.gum_shades || []}
-                                      />
-                                    )}
+                                    <AutoOpenGumShade
+                                      visible={hasAdvanceField("gum_shade", advFields)}
+                                      hasValue={isFComplete("gum_shade")}
+                                      onOpen={() => setPanelGumShadePicker({ toothNumber: repTn, gumShades: toothProduct?.gum_shades || [] })}
+                                    />
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                       {hasAdvanceField("teeth_shade", advFields) && (
                                       <fieldset
@@ -2374,7 +2418,7 @@ export function MaxillaryPanel({
                                       >
                                         <legend className={`text-sm px-1 leading-none ${isFComplete("teeth_shade") && !caseSubmitted ? "text-[#34a853]" : isFComplete("teeth_shade") ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Teeth shade</legend>
                                         <div className="flex items-center gap-2 w-full">
-                                          <span className="text-[14px] sm:text-lg text-[#000000]">{fVal("teeth_shade")}</span>
+                                          <span className="text-[14px] sm:text-lg text-[#000000]">{(() => { const r = fVal("teeth_shade"); try { return JSON.parse(r).name ?? r; } catch { return r; } })()}</span>
                                           {isFComplete("teeth_shade") && !caseSubmitted && <Check size={16} className="text-[#34a853] ml-auto" />}
                                         </div>
                                       </fieldset>
@@ -2383,21 +2427,31 @@ export function MaxillaryPanel({
                                       <fieldset
                                         className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${isFComplete("gum_shade") && !caseSubmitted ? "border-[#34a853]" : isFComplete("gum_shade") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
                                         onClick={() => {
-                                          if (!isFComplete("gum_shade")) {
-                                            completeFieldStep("maxillary", repTn, "gum_shade", "GC Initial Gingiva");
+                                          if (!caseSubmitted) {
+                                            uncompleteFieldStep("maxillary", repTn, "gum_shade");
+                                            setPanelGumShadePicker({ toothNumber: repTn, gumShades: toothProduct?.gum_shades || [] });
                                           }
                                         }}
                                       >
                                         <legend className={`text-sm px-1 leading-none ${isFComplete("gum_shade") && !caseSubmitted ? "text-[#34a853]" : isFComplete("gum_shade") ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Gum Shade</legend>
                                         <div className="flex items-center gap-2 w-full">
-                                          <span className="text-[14px] sm:text-lg text-[#000000] truncate">{fVal("gum_shade")}</span>
                                           {(() => {
-                                            const matchedShade = toothProduct?.gum_shades?.find((s) => s.name === fVal("gum_shade"));
-                                            return matchedShade ? (
-                                              <svg width="29" height="29" viewBox="0 0 29 29" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0 ml-auto">
-                                                <rect width="28.0391" height="28.0391" rx="6" fill={matchedShade.color_code_middle} />
-                                              </svg>
-                                            ) : null;
+                                            const raw = fVal("gum_shade");
+                                            let displayName = raw;
+                                            let color: string | null = null;
+                                            try { const p = JSON.parse(raw); displayName = p.name ?? raw; } catch {}
+                                            const matchedShade = toothProduct?.gum_shades?.find((s) => s.name === displayName);
+                                            if (matchedShade) color = matchedShade.color_code_middle;
+                                            return (
+                                              <>
+                                                <span className="text-[14px] sm:text-lg text-[#000000] truncate">{displayName}</span>
+                                                {color && (
+                                                  <svg width="29" height="29" viewBox="0 0 29 29" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0 ml-auto">
+                                                    <rect width="28.0391" height="28.0391" rx="6" fill={color} />
+                                                  </svg>
+                                                )}
+                                              </>
+                                            );
                                           })()}
                                           {isFComplete("gum_shade") && !caseSubmitted && <Check size={16} className="text-[#34a853] flex-shrink-0" />}
                                         </div>
@@ -2426,7 +2480,7 @@ export function MaxillaryPanel({
                                   onClick={() => handleOpenAddOnsModal("maxillary", toothProduct?.id?.toString() || productKey, repTn)}
                                 >
                                   <legend className={`text-sm px-1 leading-none ${isFComplete("addons") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>Add ons</legend>
-                                  <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{fVal("addons") || "0 selected"}</span>
+                                  <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{fVal("addons") || "No add on selected"}</span>
                                   {isFComplete("addons") && !caseSubmitted && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                                 </fieldset>
                               )}
@@ -2522,7 +2576,7 @@ export function MaxillaryPanel({
                                   onClick={() => handleOpenAddOnsModal("maxillary", fixed ? `maxillary_fixed_${tn}` : `maxillary_prep_${tn}`, tn)}
                                 >
                                   <legend className={`text-sm px-1 leading-none ${isFCompletePerTooth(fixed ? "fixed_addons" : "addons") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>Add ons</legend>
-                                  <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{fValPerTooth(fixed ? "fixed_addons" : "addons") || "0 selected"}</span>
+                                  <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{fValPerTooth(fixed ? "fixed_addons" : "addons") || "No add on selected"}</span>
                                   {isFCompletePerTooth(fixed ? "fixed_addons" : "addons") && !caseSubmitted && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                                 </fieldset>
                               )}

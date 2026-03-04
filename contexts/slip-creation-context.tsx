@@ -214,6 +214,9 @@ interface SlipCreationContextType {
 
   // Request a rush for a slip using TanStack React Query
   requestSlipRush: (slipId: number, payload: { requested_delivery_date: string }) => Promise<any>
+
+  // Create a new slip (POST /slip/create)
+  createSlip: (payload: SlipCreationPayload) => Promise<any>
 }
 
 const SlipCreationContext = createContext<SlipCreationContextType | undefined>(undefined)
@@ -924,6 +927,25 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
     }
   }, [token]);
 
+  // --- Create Slip API ---
+  const createSlip = useCallback(async (slipPayload: SlipCreationPayload) => {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/slip/create`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(slipPayload),
+    });
+    if (res.status === 401) {
+      window.location.href = "/login";
+      return;
+    }
+    const json = await res.json();
+    if (!json.success) throw new Error(json.message || "Failed to create slip");
+    return json.data;
+  }, [token]);
+
   const setPayload = useCallback((newPayload: SlipCreationPayload) => setPayloadState(newPayload), [])
   const resetPayload = useCallback(() => setPayloadState(null), [])
 
@@ -975,6 +997,7 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
         cancelSlip,
         generatePaperSlips,
         requestSlipRush,
+        createSlip,
       }}
     >
       {children}

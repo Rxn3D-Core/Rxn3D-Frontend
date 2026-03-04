@@ -131,11 +131,25 @@ export interface SlipCreationResponse {
   success: boolean;
   message: string;
   data?: {
-    case_id: number;
+    id: number;
     case_number: string;
+    patient_name: string;
+    gender: string;
+    case_status: string;
+    created_at: string;
+    updated_at: string;
     slips?: Array<{
-      slip_id: number;
+      id: number;
       slip_number: string;
+      status: string;
+      location?: { id: number; name: string; is_active: boolean } | null;
+      casepan?: { id: number; number: string; name: string; code: string; color_code: string; type: string } | null;
+      delivery?: {
+        delivery_date: string | null;
+        delivery_time: string | null;
+        pickup_date: string | null;
+        pickup_time: string | null;
+      } | null;
     }>;
   };
   errors?: Record<string, string[]>;

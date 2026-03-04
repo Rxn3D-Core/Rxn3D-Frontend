@@ -1,3 +1,34 @@
+import type React from "react";
+
+/** Snapshot of per-product design data collected at submit time */
+export interface SlipProductSnapshot {
+  /** "Upper" or "Lower" */
+  type: string;
+  productId: number;
+  productApiData: ProductApiData | null;
+  /** Tooth numbers selected for this product card on this arch */
+  teethNumbers: number[];
+  /** Representative tooth number (first in group — field values are keyed here) */
+  repToothNumber: number;
+  /** Field values keyed by step name */
+  fieldValues: Record<string, string>;
+  /** Stage name selected for this product */
+  stageName: string | null;
+  /** Impression selections: { impressionCode: quantity } */
+  impressions: Record<string, number>;
+  /** Rush data if applicable */
+  rush: Record<string, any> | null;
+  /** Product card ID (0 = initial, otherwise AddedProduct.id) */
+  cardId: number;
+  /**
+   * Selected shades keyed as `${productId}_${arch}_${fieldType}`.
+   * Provides teeth/stump shade names for resolving shade IDs at submit time.
+   */
+  selectedShades: Record<string, string>;
+  /** The active shade guide name (e.g. "Vita Classical") */
+  shadeGuide: string;
+}
+
 export interface CaseDesignProps {
   right1Brand: string;
   setRight1Brand: (v: string) => void;
@@ -18,12 +49,20 @@ export interface CaseDesignProps {
   onReadinessChange?: (ready: boolean) => void;
   /** Called with a human-readable label of the first incomplete required field, or null when complete. */
   onIncompleteFieldChange?: (label: string | null) => void;
+  /** Called whenever any tooth-status required-validation error appears or clears. */
+  onToothStatusValidationChange?: (hasValidation: boolean) => void;
   /** Externally controlled list of added products (from page-level state) */
   addedProducts?: AddedProduct[];
   /** Called when addedProducts changes internally (toggle expand, remove) */
   onProductsChange?: (products: AddedProduct[]) => void;
   /** Initial arch selection from Removable Restoration dropdown — controls which panels are shown */
   initialArch?: "maxillary" | "mandibular" | "both";
+  /**
+   * When provided, CaseDesignCenter assigns a collector function to this ref.
+   * The parent calls slipCollectorRef.current() at submit time to collect
+   * the current product snapshots needed to build the slip payload.
+   */
+  slipCollectorRef?: React.MutableRefObject<(() => SlipProductSnapshot[]) | null>;
 }
 
 export interface AddedProduct {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import type { CaseDesignProps, Arch, RetentionType, ProductApiData } from "../types";
 import { productImpressionsToModalOptions } from "../types";
 import { mockImpressions } from "../constants";
@@ -12,6 +12,28 @@ import { useImplantState } from "./useImplantState";
 import { useToothFieldProgress, FIXED_SHADE_FIELD_TO_STEP } from "./useToothFieldProgress";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+
+interface TeethShadeEntry {
+  id: number;
+  teeth_shade_id: number;
+  name: string;
+  brand?: { id: number } | null;
+}
+
+/** Fetch teeth shade catalog once for ID resolution at shade selection time */
+async function fetchTeethShadeCatalog(): Promise<TeethShadeEntry[]> {
+  try {
+    const token = localStorage.getItem("token");
+    if (!token) return [];
+    const url = new URL("/v1/slip/teeth-shades", API_BASE_URL);
+    const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) return [];
+    const json = await res.json();
+    return json.data ?? [];
+  } catch {
+    return [];
+  }
+}
 
 /** Fetch full product details (stages, impressions, gum_shades, etc.) */
 async function fetchProductDetails(productId: number, customerId: number): Promise<ProductApiData | null> {
@@ -92,6 +114,14 @@ export function useCaseDesignState(props: CaseDesignProps) {
 
   // Cache product data so we only fetch from API once
   const cachedProductRef = useRef<{ productId: number; data: ProductApiData } | null>(null);
+
+  // Teeth shade catalog — fetched once on mount for ID resolution at selection time
+  const teethShadeCatalogRef = useRef<TeethShadeEntry[]>([]);
+  useEffect(() => {
+    fetchTeethShadeCatalog().then((catalog) => {
+      teethShadeCatalogRef.current = catalog;
+    });
+  }, []);
 
   // Fetch and assign product details when retention type is selected
   const fetchAndAssignProduct = useCallback(
@@ -271,11 +301,21 @@ export function useCaseDesignState(props: CaseDesignProps) {
   );
 
   // When user selects a shade, mark the corresponding advance-field step completed so the next field shows
+  // Also store JSON { teeth_shade_id, brand_id, name } so IDs are available at submit time without extra API calls
   const handleShadeSelect = useCallback(
     (shade: string) => {
       const { arch, fieldType, productId } = shades.shadeSelectionState;
       shades.handleShadeSelect(shade);
       if (!arch || !productId || !fieldType) return;
+
+      // Resolve shade ID from catalog
+      const catalog = teethShadeCatalogRef.current;
+      const matched = catalog.find((s) => s.name === shade);
+      const shadeJson = JSON.stringify({
+        teeth_shade_id: matched?.teeth_shade_id ?? matched?.id ?? 0,
+        brand_id: matched?.brand?.id ?? 0,
+        name: shade,
+      });
 
       // Fixed products: fixed_NN
       const fixedMatch = productId.match(/^fixed_(\d+)$/);
@@ -283,7 +323,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
         const toothNumber = parseInt(fixedMatch[1], 10);
         const step = FIXED_SHADE_FIELD_TO_STEP[fieldType];
         if (step) {
-          toothFieldProgress.completeFieldStep(arch, toothNumber, step, shade);
+          toothFieldProgress.completeFieldStep(arch, toothNumber, step, shadeJson);
         }
         return;
       }
@@ -293,8 +333,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
       if (prepMatch) {
         const toothNumber = parseInt(prepMatch[1], 10);
         if (fieldType === "tooth_shade") {
-          const shadeGuide = shades.selectedShadeGuide || "Vita Classical";
-          toothFieldProgress.completeFieldStep(arch, toothNumber, "teeth_shade", `${shadeGuide} - ${shade}`);
+          toothFieldProgress.completeFieldStep(arch, toothNumber, "teeth_shade", shadeJson);
         }
       }
     },
