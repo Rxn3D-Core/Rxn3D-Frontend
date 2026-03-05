@@ -2,11 +2,11 @@
 
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Dialog, DialogPortal, DialogOverlay } from "@/components/ui/dialog"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
-import { Calendar as CalendarIcon, Zap } from "lucide-react"
-import { format } from "date-fns"
+import { Calendar as CalendarIcon, Zap, X } from "lucide-react"
+import { format, parse } from "date-fns"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
@@ -14,6 +14,9 @@ interface RushRequestModalProps {
   isOpen: boolean
   onClose: () => void
   onConfirm: (rushData: any) => void
+  onRemoveRush?: () => void
+  isRushed?: boolean
+  existingRushDate?: string // "yyyy-MM-dd"
   product: {
     name: string
     stage: string
@@ -22,11 +25,42 @@ interface RushRequestModalProps {
   }
 }
 
-export default function RushRequestModal({ isOpen, onClose, onConfirm, product }: RushRequestModalProps) {
-  const [targetDate, setTargetDate] = useState<Date | undefined>()
+export default function RushRequestModal({
+  isOpen,
+  onClose,
+  onConfirm,
+  onRemoveRush,
+  isRushed = false,
+  existingRushDate,
+  product,
+}: RushRequestModalProps) {
+  const parseExistingDate = (d?: string) =>
+    d ? parse(d, "yyyy-MM-dd", new Date()) : undefined
+
+  const [targetDate, setTargetDate] = useState<Date | undefined>(() => parseExistingDate(existingRushDate))
+  const [calendarOpen, setCalendarOpen] = useState(false)
   const [daysSaved] = useState(11)
   const [rushPercentage] = useState(50)
   const [rushFee] = useState(50)
+
+  // Reset date whenever the modal opens with new data
+  useEffect(() => {
+    if (isOpen) {
+      setTargetDate(parseExistingDate(existingRushDate))
+      setCalendarOpen(false)
+    }
+  }, [isOpen, existingRushDate])
+
+  // Show "Remove Rush" only when already rushed and user hasn't picked a new date
+  const existingDateStr = existingRushDate ?? null
+  const selectedDateStr = targetDate ? format(targetDate, "yyyy-MM-dd") : null
+  const dateChanged = isRushed && selectedDateStr !== existingDateStr
+  const showRemoveRush = isRushed && !dateChanged
+
+  const handleDateSelect = (date: Date | undefined) => {
+    setTargetDate(date)
+    if (date) setCalendarOpen(false)
+  }
 
   const handleConfirm = () => {
     const rushData = {
@@ -37,6 +71,11 @@ export default function RushRequestModal({ isOpen, onClose, onConfirm, product }
       totalPrice: product.price + rushFee,
     }
     onConfirm(rushData)
+    onClose()
+  }
+
+  const handleRemove = () => {
+    onRemoveRush?.()
     onClose()
   }
 
@@ -99,7 +138,7 @@ export default function RushRequestModal({ isOpen, onClose, onConfirm, product }
 
             {/* Date Input */}
             <div className="mb-6">
-              <Popover>
+              <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
                 <PopoverTrigger asChild>
                   <button
                     className="w-full h-[36px] rounded-md flex items-center justify-between px-3.5 cursor-pointer"
@@ -115,9 +154,13 @@ export default function RushRequestModal({ isOpen, onClose, onConfirm, product }
                   <Calendar
                     mode="single"
                     selected={targetDate}
-                    onSelect={setTargetDate}
+                    onSelect={handleDateSelect}
                     disabled={(date) => date < new Date()}
                     initialFocus
+                    classNames={{
+                      day_selected: "!bg-[#2563EB] !text-white hover:!bg-[#1d4ed8] hover:!text-white focus:!bg-[#2563EB] focus:!text-white",
+                      day_today: "bg-accent text-accent-foreground",
+                    }}
                   />
                 </PopoverContent>
               </Popover>
@@ -149,20 +192,33 @@ export default function RushRequestModal({ isOpen, onClose, onConfirm, product }
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-3.5 mb-5 justify-center">
+            <div className="flex gap-3.5 mb-5 justify-center flex-wrap">
               <button
                 onClick={onClose}
                 className="h-[38px] w-[130px] rounded-md border-2 border-[#9BA5B7] bg-transparent flex items-center justify-center cursor-pointer"
               >
                 <span className="text-[13px] font-bold text-[#9BA5B7] tracking-[-0.02em]">Cancel</span>
               </button>
-              <button
-                onClick={handleConfirm}
-                className="h-[38px] w-[190px] rounded-md bg-[#CF0202] border-none flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <Zap className="w-[18px] h-[18px]" style={{ color: '#FFFFFF', strokeWidth: '2px' }} />
-                <span className="text-[13px] font-bold text-white tracking-[-0.02em]">Confirm Rush Request</span>
-              </button>
+
+              {showRemoveRush ? (
+                <button
+                  onClick={handleRemove}
+                  className="h-[38px] flex-1 min-w-[160px] max-w-[220px] rounded-md border-2 border-[#CF0202] bg-transparent flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <X className="w-[16px] h-[16px]" style={{ color: '#CF0202' }} />
+                  <span className="text-[13px] font-bold text-[#CF0202] tracking-[-0.02em]">Remove Rush</span>
+                </button>
+              ) : (
+                <button
+                  onClick={handleConfirm}
+                  disabled={!targetDate}
+                  className="h-[38px] flex-1 min-w-[160px] max-w-[220px] rounded-md border-none flex items-center justify-center gap-2 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  style={{ background: !targetDate ? '#9BA5B7' : '#CF0202' }}
+                >
+                  <Zap className="w-[18px] h-[18px]" style={{ color: '#FFFFFF', strokeWidth: '2px' }} />
+                  <span className="text-[13px] font-bold text-white tracking-[-0.02em] whitespace-nowrap">Confirm Rush Request</span>
+                </button>
+              )}
             </div>
 
             {/* Important Information */}

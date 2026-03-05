@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/select";
 import { ShadeSelectionGuide } from "./ShadeSelectionGuide";
 import { ToothStatusBoxes } from "./ToothStatusBoxes";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type {
   AddedProduct,
   Arch,
@@ -477,6 +478,8 @@ interface MandibularPanelProps {
   caseSubmitted?: boolean;
   /** When true, overlays the panel to prevent interaction until maxillary is complete */
   disabled?: boolean;
+  /** True once the removables impression field has been completed — reveals tooth chart and ToothStatusBoxes */
+  removablesImpressionDone?: boolean;
   // Teeth
   mandibularTeeth: number[];
   handleMandibularToothClick: (tooth: number) => void;
@@ -637,6 +640,7 @@ export function MandibularPanel({
   handleToothExtractionToggle,
   selectAllMandibularTeeth,
   onToothStatusValidationChange,
+  removablesImpressionDone = false,
 }: MandibularPanelProps) {
   const MANDIBULAR_ALL_TEETH = [17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32];
   const [activeExtractionCode, setActiveExtractionCode] = useState<string | null>(null);
@@ -679,7 +683,7 @@ export function MandibularPanel({
       });
 
   return (
-    <div className={`flex-1 min-w-0 px-0 md:px-3 order-3 lg:order-none relative${caseSubmitted ? " pointer-events-none select-none" : ""}`}>
+    <div className={`flex-1 min-w-0 px-0 md:px-16 order-3 lg:order-none relative${caseSubmitted ? " pointer-events-none select-none" : ""}`}>
       {/* Overlay to block interaction while maxillary is incomplete */}
       {disabled && (
         <div
@@ -695,7 +699,7 @@ export function MandibularPanel({
 
       {/* Eye toggle + Teeth row */}
       <div className="flex items-start gap-2">
-        {showMandibular && (
+        {showMandibular && (!activeProductIsRemovables || removablesImpressionDone) && (
           <div className="flex-1">
             <MandibularTeethSVG
                 selectedTeeth={mandibularTeeth}
@@ -786,35 +790,6 @@ export function MandibularPanel({
             </div>
           )}
 
-          {/* Tooth status boxes - shown above all product accordions when any product has extractions */}
-          {(() => {
-            const seenIds = new Set<number>();
-            const allExtractions = MANDIBULAR_ALL_TEETH.flatMap((tn) => {
-              const product = getToothProduct("mandibular", tn);
-              return product?.extractions ?? [];
-            }).filter((e) => {
-              if (seenIds.has(e.extraction_id)) return false;
-              seenIds.add(e.extraction_id);
-              return true;
-            });
-            if (allExtractions.length === 0) return null;
-            return (
-              <div className="mt-3">
-                <ToothStatusBoxes
-                  extractions={allExtractions}
-                  selectedTeeth={mandibularTeeth}
-                  allArchTeeth={MANDIBULAR_ALL_TEETH}
-                  toothExtractionMap={mandibularToothExtractionMap}
-                  claspTeeth={mandibularClaspTeeth}
-                  activeExtractionCode={activeExtractionCode}
-                  onActiveExtractionChange={setActiveExtractionCode}
-                  onToothExtractionToggle={(tn, code) => handleToothExtractionToggle("mandibular", tn, code)}
-                  onSelectAllTeeth={selectAllMandibularTeeth}
-                  onRequiredValidationChange={onToothStatusValidationChange}
-                />
-              </div>
-            );
-          })()}
 
           {/* ---- Dynamic product accordions based on category ---- */}
           {(() => {
@@ -906,14 +881,53 @@ export function MandibularPanel({
                     );
 
                   // ---- Product Accordion (progressive step-by-step) ----
+                  const showFixedActionsMand = categoryName === "Fixed Restoration" && isFieldCompleted("mandibular", firstToothNumber, "fixed_impression") && !caseSubmitted;
+                  const showPrepActionsMand = categoryName !== "Fixed Restoration" && isFieldCompleted("mandibular", firstToothNumber, "addons") && !caseSubmitted;
+                  const showActionsMand = showFixedActionsMand || showPrepActionsMand;
+
                   return (
+                    <div key={`prep-pontic-group-${groupKey}`} className="relative mt-3">
+                      {/* Floating action icons — right side for mandibular */}
+                      {showActionsMand && (
+                        <TooltipProvider delayDuration={300}>
+                        <div className="absolute -right-[60px] top-3 hidden md:flex flex-col gap-[17px] z-10">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                onClick={() => setShowAttachModal(true)}
+                                className="w-[50px] h-[50px] flex items-center justify-center transition-opacity hover:opacity-80"
+                              >
+                                <svg width="50" height="50" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                  <path d="M18.5059 28.5555L29.6809 16.7296C29.9081 16.4893 30.2008 16.3145 30.5197 16.2228L30.8998 16.1179C32.988 15.5325 34.9058 17.4679 34.303 19.5517C34.2331 19.8007 34.102 20.0279 33.9273 20.2201L18.0909 37.6904C17.322 38.5423 16.2953 39.1233 15.1726 39.3505C12.2369 39.9403 9.76419 37.1356 10.7122 34.3003L10.7297 34.2523C10.9787 33.5096 11.3762 32.8281 11.9048 32.2514L29.5761 12.8109C30.6464 11.6313 32.0968 10.8624 33.6739 10.6396L33.7875 10.6222C37.1164 10.146 39.9516 13.0162 39.4318 16.332C39.2527 17.4679 38.759 18.5294 38.0032 19.3988L24.7705 34.5799" stroke="#269BD2" strokeMiterlimit="10"/>
+                                </svg>
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="left"><p>Attach Files</p></TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenRushModal("mandibular", categoryName === "Fixed Restoration" ? `fixed_${firstToothNumber}` : `prep_${firstToothNumber}`)}
+                                className="w-[50px] h-[50px] flex items-center justify-center transition-opacity hover:opacity-80"
+                              >
+                                <svg width="50" height="50" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                  <path d="M22.8224 7.4573L36.2279 4.87227C36.6154 4.79772 36.9329 5.13148 36.7568 5.42831L27.6889 20.7318C27.5189 21.0184 27.8101 21.3451 28.1889 21.2926L34.5014 20.4173C34.9088 20.3608 35.2003 20.7372 34.9704 21.0229L14.1787 46.8786C13.8676 47.2655 13.1498 46.9592 13.3454 46.5228L21.0353 29.3848C21.1646 29.0971 20.8643 28.803 20.5023 28.8623L13.8703 29.9527C13.5124 30.0117 13.2134 29.7243 13.3343 29.4377L22.4841 7.70973C22.5376 7.58301 22.6652 7.48745 22.8224 7.4573Z" fill="#F04B23"/>
+                                </svg>
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="left"><p>{hasRushed ? "Rushed" : "Request Rush"}</p></TooltipContent>
+                          </Tooltip>
+                        </div>
+                        </TooltipProvider>
+                      )}
                     <div
-                      key={`prep-pontic-group-${groupKey}`}
                       className={`rounded-lg bg-white overflow-hidden ${
                         hasRushed
                           ? "border-2 border-[#CF0202]"
                           : "border border-[#d9d9d9]"
-                      } mt-3`}
+                      }`}
                     >
                       {/* Accordion header */}
                       <button
@@ -1474,55 +1488,6 @@ export function MandibularPanel({
                               </fieldset>
                             )}
 
-                            {/* Bottom action buttons — shown after Impression is completed */}
-                            {isFieldCompleted("mandibular", firstToothNumber, "fixed_impression") && !caseSubmitted && (
-                              <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 pt-3 border-t border-[#d9d9d9] mt-3">
-                                <button
-                                  onClick={() => {
-                                    handleOpenAddOnsModal("mandibular", selectedProduct?.id?.toString() || `fixed_${firstToothNumber}`, firstToothNumber);
-                                  }}
-                                  className="flex-none flex-grow-0 w-[123.04px] h-[46.22px] rounded-[5.27px] bg-[#F9F9F9] shadow-[0.88px_0.88px_3.07px_rgba(0,0,0,0.25)] flex flex-col items-center justify-center gap-0.5 hover:bg-[#f0f0f0] transition-colors"
-                                >
-                                  <Plus size={10} className="text-[#1E1E1E]" strokeWidth={1.5} />
-                                  <span className="font-['Verdana'] font-normal text-[8.78px] leading-[19px] text-center tracking-[-0.02em] text-black whitespace-nowrap">
-                                    Add ons
-                                  </span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setShowAttachModal(true)}
-                                  className="flex-none flex-grow-0 w-[123.04px] h-[46.22px] rounded-[5.27px] bg-[#F9F9F9] shadow-[0.88px_0.88px_3.07px_rgba(0,0,0,0.25)] flex flex-col items-center justify-center gap-0.5 hover:bg-[#f0f0f0] transition-colors"
-                                >
-                                  <Paperclip size={10} className="text-[#1E1E1E]" strokeWidth={1.5} />
-                                  <span className="font-['Verdana'] font-normal text-[8.78px] leading-[19px] text-center tracking-[-0.02em] text-black whitespace-nowrap">
-                                    Attach Files
-                                  </span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleOpenRushModal("mandibular", `fixed_${firstToothNumber}`)
-                                  }
-                                  className={`relative flex-none flex-grow-0 w-[123.04px] h-[46.22px] rounded-[5.27px] shadow-[0_0_2.9px_rgba(207,2,2,0.67)] flex items-center justify-center gap-1.5 hover:bg-[#f0f0f0] transition-colors ${
-                                    hasRushed ? "bg-[#CF0202]" : "bg-[#F9F9F9]"
-                                  }`}
-                                >
-                                  <span
-                                    className={`font-["Verdana"] font-normal text-[8.78px] leading-[19px] text-center tracking-[-0.02em] whitespace-nowrap ${
-                                      hasRushed ? "text-white" : "text-black"
-                                    }`}
-                                  >
-                                    {hasRushed ? "Rushed" : "Request Rush"}
-                                  </span>
-                                  <Zap
-                                    className={`w-[8.78px] h-[10.54px] flex-shrink-0 ${
-                                      hasRushed ? "text-white" : "text-[#CF0202]"
-                                    }`}
-                                    strokeWidth={0.878154}
-                                  />
-                                </button>
-                              </div>
-                            )}
                             </>}
                           </>
                         ) : (
@@ -1819,54 +1784,12 @@ export function MandibularPanel({
                               </div>
                             )}
 
-                            {/* Bottom action buttons */}
-                            {isFieldCompleted("mandibular", firstToothNumber, "addons") && !caseSubmitted && (
-                              <div className="flex items-center justify-center gap-4 pt-3 border-t border-[#d9d9d9] mt-3">
-                                <button
-                                  onClick={() => {
-                                    handleOpenAddOnsModal("mandibular", selectedProduct?.id?.toString() || `prep_${firstToothNumber}`, firstToothNumber);
-                                  }}
-                                  className="flex-none flex-grow-0 w-[123.04px] h-[46.22px] rounded-[5.27px] bg-[#F9F9F9] shadow-[0.88px_0.88px_3.07px_rgba(0,0,0,0.25)] flex flex-col items-center justify-center gap-0.5 hover:bg-[#f0f0f0] transition-colors"
-                                >
-                                  <Plus size={10} className="text-[#1E1E1E]" strokeWidth={1.5} />
-                                  <span className="font-['Verdana'] font-normal text-[8.78px] leading-[19px] text-center tracking-[-0.02em] text-black whitespace-nowrap">
-                                    {getFieldValue("mandibular", firstToothNumber, "addons")
-                                      ? `Add ons (${getFieldValue("mandibular", firstToothNumber, "addons").split(",").length} selected)`
-                                      : "Add ons"}
-                                  </span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setShowAttachModal(true)}
-                                  className="flex-none flex-grow-0 w-[123.04px] h-[46.22px] rounded-[5.27px] bg-[#F9F9F9] shadow-[0.88px_0.88px_3.07px_rgba(0,0,0,0.25)] flex flex-col items-center justify-center gap-0.5 hover:bg-[#f0f0f0] transition-colors"
-                                >
-                                  <Paperclip size={10} className="text-[#1E1E1E]" strokeWidth={1.5} />
-                                  <span className="font-['Verdana'] font-normal text-[8.78px] leading-[19px] text-center tracking-[-0.02em] text-black whitespace-nowrap">
-                                    Attach Files
-                                  </span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleOpenRushModal("mandibular", `prep_${firstToothNumber}`)
-                                  }
-                                  className={`relative flex-none flex-grow-0 w-[123.04px] h-[46.22px] rounded-[5.27px] shadow-[0_0_2.9px_rgba(207,2,2,0.67)] flex items-center justify-center gap-1.5 transition-colors ${hasRushedRemovables ? "bg-[#CF0202]" : "bg-[#F9F9F9] hover:bg-[#f0f0f0]"}`}
-                                >
-                                  <span className={`font-['Verdana'] font-normal text-[8.78px] leading-[19px] text-center tracking-[-0.02em] whitespace-nowrap ${hasRushedRemovables ? "text-white" : "text-black"}`}>
-                                    {hasRushedRemovables ? "Rushed" : "Request Rush"}
-                                  </span>
-                                  <Zap
-                                    className={`w-[8.78px] h-[10.54px] flex-shrink-0 ${hasRushedRemovables ? "text-white" : "text-[#CF0202]"}`}
-                                    strokeWidth={0.878154}
-                                  />
-                                </button>
-                              </div>
-                            )}
                           </>
                         )}
                         <ScrollToBottom />
                       </div>
                       )}
+                    </div>
                     </div>
                   );
                 });
@@ -1900,60 +1823,127 @@ export function MandibularPanel({
             const removablesProductKey = `mandibular_prep_${cardTeeth[0]}`;
             const hasRushedRemovables = rushedProducts[removablesProductKey];
 
+            // Compute extractions for this removable product
+            const cardExtractionsSeen = new Set<number>();
+            const cardExtractions = cardTeeth.flatMap((tn) => {
+              const product = getToothProduct("mandibular", tn);
+              return product?.extractions ?? [];
+            }).filter((e) => {
+              if (cardExtractionsSeen.has(e.extraction_id)) return false;
+              cardExtractionsSeen.add(e.extraction_id);
+              return true;
+            });
+
             return (
-              <div key="initial-removables-mandibular" className={`rounded-lg bg-white overflow-hidden mt-3 ${hasRushedRemovables ? "border-2 border-[#CF0202]" : "border border-[#d9d9d9]"}`}>
-                <button
-                  type="button"
+              <div key="initial-removables-mandibular" className="relative mt-3">
+                {/* Floating action icons — right side for mandibular */}
+                {removablesImpressionDone && !caseSubmitted && (
+                  <TooltipProvider delayDuration={300}>
+                  <div className="absolute -right-[60px] top-3 hidden md:flex flex-col gap-[17px] z-10">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={() => setShowAttachModal(true)}
+                          className="w-[50px] h-[50px] flex items-center justify-center transition-opacity hover:opacity-80"
+                        >
+                          <svg width="50" height="50" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M18.5059 28.5555L29.6809 16.7296C29.9081 16.4893 30.2008 16.3145 30.5197 16.2228L30.8998 16.1179C32.988 15.5325 34.9058 17.4679 34.303 19.5517C34.2331 19.8007 34.102 20.0279 33.9273 20.2201L18.0909 37.6904C17.322 38.5423 16.2953 39.1233 15.1726 39.3505C12.2369 39.9403 9.76419 37.1356 10.7122 34.3003L10.7297 34.2523C10.9787 33.5096 11.3762 32.8281 11.9048 32.2514L29.5761 12.8109C30.6464 11.6313 32.0968 10.8624 33.6739 10.6396L33.7875 10.6222C37.1164 10.146 39.9516 13.0162 39.4318 16.332C39.2527 17.4679 38.759 18.5294 38.0032 19.3988L24.7705 34.5799" stroke="#269BD2" strokeMiterlimit="10"/>
+                          </svg>
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="left"><p>Attach Files</p></TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenRushModal("mandibular", `prep_${cardTeeth[0]}`)}
+                          className="w-[50px] h-[50px] flex items-center justify-center transition-opacity hover:opacity-80"
+                        >
+                          <svg width="50" height="50" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M22.8224 7.4573L36.2279 4.87227C36.6154 4.79772 36.9329 5.13148 36.7568 5.42831L27.6889 20.7318C27.5189 21.0184 27.8101 21.3451 28.1889 21.2926L34.5014 20.4173C34.9088 20.3608 35.2003 20.7372 34.9704 21.0229L14.1787 46.8786C13.8676 47.2655 13.1498 46.9592 13.3454 46.5228L21.0353 29.3848C21.1646 29.0971 20.8643 28.803 20.5023 28.8623L13.8703 29.9527C13.5124 30.0117 13.2134 29.7243 13.3343 29.4377L22.4841 7.70973C22.5376 7.58301 22.6652 7.48745 22.8224 7.4573Z" fill="#F04B23"/>
+                          </svg>
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="left"><p>{hasRushedRemovables ? "Rushed" : "Request Rush"}</p></TooltipContent>
+                    </Tooltip>
+                  </div>
+                  </TooltipProvider>
+                )}
+              <div className={`rounded-lg bg-white overflow-hidden ${hasRushedRemovables ? "border-2 border-[#CF0202]" : "border border-[#d9d9d9]"}`}>
+                <div
+                  className={`w-full flex flex-col transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] relative ${hasRushedRemovables ? "bg-[#FCE4E4]" : isActive ? "bg-[#c8e2f7]" : "bg-[#DFEEFB]"}`}
                   onClick={() => {
                     setInitialRemovablesExpanded((e) => !e);
                     if (!initialRemovablesExpanded) setActiveProductCardId(0);
                   }}
-                  className={`w-full flex items-center py-[14px] px-2 gap-[10px] transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] ${hasRushedRemovables ? "bg-[#FCE4E4] hover:bg-[#f8d4d4]" : isActive ? "bg-[#c8e2f7] hover:bg-[#b8d8f4]" : "bg-[#DFEEFB] hover:bg-[#d4e8f8]"}`}
+                  style={{ cursor: "pointer" }}
                 >
-                  <div className="w-16 h-[62px] rounded-md bg-white flex items-center justify-center flex-shrink-0 overflow-hidden">
-                    {cardProductImage ? (
-                      <img src={cardProductImage} alt={cardProductName} className="w-[61.58px] h-[28.79px] object-contain" />
-                    ) : (
-                      <div className="w-16 h-[62px] rounded-md bg-gray-100 flex items-center justify-center">
-                        <span className="text-[10px] text-gray-400">No img</span>
+                  {/* Chevron top-right */}
+                  <div className="absolute top-3 right-2 z-10">
+                    <ChevronDown
+                      size={21.6}
+                      className={`text-black transition-transform ${initialRemovablesExpanded ? "rotate-180" : ""}`}
+                    />
+                  </div>
+                  {/* Product name centered */}
+                  <p className="font-[Verdana] text-[14px] sm:text-lg font-bold leading-tight tracking-[-0.02em] text-black text-center pt-3 pb-2 px-10">
+                    {cardProductName}
+                    {hasRushedRemovables && <Zap className="inline w-[14px] h-[14px] text-[#CF0202] ml-1" strokeWidth={2} fill="#CF0202" />}
+                  </p>
+                  {/* Image + tooth status boxes in same row */}
+                  <div className="flex items-start gap-2 px-2 pb-2" onClick={(e) => e.stopPropagation()}>
+                    <div className="w-16 h-auto rounded-md bg-white flex items-center justify-center flex-shrink-0 overflow-hidden self-center">
+                      {cardProductImage ? (
+                        <img src={cardProductImage} alt={cardProductName} className="w-[61.58px] h-[28.79px] object-contain" />
+                      ) : (
+                        <div className="w-16 h-16 rounded-md bg-gray-100 flex items-center justify-center">
+                          <span className="text-[10px] text-gray-400">No img</span>
+                        </div>
+                      )}
+                    </div>
+                    {cardExtractions.length > 0 && removablesImpressionDone && (
+                      <div className="flex-1 min-w-0">
+                        <ToothStatusBoxes
+                          extractions={cardExtractions}
+                          selectedTeeth={mandibularTeeth}
+                          allArchTeeth={MANDIBULAR_ALL_TEETH}
+                          toothExtractionMap={mandibularToothExtractionMap}
+                          claspTeeth={mandibularClaspTeeth}
+                          activeExtractionCode={activeExtractionCode}
+                          onActiveExtractionChange={setActiveExtractionCode}
+                          onToothExtractionToggle={(tn, code) => handleToothExtractionToggle("mandibular", tn, code)}
+                          onSelectAllTeeth={selectAllMandibularTeeth}
+                          onRequiredValidationChange={onToothStatusValidationChange}
+                          isRemovable={true}
+                        />
                       </div>
                     )}
                   </div>
-                  <div className="flex-1 min-w-0 text-left flex flex-col gap-0.5">
-                    <p className="font-[Verdana] text-[14px] sm:text-lg font-bold leading-tight tracking-[-0.02em] text-black flex items-center gap-1 truncate">
-                      {cardProductName}
-                      {cardToothDisplay && (
-                        <span className="font-normal text-[13px] sm:text-base text-black">{cardToothDisplay}</span>
-                      )}
-                      {hasRushedRemovables && <Zap className="w-[14px] h-[14px] text-[#CF0202] flex-shrink-0" strokeWidth={2} fill="#CF0202" />}
-                    </p>
-                    <div className="flex items-center gap-[5px] flex-wrap">
-                      {cardProduct?.subcategory?.category?.name && (
-                        <span className="font-[Verdana] text-[11px] sm:text-[13px] font-medium leading-[18px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[8px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] whitespace-nowrap">
-                          {cardProduct.subcategory.category.name}
-                        </span>
-                      )}
-                      {cardProduct?.subcategory?.name && (
-                        <span className="font-[Verdana] text-[11px] sm:text-[13px] font-medium leading-[18px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[8px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] whitespace-nowrap">
-                          {cardProduct.subcategory.name}
-                        </span>
-                      )}
-                      {stageVal && (
-                        <span className="font-[Verdana] text-[11px] sm:text-[13px] font-medium leading-[18px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[8px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] whitespace-nowrap">
-                          {stageVal}
-                        </span>
-                      )}
-                      <span className={`font-[Verdana] text-[11px] sm:text-[13px] leading-tight tracking-[-0.02em] whitespace-nowrap ${hasRushedRemovables ? "text-[#CF0202] font-medium" : "text-[#B4B0B0]"}`}>
-                        Est days: {hasRushedRemovables ? "5 work days after submission" : estDays}
+                  {/* Bottom row: category badges + est days */}
+                  <div className="px-2 pb-2 flex items-center gap-[5px] flex-wrap">
+                    {cardProduct?.subcategory?.category?.name && (
+                      <span className="font-[Verdana] text-[11px] sm:text-[13px] font-medium leading-[18px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[8px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] whitespace-nowrap">
+                        {cardProduct.subcategory.category.name}
                       </span>
-                      <Trash2 size={9} className="text-[#999999] flex-shrink-0" />
-                    </div>
+                    )}
+                    {cardProduct?.subcategory?.name && (
+                      <span className="font-[Verdana] text-[11px] sm:text-[13px] font-medium leading-[18px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[8px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] whitespace-nowrap">
+                        {cardProduct.subcategory.name}
+                      </span>
+                    )}
+                    {stageVal && (
+                      <span className="font-[Verdana] text-[11px] sm:text-[13px] font-medium leading-[18px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[8px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] whitespace-nowrap">
+                        {stageVal}
+                      </span>
+                    )}
+                    <span className={`font-[Verdana] text-[11px] sm:text-[13px] leading-tight tracking-[-0.02em] whitespace-nowrap ${hasRushedRemovables ? "text-[#CF0202] font-medium" : "text-[#B4B0B0]"}`}>
+                      Est days: {hasRushedRemovables ? "5 work days after submission" : estDays}
+                    </span>
+                    <Trash2 size={9} className="text-[#999999] flex-shrink-0" />
                   </div>
-                  <ChevronDown
-                    size={21.6}
-                    className={`text-black flex-shrink-0 transition-transform ${initialRemovablesExpanded ? "rotate-180" : ""}`}
-                  />
-                </button>
+                </div>
 
                 {initialRemovablesExpanded && (
                   <div className={`border-t border-[#d9d9d9] p-2.5 sm:p-4 bg-white space-y-3 max-h-[600px] overflow-y-auto scrollbar-blue`}>
@@ -2122,41 +2112,12 @@ export function MandibularPanel({
                           )}
                         </div>
 
-                        {/* Bottom action buttons — only show when impression has value */}
-                        {isFComplete("impression") && !caseSubmitted && (
-                        <div className="flex items-center justify-center gap-4 pt-3 border-t border-[#d9d9d9] mt-3">
-                          <button
-                            onClick={() => handleOpenAddOnsModal("mandibular", toothProduct?.id?.toString() || productKey, repTn)}
-                            className="flex-none flex-grow-0 w-[123.04px] h-[46.22px] rounded-[5.27px] bg-[#F9F9F9] shadow-[0.88px_0.88px_3.07px_rgba(0,0,0,0.25)] flex flex-col items-center justify-center gap-0.5 hover:bg-[#f0f0f0] transition-colors"
-                          >
-                            <Plus size={10} className="text-[#1E1E1E]" strokeWidth={1.5} />
-                            <span className="font-['Verdana'] font-normal text-[8.78px] leading-[19px] text-center tracking-[-0.02em] text-black whitespace-nowrap">
-                              {fVal("addons") ? `Add ons (${fVal("addons").split(",").length} selected)` : "Add ons"}
-                            </span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setShowAttachModal(true)}
-                            className="flex-none flex-grow-0 w-[123.04px] h-[46.22px] rounded-[5.27px] bg-[#F9F9F9] shadow-[0.88px_0.88px_3.07px_rgba(0,0,0,0.25)] flex flex-col items-center justify-center gap-0.5 hover:bg-[#f0f0f0] transition-colors"
-                          >
-                            <Paperclip size={10} className="text-[#1E1E1E]" strokeWidth={1.5} />
-                            <span className="font-['Verdana'] font-normal text-[8.78px] leading-[19px] text-center tracking-[-0.02em] text-black whitespace-nowrap">Attach Files</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleOpenRushModal("mandibular", `prep_${repTn}`)}
-                            className={`relative flex-none flex-grow-0 w-[123.04px] h-[46.22px] rounded-[5.27px] shadow-[0_0_2.9px_rgba(207,2,2,0.67)] flex items-center justify-center gap-1.5 transition-colors ${rushedProducts[productKey] ? "bg-[#CF0202]" : "bg-[#F9F9F9] hover:bg-[#f0f0f0]"}`}
-                          >
-                            <span className={`font-['Verdana'] font-normal text-[8.78px] leading-[19px] text-center tracking-[-0.02em] whitespace-nowrap ${rushedProducts[productKey] ? "text-white" : "text-black"}`}>{rushedProducts[productKey] ? "Rushed" : "Request Rush"}</span>
-                            <Zap className={`w-[8.78px] h-[10.54px] flex-shrink-0 ${rushedProducts[productKey] ? "text-white" : "text-[#CF0202]"}`} strokeWidth={0.878154} />
-                          </button>
-                        </div>
-                        )}
                         </>
                       );
                     })()}
                   </div>
                 )}
+              </div>
               </div>
             );
           })()}
@@ -2197,11 +2158,153 @@ export function MandibularPanel({
               const apProductKey = `mandibular_prep_${apRepTn}`;
               const hasRushedAp = rushedProducts[apProductKey];
 
+              // For removable products, compute extractions for header display
+              const apExtractionsSeen = new Set<number>();
+              const apExtractions = isApRemovables
+                ? cardTeeth.flatMap((tn) => {
+                    const product = getToothProduct("mandibular", tn);
+                    return product?.extractions ?? [];
+                  }).filter((e) => {
+                    if (apExtractionsSeen.has(e.extraction_id)) return false;
+                    apExtractionsSeen.add(e.extraction_id);
+                    return true;
+                  })
+                : [];
+
+              const apImpressionDone = apRepTn > 0 && (
+                isFieldCompleted("mandibular", apRepTn, "impression") ||
+                isFieldCompleted("mandibular", apRepTn, "fixed_impression")
+              );
+
               return (
+                <div key={ap.id} className="relative mt-3">
+                  {/* Floating action icons — right side for mandibular */}
+                  {apImpressionDone && !caseSubmitted && (
+                    <TooltipProvider delayDuration={300}>
+                    <div className="absolute -right-[60px] top-3 hidden md:flex flex-col gap-[17px] z-10">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenAddOnsModal("mandibular", getToothProduct("mandibular", apRepTn)?.id?.toString() || `prep_${apRepTn}`, apRepTn)}
+                            className="w-[50px] h-[50px] flex items-center justify-center transition-opacity hover:opacity-80"
+                          >
+                            <Plus size={30} className="text-[#1E1E1E]" strokeWidth={1.5} />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="left"><p>Add ons</p></TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            onClick={() => setShowAttachModal(true)}
+                            className="w-[50px] h-[50px] flex items-center justify-center transition-opacity hover:opacity-80"
+                          >
+                            <svg width="50" height="50" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M18.5059 28.5555L29.6809 16.7296C29.9081 16.4893 30.2008 16.3145 30.5197 16.2228L30.8998 16.1179C32.988 15.5325 34.9058 17.4679 34.303 19.5517C34.2331 19.8007 34.102 20.0279 33.9273 20.2201L18.0909 37.6904C17.322 38.5423 16.2953 39.1233 15.1726 39.3505C12.2369 39.9403 9.76419 37.1356 10.7122 34.3003L10.7297 34.2523C10.9787 33.5096 11.3762 32.8281 11.9048 32.2514L29.5761 12.8109C30.6464 11.6313 32.0968 10.8624 33.6739 10.6396L33.7875 10.6222C37.1164 10.146 39.9516 13.0162 39.4318 16.332C39.2527 17.4679 38.759 18.5294 38.0032 19.3988L24.7705 34.5799" stroke="#269BD2" strokeMiterlimit="10"/>
+                            </svg>
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="left"><p>Attach Files</p></TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenRushModal("mandibular", apProductKey)}
+                            className="w-[50px] h-[50px] flex items-center justify-center transition-opacity hover:opacity-80"
+                          >
+                            <svg width="50" height="50" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M22.8224 7.4573L36.2279 4.87227C36.6154 4.79772 36.9329 5.13148 36.7568 5.42831L27.6889 20.7318C27.5189 21.0184 27.8101 21.3451 28.1889 21.2926L34.5014 20.4173C34.9088 20.3608 35.2003 20.7372 34.9704 21.0229L14.1787 46.8786C13.8676 47.2655 13.1498 46.9592 13.3454 46.5228L21.0353 29.3848C21.1646 29.0971 20.8643 28.803 20.5023 28.8623L13.8703 29.9527C13.5124 30.0117 13.2134 29.7243 13.3343 29.4377L22.4841 7.70973C22.5376 7.58301 22.6652 7.48745 22.8224 7.4573Z" fill="#F04B23"/>
+                            </svg>
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="left"><p>{hasRushedAp ? "Rushed" : "Request Rush"}</p></TooltipContent>
+                      </Tooltip>
+                    </div>
+                    </TooltipProvider>
+                  )}
                 <div
-                  key={ap.id}
-                  className={`rounded-lg bg-white overflow-hidden mt-3 ${hasRushedAp ? "border-2 border-[#CF0202]" : "border border-[#d9d9d9]"}`}
+                  className={`rounded-lg bg-white overflow-hidden ${hasRushedAp ? "border-2 border-[#CF0202]" : "border border-[#d9d9d9]"}`}
                 >
+                  {isApRemovables ? (
+                    // Removable restoration: product name top, image+tooth-status-boxes in same row
+                    <div
+                      className={`w-full flex flex-col transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] relative ${hasRushedAp ? "bg-[#FCE4E4]" : isActive ? "bg-[#c8e2f7]" : "bg-[#DFEEFB]"}`}
+                      onClick={() => {
+                        toggleAddedProductExpanded(ap.id);
+                        setActiveProductCardId(isActive ? 0 : ap.id);
+                      }}
+                      style={{ cursor: "pointer" }}
+                    >
+                      {/* Chevron top-right */}
+                      <div className="absolute top-3 right-2 z-10">
+                        <ChevronDown
+                          size={21.6}
+                          className={`text-black transition-transform ${ap.expanded ? "rotate-180" : ""}`}
+                        />
+                      </div>
+                      {/* Product name centered */}
+                      <p className="font-[Verdana] text-[14px] sm:text-lg font-bold leading-tight tracking-[-0.02em] text-black text-center pt-3 pb-2 px-10">
+                        {cardProductName}
+                        {hasRushedAp && <Zap className="inline w-[14px] h-[14px] text-[#CF0202] ml-1" strokeWidth={2} fill="#CF0202" />}
+                      </p>
+                      {/* Image + tooth status boxes in same row */}
+                      <div className="flex items-start gap-2 px-2 pb-2" onClick={(e) => e.stopPropagation()}>
+                        <div className="w-16 h-auto rounded-md bg-white flex items-center justify-center flex-shrink-0 overflow-hidden self-center">
+                          {cardProductImage ? (
+                            <img src={cardProductImage} alt={cardProductName} className="w-[61.58px] h-[28.79px] object-contain" />
+                          ) : (
+                            <div className="w-16 h-16 rounded-md bg-gray-100 flex items-center justify-center">
+                              <span className="text-[10px] text-gray-400">No img</span>
+                            </div>
+                          )}
+                        </div>
+                        {apExtractions.length > 0 && (
+                          <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+                            <ToothStatusBoxes
+                              extractions={apExtractions}
+                              selectedTeeth={mandibularTeeth}
+                              allArchTeeth={MANDIBULAR_ALL_TEETH}
+                              toothExtractionMap={mandibularToothExtractionMap}
+                              claspTeeth={mandibularClaspTeeth}
+                              activeExtractionCode={activeExtractionCode}
+                              onActiveExtractionChange={setActiveExtractionCode}
+                              onToothExtractionToggle={(tn, code) => handleToothExtractionToggle("mandibular", tn, code)}
+                              onSelectAllTeeth={selectAllMandibularTeeth}
+                              onRequiredValidationChange={onToothStatusValidationChange}
+                              isRemovable={true}
+                            />
+                          </div>
+                        )}
+                      </div>
+                      <div className="px-2 pb-2 flex items-center gap-[5px] flex-wrap">
+                        {cardCategoryName && (
+                          <span className="font-[Verdana] text-[11px] sm:text-[13px] font-medium leading-[18px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[8px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] whitespace-nowrap">
+                            {cardCategoryName}
+                          </span>
+                        )}
+                        {cardSubcategoryName && (
+                          <span className="font-[Verdana] text-[11px] sm:text-[13px] font-medium leading-[18px] tracking-[-0.02em] text-black bg-[#F9F9F9] px-[8px] rounded-md shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] whitespace-nowrap">
+                            {cardSubcategoryName}
+                          </span>
+                        )}
+                        <span className={`font-[Verdana] text-[11px] sm:text-[13px] leading-tight tracking-[-0.02em] whitespace-nowrap ${hasRushedAp ? "text-[#CF0202] font-medium" : "text-[#B4B0B0]"}`}>
+                          {hasRushedAp ? "Est days: 5 work days after submission" : "Est days: 10 work days after submission"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); handleRemoveAddedProduct(ap.id); }}
+                          className="ml-1 hover:text-red-500 transition-colors"
+                          title="Remove product"
+                        >
+                          <Trash2 size={9} className="text-[#999999] hover:text-red-500" />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    // Non-removable: original horizontal layout
                   <button
                     type="button"
                     onClick={() => {
@@ -2261,6 +2364,7 @@ export function MandibularPanel({
                       className={`text-black flex-shrink-0 transition-transform ${ap.expanded ? "rotate-180" : ""}`}
                     />
                   </button>
+                  )}
 
                   {ap.expanded && (
                     <div className={`border-t border-[#d9d9d9] p-2.5 sm:p-4 bg-white space-y-3 max-h-[600px] overflow-y-auto scrollbar-blue`}>
@@ -2401,20 +2505,10 @@ export function MandibularPanel({
                         });
                       })()}
 
-                      {/* Bottom actions */}
-                      <div className="flex items-center justify-center gap-4 pt-3 border-t border-[#d9d9d9] mt-3">
-                        <button
-                          type="button"
-                          onClick={() => setShowAttachModal(true)}
-                          className="flex-none w-[123.04px] h-[46.22px] rounded-[5.27px] bg-[#F9F9F9] shadow-[0.88px_0.88px_3.07px_rgba(0,0,0,0.25)] flex flex-col items-center justify-center gap-0.5 hover:bg-[#f0f0f0] transition-colors"
-                        >
-                          <Paperclip size={10} className="text-[#1E1E1E]" strokeWidth={1.5} />
-                          <span className="font-['Verdana'] font-normal text-[8.78px] leading-[19px] text-center tracking-[-0.02em] text-black whitespace-nowrap">Attach Files</span>
-                        </button>
-                      </div>
                       <ScrollToBottom />
                     </div>
                   )}
+                </div>
                 </div>
               );
             })

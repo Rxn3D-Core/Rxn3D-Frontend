@@ -45,6 +45,8 @@ interface ModalOrchestratorProps {
   currentRushArch: Arch;
   currentRushProductId: string;
   handleRushConfirm: (rushData: any) => void;
+  rushedProducts: Record<string, any>;
+  handleRemoveRush: (arch: Arch, productId: string) => void;
   // Stage
   isStageModalOpen: boolean;
   setIsStageModalOpen: (v: boolean) => void;
@@ -109,6 +111,8 @@ export function ModalOrchestrator({
   currentRushArch,
   currentRushProductId,
   handleRushConfirm,
+  rushedProducts,
+  handleRemoveRush,
   // Stage
   isStageModalOpen,
   setIsStageModalOpen,
@@ -208,6 +212,9 @@ export function ModalOrchestrator({
         isOpen={showRushModal}
         onClose={() => setShowRushModal(false)}
         onConfirm={handleRushConfirm}
+        isRushed={!!rushedProducts[`${currentRushArch}_${currentRushProductId}`]}
+        existingRushDate={rushedProducts[`${currentRushArch}_${currentRushProductId}`]?.targetDate}
+        onRemoveRush={() => handleRemoveRush(currentRushArch, currentRushProductId)}
         product={{
           name:
             currentRushProductId === "removable_1"

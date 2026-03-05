@@ -36,6 +36,7 @@ import { cn } from "@/lib/utils"
 import { Dialog, DialogContent, DialogOverlay, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { clearSlipCreationStorage } from "@/utils/slip-creation-storage"
 import { DynamicProductFields } from "@/components/case-design-center/dynamic-product-fields"
+import { LoadingOverlay } from "@/components/ui/loading-overlay"
 import { ImplantPartsPopover } from "@/components/implant-parts-popover"
 import { ImplantBrandCards } from "@/components/implant-brand-cards"
 import { ImplantPlatformCards } from "@/components/implant-platform-cards"
@@ -7074,6 +7075,12 @@ export default function CaseDesignCenterPage() {
 
         </div>
       </div>
+
+      <LoadingOverlay
+        isLoading={isLoadingProductDetails}
+        title="Loading product"
+        message="Please wait while we load the product details..."
+      />
     </CaseDesignCenterProvider>
   );
 

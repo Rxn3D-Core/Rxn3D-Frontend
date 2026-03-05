@@ -19,6 +19,8 @@ interface ToothStatusBoxesProps {
   onSelectAllTeeth: (teeth: number[]) => void;
   /** Called whenever the required-validation error state changes */
   onRequiredValidationChange?: (hasValidation: boolean) => void;
+  /** When true, enables removable-specific display: "All teeth selected" label and compact empty boxes */
+  isRemovable?: boolean;
 }
 
 /** Fallback color map keyed by extraction code — used only when API color is null */
@@ -115,6 +117,7 @@ export function ToothStatusBoxes({
   onToothExtractionToggle,
   onSelectAllTeeth,
   onRequiredValidationChange,
+  isRemovable = false,
 }: ToothStatusBoxesProps) {
   const activeExtractions = extractions
     .filter((e) => e.status === "Active" && e.name != null && e.code != null)
@@ -205,21 +208,29 @@ export function ToothStatusBoxes({
               : selectedTeeth.filter((tn) => toothExtractionMap[tn] === extraction.code)
             ).slice().sort((a, b) => a - b);
 
-            const teethDisplay =
-              teethForBox.length > 0 ? `#${teethForBox.join(",")}` : "";
+            const isEmpty = teethForBox.length === 0;
+            const allSelected = isRemovable && isDefault && teethForBox.length === allArchTeeth.length && allArchTeeth.length > 0;
+
+            let teethDisplay = "";
+            if (teethForBox.length > 0) {
+              teethDisplay = allSelected ? "All teeth selected" : `#${teethForBox.join(",")}`;
+            }
 
             // Validation: is_required box needs teeth unless an is_optional box has teeth
             const showRequiredValidation =
-              isRequired && teethForBox.length === 0 && !anyOptionalHasTeeth;
+              isRequired && isEmpty && !anyOptionalHasTeeth;
 
             const minTeeth = extraction.min_teeth ?? 1;
 
             const style = resolveStyle(extraction);
 
+            // Compact (no teeth) vs normal size — only for removable context
+            const isCompact = isRemovable && isEmpty;
+
             return (
               <div key={extraction.id} className="flex flex-col min-w-0">
                 <div
-                  className="flex flex-col items-center justify-center rounded-md min-h-[50px] sm:min-h-[65px] px-2 py-1.5 cursor-pointer hover:opacity-90 active:opacity-75 transition-all"
+                  className={`flex flex-col items-center justify-center rounded-md px-2 cursor-pointer hover:opacity-90 active:opacity-75 transition-all ${isCompact ? "py-1 min-h-[28px]" : "py-1.5 min-h-[50px] sm:min-h-[65px]"}`}
                   style={{
                     backgroundColor: style.bg,
                     outline: isActive
@@ -232,13 +243,14 @@ export function ToothStatusBoxes({
                   onClick={() => handleBoxClick(extraction)}
                 >
                   <p
-                    className={`font-[Verdana] text-xs sm:text-sm leading-tight sm:leading-[26px] tracking-[0.05em] text-center break-words max-w-full ${style.textClass}`}
+                    className={`font-[Verdana] font-normal tracking-[0.05em] text-center break-words max-w-full ${style.textClass} ${isCompact ? "text-[10px] leading-tight" : "text-[14px] leading-tight"}`}
                   >
                     {extraction.name}
                     {teethDisplay && (
                       <>
-                        <br />
-                        <span className="text-[10px] sm:text-xs">{teethDisplay}</span>
+                        {!isCompact && <br />}
+                        {isCompact ? " " : ""}
+                        <span className={isCompact ? "text-[16px]" : "text-[16px] font-normal"}>{teethDisplay}</span>
                       </>
                     )}
                   </p>

@@ -63,6 +63,15 @@ export function useModalState() {
     setRushedProducts((prev) => ({ ...prev, [key]: rushData }));
   };
 
+  const handleRemoveRush = (arch: Arch, productId: string) => {
+    const key = `${arch}_${productId}`;
+    setRushedProducts((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
   const handleOpenStageModal = (productId: string, arch?: Arch, toothNumber?: number) => {
     setCurrentStageProductId(productId);
     setCurrentStageArch(arch ?? "maxillary");
@@ -128,6 +137,7 @@ export function useModalState() {
     rushedProducts,
     handleOpenRushModal,
     handleRushConfirm,
+    handleRemoveRush,
     // Stage
     isStageModalOpen,
     setIsStageModalOpen,

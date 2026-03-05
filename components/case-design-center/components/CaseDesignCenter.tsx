@@ -82,6 +82,25 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     !mandibularHasRemovablesTeeth ||
     mandibularRemovablesRepTeeth.every((tn) => state.isFieldCompleted("mandibular", tn, "impression"));
 
+  // True once the sentinel/rep tooth for removables card 0 has impression complete.
+  // Uses getRemovablesRepTeeth() directly (not the gated maxillaryRemovablesRepTeeth) so it
+  // works even before the user has selected any teeth (sentinel tooth has product assigned).
+  const maxillaryRemovablesImpressionDone = (() => {
+    if (!maxillaryHasRemovables) return false;
+    const repTeeth = getRemovablesRepTeeth("maxillary");
+    return repTeeth.length > 0 && repTeeth.every((tn) =>
+      IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("maxillary", tn, step))
+    );
+  })();
+
+  const mandibularRemovablesImpressionDone = (() => {
+    if (!mandibularHasRemovables) return false;
+    const repTeeth = getRemovablesRepTeeth("mandibular");
+    return repTeeth.length > 0 && repTeeth.every((tn) =>
+      IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("mandibular", tn, step))
+    );
+  })();
+
   // For Fixed Restoration, impression is stored under the first tooth of the product group.
   // This helper resolves the effective tooth number to check for impression completion.
   const getImpressionOwnerTooth = (arch: "maxillary" | "mandibular", toothNum: number): number => {
@@ -121,8 +140,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
       const n = getImpressionOwnerTooth("mandibular", Number(toothNum));
       return !IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("mandibular", n, step));
     }) ||
-    (maxillaryHasRemovablesTeeth && !allMaxillaryRemovablesComplete) ||
-    (mandibularHasRemovablesTeeth && !allMandibularRemovablesComplete);
+    (maxillaryHasRemovables && !maxillaryRemovablesImpressionDone) ||
+    (mandibularHasRemovables && !mandibularRemovablesImpressionDone);
 
   // Compute a human-readable label for the first incomplete required field across all teeth.
   // For Fixed Restoration, shades are stored per product group (under fixed_${firstToothNumber}), not per tooth — validate once per group.
@@ -208,6 +227,32 @@ export function CaseDesignCenter(props: CaseDesignProps) {
       return IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("mandibular", n, step));
     }) &&
     allMandibularRemovablesComplete;
+
+  // ── Removable restoration: pre-assign sentinel tooth so accordion shows immediately ──
+  // When a removables product is active and no teeth have been assigned yet, assign the
+  // sentinel tooth to card 0 so the accordion renders without requiring the user to click teeth.
+  const MAXILLARY_SENTINEL = 1;
+  const MANDIBULAR_SENTINEL = 17;
+
+  useEffect(() => {
+    if (
+      state.activeProductIsRemovablesMaxillary &&
+      props.selectedProductId &&
+      !state.getToothProduct("maxillary", MAXILLARY_SENTINEL)
+    ) {
+      state.fetchAndAssignProduct("maxillary", MAXILLARY_SENTINEL, props.selectedProductId);
+    }
+  }, [state.activeProductIsRemovablesMaxillary, props.selectedProductId]);
+
+  useEffect(() => {
+    if (
+      state.activeProductIsRemovablesMandibular &&
+      props.selectedProductId &&
+      !state.getToothProduct("mandibular", MANDIBULAR_SENTINEL)
+    ) {
+      state.fetchAndAssignProduct("mandibular", MANDIBULAR_SENTINEL, props.selectedProductId);
+    }
+  }, [state.activeProductIsRemovablesMandibular, props.selectedProductId]);
 
   // Notify parent whenever readiness changes
   useEffect(() => {
@@ -466,6 +511,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           handleToothExtractionToggle={state.handleToothExtractionToggle}
           selectAllMaxillaryTeeth={state.selectAllMaxillaryTeeth}
           onToothStatusValidationChange={props.onToothStatusValidationChange}
+          removablesImpressionDone={maxillaryRemovablesImpressionDone}
         />
 
         {/* CENTER NAVIGATION */}
@@ -541,6 +587,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           handleToothExtractionToggle={state.handleToothExtractionToggle}
           selectAllMandibularTeeth={state.selectAllMandibularTeeth}
           onToothStatusValidationChange={props.onToothStatusValidationChange}
+          removablesImpressionDone={mandibularRemovablesImpressionDone}
         />
       </div>
 
@@ -655,6 +702,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         currentRushArch={state.currentRushArch}
         currentRushProductId={state.currentRushProductId}
         handleRushConfirm={state.handleRushConfirm}
+        rushedProducts={state.rushedProducts}
+        handleRemoveRush={state.handleRemoveRush}
         isStageModalOpen={state.isStageModalOpen}
         setIsStageModalOpen={state.setIsStageModalOpen}
         selectedStages={state.selectedStages}

@@ -100,9 +100,12 @@ export function useCaseDesignState(props: CaseDesignProps) {
     return name === "removables" || name === "removables restoration" || name === "removable restoration" || name === "orthodontics";
   };
 
+  // Only treat the arch as removables when the ACTIVE product card is a removable product.
+  // Previously this was true when ANY product in the arch was removable, which broke
+  // tooth selection for non-removable products (e.g. Fixed Restoration) on the same arch.
   const treatArchAsRemovables = {
-    maxillary: hasRemovablesInAddedProducts("maxillary") || isActiveProductRemovables("maxillary"),
-    mandibular: hasRemovablesInAddedProducts("mandibular") || isActiveProductRemovables("mandibular"),
+    maxillary: isActiveProductRemovables("maxillary"),
+    mandibular: isActiveProductRemovables("mandibular"),
   };
 
   const teeth = useToothSelection(props.addedProducts ?? [], treatArchAsRemovables);
@@ -164,20 +167,28 @@ export function useCaseDesignState(props: CaseDesignProps) {
       return name === "removables" || name === "removables restoration" || name === "removable restoration" || name === "orthodontics";
     }) ?? null;
 
-  // Wrap tooth click handlers: for Removables arches, assign tooth to product and fetch so fields/accordion show.
-  // Handles both: (1) Removables in addedProducts, (2) initial selected product is Removables (card 0).
+  // Wrap tooth click handlers: for Removables arches, assign tooth to the ACTIVE product and fetch so fields/accordion show.
+  // Only auto-assigns when the currently active product card is a removable product.
+  const handleRemovableToothAdd = (arch: Arch, toothNumber: number) => {
+    if (!isActiveProductRemovables(arch)) return;
+
+    if (activeProductCardId !== 0) {
+      const ap = (props.addedProducts ?? []).find((p) => p.id === activeProductCardId);
+      if (ap?.productId && ap.arch === arch) {
+        toothFieldProgress.setToothProductCard(arch, toothNumber, activeProductCardId);
+        fetchAndAssignProduct(arch, toothNumber, ap.productId);
+      }
+    } else if (props.selectedProductId) {
+      toothFieldProgress.setToothProductCard(arch, toothNumber, 0);
+      fetchAndAssignProduct(arch, toothNumber, props.selectedProductId);
+    }
+  };
+
   const handleMaxillaryToothClick = (toothNumber: number) => {
     const isAdding = !teeth.maxillaryTeeth.includes(toothNumber);
     teeth.handleMaxillaryToothClick(toothNumber);
     if (isAdding) {
-      const removablesAp = getRemovablesProduct("maxillary");
-      if (removablesAp?.productId) {
-        toothFieldProgress.setToothProductCard("maxillary", toothNumber, removablesAp.id);
-        fetchAndAssignProduct("maxillary", toothNumber, removablesAp.productId);
-      } else if (isActiveProductRemovables("maxillary") && props.selectedProductId) {
-        toothFieldProgress.setToothProductCard("maxillary", toothNumber, 0);
-        fetchAndAssignProduct("maxillary", toothNumber, props.selectedProductId);
-      }
+      handleRemovableToothAdd("maxillary", toothNumber);
     }
   };
 
@@ -185,14 +196,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
     const isAdding = !teeth.mandibularTeeth.includes(toothNumber);
     teeth.handleMandibularToothClick(toothNumber);
     if (isAdding) {
-      const removablesAp = getRemovablesProduct("mandibular");
-      if (removablesAp?.productId) {
-        toothFieldProgress.setToothProductCard("mandibular", toothNumber, removablesAp.id);
-        fetchAndAssignProduct("mandibular", toothNumber, removablesAp.productId);
-      } else if (isActiveProductRemovables("mandibular") && props.selectedProductId) {
-        toothFieldProgress.setToothProductCard("mandibular", toothNumber, 0);
-        fetchAndAssignProduct("mandibular", toothNumber, props.selectedProductId);
-      }
+      handleRemovableToothAdd("mandibular", toothNumber);
     }
   };
 
