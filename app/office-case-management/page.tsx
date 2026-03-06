@@ -20,7 +20,7 @@ import AddOnsModal from "@/components/add-ons-modal"
 import CallLogModal from "@/components/call-log-modal"
 import PrintPreviewModal from "@/components/print-preview-modal"
 import PrintDriverTagsModal from "@/components/print-driver-tags-modal"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
 
 
@@ -28,11 +28,12 @@ export default function SlipPage() {
   const { slips, loading, error, pagination, fetchOfficeSlips } = useOfficeSlipContext()
   const { toast } = useToast()
   const router = useRouter()
-  
+  const searchParams = useSearchParams()
+
   const [search, setSearch] = useState("")
   const [office, setOffice] = useState("All")
   const [status, setStatus] = useState("All")
-  const [location, setLocation] = useState("All")
+  const [location, setLocation] = useState(() => searchParams.get("location") || "All")
   const [showWithAttachments, setShowWithAttachments] = useState(false)
   const [showLabConnect, setShowLabConnect] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)

@@ -22,11 +22,11 @@ export interface PatientHeaderProps {
   onEditDoctorClick?: () => void;
 }
 
-function SkeletonField({ width = "w-32" }: { width?: string }) {
+function SkeletonField({ label, width = "w-[160px]" }: { label: string; width?: string }) {
   return (
     <fieldset className={`border rounded px-3 py-0 relative h-[42px] flex items-center border-[#b4b0b0] ${width}`}>
       <legend className="text-sm px-1 leading-none whitespace-nowrap text-[#7f7f7f]">
-        <span className="inline-block w-16 h-3 bg-gray-200 rounded animate-pulse" />
+        {label}
       </legend>
       <span className="inline-block w-full h-4 bg-gray-200 rounded animate-pulse" />
     </fieldset>
@@ -134,10 +134,10 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
               <>
                 {slipHeaderLoading ? (
                   <>
-                    <SkeletonField width="w-32" />
-                    <SkeletonField width="w-32" />
-                    <SkeletonField width="w-24" />
-                    <SkeletonField width="w-28" />
+                    <SkeletonField label="Slip number" width="w-[160px]" />
+                    <SkeletonField label="Case number" width="w-[150px]" />
+                    <SkeletonField label="Pan number" width="w-[130px]" />
+                    <SkeletonField label="Status" width="w-[150px]" />
                   </>
                 ) : (
                   <>
@@ -157,10 +157,10 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
               <>
                 {slipHeaderLoading ? (
                   <>
-                    <SkeletonField width="w-28" />
-                    <SkeletonField width="w-28" />
-                    <SkeletonField width="w-28" />
-                    <SkeletonField width="w-44" />
+                    <SkeletonField label="Pick up Date" width="w-[150px]" />
+                    <SkeletonField label="Due Date" width="w-[150px]" />
+                    <SkeletonField label="Delivery Time" width="w-[150px]" />
+                    <SkeletonField label="Location" width="w-[220px]" />
                   </>
                 ) : (
                   <>

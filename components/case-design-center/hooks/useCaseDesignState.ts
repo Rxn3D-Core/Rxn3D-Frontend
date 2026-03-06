@@ -92,7 +92,11 @@ export function useCaseDesignState(props: CaseDesignProps) {
 
   const isActiveProductRemovables = (arch: Arch): boolean => {
     if (activeProductCardId === 0) {
-      return isRemovablesCategoryName(props.selectedProductCategoryName);
+      if (!isRemovablesCategoryName(props.selectedProductCategoryName)) return false;
+      // Respect the arch selection from the wizard (e.g. user chose "maxillary" only)
+      if (props.initialArch === "maxillary" && arch === "mandibular") return false;
+      if (props.initialArch === "mandibular" && arch === "maxillary") return false;
+      return true;
     }
     const ap = (props.addedProducts ?? []).find((p) => p.id === activeProductCardId);
     if (!ap || ap.arch !== arch) return false;

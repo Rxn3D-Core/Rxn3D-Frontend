@@ -12,6 +12,7 @@ import { FloatingActions } from "./components/FloatingActions";
 import { useSlipCreation } from "@/contexts/slip-creation-context";
 import type { SlipCreationProduct } from "@/contexts/slip-creation-context";
 import { useToast } from "@/hooks/use-toast";
+import { useRouter } from "next/navigation";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
@@ -220,6 +221,7 @@ function snapshotToProduct(snap: SlipProductSnapshot): SlipCreationProduct {
 export default function Page() {
   const { createSlip } = useSlipCreation();
   const { toast } = useToast();
+  const router = useRouter();
   const slipCollectorRef = useRef<(() => SlipProductSnapshot[]) | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -399,6 +401,12 @@ export default function Page() {
       setSlipHeaderLoading(false);
       setCaseSubmitted(true);
       toast({ title: "Case submitted", description: "Slip created successfully." });
+      // Redirect to case management with "In office ready to pickup" filter after a short delay
+      setTimeout(() => {
+        const r = typeof window !== "undefined" ? localStorage.getItem("role") : null;
+        const route = r === "lab_admin" ? "/lab-case-management" : "/office-case-management";
+        router.push(`${route}?location=In+office+ready+to+pickup`);
+      }, 5000);
     } catch (err: any) {
       setSlipHeaderLoading(false);
       toast({ title: "Submit failed", description: err?.message ?? "Something went wrong.", variant: "destructive" });

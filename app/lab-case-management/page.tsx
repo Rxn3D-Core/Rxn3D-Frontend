@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
@@ -59,6 +60,7 @@ function printPaperSlip(base64Html: string) {
 
 export default function LabSlipPage() {
   const { toast } = useToast();
+  const searchParams = useSearchParams();
   // Get customerType from localStorage and use as userRole
   let userRole = 'lab';
   if (typeof window !== 'undefined') {
@@ -68,7 +70,7 @@ export default function LabSlipPage() {
   const [search, setSearch] = useState("")
   const [office, setOffice] = useState("All")
   const [status, setStatus] = useState("All")
-  const [location, setLocation] = useState("All")
+  const [location, setLocation] = useState(() => searchParams.get("location") || "All")
   const [showWithAttachments, setShowWithAttachments] = useState(false)
   const [showLabConnect, setShowLabConnect] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)

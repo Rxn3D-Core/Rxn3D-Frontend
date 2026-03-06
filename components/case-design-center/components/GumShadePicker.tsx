@@ -50,14 +50,14 @@ export function GumShadePicker({ selected, onSelect, gumShades }: GumShadePicker
   if (!gumShades || gumShades.length === 0) return null;
 
   return (
-    <div className="flex flex-col gap-2 self-stretch">
+    <div className="border border-[#1162A8] rounded-lg p-4 bg-white self-stretch flex flex-col gap-3">
       {/* Brand dropdown */}
       <div className="relative">
         <fieldset
-          className="border border-[#D9D9D9] rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors"
+          className="border border-[#34a853] rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors"
           onClick={() => setShowBrandDropdown((v) => !v)}
         >
-          <legend className="text-sm px-1 leading-none text-[#7f7f7f]">Shade guide selected</legend>
+          <legend className="text-sm px-1 leading-none text-[#34a853]">Shade guide selected</legend>
           <div className="flex items-center gap-2 w-full">
             <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">
               {currentBrandLabel}
@@ -101,7 +101,7 @@ export function GumShadePicker({ selected, onSelect, gumShades }: GumShadePicker
       </div>
 
       {/* Gum shade circles carousel */}
-      <div className="relative flex flex-row items-center bg-white shadow-[1px_1px_4px_rgba(0,0,0,0.25)] rounded-[5px] self-stretch">
+      <div className="relative flex flex-row items-center self-stretch">
         {/* Left arrow */}
         {canScrollLeft && (
           <button

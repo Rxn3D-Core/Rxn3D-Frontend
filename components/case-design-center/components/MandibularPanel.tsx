@@ -1917,6 +1917,7 @@ export function MandibularPanel({
                           onSelectAllTeeth={selectAllMandibularTeeth}
                           onRequiredValidationChange={onToothStatusValidationChange}
                           isRemovable={true}
+                          submitted={caseSubmitted}
                         />
                       </div>
                     )}
@@ -2275,6 +2276,7 @@ export function MandibularPanel({
                               onSelectAllTeeth={selectAllMandibularTeeth}
                               onRequiredValidationChange={onToothStatusValidationChange}
                               isRemovable={true}
+                              submitted={caseSubmitted}
                             />
                           </div>
                         )}

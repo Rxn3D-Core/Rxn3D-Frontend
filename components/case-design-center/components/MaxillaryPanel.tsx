@@ -1978,6 +1978,7 @@ export function MaxillaryPanel({
                           onSelectAllTeeth={selectAllMaxillaryTeeth}
                           onRequiredValidationChange={onToothStatusValidationChange}
                           isRemovable={true}
+                          submitted={caseSubmitted}
                         />
                       </div>
                     )}
@@ -2336,6 +2337,7 @@ export function MaxillaryPanel({
                               onSelectAllTeeth={selectAllMaxillaryTeeth}
                               onRequiredValidationChange={onToothStatusValidationChange}
                               isRemovable={true}
+                              submitted={caseSubmitted}
                             />
                           </div>
                         )}

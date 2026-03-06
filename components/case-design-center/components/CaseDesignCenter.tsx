@@ -292,6 +292,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           ? state.maxillaryTeeth.includes(tn)
           : (state.mandibularTeeth ?? []).includes(tn);
         if (!toothProduct && !isInRetentionTypes && !isInRemovables) continue;
+        // Skip sentinel teeth (auto-assigned by the effect) that the user never selected
+        if (toothProduct && !isInRetentionTypes && !isInRemovables) continue;
         const existing = cardGroups.get(cardId);
         if (existing) {
           existing.push(tn);

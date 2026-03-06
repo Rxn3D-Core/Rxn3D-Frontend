@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
@@ -169,10 +170,11 @@ const allStatuses = Array.from(new Set(dummySlips.map((s) => s.status)))
 const allLocations = Array.from(new Set(dummySlips.map((s) => s.location)))
 
 export default function SlipPage() {
+  const searchParams = useSearchParams()
   const [search, setSearch] = useState("")
   const [office, setOffice] = useState("All")
   const [status, setStatus] = useState("All")
-  const [location, setLocation] = useState("All")
+  const [location, setLocation] = useState(() => searchParams.get("location") || "All")
   const [showWithAttachments, setShowWithAttachments] = useState(false)
   const [showLabConnect, setShowLabConnect] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)

@@ -21,6 +21,8 @@ interface ToothStatusBoxesProps {
   onRequiredValidationChange?: (hasValidation: boolean) => void;
   /** When true, enables removable-specific display: "All teeth selected" label and compact empty boxes */
   isRemovable?: boolean;
+  /** When true, case has been submitted — hide blue active border on status boxes */
+  submitted?: boolean;
 }
 
 /** Fallback color map keyed by extraction code — used only when API color is null */
@@ -118,6 +120,7 @@ export function ToothStatusBoxes({
   onSelectAllTeeth,
   onRequiredValidationChange,
   isRemovable = false,
+  submitted = false,
 }: ToothStatusBoxesProps) {
   const activeExtractions = extractions
     .filter((e) => e.status === "Active" && e.name != null && e.code != null)
@@ -193,7 +196,7 @@ export function ToothStatusBoxes({
           className={`grid grid-cols-1 sm:grid-cols-2 gap-2 ${rowIdx === lastRowIdx ? "mb-4" : "mb-2"}`}
         >
           {row.map((extraction) => {
-            const isActive = activeExtractionCode === extraction.code;
+            const isActive = !submitted && activeExtractionCode === extraction.code;
             const isDefault = isDefaultExtraction(extraction);
             const isRequired = isRequiredExtraction(extraction);
 
