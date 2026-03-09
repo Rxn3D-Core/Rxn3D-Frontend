@@ -353,10 +353,10 @@ export function ProductDetailsSection({
                             <label
                               className={cn(
                                 "absolute -top-2 left-3 bg-white px-1 text-xs transition-all z-10",
-                                getValidationError("category_id") 
-                                  ? "text-[#CF0202]" 
-                                  : hasValue 
-                                    ? "text-[#1162A8]" 
+                                getValidationError("category_id")
+                                  ? "text-[#CF0202]"
+                                  : hasValue
+                                    ? "text-[#119933]"
                                     : "text-gray-500"
                               )}
                             >
@@ -379,7 +379,7 @@ export function ProductDetailsSection({
                                 getValidationError("category_id")
                                   ? "border-[#CF0202]"
                                   : hasValue
-                                    ? "border-[#1162A8]"
+                                    ? "border-[#119933]"
                                     : "border-[#E0E0E0]"
                               )}
                             >
@@ -421,10 +421,10 @@ export function ProductDetailsSection({
                             <label
                               className={cn(
                                 "absolute -top-2 left-3 bg-white px-1 text-xs transition-all z-10",
-                                getValidationError("subcategory_id") 
-                                  ? "text-[#CF0202]" 
-                                  : hasValue 
-                                    ? "text-[#1162A8]" 
+                                getValidationError("subcategory_id")
+                                  ? "text-[#CF0202]"
+                                  : hasValue
+                                    ? "text-[#119933]"
                                     : "text-gray-500"
                               )}
                             >
@@ -444,7 +444,7 @@ export function ProductDetailsSection({
                                 getValidationError("subcategory_id")
                                   ? "border-[#CF0202]"
                                   : hasValue
-                                    ? "border-[#1162A8]"
+                                    ? "border-[#119933]"
                                     : "border-[#E0E0E0]",
                                 (!selectedCategoryId || isCustomDisabled) && "opacity-40 cursor-not-allowed bg-gray-50"
                               )}

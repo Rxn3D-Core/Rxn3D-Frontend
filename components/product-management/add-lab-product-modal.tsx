@@ -1408,12 +1408,11 @@ export function AddLabProductModal({
     return acc
   }, {} as Record<string, any>)
 
-  // Check if current section has dirty fields - watch section fields for immediate reactivity
+  // Check if any field across all tabs is dirty
   const hasSectionChanges = useMemo(() => {
     if (!editingProduct || !editingProduct.id) return false
-    if (!isDirty) return false
-    return sectionFields.some(field => dirtyFields[field as keyof typeof dirtyFields])
-  }, [activeTab, dirtyFields, editingProduct, isDirty, sectionFields, watchedSectionFields])
+    return isDirty
+  }, [editingProduct, isDirty])
 
   // Generic handler to update any section
   const handleUpdateSection = async () => {
@@ -1438,19 +1437,21 @@ export function AddLabProductModal({
     try {
       clearValidationErrors()
       const formData = watch()
-      const sectionFields = getSectionFields(activeTab)
-      
-      // Create a subset of formData with only the section fields
+      // Collect fields from ALL tabs so no changes are lost
+      const allTabIds = ["details", "grades", "stages", "impressions", "gumShade", "teethShade", "material", "addOns", "retention", "extractions", "officePricing", "visibility"]
+      const allFields = allTabIds.flatMap(tabId => getSectionFields(tabId))
+
+      // Create a subset of formData with all tab fields
       const sectionData: any = {}
-      for (const field of sectionFields) {
+      for (const field of allFields) {
         if (formData[field as keyof typeof formData] !== undefined) {
           sectionData[field] = formData[field as keyof typeof formData]
         }
       }
 
-      // Create a subset of initialFormValues with only the section fields for comparison
+      // Create a subset of initialFormValues with all tab fields for comparison
       const initialSectionData: any = {}
-      for (const field of sectionFields) {
+      for (const field of allFields) {
         if (initialFormValues[field as keyof typeof initialFormValues] !== undefined) {
           initialSectionData[field] = initialFormValues[field as keyof typeof initialFormValues]
         }
@@ -1649,8 +1650,8 @@ export function AddLabProductModal({
         }
       }
 
-      // Special handling for stages tab: always include stages if stages field is dirty
-      if (activeTab === "stages" && dirtyFields.stages) {
+      // Special handling for stages: always include stages if stages field is dirty
+      if (dirtyFields.stages) {
         // Even if changes doesn't have stages (due to comparison issues), include current stages
         const currentStages = formData.stages || []
         if (currentStages.length > 0) {
@@ -1695,8 +1696,8 @@ export function AddLabProductModal({
         payload.opposite_extractions = []
       }
 
-      // Special handling for stages - include releasingStageIds
-      const releasingIds = activeTab === "stages" ? releasingStageIds : undefined
+      // Always include releasingStageIds since we now send all tab changes
+      const releasingIds = releasingStageIds
 
       // Debug logging for stages
       if (activeTab === "stages") {
@@ -1716,19 +1717,18 @@ export function AddLabProductModal({
       try {
         await updateProduct(editingProduct.id, payload, releasingIds)
         
-        // Update initialFormValues to reflect the changes
+        // Update initialFormValues to reflect the changes across all tabs
         const updatedInitialValues: ProductCreateForm = { ...initialFormValues }
-        for (const field of sectionFields) {
+        for (const field of allFields) {
           if (changes[field] !== undefined) {
             (updatedInitialValues as any)[field] = formData[field as keyof typeof formData]
           }
         }
         setInitialFormValues(updatedInitialValues)
         
-        const sectionName = tabs.find(t => t.id === activeTab)?.label || "Section"
         toast({
           title: "Success",
-          description: `${sectionName} updated successfully.`,
+          description: "Product updated successfully.",
           variant: "default",
         })
         
