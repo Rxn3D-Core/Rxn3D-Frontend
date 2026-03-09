@@ -862,7 +862,7 @@ export function MandibularPanel({
                     return code && HEADER_EXTRACTION_CODES.has(code);
                   });
                   const displayTeeth = headerTeeth.length > 0 ? headerTeeth : toothNumbers;
-                  const toothNumbersDisplay = displayTeeth.length > 0 ? displayTeeth.map(t => `#${t}`).join(", ") : "";
+                  const toothNumbersDisplay = displayTeeth.length > 0 ? `#${displayTeeth.join(",")}` : "";
                   const retentionTypes = [...new Set(teeth.map((t) => t.retentionType))];
                   const hasRushed = toothNumbers.some((n) => rushedProducts[`mandibular_prep_${n}`] || rushedProducts[`mandibular_fixed_${n}`]);
 
@@ -1417,7 +1417,7 @@ export function MandibularPanel({
               });
               // Show filtered teeth if extraction codes exist, otherwise show all tooth numbers (match card 0 behavior)
               const apFinalTeeth = apFilteredTeeth.length > 0 ? apFilteredTeeth : cardTeeth;
-              const cardToothDisplay = apFinalTeeth.length > 0 ? apFinalTeeth.map(t => `#${t}`).join(", ") : "";
+              const cardToothDisplay = apFinalTeeth.length > 0 ? `#${apFinalTeeth.join(",")}` : "";
               const isActive = activeProductCardId === ap.id;
               const apRepTn = cardTeeth.length > 0 ? cardTeeth[0] : 0;
               const apProductKey = `mandibular_prep_${apRepTn}`;
