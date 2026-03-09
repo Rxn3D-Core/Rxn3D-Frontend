@@ -10,6 +10,7 @@ import { useModalState } from "./useModalState";
 import { useProductManagement } from "./useProductManagement";
 import { useImplantState } from "./useImplantState";
 import { useToothFieldProgress, FIXED_SHADE_FIELD_TO_STEP } from "./useToothFieldProgress";
+import { isRemovableCategory, isFixedCategory, getCategoryName } from "../utils/categoryHelpers";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
@@ -86,8 +87,8 @@ export function useCaseDesignState(props: CaseDesignProps) {
   const hasRemovablesInAddedProducts = (arch: Arch) =>
     (props.addedProducts ?? []).some((ap) => {
       if (ap.arch !== arch) return false;
-      const name = (ap.product?.subcategory?.category?.name || ap.product?.category_name || "").toLowerCase();
-      return name === "removables" || name === "removables restoration" || name === "removable restoration" || name === "orthodontics";
+      const name = ap.product?.subcategory?.category?.name || ap.product?.category_name || "";
+      return isRemovableCategory(name);
     });
 
   const isActiveProductRemovables = (arch: Arch): boolean => {
@@ -100,8 +101,8 @@ export function useCaseDesignState(props: CaseDesignProps) {
     }
     const ap = (props.addedProducts ?? []).find((p) => p.id === activeProductCardId);
     if (!ap || ap.arch !== arch) return false;
-    const name = (ap.product?.subcategory?.category?.name || ap.product?.category_name || "").toLowerCase();
-    return name === "removables" || name === "removables restoration" || name === "removable restoration" || name === "orthodontics";
+    const name = ap.product?.subcategory?.category?.name || ap.product?.category_name || "";
+    return isRemovableCategory(name);
   };
 
   // Only treat the arch as removables when the ACTIVE product card is a removable product.
@@ -183,8 +184,8 @@ export function useCaseDesignState(props: CaseDesignProps) {
   const getRemovablesProduct = (arch: Arch) =>
     products.addedProducts.find((ap) => {
       if (ap.arch !== arch) return false;
-      const name = (ap.product?.subcategory?.category?.name || ap.product?.category_name || "").toLowerCase();
-      return name === "removables" || name === "removables restoration" || name === "removable restoration" || name === "orthodontics";
+      const name = ap.product?.subcategory?.category?.name || ap.product?.category_name || "";
+      return isRemovableCategory(name);
     }) ?? null;
 
   // Wrap tooth click handlers: for Removables arches, assign tooth to the ACTIVE product and fetch so fields/accordion show.
@@ -249,7 +250,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
         const retTypes = arch === "maxillary" ? teeth.maxillaryRetentionTypes : teeth.mandibularRetentionTypes;
         const targetProductId2 = getActiveProductId();
         const targetProduct = targetProductId2 ? cachedProductRef.current.get(targetProductId2) : undefined;
-        if (targetProduct?.subcategory?.category?.name === "Fixed Restoration" && targetProduct?.id) {
+        if (isFixedCategory(getCategoryName(targetProduct)) && targetProduct?.id) {
           const siblingTeeth = Object.keys(retTypes)
             .map(Number)
             .filter((tn) => {
@@ -277,7 +278,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
     (arch: Arch, deselectedTooth: number) => {
       // Check if this tooth belongs to a Fixed Restoration product
       const product = toothFieldProgress.getToothProduct(arch, deselectedTooth);
-      const isFixed = product?.subcategory?.category?.name === "Fixed Restoration";
+      const isFixed = isFixedCategory(getCategoryName(product));
       if (!isFixed || !product?.id) return;
 
       // Find all other teeth in this arch with the same product (same group)

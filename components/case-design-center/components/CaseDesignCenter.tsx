@@ -11,6 +11,7 @@ import { CenterNavigation } from "./CenterNavigation";
 import { ModalOrchestrator } from "./ModalOrchestrator";
 import { CaseSummaryNotes } from "./CaseSummaryNotes";
 import { mockImpressions } from "../constants";
+import { isRemovableCategory, isFixedCategory, getCategoryName } from "../utils/categoryHelpers";
 
 export function CaseDesignCenter(props: CaseDesignProps) {
   const state = useCaseDesignState(props);
@@ -29,8 +30,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   const isRemovablesCategory = (arch: "maxillary" | "mandibular") =>
     (props.addedProducts ?? []).some((ap) => {
       if (ap.arch !== arch) return false;
-      const name = (ap.product?.subcategory?.category?.name || ap.product?.category_name || "").toLowerCase();
-      return name === "removables" || name === "removables restoration" || name === "removable restoration" || name === "orthodontics";
+      const name = ap.product?.subcategory?.category?.name || ap.product?.category_name || "";
+      return isRemovableCategory(name);
     });
 
   // Show panels/accordion as soon as a removables product exists (no teeth required)
@@ -105,7 +106,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   // This helper resolves the effective tooth number to check for impression completion.
   const getImpressionOwnerTooth = (arch: "maxillary" | "mandibular", toothNum: number): number => {
     const product = state.getToothProduct(arch, toothNum);
-    const isFixed = product?.subcategory?.category?.name === "Fixed Restoration";
+    const isFixed = isFixedCategory(getCategoryName(product));
     if (!isFixed) return toothNum;
     const allTeeth = arch === "maxillary"
       ? Object.keys(state.maxillaryRetentionTypes).map(Number)
@@ -154,7 +155,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     const processedGroups = new Set<string>();
     for (const { arch, toothNum } of allArchTeeth) {
       const product = state.getToothProduct(arch, toothNum);
-      const isFixedRestoration = product?.subcategory?.category?.name === "Fixed Restoration";
+      const isFixedRestoration = isFixedCategory(getCategoryName(product));
       const productKey = product?.id ?? toothNum;
       const groupKey = `${arch}_${productKey}`;
 
@@ -184,7 +185,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     const processedShadeGroups = new Set<string>();
     for (const n of maxillaryTeeth) {
       const product = state.getToothProduct("maxillary", n);
-      if (product?.subcategory?.category?.name === "Fixed Restoration") {
+      if (isFixedCategory(getCategoryName(product))) {
         const productKey = String(product?.id ?? n);
         const firstToothInGroup = Math.min(
           ...maxillaryTeeth.filter(
@@ -254,28 +255,11 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     }
   }, [state.activeProductIsRemovablesMandibular, props.selectedProductId]);
 
-  // ── Sentinel for added removable products ──
-  // When a new removable/orthodontics product is added via "+ Add Product", auto-assign a
-  // sentinel tooth so the accordion renders immediately (same pattern as above but for non-card-0).
-  useEffect(() => {
-    const addedProducts = props.addedProducts ?? [];
-    for (const ap of addedProducts) {
-      const catName = (ap.product?.subcategory?.category?.name || ap.product?.category_name || "").toLowerCase();
-      const isRemovable = catName === "removables" || catName === "removables restoration" || catName === "removable restoration" || catName === "orthodontics";
-      if (!isRemovable || !ap.productId) continue;
-      const sentinel = ap.arch === "maxillary" ? MAXILLARY_SENTINEL : MANDIBULAR_SENTINEL;
-      const arch = ap.arch as "maxillary" | "mandibular";
-      // Check if this product card already has any teeth assigned
-      const allTeeth = arch === "maxillary"
-        ? [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]
-        : [17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32];
-      const hasTeeth = allTeeth.some((tn) => state.getToothProductCard(arch, tn) === ap.id);
-      if (!hasTeeth) {
-        state.setToothProductCard(arch, sentinel, ap.id);
-        state.fetchAndAssignProduct(arch, sentinel, ap.productId);
-      }
-    }
-  }, [props.addedProducts]);
+  // ── Note: no sentinel tooth assignment for added removable products ──
+  // Added removable product accordions render even with 0 teeth assigned
+  // (the `!isApRemovables && cardTeeth.length === 0` guard in the panels skips only fixed products).
+  // Product data for display comes from `ap.product` in the addedProducts array.
+  // Teeth get assigned to the added card when the user clicks them on the chart while the card is active.
 
   // Notify parent whenever readiness changes
   useEffect(() => {
@@ -354,8 +338,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         }
 
         // Stage: look up from selectedStages using the product key format used in the panels
-        const isFixedCategory = productApiData?.subcategory?.category?.name === "Fixed Restoration";
-        const stageKey = isFixedCategory
+        const isFixed = isFixedCategory(getCategoryName(productApiData));
+        const stageKey = isFixed
           ? `${arch}_fixed_${repTooth}`
           : `${arch}_prep_${repTooth}`;
         const stageName = state.selectedStages?.[stageKey] ?? fieldValues["stage"] ?? fieldValues["fixed_stage"] ?? null;
@@ -683,7 +667,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           const arch = state.currentImpressionArch;
           if (toothNum !== null) {
             const product = state.getToothProduct(arch, toothNum);
-            const isFixed = product?.subcategory?.category?.name === "Fixed Restoration";
+            const isFixed = isFixedCategory(getCategoryName(product));
             if (isFixed) {
               state.completeFieldStep(arch, toothNum, "fixed_impression", displayText);
             } else {
@@ -712,7 +696,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
               value = addonLabels.slice(0, maxShow).join(", ") + ` +${addonLabels.length - maxShow} more`;
             }
             const product = state.getToothProduct(arch, toothNum);
-            const isFixed = product?.subcategory?.category?.name === "Fixed Restoration";
+            const isFixed = isFixedCategory(getCategoryName(product));
             if (isFixed) {
               state.completeFieldStep(arch, toothNum, "fixed_addons", value);
             } else {
@@ -752,7 +736,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           const arch = state.currentStageArch;
           if (toothNum !== null) {
             const product = state.getToothProduct(arch, toothNum);
-            const isFixed = product?.subcategory?.category?.name === "Fixed Restoration";
+            const isFixed = isFixedCategory(getCategoryName(product));
             if (isFixed) {
               state.completeFieldStep(arch, toothNum, "fixed_stage", stageName);
             } else {

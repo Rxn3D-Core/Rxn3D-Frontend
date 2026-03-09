@@ -198,7 +198,7 @@ export const TeethShadesProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, [error, successMessage])
 
   const fetchTeethShadeBrands = useCallback(
-    async (page = 1, perPage = 10) => {
+    async (page?: number, perPage?: number) => {
       setIsLoading(true)
       setError(null)
 
@@ -216,11 +216,13 @@ export const TeethShadesProvider: React.FC<{ children: React.ReactNode }> = ({ c
       }
 
       try {
-        const params = new URLSearchParams({
-          per_page: perPage.toString(),
-        })
+        const params = new URLSearchParams()
 
-        if (page > 1) {
+        if (perPage != null) {
+          params.append("per_page", perPage.toString())
+        }
+
+        if (page != null && page > 1) {
           params.append("page", page.toString())
         }
 

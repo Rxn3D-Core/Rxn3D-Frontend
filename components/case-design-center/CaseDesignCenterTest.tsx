@@ -11,6 +11,7 @@ import { CaseSummaryNotes } from "./components/CaseSummaryNotes";
 import { FloatingActions } from "./components/FloatingActions";
 import { useSlipCreation } from "@/contexts/slip-creation-context";
 import type { SlipCreationProduct } from "@/contexts/slip-creation-context";
+import { isFixedCategory, getCategoryName } from "./utils/categoryHelpers";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 
@@ -99,7 +100,7 @@ function parseShadeDisplayName(raw: string): string {
  */
 function snapshotToProduct(snap: SlipProductSnapshot): SlipCreationProduct {
   const product = snap.productApiData;
-  const isFixed = product?.subcategory?.category?.name === "Fixed Restoration";
+  const isFixed = isFixedCategory(getCategoryName(product));
 
   // --- Stage --- plain name; resolve stage_id from product.stages
   const stageName = snap.stageName ?? snap.fieldValues["stage"] ?? snap.fieldValues["fixed_stage"] ?? null;

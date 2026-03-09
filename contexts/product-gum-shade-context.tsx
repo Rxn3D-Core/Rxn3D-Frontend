@@ -250,8 +250,8 @@ export function GumShadesProvider({ children }: GumShadesProviderProps) {
   // Fetch gum shade brands
   const fetchGumShadeBrands = useCallback(
     async (
-      page = 1,
-      perPage = 10,
+      page?: number,
+      perPage?: number,
       search = "",
       sortCol: string | null = null,
       sortDir: "asc" | "desc" | null = null,
@@ -261,8 +261,8 @@ export function GumShadesProvider({ children }: GumShadesProviderProps) {
 
       try {
         const params = new URLSearchParams({
-          page: page.toString(),
-          per_page: perPage.toString(),
+          ...(page != null && { page: page.toString() }),
+          ...(perPage != null && { per_page: perPage.toString() }),
           ...(search && { search }),
           ...(sortCol && { sort_column: sortCol }),
           ...(sortDir && { sort_direction: sortDir }),

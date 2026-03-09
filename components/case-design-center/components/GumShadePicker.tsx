@@ -114,7 +114,7 @@ export function GumShadePicker({ selected, onSelect, gumShades }: GumShadePicker
               localSelected ? "text-[#34a853]" : "text-[#CF0202]"
             }`}
           >
-            Select Gum shade
+            {localSelected ? "Gum shade" : "Select Gum shade"}
           </legend>
           <div className="flex items-center gap-2 w-full">
             <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">

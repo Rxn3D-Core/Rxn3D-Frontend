@@ -2,20 +2,19 @@
 
 import { useState } from "react";
 import type { Arch, RetentionType, RetentionPopoverState, AddedProduct } from "../types";
+import { isRemovableCategory } from "../utils/categoryHelpers";
 
 /** Exported for use in useCaseDesignState when computing active product category. */
 export function isRemovablesCategoryName(name: string | undefined): boolean {
-  if (!name) return false;
-  const n = name.toLowerCase().trim();
-  return n === "removables" || n === "removables restoration" || n === "removable restoration" || n === "orthodontics";
+  return isRemovableCategory(name);
 }
 
 function isRemovablesArch(addedProducts: AddedProduct[], arch: Arch): boolean {
   return addedProducts
     .filter((ap) => ap.arch === arch)
     .some((ap) => {
-      const name = (ap.product?.subcategory?.category?.name || ap.product?.category_name || "").toLowerCase();
-      return name === "removables" || name === "removables restoration" || name === "removable restoration" || name === "orthodontics";
+      const name = ap.product?.subcategory?.category?.name || ap.product?.category_name || "";
+      return isRemovableCategory(name);
     });
 }
 
