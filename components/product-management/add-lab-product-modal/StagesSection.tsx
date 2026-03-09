@@ -652,7 +652,7 @@ export function StagesSection({
                                             <Input
                                                 type="number"
                                                 className="h-8 w-24 text-center"
-                                                value={stageData.days || stageInfo.days_to_process || ""}
+                                                value={stageData.days !== undefined && stageData.days !== null ? stageData.days : (stageInfo.days_to_process || "")}
                                                 placeholder="0"
                                                 onChange={(e) => {
                                                     const updated = watchedStages.map(s =>
