@@ -315,7 +315,17 @@ export function AddLabProductModal({
         // Check if all selected grades have prices > 0
         return watchedGrades.every((grade: any) => {
           const gradeId = grade.grade_id || grade.id
-          const price = gradePrices[gradeId] || gradePrices[gradeId?.toString()] || ""
+          const normalizedId = gradeId?.toString() || ""
+          // Check all possible key formats (number and string)
+          let price = gradePrices[gradeId] || gradePrices[normalizedId] || ""
+          // Also check with numeric key if gradeId is a string
+          if (!price && typeof gradeId === "string" && !isNaN(Number(gradeId))) {
+            price = gradePrices[Number(gradeId)] || ""
+          }
+          // Fallback to the grade's own price from watchedGrades (matches StagesSection display logic)
+          if (!price) {
+            price = (grade as any)?.price ?? ""
+          }
           const numPrice = typeof price === "string" ? parseFloat(price) : price
           return !isNaN(numPrice) && numPrice > 0
         })
@@ -700,7 +710,7 @@ export function AddLabProductModal({
 
           return {
             stage_id: item.stage_id ?? item.id,
-            sequence: item.sequence && item.sequence >= 1 ? item.sequence : idx + 1,
+            sequence: idx + 1, // Always assign continuous sequence (1, 2, 3...)
             status: item.status || (item.is_default === "Yes" ? "Active" : "Inactive"),
             is_default: item.is_default === "Yes" ? "Yes" : "No",
             economy_price: priceStr,
