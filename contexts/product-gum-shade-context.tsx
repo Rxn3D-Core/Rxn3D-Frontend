@@ -292,8 +292,12 @@ export function GumShadesProvider({ children }: GumShadesProviderProps) {
         const result: GumShadeBrandResponse = await response.json()
 
         if (result.status) {
-          setGumShadeBrands(result.data?.data || [])
-          setPagination(result.data.pagination)
+          // Handle both paginated ({ data: { data: [], pagination: {} } }) and non-paginated ({ data: [] }) responses
+          const brands = Array.isArray(result.data) ? result.data : (result.data?.data || [])
+          setGumShadeBrands(brands)
+          if (!Array.isArray(result.data) && result.data?.pagination) {
+            setPagination(result.data.pagination)
+          }
         } else {
           throw new Error(result.message || "Failed to fetch gum shade brands")
         }

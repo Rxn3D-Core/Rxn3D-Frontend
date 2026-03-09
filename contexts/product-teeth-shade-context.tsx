@@ -270,8 +270,12 @@ export const TeethShadesProvider: React.FC<{ children: React.ReactNode }> = ({ c
         }
 
         const result: TeethShadeBrandResponse = await response.json()
-        setTeethShadeBrands(result.data.data || [])
-        setPagination(result.data.pagination || defaultPagination)
+        // Handle both paginated ({ data: { data: [], pagination: {} } }) and non-paginated ({ data: [] }) responses
+        const brands = Array.isArray(result.data) ? result.data : (result.data?.data || [])
+        setTeethShadeBrands(brands)
+        if (!Array.isArray(result.data) && result.data?.pagination) {
+          setPagination(result.data.pagination)
+        }
       } catch (error: any) {
         console.error("Error fetching teeth shade brands:", error)
         setError(error.message || "Failed to fetch teeth shade brands")
