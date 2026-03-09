@@ -254,6 +254,29 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     }
   }, [state.activeProductIsRemovablesMandibular, props.selectedProductId]);
 
+  // ── Sentinel for added removable products ──
+  // When a new removable/orthodontics product is added via "+ Add Product", auto-assign a
+  // sentinel tooth so the accordion renders immediately (same pattern as above but for non-card-0).
+  useEffect(() => {
+    const addedProducts = props.addedProducts ?? [];
+    for (const ap of addedProducts) {
+      const catName = (ap.product?.subcategory?.category?.name || ap.product?.category_name || "").toLowerCase();
+      const isRemovable = catName === "removables" || catName === "removables restoration" || catName === "removable restoration" || catName === "orthodontics";
+      if (!isRemovable || !ap.productId) continue;
+      const sentinel = ap.arch === "maxillary" ? MAXILLARY_SENTINEL : MANDIBULAR_SENTINEL;
+      const arch = ap.arch as "maxillary" | "mandibular";
+      // Check if this product card already has any teeth assigned
+      const allTeeth = arch === "maxillary"
+        ? [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]
+        : [17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32];
+      const hasTeeth = allTeeth.some((tn) => state.getToothProductCard(arch, tn) === ap.id);
+      if (!hasTeeth) {
+        state.setToothProductCard(arch, sentinel, ap.id);
+        state.fetchAndAssignProduct(arch, sentinel, ap.productId);
+      }
+    }
+  }, [props.addedProducts]);
+
   // Notify parent whenever readiness changes
   useEffect(() => {
     props.onReadinessChange?.(allTeethImpressionComplete);

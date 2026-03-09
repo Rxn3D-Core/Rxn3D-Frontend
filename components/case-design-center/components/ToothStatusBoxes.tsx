@@ -258,7 +258,7 @@ export function ToothStatusBoxes({
                     )}
                   </p>
                   {showRequiredValidation && (
-                    <p className="text-[10px] sm:text-xs text-[#CF0202] text-center font-[Verdana]">
+                    <p className={`text-[10px] sm:text-xs text-center font-[Verdana] ${style.textClass.includes("text-white") ? "text-white" : "text-[#CF0202]"}`}>
                       Required: select at least {minTeeth} tooth
                     </p>
                   )}

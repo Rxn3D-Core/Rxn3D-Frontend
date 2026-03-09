@@ -374,7 +374,7 @@ export function CaseSummaryNotes(props: NotesProps) {
               ? "rounded-[8px] h-[40px]"
               : expanded
                 ? "rounded-r-[8px] h-[300px]"
-                : "rounded-r-[8px] h-[130px] sm:h-[158px]"
+                : "rounded-r-[8px] h-[130px] sm:h-[154px]"
           }`}
         >
           <legend className="ml-2 px-1 text-xs sm:text-sm text-[#7f7f7f] font-normal tracking-[0.05em] leading-none">

@@ -119,8 +119,23 @@ export function useCaseDesignState(props: CaseDesignProps) {
   const implants = useImplantState();
   const toothFieldProgress = useToothFieldProgress();
 
-  // Cache product data so we only fetch from API once
-  const cachedProductRef = useRef<{ productId: number; data: ProductApiData } | null>(null);
+  // Auto-activate the newest added product so teeth clicks assign to it.
+  // New products are prepended (first in the array), so check current[0].
+  const prevAddedCountRef = useRef((props.addedProducts ?? []).length);
+  useEffect(() => {
+    const current = props.addedProducts ?? [];
+    if (current.length > prevAddedCountRef.current) {
+      // A new product was just added (prepended at index 0) — activate it
+      const newest = current[0];
+      setActiveProductCardId(newest.id);
+      // Collapse card 0 Fixed accordion(s)
+      setExpandedPrepPontic({});
+    }
+    prevAddedCountRef.current = current.length;
+  }, [props.addedProducts]);
+
+  // Cache product data so we only fetch from API once (supports multiple products)
+  const cachedProductRef = useRef<Map<number, ProductApiData>>(new Map());
 
   // Teeth shade catalog — fetched once on mount for ID resolution at selection time
   const teethShadeCatalogRef = useRef<TeethShadeEntry[]>([]);
@@ -134,8 +149,9 @@ export function useCaseDesignState(props: CaseDesignProps) {
   const fetchAndAssignProduct = useCallback(
     async (arch: Arch, toothNumber: number, productId: number) => {
       // If we already fetched this product, reuse the cached data
-      if (cachedProductRef.current && cachedProductRef.current.productId === productId) {
-        toothFieldProgress.setToothProduct(arch, toothNumber, cachedProductRef.current.data);
+      const cached = cachedProductRef.current.get(productId);
+      if (cached) {
+        toothFieldProgress.setToothProduct(arch, toothNumber, cached);
         return;
       }
 
@@ -149,7 +165,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
       toothFieldProgress.setProductLoading(arch, toothNumber, true);
       const product = await fetchProductDetails(productId, customerId);
       if (product) {
-        cachedProductRef.current = { productId, data: product };
+        cachedProductRef.current.set(productId, product);
         toothFieldProgress.setToothProduct(arch, toothNumber, product);
       }
       toothFieldProgress.setProductLoading(arch, toothNumber, false);
@@ -231,7 +247,8 @@ export function useCaseDesignState(props: CaseDesignProps) {
         // Migrate Fixed Restoration stage key if the new tooth becomes the new min
         // (e.g. adding tooth #7 to an existing group [#8, #9] changes min from 8 to 7)
         const retTypes = arch === "maxillary" ? teeth.maxillaryRetentionTypes : teeth.mandibularRetentionTypes;
-        const targetProduct = cachedProductRef.current?.data;
+        const targetProductId2 = getActiveProductId();
+        const targetProduct = targetProductId2 ? cachedProductRef.current.get(targetProductId2) : undefined;
         if (targetProduct?.subcategory?.category?.name === "Fixed Restoration" && targetProduct?.id) {
           const siblingTeeth = Object.keys(retTypes)
             .map(Number)

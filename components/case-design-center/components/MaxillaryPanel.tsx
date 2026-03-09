@@ -667,22 +667,37 @@ export function MaxillaryPanel({
   const [implantDetailCompleteByTooth, setImplantDetailCompleteByTooth] = useState<Record<number, boolean>>({});
   /** Expand/collapse for initial (card 0) Removables product accordion */
   const [initialRemovablesExpanded, setInitialRemovablesExpanded] = useState(true);
+  // Auto-collapse card 0 removables accordion when another product becomes active
+  const prevActiveCardRef = useRef(activeProductCardId);
+  useEffect(() => {
+    if (activeProductCardId !== 0 && prevActiveCardRef.current !== activeProductCardId) {
+      setInitialRemovablesExpanded(false);
+    }
+    prevActiveCardRef.current = activeProductCardId;
+  }, [activeProductCardId]);
   /** Panel-level gum shade picker state — shown above tooth status boxes */
-  const [panelGumShadePicker, setPanelGumShadePicker] = useState<{ toothNumber: number; gumShades: { gum_shade_id: number; name: string; color_code_middle: string; brand: { id: number } }[] } | null>(null);
+  const [panelGumShadePicker, setPanelGumShadePicker] = useState<{ toothNumber: number; gumShades: { gum_shade_id: number; name: string; color_code_middle: string; brand: { id: number } }[]; selectedName?: string | null } | null>(null);
   // Auto-select default grade for removable products when product loads
   const autoGradeApplied = useRef<Set<string>>(new Set());
   useEffect(() => {
     for (const tn of MAXILLARY_ALL_TEETH) {
       const tp = getToothProduct("maxillary", tn);
-      if (!tp?.grades?.length) continue;
+      if (!tp) continue;
       const key = `maxillary_${tn}`;
       if (autoGradeApplied.current.has(key)) continue;
       const currentVal = getFieldValue("maxillary", tn, "grade");
       if (currentVal) continue;
-      const def = getDefaultGrade(tp.grades);
-      if (def) {
+      const activeGrades = getActiveGrades(tp.grades);
+      if (activeGrades.length === 0) {
+        // No grades available — auto-complete grade step so the chain progresses to the next field
         autoGradeApplied.current.add(key);
-        completeFieldStep("maxillary", tn, "grade", JSON.stringify({ grade_id: def.grade_id, name: def.name }));
+        completeFieldStep("maxillary", tn, "grade", JSON.stringify({ skipped: true }));
+      } else {
+        const def = getDefaultGrade(tp.grades);
+        if (def) {
+          autoGradeApplied.current.add(key);
+          completeFieldStep("maxillary", tn, "grade", JSON.stringify({ grade_id: def.grade_id, name: def.name }));
+        }
       }
     }
   }, [getFieldValue, completeFieldStep, getToothProduct]);
@@ -796,7 +811,7 @@ export function MaxillaryPanel({
           {panelGumShadePicker && (
             <div className="mt-3">
               <GumShadePicker
-                selected={null}
+                selected={panelGumShadePicker.selectedName ?? null}
                 onSelect={(shade) => {
                   completeFieldStep("maxillary", panelGumShadePicker.toothNumber, "gum_shade", JSON.stringify({ gum_shade_id: shade.gum_shade_id, brand_id: shade.brand.id, name: shade.name }));
                   setPanelGumShadePicker(null);
@@ -807,11 +822,12 @@ export function MaxillaryPanel({
           )}
 
 
-          {/* Progressive field cards for Prep/Pontic teeth — grouped by product */}
+          {/* Progressive field cards for Prep/Pontic teeth — grouped by product (card 0 only) */}
           {(() => {
             const prepPonticTeeth = Object.entries(maxillaryRetentionTypes)
-              .filter(([_, types]) =>
-                types.some((t) => t === "Prep" || t === "Pontic" || t === "Implant")
+              .filter(([toothNum, types]) =>
+                types.some((t) => t === "Prep" || t === "Pontic" || t === "Implant") &&
+                getToothProductCard("maxillary", Number(toothNum)) === 0
               )
               .map(([toothNum, types]) => ({
                 toothNumber: Number(toothNum),
@@ -948,11 +964,16 @@ export function MaxillaryPanel({
                 {/* Accordion header */}
                 <button
                   type="button"
-                  onClick={() => togglePrepPonticExpanded(firstToothNumber)}
+                  onClick={() => {
+                    togglePrepPonticExpanded(firstToothNumber);
+                    setActiveProductCardId(0);
+                  }}
                   className={`w-full flex items-center py-[14px] px-2 gap-[10px] transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] ${
                     hasRushed
                       ? "bg-[#FCE4E4] hover:bg-[#f8d4d4]"
-                      : "bg-[#DFEEFB] hover:bg-[#d4e8f8]"
+                      : activeProductCardId === 0
+                        ? "bg-[#c8e2f7] hover:bg-[#bdddf5]"
+                        : "bg-[#DFEEFB] hover:bg-[#d4e8f8]"
                   }`}
                 >
                   <div className="w-16 h-[62px] rounded-md bg-white flex items-center justify-center flex-shrink-0 overflow-hidden">
@@ -1585,8 +1606,10 @@ export function MaxillaryPanel({
                         const isGradeComplete = isFieldCompleted("maxillary", firstToothNumber, "grade");
                         const showGradeGreen = isGradeComplete && !caseSubmitted;
                         const productGrades = getActiveGrades(selectedProduct?.grades);
+                        const hasGrades = productGrades.length > 0;
                         return (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className={`grid grid-cols-1 ${hasGrades ? "sm:grid-cols-2" : ""} gap-3`}>
+                          {hasGrades && (
                           <fieldset
                             className={`border rounded px-3 py-0 relative h-[42px] flex items-center transition-colors ${
                               showGradeGreen
@@ -1617,6 +1640,7 @@ export function MaxillaryPanel({
                               <Check size={16} className="text-[#34a853] ml-1 flex-shrink-0" />
                             )}
                           </fieldset>
+                          )}
 
                           {isFieldVisible("maxillary", firstToothNumber, "stage") ? (
                             <fieldset
@@ -1725,8 +1749,10 @@ export function MaxillaryPanel({
                               }`}
                               onClick={() => {
                                 if (!caseSubmitted) {
-                                  uncompleteFieldStep("maxillary", firstToothNumber, "gum_shade");
-                                  setPanelGumShadePicker({ toothNumber: firstToothNumber, gumShades: selectedProduct?.gum_shades || [] });
+                                  const currentGumShade = getFieldValue("maxillary", firstToothNumber, "gum_shade");
+                                  let currentName: string | null = null;
+                                  if (currentGumShade) { try { currentName = JSON.parse(currentGumShade).name ?? null; } catch {} }
+                                  setPanelGumShadePicker({ toothNumber: firstToothNumber, gumShades: selectedProduct?.gum_shades || [], selectedName: currentName });
                                 }
                               }}
                             >
@@ -2040,15 +2066,19 @@ export function MaxillaryPanel({
                         />
                         <div className="border border-[#e5e7eb] rounded-lg p-3 space-y-3">
                           {/* Row 1: Grade / Stage */}
-                          {(isF("grade") || isF("stage")) && (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {(isF("grade") || isF("stage")) && (() => {
+                            const gradeProducts = getActiveGrades(toothProduct?.grades);
+                            const hasGradesRow = gradeProducts.length > 0;
+                            return (
+                          <div className={`grid grid-cols-1 ${hasGradesRow ? "sm:grid-cols-2" : ""} gap-3`}>
                             {isF("grade") && (() => {
+                              const productGrades = gradeProducts;
+                              if (productGrades.length === 0) return null;
                               const gradeRaw = fVal("grade") || "";
                               let gradeVal = gradeRaw;
                               try { const p = JSON.parse(gradeRaw); gradeVal = p.name ?? gradeRaw; } catch {}
                               const isGradeComplete = isFComplete("grade") || !!(gradeVal && gradeVal.trim());
                               const showGradeGreen = isGradeComplete && !caseSubmitted;
-                              const productGrades = getActiveGrades(toothProduct?.grades);
                               return (
                                 <fieldset
                                   className={`border rounded px-3 py-0 relative h-[42px] flex items-center transition-colors ${showGradeGreen ? "border-[#34a853]" : isGradeComplete ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
@@ -2080,7 +2110,8 @@ export function MaxillaryPanel({
                               );
                             })()}
                           </div>
-                          )}
+                            );
+                          })()}
 
                           {/* Row 3: Teeth shade / Gum Shade */}
                           {(isF("teeth_shade") || isF("gum_shade")) && (() => {
@@ -2116,8 +2147,10 @@ export function MaxillaryPanel({
                                     className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${isFComplete("gum_shade") && !caseSubmitted ? "border-[#34a853]" : isFComplete("gum_shade") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
                                     onClick={() => {
                                       if (!caseSubmitted) {
-                                        uncompleteFieldStep("maxillary", repTn, "gum_shade");
-                                        setPanelGumShadePicker({ toothNumber: repTn, gumShades: toothProduct?.gum_shades || [] });
+                                        const currentGumShade = fVal("gum_shade");
+                                        let currentName: string | null = null;
+                                        if (currentGumShade) { try { currentName = JSON.parse(currentGumShade).name ?? null; } catch {} }
+                                        setPanelGumShadePicker({ toothNumber: repTn, gumShades: toothProduct?.gum_shades || [], selectedName: currentName });
                                       }
                                     }}
                                   >
@@ -2197,6 +2230,8 @@ export function MaxillaryPanel({
                   ? getToothProduct("maxillary", tn) && getToothProductCard("maxillary", tn) === ap.id
                   : getToothProductCard("maxillary", tn) === ap.id
               );
+              // For non-removable (Fixed) products, don't render accordion until teeth are assigned
+              if (!isApRemovables && cardTeeth.length === 0) return null;
               const cardProduct = cardTeeth.length > 0
                 ? getToothProduct("maxillary", cardTeeth[0])
                 : null;
@@ -2462,12 +2497,13 @@ export function MaxillaryPanel({
                               {/* Row 1: Grade / Stage */}
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 {hasAdvanceField("grade", advFields) && (() => {
+                                  const productGrades = getActiveGrades(toothProduct?.grades);
+                                  if (productGrades.length === 0) return null;
                                   const gradeRaw = fVal("grade") || "";
                                   let gradeVal = gradeRaw;
                                   try { const p = JSON.parse(gradeRaw); gradeVal = p.name ?? gradeRaw; } catch {}
                                   const isGradeComplete = isFComplete("grade") || !!(gradeVal && gradeVal.trim());
                                   const showGradeGreen = isGradeComplete && !caseSubmitted;
-                                  const productGrades = getActiveGrades(toothProduct?.grades);
                                   return (
                                     <fieldset
                                       className={`border rounded px-3 py-0 relative h-[42px] flex items-center transition-colors ${showGradeGreen ? "border-[#34a853]" : isGradeComplete ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
@@ -2534,8 +2570,10 @@ export function MaxillaryPanel({
                                         className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${isFComplete("gum_shade") && !caseSubmitted ? "border-[#34a853]" : isFComplete("gum_shade") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
                                         onClick={() => {
                                           if (!caseSubmitted) {
-                                            uncompleteFieldStep("maxillary", repTn, "gum_shade");
-                                            setPanelGumShadePicker({ toothNumber: repTn, gumShades: toothProduct?.gum_shades || [] });
+                                            const currentGumShade = fVal("gum_shade");
+                                            let currentName: string | null = null;
+                                            if (currentGumShade) { try { currentName = JSON.parse(currentGumShade).name ?? null; } catch {} }
+                                            setPanelGumShadePicker({ toothNumber: repTn, gumShades: toothProduct?.gum_shades || [], selectedName: currentName });
                                           }
                                         }}
                                       >

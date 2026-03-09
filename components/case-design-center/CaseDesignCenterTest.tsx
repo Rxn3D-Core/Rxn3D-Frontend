@@ -283,7 +283,7 @@ export default function Page() {
         productId: addedProductId,
         product: {
           name: details?.name || result.product || "Untitled Product",
-          category_name: details?.category_name || "",
+          category_name: details?.category_name || result.categoryName || "",
           subcategory_name: details?.subcategory_name || "",
           code: "",
           image_url: details?.image_url || "",
@@ -291,7 +291,7 @@ export default function Page() {
         arch: pendingProductArch,
         expanded: true,
       };
-      setAddedProducts((prev) => [...prev, newProduct]);
+      setAddedProducts((prev) => [newProduct, ...prev.map((p) => ({ ...p, expanded: false }))]);
       setWizardMode("initial");
       setWizardComplete(true);
     } else {
@@ -440,7 +440,7 @@ export default function Page() {
             onLabSelect={(lab) => setCompletedLab(lab)}
             startStep={wizardStartStep}
             mode={wizardMode === "backToProducts" ? "addProduct" : wizardMode}
-            initialLabId={doctorEditMode && completedLab ? completedLab.id : null}
+            initialLabId={(doctorEditMode || wizardMode === "addProduct" || wizardMode === "backToProducts") && completedLab ? completedLab.id : null}
             initialPatientName={wizardMode === "addProduct" || wizardMode === "backToProducts" ? completedPatientName : ""}
             initialGender={wizardMode === "addProduct" || wizardMode === "backToProducts" ? completedGender : ""}
             initialDoctor={((wizardMode === "addProduct" || wizardMode === "backToProducts") && completedDoctor) ? completedDoctor : undefined}
