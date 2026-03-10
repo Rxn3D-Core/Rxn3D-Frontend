@@ -41,6 +41,8 @@ export interface CaseDesignProps {
   onAddProduct?: (arch: "maxillary" | "mandibular") => void;
   onBackToProducts?: () => void;
   selectedProductId?: number;
+  /** Display name of the selected/initial product (e.g. "Full contour Zirconia"). Used in modal tabs. */
+  selectedProductName?: string;
   /** Category name of the selected/initial product (e.g. "Removable restoration"). When set, used to hide retention popover for Removables. */
   selectedProductCategoryName?: string;
   /** When true, hides Back to Products and makes all panel fields read-only. */

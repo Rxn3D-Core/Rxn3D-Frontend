@@ -23,6 +23,8 @@ interface ToothStatusBoxesProps {
   isRemovable?: boolean;
   /** When true, case has been submitted — hide blue active border on status boxes */
   submitted?: boolean;
+  /** When true, hide the default (Teeth in mouth) box — it's shown in the center navigation instead */
+  hideDefaultBox?: boolean;
 }
 
 /** Fallback color map keyed by extraction code — used only when API color is null */
@@ -121,14 +123,20 @@ export function ToothStatusBoxes({
   onRequiredValidationChange,
   isRemovable = false,
   submitted = false,
+  hideDefaultBox = false,
 }: ToothStatusBoxesProps) {
-  const activeExtractions = extractions
+  const allActiveExtractions = extractions
     .filter((e) => e.status === "Active" && e.name != null && e.code != null)
     .sort((a, b) => a.sequence - b.sequence);
 
-  // Auto-select all arch teeth when a is_default extraction first appears
+  // Visible extractions — optionally hide the default (TIM) box
+  const activeExtractions = hideDefaultBox
+    ? allActiveExtractions.filter((e) => !isDefaultExtraction(e))
+    : allActiveExtractions;
+
+  // Auto-select all arch teeth when a is_default extraction first appears (check unfiltered list)
   const hasAutoSelected = useRef(false);
-  const hasDefault = activeExtractions.some((e) => isDefaultExtraction(e));
+  const hasDefault = allActiveExtractions.some((e) => isDefaultExtraction(e));
   useEffect(() => {
     if (hasDefault && !hasAutoSelected.current) {
       hasAutoSelected.current = true;
@@ -165,13 +173,7 @@ export function ToothStatusBoxes({
     onRequiredValidationChange?.(hasRequiredValidation);
   }, [hasRequiredValidation, onRequiredValidationChange]);
 
-  // Build pairs for 2-column grid layout
-  const rows: ProductExtraction[][] = [];
-  for (let i = 0; i < activeExtractions.length; i += 2) {
-    rows.push(activeExtractions.slice(i, i + 2));
-  }
-
-  const lastRowIdx = rows.length - 1;
+  // No longer need 2-column grid — use flex-wrap for compact auto-sized boxes
 
   const handleBoxClick = (extraction: ProductExtraction) => {
     if (isDefaultExtraction(extraction)) {
@@ -189,85 +191,76 @@ export function ToothStatusBoxes({
   };
 
   return (
-    <>
-      {rows.map((row, rowIdx) => (
-        <div
-          key={rowIdx}
-          className={`grid grid-cols-1 sm:grid-cols-2 gap-2 ${rowIdx === lastRowIdx ? "mb-4" : "mb-2"}`}
-        >
-          {row.map((extraction) => {
-            const isActive = !submitted && activeExtractionCode === extraction.code;
-            const isDefault = isDefaultExtraction(extraction);
-            const isRequired = isRequiredExtraction(extraction);
+    <div className="flex flex-wrap gap-[9.94px]">
+      {activeExtractions.map((extraction) => {
+        const isActive = !submitted && activeExtractionCode === extraction.code;
+        const isDefault = isDefaultExtraction(extraction);
+        const isRequired = isRequiredExtraction(extraction);
 
-            const isClasp = isClaspExtraction(extraction);
+        const isClasp = isClaspExtraction(extraction);
 
-            // Teeth shown in this box (sorted ascending)
-            // Clasp is an overlay — uses its own set, not the exclusive extraction map
-            const teethForBox = (isDefault
-              ? defaultTeeth
-              : isClasp
-              ? claspTeeth.filter((tn) => selectedTeeth.includes(tn))
-              : selectedTeeth.filter((tn) => toothExtractionMap[tn] === extraction.code)
-            ).slice().sort((a, b) => a - b);
+        // Teeth shown in this box (sorted ascending)
+        // Clasp is an overlay — uses its own set, not the exclusive extraction map
+        const teethForBox = (isDefault
+          ? defaultTeeth
+          : isClasp
+          ? claspTeeth.filter((tn) => selectedTeeth.includes(tn))
+          : selectedTeeth.filter((tn) => toothExtractionMap[tn] === extraction.code)
+        ).slice().sort((a, b) => a - b);
 
-            const isEmpty = teethForBox.length === 0;
-            const allSelected = isRemovable && isDefault && teethForBox.length === allArchTeeth.length && allArchTeeth.length > 0;
+        const isEmpty = teethForBox.length === 0;
+        const allSelected = isRemovable && isDefault && teethForBox.length === allArchTeeth.length && allArchTeeth.length > 0;
 
-            let teethDisplay = "";
-            if (teethForBox.length > 0) {
-              teethDisplay = allSelected ? "All teeth selected" : `#${teethForBox.join(",")}`;
-            }
+        let teethDisplay = "";
+        if (teethForBox.length > 0) {
+          teethDisplay = allSelected ? "All teeth selected" : `#${teethForBox.join(",")}`;
+        }
 
-            // Validation: is_required box needs teeth unless an is_optional box has teeth
-            const showRequiredValidation =
-              isRequired && isEmpty && !anyOptionalHasTeeth;
+        // Validation: is_required box needs teeth unless an is_optional box has teeth
+        const showRequiredValidation =
+          isRequired && isEmpty && !anyOptionalHasTeeth;
 
-            const minTeeth = extraction.min_teeth ?? 1;
+        const minTeeth = extraction.min_teeth ?? 1;
 
-            const style = resolveStyle(extraction);
+        const style = resolveStyle(extraction);
 
-            // Compact (no teeth) vs normal size — only for removable context
-            const isCompact = isRemovable && isEmpty;
+        // Compact (no teeth) vs normal size — only for removable context
+        const isCompact = isRemovable && isEmpty;
 
-            return (
-              <div key={extraction.id} className="flex flex-col min-w-0">
-                <div
-                  className={`flex flex-col items-center justify-center rounded-md px-2 cursor-pointer hover:opacity-90 active:opacity-75 transition-all ${isCompact ? "py-1 min-h-[28px]" : "py-1.5 min-h-[50px] sm:min-h-[65px]"}`}
-                  style={{
-                    backgroundColor: style.bg,
-                    outline: isActive
-                      ? "3px solid #1162A8"
-                      : showRequiredValidation
-                      ? "2px solid #CF0202"
-                      : "none",
-                    outlineOffset: isActive ? "2px" : showRequiredValidation ? "1px" : "0px",
-                  }}
-                  onClick={() => handleBoxClick(extraction)}
-                >
-                  <p
-                    className={`font-[Verdana] font-normal tracking-[0.05em] text-center break-words max-w-full ${style.textClass} ${isCompact ? "text-[10px] leading-tight" : "text-[14px] leading-tight"}`}
-                  >
-                    {extraction.name}
-                    {teethDisplay && (
-                      <>
-                        {!isCompact && <br />}
-                        {isCompact ? " " : ""}
-                        <span className={isCompact ? "text-[16px]" : "text-[16px] font-normal"}>{teethDisplay}</span>
-                      </>
-                    )}
-                  </p>
-                  {showRequiredValidation && (
-                    <p className={`text-[10px] sm:text-xs text-center font-[Verdana] ${style.textClass.includes("text-white") ? "text-white" : "text-[#CF0202]"}`}>
-                      Required: select at least {minTeeth} tooth
-                    </p>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ))}
-    </>
+        return (
+          <div
+            key={extraction.id}
+            className={`flex flex-col items-center justify-center rounded-[6px] cursor-pointer hover:opacity-90 active:opacity-75 transition-all shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] ${isCompact ? "px-[10px] py-1 min-h-[28px]" : "px-[10px] py-1.5 min-h-[50px]"}`}
+            style={{
+              backgroundColor: style.bg,
+              outline: isActive
+                ? "3px solid #1162A8"
+                : showRequiredValidation
+                ? "2px solid #CF0202"
+                : "none",
+              outlineOffset: isActive ? "2px" : showRequiredValidation ? "1px" : "0px",
+            }}
+            onClick={() => handleBoxClick(extraction)}
+          >
+            <p
+              className={`font-[Verdana] font-normal tracking-[0.05em] text-center break-words max-w-full ${style.textClass} text-[16px] leading-tight`}
+            >
+              {extraction.name}
+              {teethDisplay && (
+                <>
+                  <br />
+                  <span className="text-[16px] font-normal">{teethDisplay}</span>
+                </>
+              )}
+            </p>
+            {showRequiredValidation && (
+              <p className={`text-[10px] sm:text-xs text-center font-[Verdana] ${style.textClass.includes("text-white") ? "text-white" : "text-[#CF0202]"}`}>
+                Required: select at least {minTeeth} tooth
+              </p>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }

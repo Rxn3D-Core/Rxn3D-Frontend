@@ -14,6 +14,7 @@ import type { SlipCreationProduct } from "@/contexts/slip-creation-context";
 import { isFixedCategory, getCategoryName } from "./utils/categoryHelpers";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
+import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
@@ -225,6 +226,7 @@ export default function Page() {
   const router = useRouter();
   const slipCollectorRef = useRef<(() => SlipProductSnapshot[]) | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [showSuccessOverlay, setShowSuccessOverlay] = useState(false);
 
   const [wizardComplete, setWizardComplete] = useState(false);
   const [completedDoctor, setCompletedDoctor] = useState<WizardDoctorShape | null>(null);
@@ -260,6 +262,7 @@ export default function Page() {
   const [wizardMode, setWizardMode] = useState<"initial" | "addProduct" | "backToProducts">("initial");
   const [pendingProductArch, setPendingProductArch] = useState<"maxillary" | "mandibular">("maxillary");
   const [selectedProductId, setSelectedProductId] = useState<number | undefined>(undefined);
+  const [selectedProductName, setSelectedProductName] = useState<string | undefined>(undefined);
   /** Category name of the selected (initial) product — e.g. "Removable restoration". Used to hide retention popover for Removables. */
   const [selectedProductCategoryName, setSelectedProductCategoryName] = useState<string | undefined>(undefined);
   /** Arch selection from Removable Restoration product dropdown — controls which panels are initially shown */
@@ -303,11 +306,12 @@ export default function Page() {
         // works on the very first tooth click (no need to wait for async fetch)
         if (result.categoryName) {
           setSelectedProductCategoryName(result.categoryName);
-        } else {
-          fetchProductDetails(productId).then((details) => {
-            if (details?.category_name) setSelectedProductCategoryName(details.category_name);
-          });
         }
+        // Fetch product details — also captures the product name for modal tabs
+        fetchProductDetails(productId).then((details) => {
+          if (details?.category_name && !result.categoryName) setSelectedProductCategoryName(details.category_name);
+          if (details?.name) setSelectedProductName(details.name);
+        });
       } else {
         setSelectedProductCategoryName(undefined);
       }
@@ -401,13 +405,12 @@ export default function Page() {
       setSlipResponseData(responseData ?? null);
       setSlipHeaderLoading(false);
       setCaseSubmitted(true);
+      setShowSuccessOverlay(true);
       toast({ title: "Case submitted", description: "Slip created successfully." });
-      // Redirect to case management with "In office ready to pickup" filter after a short delay
+      // Show success overlay for 2.5 seconds then dismiss
       setTimeout(() => {
-        const r = typeof window !== "undefined" ? localStorage.getItem("role") : null;
-        const route = r === "lab_admin" ? "/lab-case-management" : "/office-case-management";
-        router.push(`${route}?location=In+office+ready+to+pickup`);
-      }, 5000);
+        setShowSuccessOverlay(false);
+      }, 2500);
     } catch (err: any) {
       setSlipHeaderLoading(false);
       toast({ title: "Submit failed", description: err?.message ?? "Something went wrong.", variant: "destructive" });
@@ -475,6 +478,7 @@ export default function Page() {
               onAddProduct={handleAddProduct}
               onBackToProducts={handleBackToProducts}
               selectedProductId={selectedProductId}
+              selectedProductName={selectedProductName}
               selectedProductCategoryName={selectedProductCategoryName}
               caseSubmitted={caseSubmitted}
               onReadinessChange={setCaseReady}
@@ -511,7 +515,45 @@ export default function Page() {
           onSubmit={handleSubmit}
         />
       )}
-      {caseSubmitted && <FloatingActions />}
+      {caseSubmitted && (
+        <FloatingActions
+          onPickupDropoff={() => {
+            const r = typeof window !== "undefined" ? localStorage.getItem("role") : null;
+            const route = r === "lab_admin" ? "/lab-case-management" : "/office-case-management";
+            router.push(`${route}?location=In+office+ready+to+pickup`);
+          }}
+          onBackToCaseList={() => {
+            const r = typeof window !== "undefined" ? localStorage.getItem("role") : null;
+            const route = r === "lab_admin" ? "/lab-case-management" : "/office-case-management";
+            router.push(route);
+          }}
+        />
+      )}
+
+      {/* Submitting loading overlay — shows ajax-loader while API call is in progress */}
+      {submitting && (
+        <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm">
+          <img
+            src="/images/ajax-loader.gif"
+            alt="Submitting..."
+            className="w-[80px] h-[80px]"
+          />
+          <p className="mt-4 text-lg font-semibold text-gray-700">Submitting case...</p>
+        </div>
+      )}
+
+      {/* Success overlay after slip creation — shows for 5 seconds */}
+      {showSuccessOverlay && !submitting && (
+        <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm">
+          <div className="w-[250px] h-[250px]">
+            <DotLottieReact
+              src="https://lottie.host/b1a1c60d-ee51-497e-ba93-e50e79bf6abb/em5bh3uFj8.lottie"
+              autoplay
+            />
+          </div>
+          <p className="mt-4 text-lg font-semibold text-gray-700">Case submitted successfully!</p>
+        </div>
+      )}
     </div>
   );
 }

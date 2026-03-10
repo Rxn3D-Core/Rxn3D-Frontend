@@ -1,23 +1,29 @@
 "use client"
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react"
-import { X, Search, Plus, Minus } from "lucide-react"
+import { X, Search, Plus, Minus, Filter, ChevronLeft, ChevronRight } from "lucide-react"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { useQuery } from "@tanstack/react-query"
 import { useAuth } from "@/contexts/auth-context"
 import { useCaseDesignStore } from "@/stores/caseDesignStore"
 
-// Accept labId, productId, and arch as props
+/** A product available in the case for add-on selection */
+export interface AddOnsProduct {
+  id: number
+  name: string
+}
+
 interface AddOnsModalProps {
   isOpen: boolean
   onClose: () => void
-  onAddAddOns: (addOns: { addon_id: number; qty: number; category: string; subcategory: string; name: string; price: number }[]) => void
+  onAddAddOns: (addOns: { addon_id: number; qty: number; category: string; subcategory: string; name: string; price: number }[], arch: "maxillary" | "mandibular") => void
   labId: number
-  productId: string // Changed to string to match the store
-  arch: "maxillary" | "mandibular" // Added arch parameter
+  productId: string
+  arch: "maxillary" | "mandibular"
+  /** All products available in the case — shown as tabs */
+  products?: AddOnsProduct[]
 }
 
 type ApiAddon = {
@@ -45,419 +51,466 @@ type ApiCategory = {
   subcategories: ApiSubcategory[]
 }
 
-export default function AddOnsModal({ isOpen, onClose, onAddAddOns, labId, productId, arch }: AddOnsModalProps) {
-  const [searchTerm, setSearchTerm] = useState("")
-  const [selectedAddOns, setSelectedAddOns] = useState<
-    { addon_id: number; qty: number; category: string; subcategory: string; name: string; price: number; tempId: string }[]
-  >([])
+type SelectedAddOn = {
+  addon_id: number
+  qty: number
+  category: string
+  subcategory: string
+  name: string
+  price: number
+  arch: "maxillary" | "mandibular"
+}
+
+const ITEMS_PER_PAGE = 10
+
+export default function AddOnsModal({ isOpen, onClose, onAddAddOns, labId, productId, arch, products = [] }: AddOnsModalProps) {
+  const [activeProductId, setActiveProductId] = useState<number | null>(null)
+  const [maxSearch, setMaxSearch] = useState("")
+  const [mandSearch, setMandSearch] = useState("")
+  const [maxPage, setMaxPage] = useState(1)
+  const [mandPage, setMandPage] = useState(1)
+  // Key: `${productId}_${arch}_${addonId}`, Value: qty
+  const [selectedQtys, setSelectedQtys] = useState<Record<string, number>>({})
 
   const { token } = useAuth()
-  
-  // Zustand store for add-ons management
+
   const {
-    addAddOn,
     removeAddOn,
     setProductAddOns,
     productAddOns: storeProductAddOns
   } = useCaseDesignStore()
 
-  // Reset selected add-ons when modal opens
+  // Reset state when modal opens — pre-populate quantities from store
   useEffect(() => {
     if (isOpen) {
-      setSelectedAddOns([])
-      setSearchTerm("")
-    }
-  }, [isOpen])
-
-  // Debounced search term for React Query
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("")
-  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-
-  useEffect(() => {
-    if (debounceTimeoutRef.current) {
-      clearTimeout(debounceTimeoutRef.current)
-    }
-    debounceTimeoutRef.current = setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm)
-    }, 500)
-    return () => {
-      if (debounceTimeoutRef.current) {
-        clearTimeout(debounceTimeoutRef.current)
+      setMaxSearch("")
+      setMandSearch("")
+      setMaxPage(1)
+      setMandPage(1)
+      // Set active product: prefer matching productId, fallback to first product
+      let pid: number | null = null
+      if (products.length === 1) {
+        pid = products[0].id
+      } else {
+        const initialId = parseInt(productId, 10)
+        if (!isNaN(initialId)) pid = initialId
+        else if (products.length > 0) pid = products[0].id
+      }
+      if (pid !== null) {
+        setActiveProductId(pid)
+        // Pre-populate selectedQtys from store so existing add-ons show their quantities
+        const existing = storeProductAddOns[pid.toString()] || { maxillary: [], mandibular: [] }
+        const restored: Record<string, number> = {}
+        for (const archVal of ["maxillary", "mandibular"] as const) {
+          for (const a of (existing[archVal] || [])) {
+            const addonId = (a as Record<string, unknown>).addon_id as number
+            const qty = ((a as Record<string, unknown>).qty as number) || ((a as Record<string, unknown>).quantity as number) || 1
+            if (addonId && qty > 0) {
+              restored[`${pid}_${archVal}_${addonId}`] = qty
+            }
+          }
+        }
+        setSelectedQtys(restored)
+      } else {
+        setSelectedQtys({})
       }
     }
-  }, [searchTerm])
+  }, [isOpen, productId, products, storeProductAddOns])
 
-  // Fetch addons using React Query
-  const productIdNum = useMemo(() => {
-    const parsed = parseInt(productId, 10)
-    return isNaN(parsed) ? null : parsed
-  }, [productId])
+  // Debounced search terms
+  const [debouncedMaxSearch, setDebouncedMaxSearch] = useState("")
+  const [debouncedMandSearch, setDebouncedMandSearch] = useState("")
+  const maxDebounceRef = useRef<NodeJS.Timeout | null>(null)
+  const mandDebounceRef = useRef<NodeJS.Timeout | null>(null)
+
+  useEffect(() => {
+    if (maxDebounceRef.current) clearTimeout(maxDebounceRef.current)
+    maxDebounceRef.current = setTimeout(() => setDebouncedMaxSearch(maxSearch), 500)
+    return () => { if (maxDebounceRef.current) clearTimeout(maxDebounceRef.current) }
+  }, [maxSearch])
+
+  useEffect(() => {
+    if (mandDebounceRef.current) clearTimeout(mandDebounceRef.current)
+    mandDebounceRef.current = setTimeout(() => setDebouncedMandSearch(mandSearch), 500)
+    return () => { if (mandDebounceRef.current) clearTimeout(mandDebounceRef.current) }
+  }, [mandSearch])
 
   // Get the correct lab ID based on user role
   const effectiveLabId = useMemo(() => {
-    const role = localStorage.getItem("role")
+    const role = typeof window !== "undefined" ? localStorage.getItem("role") : null
     return role === "office_admin" || role === "doctor"
-      ? localStorage.getItem("selectedLabId") 
+      ? localStorage.getItem("selectedLabId")
       : localStorage.getItem("customerId")
   }, [])
 
+  // Fetch addons for the active product
   const fetchAddons = useCallback(async () => {
-    if (!productIdNum || !effectiveLabId) return []
-    
-    const url = new URL(`/v1/slip/lab/${effectiveLabId}/products/${productIdNum}/addons`, process.env.NEXT_PUBLIC_API_BASE_URL)
-    if (debouncedSearchTerm.trim()) {
-      url.searchParams.append("search", debouncedSearchTerm.trim())
-    }
-    
+    if (!activeProductId || !effectiveLabId) return []
+
+    const url = new URL(`/v1/slip/lab/${effectiveLabId}/products/${activeProductId}/addons`, process.env.NEXT_PUBLIC_API_BASE_URL)
+
     const res = await fetch(url.toString(), {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
-    
+
     if (res.status === 401) {
       window.location.href = "/login"
       return []
     }
-    
+
     const json = await res.json()
     return json.data || []
-  }, [productIdNum, effectiveLabId, debouncedSearchTerm, token])
+  }, [activeProductId, effectiveLabId, token])
 
   const { data: addOnCategories = [], isLoading: loading } = useQuery<ApiCategory[]>({
-    queryKey: ['product-addons', productIdNum, effectiveLabId, debouncedSearchTerm],
+    queryKey: ['product-addons', activeProductId, effectiveLabId],
     queryFn: fetchAddons,
-    enabled: isOpen && !!productIdNum && !!effectiveLabId,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
+    enabled: isOpen && !!activeProductId && !!effectiveLabId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   })
 
-  // Get existing add-ons from Zustand store in real-time
-  const existingAddOns = useMemo(() => {
-    const storeAddOns = storeProductAddOns[productId]
-    if (!storeAddOns || !storeAddOns[arch]) return []
-    
-    return storeAddOns[arch].map(addOn => ({
-      addon_id: addOn.addon_id || 0,
-      qty: addOn.qty || addOn.quantity || 1,
-      category: addOn.category || '',
-      subcategory: addOn.subcategory || '',
-      name: addOn.addOn || addOn.name || addOn.label || '',
-      price: typeof addOn.price === 'number' ? addOn.price : parseFloat(addOn.price || '0')
-    }))
-  }, [storeProductAddOns, productId, arch])
-
-
-  // Handle incrementing add-on quantity (adds or increments in selectedAddOns)
-  const handleIncrementAddOn = (category: ApiCategory, subcategory: ApiSubcategory, addon: ApiAddon) => {
-    setSelectedAddOns(prev => {
-      const existingIndex = prev.findIndex(
-        item => item.addon_id === addon.id && 
-                item.category === category.name && 
-                item.subcategory === subcategory.name
-      )
-      
-      if (existingIndex >= 0) {
-        // If exists, increment quantity (max 10)
-        const updated = [...prev]
-        updated[existingIndex] = {
-          ...updated[existingIndex],
-          qty: Math.min(10, updated[existingIndex].qty + 1)
-        }
-        return updated
-      } else {
-        // If doesn't exist, add new item with qty 1
-        return [
-          ...prev,
-          {
-            addon_id: addon.id,
-            qty: 1,
-            category: category.name,
-            subcategory: subcategory.name,
-            name: addon.name,
-            price: Number(typeof addon.price === "string" ? parseFloat(addon.price) : addon.price),
-            tempId: `${addon.id}-${Date.now()}`
-          }
-        ]
-      }
-    })
-  }
-
-  // Handle decrementing add-on quantity (decrements or removes from selectedAddOns)
-  const handleDecrementAddOn = (category: ApiCategory, subcategory: ApiSubcategory, addon: ApiAddon) => {
-    setSelectedAddOns(prev => {
-      const existingIndex = prev.findIndex(
-        item => item.addon_id === addon.id && 
-                item.category === category.name && 
-                item.subcategory === subcategory.name
-      )
-      
-      if (existingIndex >= 0) {
-        const currentQty = prev[existingIndex].qty
-        if (currentQty > 1) {
-          // If qty > 1, decrement
-          const updated = [...prev]
-          updated[existingIndex] = {
-            ...updated[existingIndex],
-            qty: currentQty - 1
-          }
-          return updated
-        } else {
-          // If qty = 1, remove the item
-          return prev.filter((_, index) => index !== existingIndex)
+  // Flatten all addons from categories for the table view
+  const allAddons = useMemo(() => {
+    const flat: { addon: ApiAddon; category: string; subcategory: string }[] = []
+    for (const cat of addOnCategories) {
+      for (const subcat of cat.subcategories) {
+        for (const addon of subcat.addons) {
+          flat.push({ addon, category: cat.name, subcategory: subcat.name })
         }
       }
-      return prev
-    })
-  }
+    }
+    return flat
+  }, [addOnCategories])
 
-  // Get current quantity for an add-on from selectedAddOns
-  const getCurrentQty = (addonId: number, categoryName: string, subcategoryName: string): number => {
-    const existing = selectedAddOns.find(
-      item => item.addon_id === addonId && 
-              item.category === categoryName && 
-              item.subcategory === subcategoryName
+  // Filter and paginate for each arch
+  const getFilteredAddons = useCallback((search: string) => {
+    if (!search.trim()) return allAddons
+    const term = search.toLowerCase()
+    return allAddons.filter(
+      ({ addon }) =>
+        addon.name.toLowerCase().includes(term) ||
+        addon.code.toLowerCase().includes(term)
     )
-    return existing ? existing.qty : 0
+  }, [allAddons])
+
+  const maxFiltered = useMemo(() => getFilteredAddons(debouncedMaxSearch), [getFilteredAddons, debouncedMaxSearch])
+  const mandFiltered = useMemo(() => getFilteredAddons(debouncedMandSearch), [getFilteredAddons, debouncedMandSearch])
+
+  const maxTotalPages = Math.max(1, Math.ceil(maxFiltered.length / ITEMS_PER_PAGE))
+  const mandTotalPages = Math.max(1, Math.ceil(mandFiltered.length / ITEMS_PER_PAGE))
+
+  const maxPagedAddons = useMemo(() => {
+    const start = (maxPage - 1) * ITEMS_PER_PAGE
+    return maxFiltered.slice(start, start + ITEMS_PER_PAGE)
+  }, [maxFiltered, maxPage])
+
+  const mandPagedAddons = useMemo(() => {
+    const start = (mandPage - 1) * ITEMS_PER_PAGE
+    return mandFiltered.slice(start, start + ITEMS_PER_PAGE)
+  }, [mandFiltered, mandPage])
+
+  // Qty helpers
+  const qtyKey = (archVal: string, addonId: number) => `${activeProductId}_${archVal}_${addonId}`
+
+  const getQty = (archVal: string, addonId: number) => selectedQtys[qtyKey(archVal, addonId)] || 0
+
+  const setQty = (archVal: string, addonId: number, qty: number) => {
+    const key = qtyKey(archVal, addonId)
+    setSelectedQtys(prev => {
+      if (qty <= 0) {
+        const next = { ...prev }
+        delete next[key]
+        return next
+      }
+      return { ...prev, [key]: qty }
+    })
   }
 
-  const handleRemoveAddOn = (tempId: string) => {
-    setSelectedAddOns(prev => prev.filter(item => item.tempId !== tempId))
-  }
+  const handleConfirm = () => {
+    if (!activeProductId) return
+    const pid = activeProductId.toString()
 
-  const handleRemoveExistingAddOn = (index: number) => {
-    removeAddOn(productId, arch, index)
-  }
+    // Build the full add-ons list per arch from selectedQtys (includes existing + new)
+    const archAddons: Record<string, { addon_id: number; qty: number; quantity: number; category: string; subcategory: string; name: string; addOn: string; label: string; price: number }[]> = {
+      maxillary: [],
+      mandibular: [],
+    }
 
-  const handleConfirmAddOns = () => {
-    const newAddOns = selectedAddOns.map(({ tempId, ...rest }) => rest)
+    for (const [key, qty] of Object.entries(selectedQtys)) {
+      if (qty <= 0) continue
+      const [keyPid, keyArch, keyAddonId] = key.split("_")
+      if (keyPid !== pid) continue
+      const addonId = parseInt(keyAddonId, 10)
+      // Find addon info from flattened list
+      const found = allAddons.find(a => a.addon.id === addonId)
+      if (!found) continue
+      const price = Number(typeof found.addon.price === "string" ? parseFloat(found.addon.price as unknown as string) : found.addon.price)
+      const entry = {
+        addon_id: addonId,
+        qty,
+        quantity: qty,
+        category: found.category,
+        subcategory: found.subcategory,
+        name: found.addon.name,
+        addOn: found.addon.name,
+        label: found.addon.name,
+        price,
+      }
+      if (keyArch === "maxillary") archAddons.maxillary.push(entry)
+      if (keyArch === "mandibular") archAddons.mandibular.push(entry)
+    }
 
-    // Build the combined list: existing store addons + newly selected
-    const allAddOns = [
-      ...existingAddOns.map(a => ({
-        addon_id: a.addon_id,
-        qty: a.qty,
-        quantity: a.qty,
-        category: a.category,
-        subcategory: a.subcategory,
-        addOn: a.name,
-        name: a.name,
-        label: a.name,
-        price: a.price,
-      })),
-      ...newAddOns.map(a => ({
-        addon_id: a.addon_id,
-        qty: a.qty,
-        quantity: a.qty,
-        category: a.category,
-        subcategory: a.subcategory,
-        addOn: a.name,
-        name: a.name,
-        label: a.name,
-        price: a.price,
-      })),
-    ]
-
-    // Replace the entire arch's addons in the store (avoids duplication)
-    const currentStoreAddOns = storeProductAddOns[productId] || { maxillary: [], mandibular: [] }
-    setProductAddOns(productId, {
-      ...currentStoreAddOns,
-      [arch]: allAddOns,
+    // Save to store — selectedQtys already contains existing + modified quantities
+    setProductAddOns(pid, {
+      maxillary: archAddons.maxillary,
+      mandibular: archAddons.mandibular,
     })
 
-    // Call the callback with ALL addons so the field value reflects the full set
-    onAddAddOns(allAddOns.map(a => ({
-      addon_id: a.addon_id,
-      qty: a.qty,
-      category: a.category,
-      subcategory: a.subcategory,
-      name: a.name,
-      price: typeof a.price === 'number' ? a.price : parseFloat(String(a.price) || '0'),
-    })))
-    setSelectedAddOns([])
+    // Callback with all current add-ons
+    const allForCallback = [...archAddons.maxillary, ...archAddons.mandibular]
+    if (allForCallback.length > 0) {
+      onAddAddOns(allForCallback, arch)
+    }
+
+    setSelectedQtys({})
     onClose()
   }
 
   const handleCancel = () => {
-    setSelectedAddOns([])
+    setSelectedQtys({})
     onClose()
   }
 
-  // Filter categories/subcategories/addons by search term
-  // Note: Search is now handled by the API, but we can still filter client-side if needed
-  const filteredCategories = useMemo(() => {
-    if (!debouncedSearchTerm.trim()) {
-      return addOnCategories
-    }
-    // Client-side filtering as fallback (API should handle this, but keeping for safety)
-    return addOnCategories
-      .map(category => ({
-        ...category,
-        subcategories: category.subcategories
-          .map(subcat => ({
-            ...subcat,
-            addons: subcat.addons.filter(addon =>
-              addon.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
-              addon.code.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
-            )
-          }))
-          .filter(subcat => subcat.addons.length > 0)
-      }))
-      .filter(category => category.subcategories.length > 0)
-  }, [addOnCategories, debouncedSearchTerm])
+  // Reset pages when search changes
+  useEffect(() => { setMaxPage(1) }, [debouncedMaxSearch])
+  useEffect(() => { setMandPage(1) }, [debouncedMandSearch])
 
-  // Calculate totals for all add-ons (existing + selected)
-  const totalAddOns = useMemo(() => {
-    const allAddOns = [...existingAddOns, ...selectedAddOns]
-    const totalCount = allAddOns.reduce((sum, item) => sum + item.qty, 0)
-    const totalPrice = allAddOns.reduce((sum, item) => sum + (item.qty * item.price), 0)
-    return { totalCount, totalPrice }
-  }, [existingAddOns, selectedAddOns])
+  // Product tabs - use provided products or fallback to single product from productId
+  const productTabs = useMemo(() => {
+    if (products.length > 0) return products
+    const parsed = parseInt(productId, 10)
+    if (!isNaN(parsed)) return [{ id: parsed, name: productId }]
+    return []
+  }, [products, productId])
+
+  /** Render a single arch column */
+  const renderArchColumn = (
+    archVal: "maxillary" | "mandibular",
+    label: string,
+    search: string,
+    setSearch: (v: string) => void,
+    pagedAddons: { addon: ApiAddon; category: string; subcategory: string }[],
+    filtered: { addon: ApiAddon; category: string; subcategory: string }[],
+    page: number,
+    setPage: (p: number) => void,
+    totalPages: number
+  ) => {
+    const SortIcon = () => (
+      <svg width="8" height="12" viewBox="0 0 8 12" fill="none" className="shrink-0">
+        <path d="M4 0L7.5 4H0.5L4 0Z" fill="#9CA3AF"/>
+        <path d="M4 12L0.5 8H7.5L4 12Z" fill="#9CA3AF"/>
+      </svg>
+    )
+
+    return (
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Column header */}
+        <h3 className="text-center font-bold text-[15px] mb-3">{label}</h3>
+
+        {/* Search bar */}
+        <div className="relative mb-3 flex items-center gap-2">
+          <div className="relative flex-1">
+            <Input
+              placeholder="Search Add ons"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-3 pr-3 py-2 rounded-lg border border-gray-300 text-sm"
+            />
+          </div>
+          <button type="button" className="text-gray-400 hover:text-gray-600">
+            <Filter size={20} strokeWidth={1.5} />
+          </button>
+        </div>
+
+        {/* Table header */}
+        <div className="grid grid-cols-[1fr_80px_90px] gap-x-3 mb-1 text-[13px] font-semibold text-gray-600 border-b border-gray-300 pb-2">
+          <div className="flex items-center gap-1.5">
+            <SortIcon />
+            Add on
+          </div>
+          <div className="flex items-center gap-1.5">
+            <SortIcon />
+            Price
+          </div>
+          <div className="flex items-center gap-1.5">
+            <SortIcon />
+            QTY
+          </div>
+        </div>
+
+        {/* Table body */}
+        <div className="flex-1 overflow-y-auto min-h-0">
+          {loading ? (
+            <div className="text-center py-8 text-gray-500 text-sm">Loading...</div>
+          ) : pagedAddons.length === 0 ? (
+            <div className="text-center py-8 text-gray-400 text-sm">No add-ons found</div>
+          ) : (
+            pagedAddons.map(({ addon }) => {
+              const qty = getQty(archVal, addon.id)
+              return (
+                <div key={addon.id} className="grid grid-cols-[1fr_80px_90px] gap-x-3 items-center py-[10px] border-b border-gray-100 text-[13px]">
+                  <div className="truncate">{addon.name}</div>
+                  <div>
+                    $ {Number(typeof addon.price === "string" ? parseFloat(addon.price as unknown as string) : addon.price).toFixed(0)}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      className="w-[22px] h-[22px] flex items-center justify-center rounded-sm border border-gray-300 text-gray-500 hover:bg-gray-100 disabled:opacity-30 cursor-pointer"
+                      onClick={() => setQty(archVal, addon.id, qty + 1)}
+                      disabled={qty >= 10}
+                    >
+                      <Plus size={12} strokeWidth={2} />
+                    </button>
+                    <span className={`text-[13px] font-medium min-w-[16px] text-center ${qty > 0 ? 'text-[#1162A8]' : 'text-gray-400'}`}>
+                      {qty}
+                    </span>
+                    <button
+                      type="button"
+                      className="w-[22px] h-[22px] flex items-center justify-center rounded-sm border border-gray-300 text-gray-500 hover:bg-gray-100 disabled:opacity-30 cursor-pointer"
+                      onClick={() => setQty(archVal, addon.id, qty - 1)}
+                      disabled={qty === 0}
+                    >
+                      <Minus size={12} strokeWidth={2} />
+                    </button>
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
+
+        {/* Pagination */}
+        <div className="flex items-center justify-between mt-3 flex-shrink-0">
+          <span className="text-[11px] text-[#6B8EC2]">
+            Showing {filtered.length === 0 ? 0 : (page - 1) * ITEMS_PER_PAGE + 1} to{" "}
+            {Math.min(page * ITEMS_PER_PAGE, filtered.length)} of {filtered.length} entries
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              className="p-0.5 hover:bg-gray-100 rounded disabled:opacity-30 cursor-pointer text-gray-400"
+              onClick={() => setPage(Math.max(1, page - 1))}
+              disabled={page === 1}
+            >
+              <ChevronLeft size={14} />
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setPage(p)}
+                className={`w-[24px] h-[24px] rounded-full text-[11px] cursor-pointer ${
+                  p === page
+                    ? "bg-[#1162A8] text-white"
+                    : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                }`}
+              >
+                {p}
+              </button>
+            ))}
+            <button
+              type="button"
+              className="p-0.5 hover:bg-gray-100 rounded disabled:opacity-30 cursor-pointer text-gray-400"
+              onClick={() => setPage(Math.min(totalPages, page + 1))}
+              disabled={page === totalPages}
+            >
+              <ChevronRight size={14} />
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-6xl p-6 rounded-xl shadow-2xl flex flex-col">
-        <div className="flex justify-between items-center mb-4">
+      <DialogContent className="max-w-[960px] p-0 rounded-xl shadow-2xl flex flex-col max-h-[85vh] gap-0">
+        {/* Header */}
+        <div className="flex justify-between items-center px-6 pt-5 pb-3">
           <div className="flex items-center gap-2">
-            <Plus className="w-5 h-5" />
-            <h2 className="text-xl font-semibold">Add ons</h2>
+            <Plus className="w-5 h-5" strokeWidth={2} />
+            <h2 className="text-lg font-bold">Add ons</h2>
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose}>
+          <Button variant="ghost" size="icon" onClick={onClose} className="cursor-pointer">
             <X className="h-5 w-5" />
           </Button>
         </div>
 
-        <div className="grid grid-cols-2 gap-6 flex-1 min-h-0 max-h-[70vh]">
-          {/* Left Column - Selection */}
-          <div className="flex flex-col min-h-0">
-            <div className="relative mb-4 flex-shrink-0">
-              <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-              <Input
-                placeholder="Search Add ons"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 py-2 rounded-lg"
-              />
-            </div>
-
-            <div className="flex-1 overflow-y-auto pr-2 -mr-2 min-h-0">
-              {loading ? (
-                <div className="text-center py-8 text-gray-500">Loading add-ons...</div>
-              ) : (
-                <Accordion type="multiple" className="w-full">
-                  {filteredCategories.map((category) => (
-                    <AccordionItem key={category.id} value={category.id.toString()} className="border rounded-lg mb-2">
-                      <AccordionTrigger className="px-4 py-3 font-medium hover:no-underline">
-                        {category.name}
-                      </AccordionTrigger>
-                      <AccordionContent className="px-4 pb-4">
-                        {category.subcategories.map((subcat) => (
-                          <div key={subcat.id} className="mb-6">
-                            <div className="font-semibold mb-2">{subcat.name}</div>
-                            <div className="grid grid-cols-3 gap-4 mb-2 text-sm font-medium text-gray-700">
-                              <div>Add-on</div>
-                              <div>Price</div>
-                              <div>Qty</div>
-                            </div>
-                            {subcat.addons.map((addon) => {
-                              const currentQty = getCurrentQty(addon.id, category.name, subcat.name)
-                              return (
-                                <div key={addon.id} className="grid grid-cols-3 gap-4 items-center mb-2">
-                                  <div>{addon.name}</div>
-                                  <div>
-                                    {`$${Number(typeof addon.price === "string" ? parseFloat(addon.price) : addon.price).toFixed(2)}`}
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="h-8 w-8 p-0"
-                                      onClick={() => handleDecrementAddOn(category, subcat, addon)}
-                                      disabled={currentQty === 0}
-                                    >
-                                      <Minus className="w-4 h-4" />
-                                    </Button>
-                                    <span className="min-w-[2rem] text-center font-medium">{currentQty}</span>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="h-8 w-8 p-0"
-                                      onClick={() => handleIncrementAddOn(category, subcat, addon)}
-                                      disabled={currentQty >= 10}
-                                    >
-                                      <Plus className="w-4 h-4" />
-                                    </Button>
-                                  </div>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        ))}
-                      </AccordionContent>
-                    </AccordionItem>
-                  ))}
-                </Accordion>
-              )}
-            </div>
+        {/* Product tabs */}
+        {productTabs.length > 0 && (
+          <div className="flex items-center gap-2 mb-4 flex-shrink-0 px-6">
+            <span className="text-[14px] text-gray-700 mr-1">Select product for add on:</span>
+            {productTabs.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => {
+                  setActiveProductId(p.id)
+                  setMaxPage(1)
+                  setMandPage(1)
+                  setMaxSearch("")
+                  setMandSearch("")
+                }}
+                className={`px-4 py-1.5 rounded-md text-sm font-medium border transition-colors cursor-pointer ${
+                  activeProductId === p.id
+                    ? "bg-[#1162A8] text-white border-[#1162A8]"
+                    : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                }`}
+              >
+                {p.name}
+              </button>
+            ))}
           </div>
+        )}
 
-          {/* Right Column - Added Add-ons */}
-          <div className="flex flex-col min-h-0">
-            <div className="flex-shrink-0 mb-3">
-              <h3 className="font-semibold text-base mb-2">Added Add-ons:</h3>
-              {(existingAddOns.length > 0 || selectedAddOns.length > 0) && (
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="font-medium text-gray-700">Total Items:</span>
-                    <span className="font-semibold">{totalAddOns.totalCount}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-sm mt-1">
-                    <span className="font-medium text-gray-700">Total Price:</span>
-                    <span className="font-semibold text-[#1162a8]">${totalAddOns.totalPrice.toFixed(2)}</span>
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="flex-1 overflow-y-auto pr-2 -mr-2 min-h-0">
-              {(existingAddOns.length > 0 || selectedAddOns.length > 0) ? (
-                <div className="p-4 border rounded-lg bg-gray-50">
-                  <ul className="space-y-2">
-                    {/* Show existing add-ons (already configured) */}
-                    {existingAddOns.map((item, idx) => (
-                      <li key={`existing-${item.addon_id}-${idx}`} className="flex items-center justify-between text-sm p-2 bg-white rounded border">
-                        <span className="flex-1">
-                          {item.qty} x {item.name} ({item.category} / {item.subcategory}) - {`$${Number(item.price).toFixed(2)}`}
-                        </span>
-                        <Button variant="ghost" size="sm" onClick={() => handleRemoveExistingAddOn(idx)}>
-                          <X className="w-4 h-4 text-red-500" />
-                        </Button>
-                      </li>
-                    ))}
-                    {/* Show add-ons selected in this session */}
-                    {selectedAddOns.map((item) => (
-                      <li key={item.tempId} className="flex items-center justify-between text-sm p-2 bg-white rounded border">
-                        <span className="flex-1">
-                          {item.qty} x {item.name} ({item.category} / {item.subcategory}) - {`$${Number(item.price).toFixed(2)}`}
-                        </span>
-                        <Button variant="ghost" size="sm" onClick={() => handleRemoveAddOn(item.tempId)}>
-                          <X className="w-4 h-4 text-red-500" />
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : (
-                <div className="p-4 border rounded-lg bg-gray-50 text-center text-gray-500 text-sm">
-                  No add-ons added yet
-                </div>
-              )}
-            </div>
-          </div>
+        {/* Two-column layout: Maxillary + Mandibular */}
+        <div className="flex gap-6 flex-1 min-h-0 px-6">
+          {renderArchColumn(
+            "maxillary",
+            "Maxillary Add on",
+            maxSearch,
+            setMaxSearch,
+            maxPagedAddons,
+            maxFiltered,
+            maxPage,
+            setMaxPage,
+            maxTotalPages
+          )}
+
+          {/* Vertical divider */}
+          <div className="w-px bg-gray-300 flex-shrink-0" />
+
+          {renderArchColumn(
+            "mandibular",
+            "Mandibular Add on",
+            mandSearch,
+            setMandSearch,
+            mandPagedAddons,
+            mandFiltered,
+            mandPage,
+            setMandPage,
+            mandTotalPages
+          )}
         </div>
 
-        <div className="flex justify-end gap-3 mt-6">
-          <Button variant="outline" onClick={handleCancel}>
+        {/* Footer buttons */}
+        <div className="flex justify-center gap-4 py-5 flex-shrink-0 border-t border-gray-200 mt-4 px-6">
+          <Button variant="outline" className="min-w-[120px] rounded-md cursor-pointer" onClick={handleCancel}>
             Cancel
           </Button>
-          <Button className="bg-[#1162a8] hover:bg-[#0f5490] text-white" onClick={handleConfirmAddOns}>
+          <Button className="bg-[#1162a8] hover:bg-[#0f5490] text-white min-w-[120px] rounded-md cursor-pointer" onClick={handleConfirm}>
             Add
           </Button>
         </div>

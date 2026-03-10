@@ -667,57 +667,58 @@ export function FixedRestorationFields({
       })()}
 
       {/* Step 9: Impression / Add ons */}
-      {isFixed("fixed_impression") && !(toothNumbers.some((n) => (retentionTypesMap[n] || []).includes("Implant")) && implantDetailCompleteByTooth[firstToothNumber] !== true) && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <fieldset
-            className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
-              isFieldCompleted(arch, firstToothNumber, "fixed_impression") && !caseSubmitted ? "border-[#34a853]" : isFieldCompleted(arch, firstToothNumber, "fixed_impression") ? "border-[#b4b0b0]" : "border-[#CF0202]"
-            }`}
-            onClick={() => {
-              const hasImplantForm = toothNumbers.some((n) => (retentionTypesMap[n] || []).includes("Implant"));
-              if (hasImplantForm && implantDetailCompleteByTooth[firstToothNumber] !== true) return;
-              handleOpenImpressionModal(arch, selectedProduct?.id?.toString() || `fixed_${firstToothNumber}`, firstToothNumber);
-            }}
-          >
-            <legend className={`text-sm px-1 leading-none ${isFieldCompleted(arch, firstToothNumber, "fixed_impression") && !caseSubmitted ? "text-[#34a853]" : isFieldCompleted(arch, firstToothNumber, "fixed_impression") ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>
-              Impression
-            </legend>
-            <div className="flex items-center gap-2 w-full">
-              <span className="text-[14px] sm:text-lg text-[#000000] truncate">
-                {getImpressionDisplayText(selectedProduct?.id?.toString() || `fixed_${firstToothNumber}`, arch)}
-              </span>
-              {isFieldCompleted(arch, firstToothNumber, "fixed_impression") && !caseSubmitted && (
-                <Check size={16} className="text-[#34a853] ml-auto" />
-              )}
-            </div>
-          </fieldset>
-
-          {isFixed("fixed_addons") ? (
+      {isFixed("fixed_impression") && !(toothNumbers.some((n) => (retentionTypesMap[n] || []).includes("Implant")) && implantDetailCompleteByTooth[firstToothNumber] !== true) && (() => {
+        const addonsVal = isFixed("fixed_addons") ? (getFieldValue(arch, firstToothNumber, "fixed_addons") || "") : "";
+        const addonItems = addonsVal ? addonsVal.split(",").map((s: string) => s.trim()).filter(Boolean) : [];
+        const borderClass = isFieldCompleted(arch, firstToothNumber, "fixed_addons") && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]";
+        const legendClass = isFieldCompleted(arch, firstToothNumber, "fixed_addons") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]";
+        const onClickAddon = () => handleOpenAddOnsModal(arch, selectedProduct?.id?.toString() || `fixed_${firstToothNumber}`, firstToothNumber);
+        return (
+          <div className="flex flex-wrap gap-3">
             <fieldset
-              className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
-                isFieldCompleted(arch, firstToothNumber, "fixed_addons") && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]"
+              className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors flex-1 min-w-[200px] ${
+                isFieldCompleted(arch, firstToothNumber, "fixed_impression") && !caseSubmitted ? "border-[#34a853]" : isFieldCompleted(arch, firstToothNumber, "fixed_impression") ? "border-[#b4b0b0]" : "border-[#CF0202]"
               }`}
               onClick={() => {
-                handleOpenAddOnsModal(arch, selectedProduct?.id?.toString() || `fixed_${firstToothNumber}`, firstToothNumber);
+                const hasImplantForm = toothNumbers.some((n) => (retentionTypesMap[n] || []).includes("Implant"));
+                if (hasImplantForm && implantDetailCompleteByTooth[firstToothNumber] !== true) return;
+                handleOpenImpressionModal(arch, selectedProduct?.id?.toString() || `fixed_${firstToothNumber}`, firstToothNumber);
               }}
             >
-              <legend className={`text-sm px-1 leading-none ${isFieldCompleted(arch, firstToothNumber, "fixed_addons") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>
-                Add ons
+              <legend className={`text-sm px-1 leading-none ${isFieldCompleted(arch, firstToothNumber, "fixed_impression") && !caseSubmitted ? "text-[#34a853]" : isFieldCompleted(arch, firstToothNumber, "fixed_impression") ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>
+                Impression
               </legend>
               <div className="flex items-center gap-2 w-full">
                 <span className="text-[14px] sm:text-lg text-[#000000] truncate">
-                  {getFieldValue(arch, firstToothNumber, "fixed_addons") || "No add on selected"}
+                  {getImpressionDisplayText(selectedProduct?.id?.toString() || `fixed_${firstToothNumber}`, arch)}
                 </span>
-                {isFieldCompleted(arch, firstToothNumber, "fixed_addons") && !caseSubmitted && (
+                {isFieldCompleted(arch, firstToothNumber, "fixed_impression") && !caseSubmitted && (
                   <Check size={16} className="text-[#34a853] ml-auto" />
                 )}
               </div>
             </fieldset>
-          ) : (
-            <div />
-          )}
-        </div>
-      )}
+
+            {isFixed("fixed_addons") && (
+              addonItems.length === 0 ? (
+                <fieldset className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors flex-1 min-w-[200px] ${borderClass}`} onClick={onClickAddon}>
+                  <legend className={`text-sm px-1 leading-none ${legendClass}`}>Add ons</legend>
+                  <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">No add on selected</span>
+                </fieldset>
+              ) : (
+                addonItems.map((item: string, idx: number) => (
+                  <fieldset key={idx} className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors flex-1 min-w-[200px] ${borderClass}`} onClick={onClickAddon}>
+                    <legend className={`text-sm px-1 leading-none ${legendClass}`}>Add on</legend>
+                    <span className="text-[14px] sm:text-lg text-[#000000] truncate">{item}</span>
+                    {!caseSubmitted && isFieldCompleted(arch, firstToothNumber, "fixed_addons") && idx === addonItems.length - 1 && (
+                      <Check size={14} className="text-[#34a853] ml-2 flex-shrink-0" />
+                    )}
+                  </fieldset>
+                ))
+              )
+            )}
+          </div>
+        );
+      })()}
 
       {/* Additional notes — only shown when advance_fields includes a notes field */}
       {isFixed("fixed_notes") && (

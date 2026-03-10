@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useMemo } from "react";
 import type { CaseDesignProps, SlipProductSnapshot } from "../types";
 import { productImpressionsToModalOptions } from "../types";
 import { useCaseDesignState } from "../hooks/useCaseDesignState";
@@ -8,6 +8,7 @@ import { IMPRESSION_STEP_NAMES } from "../hooks/useToothFieldProgress";
 import { MaxillaryPanel } from "./MaxillaryPanel";
 import { MandibularPanel } from "./MandibularPanel";
 import { CenterNavigation } from "./CenterNavigation";
+import { CenterActionIcons } from "./CenterActionIcons";
 import { ModalOrchestrator } from "./ModalOrchestrator";
 import { CaseSummaryNotes } from "./CaseSummaryNotes";
 import { mockImpressions } from "../constants";
@@ -144,6 +145,35 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     (maxillaryHasRemovables && !maxillaryRemovablesImpressionDone) ||
     (mandibularHasRemovables && !mandibularRemovablesImpressionDone);
 
+  // Build unique products list for add-ons/rush modal tabs
+  const caseProducts = useMemo(() => {
+    const seen = new Map<number, string>();
+    // First try from tooth products (most accurate)
+    const allTeethKeys = [
+      ...Object.keys(state.maxillaryRetentionTypes).map((t) => ({ arch: "maxillary" as const, tn: Number(t) })),
+      ...Object.keys(state.mandibularRetentionTypes || {}).map((t) => ({ arch: "mandibular" as const, tn: Number(t) })),
+    ];
+    for (const { arch, tn } of allTeethKeys) {
+      const product = state.getToothProduct(arch, tn);
+      if (product?.id && !seen.has(product.id)) {
+        seen.set(product.id, product.name);
+      }
+    }
+    // Fallback: include the initial selected product (card 0) if not yet found from teeth
+    if (props.selectedProductId && !seen.has(props.selectedProductId) && props.selectedProductName) {
+      seen.set(props.selectedProductId, props.selectedProductName);
+    }
+    // Fallback: also include products from addedProducts (covers cases where toothProducts hasn't loaded yet)
+    for (const ap of (props.addedProducts ?? [])) {
+      const pid = ap.productId ?? ap.product?.id;
+      const pname = ap.product?.name || ap.product?.subcategory?.name || "";
+      if (pid && !seen.has(pid) && pname) {
+        seen.set(pid, pname);
+      }
+    }
+    return Array.from(seen.entries()).map(([id, name]) => ({ id, name }));
+  }, [state.maxillaryRetentionTypes, state.mandibularRetentionTypes, state.getToothProduct, props.selectedProductId, props.selectedProductName, props.addedProducts]);
+
   // Compute a human-readable label for the first incomplete required field across all teeth.
   // For Fixed Restoration, shades are stored per product group (under fixed_${firstToothNumber}), not per tooth — validate once per group.
   const incompleteFieldLabel = (() => {
@@ -254,6 +284,22 @@ export function CaseDesignCenter(props: CaseDesignProps) {
       state.fetchAndAssignProduct("mandibular", MANDIBULAR_SENTINEL, props.selectedProductId);
     }
   }, [state.activeProductIsRemovablesMandibular, props.selectedProductId]);
+
+  // ── Catch-up: assign product to card 0 teeth that have retention types but no product ──
+  // This handles cases where teeth were clicked before the product was ready, or rapid clicks
+  // caused some teeth to miss the fetchAndAssignProduct call in handleSelectRetentionType.
+  useEffect(() => {
+    if (!props.selectedProductId) return;
+    const allRetentionTeeth = [
+      ...Object.keys(state.maxillaryRetentionTypes).map((t) => ({ arch: "maxillary" as const, tn: Number(t) })),
+      ...Object.keys(state.mandibularRetentionTypes).map((t) => ({ arch: "mandibular" as const, tn: Number(t) })),
+    ];
+    for (const { arch, tn } of allRetentionTeeth) {
+      if (state.getToothProductCard(arch, tn) !== 0) continue; // only card 0
+      if (state.getToothProduct(arch, tn)) continue; // already has product
+      state.fetchAndAssignProduct(arch, tn, props.selectedProductId);
+    }
+  }, [state.maxillaryRetentionTypes, state.mandibularRetentionTypes, props.selectedProductId]);
 
   // ── Note: no sentinel tooth assignment for added removable products ──
   // Added removable product accordions render even with 0 teeth assigned
@@ -424,29 +470,33 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             ← Back to Products
           </button>
         )}
-        <div className="flex-1 flex items-center justify-center gap-2">
-          <span className="text-[16px] sm:text-xl text-[#1d1d1b] tracking-wide">MAXILLARY</span>
-          {!props.caseSubmitted && (allMaxillaryAccordionsComplete || allMandibularAccordionsComplete) && (
+        <div className="flex-1 flex items-center justify-center">
+          {!props.caseSubmitted && (allMaxillaryAccordionsComplete || allMandibularAccordionsComplete) ? (
             <button
               onClick={() => state.onAddProduct?.("maxillary")}
-              className="flex items-center gap-1 shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] text-white font-[Verdana] text-xs font-semibold px-2 py-0.5 rounded-md bg-[#1162A8] hover:bg-[#0d4a85] cursor-pointer"
+              className="flex flex-row items-center justify-center px-[10px] py-0 w-[230px] h-[28px] bg-[#1162A8] shadow-[0.99px_0.99px_3.48px_rgba(0,0,0,0.25)] rounded-[5.96px] hover:bg-[#0d4a85] cursor-pointer"
             >
-              + Add Product
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5 12H19M12 5V19" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              <span className="font-[Verdana] font-normal text-[14px] leading-[22px] text-center tracking-[-0.02em] text-white">MAXILLARY PRODUCT</span>
             </button>
+          ) : (
+            <span className="text-[16px] sm:text-xl text-[#1d1d1b] tracking-wide">MAXILLARY</span>
           )}
         </div>
         <h2 className="flex-1 text-center text-xl font-bold text-[#1d1d1b] tracking-wide">
           CASE DESIGN CENTER
         </h2>
-        <div className="flex-1 flex items-center justify-center gap-2">
-          <span className="text-[16px] sm:text-xl text-[#1d1d1b] tracking-wide">MANDIBULAR</span>
-          {!props.caseSubmitted && (allMaxillaryAccordionsComplete || allMandibularAccordionsComplete) && (
+        <div className="flex-1 flex items-center justify-center">
+          {!props.caseSubmitted && (allMaxillaryAccordionsComplete || allMandibularAccordionsComplete) ? (
             <button
               onClick={() => state.onAddProduct?.("mandibular")}
-              className="flex items-center gap-1 shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] text-white font-[Verdana] text-xs font-semibold px-2 py-0.5 rounded-md bg-[#1162A8] hover:bg-[#0d4a85] cursor-pointer"
+              className="flex flex-row items-center justify-center px-[10px] py-0 w-[230px] h-[28px] bg-[#1162A8] shadow-[0.99px_0.99px_3.48px_rgba(0,0,0,0.25)] rounded-[5.96px] hover:bg-[#0d4a85] cursor-pointer"
             >
-              + Add Product
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5 12H19M12 5V19" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              <span className="font-[Verdana] font-normal text-[14px] leading-[22px] text-center tracking-[-0.02em] text-white">MANDIBULAR PRODUCT</span>
             </button>
+          ) : (
+            <span className="text-[16px] sm:text-xl text-[#1d1d1b] tracking-wide">MANDIBULAR</span>
           )}
         </div>
       </div>
@@ -524,12 +574,27 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         />
 
         {/* CENTER NAVIGATION */}
-        <CenterNavigation
-          showMaxillary={state.showMaxillary}
-          setShowMaxillary={state.setShowMaxillary}
-          showMandibular={state.showMandibular}
-          setShowMandibular={state.setShowMandibular}
-        />
+        {/* "Teeth in mouth" pill: visible only when removables are active and no extractions applied yet */}
+        {(() => {
+          const maxHasExtractions = Object.keys(state.maxillaryToothExtractionMap).length > 0;
+          const manHasExtractions = Object.keys(state.mandibularToothExtractionMap).length > 0;
+          const hasRemovables = maxillaryHasRemovables || mandibularHasRemovables;
+          // Show TIM only when at least one panel is visible and no extractions applied
+          const showMaxArrow = state.showMaxillary && !maxHasExtractions;
+          const showManArrow = state.showMandibular && !manHasExtractions;
+          const showTim = hasRemovables && !maxHasExtractions && !manHasExtractions && (state.showMaxillary || state.showMandibular);
+          return (
+            <CenterNavigation
+              showMaxillary={state.showMaxillary}
+              setShowMaxillary={state.setShowMaxillary}
+              showMandibular={state.showMandibular}
+              setShowMandibular={state.setShowMandibular}
+              showTeethInMouth={showTim}
+              showMaxillaryArrow={showTim && showMaxArrow}
+              showMandibularArrow={showTim && showManArrow}
+            />
+          );
+        })()}
 
         {/* RIGHT PANEL - MANDIBULAR */}
         <MandibularPanel
@@ -602,7 +667,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
 
       </div>
 
-      {/* Case Summary Notes - below product accordion */}
+      {/* Case Summary Notes with center action icons floating on top */}
       {(() => {
         const hasImpressionCompleted =
           Object.entries(state.maxillaryRetentionTypes).some(([toothNum]) => {
@@ -620,26 +685,81 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             state.isFieldCompleted("mandibular", tn, "impression")
           ));
         if (!hasImpressionCompleted) return null;
+        const showIcons = maxillaryHasImpression || mandibularHasImpression || maxillaryHasRemovables || mandibularHasRemovables;
         return (
-          <CaseSummaryNotes
-            right1Brand={state.right1Brand}
-            right1Platform={state.right1Platform}
-            right2Brand={state.right2Brand}
-            right2Platform={state.right2Platform}
-            maxillaryRetentionTypes={state.maxillaryRetentionTypes}
-            mandibularRetentionTypes={state.mandibularRetentionTypes}
-            maxillaryTeeth={state.maxillaryTeeth}
-            mandibularTeeth={state.mandibularTeeth}
-            getToothProduct={state.getToothProduct}
-            getFieldValue={state.getFieldValue}
-            getSelectedShade={state.getSelectedShade}
-            selectedStages={state.selectedStages}
-            getImpressionDisplayText={state.getImpressionDisplayText}
-            right1Inclusion={state.right1Inclusion}
-            right2Inclusion={state.right2Inclusion}
-            addedProducts={state.addedProducts}
-            getToothProductCard={state.getToothProductCard}
-          />
+          <div className="relative">
+            {/* Center action icons — absolutely centered on top of case summary notes */}
+            {showIcons && (
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
+                <CenterActionIcons
+                  visible={true}
+                  onEdit={() => {}}
+                  onAddProduct={() => {
+                    // Find the first available product to open add-ons for
+                    const maxTeeth = Object.keys(state.maxillaryRetentionTypes).map(Number);
+                    const mandTeeth = Object.keys(state.mandibularRetentionTypes || {}).map(Number);
+                    if (maxTeeth.length > 0) {
+                      const tn = Math.min(...maxTeeth);
+                      const product = state.getToothProduct("maxillary", tn);
+                      state.handleOpenAddOnsModal("maxillary", product?.id?.toString() || `maxillary_prep_${tn}`, tn);
+                    } else if (maxillaryHasRemovables && state.maxillaryTeeth.length > 0) {
+                      const tn = state.maxillaryTeeth[0];
+                      const product = state.getToothProduct("maxillary", tn);
+                      state.handleOpenAddOnsModal("maxillary", product?.id?.toString() || `maxillary_prep_${tn}`, tn);
+                    } else if (mandTeeth.length > 0) {
+                      const tn = Math.min(...mandTeeth);
+                      const product = state.getToothProduct("mandibular", tn);
+                      state.handleOpenAddOnsModal("mandibular", product?.id?.toString() || `mandibular_prep_${tn}`, tn);
+                    } else if (mandibularHasRemovables && state.mandibularTeeth.length > 0) {
+                      const tn = state.mandibularTeeth[0];
+                      const product = state.getToothProduct("mandibular", tn);
+                      state.handleOpenAddOnsModal("mandibular", product?.id?.toString() || `mandibular_prep_${tn}`, tn);
+                    } else {
+                      state.setShowAddOnsModal(true);
+                    }
+                  }}
+                  onRush={() => {
+                    // Find the first available product to rush
+                    const maxTeeth = Object.keys(state.maxillaryRetentionTypes).map(Number);
+                    const mandTeeth = Object.keys(state.mandibularRetentionTypes || {}).map(Number);
+                    if (maxTeeth.length > 0) {
+                      state.handleOpenRushModal("maxillary", `prep_${Math.min(...maxTeeth)}`);
+                    } else if (maxillaryHasRemovables && state.maxillaryTeeth.length > 0) {
+                      state.handleOpenRushModal("maxillary", `prep_${state.maxillaryTeeth[0]}`);
+                    } else if (mandTeeth.length > 0) {
+                      state.handleOpenRushModal("mandibular", `prep_${Math.min(...mandTeeth)}`);
+                    } else if (mandibularHasRemovables && state.mandibularTeeth.length > 0) {
+                      state.handleOpenRushModal("mandibular", `prep_${state.mandibularTeeth[0]}`);
+                    } else {
+                      state.setShowRushModal(true);
+                    }
+                  }}
+                  onAttach={() => state.setShowAttachModal(true)}
+                  onPhoto={() => {}}
+                  onStlFile={() => {}}
+                />
+              </div>
+            )}
+            <CaseSummaryNotes
+              right1Brand={state.right1Brand}
+              right1Platform={state.right1Platform}
+              right2Brand={state.right2Brand}
+              right2Platform={state.right2Platform}
+              maxillaryRetentionTypes={state.maxillaryRetentionTypes}
+              mandibularRetentionTypes={state.mandibularRetentionTypes}
+              maxillaryTeeth={state.maxillaryTeeth}
+              mandibularTeeth={state.mandibularTeeth}
+              getToothProduct={state.getToothProduct}
+              getFieldValue={state.getFieldValue}
+              getSelectedShade={state.getSelectedShade}
+              selectedStages={state.selectedStages}
+              getImpressionDisplayText={state.getImpressionDisplayText}
+              right1Inclusion={state.right1Inclusion}
+              right2Inclusion={state.right2Inclusion}
+              addedProducts={state.addedProducts}
+              getToothProductCard={state.getToothProductCard}
+            />
+          </div>
         );
       })()}
 
@@ -680,6 +800,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         currentAddOnsArch={state.currentAddOnsArch}
         currentAddOnsProductId={state.currentAddOnsProductId}
         currentAddOnsToothNumber={state.currentAddOnsToothNumber}
+        addOnsProducts={caseProducts}
         onAddOnsConfirm={(addOns) => {
           const toothNum = state.currentAddOnsToothNumber;
           const arch = state.currentAddOnsArch;

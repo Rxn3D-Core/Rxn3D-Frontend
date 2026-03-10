@@ -6,13 +6,13 @@ import {
   Eye,
   EyeOff,
   ChevronDown,
-  Zap,
   Trash2,
   Check,
   Paperclip,
 } from "lucide-react";
 import { MaxillaryTeethSVG } from "@/components/maxillary-teeth-svg";
 import { FieldInput, ShadeField, IconField } from "./fields";
+import { RushIcon } from "./CenterActionIcons";
 import {
   Select,
   SelectContent,
@@ -41,7 +41,6 @@ import { shadeGuideOptions as defaultShadeGuideOptions } from "../constants";
 import { isRemovableCategory, isFixedCategory, getCategoryName } from "../utils/categoryHelpers";
 import { FixedRestorationFields } from "./FixedRestorationFields";
 import { RemovableRestorationFields } from "./RemovableRestorationFields";
-import { FloatingActionIcons } from "./FloatingActionIcons";
 import { AccordionBadge, EstDaysLabel } from "./AccordionBadge";
 
 /* ------------------------------------------------------------------ */
@@ -891,7 +890,7 @@ export function MaxillaryPanel({
                 return (
                   <div key={`loading-group-${groupKey}`} className="rounded-lg bg-white overflow-hidden border border-[#d9d9d9] mt-3">
                     <div className="w-full flex items-center py-[14px] px-2 gap-[10px] rounded-t-[5.4px]">
-                      <div className="w-16 h-[62px] rounded-md flex-shrink-0 animate-pulse bg-gray-200" />
+                      <div className="w-[50px] h-[50px] rounded-md flex-shrink-0 animate-pulse bg-gray-200" />
                       <div className="flex-1 min-w-0 flex flex-col gap-2">
                         <div className="h-[16px] w-[140px] rounded animate-pulse bg-gray-200" />
                         <div className="h-[14px] w-[60px] rounded animate-pulse bg-gray-200" />
@@ -924,13 +923,6 @@ export function MaxillaryPanel({
 
               return (
               <div key={`prep-pontic-group-${groupKey}`} className="relative mt-3">
-                <FloatingActionIcons
-                  arch="maxillary"
-                  visible={showActions}
-                  onAttach={() => setShowAttachModal(true)}
-                  onRush={() => handleOpenRushModal("maxillary", isFixedCategory(categoryName) ? `fixed_${firstToothNumber}` : `prep_${firstToothNumber}`)}
-                  rushLabel={hasRushed ? "Rushed" : "Request Rush"}
-                />
               <div
                 className={`rounded-lg bg-white overflow-hidden ${
                   hasRushed
@@ -953,15 +945,15 @@ export function MaxillaryPanel({
                         : "bg-[#DFEEFB] hover:bg-[#d4e8f8]"
                   }`}
                 >
-                  <div className="w-16 h-[62px] rounded-md bg-white flex items-center justify-center flex-shrink-0 overflow-hidden">
+                  <div className="w-[50px] h-[50px] rounded-md bg-white flex items-center justify-center flex-shrink-0 overflow-hidden">
                     {selectedProduct?.image_url ? (
                       <img
                         src={productImage}
                         alt={productName}
-                        className="w-[61.58px] h-[28.79px] object-contain"
+                        className="w-[50px] h-[50px] object-contain"
                       />
                     ) : (
-                      <div className="w-[61.58px] h-[28.79px] bg-gray-100 rounded flex items-center justify-center">
+                      <div className="w-[50px] h-[50px] bg-gray-100 rounded flex items-center justify-center">
                         <span className="text-[10px] text-gray-400">No img</span>
                       </div>
                     )}
@@ -973,11 +965,7 @@ export function MaxillaryPanel({
                         <span className="font-normal text-[13px] sm:text-base text-black">{toothNumbersDisplay}</span>
                       )}
                       {hasRushed && (
-                        <Zap
-                          className="w-[14px] h-[14px] text-[#CF0202] flex-shrink-0"
-                          strokeWidth={2}
-                          fill="#CF0202"
-                        />
+                        <RushIcon className="w-[20px] h-[20px] flex-shrink-0" />
                       )}
                     </p>
                     <div className="flex items-center gap-[5px] flex-wrap">
@@ -1141,13 +1129,6 @@ export function MaxillaryPanel({
 
             return (
               <div key="initial-removables-maxillary" className="relative mt-3">
-                <FloatingActionIcons
-                  arch="maxillary"
-                  visible={removablesImpressionDone && !caseSubmitted}
-                  onAttach={() => setShowAttachModal(true)}
-                  onRush={() => handleOpenRushModal("maxillary", `prep_${cardTeeth[0]}`)}
-                  rushLabel={hasRushedRemovables ? "Rushed" : "Request Rush"}
-                />
               <div className={`rounded-lg bg-white overflow-hidden ${hasRushedRemovables ? "border-2 border-[#CF0202]" : "border border-[#d9d9d9]"}`}>
                 <div
                   className={`w-full flex flex-col transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] relative ${hasRushedRemovables ? "bg-[#FCE4E4]" : isActive ? "bg-[#c8e2f7]" : "bg-[#DFEEFB]"}`}
@@ -1164,24 +1145,24 @@ export function MaxillaryPanel({
                       className={`text-black transition-transform ${initialRemovablesExpanded ? "rotate-180" : ""}`}
                     />
                   </div>
-                  {/* Product name centered */}
-                  <p className="font-[Verdana] text-[14px] sm:text-lg font-bold leading-tight tracking-[-0.02em] text-black text-center pt-3 pb-2 px-10">
-                    {cardProductName}
-                    {hasRushedRemovables && <Zap className="inline w-[14px] h-[14px] text-[#CF0202] ml-1" strokeWidth={2} fill="#CF0202" />}
-                  </p>
-                  {/* Image + tooth status boxes in same row */}
-                  <div className="flex items-start gap-2 px-2 pb-2" onClick={(e) => e.stopPropagation()}>
-                    <div className="w-16 h-auto rounded-md bg-white flex items-center justify-center flex-shrink-0 overflow-hidden self-center">
+                  {/* Image left + product name, status boxes & badges right */}
+                  <div className="flex items-stretch gap-[10px] px-[8px] py-[14px]" onClick={(e) => e.stopPropagation()}>
+                    <div className="w-[64px] rounded-[6px] bg-white flex items-center justify-center flex-shrink-0 overflow-hidden shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]">
                       {cardProductImage ? (
                         <img src={cardProductImage} alt={cardProductName} className="w-[61.58px] h-[28.79px] object-contain" />
                       ) : (
-                        <div className="w-16 h-16 rounded-md bg-gray-100 flex items-center justify-center">
+                        <div className="w-[61.58px] h-[28.79px] flex items-center justify-center">
                           <span className="text-[10px] text-gray-400">No img</span>
                         </div>
                       )}
                     </div>
-                    {cardExtractions.length > 0 && removablesImpressionDone && (
-                      <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 flex flex-col gap-[9.94px]">
+                      {/* Product name — left aligned (centered when submitted) */}
+                      <p className={`font-[Inter] text-[20px] font-bold leading-tight text-black pr-6 ${caseSubmitted ? "text-center" : "text-left"}`}>
+                        {cardProductName}
+                        {hasRushedRemovables && <RushIcon className="inline w-[14px] h-[14px] ml-1" />}
+                      </p>
+                      {cardExtractions.length > 0 && removablesImpressionDone && (
                         <ToothStatusBoxes
                           extractions={cardExtractions}
                           selectedTeeth={maxillaryTeeth}
@@ -1195,23 +1176,24 @@ export function MaxillaryPanel({
                           onRequiredValidationChange={onToothStatusValidationChange}
                           isRemovable={true}
                           submitted={caseSubmitted}
+                          hideDefaultBox={true}
                         />
+                      )}
+                      {/* Category badges + est days below tooth status boxes */}
+                      <div className="flex items-center gap-[4.97px] flex-wrap">
+                        {cardProduct?.subcategory?.category?.name && (
+                          <AccordionBadge>{cardProduct.subcategory.category.name}</AccordionBadge>
+                        )}
+                        {cardProduct?.subcategory?.name && (
+                          <AccordionBadge>{cardProduct.subcategory.name}</AccordionBadge>
+                        )}
+                        {stageVal && (
+                          <AccordionBadge>{stageVal}</AccordionBadge>
+                        )}
+                        <EstDaysLabel rushed={hasRushedRemovables} text={hasRushedRemovables ? "5 work days after submission" : estDays} />
+                        <Trash2 size={9} className="text-[#999999] flex-shrink-0" />
                       </div>
-                    )}
-                  </div>
-                  {/* Bottom row: category badges + est days */}
-                  <div className="px-2 pb-2 flex items-center gap-[5px] flex-wrap">
-                    {cardProduct?.subcategory?.category?.name && (
-                      <AccordionBadge>{cardProduct.subcategory.category.name}</AccordionBadge>
-                    )}
-                    {cardProduct?.subcategory?.name && (
-                      <AccordionBadge>{cardProduct.subcategory.name}</AccordionBadge>
-                    )}
-                    {stageVal && (
-                      <AccordionBadge>{stageVal}</AccordionBadge>
-                    )}
-                    <EstDaysLabel rushed={hasRushedRemovables} text={hasRushedRemovables ? "5 work days after submission" : estDays} />
-                    <Trash2 size={9} className="text-[#999999] flex-shrink-0" />
+                    </div>
                   </div>
                 </div>
 
@@ -1376,17 +1358,42 @@ export function MaxillaryPanel({
                               {isFComplete("impression") && !caseSubmitted && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                             </fieldset>
                           )}
-                          {/* Row 5: Add ons (full width) */}
-                          {isF("addons") && (
-                            <fieldset
-                              className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${isFComplete("addons") && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]"}`}
-                              onClick={() => handleOpenAddOnsModal("maxillary", toothProduct?.id?.toString() || productKey, repTn)}
-                            >
-                              <legend className={`text-sm px-1 leading-none ${isFComplete("addons") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>Add ons</legend>
-                              <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{fVal("addons") || "No add on selected"}</span>
-                              {isFComplete("addons") && !caseSubmitted && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
-                            </fieldset>
-                          )}
+                          {/* Row 5: Add ons (separate fields per add-on, responsive) */}
+                          {isF("addons") && (() => {
+                            const addonsVal = fVal("addons") || "";
+                            const addonItems = addonsVal ? addonsVal.split(",").map((s: string) => s.trim()).filter(Boolean) : [];
+                            const borderClass = isFComplete("addons") && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]";
+                            const legendClass = isFComplete("addons") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]";
+                            const onClickAddon = () => handleOpenAddOnsModal("maxillary", toothProduct?.id?.toString() || productKey, repTn);
+                            if (addonItems.length === 0) {
+                              return (
+                                <fieldset
+                                  className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${borderClass}`}
+                                  onClick={onClickAddon}
+                                >
+                                  <legend className={`text-sm px-1 leading-none ${legendClass}`}>Add ons</legend>
+                                  <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">No add on selected</span>
+                                </fieldset>
+                              );
+                            }
+                            return (
+                              <div className="flex flex-wrap gap-3">
+                                {addonItems.map((item: string, idx: number) => (
+                                  <fieldset
+                                    key={idx}
+                                    className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 flex-1 min-w-[200px] ${borderClass}`}
+                                    onClick={onClickAddon}
+                                  >
+                                    <legend className={`text-sm px-1 leading-none ${legendClass}`}>Add on</legend>
+                                    <span className="text-[14px] sm:text-lg text-[#000000] truncate">{item}</span>
+                                    {!caseSubmitted && isFComplete("addons") && idx === addonItems.length - 1 && (
+                                      <Check size={14} className="text-[#34a853] ml-2 flex-shrink-0" />
+                                    )}
+                                  </fieldset>
+                                ))}
+                              </div>
+                            );
+                          })()}
                         </div>
 
                         </>
@@ -1438,6 +1445,7 @@ export function MaxillaryPanel({
               const apRepTn = cardTeeth.length > 0 ? cardTeeth[0] : 0;
               const apProductKey = `maxillary_prep_${apRepTn}`;
               const hasRushedAp = rushedProducts[apProductKey];
+              const apStageVal = apRepTn > 0 ? (selectedStages[apProductKey] || getFieldValue("maxillary", apRepTn, "stage")) : "";
 
               // For removable products, compute extractions for header display
               const apExtractionsSeen = new Set<number>();
@@ -1459,14 +1467,6 @@ export function MaxillaryPanel({
 
               return (
                 <div key={ap.id} className="relative mt-3">
-                  <FloatingActionIcons
-                    arch="maxillary"
-                    visible={apImpressionDone && !caseSubmitted}
-                    onAttach={() => setShowAttachModal(true)}
-                    onRush={() => handleOpenRushModal("maxillary", apProductKey)}
-                    rushLabel={hasRushedAp ? "Rushed" : "Request Rush"}
-                    onAddOns={() => handleOpenAddOnsModal("maxillary", getToothProduct("maxillary", apRepTn)?.id?.toString() || `prep_${apRepTn}`, apRepTn)}
-                  />
                 <div
                   className={`rounded-lg bg-white overflow-hidden ${hasRushedAp ? "border-2 border-[#CF0202]" : "border border-[#d9d9d9]"}`}
                 >
@@ -1487,24 +1487,24 @@ export function MaxillaryPanel({
                           className={`text-black transition-transform ${ap.expanded ? "rotate-180" : ""}`}
                         />
                       </div>
-                      {/* Product name centered */}
-                      <p className="font-[Verdana] text-[14px] sm:text-lg font-bold leading-tight tracking-[-0.02em] text-black text-center pt-3 pb-2 px-10">
-                        {cardProductName}
-                        {hasRushedAp && <Zap className="inline w-[14px] h-[14px] text-[#CF0202] ml-1" strokeWidth={2} fill="#CF0202" />}
-                      </p>
-                      {/* Image + tooth status boxes in same row */}
-                      <div className="flex items-start gap-2 px-2 pb-2" onClick={(e) => e.stopPropagation()}>
-                        <div className="w-16 h-auto rounded-md bg-white flex items-center justify-center flex-shrink-0 overflow-hidden self-center">
+                      {/* Image left + product name, status boxes & badges right */}
+                      <div className="flex items-stretch gap-[10px] px-[8px] py-[14px]" onClick={(e) => e.stopPropagation()}>
+                        <div className="w-[64px] rounded-[6px] bg-white flex items-center justify-center flex-shrink-0 overflow-hidden shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]">
                           {cardProductImage ? (
                             <img src={cardProductImage} alt={cardProductName} className="w-[61.58px] h-[28.79px] object-contain" />
                           ) : (
-                            <div className="w-16 h-16 rounded-md bg-gray-100 flex items-center justify-center">
+                            <div className="w-[61.58px] h-[28.79px] flex items-center justify-center">
                               <span className="text-[10px] text-gray-400">No img</span>
                             </div>
                           )}
                         </div>
-                        {apExtractions.length > 0 && (
-                          <div className="flex-1 min-w-0">
+                        <div className="flex-1 min-w-0 flex flex-col gap-[9.94px]">
+                          {/* Product name — left aligned (centered when submitted) */}
+                          <p className={`font-[Inter] text-[20px] font-bold leading-tight text-black pr-6 ${caseSubmitted ? "text-center" : "text-left"}`}>
+                            {cardProductName}
+                            {hasRushedAp && <RushIcon className="inline w-[14px] h-[14px] ml-1" />}
+                          </p>
+                          {apExtractions.length > 0 && (
                             <ToothStatusBoxes
                               extractions={apExtractions}
                               selectedTeeth={maxillaryTeeth}
@@ -1518,26 +1518,31 @@ export function MaxillaryPanel({
                               onRequiredValidationChange={onToothStatusValidationChange}
                               isRemovable={true}
                               submitted={caseSubmitted}
+                              hideDefaultBox={true}
                             />
+                          )}
+                          {/* Category badges + est days below tooth status boxes */}
+                          <div className="flex items-center gap-[4.97px] flex-wrap">
+                            {cardCategoryName && (
+                              <AccordionBadge>{cardCategoryName}</AccordionBadge>
+                            )}
+                            {cardSubcategoryName && (
+                              <AccordionBadge>{cardSubcategoryName}</AccordionBadge>
+                            )}
+                            {apStageVal && (
+                              <AccordionBadge>{apStageVal}</AccordionBadge>
+                            )}
+                            <EstDaysLabel rushed={hasRushedAp} text={hasRushedAp ? "5 work days after submission" : "10 work days after submission"} />
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); handleRemoveAddedProduct(ap.id); }}
+                              className="ml-1 hover:text-red-500 transition-colors"
+                              title="Remove product"
+                            >
+                              <Trash2 size={9} className="text-[#999999] hover:text-red-500" />
+                            </button>
                           </div>
-                        )}
-                      </div>
-                      <div className="px-2 pb-2 flex items-center gap-[5px] flex-wrap">
-                        {cardCategoryName && (
-                          <AccordionBadge>{cardCategoryName}</AccordionBadge>
-                        )}
-                        {cardSubcategoryName && (
-                          <AccordionBadge>{cardSubcategoryName}</AccordionBadge>
-                        )}
-                        <EstDaysLabel rushed={hasRushedAp} text={hasRushedAp ? "5 work days after submission" : "10 work days after submission"} />
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); handleRemoveAddedProduct(ap.id); }}
-                          className="ml-1 hover:text-red-500 transition-colors"
-                          title="Remove product"
-                        >
-                          <Trash2 size={9} className="text-[#999999] hover:text-red-500" />
-                        </button>
+                        </div>
                       </div>
                     </div>
                   ) : (
@@ -1550,11 +1555,11 @@ export function MaxillaryPanel({
                     }}
                     className={`w-full flex items-center py-[14px] px-2 gap-[10px] transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] ${hasRushedAp ? "bg-[#FCE4E4] hover:bg-[#f8d4d4]" : isActive ? "bg-[#c8e2f7] hover:bg-[#b8d8f4]" : "bg-[#DFEEFB] hover:bg-[#d4e8f8]"}`}
                   >
-                    <div className="w-16 h-[62px] rounded-md bg-white flex items-center justify-center flex-shrink-0 overflow-hidden">
+                    <div className="w-[50px] h-[50px] rounded-md bg-white flex items-center justify-center flex-shrink-0 overflow-hidden">
                       {cardProductImage ? (
-                        <img src={cardProductImage} alt={cardProductName} className="w-[61.58px] h-[28.79px] object-contain" />
+                        <img src={cardProductImage} alt={cardProductName} className="w-[50px] h-[50px] object-contain" />
                       ) : (
-                        <div className="w-[61.58px] h-[28.79px] bg-gray-100 rounded flex items-center justify-center">
+                        <div className="w-[50px] h-[50px] bg-gray-100 rounded flex items-center justify-center">
                           <span className="text-[10px] text-gray-400">No img</span>
                         </div>
                       )}
@@ -1565,7 +1570,7 @@ export function MaxillaryPanel({
                         {cardToothDisplay && (
                           <span className="font-normal text-[13px] sm:text-base text-black">{cardToothDisplay}</span>
                         )}
-                        {hasRushedAp && <Zap className="w-[14px] h-[14px] text-[#CF0202] flex-shrink-0" strokeWidth={2} fill="#CF0202" />}
+                        {hasRushedAp && <RushIcon className="w-[20px] h-[20px] flex-shrink-0" />}
                       </p>
                       <div className="flex items-center gap-[5px] flex-wrap">
                         <AccordionBadge>Product {apIndex + 2}</AccordionBadge>
@@ -1765,17 +1770,42 @@ export function MaxillaryPanel({
                                   {isFComplete("impression") && !caseSubmitted && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                                 </fieldset>
                               )}
-                              {/* Row 5: Add ons (full width) */}
-                              {hasAdvanceField("addons", advFields) && (
-                                <fieldset
-                                  className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${isFComplete("addons") && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]"}`}
-                                  onClick={() => handleOpenAddOnsModal("maxillary", toothProduct?.id?.toString() || productKey, repTn)}
-                                >
-                                  <legend className={`text-sm px-1 leading-none ${isFComplete("addons") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>Add ons</legend>
-                                  <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{fVal("addons") || "No add on selected"}</span>
-                                  {isFComplete("addons") && !caseSubmitted && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
-                                </fieldset>
-                              )}
+                              {/* Row 5: Add ons (separate fields per add-on, responsive) */}
+                              {hasAdvanceField("addons", advFields) && (() => {
+                                const addonsVal = fVal("addons") || "";
+                                const addonItems = addonsVal ? addonsVal.split(",").map((s: string) => s.trim()).filter(Boolean) : [];
+                                const borderClass = isFComplete("addons") && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]";
+                                const legendClass = isFComplete("addons") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]";
+                                const onClickAddon = () => handleOpenAddOnsModal("maxillary", toothProduct?.id?.toString() || productKey, repTn);
+                                if (addonItems.length === 0) {
+                                  return (
+                                    <fieldset
+                                      className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${borderClass}`}
+                                      onClick={onClickAddon}
+                                    >
+                                      <legend className={`text-sm px-1 leading-none ${legendClass}`}>Add ons</legend>
+                                      <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">No add on selected</span>
+                                    </fieldset>
+                                  );
+                                }
+                                return (
+                                  <div className="flex flex-wrap gap-3">
+                                    {addonItems.map((item: string, idx: number) => (
+                                      <fieldset
+                                        key={idx}
+                                        className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 flex-1 min-w-[200px] ${borderClass}`}
+                                        onClick={onClickAddon}
+                                      >
+                                        <legend className={`text-sm px-1 leading-none ${legendClass}`}>Add on</legend>
+                                        <span className="text-[14px] sm:text-lg text-[#000000] truncate">{item}</span>
+                                        {!caseSubmitted && isFComplete("addons") && idx === addonItems.length - 1 && (
+                                          <Check size={14} className="text-[#34a853] ml-2 flex-shrink-0" />
+                                        )}
+                                      </fieldset>
+                                    ))}
+                                  </div>
+                                );
+                              })()}
                             </div>
 
                             </>
@@ -1832,16 +1862,32 @@ export function MaxillaryPanel({
                                   {isFCompletePerTooth(fixed ? "fixed_impression" : "impression") && !caseSubmitted && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                                 </fieldset>
                               )}
-                              {(fixed ? isFPerTooth("fixed_addons") : isFPerTooth("addons")) && (
-                                <fieldset
-                                  className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${isFCompletePerTooth(fixed ? "fixed_addons" : "addons") && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]"}`}
-                                  onClick={() => handleOpenAddOnsModal("maxillary", fixed ? `maxillary_fixed_${tn}` : `maxillary_prep_${tn}`, tn)}
-                                >
-                                  <legend className={`text-sm px-1 leading-none ${isFCompletePerTooth(fixed ? "fixed_addons" : "addons") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>Add ons</legend>
-                                  <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{fValPerTooth(fixed ? "fixed_addons" : "addons") || "No add on selected"}</span>
-                                  {isFCompletePerTooth(fixed ? "fixed_addons" : "addons") && !caseSubmitted && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
-                                </fieldset>
-                              )}
+                              {(fixed ? isFPerTooth("fixed_addons") : isFPerTooth("addons")) && (() => {
+                                const addonsStep = fixed ? "fixed_addons" : "addons";
+                                const addonsVal = fValPerTooth(addonsStep) || "";
+                                const addonItems = addonsVal ? addonsVal.split(",").map((s: string) => s.trim()).filter(Boolean) : [];
+                                const borderClass = isFCompletePerTooth(addonsStep) && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]";
+                                const legendClass = isFCompletePerTooth(addonsStep) && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]";
+                                const onClickAddon = () => handleOpenAddOnsModal("maxillary", fixed ? `maxillary_fixed_${tn}` : `maxillary_prep_${tn}`, tn);
+                                if (addonItems.length === 0) {
+                                  return (
+                                    <fieldset className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${borderClass}`} onClick={onClickAddon}>
+                                      <legend className={`text-sm px-1 leading-none ${legendClass}`}>Add ons</legend>
+                                      <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">No add on selected</span>
+                                    </fieldset>
+                                  );
+                                }
+                                return (
+                                  <div className="flex flex-wrap gap-2">
+                                    {addonItems.map((item: string, idx: number) => (
+                                      <fieldset key={idx} className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${borderClass}`} onClick={onClickAddon}>
+                                        <legend className={`text-sm px-1 leading-none ${legendClass}`}>Add on</legend>
+                                        <span className="text-[14px] sm:text-lg text-[#000000] truncate">{item}</span>
+                                      </fieldset>
+                                    ))}
+                                  </div>
+                                );
+                              })()}
                             </div>
                           );
                         });

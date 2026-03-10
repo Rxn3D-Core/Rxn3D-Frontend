@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { StageSelectionModal } from "./StageSelectionModal";
 import type { Arch, ImpressionOptionForModal } from "../types";
+import type { AddOnsProduct } from "@/components/add-ons-modal";
 import { stageOptions } from "../constants";
 
 interface ModalOrchestratorProps {
@@ -36,6 +37,8 @@ interface ModalOrchestratorProps {
   currentAddOnsProductId: string;
   currentAddOnsToothNumber: number | null;
   onAddOnsConfirm: (addOns: { addon_id: number; qty: number; category: string; subcategory: string; name: string; price: number }[]) => void;
+  /** Products available in the case — shown as tabs in add-ons modal */
+  addOnsProducts?: AddOnsProduct[];
   // Attachment
   showAttachModal: boolean;
   setShowAttachModal: (v: boolean) => void;
@@ -102,6 +105,7 @@ export function ModalOrchestrator({
   currentAddOnsProductId,
   currentAddOnsToothNumber,
   onAddOnsConfirm,
+  addOnsProducts,
   // Attachment
   showAttachModal,
   setShowAttachModal,
@@ -167,12 +171,13 @@ export function ModalOrchestrator({
       <AddOnsModal
         isOpen={showAddOnsModal}
         onClose={() => setShowAddOnsModal(false)}
-        onAddAddOns={(addOns) => {
+        onAddAddOns={(addOns, _arch) => {
           onAddOnsConfirm(addOns);
         }}
         labId={0}
         productId={currentAddOnsProductId}
         arch={currentAddOnsArch}
+        products={addOnsProducts}
       />
 
       {/* Stage Selection Modal — auto-selects when only 1 stage is available */}
@@ -228,6 +233,7 @@ export function ModalOrchestrator({
               : "02/10/2025 at 4pm",
           price: 100,
         }}
+        products={addOnsProducts}
       />
     </>
   );
