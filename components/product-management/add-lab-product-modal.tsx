@@ -909,7 +909,7 @@ export function AddLabProductModal({
         base_price: basePrice, // <-- use grade price if available, else response price
         extractions: mapExtractions(editingProduct.extractions || []),
         opposite_extractions: mapOppositeExtractions(editingProduct.opposite_extractions || []),
-        apply_same_status_to_opposing: editingProduct.apply_same_status_to_opposing ?? true,
+        apply_same_status_to_opposing: (editingProduct.opposite_extractions && editingProduct.opposite_extractions.length > 0) ? false : (editingProduct.apply_same_status_to_opposing ?? true),
         min_days_to_process: editingProduct.min_days_to_process ?? null,
         max_days_to_process: editingProduct.max_days_to_process ?? null,
       }

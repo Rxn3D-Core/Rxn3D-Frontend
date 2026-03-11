@@ -97,6 +97,15 @@ export function ExtractionsSection({
     }
   }, [extractions, watchedExtractions])
 
+  // Auto-uncheck "apply same status to opposing" if opposite_extractions has values on initial load
+  const hasInitializedOpposingRef = useRef(false)
+  useEffect(() => {
+    if (!hasInitializedOpposingRef.current && watchedOppositeExtractions.length > 0) {
+      hasInitializedOpposingRef.current = true
+      setValue("apply_same_status_to_opposing", false, { shouldDirty: false })
+    }
+  }, [watchedOppositeExtractions, setValue])
+
   // Update opposingExtractionStatuses when extractions data or form data changes
   useEffect(() => {
     if (extractions.length > 0 && !isOpposingUpdatingRef.current) {
