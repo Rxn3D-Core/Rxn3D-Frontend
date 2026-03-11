@@ -355,15 +355,19 @@ export function ExtractionsSection({
     
     setOpposingExtractionStatuses(updatedStatuses)
     
-    // Convert to payload format - ONLY include active extractions with just the required fields
+    // Convert to payload format - ONLY include active extractions
     const activeStatuses = updatedStatuses.filter(status => status.is_active === true)
     const payloadData = activeStatuses.map((status, index) => ({
       extraction_id: status.extraction_id,
       sequence: index + 1,
       status: "Active" as const,
       is_default: status.is_default ? "Yes" as const : "No" as const,
+      is_required: status.is_required ? "Yes" as const : "No" as const,
+      is_optional: status.is_optional ? "Yes" as const : "No" as const,
+      min_teeth: status.min_teeth,
+      max_teeth: status.max_teeth,
     }))
-    
+
     setValue("opposite_extractions" as any, payloadData, { shouldDirty: true })
     
     setTimeout(() => {

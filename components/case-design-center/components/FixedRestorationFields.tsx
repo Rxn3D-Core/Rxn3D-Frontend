@@ -111,8 +111,6 @@ export function hasAdvanceField(
       return names.some((n) => n.includes("proximal") && n.includes("contact"));
     case "fixed_addons":
       return names.some((n) => n.includes("add") && (n.includes("on") || n.includes("addon")));
-    case "fixed_notes":
-      return names.some((n) => n.includes("note") || n.includes("additional"));
     // Removable restoration steps
     case "grade":
       return names.some((n) => n.includes("grade"));
@@ -720,28 +718,6 @@ export function FixedRestorationFields({
         );
       })()}
 
-      {/* Additional notes — only shown when advance_fields includes a notes field */}
-      {isFixed("fixed_notes") && (
-        <fieldset
-          className={`border rounded px-3 pb-2 pt-0 ${
-            isFieldCompleted(arch, firstToothNumber, "fixed_notes") && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]"
-          }`}
-        >
-          <legend className={`text-sm px-1 leading-none ${isFieldCompleted(arch, firstToothNumber, "fixed_notes") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>
-            Additional notes
-          </legend>
-          <textarea
-            rows={3}
-            placeholder="Enter additional notes..."
-            className="w-full text-xs text-[#1d1d1b] bg-transparent outline-none leading-relaxed resize-none"
-            onChange={(e) => {
-              if (e.target.value && !isFieldCompleted(arch, firstToothNumber, "fixed_notes")) {
-                completeFieldStep(arch, firstToothNumber, "fixed_notes", e.target.value);
-              }
-            }}
-          />
-        </fieldset>
-      )}
 
       </>}
     </>

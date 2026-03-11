@@ -32,7 +32,6 @@ export const FIXED_FIELD_STEPS = [
   "fixed_proximal_contact",
   "fixed_impression",
   "fixed_addons",
-  "fixed_notes",
 ] as const;
 
 export type FieldStep = (typeof FIELD_STEPS)[number] | (typeof FIXED_FIELD_STEPS)[number];
@@ -67,7 +66,6 @@ const FIXED_STEP_ADVANCE_FIELD_PATTERNS: Record<string, (name: string) => boolea
   fixed_margin:            (n) => n.includes("margin"),
   fixed_metal:             (n) => n.includes("metal"),
   fixed_proximal_contact:  (n) => n.includes("proximal") && n.includes("contact"),
-  fixed_notes:             (n) => n.includes("note") || n.includes("additional"),
 };
 
 /**
@@ -79,8 +77,9 @@ export function getFixedFieldChain(
   advanceFields: ProductAdvanceField[] | undefined
 ): readonly (typeof FIXED_FIELD_STEPS)[number][] {
   if (!advanceFields || advanceFields.length === 0) {
-    // No advance_fields info — show all steps (fallback)
-    return FIXED_FIELD_STEPS;
+    // No advance_fields — only include steps that don't require matching advance_fields
+    // (stage, impression, addons are always shown; characterization, margin, metal, notes are skipped)
+    return FIXED_FIELD_STEPS.filter((step) => !FIXED_STEP_ADVANCE_FIELD_PATTERNS[step]);
   }
 
   const normalizedNames = advanceFields.map((f) => (f.name ?? "").toLowerCase().trim());
