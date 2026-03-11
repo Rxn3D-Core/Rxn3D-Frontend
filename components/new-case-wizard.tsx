@@ -1174,10 +1174,12 @@ function PatientMiniHeader({
           </div>
         )}
 
-        {/* Form fields — Patient name + Gender in one row */}
+        {/* Form fields — Patient name and Gender stacked */}
         <div className="flex-1 w-full lg:w-auto flex flex-col gap-3 justify-center lg:justify-start">
           <div className="flex gap-3 sm:gap-4 items-start justify-center lg:justify-start">
             <FieldInput label="Patient name" value={patientName} onChange={onPatientNameChange} className="w-[330px]" />
+          </div>
+          <div className="flex gap-3 sm:gap-4 items-start justify-center lg:justify-start">
             {onGenderChange ? (
               <SelectField
                 label="Gender"
