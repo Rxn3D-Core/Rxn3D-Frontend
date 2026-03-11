@@ -695,27 +695,17 @@ export function CaseDesignCenter(props: CaseDesignProps) {
                   visible={true}
                   onEdit={() => {}}
                   onAddProduct={() => {
-                    // Find the first available product to open add-ons for
+                    // Use the same wizard-based flow as the MAXILLARY/MANDIBULAR PRODUCT buttons
+                    // Determine which arch to add a product for based on existing products
                     const maxTeeth = Object.keys(state.maxillaryRetentionTypes).map(Number);
                     const mandTeeth = Object.keys(state.mandibularRetentionTypes || {}).map(Number);
-                    if (maxTeeth.length > 0) {
-                      const tn = Math.min(...maxTeeth);
-                      const product = state.getToothProduct("maxillary", tn);
-                      state.handleOpenAddOnsModal("maxillary", product?.id?.toString() || `maxillary_prep_${tn}`, tn);
-                    } else if (maxillaryHasRemovables && state.maxillaryTeeth.length > 0) {
-                      const tn = state.maxillaryTeeth[0];
-                      const product = state.getToothProduct("maxillary", tn);
-                      state.handleOpenAddOnsModal("maxillary", product?.id?.toString() || `maxillary_prep_${tn}`, tn);
-                    } else if (mandTeeth.length > 0) {
-                      const tn = Math.min(...mandTeeth);
-                      const product = state.getToothProduct("mandibular", tn);
-                      state.handleOpenAddOnsModal("mandibular", product?.id?.toString() || `mandibular_prep_${tn}`, tn);
-                    } else if (mandibularHasRemovables && state.mandibularTeeth.length > 0) {
-                      const tn = state.mandibularTeeth[0];
-                      const product = state.getToothProduct("mandibular", tn);
-                      state.handleOpenAddOnsModal("mandibular", product?.id?.toString() || `mandibular_prep_${tn}`, tn);
+                    if (maxTeeth.length > 0 || (maxillaryHasRemovables && state.maxillaryTeeth.length > 0)) {
+                      state.onAddProduct?.("maxillary");
+                    } else if (mandTeeth.length > 0 || (mandibularHasRemovables && state.mandibularTeeth.length > 0)) {
+                      state.onAddProduct?.("mandibular");
                     } else {
-                      state.setShowAddOnsModal(true);
+                      // Default to maxillary if no products exist yet
+                      state.onAddProduct?.("maxillary");
                     }
                   }}
                   onRush={() => {

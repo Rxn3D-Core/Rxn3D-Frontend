@@ -1812,85 +1812,74 @@ export function MaxillaryPanel({
                           );
                         }
 
-                        return cardTeeth.map(tn => {
-                          const tp = getToothProduct("maxillary", tn);
-                          const catName = tp?.subcategory?.category?.name?.toLowerCase() || "";
-                          const fixed = isFixedCategory(catName);
-                          const rem = isRemovableCategory(catName);
-                          const chain = fixed ? getFixedFieldChain(tp?.advance_fields) : undefined;
-                          const isFPerTooth = (step: string) => rem ? hasAdvanceField(step, tp?.advance_fields) : isFieldVisible("maxillary", tn, step as any, chain);
-                          const isFCompletePerTooth = (step: string) => isFieldCompleted("maxillary", tn, step as any);
-                          const fValPerTooth = (step: string) => getFieldValue("maxillary", tn, step as any);
-
-                          return (
-                            <div key={tn} className="border border-[#e5e7eb] rounded-lg p-3 space-y-3">
-                              <p className="font-[Verdana] text-[16px] sm:text-xl font-bold text-[#1d1d1b]">Tooth #{tn}</p>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <fieldset className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${caseSubmitted ? "border-[#b4b0b0]" : "border-[#34a853]"}`}>
-                                  <legend className={`text-sm px-1 ${caseSubmitted ? "text-[#7f7f7f]" : "text-[#34a853]"}`}>Product - Material</legend>
-                                  <span className="text-[14px] sm:text-lg text-[#000000] truncate">{tp?.name || cardProductName}</span>
-                                  {!caseSubmitted && <Check size={14} className="text-[#34a853] ml-auto flex-shrink-0" />}
-                                </fieldset>
-                              </div>
-                              {(fixed ? isFPerTooth("fixed_stage") : isFPerTooth("stage")) && (() => {
-                                const step = fixed ? "fixed_stage" : "stage";
-                                const stageVal = fValPerTooth(step) || selectedStages[fixed ? `maxillary_fixed_${tn}` : `maxillary_prep_${tn}`] || "";
-                                const isStageComplete = isFCompletePerTooth(step) || !!(stageVal && stageVal.trim());
-                                const showGreen = isStageComplete && !caseSubmitted;
-                                return (
-                                  <fieldset
-                                    className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${showGreen ? "border-[#34a853]" : isStageComplete ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
-                                    onClick={() => handleOpenStageModal(fixed ? `maxillary_fixed_${tn}` : `maxillary_prep_${tn}`, "maxillary", tn)}
-                                  >
-                                    <legend className={`text-sm px-1 leading-none ${showGreen ? "text-[#34a853]" : isStageComplete ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Stage</legend>
-                                    <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{stageVal}</span>
-                                    {showGreen && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
-                                  </fieldset>
-                                );
-                              })()}
-                              {(fixed ? isFPerTooth("fixed_impression") : isFPerTooth("impression")) && (
-                                <fieldset
-                                  className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${isFCompletePerTooth(fixed ? "fixed_impression" : "impression") && !caseSubmitted ? "border-[#34a853]" : isFCompletePerTooth(fixed ? "fixed_impression" : "impression") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
-                                  onClick={() => {
-                                    const hasImplantForm = (maxillaryRetentionTypes[tn] || []).includes("Implant");
-                                    if (hasImplantForm && implantDetailCompleteByTooth[tn] !== true) return;
-                                    handleOpenImpressionModal("maxillary", fixed ? `maxillary_fixed_${tn}` : `maxillary_prep_${tn}`, tn);
-                                  }}
-                                >
-                                  <legend className={`text-sm px-1 leading-none ${isFCompletePerTooth(fixed ? "fixed_impression" : "impression") && !caseSubmitted ? "text-[#34a853]" : isFCompletePerTooth(fixed ? "fixed_impression" : "impression") ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Impression</legend>
-                                  <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{fValPerTooth(fixed ? "fixed_impression" : "impression") || getImpressionDisplayText(fixed ? `maxillary_fixed_${tn}` : `maxillary_prep_${tn}`, "maxillary")}</span>
-                                  {isFCompletePerTooth(fixed ? "fixed_impression" : "impression") && !caseSubmitted && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
-                                </fieldset>
-                              )}
-                              {(fixed ? isFPerTooth("fixed_addons") : isFPerTooth("addons")) && (() => {
-                                const addonsStep = fixed ? "fixed_addons" : "addons";
-                                const addonsVal = fValPerTooth(addonsStep) || "";
-                                const addonItems = addonsVal ? addonsVal.split(",").map((s: string) => s.trim()).filter(Boolean) : [];
-                                const borderClass = isFCompletePerTooth(addonsStep) && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]";
-                                const legendClass = isFCompletePerTooth(addonsStep) && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]";
-                                const onClickAddon = () => handleOpenAddOnsModal("maxillary", fixed ? `maxillary_fixed_${tn}` : `maxillary_prep_${tn}`, tn);
-                                if (addonItems.length === 0) {
-                                  return (
-                                    <fieldset className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${borderClass}`} onClick={onClickAddon}>
-                                      <legend className={`text-sm px-1 leading-none ${legendClass}`}>Add ons</legend>
-                                      <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">No add on selected</span>
-                                    </fieldset>
-                                  );
-                                }
-                                return (
-                                  <div className="flex flex-wrap gap-2">
-                                    {addonItems.map((item: string, idx: number) => (
-                                      <fieldset key={idx} className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${borderClass}`} onClick={onClickAddon}>
-                                        <legend className={`text-sm px-1 leading-none ${legendClass}`}>Add on</legend>
-                                        <span className="text-[14px] sm:text-lg text-[#000000] truncate">{item}</span>
-                                      </fieldset>
-                                    ))}
-                                  </div>
-                                );
-                              })()}
-                            </div>
+                        // Fixed restoration added product — use same FixedRestorationFields as Card 0
+                        const apFirstTn = cardTeeth[0];
+                        const apToothProduct = getToothProduct("maxillary", apFirstTn);
+                        const apFixedChain = getFixedFieldChain(apToothProduct?.advance_fields);
+                        const apRetentionTypes = cardTeeth.flatMap(tn => maxillaryRetentionTypes[tn] || []);
+                        const apIsFixed = (step: FieldStep) =>
+                          isFieldVisible("maxillary", apFirstTn, step, apFixedChain);
+                        const apFixedShadeProductId = `fixed_${apFirstTn}`;
+                        const apFixedShadeIncomplete =
+                          shadeSelectionState.productId === apFixedShadeProductId &&
+                          shadeSelectionState.arch === "maxillary" &&
+                          !(
+                            getSelectedShade(apFixedShadeProductId, "maxillary", "stump_shade") &&
+                            getSelectedShade(apFixedShadeProductId, "maxillary", "tooth_shade")
                           );
-                        });
+                        const apGroupStageProductIdFixed = `maxillary_fixed_${apFirstTn}`;
+
+                        return (
+                          <>
+                            <AutoOpenShadeGuideIfEmpty
+                              arch="maxillary"
+                              productId={apFixedShadeProductId}
+                              isExpanded={ap.expanded}
+                              isShadeSectionVisible={apIsFixed("fixed_stump_shade") || apIsFixed("fixed_shade_trio")}
+                              stumpShadeEmpty={!getSelectedShade(apFixedShadeProductId, "maxillary", "stump_shade")}
+                              toothShadeEmpty={!getSelectedShade(apFixedShadeProductId, "maxillary", "tooth_shade")}
+                              setShadeSelectionState={setShadeSelectionState}
+                            />
+                            <AutoOpenImpressionIfEmpty
+                              isExpanded={ap.expanded}
+                              isImpressionVisible={!apFixedShadeIncomplete && apIsFixed("fixed_impression") && !(cardTeeth.some((n) => (maxillaryRetentionTypes[n] || []).includes("Implant")) && implantDetailCompleteByTooth[apFirstTn] !== true)}
+                              isImpressionEmpty={!isFieldCompleted("maxillary", apFirstTn, "fixed_impression")}
+                              onOpenImpressionModal={handleOpenImpressionModal}
+                              arch="maxillary"
+                              productId={apToothProduct?.id?.toString() || `fixed_${apFirstTn}`}
+                              toothNumber={apFirstTn}
+                            />
+                            <FixedRestorationFields
+                              arch="maxillary"
+                              firstToothNumber={apFirstTn}
+                              groupStageToothNumber={apFirstTn}
+                              groupStageProductIdFixed={apGroupStageProductIdFixed}
+                              selectedProduct={apToothProduct}
+                              toothNumbers={cardTeeth}
+                              retentionTypes={apRetentionTypes}
+                              caseSubmitted={caseSubmitted}
+                              fixedShadeIncomplete={apFixedShadeIncomplete}
+                              selectedShadeGuide={selectedShadeGuide}
+                              selectedStages={selectedStages}
+                              retentionTypesMap={maxillaryRetentionTypes}
+                              implantDetailCompleteByTooth={implantDetailCompleteByTooth}
+                              setImplantDetailCompleteByTooth={setImplantDetailCompleteByTooth}
+                              isFieldVisible={isFieldVisible}
+                              isFieldCompleted={isFieldCompleted}
+                              getFieldValue={getFieldValue}
+                              completeFieldStep={completeFieldStep}
+                              storeFieldValue={storeFieldValue}
+                              uncompleteFieldStep={uncompleteFieldStep}
+                              isFixed={apIsFixed}
+                              getSelectedShade={getSelectedShade}
+                              handleOpenStageModal={handleOpenStageModal}
+                              handleShadeFieldClick={handleShadeFieldClick}
+                              handleOpenImpressionModal={handleOpenImpressionModal}
+                              handleOpenAddOnsModal={handleOpenAddOnsModal}
+                              getImpressionDisplayText={getImpressionDisplayText}
+                            />
+                          </>
+                        );
                       })()}
 
                       <ScrollToBottom />

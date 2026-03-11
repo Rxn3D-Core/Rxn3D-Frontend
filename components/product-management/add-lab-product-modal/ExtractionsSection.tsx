@@ -493,6 +493,46 @@ export function ExtractionsSection({
 
   const handleApplySameStatusChange = (checked: boolean) => {
     setValue("apply_same_status_to_opposing", checked, { shouldDirty: true })
+
+    if (!checked) {
+      // When unchecking, populate opposing extractions from the saved opposite_extractions data
+      const currentOppositeExtractions = watchedOppositeExtractions
+      if (extractions.length > 0) {
+        const convertedStatuses = extractions.map((apiExtraction: Extraction) => {
+          const productExtraction = currentOppositeExtractions.find(
+            (ext: any) => ext.extraction_id === apiExtraction.id
+          )
+
+          if (productExtraction) {
+            const isActive = productExtraction.status === "Active"
+            return {
+              extraction_id: apiExtraction.id,
+              name: apiExtraction.name,
+              color: apiExtraction.color,
+              is_default: productExtraction.is_default === "Yes",
+              is_required: productExtraction.is_required === "Yes",
+              is_optional: productExtraction.is_optional === "Yes",
+              is_active: isActive,
+              min_teeth: productExtraction.min_teeth ?? null,
+              max_teeth: productExtraction.max_teeth ?? null,
+            }
+          } else {
+            return {
+              extraction_id: apiExtraction.id,
+              name: apiExtraction.name,
+              color: apiExtraction.color,
+              is_default: false,
+              is_required: false,
+              is_optional: false,
+              is_active: false,
+              min_teeth: null,
+              max_teeth: null,
+            }
+          }
+        })
+        setOpposingExtractionStatuses(convertedStatuses)
+      }
+    }
   }
 
   const hasErrors = sectionHasErrors(["extractions"])
