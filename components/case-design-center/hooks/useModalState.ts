@@ -24,6 +24,8 @@ export function useModalState() {
   const [showRushModal, setShowRushModal] = useState(false);
   const [currentRushArch, setCurrentRushArch] = useState<Arch>("maxillary");
   const [currentRushProductId, setCurrentRushProductId] = useState("");
+  const [currentRushMaxProductId, setCurrentRushMaxProductId] = useState("");
+  const [currentRushMandProductId, setCurrentRushMandProductId] = useState("");
   const [rushedProducts, setRushedProducts] = useState<Record<string, any>>({});
 
   // Stage modal state
@@ -52,14 +54,20 @@ export function useModalState() {
     setShowAddOnsModal(true);
   };
 
-  const handleOpenRushModal = (arch: Arch, productId: string) => {
+  const handleOpenRushModal = (arch: Arch, productId: string, maxProductId?: string, mandProductId?: string) => {
     setCurrentRushArch(arch);
     setCurrentRushProductId(productId);
+    setCurrentRushMaxProductId(maxProductId ?? "");
+    setCurrentRushMandProductId(mandProductId ?? "");
     setShowRushModal(true);
   };
 
   const handleRushConfirm = (rushData: any) => {
-    const key = `${currentRushArch}_${currentRushProductId}`;
+    const arch: Arch = rushData.arch ?? currentRushArch;
+    const productId = arch === "maxillary"
+      ? (currentRushMaxProductId || currentRushProductId)
+      : (currentRushMandProductId || currentRushProductId);
+    const key = `${arch}_${productId}`;
     setRushedProducts((prev) => ({ ...prev, [key]: rushData }));
   };
 
@@ -134,6 +142,8 @@ export function useModalState() {
     setShowRushModal,
     currentRushArch,
     currentRushProductId,
+    currentRushMaxProductId,
+    currentRushMandProductId,
     rushedProducts,
     handleOpenRushModal,
     handleRushConfirm,

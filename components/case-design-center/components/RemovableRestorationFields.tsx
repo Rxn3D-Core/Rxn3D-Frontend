@@ -327,8 +327,10 @@ export function RemovableRestorationFields({
         const showGradeGreen = isGradeComplete && !caseSubmitted;
         const productGrades = getActiveGrades(selectedProduct?.grades);
         const hasGrades = productGrades.length > 0;
+        const showStage = isFieldVisibleFn(arch, firstToothNumber, "stage");
+        const showTwoCols = hasGrades && showStage;
         return (
-        <div className={`grid grid-cols-1 ${hasGrades ? "sm:grid-cols-2" : ""} gap-3`}>
+        <div className={`grid grid-cols-1 ${showTwoCols ? "sm:grid-cols-2" : ""} gap-3`}>
           {hasGrades && (
           <fieldset
             className={`border rounded px-3 py-0 relative h-[42px] flex items-center transition-colors ${
@@ -362,7 +364,7 @@ export function RemovableRestorationFields({
           </fieldset>
           )}
 
-          {isFieldVisibleFn(arch, firstToothNumber, "stage") ? (
+          {showStage ? (
             <fieldset
               className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
                 isFieldCompletedFn(arch, firstToothNumber, "stage") && !caseSubmitted
@@ -398,26 +400,26 @@ export function RemovableRestorationFields({
                 </div>
               </div>
             </fieldset>
-          ) : (
-            <div />
-          )}
+          ) : null}
         </div>
         );
       })()}
 
       {/* Step 2: Teeth shade / Gum Shade */}
-      {isFieldVisibleFn(arch, firstToothNumber, "teeth_shade") && (
+      {isFieldVisibleFn(arch, firstToothNumber, "teeth_shade") && (() => {
+        const showGumShade = isFieldVisibleFn(arch, firstToothNumber, "gum_shade");
+        return (
         <>
         <AutoOpenShade
           hasValue={isFieldCompletedFn(arch, firstToothNumber, "teeth_shade")}
           onOpen={() => handleShadeFieldClick(arch, "tooth_shade", `prep_${firstToothNumber}`)}
         />
         <AutoOpenGumShade
-          visible={isFieldVisibleFn(arch, firstToothNumber, "gum_shade")}
+          visible={showGumShade}
           hasValue={isFieldCompletedFn(arch, firstToothNumber, "gum_shade")}
           onOpen={() => setPanelGumShadePicker({ toothNumber: firstToothNumber, gumShades: selectedProduct?.gum_shades || [] })}
         />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+        <div className={`grid grid-cols-1 ${showGumShade ? "sm:grid-cols-2" : ""} gap-3 mt-3`}>
           <fieldset
             className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
               isFieldCompletedFn(arch, firstToothNumber, "teeth_shade") && !caseSubmitted
@@ -511,16 +513,17 @@ export function RemovableRestorationFields({
                 )}
               </div>
             </fieldset>
-          ) : (
-            <div />
-          )}
+          ) : null}
         </div>
         </>
-      )}
+        );
+      })()}
 
       {/* Step 3: Impression / Add ons */}
-      {isFieldVisibleFn(arch, firstToothNumber, "impression") && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+      {isFieldVisibleFn(arch, firstToothNumber, "impression") && (() => {
+        const showAddons = isFieldVisibleFn(arch, firstToothNumber, "addons");
+        return (
+        <div className={`grid grid-cols-1 ${showAddons ? "sm:grid-cols-2" : ""} gap-3 mt-3`}>
           <fieldset
             className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
               isFieldCompletedFn(arch, firstToothNumber, "impression") && !caseSubmitted
@@ -585,11 +588,10 @@ export function RemovableRestorationFields({
                 )}
               </div>
             </fieldset>
-          ) : (
-            <div />
-          )}
+          ) : null}
         </div>
-      )}
+        );
+      })()}
     </>
   );
 }

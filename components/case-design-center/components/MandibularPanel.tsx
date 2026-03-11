@@ -529,7 +529,7 @@ interface MandibularPanelProps {
 
   // Rush
   rushedProducts: Record<string, boolean>;
-  handleOpenRushModal: (arch: Arch, productId: string) => void;
+  handleOpenRushModal: (arch: Arch, productId: string, maxProductId?: string, mandProductId?: string) => void;
 
   // Added products
   addedProducts: AddedProduct[];
@@ -1276,11 +1276,12 @@ export function MandibularPanel({
                   // Build product-aware chain for Fixed Restoration fields
                   const fixedChain = getFixedFieldChain(selectedProduct?.advance_fields);
                   // Helper: check visibility within the product-specific fixed chain
+                  // Use groupStageToothNumber so all field progress keys are consistent
                   const isFixed = (step: FieldStep) =>
-                    isFieldVisible("mandibular", firstToothNumber, step, fixedChain);
+                    isFieldVisible("mandibular", groupStageToothNumber, step, fixedChain);
 
                   // Gate: hide product fields while shade guide is open and incomplete for this product
-                  const _mandFixedShadeProductId = `fixed_${firstToothNumber}`;
+                  const _mandFixedShadeProductId = `fixed_${groupStageToothNumber}`;
                   const fixedShadeIncomplete =
                     shadeSelectionState.productId === _mandFixedShadeProductId &&
                     shadeSelectionState.arch === "mandibular" &&
@@ -1290,7 +1291,7 @@ export function MandibularPanel({
                     );
 
                   // ---- Product Accordion (progressive step-by-step) ----
-                  const showFixedActionsMand = isFixedCategory(categoryName) && isFieldCompleted("mandibular", firstToothNumber, "fixed_impression") && !caseSubmitted;
+                  const showFixedActionsMand = isFixedCategory(categoryName) && isFieldCompleted("mandibular", groupStageToothNumber, "fixed_impression") && !caseSubmitted;
                   const showPrepActionsMand = !isFixedCategory(categoryName) && isFieldCompleted("mandibular", firstToothNumber, "addons") && !caseSubmitted;
                   const showActionsMand = showFixedActionsMand || showPrepActionsMand;
 
@@ -1381,21 +1382,21 @@ export function MandibularPanel({
                           <>
                             <AutoOpenShadeGuideIfEmpty
                               arch="mandibular"
-                              productId={`fixed_${firstToothNumber}`}
+                              productId={`fixed_${groupStageToothNumber}`}
                               isExpanded={true}
                               isShadeSectionVisible={isFixed("fixed_stump_shade") || isFixed("fixed_shade_trio")}
-                              stumpShadeEmpty={!getSelectedShade(`fixed_${firstToothNumber}`, "mandibular", "stump_shade")}
-                              toothShadeEmpty={!getSelectedShade(`fixed_${firstToothNumber}`, "mandibular", "tooth_shade")}
+                              stumpShadeEmpty={!getSelectedShade(`fixed_${groupStageToothNumber}`, "mandibular", "stump_shade")}
+                              toothShadeEmpty={!getSelectedShade(`fixed_${groupStageToothNumber}`, "mandibular", "tooth_shade")}
                               setShadeSelectionState={setShadeSelectionState}
                             />
                             <AutoOpenImpressionIfEmpty
                               isExpanded={isPrepPonticExpanded(firstToothNumber)}
-                              isImpressionVisible={!fixedShadeIncomplete && isFixed("fixed_impression") && !(toothNumbers.some((n) => (mandibularRetentionTypes[n] || []).includes("Implant")) && implantDetailCompleteByTooth[firstToothNumber] !== true)}
-                              isImpressionEmpty={!isFieldCompleted("mandibular", firstToothNumber, "fixed_impression")}
+                              isImpressionVisible={!fixedShadeIncomplete && isFixed("fixed_impression") && !(toothNumbers.some((n) => (mandibularRetentionTypes[n] || []).includes("Implant")) && implantDetailCompleteByTooth[groupStageToothNumber] !== true)}
+                              isImpressionEmpty={!isFieldCompleted("mandibular", groupStageToothNumber, "fixed_impression")}
                               onOpenImpressionModal={handleOpenImpressionModal}
                               arch="mandibular"
-                              productId={selectedProduct?.id?.toString() || `fixed_${firstToothNumber}`}
-                              toothNumber={firstToothNumber}
+                              productId={selectedProduct?.id?.toString() || `fixed_${groupStageToothNumber}`}
+                              toothNumber={groupStageToothNumber}
                             />
                           </>
                         )}
@@ -1403,7 +1404,7 @@ export function MandibularPanel({
                         {isFixedCategory(categoryName) ? (
                           <FixedRestorationFields
                             arch="mandibular"
-                            firstToothNumber={firstToothNumber}
+                            firstToothNumber={groupStageToothNumber}
                             groupStageToothNumber={groupStageToothNumber}
                             groupStageProductIdFixed={groupStageProductIdFixed}
                             selectedProduct={selectedProduct}

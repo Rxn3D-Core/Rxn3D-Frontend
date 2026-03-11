@@ -77,8 +77,7 @@ export function getFixedFieldChain(
   advanceFields: ProductAdvanceField[] | undefined
 ): readonly (typeof FIXED_FIELD_STEPS)[number][] {
   if (!advanceFields || advanceFields.length === 0) {
-    // No advance_fields — only include steps that don't require matching advance_fields
-    // (stage, impression, addons are always shown; characterization, margin, metal, notes are skipped)
+    // No advance_fields — skip gated fields, show only: stage → impression → addons
     return FIXED_FIELD_STEPS.filter((step) => !FIXED_STEP_ADVANCE_FIELD_PATTERNS[step]);
   }
 

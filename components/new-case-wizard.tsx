@@ -15,7 +15,7 @@ import { AddDoctorModal } from "@/components/add-doctor-modal";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
-import { FieldInput } from "@/components/case-design-center/components/fields";
+import { FieldInput, SelectField } from "@/components/case-design-center/components/fields";
 
 /* ------------------------------------------------------------------ */
 /*  Role / auth helpers (client-only)                                  */
@@ -764,6 +764,8 @@ function StepCategory({
   gender,
   isLoading,
   error,
+  onPatientNameChange,
+  onGenderChange,
 }: {
   categories: { id: number; name: string; img: string }[];
   selected: number | null;
@@ -773,6 +775,8 @@ function StepCategory({
   gender: string;
   isLoading?: boolean;
   error?: Error | null;
+  onPatientNameChange?: (value: string) => void;
+  onGenderChange?: (value: string) => void;
 }) {
   if (error) {
     return (
@@ -785,7 +789,7 @@ function StepCategory({
   if (isLoading) {
     return (
       <div className="flex-1 flex flex-col px-6 py-4">
-        <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} />
+        <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} />
         <h2 className="text-center text-[20px] font-bold text-[#1d1d1b] tracking-wide mt-4 mb-2">CASE DESIGN CENTER</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6 max-w-[640px] mx-auto w-full">
           {[1, 2, 3].map((i) => (
@@ -797,7 +801,7 @@ function StepCategory({
   }
   return (
     <div className="flex-1 flex flex-col px-6 py-4">
-      <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} />
+      <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} />
 
       <h2 className="text-center text-[20px] font-bold text-[#1d1d1b] tracking-wide mt-4 mb-2">
         CASE DESIGN CENTER
@@ -853,6 +857,8 @@ function StepSubProduct({
   doctor,
   patientName,
   gender,
+  onPatientNameChange,
+  onGenderChange,
 }: {
   categoryId: number;
   subProducts: { id: number; name: string; img: string }[];
@@ -863,13 +869,15 @@ function StepSubProduct({
   doctor: WizardDoctorShape | undefined;
   patientName: string;
   gender: string;
+  onPatientNameChange?: (value: string) => void;
+  onGenderChange?: (value: string) => void;
 }) {
   const [accordionOpen, setAccordionOpen] = useState(false);
 
   return (
     <div className="flex-1 flex flex-col px-6 py-4">
       {/* Patient header mini */}
-      <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} />
+      <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} />
 
       {onBack && (
         <button
@@ -955,6 +963,8 @@ function StepMaterial({
   isLoading,
   error,
   isRemovableRestoration,
+  onPatientNameChange,
+  onGenderChange,
 }: {
   categoryName: string;
   subProductName: string;
@@ -968,6 +978,8 @@ function StepMaterial({
   isLoading?: boolean;
   error?: Error | null;
   isRemovableRestoration?: boolean;
+  onPatientNameChange?: (value: string) => void;
+  onGenderChange?: (value: string) => void;
 }) {
   const [archPopoverProductId, setArchPopoverProductId] = useState<string | null>(null);
   const cardRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -982,7 +994,7 @@ function StepMaterial({
   if (isLoading) {
     return (
       <div className="flex-1 flex flex-col px-6 py-4">
-        <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} />
+        <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} />
         <h2 className="text-center text-[20px] font-bold text-[#1d1d1b] tracking-wide mt-4 mb-2">CASE DESIGN CENTER</h2>
         <div className="flex flex-wrap justify-center gap-4 mb-6">
           {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -995,7 +1007,7 @@ function StepMaterial({
 
   return (
     <div className="flex-1 flex flex-col px-6 py-4">
-      <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} />
+      <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} />
 
       {onBack && (
         <button
@@ -1116,10 +1128,14 @@ function PatientMiniHeader({
   doctor,
   patientName,
   gender,
+  onPatientNameChange,
+  onGenderChange,
 }: {
   doctor: WizardDoctorShape | undefined;
   patientName: string;
   gender: string;
+  onPatientNameChange?: (value: string) => void;
+  onGenderChange?: (value: string) => void;
 }) {
   const [createdByName, setCreatedByName] = useState("");
   const [createdByImage, setCreatedByImage] = useState("");
@@ -1158,13 +1174,21 @@ function PatientMiniHeader({
           </div>
         )}
 
-        {/* Form fields */}
+        {/* Form fields — Patient name + Gender in one row */}
         <div className="flex-1 w-full lg:w-auto flex flex-col gap-3 justify-center lg:justify-start">
-          <div className="flex flex-wrap gap-3 sm:gap-4 items-start justify-center lg:justify-start">
-            <FieldInput label="Patient name" value={patientName} />
-          </div>
-          <div className="flex flex-wrap gap-3 sm:gap-4 items-start justify-center lg:justify-start">
-            <FieldInput label="Gender" value={gender} />
+          <div className="flex gap-3 sm:gap-4 items-start justify-center lg:justify-start">
+            <FieldInput label="Patient name" value={patientName} onChange={onPatientNameChange} className="w-[330px]" />
+            {onGenderChange ? (
+              <SelectField
+                label="Gender"
+                value={gender}
+                options={["Male", "Female"]}
+                onChange={onGenderChange}
+                className="w-[330px]"
+              />
+            ) : (
+              <FieldInput label="Gender" value={gender} className="w-[330px]" />
+            )}
           </div>
         </div>
 
@@ -1488,6 +1512,8 @@ export default function NewCaseWizard({
             gender={gender}
             isLoading={categoriesLoading}
             error={categoriesError}
+            onPatientNameChange={setPatientName}
+            onGenderChange={setGender}
           />
         )}
         {step === 5 && selectedCategory != null && (
@@ -1504,6 +1530,8 @@ export default function NewCaseWizard({
             doctor={doctor}
             patientName={patientName}
             gender={gender}
+            onPatientNameChange={setPatientName}
+            onGenderChange={setGender}
           />
         )}
         {step === 6 && selectedCategory != null && selectedSubProduct != null && (() => {
@@ -1556,6 +1584,8 @@ export default function NewCaseWizard({
               doctor={doctor}
               patientName={patientName}
               gender={gender}
+              onPatientNameChange={setPatientName}
+              onGenderChange={setGender}
             />
           );
         })()}

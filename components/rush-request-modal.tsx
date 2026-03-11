@@ -24,6 +24,13 @@ interface RushRequestModalProps {
   onRemoveRush?: () => void
   isRushed?: boolean
   existingRushDate?: string // "yyyy-MM-dd"
+  /** Per-arch rush state */
+  maxRushed?: boolean
+  maxExistingRushDate?: string
+  mandRushed?: boolean
+  mandExistingRushDate?: string
+  onRemoveMaxRush?: () => void
+  onRemoveMandRush?: () => void
   product: {
     name: string
     stage: string
@@ -41,6 +48,12 @@ export default function RushRequestModal({
   onRemoveRush,
   isRushed = false,
   existingRushDate,
+  maxRushed,
+  maxExistingRushDate,
+  mandRushed,
+  mandExistingRushDate,
+  onRemoveMaxRush,
+  onRemoveMandRush,
   product,
   products = [],
 }: RushRequestModalProps) {
@@ -57,20 +70,24 @@ export default function RushRequestModal({
   const [rushPercentage] = useState(50)
   const [rushFee] = useState(50)
 
+  // Resolve per-arch rush state (prefer per-arch props, fall back to legacy single-arch props)
+  const effectiveMaxRushed = maxRushed ?? isRushed
+  const effectiveMandRushed = mandRushed ?? isRushed
+  const effectiveMaxExistingDate = maxExistingRushDate ?? existingRushDate
+  const effectiveMandExistingDate = mandExistingRushDate ?? existingRushDate
+
   // Reset state whenever the modal opens
   useEffect(() => {
     if (isOpen) {
-      setMaxTargetDate(parseExistingDate(existingRushDate))
-      setMandTargetDate(parseExistingDate(existingRushDate))
+      setMaxTargetDate(parseExistingDate(effectiveMaxExistingDate))
+      setMandTargetDate(parseExistingDate(effectiveMandExistingDate))
       setMaxCalendarOpen(false)
       setMandCalendarOpen(false)
       if (products.length > 0) {
         setActiveProductId(products[0].id)
       }
     }
-  }, [isOpen, existingRushDate, products])
-
-  const existingDateStr = existingRushDate ?? null
+  }, [isOpen, effectiveMaxExistingDate, effectiveMandExistingDate, products])
 
   const handleConfirm = (arch: "maxillary" | "mandibular") => {
     const date = arch === "maxillary" ? maxTargetDate : mandTargetDate
@@ -83,11 +100,6 @@ export default function RushRequestModal({
       totalPrice: product.price + rushFee,
     }
     onConfirm(rushData)
-  }
-
-  const handleRemove = () => {
-    onRemoveRush?.()
-    onClose()
   }
 
   const labelStyle = { fontWeight: 700, lineHeight: '22px', letterSpacing: '-0.02em', color: '#545F71' } as const
@@ -104,9 +116,12 @@ export default function RushRequestModal({
     calendarOpen: boolean,
     setCalendarOpen: (v: boolean) => void,
   ) => {
+    const archRushed = arch === "maxillary" ? effectiveMaxRushed : effectiveMandRushed
+    const archExistingDate = arch === "maxillary" ? effectiveMaxExistingDate : effectiveMandExistingDate
+    const archExistingDateStr = archExistingDate ?? null
     const selectedDateStr = targetDate ? format(targetDate, "yyyy-MM-dd") : null
-    const dateChanged = isRushed && selectedDateStr !== existingDateStr
-    const showRemoveRush = isRushed && !dateChanged
+    const dateChanged = archRushed && selectedDateStr !== archExistingDateStr
+    const showRemoveRush = archRushed && !dateChanged
 
     return (
       <div className="flex-1 flex flex-col min-w-0">
@@ -177,7 +192,15 @@ export default function RushRequestModal({
 
           {showRemoveRush ? (
             <button
-              onClick={handleRemove}
+              onClick={() => {
+                const removeHandler = arch === "maxillary" ? onRemoveMaxRush : onRemoveMandRush
+                if (removeHandler) {
+                  removeHandler()
+                } else {
+                  onRemoveRush?.()
+                }
+                onClose()
+              }}
               className="h-[36px] px-4 rounded-md border-2 border-[#CF0202] bg-transparent flex items-center justify-center gap-2 cursor-pointer"
             >
               <X className="w-[14px] h-[14px]" style={{ color: '#CF0202' }} />
@@ -229,7 +252,7 @@ export default function RushRequestModal({
             </div>
 
             {/* Product Tabs */}
-            {productTabs.length > 0 && (
+            {productTabs.length > 1 && (
               <div className="flex items-center gap-2 mb-5 flex-wrap">
                 <span className="text-[14px] text-gray-700 mr-1">Select product to rush:</span>
                 {productTabs.map((p) => (

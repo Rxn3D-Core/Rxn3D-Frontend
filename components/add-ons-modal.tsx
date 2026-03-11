@@ -449,7 +449,7 @@ export default function AddOnsModal({ isOpen, onClose, onAddAddOns, labId, produ
         </div>
 
         {/* Product tabs */}
-        {productTabs.length > 0 && (
+        {productTabs.length > 1 && (
           <div className="flex items-center gap-2 mb-4 flex-shrink-0 px-6">
             <span className="text-[14px] text-gray-700 mr-1">Select product for add on:</span>
             {productTabs.map((p) => (

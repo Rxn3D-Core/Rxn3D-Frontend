@@ -47,6 +47,8 @@ interface ModalOrchestratorProps {
   setShowRushModal: (v: boolean) => void;
   currentRushArch: Arch;
   currentRushProductId: string;
+  currentRushMaxProductId: string;
+  currentRushMandProductId: string;
   handleRushConfirm: (rushData: any) => void;
   rushedProducts: Record<string, any>;
   handleRemoveRush: (arch: Arch, productId: string) => void;
@@ -114,6 +116,8 @@ export function ModalOrchestrator({
   setShowRushModal,
   currentRushArch,
   currentRushProductId,
+  currentRushMaxProductId,
+  currentRushMandProductId,
   handleRushConfirm,
   rushedProducts,
   handleRemoveRush,
@@ -220,6 +224,12 @@ export function ModalOrchestrator({
         isRushed={!!rushedProducts[`${currentRushArch}_${currentRushProductId}`]}
         existingRushDate={rushedProducts[`${currentRushArch}_${currentRushProductId}`]?.targetDate}
         onRemoveRush={() => handleRemoveRush(currentRushArch, currentRushProductId)}
+        maxRushed={!!currentRushMaxProductId && !!rushedProducts[`maxillary_${currentRushMaxProductId}`]}
+        maxExistingRushDate={currentRushMaxProductId ? rushedProducts[`maxillary_${currentRushMaxProductId}`]?.targetDate : undefined}
+        mandRushed={!!currentRushMandProductId && !!rushedProducts[`mandibular_${currentRushMandProductId}`]}
+        mandExistingRushDate={currentRushMandProductId ? rushedProducts[`mandibular_${currentRushMandProductId}`]?.targetDate : undefined}
+        onRemoveMaxRush={currentRushMaxProductId ? () => handleRemoveRush("maxillary", currentRushMaxProductId) : undefined}
+        onRemoveMandRush={currentRushMandProductId ? () => handleRemoveRush("mandibular", currentRushMandProductId) : undefined}
         product={{
           name:
             currentRushProductId === "removable_1"

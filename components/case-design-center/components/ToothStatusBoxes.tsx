@@ -175,6 +175,21 @@ export function ToothStatusBoxes({
 
   // No longer need 2-column grid — use flex-wrap for compact auto-sized boxes
 
+  // Pre-compute which boxes have teeth (for submitted filtering)
+  const boxesWithTeeth = submitted
+    ? activeExtractions.filter((extraction) => {
+        const isDefault = isDefaultExtraction(extraction);
+        const isClasp = isClaspExtraction(extraction);
+        const teethForBox = isDefault
+          ? defaultTeeth
+          : isClasp
+          ? claspTeeth.filter((tn) => selectedTeeth.includes(tn))
+          : selectedTeeth.filter((tn) => toothExtractionMap[tn] === extraction.code);
+        return teethForBox.length > 0;
+      })
+    : activeExtractions;
+  const onlyOneBoxWithTeeth = submitted && boxesWithTeeth.length === 1;
+
   const handleBoxClick = (extraction: ProductExtraction) => {
     if (isDefaultExtraction(extraction)) {
       // is_default: select all arch teeth, deactivate any active box
@@ -209,6 +224,10 @@ export function ToothStatusBoxes({
         ).slice().sort((a, b) => a - b);
 
         const isEmpty = teethForBox.length === 0;
+
+        // When submitted, hide empty boxes (no teeth assigned)
+        if (submitted && isEmpty) return null;
+
         const allSelected = isRemovable && isDefault && teethForBox.length === allArchTeeth.length && allArchTeeth.length > 0;
 
         let teethDisplay = "";
@@ -239,6 +258,7 @@ export function ToothStatusBoxes({
                 ? "2px solid #CF0202"
                 : "none",
               outlineOffset: isActive ? "2px" : showRequiredValidation ? "1px" : "0px",
+              ...(onlyOneBoxWithTeeth ? { flex: "1 1 100%" } : {}),
             }}
             onClick={() => handleBoxClick(extraction)}
           >

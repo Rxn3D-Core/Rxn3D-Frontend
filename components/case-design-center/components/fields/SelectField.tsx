@@ -19,6 +19,7 @@ export function SelectField({
   open,
   onOpenChange,
   caseSubmitted = false,
+  className = "",
 }: {
   label: string;
   /** Label to show when no value is selected. Defaults to label. */
@@ -31,13 +32,14 @@ export function SelectField({
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   caseSubmitted?: boolean;
+  className?: string;
 }) {
   const hasValue = value.trim().length > 0;
   const borderColor = hasValue && !caseSubmitted ? "border-[#34a853]" : hasValue ? "border-[#b4b0b0]" : "border-[#cf0202]";
   const legendColor = hasValue && !caseSubmitted ? "text-[#34a853]" : hasValue ? "text-[#7f7f7f]" : "text-[#cf0202]";
   const displayLabel = !hasValue && emptyLabel ? emptyLabel : label;
   return (
-    <fieldset className={`border rounded px-3 py-0 relative min-w-0 w-full h-[42px] flex items-center ${borderColor}`}>
+    <fieldset className={`border rounded px-3 py-0 relative min-w-0 h-[42px] flex items-center ${borderColor} ${className}`}>
       <legend className={`text-sm px-1 leading-none whitespace-nowrap ${legendColor}`}>
         {displayLabel}
       </legend>

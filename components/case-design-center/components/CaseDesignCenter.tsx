@@ -13,6 +13,7 @@ import { ModalOrchestrator } from "./ModalOrchestrator";
 import { CaseSummaryNotes } from "./CaseSummaryNotes";
 import { mockImpressions } from "../constants";
 import { isRemovableCategory, isFixedCategory, getCategoryName } from "../utils/categoryHelpers";
+import { hasAdvanceField } from "./FixedRestorationFields";
 
 export function CaseDesignCenter(props: CaseDesignProps) {
   const state = useCaseDesignState(props);
@@ -225,8 +226,9 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         if (!processedShadeGroups.has(productKey)) {
           processedShadeGroups.add(productKey);
           const shadeId = `fixed_${firstToothInGroup}`;
-          if (!state.getSelectedShade(shadeId, "maxillary", "stump_shade")) return true;
-          if (!state.getSelectedShade(shadeId, "maxillary", "tooth_shade")) return true;
+          const advFields = product?.advance_fields;
+          if (hasAdvanceField("fixed_stump_shade", advFields) && !state.getSelectedShade(shadeId, "maxillary", "stump_shade")) return true;
+          if (hasAdvanceField("fixed_shade_trio", advFields) && !state.getSelectedShade(shadeId, "maxillary", "tooth_shade")) return true;
         }
       }
       const impressionOwner = getImpressionOwnerTooth("maxillary", n);
@@ -695,31 +697,41 @@ export function CaseDesignCenter(props: CaseDesignProps) {
                   visible={true}
                   onEdit={() => {}}
                   onAddProduct={() => {
-                    // Use the same wizard-based flow as the MAXILLARY/MANDIBULAR PRODUCT buttons
-                    // Determine which arch to add a product for based on existing products
-                    const maxTeeth = Object.keys(state.maxillaryRetentionTypes).map(Number);
-                    const mandTeeth = Object.keys(state.mandibularRetentionTypes || {}).map(Number);
-                    if (maxTeeth.length > 0 || (maxillaryHasRemovables && state.maxillaryTeeth.length > 0)) {
-                      state.onAddProduct?.("maxillary");
-                    } else if (mandTeeth.length > 0 || (mandibularHasRemovables && state.mandibularTeeth.length > 0)) {
-                      state.onAddProduct?.("mandibular");
-                    } else {
-                      // Default to maxillary if no products exist yet
-                      state.onAddProduct?.("maxillary");
-                    }
-                  }}
-                  onRush={() => {
-                    // Find the first available product to rush
+                    // Open the Add Ons modal — determine arch and product based on existing products
                     const maxTeeth = Object.keys(state.maxillaryRetentionTypes).map(Number);
                     const mandTeeth = Object.keys(state.mandibularRetentionTypes || {}).map(Number);
                     if (maxTeeth.length > 0) {
-                      state.handleOpenRushModal("maxillary", `prep_${Math.min(...maxTeeth)}`);
+                      state.handleOpenAddOnsModal("maxillary", `prep_${Math.min(...maxTeeth)}`, Math.min(...maxTeeth));
                     } else if (maxillaryHasRemovables && state.maxillaryTeeth.length > 0) {
-                      state.handleOpenRushModal("maxillary", `prep_${state.maxillaryTeeth[0]}`);
+                      state.handleOpenAddOnsModal("maxillary", `prep_${state.maxillaryTeeth[0]}`, state.maxillaryTeeth[0]);
                     } else if (mandTeeth.length > 0) {
-                      state.handleOpenRushModal("mandibular", `prep_${Math.min(...mandTeeth)}`);
+                      state.handleOpenAddOnsModal("mandibular", `prep_${Math.min(...mandTeeth)}`, Math.min(...mandTeeth));
                     } else if (mandibularHasRemovables && state.mandibularTeeth.length > 0) {
-                      state.handleOpenRushModal("mandibular", `prep_${state.mandibularTeeth[0]}`);
+                      state.handleOpenAddOnsModal("mandibular", `prep_${state.mandibularTeeth[0]}`, state.mandibularTeeth[0]);
+                    } else {
+                      // Default to maxillary if no products exist yet
+                      state.handleOpenAddOnsModal("maxillary", "prep_0");
+                    }
+                  }}
+                  onRush={() => {
+                    // Determine product IDs for both arches
+                    const maxTeeth = Object.keys(state.maxillaryRetentionTypes).map(Number);
+                    const mandTeeth = Object.keys(state.mandibularRetentionTypes || {}).map(Number);
+                    const maxPid = maxTeeth.length > 0
+                      ? `prep_${Math.min(...maxTeeth)}`
+                      : (maxillaryHasRemovables && state.maxillaryTeeth.length > 0)
+                        ? `prep_${state.maxillaryTeeth[0]}`
+                        : "";
+                    const mandPid = mandTeeth.length > 0
+                      ? `prep_${Math.min(...mandTeeth)}`
+                      : (mandibularHasRemovables && state.mandibularTeeth.length > 0)
+                        ? `prep_${state.mandibularTeeth[0]}`
+                        : "";
+                    // Open modal with the first available arch, passing both product IDs
+                    if (maxPid) {
+                      state.handleOpenRushModal("maxillary", maxPid, maxPid, mandPid);
+                    } else if (mandPid) {
+                      state.handleOpenRushModal("mandibular", mandPid, maxPid, mandPid);
                     } else {
                       state.setShowRushModal(true);
                     }
@@ -821,6 +833,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         setShowRushModal={state.setShowRushModal}
         currentRushArch={state.currentRushArch}
         currentRushProductId={state.currentRushProductId}
+        currentRushMaxProductId={state.currentRushMaxProductId}
+        currentRushMandProductId={state.currentRushMandProductId}
         handleRushConfirm={state.handleRushConfirm}
         rushedProducts={state.rushedProducts}
         handleRemoveRush={state.handleRemoveRush}

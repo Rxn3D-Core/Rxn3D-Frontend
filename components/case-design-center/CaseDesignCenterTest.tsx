@@ -465,6 +465,9 @@ export default function Page() {
               slipHeaderLoading={slipHeaderLoading}
               slipResponseData={slipResponseData}
               onEditDoctorClick={handleEditDoctor}
+              onPatientNameChange={setCompletedPatientName}
+              onGenderChange={setCompletedGender}
+              compactLayout={(addedProducts.length > 0 || !!selectedProductId) && !!selectedProductCategoryName && /removable|orthodontic/i.test(selectedProductCategoryName)}
             />
             <CaseDesignCenter
               right1Brand={right1Brand}

@@ -463,7 +463,7 @@ interface MaxillaryPanelProps {
   // Modal openers
   handleOpenImpressionModal: (arch: Arch, productId: string, toothNumber?: number) => void;
   handleOpenAddOnsModal: (arch: Arch, productId: string, toothNumber?: number) => void;
-  handleOpenRushModal: (arch: Arch, productId: string) => void;
+  handleOpenRushModal: (arch: Arch, productId: string, maxProductId?: string, mandProductId?: string) => void;
   handleOpenStageModal: (productId: string, arch?: Arch, toothNumber?: number) => void;
   setShowAttachModal: (v: boolean) => void;
   getImpressionDisplayText: (productId: string, arch: Arch) => string;
@@ -1403,11 +1403,12 @@ export function MaxillaryPanel({
               // Build product-aware chain for Fixed Restoration fields
               const fixedChain = getFixedFieldChain(selectedProduct?.advance_fields);
               // Helper: check visibility within the product-specific fixed chain
+              // Use groupStageToothNumber so all field progress keys are consistent
               const isFixed = (step: FieldStep) =>
-                isFieldVisible("maxillary", firstToothNumber, step, fixedChain);
+                isFieldVisible("maxillary", groupStageToothNumber, step, fixedChain);
 
               // Gate: hide product fields while shade guide is open and incomplete for this product
-              const _fixedShadeProductId = `fixed_${firstToothNumber}`;
+              const _fixedShadeProductId = `fixed_${groupStageToothNumber}`;
               const fixedShadeIncomplete =
                 shadeSelectionState.productId === _fixedShadeProductId &&
                 shadeSelectionState.arch === "maxillary" &&
@@ -1416,7 +1417,7 @@ export function MaxillaryPanel({
                   getSelectedShade(_fixedShadeProductId, "maxillary", "tooth_shade")
                 );
 
-              const showFixedActions = isFixedCategory(categoryName) && isFieldCompleted("maxillary", firstToothNumber, "fixed_impression") && !caseSubmitted;
+              const showFixedActions = isFixedCategory(categoryName) && isFieldCompleted("maxillary", groupStageToothNumber, "fixed_impression") && !caseSubmitted;
               const showPrepActions = !isFixedCategory(categoryName) && isFieldCompleted("maxillary", firstToothNumber, "addons") && !caseSubmitted;
               const showActions = showFixedActions || showPrepActions;
 
@@ -1505,21 +1506,21 @@ export function MaxillaryPanel({
                     <>
                       <AutoOpenShadeGuideIfEmpty
                         arch="maxillary"
-                        productId={`fixed_${firstToothNumber}`}
+                        productId={`fixed_${groupStageToothNumber}`}
                         isExpanded={true}
                         isShadeSectionVisible={isFixed("fixed_stump_shade") || isFixed("fixed_shade_trio")}
-                        stumpShadeEmpty={!getSelectedShade(`fixed_${firstToothNumber}`, "maxillary", "stump_shade")}
-                        toothShadeEmpty={!getSelectedShade(`fixed_${firstToothNumber}`, "maxillary", "tooth_shade")}
+                        stumpShadeEmpty={!getSelectedShade(`fixed_${groupStageToothNumber}`, "maxillary", "stump_shade")}
+                        toothShadeEmpty={!getSelectedShade(`fixed_${groupStageToothNumber}`, "maxillary", "tooth_shade")}
                         setShadeSelectionState={setShadeSelectionState}
                       />
                       <AutoOpenImpressionIfEmpty
                         isExpanded={isPrepPonticExpanded(firstToothNumber)}
-                        isImpressionVisible={!fixedShadeIncomplete && isFixed("fixed_impression") && !(toothNumbers.some((n) => (maxillaryRetentionTypes[n] || []).includes("Implant")) && implantDetailCompleteByTooth[firstToothNumber] !== true)}
-                        isImpressionEmpty={!isFieldCompleted("maxillary", firstToothNumber, "fixed_impression")}
+                        isImpressionVisible={!fixedShadeIncomplete && isFixed("fixed_impression") && !(toothNumbers.some((n) => (maxillaryRetentionTypes[n] || []).includes("Implant")) && implantDetailCompleteByTooth[groupStageToothNumber] !== true)}
+                        isImpressionEmpty={!isFieldCompleted("maxillary", groupStageToothNumber, "fixed_impression")}
                         onOpenImpressionModal={handleOpenImpressionModal}
                         arch="maxillary"
-                        productId={selectedProduct?.id?.toString() || `fixed_${firstToothNumber}`}
-                        toothNumber={firstToothNumber}
+                        productId={selectedProduct?.id?.toString() || `fixed_${groupStageToothNumber}`}
+                        toothNumber={groupStageToothNumber}
                       />
                     </>
                   )}
@@ -1527,7 +1528,7 @@ export function MaxillaryPanel({
                   {isFixedCategory(categoryName) ? (
                     <FixedRestorationFields
                       arch="maxillary"
-                      firstToothNumber={firstToothNumber}
+                      firstToothNumber={groupStageToothNumber}
                       groupStageToothNumber={groupStageToothNumber}
                       groupStageProductIdFixed={groupStageProductIdFixed}
                       selectedProduct={selectedProduct}

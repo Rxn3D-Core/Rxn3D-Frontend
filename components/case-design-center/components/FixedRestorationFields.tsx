@@ -74,9 +74,9 @@ export function hasAdvanceField(
   step: string,
   advanceFields: Array<{ name: string; field_type: string }> | undefined
 ): boolean {
-  const alwaysShow = ["fixed_stage", "fixed_impression", "stage", "impression"];
+  const alwaysShow = ["fixed_stage", "fixed_impression", "fixed_addons", "stage", "impression", "addons"];
   if (alwaysShow.includes(step)) return true;
-  if (!advanceFields || advanceFields.length === 0) return true;
+  if (!advanceFields || advanceFields.length === 0) return false;
 
   const names = advanceFields.map((f) => (f.name || "").toLowerCase());
 
@@ -314,8 +314,10 @@ export function FixedRestorationFields({
       {!fixedShadeIncomplete && <>
 
       {/* Step 1 & 2: Stage and Stump Shade in one row */}
-      {(isFixed("fixed_stage") || (isFixed("fixed_stump_shade") && hasAdvanceField("fixed_stump_shade", selectedProduct?.advance_fields))) && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {(isFixed("fixed_stage") || (isFixed("fixed_stump_shade") && hasAdvanceField("fixed_stump_shade", selectedProduct?.advance_fields))) && (() => {
+        const showStumpShade = isFixed("fixed_stump_shade") && hasAdvanceField("fixed_stump_shade", selectedProduct?.advance_fields);
+        return (
+        <div className={`grid grid-cols-1 ${showStumpShade ? "sm:grid-cols-2" : ""} gap-3`}>
           {isFixed("fixed_stage") && (() => {
             const fixedStageValue = selectedStages[groupStageProductIdFixed] || getFieldValue(arch, groupStageToothNumber, "fixed_stage");
             const isStageComplete = isFieldCompleted(arch, groupStageToothNumber, "fixed_stage") || !!(fixedStageValue && fixedStageValue.trim());
@@ -356,7 +358,8 @@ export function FixedRestorationFields({
             />
           )}
         </div>
-      )}
+        );
+      })()}
 
       {/* Step 3: Cervical / Incisal / Body Shade (no Tooth Shade field) */}
       {isFixed("fixed_shade_trio") && hasAdvanceField("fixed_shade_trio", selectedProduct?.advance_fields) && (
