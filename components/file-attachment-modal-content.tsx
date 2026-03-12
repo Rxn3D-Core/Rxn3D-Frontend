@@ -56,6 +56,10 @@ interface FileAttachmentModalContentProps {
   doctorName?: string
   patientName?: string
   savedProducts?: SavedProduct[]
+  /** Dynamic stages from product API — overrides savedProducts-derived stages when provided */
+  availableStages?: string[]
+  /** Called when STL viewer opens/closes so parent dialog can resize */
+  onViewerToggle?: (isOpen: boolean) => void
 }
 
 // Layout icon definitions for the STL viewer layout picker
@@ -86,10 +90,12 @@ export default function FileAttachmentModalContent({
   doctorName: propDoctorName,
   patientName: propPatientName,
   savedProducts = [],
+  availableStages: propAvailableStages,
+  onViewerToggle,
 }: FileAttachmentModalContentProps) {
   const { uploadSlipAttachment, fetchSlipAttachments } = useSlipCreation()
   const [simulatedUploads, setSimulatedUploads] = useState<
-    Array<{ file: any, url: string, type: "stl" | "image" | "3dobject" | "other", archived?: boolean, remoteId?: any, remoteMeta?: any }>
+    Array<{ file: any, url: string, type: "stl" | "image" | "3dobject" | "other", archived?: boolean, remoteId?: any, remoteMeta?: any, stage?: string }>
   >([])
   const [description, setDescription] = useState("")
   const [showCancelModal, setShowCancelModal] = useState(false)
@@ -100,13 +106,37 @@ export default function FileAttachmentModalContent({
   const [uploadedAttachments, setUploadedAttachments] = useState<any[]>([])
   const [selectedLayout, setSelectedLayout] = useState("1x1")
 
+  // Stages — use API-derived stages when available, then savedProducts, then fallback
+  const stages = (() => {
+    if (propAvailableStages && propAvailableStages.length > 0) {
+      return propAvailableStages
+    }
+    const stageSet = new Set<string>()
+    savedProducts.forEach((product) => {
+      if (product.maxillaryStage && product.maxillaryTeeth.length > 0) {
+        stageSet.add(product.maxillaryStage)
+      }
+      if (product.mandibularStage && product.mandibularTeeth.length > 0) {
+        stageSet.add(product.mandibularStage)
+      }
+    })
+    if (stageSet.size === 0) {
+      return ["Custom Tray", "Bite Block", "Try in with Teeth", "Finish"]
+    }
+    return Array.from(stageSet).sort()
+  })()
+
+  // Active stage defaults to first available stage
+  const activeStage = stages[0] || null
+
   // STL viewer display state
   const [isWireframe, setIsWireframe] = useState(false)
   const [showGrid, setShowGrid] = useState(false)
   const [modelColor, setModelColor] = useState("#f9c74f")
 
-  // STL multi-select: track selected STL urls for viewer (max 2)
+  // Viewer items: STL files and images assigned to layout cells
   const [viewerStlUrls, setViewerStlUrls] = useState<string[]>([])
+  const [viewerItems, setViewerItems] = useState<{ url: string; type: "stl" | "image" }[]>([])
 
   // Doctor / patient names
   const [doctorName, setDoctorName] = useState<string>(propDoctorName || "")
@@ -155,13 +185,14 @@ export default function FileAttachmentModalContent({
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files
     if (files) {
+      const targetStage = activeStage || stages[0]
       const newUploads = Array.from(files).map(file => {
         const url = URL.createObjectURL(file)
         let type: "stl" | "image" | "3dobject" | "other" = "other"
         if (file.name.toLowerCase().endsWith(".stl")) type = "stl"
         else if (file.name.toLowerCase().endsWith(".3dobject")) type = "3dobject"
         else if (file.type.startsWith("image/")) type = "image"
-        return { file, url, type }
+        return { file, url, type, stage: targetStage }
       })
       setSimulatedUploads(prev => [...prev, ...newUploads])
     }
@@ -186,17 +217,18 @@ export default function FileAttachmentModalContent({
     event.stopPropagation()
     const files = event.dataTransfer.files
     if (files && files.length > 0) {
+      const targetStage = activeStage || stages[0]
       const newUploads = Array.from(files).map(file => {
         const url = URL.createObjectURL(file)
         let type: "stl" | "image" | "3dobject" | "other" = "other"
         if (file.name.toLowerCase().endsWith(".stl")) type = "stl"
         else if (file.name.toLowerCase().endsWith(".3dobject")) type = "3dobject"
         else if (file.type.startsWith("image/")) type = "image"
-        return { file, url, type }
+        return { file, url, type, stage: targetStage }
       })
       setSimulatedUploads(prev => [...prev, ...newUploads])
     }
-  }, [])
+  }, [activeStage, stages])
 
   const uploadedFilesSize = simulatedUploads.reduce((sum, { file }) => sum + file.size, 0)
   const totalSizeMB = (uploadedFilesSize / (1024 * 1024)).toFixed(2)
@@ -289,33 +321,13 @@ export default function FileAttachmentModalContent({
     setShowAttachModal(false)
   }
 
-  // Stages
-  const getStagesFromProducts = () => {
-    const stages = new Set<string>()
-    savedProducts.forEach((product) => {
-      if (product.maxillaryStage && product.maxillaryTeeth.length > 0) {
-        stages.add(product.maxillaryStage)
-      }
-      if (product.mandibularStage && product.mandibularTeeth.length > 0) {
-        stages.add(product.mandibularStage)
-      }
-    })
-    if (stages.size === 0) {
-      return ["Custom Tray", "Bite Block", "Try in with Teeth", "Finish"]
-    }
-    return Array.from(stages).sort()
-  }
-
-  const stages = getStagesFromProducts()
-
   const groupFilesByStage = () => {
     const grouped: { [stage: string]: typeof simulatedUploads } = {}
     stages.forEach((stage) => {
       grouped[stage] = []
     })
-    simulatedUploads.forEach((file, index) => {
-      const stageIndex = index % stages.length
-      const stage = stages[stageIndex]
+    simulatedUploads.forEach((file) => {
+      const stage = file.stage || activeStage || stages[0]
       if (!grouped[stage]) grouped[stage] = []
       grouped[stage].push(file)
     })
@@ -348,38 +360,61 @@ export default function FileAttachmentModalContent({
     setSimulatedUploads(prev => prev.filter(f => f.url !== url))
     setSelectedStlUrls(prev => prev.filter(u => u !== url))
     setViewerStlUrls(prev => prev.filter(u => u !== url))
+    setViewerItems(prev => prev.filter(v => v.url !== url))
     if (viewing3dUrl === url) setViewing3dUrl(null)
   }
+
+  // Get the active layout definition
+  const activeLayout = LAYOUT_OPTIONS.find(l => l.id === selectedLayout) || LAYOUT_OPTIONS[0]
+  const maxCells = activeLayout.cells.length
 
   // View file: open STL viewer pane with this file
   const handleViewFile = (url: string) => {
     setViewing3dUrl(url)
-    // Auto-add to viewer STL urls if not already
-    if (!viewerStlUrls.includes(url)) {
-      setViewerStlUrls(prev => {
-        // Max 2 STL files: if already 2, remove oldest
-        if (prev.length >= 2) {
-          return [prev[1], url]
+    const item = simulatedUploads.find(u => u.url === url)
+    const itemType: "stl" | "image" = item?.type === "image" ? "image" : "stl"
+    // Auto-add to viewer items if not already present
+    if (!viewerItems.find(v => v.url === url)) {
+      setViewerItems(prev => {
+        if (prev.length >= maxCells) {
+          return [...prev.slice(1), { url, type: itemType }]
         }
-        return [...prev, url]
+        return [...prev, { url, type: itemType }]
       })
+    }
+    // Keep legacy viewerStlUrls in sync for checkbox highlights
+    if (!viewerStlUrls.includes(url) && itemType === "stl") {
+      setViewerStlUrls(prev => [...prev, url])
     }
   }
 
-  // Add to Viewer: add selected STL files (max 2)
+  // Add to Viewer: add selected STL files + selected images (up to layout cell count)
   const handleAddToViewer = () => {
-    const stlFiles = selectedStlUrls.filter(url => {
+    const newItems: { url: string; type: "stl" | "image" }[] = []
+    // Add selected STL/3D files
+    selectedStlUrls.forEach(url => {
       const item = simulatedUploads.find(u => u.url === url)
-      return item && (item.type === "stl" || item.file?.name?.toLowerCase().endsWith(".stl"))
+      if (item && (item.type === "stl" || item.file?.name?.toLowerCase().endsWith(".stl"))) {
+        newItems.push({ url, type: "stl" })
+      }
     })
-    if (stlFiles.length > 0) {
-      setViewerStlUrls(stlFiles.slice(-2))
-      setViewing3dUrl(stlFiles[stlFiles.length - 1])
+    // Add selected images
+    selectedImageThumbnailUrls.forEach(url => {
+      newItems.push({ url, type: "image" })
+    })
+    if (newItems.length > 0) {
+      const trimmed = newItems.slice(0, maxCells)
+      setViewerItems(trimmed)
+      setViewerStlUrls(trimmed.filter(i => i.type === "stl").map(i => i.url))
+      // Ensure viewer stays open
+      const firstStl = trimmed.find(i => i.type === "stl")
+      setViewing3dUrl(firstStl?.url || trimmed[0]?.url || null)
     }
   }
 
   // Clear display
   const handleClearDisplay = () => {
+    setViewerItems([])
     setViewerStlUrls([])
     setViewing3dUrl(null)
   }
@@ -389,8 +424,13 @@ export default function FileAttachmentModalContent({
   // Is viewer panel open
   const isViewerOpen = viewing3dUrl !== null
 
+  // Notify parent when viewer opens/closes so dialog can resize
+  useEffect(() => {
+    onViewerToggle?.(isViewerOpen)
+  }, [isViewerOpen, onViewerToggle])
+
   return (
-    <div className="flex h-[90vh] bg-white rounded-lg relative">
+    <div className="flex h-full max-h-[min(750px,85vh)] bg-white rounded-lg relative">
       {/* Close (X) button */}
       <button
         type="button"
@@ -551,7 +591,7 @@ export default function FileAttachmentModalContent({
                           const isStl = file.name?.toLowerCase().endsWith(".stl") || url.toLowerCase().endsWith(".stl")
                           const is3dObj = file.name?.toLowerCase().endsWith(".3dobject") || url.toLowerCase().endsWith(".3dobject")
                           const isImage = file.type?.startsWith("image/") || url.match(/\.(jpg|jpeg|png|gif|webp)$/i)
-                          const isInViewer = viewerStlUrls.includes(url)
+                          const isInViewer = viewerStlUrls.includes(url) || viewerItems.some(v => v.url === url)
 
                           return (
                             <div
@@ -681,7 +721,7 @@ export default function FileAttachmentModalContent({
 
       {/* ===== Right Pane: STL Viewer ===== */}
       {isViewerOpen && (
-        <div className="w-[380px] flex-shrink-0 border-l h-full flex flex-col">
+        <div className="flex-1 min-w-[380px] border-l h-full flex flex-col">
           {/* Viewer header */}
           <div className="flex items-center justify-between px-3 py-2 border-b">
             <div className="flex items-center gap-1.5">
@@ -725,7 +765,7 @@ export default function FileAttachmentModalContent({
           )}
 
           {/* Controls sidebar + 3D canvas side by side */}
-          <div className="flex-1 flex min-h-0">
+          <div className="flex-1 flex min-h-0 overflow-hidden">
             {/* Controls sidebar */}
             <div className="w-[120px] flex-shrink-0 border-r overflow-y-auto p-2 space-y-3">
               {/* Controls section */}
@@ -822,14 +862,53 @@ export default function FileAttachmentModalContent({
               </div>
             </div>
 
-            {/* 3D canvas only – no duplicate controls */}
-            <div className="flex-1 min-w-0">
-              <STLCanvasOnly
-                models={viewerStlUrls.map(u => ({ src: u, color: "#f9c74f" }))}
-                isWireframe={isWireframe}
-                showGrid={showGrid}
-                modelColor={modelColor}
-              />
+            {/* 3D canvas / image grid driven by selected layout */}
+            <div className="flex-1 min-w-0 min-h-0 relative">
+              <div
+                className={`absolute inset-0 grid ${activeLayout.cols} gap-[2px] bg-gray-300`}
+                style={{ gridTemplateRows: `repeat(${activeLayout.rows}, 1fr)` }}
+              >
+                {activeLayout.cells.map((cell, idx) => {
+                  const item = viewerItems[idx]
+                  return (
+                    <div
+                      key={`${selectedLayout}-${idx}`}
+                      className="bg-[#e9ecef] overflow-hidden relative"
+                      style={{
+                        gridColumn: `span ${cell.colSpan}`,
+                        gridRow: `span ${cell.rowSpan}`,
+                      }}
+                    >
+                      {item?.type === "stl" ? (
+                        <div className="absolute inset-0">
+                          <STLCanvasOnly
+                            models={[{ src: item.url, color: modelColor }]}
+                            isWireframe={isWireframe}
+                            showGrid={showGrid}
+                            modelColor={modelColor}
+                          />
+                        </div>
+                      ) : item?.type === "image" ? (
+                        <img
+                          src={item.url}
+                          alt={`Preview ${idx + 1}`}
+                          className="absolute inset-0 w-full h-full object-contain bg-white"
+                        />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-[10px]">
+                          {idx === 0 ? "Select a file to preview" : `Cell ${idx + 1}`}
+                        </div>
+                      )}
+                      {/* Cell index badge */}
+                      {activeLayout.cells.length > 1 && (
+                        <div className="absolute top-1 left-1 bg-black/40 text-white text-[8px] font-medium px-1.5 py-0.5 rounded z-10">
+                          {idx + 1}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           </div>
         </div>

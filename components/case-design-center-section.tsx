@@ -3660,7 +3660,7 @@ export default function CSDSection({
                               })()} uploads)
                             </Button>
                           </DialogTrigger>
-                          <DialogContent className="max-w-7xl max-h-[90vh] p-0">
+                          <DialogContent className="max-w-[1000px] w-[95vw] max-h-[min(750px,85vh)] p-0">
                             <FileAttachmentModalContent setShowAttachModal={setShowAttachModal} isCaseSubmitted={isCaseSubmitted} />
                           </DialogContent>
                         </Dialog>

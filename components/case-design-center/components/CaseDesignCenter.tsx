@@ -175,6 +175,24 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     return Array.from(seen.entries()).map(([id, name]) => ({ id, name }));
   }, [state.maxillaryRetentionTypes, state.mandibularRetentionTypes, state.getToothProduct, props.selectedProductId, props.selectedProductName, props.addedProducts]);
 
+  // Collect unique stage names from all tooth products for the attachment modal
+  const caseStages = useMemo(() => {
+    const stageSet = new Set<string>();
+    const allTeethKeys = [
+      ...Object.keys(state.maxillaryRetentionTypes).map((t) => ({ arch: "maxillary" as const, tn: Number(t) })),
+      ...Object.keys(state.mandibularRetentionTypes || {}).map((t) => ({ arch: "mandibular" as const, tn: Number(t) })),
+    ];
+    for (const { arch, tn } of allTeethKeys) {
+      const product = state.getToothProduct(arch, tn);
+      if (product?.stages) {
+        for (const s of product.stages) {
+          if (s.name) stageSet.add(s.name);
+        }
+      }
+    }
+    return Array.from(stageSet);
+  }, [state.maxillaryRetentionTypes, state.mandibularRetentionTypes, state.getToothProduct]);
+
   // Compute a human-readable label for the first incomplete required field across all teeth.
   // For Fixed Restoration, shades are stored per product group (under fixed_${firstToothNumber}), not per tooth — validate once per group.
   const incompleteFieldLabel = (() => {
@@ -803,6 +821,10 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         currentAddOnsProductId={state.currentAddOnsProductId}
         currentAddOnsToothNumber={state.currentAddOnsToothNumber}
         addOnsProducts={caseProducts}
+        addOnsVisibleArches={[
+          ...(state.maxillaryTeeth.length > 0 ? ["maxillary" as const] : []),
+          ...(state.mandibularTeeth.length > 0 ? ["mandibular" as const] : []),
+        ]}
         onAddOnsConfirm={(addOns) => {
           const toothNum = state.currentAddOnsToothNumber;
           const arch = state.currentAddOnsArch;
@@ -829,6 +851,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         }}
         showAttachModal={state.showAttachModal}
         setShowAttachModal={state.setShowAttachModal}
+        attachmentStages={caseStages}
         showRushModal={state.showRushModal}
         setShowRushModal={state.setShowRushModal}
         currentRushArch={state.currentRushArch}

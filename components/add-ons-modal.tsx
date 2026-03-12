@@ -24,6 +24,8 @@ interface AddOnsModalProps {
   arch: "maxillary" | "mandibular"
   /** All products available in the case — shown as tabs */
   products?: AddOnsProduct[]
+  /** Which arch columns to display. Defaults to both. */
+  visibleArches?: ("maxillary" | "mandibular")[]
 }
 
 type ApiAddon = {
@@ -63,7 +65,7 @@ type SelectedAddOn = {
 
 const ITEMS_PER_PAGE = 10
 
-export default function AddOnsModal({ isOpen, onClose, onAddAddOns, labId, productId, arch, products = [] }: AddOnsModalProps) {
+export default function AddOnsModal({ isOpen, onClose, onAddAddOns, labId, productId, arch, products = [], visibleArches = ["maxillary", "mandibular"] }: AddOnsModalProps) {
   const [activeProductId, setActiveProductId] = useState<number | null>(null)
   const [maxSearch, setMaxSearch] = useState("")
   const [mandSearch, setMandSearch] = useState("")
@@ -436,7 +438,7 @@ export default function AddOnsModal({ isOpen, onClose, onAddAddOns, labId, produ
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-[960px] p-0 rounded-xl shadow-2xl flex flex-col max-h-[85vh] gap-0">
+      <DialogContent className={`${visibleArches.length === 1 ? "max-w-[520px]" : "max-w-[960px]"} p-0 rounded-xl shadow-2xl flex flex-col max-h-[85vh] gap-0`}>
         {/* Header */}
         <div className="flex justify-between items-center px-6 pt-5 pb-3">
           <div className="flex items-center gap-2">
@@ -475,9 +477,9 @@ export default function AddOnsModal({ isOpen, onClose, onAddAddOns, labId, produ
           </div>
         )}
 
-        {/* Two-column layout: Maxillary + Mandibular */}
+        {/* Arch columns layout: show one or both based on visibleArches */}
         <div className="flex gap-6 flex-1 min-h-0 px-6">
-          {renderArchColumn(
+          {visibleArches.includes("maxillary") && renderArchColumn(
             "maxillary",
             "Maxillary Add on",
             maxSearch,
@@ -489,10 +491,12 @@ export default function AddOnsModal({ isOpen, onClose, onAddAddOns, labId, produ
             maxTotalPages
           )}
 
-          {/* Vertical divider */}
-          <div className="w-px bg-gray-300 flex-shrink-0" />
+          {/* Vertical divider — only when both columns are visible */}
+          {visibleArches.includes("maxillary") && visibleArches.includes("mandibular") && (
+            <div className="w-px bg-gray-300 flex-shrink-0" />
+          )}
 
-          {renderArchColumn(
+          {visibleArches.includes("mandibular") && renderArchColumn(
             "mandibular",
             "Mandibular Add on",
             mandSearch,

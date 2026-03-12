@@ -96,11 +96,11 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
   }, []);
 
   return (
-    <div className="bg-[#fdfdfd] border-b border-[#d9d9d9] px-4 sm:px-6 py-2">
-      <div className="flex flex-col lg:flex-row items-center lg:items-start gap-4 lg:gap-8">
+    <div className={`bg-[#fdfdfd] border-b border-[#d9d9d9] px-4 sm:px-6 ${compactLayout && !caseSubmitted ? "py-1" : "py-2"}`}>
+      <div className={`flex flex-col lg:flex-row items-center ${compactLayout && !caseSubmitted ? "gap-2 lg:gap-4" : "lg:items-start gap-4 lg:gap-8"}`}>
         {/* Doctor photo + name */}
         <div className="flex flex-col items-center gap-1 flex-shrink-0">
-          <div className={`${caseSubmitted ? "w-[90px] h-[90px] sm:w-[130px] sm:h-[130px]" : "w-[70px] h-[70px] sm:w-[100px] sm:h-[100px]"} rounded-full overflow-hidden bg-gray-200 flex items-center justify-center relative`}>
+          <div className={`${caseSubmitted ? "w-[90px] h-[90px] sm:w-[130px] sm:h-[130px]" : compactLayout ? "w-[40px] h-[40px] sm:w-[50px] sm:h-[50px] hover:w-[70px] hover:h-[70px] sm:hover:w-[100px] sm:hover:h-[100px] transition-all duration-300 ease-in-out cursor-pointer" : "w-[70px] h-[70px] sm:w-[100px] sm:h-[100px]"} rounded-full overflow-hidden bg-gray-200 flex items-center justify-center relative`}>
             <img
               src={imgSrc}
               onError={(e) => {

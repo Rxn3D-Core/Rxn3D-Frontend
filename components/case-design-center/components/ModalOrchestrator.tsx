@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { ImpressionSelectionModal } from "@/components/impression-selection-modal";
 import AddOnsModal from "@/components/add-ons-modal";
 import FileAttachmentModalContent from "@/components/file-attachment-modal-content";
@@ -39,9 +39,13 @@ interface ModalOrchestratorProps {
   onAddOnsConfirm: (addOns: { addon_id: number; qty: number; category: string; subcategory: string; name: string; price: number }[]) => void;
   /** Products available in the case — shown as tabs in add-ons modal */
   addOnsProducts?: AddOnsProduct[];
+  /** Which arch columns to display in add-ons modal */
+  addOnsVisibleArches?: ("maxillary" | "mandibular")[];
   // Attachment
   showAttachModal: boolean;
   setShowAttachModal: (v: boolean) => void;
+  /** Available stages derived from product API data — shown as accordion sections */
+  attachmentStages?: string[];
   // Rush
   showRushModal: boolean;
   setShowRushModal: (v: boolean) => void;
@@ -108,9 +112,11 @@ export function ModalOrchestrator({
   currentAddOnsToothNumber,
   onAddOnsConfirm,
   addOnsProducts,
+  addOnsVisibleArches,
   // Attachment
   showAttachModal,
   setShowAttachModal,
+  attachmentStages,
   // Rush
   showRushModal,
   setShowRushModal,
@@ -132,6 +138,8 @@ export function ModalOrchestrator({
   handleStageSelect,
   onStageConfirm,
 }: ModalOrchestratorProps) {
+  const [attachViewerOpen, setAttachViewerOpen] = useState(false)
+  const handleViewerToggle = useCallback((isOpen: boolean) => setAttachViewerOpen(isOpen), [])
   return (
     <>
       {/* Impression Selection Modal */}
@@ -182,6 +190,7 @@ export function ModalOrchestrator({
         productId={currentAddOnsProductId}
         arch={currentAddOnsArch}
         products={addOnsProducts}
+        visibleArches={addOnsVisibleArches}
       />
 
       {/* Stage Selection Modal — auto-selects when only 1 stage is available */}
@@ -208,10 +217,12 @@ export function ModalOrchestrator({
 
       {/* File Attachment Modal */}
       <Dialog open={showAttachModal} onOpenChange={setShowAttachModal}>
-        <DialogContent className="max-w-[95vw] w-full max-h-[95vh] overflow-hidden flex flex-col p-0">
+        <DialogContent className={`${attachViewerOpen ? "max-w-[1400px]" : "max-w-[1000px]"} w-[95vw] max-h-[min(750px,85vh)] overflow-hidden flex flex-col p-0 transition-all duration-300`}>
           <FileAttachmentModalContent
             setShowAttachModal={setShowAttachModal}
             isCaseSubmitted={false}
+            availableStages={attachmentStages}
+            onViewerToggle={handleViewerToggle}
           />
         </DialogContent>
       </Dialog>
@@ -230,6 +241,8 @@ export function ModalOrchestrator({
         mandExistingRushDate={currentRushMandProductId ? rushedProducts[`mandibular_${currentRushMandProductId}`]?.targetDate : undefined}
         onRemoveMaxRush={currentRushMaxProductId ? () => handleRemoveRush("maxillary", currentRushMaxProductId) : undefined}
         onRemoveMandRush={currentRushMandProductId ? () => handleRemoveRush("mandibular", currentRushMandProductId) : undefined}
+        hasMaxillary={!!currentRushMaxProductId}
+        hasMandibular={!!currentRushMandProductId}
         product={{
           name:
             currentRushProductId === "removable_1"

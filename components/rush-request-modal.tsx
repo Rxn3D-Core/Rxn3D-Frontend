@@ -31,6 +31,8 @@ interface RushRequestModalProps {
   mandExistingRushDate?: string
   onRemoveMaxRush?: () => void
   onRemoveMandRush?: () => void
+  hasMaxillary?: boolean
+  hasMandibular?: boolean
   product: {
     name: string
     stage: string
@@ -54,6 +56,8 @@ export default function RushRequestModal({
   mandExistingRushDate,
   onRemoveMaxRush,
   onRemoveMandRush,
+  hasMaxillary = true,
+  hasMandibular = true,
   product,
   products = [],
 }: RushRequestModalProps) {
@@ -272,9 +276,9 @@ export default function RushRequestModal({
               </div>
             )}
 
-            {/* Two-column layout: Maxillary + Mandibular Rush */}
+            {/* Arch Rush columns — show only arches that have products */}
             <div className="flex gap-6">
-              {renderArchColumn(
+              {hasMaxillary && renderArchColumn(
                 "maxillary",
                 "Maxillary Rush detail",
                 maxTargetDate,
@@ -283,10 +287,11 @@ export default function RushRequestModal({
                 setMaxCalendarOpen,
               )}
 
-              {/* Vertical divider */}
-              <div className="w-px bg-gray-200 flex-shrink-0" />
+              {hasMaxillary && hasMandibular && (
+                <div className="w-px bg-gray-200 flex-shrink-0" />
+              )}
 
-              {renderArchColumn(
+              {hasMandibular && renderArchColumn(
                 "mandibular",
                 "Mandibular Rush detail",
                 mandTargetDate,

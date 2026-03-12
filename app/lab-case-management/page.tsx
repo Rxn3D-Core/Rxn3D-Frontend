@@ -1957,7 +1957,7 @@ export default function LabSlipPage() {
 
         {/* File Attachment Modal */}
         <Dialog open={showAttachModal} onOpenChange={setShowAttachModal}>
-          <DialogContent className="max-w-[95vw] max-h-[95vh] p-0 overflow-hidden">
+          <DialogContent className="max-w-[1000px] w-[95vw] max-h-[min(750px,85vh)] p-0 overflow-hidden">
             {selectedSlipForAttachment && (
               <FileAttachmentModalContent
                 setShowAttachModal={setShowAttachModal}
