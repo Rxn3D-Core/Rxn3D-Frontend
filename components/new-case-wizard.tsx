@@ -1456,7 +1456,7 @@ export default function NewCaseWizard({
             isLoading={labsLoading}
             error={labsError}
             stepTitle={role === "office_admin" ? "Choose a Lab" : "Choose an Office"}
-            entityLabel={role === "office_admin" ? "office" : "lab"}
+            entityLabel={role === "office_admin" ? "lab" : "office"}
             onAddNew={() => setShowAddLabModal(true)}
           />
         )}

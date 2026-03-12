@@ -813,6 +813,30 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             } else {
               state.completeFieldStep(arch, toothNum, "impression", displayText);
             }
+
+            // Auto-copy impression selections to mandibular when "both arches" removable
+            if (
+              props.initialArch === "both" &&
+              arch === "maxillary" &&
+              toothNum === MAXILLARY_SENTINEL &&
+              isRemovableCategory(props.selectedProductCategoryName || "")
+            ) {
+              // Mirror selectedImpressions entries from maxillary to mandibular
+              const currentImpressions = { ...state.selectedImpressions };
+              const productId = state.currentImpressionProductId;
+              const maxPrefix = `${productId}_maxillary_`;
+              const mandPrefix = `${productId}_mandibular_`;
+              const mirrored: Record<string, number> = {};
+              for (const [key, qty] of Object.entries(currentImpressions)) {
+                if (key.startsWith(maxPrefix)) {
+                  const suffix = key.slice(maxPrefix.length);
+                  mirrored[`${mandPrefix}${suffix}`] = qty;
+                }
+              }
+              if (Object.keys(mirrored).length > 0) {
+                state.setSelectedImpressions((prev: Record<string, number>) => ({ ...prev, ...mirrored }));
+              }
+            }
           }
         }}
         showAddOnsModal={state.showAddOnsModal}
@@ -889,6 +913,20 @@ export function CaseDesignCenter(props: CaseDesignProps) {
               state.completeFieldStep(arch, toothNum, "fixed_stage", stageName);
             } else {
               state.completeFieldStep(arch, toothNum, "stage", stageName);
+            }
+
+            // Auto-copy stage selection to mandibular when "both arches" removable
+            if (
+              props.initialArch === "both" &&
+              arch === "maxillary" &&
+              toothNum === MAXILLARY_SENTINEL &&
+              isRemovableCategory(props.selectedProductCategoryName || "")
+            ) {
+              const mandStageKey = `mandibular_prep_${MANDIBULAR_SENTINEL}`;
+              state.setSelectedStages((prev: Record<string, string>) => ({
+                ...prev,
+                [mandStageKey]: stageName,
+              }));
             }
           }
         }}

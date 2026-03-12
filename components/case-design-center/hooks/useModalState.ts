@@ -155,6 +155,7 @@ export function useModalState() {
     currentStageArch,
     currentStageToothNumber,
     selectedStages,
+    setSelectedStages,
     handleOpenStageModal,
     handleStageSelect,
     migrateStageKey,

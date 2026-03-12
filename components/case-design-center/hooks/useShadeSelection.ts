@@ -62,6 +62,7 @@ export function useShadeSelection() {
     shadeSelectionState,
     setShadeSelectionState,
     selectedShades,
+    setSelectedShades,
     selectedShadeGuide,
     setSelectedShadeGuide,
     showShadeGuideDropdown,

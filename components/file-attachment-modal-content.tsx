@@ -22,6 +22,9 @@ import {
   Maximize2,
   RotateCcw,
   Play,
+  ZoomIn,
+  ZoomOut,
+  Move,
 } from "lucide-react"
 import dynamic from "next/dynamic"
 import SimpleSTLViewer from "./demo/simple-stl-generator"
@@ -368,6 +371,21 @@ export default function FileAttachmentModalContent({
   const activeLayout = LAYOUT_OPTIONS.find(l => l.id === selectedLayout) || LAYOUT_OPTIONS[0]
   const maxCells = activeLayout.cells.length
 
+  // Zoom state per viewer cell (keyed by url)
+  const [imageZoom, setImageZoom] = useState<Record<string, number>>({})
+  const [imagePan, setImagePan] = useState<Record<string, { x: number; y: number }>>({})
+
+  const handleImageZoomIn = (url: string) => {
+    setImageZoom(prev => ({ ...prev, [url]: Math.min((prev[url] || 1) + 0.25, 5) }))
+  }
+  const handleImageZoomOut = (url: string) => {
+    setImageZoom(prev => ({ ...prev, [url]: Math.max((prev[url] || 1) - 0.25, 0.25) }))
+  }
+  const handleImageZoomReset = (url: string) => {
+    setImageZoom(prev => ({ ...prev, [url]: 1 }))
+    setImagePan(prev => ({ ...prev, [url]: { x: 0, y: 0 } }))
+  }
+
   // View file: open STL viewer pane with this file
   const handleViewFile = (url: string) => {
     setViewing3dUrl(url)
@@ -665,8 +683,8 @@ export default function FileAttachmentModalContent({
                                   <FileText className={`text-gray-300 ${isViewerOpen ? "w-8 h-8" : "w-10 h-10"}`} />
                                 )}
 
-                                {/* "View File" button overlay on hover for STL/3D files */}
-                                {(isStl || is3dObj) && !archived && (
+                                {/* "View File" button overlay on hover for STL/3D/image files */}
+                                {((isStl || is3dObj || isImage) && !archived) && (
                                   <button
                                     type="button"
                                     className={`absolute bottom-1.5 right-1.5 bg-[#1162A8] text-white rounded font-medium shadow hover:bg-[#0f5490] transition z-10 opacity-0 group-hover:opacity-100 ${isViewerOpen ? "px-1.5 py-0.5 text-[8px]" : "px-2 py-0.5 text-[9px]"}`}
@@ -675,7 +693,7 @@ export default function FileAttachmentModalContent({
                                       handleViewFile(url)
                                     }}
                                   >
-                                    View File
+                                    {isImage ? "View Image" : "View File"}
                                   </button>
                                 )}
 
@@ -889,11 +907,73 @@ export default function FileAttachmentModalContent({
                           />
                         </div>
                       ) : item?.type === "image" ? (
-                        <img
-                          src={item.url}
-                          alt={`Preview ${idx + 1}`}
-                          className="absolute inset-0 w-full h-full object-contain bg-white"
-                        />
+                        <div
+                          className="absolute inset-0 bg-white overflow-hidden cursor-grab active:cursor-grabbing"
+                          onWheel={(e) => {
+                            e.stopPropagation()
+                            if (e.deltaY < 0) handleImageZoomIn(item.url)
+                            else handleImageZoomOut(item.url)
+                          }}
+                          onMouseDown={(e) => {
+                            if (e.button !== 0) return
+                            const startX = e.clientX
+                            const startY = e.clientY
+                            const startPan = imagePan[item.url] || { x: 0, y: 0 }
+                            const onMove = (ev: MouseEvent) => {
+                              setImagePan(prev => ({
+                                ...prev,
+                                [item.url]: {
+                                  x: startPan.x + (ev.clientX - startX),
+                                  y: startPan.y + (ev.clientY - startY),
+                                },
+                              }))
+                            }
+                            const onUp = () => {
+                              window.removeEventListener("mousemove", onMove)
+                              window.removeEventListener("mouseup", onUp)
+                            }
+                            window.addEventListener("mousemove", onMove)
+                            window.addEventListener("mouseup", onUp)
+                          }}
+                        >
+                          <img
+                            src={item.url}
+                            alt={`Preview ${idx + 1}`}
+                            className="w-full h-full object-contain select-none"
+                            draggable={false}
+                            style={{
+                              transform: `scale(${imageZoom[item.url] || 1}) translate(${(imagePan[item.url]?.x || 0) / (imageZoom[item.url] || 1)}px, ${(imagePan[item.url]?.y || 0) / (imageZoom[item.url] || 1)}px)`,
+                              transformOrigin: "center center",
+                            }}
+                          />
+                          {/* Zoom controls overlay */}
+                          <div className="absolute bottom-2 right-2 flex items-center gap-1 bg-black/50 rounded-lg px-1.5 py-1 z-20">
+                            <button
+                              className="p-0.5 hover:bg-white/20 rounded text-white transition"
+                              onClick={(e) => { e.stopPropagation(); handleImageZoomOut(item.url) }}
+                              title="Zoom out"
+                            >
+                              <ZoomOut className="w-3.5 h-3.5" />
+                            </button>
+                            <span className="text-white text-[9px] font-medium min-w-[32px] text-center">
+                              {Math.round((imageZoom[item.url] || 1) * 100)}%
+                            </span>
+                            <button
+                              className="p-0.5 hover:bg-white/20 rounded text-white transition"
+                              onClick={(e) => { e.stopPropagation(); handleImageZoomIn(item.url) }}
+                              title="Zoom in"
+                            >
+                              <ZoomIn className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              className="p-0.5 hover:bg-white/20 rounded text-white transition"
+                              onClick={(e) => { e.stopPropagation(); handleImageZoomReset(item.url) }}
+                              title="Reset zoom"
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
                       ) : (
                         <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-[10px]">
                           {idx === 0 ? "Select a file to preview" : `Cell ${idx + 1}`}
