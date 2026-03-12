@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Canvas, useThree, useLoader } from "@react-three/fiber"
+import { Canvas, useThree } from "@react-three/fiber"
 import { OrbitControls, Grid, Environment } from "@react-three/drei"
 import * as THREE from "three"
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader"
@@ -11,9 +11,10 @@ interface STLCanvasOnlyProps {
   isWireframe?: boolean
   showGrid?: boolean
   modelColor?: string
+  realistic?: boolean
 }
 
-function STLModel({ src, color, isWireframe }: { src: string; color: string; isWireframe: boolean }) {
+function STLModel({ src, color, isWireframe, realistic }: { src: string; color: string; isWireframe: boolean; realistic: boolean }) {
   const [geometry, setGeometry] = useState<THREE.BufferGeometry | null>(null)
 
   useEffect(() => {
@@ -37,6 +38,22 @@ function STLModel({ src, color, isWireframe }: { src: string; color: string; isW
 
   if (!geometry) return null
 
+  if (realistic && !isWireframe) {
+    return (
+      <mesh geometry={geometry} castShadow receiveShadow>
+        <meshPhysicalMaterial
+          color={color}
+          metalness={0.85}
+          roughness={0.15}
+          clearcoat={0.3}
+          clearcoatRoughness={0.1}
+          envMapIntensity={1.5}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+    )
+  }
+
   return (
     <mesh geometry={geometry}>
       <meshStandardMaterial
@@ -46,6 +63,24 @@ function STLModel({ src, color, isWireframe }: { src: string; color: string; isW
       />
     </mesh>
   )
+}
+
+function SceneSetup({ realistic }: { realistic: boolean }) {
+  const { gl, scene } = useThree()
+
+  useEffect(() => {
+    if (realistic) {
+      gl.toneMapping = THREE.ACESFilmicToneMapping
+      gl.toneMappingExposure = 1.2
+      scene.background = new THREE.Color("#1a3a5c")
+    } else {
+      gl.toneMapping = THREE.NoToneMapping
+      gl.toneMappingExposure = 1
+      scene.background = new THREE.Color("#e9ecef")
+    }
+  }, [realistic, gl, scene])
+
+  return null
 }
 
 function CameraControls() {
@@ -72,6 +107,7 @@ export default function STLCanvasOnly({
   isWireframe = false,
   showGrid = false,
   modelColor = "#f9c74f",
+  realistic = true,
 }: STLCanvasOnlyProps) {
   if (models.length === 0) {
     return (
@@ -84,19 +120,47 @@ export default function STLCanvasOnly({
   return (
     <div className="w-full h-full">
       <Canvas
+        shadows={realistic}
         camera={{ position: [0, 0, 80], fov: 75 }}
-        style={{ background: "#e9ecef", width: "100%", height: "100%" }}
+        style={{ width: "100%", height: "100%" }}
       >
-        <ambientLight intensity={0.5} />
-        <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} />
-        <pointLight position={[-10, -10, -10]} />
-        <Environment preset="studio" />
-        {models.map((model, index) => (
+        <SceneSetup realistic={realistic} />
+        {realistic ? (
+          <>
+            <ambientLight intensity={0.3} />
+            <directionalLight
+              position={[10, 15, 10]}
+              intensity={1.5}
+              castShadow
+              shadow-mapSize-width={1024}
+              shadow-mapSize-height={1024}
+            />
+            <directionalLight position={[-8, 10, -5]} intensity={0.6} />
+            <spotLight
+              position={[0, 20, 15]}
+              angle={0.3}
+              penumbra={0.8}
+              intensity={1}
+              castShadow
+            />
+            <pointLight position={[-10, -5, 10]} intensity={0.3} color="#6699cc" />
+            <Environment preset="city" />
+          </>
+        ) : (
+          <>
+            <ambientLight intensity={0.5} />
+            <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} />
+            <pointLight position={[-10, -10, -10]} />
+            <Environment preset="studio" />
+          </>
+        )}
+        {models.map((model) => (
           <STLModel
             key={model.src}
             src={model.src}
             color={model.color || modelColor}
             isWireframe={isWireframe}
+            realistic={realistic}
           />
         ))}
         {showGrid && <Grid args={[100, 100]} />}
