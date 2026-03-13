@@ -1203,17 +1203,7 @@ export function MaxillaryPanel({
                                 const borderClass = isFComplete("addons") && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]";
                                 const legendClass = isFComplete("addons") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]";
                                 const onClickAddon = () => handleOpenAddOnsModal("maxillary", toothProduct?.id?.toString() || productKey, repTn);
-                                if (addonItems.length === 0) {
-                                  return (
-                                    <fieldset
-                                      className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${borderClass}`}
-                                      onClick={onClickAddon}
-                                    >
-                                      <legend className={`text-sm px-1 leading-none ${legendClass}`}>Add ons</legend>
-                                      <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">No add on selected</span>
-                                    </fieldset>
-                                  );
-                                }
+                                if (addonItems.length === 0) return null;
                                 return (
                                   <div className="flex flex-wrap gap-3">
                                     {addonItems.map((item: string, idx: number) => (
@@ -1865,17 +1855,7 @@ export function MaxillaryPanel({
                             const borderClass = isFComplete("addons") && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]";
                             const legendClass = isFComplete("addons") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]";
                             const onClickAddon = () => handleOpenAddOnsModal("maxillary", toothProduct?.id?.toString() || productKey, repTn);
-                            if (addonItems.length === 0) {
-                              return (
-                                <fieldset
-                                  className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${borderClass}`}
-                                  onClick={onClickAddon}
-                                >
-                                  <legend className={`text-sm px-1 leading-none ${legendClass}`}>Add ons</legend>
-                                  <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">No add on selected</span>
-                                </fieldset>
-                              );
-                            }
+                            if (addonItems.length === 0) return null;
                             return (
                               <div className="flex flex-wrap gap-3">
                                 {addonItems.map((item: string, idx: number) => (

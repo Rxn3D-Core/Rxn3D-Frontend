@@ -699,13 +699,7 @@ export function FixedRestorationFields({
               </div>
             </fieldset>
 
-            {isFixed("fixed_addons") && (
-              addonItems.length === 0 ? (
-                <fieldset className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors flex-1 min-w-[200px] ${borderClass}`} onClick={onClickAddon}>
-                  <legend className={`text-sm px-1 leading-none ${legendClass}`}>Add ons</legend>
-                  <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">No add on selected</span>
-                </fieldset>
-              ) : (
+            {isFixed("fixed_addons") && addonItems.length > 0 &&
                 addonItems.map((item: string, idx: number) => (
                   <fieldset key={idx} className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors flex-1 min-w-[200px] ${borderClass}`} onClick={onClickAddon}>
                     <legend className={`text-sm px-1 leading-none ${legendClass}`}>Add on</legend>
@@ -715,8 +709,7 @@ export function FixedRestorationFields({
                     )}
                   </fieldset>
                 ))
-              )
-            )}
+            }
           </div>
         );
       })()}

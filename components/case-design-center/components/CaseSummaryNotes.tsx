@@ -358,8 +358,12 @@ export function CaseSummaryNotes(props: NotesProps) {
         )}
 
         {/* Right side - textarea as fieldset */}
+        <div className="flex-1 min-w-0 relative">
+          <span className="absolute left-1/2 -translate-x-1/2 -top-[14px] bg-white px-2 text-xl sm:text-2xl text-[#7f7f7f] font-normal tracking-[0.05em] leading-none whitespace-nowrap z-10">
+            Case summary notes
+          </span>
         <fieldset
-          className={`flex-1 min-w-0 relative border border-[#7f7f7f] bg-white transition-all ${
+          className={`w-full relative border border-[#7f7f7f] bg-white transition-all ${
             collapsed
               ? "rounded-[8px] h-[40px]"
               : expanded
@@ -367,9 +371,7 @@ export function CaseSummaryNotes(props: NotesProps) {
                 : "rounded-r-[8px] h-[130px] sm:h-[154px]"
           }`}
         >
-          <legend className="ml-2 px-1 text-xs sm:text-sm text-[#7f7f7f] font-normal tracking-[0.05em] leading-none">
-            Case summary notes
-          </legend>
+          <legend className="sr-only">Case summary notes</legend>
 
           {collapsed ? (
             <div className="flex items-center justify-between px-2 sm:px-[15px] h-[20px]">
@@ -403,6 +405,7 @@ export function CaseSummaryNotes(props: NotesProps) {
             </div>
           )}
         </fieldset>
+        </div>
       </div>
     </div>
   );

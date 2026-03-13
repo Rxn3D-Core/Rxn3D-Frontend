@@ -686,14 +686,13 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
             </>
           )}
           <defs>
-            {/* WED red tint filter – blends tooth with #E92520 */}
+            {/* WED salmon-pink: solid color flood clipped to tooth shape */}
             <filter id="wed-tint" colorInterpolationFilters="sRGB">
-              <feFlood floodColor="#E92520" floodOpacity="1" result="red" />
-              <feBlend in="SourceGraphic" in2="red" mode="multiply" result="tinted" />
-              <feComposite in="tinted" in2="SourceGraphic" operator="in" />
+              <feFlood floodColor="#fe9aa0" floodOpacity="1" result="pink" />
+              <feComposite in="pink" in2="SourceGraphic" operator="in" />
             </filter>
-            {/* Override tooth number fill to white for WED teeth */}
-            <style>{`.wed-number path { fill: #FFFFFF !important; }`}</style>
+            {/* Override tooth number fill for WED teeth */}
+            <style>{`.wed-number path { fill: #374151 !important; }`}</style>
             <pattern id="pattern0_0_1" patternContentUnits="objectBoundingBox" width="1" height="1">
               <use xlinkHref="#image0_0_1" transform="scale(0.0227273 0.0070922)" />
             </pattern>

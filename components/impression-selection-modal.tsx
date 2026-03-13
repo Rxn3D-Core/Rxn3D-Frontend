@@ -78,11 +78,9 @@ export function ImpressionSelectionModal({
       onUpdateQuantity(key, currentQty - 1)
       setLastTouchedKey(key)
     } else if (currentQty === 1) {
-      // going to 0 — move "last touched" to another card that still has quantity
       onUpdateQuantity(key, 0)
       setLastTouchedKey((prev) => {
         if (prev !== key) return prev
-        // Find another impression that still has quantity > 0
         const otherKey = impressions
           .map(getImpressionKey)
           .find((k) => k !== key && (selectedImpressions[k] ?? 0) > 0)
@@ -131,7 +129,6 @@ export function ImpressionSelectionModal({
     return null
   }
 
-  // The "last touched" card key — valid only if it still has quantity > 0
   const activeDoneKey = lastTouchedKey && (selectedImpressions[lastTouchedKey] ?? 0) > 0
     ? lastTouchedKey
     : null
@@ -202,11 +199,8 @@ export function ImpressionSelectionModal({
                         {impression.description}
                       </span>
                     )}
-                  </div>
 
-                  {/* Controls outside the card — always visible */}
-                  <div className="flex flex-col items-center gap-1 mt-2">
-                    {/* - qty + */}
+                    {/* Controls inside the card */}
                     <div className="flex flex-row items-center gap-[5px]">
                       <button
                         className="w-[30px] h-[30px] flex items-center justify-center rounded-[8px] border border-[#B4B0B0] bg-white hover:bg-gray-50 transition-all"
@@ -224,10 +218,12 @@ export function ImpressionSelectionModal({
                         <Plus className="w-[13px] h-[13px] text-[#1D1B20]" strokeWidth={1.83} />
                       </button>
                     </div>
+                  </div>
 
-                    {/* Done/Files button — only on last selected card */}
-                    {isSelected && isLastSelected && (
-                      isSTLImpression(impression) ? (
+                  {/* Done/Files button outside the card */}
+                  {isSelected && isLastSelected && (
+                    <div className="mt-1">
+                      {isSTLImpression(impression) ? (
                         <button
                           className="flex items-center justify-center px-[8px] py-[6px] bg-[#1162A8] rounded-[4px] hover:bg-[#0e5290] transition-colors h-[26px]"
                           onClick={() => {
@@ -248,9 +244,9 @@ export function ImpressionSelectionModal({
                             Done
                           </span>
                         </button>
-                      )
-                    )}
-                  </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -312,11 +308,8 @@ export function ImpressionSelectionModal({
                         {impression.description}
                       </span>
                     )}
-                  </div>
 
-                  {/* Controls outside the card — always visible */}
-                  <div className="flex flex-col items-center gap-2 mt-2">
-                    {/* - qty + */}
+                    {/* Controls inside the card */}
                     <div className="flex flex-row items-center gap-[5px]">
                       <button
                         className="w-[36px] h-[36px] flex items-center justify-center rounded-[8px] border border-[#B4B0B0] bg-white hover:bg-gray-50 transition-all"
@@ -334,10 +327,12 @@ export function ImpressionSelectionModal({
                         <Plus className="w-[15px] h-[15px] text-[#1D1B20]" strokeWidth={1.83} />
                       </button>
                     </div>
+                  </div>
 
-                    {/* Done/Files button — only on last selected card */}
-                    {isSelected && isLastSelected && (
-                      isSTLImpression(impression) ? (
+                  {/* Done/Files button outside the card */}
+                  {isSelected && isLastSelected && (
+                    <div className="mt-2">
+                      {isSTLImpression(impression) ? (
                         <button
                           className="flex items-center justify-center px-[10px] py-[8px] bg-[#1162A8] rounded-[4px] hover:bg-[#0e5290] transition-colors h-[31px]"
                           onClick={() => {
@@ -358,9 +353,9 @@ export function ImpressionSelectionModal({
                             Done
                           </span>
                         </button>
-                      )
-                    )}
-                  </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )
             })}

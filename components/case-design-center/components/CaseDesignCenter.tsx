@@ -710,7 +710,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           <div className="relative">
             {/* Center action icons — absolutely centered on top of case summary notes */}
             {showIcons && (
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
+              <div className="absolute -top-6 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
                 <CenterActionIcons
                   visible={true}
                   onEdit={() => {}}
@@ -900,6 +900,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           return product.stages.map((s) => ({
             name: s.name,
             letter: s.code?.charAt(0)?.toUpperCase() || s.name.charAt(0).toUpperCase(),
+            is_default: s.is_default,
           }));
         })()}
         handleStageSelect={state.handleStageSelect}

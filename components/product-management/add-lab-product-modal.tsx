@@ -185,6 +185,7 @@ export function AddLabProductModal({
   }
 
   const [releasingStageIds, setReleasingStageIds] = useState<(string | number)[]>([])
+  const [initialReleasingStageIds, setInitialReleasingStageIds] = useState<(string | number)[]>([])
   const [draggedStageId, setDraggedStageId] = useState<number | null>(null)
   
   // Store custom grade names (shared between GradesSection and StagesSection)
@@ -920,7 +921,15 @@ export function AddLabProductModal({
       setCustomImpressionNames({}) // Clear custom impression names when editing
       setCustomGumShadeNames({}) // Clear custom gum shade names when editing
       setCustomTeethShadeNames({}) // Clear custom teeth shade names when editing
-      setReleasingStageIds([]) // Reset releasing stages when editing
+      // Extract releasing stage IDs from fetched stage data (is_releasing_stage === "Yes")
+      const stageSource = editingProduct.stage_details && editingProduct.stage_details.length
+        ? editingProduct.stage_details
+        : (editingProduct.stages || [])
+      const fetchedReleasingIds = (stageSource as any[])
+        .filter((s: any) => s.is_releasing_stage === "Yes")
+        .map((s: any) => s.stage_id ?? s.id)
+      setReleasingStageIds(fetchedReleasingIds)
+      setInitialReleasingStageIds(fetchedReleasingIds)
     } else if (isOpen && !editingProduct) {
       // Reset to initial values (code will be generated from name)
       const initialValues = getInitialFormValues()
@@ -932,6 +941,7 @@ export function AddLabProductModal({
       setCustomGumShadeNames({}) // Clear custom gum shade names for new product
       setCustomTeethShadeNames({}) // Clear custom teeth shade names for new product
       setReleasingStageIds([]) // Reset releasing stages for new product
+      setInitialReleasingStageIds([]) // Reset initial releasing stages for new product
     }
   }, [isOpen, editingProduct, reset, clearValidationErrors, categoriesWithSubcategories])
 
@@ -1408,11 +1418,19 @@ export function AddLabProductModal({
     return acc
   }, {} as Record<string, any>)
 
+  // Check if releasing stage IDs have changed from initial
+  const hasReleasingStageChanges = useMemo(() => {
+    if (releasingStageIds.length !== initialReleasingStageIds.length) return true
+    const sortedCurrent = [...releasingStageIds].map(String).sort()
+    const sortedInitial = [...initialReleasingStageIds].map(String).sort()
+    return sortedCurrent.some((id, idx) => id !== sortedInitial[idx])
+  }, [releasingStageIds, initialReleasingStageIds])
+
   // Check if any field across all tabs is dirty
   const hasSectionChanges = useMemo(() => {
     if (!editingProduct || !editingProduct.id) return false
-    return isDirty
-  }, [editingProduct, isDirty])
+    return isDirty || hasReleasingStageChanges
+  }, [editingProduct, isDirty, hasReleasingStageChanges])
 
   // Generic handler to update any section
   const handleUpdateSection = async () => {
@@ -1460,14 +1478,19 @@ export function AddLabProductModal({
       // Calculate only the changed fields in this section
       const changes = calculateChanges(initialSectionData, sectionData)
       
-      // If no changes, show message and return
-      if (Object.keys(changes).length === 0) {
+      // If no changes (including releasing stage changes), show message and return
+      if (Object.keys(changes).length === 0 && !hasReleasingStageChanges) {
         toast({
           title: "No Changes",
           description: "No changes detected in this section.",
           variant: "default",
         })
         return
+      }
+
+      // If only releasing stages changed, ensure stages are included in changes
+      if (Object.keys(changes).length === 0 && hasReleasingStageChanges) {
+        changes.stages = sectionData.stages
       }
 
       // Remove category_id from changes (UI-only field)

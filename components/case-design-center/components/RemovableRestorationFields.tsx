@@ -559,7 +559,7 @@ export function RemovableRestorationFields({
             </div>
           </fieldset>
 
-          {isFieldVisibleFn(arch, firstToothNumber, "addons") ? (
+          {isFieldVisibleFn(arch, firstToothNumber, "addons") && getFieldValueFn(arch, firstToothNumber, "addons") ? (
             <fieldset
               className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
                 isFieldCompletedFn(arch, firstToothNumber, "addons") && !caseSubmitted
@@ -581,7 +581,7 @@ export function RemovableRestorationFields({
               </legend>
               <div className="flex items-center gap-2 w-full">
                 <span className="text-[14px] sm:text-lg text-[#000000] truncate">
-                  {getFieldValueFn(arch, firstToothNumber, "addons") || "No add on selected"}
+                  {getFieldValueFn(arch, firstToothNumber, "addons")}
                 </span>
                 {isFieldCompletedFn(arch, firstToothNumber, "addons") && !caseSubmitted && (
                   <Check size={16} className="text-[#34a853] ml-auto" />

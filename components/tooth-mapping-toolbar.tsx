@@ -43,9 +43,9 @@ const TOOTH_MAPPING_MODES: ToothMappingMode[] = [
   {
     id: 'will_extract',
     name: 'Will Extract on Delivery',
-    description: 'Tooth color overlay #E92520',
-    outlineColor: '#C40026',
-    fillColor: '#E92520', // Updated to match API: "Will extract on delivery"
+    description: 'Multiply blend #FF0513',
+    outlineColor: '#CC0410',
+    fillColor: '#FF0513', // Will extract on delivery – multiply blend
     visualStyle: 'solid'
   },
   {

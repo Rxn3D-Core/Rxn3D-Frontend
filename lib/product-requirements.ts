@@ -312,7 +312,7 @@ export function getFilteredProducts(
 export const TOOTH_STATUS_DISPLAY_MAP: { [key: string]: { label: string; color: string; bgColor: string } } = {
   "Teeth in mouth": { label: "Teeth in mouth", color: "#374151", bgColor: "#F3EBD7" }, // Matches API
   "Missing teeth": { label: "Missing teeth", color: "#374151", bgColor: "#D3D3D3" }, // Matches API
-  "Will extract on delivery": { label: "Will extract on delivery", color: "#ffffff", bgColor: "#E92520" }, // Matches API
+  "Will extract on delivery": { label: "Will extract on delivery", color: "#ffffff", bgColor: "#FF0513" }, // Matches API
   "Has been extracted": { label: "Has been extracted", color: "#ffffff", bgColor: "#595652" }, // Matches API
   "Prepped": { label: "Prepped", color: "#ffffff", bgColor: "#AFAA9D" }, // Updated to match API
   "Repair": { label: "Repair", color: "#ffffff", bgColor: "#90EE90" },

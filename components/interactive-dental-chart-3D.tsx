@@ -549,11 +549,22 @@ function LODTeeth({
             (selectedMaterial as any).emissive.setHex(0x002244);
           }
         } else if (toothExtractionType === 'Will extract on delivery') {
-          // Add pulsing red glow for teeth to be extracted
-          if ((selectedMaterial as any).emissive) {
-            (selectedMaterial as any).emissive.setHex(0x440000);
+          // Simulate multiply blend: mix the red tint with the original tooth color
+          if ((selectedMaterial as any).color && originalMaterial) {
+            const origColor = new THREE.Color();
+            if ((originalMaterial as any).color) {
+              origColor.copy((originalMaterial as any).color);
+            } else {
+              origColor.set('#F3EBD7'); // fallback tooth color
+            }
+            const tint = new THREE.Color('#FF0513');
+            // Multiply blend: each channel = original * tint (produces reddish-pink)
+            origColor.multiply(tint);
+            (selectedMaterial as any).color.copy(origColor);
           }
-          // Add a custom property for pulsing animation
+          if ((selectedMaterial as any).emissive) {
+            (selectedMaterial as any).emissive.setHex(0x220000);
+          }
           (selectedMaterial as any).isWillExtract = true;
           (selectedMaterial as any).animationTime = 0;
         } else if (toothExtractionType === 'Has been extracted') {
@@ -587,18 +598,45 @@ function LODTeeth({
         const currentExtractionTypeColor = EXTRACTION_TYPE_COLORS[selectedExtractionType as keyof typeof EXTRACTION_TYPE_COLORS];
         selectedMaterial = createToothMaterial('teeth_in_mouth', originalMaterial, currentExtractionTypeColor);
         
-        // Add special effects for "Prepped" extraction type
+        // Add special effects based on selected extraction type
         if (selectedExtractionType === 'Prepped') {
           if ((selectedMaterial as any).emissive) {
             (selectedMaterial as any).emissive.setHex(0x222200); // Subtle warm glow
           }
           (selectedMaterial as any).isPrepped = true;
+        } else if (selectedExtractionType === 'Will extract on delivery') {
+          // Simulate multiply blend for will-extract during active assignment
+          if ((selectedMaterial as any).color && originalMaterial) {
+            const origColor = new THREE.Color();
+            if ((originalMaterial as any).color) {
+              origColor.copy((originalMaterial as any).color);
+            } else {
+              origColor.set('#F3EBD7');
+            }
+            const tint = new THREE.Color('#FF0513');
+            origColor.multiply(tint);
+            (selectedMaterial as any).color.copy(origColor);
+          }
+          if ((selectedMaterial as any).emissive) {
+            (selectedMaterial as any).emissive.setHex(0x220000);
+          }
         }
       } else if (selectedToothMappingMode) {
         selectedMaterial = createToothMaterial(selectedToothMappingMode, originalMaterial, productColor);
       } else if (selectedWillExtractForColor && isToothSelected) {
-        // Apply will extract red color to selected teeth (matching card color)
-        selectedMaterial = createToothMaterial('teeth_in_mouth', originalMaterial, '#E92520');
+        // Apply will extract with multiply blend over original tooth color
+        selectedMaterial = createToothMaterial('teeth_in_mouth', originalMaterial);
+        if ((selectedMaterial as any).color && originalMaterial) {
+          const origColor = new THREE.Color();
+          if ((originalMaterial as any).color) {
+            origColor.copy((originalMaterial as any).color);
+          } else {
+            origColor.set('#F3EBD7');
+          }
+          const tint = new THREE.Color('#FF0513');
+          origColor.multiply(tint);
+          (selectedMaterial as any).color.copy(origColor);
+        }
       } else if (productColor && isToothSelected) {
         // Apply product color to selected teeth
         selectedMaterial = createToothMaterial('teeth_in_mouth', originalMaterial, productColor);

@@ -31,8 +31,8 @@ interface ToothStatusBoxesProps {
 const EXTRACTION_COLOR_MAP: Record<string, { bg: string; textClass: string }> = {
   TIM:   { bg: "#F3EBD7", textClass: "text-black" },           // Teeth in mouth
   MT:    { bg: "#D3D3D3", textClass: "text-black" },           // Missing teeth
-  WEOD:  { bg: "#E92520", textClass: "text-white font-bold" }, // Will extract on delivery
-  WED:   { bg: "#E92520", textClass: "text-white font-bold" }, // Will extract on delivery (legacy)
+  WEOD:  { bg: "#FF0513", textClass: "text-white font-bold" }, // Will extract on delivery
+  WED:   { bg: "#FF0513", textClass: "text-white font-bold" }, // Will extract on delivery (legacy)
   FR:    { bg: "#A0F69A", textClass: "text-black" },           // Fix/Repair
   CLASP: { bg: "#FFD1F9", textClass: "text-black" },           // Clasp
   CTS:   { bg: "#0CE7C6", textClass: "text-black" },           // Custom tooth status
@@ -42,7 +42,7 @@ const EXTRACTION_COLOR_MAP: Record<string, { bg: string; textClass: string }> = 
 const EXTRACTION_NAME_COLOR_MAP: Record<string, { bg: string; textClass: string }> = {
   "teeth in mouth":           { bg: "#F3EBD7", textClass: "text-black" },
   "missing teeth":            { bg: "#D3D3D3", textClass: "text-black" },
-  "will extract on delivery": { bg: "#E92520", textClass: "text-white font-bold" },
+  "will extract on delivery": { bg: "#FF0513", textClass: "text-white font-bold" },
   "fix/repair":               { bg: "#A0F69A", textClass: "text-black" },
   "clasps":                   { bg: "#FFD1F9", textClass: "text-black" },
   "clasp":                    { bg: "#FFD1F9", textClass: "text-black" },

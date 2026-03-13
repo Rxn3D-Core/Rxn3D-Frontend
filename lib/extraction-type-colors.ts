@@ -6,7 +6,7 @@
 export const EXTRACTION_TYPE_COLORS = {
   'Teeth in mouth': '#F3EBD7', // Light beige
   'Missing teeth': '#D3D3D3', // Light gray
-  'Will extract on delivery': '#E92520', // Red
+  'Will extract on delivery': '#FF0513', // Red (multiply blend)
   'Has been extracted': '#595652', // Dark gray
   'Prepped': '#AFAA9D', // Medium gray
   'Implant': '#90BDD8' // Light blue

@@ -63,33 +63,41 @@ interface ModalOrchestratorProps {
   currentStageProductId: string;
   currentStageArch: Arch;
   currentStageToothNumber: number | null;
-  currentStageOptions: { name: string; letter: string }[] | null;
+  currentStageOptions: { name: string; letter: string; is_default?: string }[] | null;
   handleStageSelect: (stageName: string) => void;
   onStageConfirm: (stageName: string) => void;
 }
 
-/** When only 1 stage is available, auto-selects it and closes — skipping the modal entirely. */
+/** When only 1 stage is available or a default stage exists, auto-selects it and closes — skipping the modal entirely. */
 function AutoSelectSingleStage({
   stages,
   onAutoSelect,
   onClose,
   children,
 }: {
-  stages: { name: string; letter: string }[];
+  stages: { name: string; letter: string; is_default?: string }[];
   onAutoSelect: (stageName: string) => void;
   onClose: () => void;
   children: React.ReactNode;
 }) {
   const didAutoSelect = useRef(false);
+  const defaultStage = stages.find((s) => s.is_default === "Yes");
+  const shouldAutoSelect = stages.length === 1 || !!defaultStage;
+
   useEffect(() => {
-    if (stages.length === 1 && !didAutoSelect.current) {
-      didAutoSelect.current = true;
-      onAutoSelect(stages[0].name);
+    if (!didAutoSelect.current) {
+      if (stages.length === 1) {
+        didAutoSelect.current = true;
+        onAutoSelect(stages[0].name);
+      } else if (defaultStage) {
+        didAutoSelect.current = true;
+        onAutoSelect(defaultStage.name);
+      }
     }
-  }, [stages, onAutoSelect]);
+  }, [stages, defaultStage, onAutoSelect]);
 
   // Don't render the modal when auto-selecting
-  if (stages.length === 1) return null;
+  if (shouldAutoSelect) return null;
   return <>{children}</>;
 }
 

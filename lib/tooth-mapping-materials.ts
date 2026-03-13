@@ -7,6 +7,7 @@ export interface ToothMappingMaterial {
   roughness?: number;
   metalness?: number;
   transparent?: boolean;
+  blending?: THREE.Blending;
 }
 
 export const TOOTH_MAPPING_MATERIALS: { [key: string]: ToothMappingMaterial } = {
@@ -27,12 +28,13 @@ export const TOOTH_MAPPING_MATERIALS: { [key: string]: ToothMappingMaterial } = 
     transparent: true
   },
   will_extract: {
-    color: '#E92520', // Updated to match API: "Will extract on delivery"
+    color: '#FF0513', // Will extract on delivery – multiply-blended over original
     emissive: '#000000',
-    opacity: 1,
+    opacity: 0.6,
     roughness: 0.7,
     metalness: 0.2,
-    transparent: false
+    transparent: true,
+    blending: THREE.MultiplyBlending,
   },
   extracted: {
     color: '#595652', // Updated to match API: "Has been extracted"
@@ -90,6 +92,7 @@ export function createToothMaterial(mappingMode: string, originalMaterial?: THRE
     transparent: materialConfig.transparent || false,
     roughness: materialConfig.roughness || 0.8,
     metalness: materialConfig.metalness || 0.1,
+    ...(materialConfig.blending !== undefined && { blending: materialConfig.blending }),
   });
 
   // If we have an original material, try to preserve some properties
