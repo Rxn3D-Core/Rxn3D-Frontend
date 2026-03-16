@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation"
 import { Suspense, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import { useSearchParams } from "next/navigation"
+import { DotLottieReact } from "@lottiefiles/dotlottie-react"
 
 function NotFoundContent() {
   const router = useRouter()
@@ -23,27 +24,22 @@ function NotFoundContent() {
   return (
     <div className="min-h-screen flex flex-col">
       <AuthHeader />
-      <div className="flex-1 bg-[#f7fbff] flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-lg shadow-sm p-8 text-center">
-          <div className="mb-6">
-            <div className="inline-flex items-center justify-center w-24 h-24 bg-[#e6f0f9] rounded-full mb-4">
-              <span className="text-[#1162a8] text-5xl font-bold">{t("404")}</span>
-            </div>
-            <h1 className="text-2xl font-bold mb-2">{t("Page Not Found")}</h1>
-            <p className="text-[#a19d9d]">{t("The page you are looking for doesn't exist or has been moved.")}</p>
-          </div>
-
-          <div className="space-y-3">
+      <div className="flex-1 relative flex items-center justify-center bg-[#f7fbff]">
+        <DotLottieReact
+          src="https://lottie.host/e5f0328c-41d8-4c4a-8ced-ebac204fb9b0/kyoH0HaX4Y.lottie"
+          loop
+          autoplay
+          className="absolute inset-0 w-full h-full"
+        />
+        <div className="absolute bottom-8 left-0 right-0 z-10 text-center px-4">
+          <div className="space-y-4">
             <button
               onClick={() => router.replace("/")}
-              className="flex items-center justify-center gap-2 w-full py-2.5 border border-[#d9d9d9] rounded-md hover:bg-[#f0f0f0] transition-colors"
+              className="flex items-center justify-center gap-2 mx-auto px-8 py-3 text-lg bg-white border border-[#d9d9d9] rounded-xl hover:bg-[#f0f0f0] transition-colors shadow-sm"
             >
-              <Home className="h-4 w-4" />
+              <Home className="h-5 w-5" />
               <span>{t("Go to Home", "Go to Home")}</span>
             </button>
-          </div>
-
-          <div className="mt-8 pt-6 border-t border-[#e4e6ef]">
             <p className="text-sm text-[#a19d9d]">
               {t("If you believe this is an error, please", "If you believe this is an error, please")}{" "}
               <Link href="#" className="text-[#1162a8]">
@@ -55,7 +51,6 @@ function NotFoundContent() {
         </div>
       </div>
 
-      {/* Footer */}
       <footer className="bg-white border-t border-[#e4e6ef] py-4 px-6 text-center text-sm text-[#a19d9d]">
         <p>© {new Date().getFullYear()} Rxn3D. {t("All rights reserved.", "All rights reserved.")}</p>
       </footer>

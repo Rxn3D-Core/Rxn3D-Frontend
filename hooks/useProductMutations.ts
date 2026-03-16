@@ -73,26 +73,19 @@ export function useProductMutations() {
         )
       }
 
-      // CRITICAL: When customer_id is present, backend requires 'price' field
-      // Map base_price to price if customer_id is present and price is not already set
+      // When customer_id is present, backend requires price.
+      // Derive price from base_price if price is not already set — only when it's a valid positive number.
       if (finalPayload.customer_id && finalPayload.price === undefined) {
-        // Get base_price value
         const basePriceValue = finalPayload.base_price
-        
+
         if (basePriceValue !== undefined && basePriceValue !== null && basePriceValue !== "") {
-          // Convert to number
-          const priceValue = typeof basePriceValue === 'string' 
-            ? parseFloat(String(basePriceValue).trim()) 
+          const priceValue = typeof basePriceValue === 'string'
+            ? parseFloat(String(basePriceValue).trim())
             : Number(basePriceValue)
-          
-          if (!isNaN(priceValue) && isFinite(priceValue) && priceValue >= 0) {
+
+          if (!isNaN(priceValue) && isFinite(priceValue) && priceValue > 0) {
             finalPayload.price = priceValue
-          } else {
-            finalPayload.price = 0
           }
-        } else {
-          // Backend requires price field when customer_id is present, even if base_price is empty
-          finalPayload.price = 0
         }
       }
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { X, Maximize2, ChevronLeft, ChevronRight } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -199,6 +199,8 @@ export function AddLabProductModal({
 
   const [imageBase64, setImageBase64] = useState<string | null>(null) // <-- add imageBase64 state
   const [initialFormValues, setInitialFormValues] = useState<ProductCreateForm | null>(null) // <-- track initial values
+  // Always holds the latest price from the API response — used as fallback when base_price is not in the payload
+  const apiPriceRef = useRef<string | number | null>(null)
 
   // Initialize without setting image payload; only set when user selects a new file
   useEffect(() => {
@@ -247,6 +249,7 @@ export function AddLabProductModal({
     base_price: "", // <-- add this field to initial values
     opposite_extractions: [],
     apply_same_status_to_opposing: true,
+    request_opposing_extraction: false,
     min_days_to_process: null,
     max_days_to_process: null,
     is_teeth_based_price: "No",
@@ -825,6 +828,8 @@ export function AddLabProductModal({
       const mappedGrades = mapWithStatus(gradesArr, "grade_id")
       // Check both base_price and price from response
       let basePrice = editingProduct.base_price || editingProduct.price || ""
+      // Store the API price so handleUpdateSection can always send a valid price
+      apiPriceRef.current = basePrice || null
       
       if (mappedGrades.length > 0) {
         // First, try to find default grade with price (price must be > 0)
@@ -859,10 +864,27 @@ export function AddLabProductModal({
         sequence: editingProduct.sequence || 1,
         description: editingProduct.description || "",
         grades: mappedGrades,
-        stages:
-          editingProduct.stage_details && editingProduct.stage_details.length
-            ? mapStages(editingProduct.stage_details)
-            : mapStages(editingProduct.stages || []),
+        stages: (() => {
+          const stageSource = editingProduct.stage_details && editingProduct.stage_details.length
+            ? editingProduct.stage_details
+            : (editingProduct.stages || [])
+          const mapped = mapStages(stageSource)
+          // If stage_grade_details exist, build grade_prices per stage from that flat array
+          if (Array.isArray(editingProduct.stage_grade_details) && editingProduct.stage_grade_details.length > 0) {
+            return mapped.map((stage: any) => {
+              const gradePrices: Record<string | number, string> = {}
+              editingProduct.stage_grade_details.forEach((sgd: any) => {
+                if ((sgd.stage_id ?? sgd.id) === stage.stage_id) {
+                  const gradeId = sgd.grade_id
+                  const price = sgd.price !== undefined && sgd.price !== null ? String(sgd.price) : ""
+                  gradePrices[gradeId] = price
+                }
+              })
+              return { ...stage, grade_prices: gradePrices }
+            })
+          }
+          return mapped
+        })(),
         impressions:
           editingProduct.impression_details && editingProduct.impression_details.length
             ? mapWithStatus(editingProduct.impression_details, "impression_id")
@@ -911,6 +933,7 @@ export function AddLabProductModal({
         extractions: mapExtractions(editingProduct.extractions || []),
         opposite_extractions: mapOppositeExtractions(editingProduct.opposite_extractions || []),
         apply_same_status_to_opposing: (editingProduct.opposite_extractions && editingProduct.opposite_extractions.length > 0) ? false : (editingProduct.apply_same_status_to_opposing ?? true),
+        request_opposing_extraction: editingProduct.opposite_impression === "Yes" || editingProduct.opposite_impression === true || editingProduct.opposite_impression === 1 || editingProduct.request_opposing_extraction === true || editingProduct.request_opposing_extraction === 1,
         min_days_to_process: editingProduct.min_days_to_process ?? null,
         max_days_to_process: editingProduct.max_days_to_process ?? null,
       }
@@ -1287,31 +1310,27 @@ export function AddLabProductModal({
       }
     })
 
-    // Always set price and remove grades if grades section is off
-    if (!sections.grades) {
-      payload.price = data.base_price
-      payload.has_grade_based_pricing = "No"
-      // Only include empty grades array if it's a meaningful change (clearing existing grades)
-      if (editingProduct && initialFormValues) {
-        const originalGrades = initialFormValues.grades || []
-        if (originalGrades.length > 0) {
-          // We're clearing grades, so include empty array
-          payload.grades = []
-        } else {
-          // Grades were already empty, don't include it
-          delete payload.grades
-        }
-      } else {
-        // For create mode, don't include empty grades
-        delete payload.grades
-      }
-    } else {
-      // If grades are enabled, set base_price from default grade
+    // If grades are enabled (has_grade_based_pricing === "Yes"), set base_price from default grade
+    if (data.has_grade_based_pricing === "Yes" && payload.grades?.length > 0) {
       const defaultGrade = payload.grades?.find((g: any) => g.is_default === "Yes")
       if (defaultGrade && defaultGrade.price) {
         payload.base_price = defaultGrade.price
-        // Also update the form's base_price field
         setValue("base_price", defaultGrade.price, { shouldDirty: true, shouldValidate: true })
+      }
+    }
+    // Always send price — use base_price from payload, form data, or API response ref as fallback.
+    {
+      const basePriceVal = payload.base_price
+        || data.base_price
+        || editingProduct?.base_price
+        || editingProduct?.price
+        || apiPriceRef.current
+      if (basePriceVal !== undefined && basePriceVal !== null && basePriceVal !== "") {
+        const numPrice = typeof basePriceVal === "string" ? parseFloat(String(basePriceVal)) : Number(basePriceVal)
+        if (!isNaN(numPrice) && numPrice > 0) {
+          payload.base_price = basePriceVal
+          payload.price = numPrice
+        }
       }
     }
 
@@ -1320,6 +1339,11 @@ export function AddLabProductModal({
       payload.image = imageBase64
     }
 
+    // Map request_opposing_extraction (boolean) → opposite_impression ("Yes"/"No") for the API
+    if (payload.request_opposing_extraction !== undefined) {
+      payload.opposite_impression = payload.request_opposing_extraction ? "Yes" : "No"
+      delete payload.request_opposing_extraction
+    }
 
     if (!editingProduct) {
       // Add customer_id if user is lab_admin
@@ -1404,7 +1428,7 @@ export function AddLabProductModal({
       details: ["name", "code", "subcategory_id", "base_price", "type", "status", "sequence", "description", "is_single_stage", "min_days_to_process", "max_days_to_process", "enable_auto_billing", "auto_billing_days"],
       grades: ["grades", "has_grade_based_pricing", "default_grade_id"],
       stages: ["stages"],
-      impressions: ["impressions", "impression_group_id"],
+      impressions: ["impressions", "impression_group_id", "request_opposing_extraction"],
       gumShade: ["gum_shades", "gum_shade_group_id"],
       teethShade: ["teeth_shades", "teeth_shade_group_id"],
       material: ["materials", "material_group_id"],
@@ -1505,8 +1529,8 @@ export function AddLabProductModal({
 
       // Determine if customer_id will be in the final payload (needed for stage formatting)
       // This must be determined before processing stages
-      const willHaveCustomerId = formData.customer_id !== undefined || 
-                                 formData.customer_id !== null ||
+      const willHaveCustomerId = (formData.customer_id !== undefined &&
+                                 formData.customer_id !== null) ||
                                  (user?.role === "lab_admin" && user?.customers?.length > 0)
 
       // Process array fields similar to onSubmit
@@ -1594,11 +1618,9 @@ export function AddLabProductModal({
                 }
               }
               
-              // Always include price (even if 0) - this is required for the backend when customer_id is present
-              if (stagePrice !== null && !isNaN(stagePrice)) {
+              // Only include price if a valid positive value was found
+              if (stagePrice !== null && !isNaN(stagePrice) && stagePrice > 0) {
                 stageData.price = stagePrice
-              } else {
-                stageData.price = 0
               }
               
               // Remove grade_prices from the payload - it should only be in stage_grades
@@ -1662,21 +1684,26 @@ export function AddLabProductModal({
 
       const payload: any = { ...changes }
 
-      // Ensure customer_id is included in payload if present in formData (needed for stage price formatting)
-      // This must be done after payload is created so stages can check for customer_id
+      // Ensure customer_id is included in payload if present in formData or for lab_admin
       if (formData.customer_id !== undefined && formData.customer_id !== null) {
         payload.customer_id = formData.customer_id
+      } else if (user?.role === "lab_admin" && user?.customers?.length > 0) {
+        payload.customer_id = user.customers[0]?.id
       }
 
-      // Always pass the current form base_price as payload.price so it is never lost when user
-      // edits base price then switches to another section and clicks Update there. Backend expects "price".
-      if (willHaveCustomerId) {
-        const basePriceSource = payload.base_price !== undefined ? payload.base_price : formData.base_price
-        if (basePriceSource !== undefined && basePriceSource !== null && basePriceSource !== "") {
-          const numPrice = typeof basePriceSource === "string" ? parseFloat(basePriceSource) : Number(basePriceSource)
-          payload.price = !isNaN(numPrice) && numPrice >= 0 ? numPrice : 0
-        } else {
-          payload.price = 0
+      // Always include price in every section update — backend requires it when customer_id is present.
+      // Use the latest value: form base_price → editingProduct.base_price → editingProduct.price → apiPriceRef
+      {
+        const currentBasePrice = formData.base_price
+          || editingProduct?.base_price
+          || editingProduct?.price
+          || apiPriceRef.current
+        if (currentBasePrice !== undefined && currentBasePrice !== null && currentBasePrice !== "") {
+          const numPrice = typeof currentBasePrice === "string" ? parseFloat(String(currentBasePrice)) : Number(currentBasePrice)
+          if (!isNaN(numPrice) && numPrice > 0) {
+            payload.price = numPrice
+            payload.base_price = currentBasePrice
+          }
         }
       }
 
@@ -1746,6 +1773,12 @@ export function AddLabProductModal({
           userRole: user?.role,
           userCustomers: user?.customers
         })
+      }
+
+      // Map request_opposing_extraction (boolean) → opposite_impression ("Yes"/"No") for the API
+      if (payload.request_opposing_extraction !== undefined) {
+        payload.opposite_impression = payload.request_opposing_extraction ? "Yes" : "No"
+        delete payload.request_opposing_extraction
       }
 
       // Use the updateProduct prop function

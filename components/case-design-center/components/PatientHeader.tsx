@@ -140,6 +140,7 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
                   submitted={false}
                   onChange={onPatientNameChange}
                   className="w-[330px]"
+                  smartPatientLabel
                 />
                 {onGenderChange ? (
                   <SelectField
@@ -164,6 +165,7 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
                     submitted={false}
                     onChange={onPatientNameChange}
                     className="w-[330px]"
+                    smartPatientLabel
                   />
                 </div>
                 <div className="flex gap-3 sm:gap-4 items-start justify-center lg:justify-start">

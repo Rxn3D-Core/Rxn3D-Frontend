@@ -113,7 +113,12 @@ export function RetentionSection({
               render={({ field }) => (
                 <RadioGroup
                   value={field.value}
-                  onValueChange={field.onChange}
+                  onValueChange={(value) => {
+                    field.onChange(value)
+                    if (value === "No") {
+                      setValue("retentions", [], { shouldDirty: true })
+                    }
+                  }}
                   className="flex flex-row gap-4"
                 >
                   <div className="flex items-center space-x-2">

@@ -3983,7 +3983,7 @@ export function useCaseDesignCenter() {
       const params: Record<string, any> = {
         per_page: 50,
         page: 1,
-        q: searchTerm,
+        search: searchTerm,
       }
 
       const results = await fetchLabProducts(labId, params)
@@ -4133,7 +4133,7 @@ export function useCaseDesignCenter() {
       }
 
       if (searchQuery.trim()) {
-        params.q = searchQuery.trim()
+        params.search = searchQuery.trim()
       }
 
       await fetchLabProducts(labId, params)
@@ -4232,9 +4232,15 @@ export function useCaseDesignCenter() {
         // If user reached this product without selecting a category (e.g. via search), set category from product details so retention popover and other category-based logic work
         const categoryFromDetails = (details as any)?.subcategory?.category?.name ?? (details as any)?.category_name ?? (details as any)?.data?.subcategory?.category?.name ?? (details as any)?.data?.category_name
         const categoryIdFromDetails = (details as any)?.subcategory?.category?.id ?? (details as any)?.category_id ?? (details as any)?.data?.subcategory?.category?.id ?? (details as any)?.data?.category_id
+        const subcategoryFromDetails = (details as any)?.subcategory?.name ?? (details as any)?.data?.subcategory?.name
+        const subcategoryIdFromDetails = (details as any)?.subcategory?.id ?? (details as any)?.data?.subcategory?.id
         if (categoryFromDetails && !selectedCategory) {
           setSelectedCategory(categoryFromDetails)
           if (categoryIdFromDetails != null) setSelectedCategoryId(categoryIdFromDetails)
+        }
+        if (subcategoryFromDetails && !selectedSubcategory) {
+          setSelectedSubcategory(subcategoryFromDetails)
+          if (subcategoryIdFromDetails != null) setSelectedSubcategoryId(subcategoryIdFromDetails)
         }
 
         // Check if product has extraction data and show MissingTeethCards immediately

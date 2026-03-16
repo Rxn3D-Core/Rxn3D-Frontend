@@ -800,6 +800,15 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             return options.length > 0 ? options : mockImpressions;
           })()
         }
+        currentImpressionOppositeImpression={
+          (() => {
+            const toothNum = state.currentImpressionToothNumber;
+            const arch = state.currentImpressionArch;
+            if (toothNum === null) return undefined;
+            const product = state.getToothProduct(arch, toothNum);
+            return product?.opposite_impression;
+          })()
+        }
         selectedImpressions={state.selectedImpressions}
         setSelectedImpressions={state.setSelectedImpressions}
         onImpressionConfirm={(displayText) => {

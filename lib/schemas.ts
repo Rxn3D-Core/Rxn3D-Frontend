@@ -484,6 +484,7 @@ export const ProductCreateFormSchema = z
       })
     ).optional(),
     apply_same_status_to_opposing: z.boolean().default(true),
+    request_opposing_extraction: z.boolean().default(false).optional(),
     min_days_to_process: z.number().nullable().optional(),
     max_days_to_process: z.number().nullable().optional(),
   })

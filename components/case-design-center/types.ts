@@ -286,6 +286,7 @@ export interface ProductApiData {
   gum_shades?: ProductGumShade[];
   extractions?: ProductExtraction[];
   advance_fields?: ProductAdvanceField[];
+  opposite_impression?: "Yes" | "No";
   subcategory?: {
     id: number;
     name: string;

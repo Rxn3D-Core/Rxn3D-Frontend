@@ -25,6 +25,8 @@ interface ModalOrchestratorProps {
   currentImpressionToothNumber: number | null;
   /** Impressions from get product response (used for modal options and display text) */
   impressionOptions: ImpressionOptionForModal[];
+  /** Whether the current product has opposite_impression = "Yes" — triggers split layout */
+  currentImpressionOppositeImpression?: "Yes" | "No";
   selectedImpressions: Record<string, number>;
   setSelectedImpressions: React.Dispatch<
     React.SetStateAction<Record<string, number>>
@@ -109,6 +111,7 @@ export function ModalOrchestrator({
   currentImpressionProductId,
   currentImpressionToothNumber,
   impressionOptions,
+  currentImpressionOppositeImpression,
   selectedImpressions,
   setSelectedImpressions,
   onImpressionConfirm,
@@ -172,6 +175,7 @@ export function ModalOrchestrator({
           setShowImpressionModal(false);
         }}
         impressions={impressionOptions}
+        oppositeImpression={currentImpressionOppositeImpression}
         selectedImpressions={selectedImpressions}
         onUpdateQuantity={(key, qty) => {
           setSelectedImpressions((prev) => ({ ...prev, [key]: qty }));
