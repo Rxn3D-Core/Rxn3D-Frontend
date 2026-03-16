@@ -1338,9 +1338,15 @@ export function AddLabProductModal({
       }
       success = true
     } catch (error: any) {
-      const backendErrors = flattenBackendErrors(error?.errors)
+      const errorsSource = error?.errors || error?.raw?.errors || error?.raw?.data
+      const backendErrors = flattenBackendErrors(errorsSource)
       if (backendErrors.length > 0) {
         setServerValidationErrors(backendErrors)
+        toast({
+          title: "Validation Error",
+          description: backendErrors[0]?.message || "Failed to save product.",
+          variant: "destructive",
+        })
       } else {
         toast({
           title: "Error",
@@ -1429,8 +1435,8 @@ export function AddLabProductModal({
   // Check if any field across all tabs is dirty
   const hasSectionChanges = useMemo(() => {
     if (!editingProduct || !editingProduct.id) return false
-    return isDirty || hasReleasingStageChanges
-  }, [editingProduct, isDirty, hasReleasingStageChanges])
+    return isDirty || hasReleasingStageChanges || imageBase64 !== null
+  }, [editingProduct, isDirty, hasReleasingStageChanges, imageBase64])
 
   // Generic handler to update any section
   const handleUpdateSection = async () => {
@@ -1478,8 +1484,9 @@ export function AddLabProductModal({
       // Calculate only the changed fields in this section
       const changes = calculateChanges(initialSectionData, sectionData)
       
-      // If no changes (including releasing stage changes), show message and return
-      if (Object.keys(changes).length === 0 && !hasReleasingStageChanges) {
+      // If no changes (including releasing stage changes and image), show message and return
+      const hasImageChange = imageBase64 !== null && typeof imageBase64 === 'string' && imageBase64.startsWith('data:image/')
+      if (Object.keys(changes).length === 0 && !hasReleasingStageChanges && !hasImageChange) {
         toast({
           title: "No Changes",
           description: "No changes detected in this section.",
@@ -1719,6 +1726,11 @@ export function AddLabProductModal({
         payload.opposite_extractions = []
       }
 
+      // Include new image if user uploaded one
+      if (imageBase64 && typeof imageBase64 === 'string' && imageBase64.startsWith('data:image/')) {
+        payload.image = imageBase64
+      }
+
       // Always include releasingStageIds since we now send all tab changes
       const releasingIds = releasingStageIds
 
@@ -1779,12 +1791,28 @@ export function AddLabProductModal({
         return
       }
       
-      const backendErrors = flattenBackendErrors(error?.errors)
+      // Try multiple error shapes: error.errors, error.raw.errors, or error.raw.data (backend uses "data" key)
+      const errorsSource = error?.errors || error?.raw?.errors || error?.raw?.data
+      const backendErrors = flattenBackendErrors(errorsSource)
+
+      // Also handle array-format errors (e.g. { image: ["msg"] } or top-level array)
+      const arrayErrors: string[] = Array.isArray(errorsSource)
+        ? errorsSource
+        : Array.isArray(error?.raw?.errors)
+          ? error.raw.errors
+          : []
+
       if (backendErrors.length > 0) {
         setServerValidationErrors(backendErrors)
         toast({
           title: "Validation Error",
           description: backendErrors[0]?.message || `Failed to update ${activeTab}.`,
+          variant: "destructive",
+        })
+      } else if (arrayErrors.length > 0) {
+        toast({
+          title: "Validation Error",
+          description: arrayErrors[0],
           variant: "destructive",
         })
       } else {
@@ -1913,6 +1941,7 @@ export function AddLabProductModal({
                     editingSubcategoryName={editingProduct?.subcategory?.name}
                     editingProduct={editingProduct}
                     onImageChange={setImageBase64}
+                    currentImageBase64={imageBase64}
                     userRole={userRole}
                     setValue={setValue}
                     onSave={editingProduct ? handleFormSubmit : undefined}

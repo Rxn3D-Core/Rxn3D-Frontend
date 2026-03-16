@@ -893,8 +893,11 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
             setValidationErrors(errors)
             setError(result.error_description || t("productContext.validationFailed", "Validation failed. Please check the form and try again."))
             triggerAnimation("error", result.error_description || t("productContext.validationErrorAnimation", "Please fix the validation errors and try again."))
-            // Log validation errors for debugging
-            return false
+            // Throw so the caller (modal) can display the specific field errors
+            const err: any = new Error(result.message || t("productContext.validationFailed", "Validation failed."))
+            err.errors = result.errors || result.data || null
+            err.raw = result
+            throw err
           } else {
             throw new Error(result.message || t("productContext.httpError", `HTTP error! status: ${response.status}`))
           }

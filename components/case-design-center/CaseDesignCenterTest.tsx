@@ -539,7 +539,7 @@ export default function Page() {
           <img
             src="/images/ajax-loader.gif"
             alt="Submitting..."
-            className="w-[80px] h-[80px]"
+            className="w-[300px] h-[300px]"
           />
           <p className="mt-4 text-lg font-semibold text-gray-700">Submitting case...</p>
         </div>
@@ -548,10 +548,11 @@ export default function Page() {
       {/* Success overlay after slip creation — shows for 5 seconds */}
       {showSuccessOverlay && !submitting && (
         <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm">
-          <div className="w-[250px] h-[250px]">
+          <div className="w-[350px] h-[350px]">
             <DotLottieReact
               src="https://lottie.host/b1a1c60d-ee51-497e-ba93-e50e79bf6abb/em5bh3uFj8.lottie"
               autoplay
+              speed={2}
             />
           </div>
           <p className="mt-4 text-lg font-semibold text-gray-700">Case submitted successfully!</p>

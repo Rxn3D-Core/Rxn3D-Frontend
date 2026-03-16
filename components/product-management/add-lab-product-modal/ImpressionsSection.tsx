@@ -319,6 +319,22 @@ export function ImpressionsSection({
               </button>
             )}
           </div>
+          <div className="flex items-center gap-2 mt-4">
+            <Checkbox
+              id="request-opposing-extraction"
+              checked={watch("request_opposing_extraction") || false}
+              onCheckedChange={(checked) =>
+                setValue("request_opposing_extraction", !!checked, { shouldDirty: true })
+              }
+              className="border-[#1162a8] data-[state=checked]:bg-[#1162a8] data-[state=checked]:text-white"
+            />
+            <Label
+              htmlFor="request-opposing-extraction"
+              className="cursor-pointer text-sm"
+            >
+              Request opposing extraction
+            </Label>
+          </div>
           <ValidationError message={getValidationError("impressions")} />
         </div>
       )}

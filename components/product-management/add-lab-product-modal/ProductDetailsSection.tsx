@@ -39,6 +39,7 @@ type ProductDetailsSectionProps = {
   categoriesWithSubcategories?: CategoryWithSubcategories[]
   editingProduct?: any
   onImageChange?: (base64: string | null) => void
+  currentImageBase64?: string | null
   userRole?: string
   setValue?: (name: string, value: any) => void
   onSave?: (e?: React.BaseSyntheticEvent) => Promise<void>
@@ -55,6 +56,7 @@ export function ProductDetailsSection({
   categoriesWithSubcategories = [],
   editingProduct,
   onImageChange,
+  currentImageBase64,
   userRole = "",
   setValue,
   onSave,
@@ -142,12 +144,14 @@ export function ProductDetailsSection({
     max_days_to_process: false,
   })
 
-  // Initialize image preview with existing image when editing
+  // Initialize image preview: prefer newly uploaded image (currentImageBase64), fall back to existing URL
   useEffect(() => {
-    if (editingProduct?.image_url) {
+    if (currentImageBase64) {
+      setImagePreview(currentImageBase64)
+    } else if (editingProduct?.image_url) {
       setImagePreview(editingProduct.image_url)
     }
-  }, [editingProduct?.image_url])
+  }, [currentImageBase64, editingProduct?.image_url])
 
   // Update base_price when default grade price changes
   useEffect(() => {

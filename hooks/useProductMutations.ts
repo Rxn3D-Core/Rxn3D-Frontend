@@ -20,7 +20,7 @@ const safeParseJson = async (response: Response) => {
 
 const buildApiError = (response: Response, payload: any): ApiErrorPayload => ({
   message: payload?.error_description || payload?.message || response.statusText || `HTTP error! status: ${response.status}`,
-  errors: payload?.errors || null,
+  errors: payload?.errors || payload?.data || null,
   status: payload?.status_code || response.status,
   raw: payload,
 })
