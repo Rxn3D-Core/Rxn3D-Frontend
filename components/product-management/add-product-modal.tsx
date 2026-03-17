@@ -59,6 +59,8 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
   const { createProduct, updateProduct, isLoading: isProductActionLoading, clearValidationErrors } = useProducts()
   const [validationErrors, setValidationErrors] = useState<{ field: string; message: string }[]>([])
   const { parentDropdownCategories, fetchParentDropdownCategories } = useProductCategory()
+  const [categoriesWithSubcategories, setCategoriesWithSubcategories] = useState<any[]>([])
+  const [imageBase64, setImageBase64] = useState<string | null>(null)
   const { grades, fetchGrades } = useGrades()
   const { stages, fetchStages } = useStages()
   const { impressions, fetchImpressions } = useImpressions()
@@ -75,9 +77,10 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
         ? user.roles[0]
         : ""
 
-  const [isMaximized, setIsMaximized] = useState(false)
+  const [isMaximized, setIsMaximized] = useState(true)
   const [showDiscardDialog, setShowDiscardDialog] = useState(false)
   const [activeTab, setActiveTab] = useState("details")
+  const [visibleTabs, setVisibleTabs] = useState<Set<string>>(new Set(["details"]))
   const { t } = useTranslation()
   const [sections, setSections] = useState({
     productDetails: true,
@@ -120,13 +123,26 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
     { id: "visibility", label: "Visibility" },
   ]
 
+  // Show all tabs when editing, progressive reveal when creating
+  useEffect(() => {
+    if (isOpen && editingProduct) {
+      setActiveTab("details")
+      setVisibleTabs(new Set(tabs.map(tab => tab.id)))
+    } else if (isOpen && !editingProduct) {
+      setVisibleTabs(new Set(["details"]))
+      setActiveTab("details")
+    }
+  }, [isOpen, editingProduct])
+
   const currentTabIndex = tabs.findIndex((tab) => tab.id === activeTab)
   const isFirstTab = currentTabIndex === 0
   const isLastTab = currentTabIndex === tabs.length - 1
 
   const handleNext = () => {
     if (!isLastTab) {
-      setActiveTab(tabs[currentTabIndex + 1].id)
+      const nextTab = tabs[currentTabIndex + 1]
+      setVisibleTabs(prev => new Set([...prev, nextTab.id]))
+      setActiveTab(nextTab.id)
     }
   }
 
@@ -139,6 +155,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
   const initialFormValues: ProductCreateForm = useMemo(() => ({
     name: "",
     code: "",
+    category_id: null,
     subcategory_id: 0,
     type: "Both",
     status: "Active",
@@ -181,7 +198,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
     reset,
     watch,
     setValue,
-    formState: { isDirty, isValid, isSubmitting, errors },
+    formState: { isDirty, dirtyFields, isValid, isSubmitting, errors },
   } = useForm<ProductCreateForm>({
     resolver: zodResolver(ProductCreateFormSchema),
     defaultValues: initialFormValues,
@@ -208,8 +225,46 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
       ? parentDropdownCategories.data
       : []
 
+  // Fetch categories with subcategories for category/subcategory dropdowns
+  const fetchCategoriesWithSubcategories = useCallback(async () => {
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
+      if (!token) return
+
+      const params = new URLSearchParams({
+        lang: "en",
+        per_page: "100",
+        status: "Active"
+      })
+
+      const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+      const response = await fetch(
+        `${apiBaseUrl}/library/categories?${params.toString()}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json"
+          },
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch categories with subcategories")
+      }
+
+      const responseData = await response.json()
+      const categories = responseData.data?.data || []
+      setCategoriesWithSubcategories(categories)
+    } catch (err: any) {
+      console.error("Error fetching categories with subcategories:", err)
+      setCategoriesWithSubcategories([])
+    }
+  }, [])
+
   const fetchData = useCallback(() => {
     fetchParentDropdownCategories()
+    fetchCategoriesWithSubcategories()
     fetchGrades()
     fetchStages()
     fetchImpressions()
@@ -220,6 +275,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
     fetchAddOns()
   }, [
     fetchParentDropdownCategories,
+    fetchCategoriesWithSubcategories,
     fetchGrades,
     fetchStages,
     fetchImpressions,
@@ -315,6 +371,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
       ...initialFormValues,
       name: editingProduct.name || "",
       code: editingProduct.code || "",
+      category_id: editingProduct.subcategory?.category_id || editingProduct.subcategory?.category?.id || null,
       subcategory_id: editingProduct.subcategory?.id || editingProduct.subcategory_id || 0,
       type: mappedType,
       status: editingProduct.status || "Active",
@@ -343,7 +400,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
       teeth_shade_group_id: editingProduct.teeth_shade_group_id,
       material_group_id: editingProduct.material_group_id,
       addon_group_id: editingProduct.addon_group_id,
-      base_price: editingProduct.base_price || 0,
+      base_price: editingProduct.base_price ?? editingProduct.price ?? 0,
       apply_same_status_to_opposing: editingProduct.apply_same_status_to_opposing ?? true,
     }
   }, [editingProduct, initialFormValues])
@@ -351,6 +408,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
   useEffect(() => {
     if (isOpen) {
       reset(getNormalizedFormValues())
+      setImageBase64(null)
       clearValidationErrors()
       fetchData()
     }
@@ -391,11 +449,17 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
     setIsMaximized(!isMaximized)
   }
 
+  // Consider form changed if fields are dirty OR a new image was uploaded
+  const hasFormChanges = useMemo(() => {
+    return isDirty || imageBase64 !== null
+  }, [isDirty, imageBase64])
+
   const handleClose = () => {
-    if (isDirty) {
+    if (hasFormChanges) {
       setShowDiscardDialog(true)
     } else {
       reset()
+      setImageBase64(null)
       clearValidationErrors()
       onClose()
     }
@@ -404,6 +468,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
   const handleDiscard = () => {
     setShowDiscardDialog(false)
     reset()
+    setImageBase64(null)
     clearValidationErrors()
     onClose()
   }
@@ -439,14 +504,45 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
 
     let success = false
     if (editingProduct && editingProduct.id) {
-      // Call updateProduct (PUT) when editing
-      success = await updateProduct(editingProduct.id, data)
+      // Build partial payload with only changed fields for update
+      const payload: any = {}
+
+      // Always include identifying fields
+      payload.name = data.name
+      payload.code = data.code
+      payload.subcategory_id = data.subcategory_id
+      payload.status = data.status
+      payload.type = data.type
+
+      // Include only dirty fields
+      const dirty = dirtyFields as Record<string, any>
+      for (const key of Object.keys(dirty)) {
+        if (dirty[key] && key in data) {
+          payload[key] = (data as any)[key]
+        }
+      }
+
+      // Remove UI-only field
+      delete payload.category_id
+
+      // Attach image if uploaded
+      if (imageBase64 && typeof imageBase64 === 'string' && imageBase64.startsWith('data:image/')) {
+        payload.image = imageBase64
+      }
+
+      success = await updateProduct(editingProduct.id, payload)
     } else {
-      // Call createProduct (POST) when adding
-      success = await createProduct(data)
+      // Send full payload for creating new product
+      const payload = { ...data } as any
+      delete payload.category_id
+      if (imageBase64 && typeof imageBase64 === 'string' && imageBase64.startsWith('data:image/')) {
+        payload.image = imageBase64
+      }
+      success = await createProduct(payload)
     }
     if (success) {
       reset()
+      setImageBase64(null)
       onClose()
     }
   }
@@ -586,7 +682,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
       )}
 
       <Dialog open={isOpen} onOpenChange={handleClose}>
-        <DialogContent className={`p-0 gap-0 ${isMaximized ? "w-[90vw] h-[90vh] max-w-[90vw]" : "sm:max-w-[900px]"} overflow-hidden bg-white`}>
+        <DialogContent className={`p-0 gap-0 flex flex-col ${isMaximized ? "w-[90vw] h-[90vh] max-w-[90vw]" : "sm:max-w-[900px] max-h-[90vh]"} overflow-hidden bg-white`}>
           <DialogHeader className="px-6 py-4 flex flex-row items-center justify-between border-b">
             <DialogTitle className="text-xl font-medium">
               {editingProduct
@@ -609,28 +705,38 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
             </div>
           </DialogHeader>
 
-          <form onSubmit={handleSubmit(debouncedSubmit)} className="flex flex-col h-full">
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1">
-              {/* Progress indicator bar */}
-              <div className="px-6 pt-4 pb-3 border-b bg-gray-50">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    {tabs[currentTabIndex].label}
-                  </h3>
-                  <span className="text-sm text-gray-500">
-                    Step {currentTabIndex + 1} of {tabs.length}
-                  </span>
+          <form onSubmit={handleSubmit(debouncedSubmit)} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              {/* Tab Navigation */}
+              {visibleTabs.size > 0 && (
+                <div className="border-b border-gray-200 bg-white flex-shrink-0">
+                  <div className="flex overflow-x-auto" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
+                    {tabs.map((tab) => {
+                      const isActive = activeTab === tab.id
+                      const isVisible = visibleTabs.has(tab.id)
+                      if (!isVisible) return null
+                      return (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => setActiveTab(tab.id)}
+                          className={`
+                            px-6 py-4 text-sm font-medium border-b-2 transition-colors relative whitespace-nowrap flex-shrink-0
+                            ${isActive
+                              ? "border-[#1162a8] text-[#1162a8]"
+                              : "border-transparent text-gray-600 hover:text-gray-800 cursor-pointer"
+                            }
+                          `}
+                        >
+                          {tab.label}
+                        </button>
+                      )
+                    })}
+                  </div>
                 </div>
-                {/* Progress bar */}
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div
-                    className="bg-[#1162a8] h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${((currentTabIndex + 1) / tabs.length) * 100}%` }}
-                  />
-                </div>
-              </div>
+              )}
 
-              <div className="overflow-y-auto flex-1 max-h-[calc(80vh-200px)]">
+              <div className="overflow-y-auto flex-1 min-h-0">
                 <TabsContent value="details" className="mt-0 p-6 focus-visible:outline-none">
                   <ProductDetailsSection
                     control={control}
@@ -639,8 +745,12 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
                     toggleSection={toggleSection}
                     getValidationError={getValidationError}
                     currentParentDropdownCategories={currentParentDropdownCategories}
+                    categoriesWithSubcategories={categoriesWithSubcategories}
                     userRole={userRole}
                     editingProduct={editingProduct}
+                    setValue={setValue}
+                    onImageChange={setImageBase64}
+                    currentImageBase64={imageBase64}
                   />
                 </TabsContent>
 
@@ -811,7 +921,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
                 </TabsContent>
               </div>
 
-              <div className="px-4 sm:px-6 py-3 sm:py-4 border-t bg-white">
+              <div className="px-4 sm:px-6 py-3 sm:py-4 border-t bg-white flex-shrink-0 mt-auto">
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-3">
                   <div className="flex items-center gap-2 order-2 sm:order-1">
                     {!isFirstTab && (
@@ -837,21 +947,34 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
                   </div>
 
                   <div className="flex items-center gap-2 order-1 sm:order-2">
-                    {isLastTab ? (
+                    {editingProduct && hasFormChanges && (
                       <Button
                         type="submit"
-                        className="bg-[#1162a8] hover:bg-[#0d4c84] h-10 w-full sm:w-auto sm:px-8"
+                        className="bg-[#1162a8] hover:bg-[#0d4c84] h-10 sm:px-8"
                         disabled={isSubmitting || isProductActionLoading}
                       >
                         {isSubmitting || isProductActionLoading
                           ? t("productModal.saving", "Saving...")
-                          : t("productModal.saveProduct", "Save Product")}
+                          : t("productModal.updateProduct", "Update")}
                       </Button>
+                    )}
+                    {isLastTab ? (
+                      !editingProduct && (
+                        <Button
+                          type="submit"
+                          className="bg-[#1162a8] hover:bg-[#0d4c84] h-10 sm:px-8"
+                          disabled={isSubmitting || isProductActionLoading}
+                        >
+                          {isSubmitting || isProductActionLoading
+                            ? t("productModal.saving", "Saving...")
+                            : t("productModal.saveProduct", "Save Product")}
+                        </Button>
+                      )
                     ) : (
                       <Button
                         type="button"
                         onClick={handleNext}
-                        className="bg-[#1162a8] hover:bg-[#0d4c84] h-10 w-full sm:w-auto sm:px-8"
+                        className="bg-[#1162a8] hover:bg-[#0d4c84] h-10 sm:px-8"
                       >
                         Next
                         <ChevronRight className="h-4 w-4 ml-1" />

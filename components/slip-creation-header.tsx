@@ -27,6 +27,7 @@ interface Lab {
 interface PatientData {
   name?: string
   gender?: string
+  age?: number | string
 }
 
 interface SlipCreationHeaderProps {
@@ -52,8 +53,10 @@ interface SlipCreationHeaderProps {
   editablePatientData?: {
     name: string
     gender: string
+    age?: string
     onNameChange: (value: string) => void
     onGenderChange: (value: string) => void
+    onAgeChange?: (value: string) => void
   }
   
   // Container class overrides
@@ -340,8 +343,10 @@ const PatientInfoSection = ({
   editablePatientData?: {
     name: string
     gender: string
+    age?: string
     onNameChange: (value: string) => void
     onGenderChange: (value: string) => void
+    onAgeChange?: (value: string) => void
   }
 }) => {
   const [isNameFocused, setIsNameFocused] = useState(false)
@@ -533,6 +538,9 @@ const PatientInfoSection = ({
     return ""
   }
 
+  const ageValue = editablePatientData?.age ?? ""
+  const onAgeChange = editablePatientData?.onAgeChange ?? (() => {})
+
   const fieldHeight = 36.95
   const fieldGap = 10
   const containerHeight = showGenderField
@@ -601,16 +609,16 @@ const PatientInfoSection = ({
         </div>
       </div>
 
-      {/* Gender - Only show when patient name has a value (same Rxn3DFloatingInput specs) */}
+      {/* Gender + Age - Only show when patient name has a value (same Rxn3DFloatingInput specs) */}
       {showGenderField && (
         <div
-          className="absolute left-[10px] right-[10px] sm:right-auto sm:w-[330px]"
+          className="absolute left-[10px] right-[10px] sm:right-auto flex gap-2"
           style={{
             top: `${10 + fieldHeight + fieldGap}px`,
             height: `${fieldHeight}px`,
           }}
         >
-          <div className="relative w-full h-full">
+          <div className="relative w-[230px] h-full flex-shrink-0">
             {/* Custom Gender Dropdown */}
             <div
               className={cn(
@@ -709,6 +717,57 @@ const PatientInfoSection = ({
                 <Check className="h-5 w-5 text-[#119933]" aria-label="Valid" />
               </div>
             )}
+          </div>
+
+          {/* Age Field */}
+          <div className="relative w-[96px] h-full flex-shrink-0">
+            <input
+              type="number"
+              min={0}
+              max={150}
+              value={ageValue}
+              onChange={(e) => {
+                const val = e.target.value
+                if (val === "" || (Number(val) >= 0 && Number(val) <= 150)) {
+                  onAgeChange(val)
+                }
+              }}
+              className={cn(
+                "w-full h-full box-border flex flex-row items-center bg-white border border-solid rounded-[7.7px] text-[#1F2937] focus:outline-none",
+                "transition-all ease-out",
+                ageValue ? "border-[#119933]" : "border-[#7F7F7F]",
+                "hover:shadow-[0_0_8px_rgba(17,98,168,0.2)] transition-shadow duration-150",
+                "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              )}
+              style={{
+                padding: "25px 12px 9.24px 12.32px",
+                borderWidth: "0.740384px",
+                fontFamily: "Arial",
+                fontStyle: "normal",
+                fontWeight: 400,
+                fontSize: "17px",
+                lineHeight: "18px",
+              }}
+            />
+            <label
+              className={cn(
+                "absolute bg-white pointer-events-none z-10 transition-all duration-200 ease-out",
+                ageValue ? "text-[#119933]" : "text-[#7F7F7F]"
+              )}
+              style={{
+                left: "9.23px",
+                top: "-6.15px",
+                width: "28px",
+                height: "14px",
+                fontFamily: "Arial",
+                fontStyle: "normal",
+                fontWeight: 400,
+                fontSize: "14px",
+                lineHeight: "14px",
+              }}
+            >
+              Age
+            </label>
           </div>
         </div>
       )}

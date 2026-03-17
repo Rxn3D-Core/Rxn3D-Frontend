@@ -32,6 +32,7 @@ interface Doctor {
 interface PatientData {
   name: string;
   gender: string;
+  age?: number | string;
 }
 
 interface User {
@@ -223,6 +224,7 @@ export function transformToSlipCreationPayload(
     doctor: selectedDoctor.id,
     patient_name: patientData.name.trim(),
     gender: patientData.gender ? capitalizeFirstLetter(patientData.gender) : undefined,
+    age: patientData.age !== undefined && patientData.age !== "" ? Number(patientData.age) : undefined,
     case_status: "In Progress",
   };
 

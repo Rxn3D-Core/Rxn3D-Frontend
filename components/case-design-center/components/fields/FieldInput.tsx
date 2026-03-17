@@ -14,10 +14,10 @@ function getPatientNameHint(value: string, baseLabel: string): string {
   if (secondWord.length >= 3) return baseLabel;
 
   // 3rd letter of first word → prompt for last name
-  if (firstWord.length >= 3) return "enter patient's last name";
+  if (firstWord.length >= 3) return "Enter patient's last name";
 
   // 1st letter of first word → prompt for full name
-  if (firstWord.length >= 1) return "enter patient's full name";
+  if (firstWord.length >= 1) return "Enter patient's full name";
 
   return baseLabel;
 }

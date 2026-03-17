@@ -677,7 +677,7 @@ export function FixedRestorationFields({
         return (
           <div className="flex flex-wrap gap-3">
             <fieldset
-              className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors flex-1 min-w-[200px] ${
+              className={`border rounded px-3 py-0 relative min-h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors w-full ${
                 isFieldCompleted(arch, firstToothNumber, "fixed_impression") && !caseSubmitted ? "border-[#34a853]" : isFieldCompleted(arch, firstToothNumber, "fixed_impression") ? "border-[#b4b0b0]" : "border-[#CF0202]"
               }`}
               onClick={() => {
@@ -690,7 +690,7 @@ export function FixedRestorationFields({
                 Impression
               </legend>
               <div className="flex items-center gap-2 w-full">
-                <span className="text-[14px] sm:text-lg text-[#000000] truncate">
+                <span className="text-[14px] sm:text-lg text-[#000000] break-words">
                   {getImpressionDisplayText(selectedProduct?.id?.toString() || `fixed_${firstToothNumber}`, arch)}
                 </span>
                 {isFieldCompleted(arch, firstToothNumber, "fixed_impression") && !caseSubmitted && (

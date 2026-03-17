@@ -7563,6 +7563,17 @@ export function useCaseDesignCenter() {
     localStorage.setItem("patientData", JSON.stringify(updatedPatientData))
   }
 
+  const handlePatientAgeChange = (value: string) => {
+    const updatedPatientData = {
+      ...patientData,
+      name: patientData?.name || "",
+      gender: patientData?.gender || "",
+      age: value,
+    }
+    setPatientData(updatedPatientData)
+    localStorage.setItem("patientData", JSON.stringify(updatedPatientData))
+  }
+
   // Build context value for CaseDesignCenterProvider (so section components can use useCaseDesignCenterContext)
   const caseDesignCenterValue = useMemo(
     () => ({
@@ -7651,6 +7662,7 @@ export function useCaseDesignCenter() {
       checkProductsScroll,
       handlePatientNameChange,
       handlePatientGenderChange,
+      handlePatientAgeChange,
       savedProductSectionContextValue,
       showArchSelectionPopover,
       setShowArchSelectionPopover,

@@ -21,46 +21,98 @@ interface TeethShadeEntry {
   brand?: { id: number } | null;
 }
 
-/** Fetch teeth shade catalog once for ID resolution at shade selection time */
+/** Fetch teeth shade catalog once for ID resolution at shade selection time.
+ *  Uses /v1/library/teeth-shade-brands which returns brands with nested shades. */
+let _teethShadeCatalogCache: TeethShadeEntry[] | null = null;
+let _teethShadeCatalogPromise: Promise<TeethShadeEntry[]> | null = null;
+
 async function fetchTeethShadeCatalog(): Promise<TeethShadeEntry[]> {
-  try {
-    const token = localStorage.getItem("token");
-    if (!token) return [];
-    const url = new URL("/v1/slip/teeth-shades", API_BASE_URL);
-    const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` } });
-    if (!res.ok) return [];
-    const json = await res.json();
-    return json.data ?? [];
-  } catch {
-    return [];
-  }
+  if (_teethShadeCatalogCache) return _teethShadeCatalogCache;
+  if (_teethShadeCatalogPromise) return _teethShadeCatalogPromise;
+
+  _teethShadeCatalogPromise = (async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return [];
+      const url = new URL("/v1/library/teeth-shade-brands", API_BASE_URL);
+      url.searchParams.set("lang", "en");
+      const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return [];
+      const json = await res.json();
+      // Flatten brands → individual shade entries so lookups by name work
+      const brands: any[] = json.data ?? [];
+      const entries: TeethShadeEntry[] = [];
+      for (const brand of brands) {
+        const shades: any[] = brand.teeth_shades ?? brand.teethShades ?? [];
+        for (const shade of shades) {
+          entries.push({
+            id: shade.id,
+            teeth_shade_id: shade.id,
+            name: shade.name ?? "",
+            brand: brand.id ? { id: brand.id } : null,
+          });
+        }
+      }
+      _teethShadeCatalogCache = entries;
+      return entries;
+    } catch {
+      return [];
+    } finally {
+      _teethShadeCatalogPromise = null;
+    }
+  })();
+
+  return _teethShadeCatalogPromise;
 }
+
+/** Module-level cache & in-flight dedup for product details to avoid duplicate API calls */
+const _productDetailsCache = new Map<string, ProductApiData>();
+const _productDetailsInflight = new Map<string, Promise<ProductApiData | null>>();
 
 /** Fetch full product details (stages, impressions, gum_shades, etc.) */
 async function fetchProductDetails(productId: number, customerId: number): Promise<ProductApiData | null> {
-  try {
-    const token = localStorage.getItem("token");
-    if (!token) return null;
+  const cacheKey = `${productId}_${customerId}`;
 
-    const url = new URL(`/v1/library/products/${productId}`, API_BASE_URL);
-    url.searchParams.set("lang", "en");
-    url.searchParams.set("customer_id", String(customerId));
+  // Return from cache if available
+  const cached = _productDetailsCache.get(cacheKey);
+  if (cached) return cached;
 
-    const res = await fetch(url.toString(), {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-    });
+  // Deduplicate in-flight requests for the same product
+  const inflight = _productDetailsInflight.get(cacheKey);
+  if (inflight) return inflight;
 
-    if (!res.ok) return null;
+  const promise = (async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return null;
 
-    const json = await res.json();
-    return json.data || null;
-  } catch {
-    return null;
-  }
+      const url = new URL(`/v1/library/products/${productId}`, API_BASE_URL);
+      url.searchParams.set("lang", "en");
+      url.searchParams.set("customer_id", String(customerId));
+
+      const res = await fetch(url.toString(), {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!res.ok) return null;
+
+      const json = await res.json();
+      const data = json.data || null;
+      if (data) _productDetailsCache.set(cacheKey, data);
+      return data;
+    } catch {
+      return null;
+    } finally {
+      _productDetailsInflight.delete(cacheKey);
+    }
+  })();
+
+  _productDetailsInflight.set(cacheKey, promise);
+  return promise;
 }
 
 export function useCaseDesignState(props: CaseDesignProps) {

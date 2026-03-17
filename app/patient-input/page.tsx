@@ -35,6 +35,7 @@ export default function PatientInputPage() {
   const [createdBy, setCreatedBy] = useState<string>("")
   const [patientName, setPatientName] = useState<string>("")
   const [gender, setGender] = useState<string>("")
+  const [age, setAge] = useState<string>("")
   const [showRefreshWarningModal, setShowRefreshWarningModal] = useState(false)
   const allowNavigationRef = useRef<boolean>(false)
 
@@ -90,6 +91,7 @@ export default function PatientInputPage() {
         const patientData = {
           name: patientName.trim(),
           gender,
+          ...(age ? { age } : {}),
         }
         localStorage.setItem("patientData", JSON.stringify(patientData))
 
@@ -99,12 +101,12 @@ export default function PatientInputPage() {
 
       return () => clearTimeout(timer)
     }
-  }, [patientName, gender, router])
+  }, [patientName, gender, age, router])
 
   // Check if there's unsaved work (patient name or gender entered)
   const hasUnsavedWork = useMemo(() => {
-    return patientName.trim().length > 0 || gender.length > 0
-  }, [patientName, gender])
+    return patientName.trim().length > 0 || gender.length > 0 || age.length > 0
+  }, [patientName, gender, age])
 
   // Handle page refresh/navigation warning
   useEffect(() => {
@@ -168,6 +170,7 @@ export default function PatientInputPage() {
     const patientData = {
       name: patientName.trim(),
       gender,
+      ...(age ? { age } : {}),
     }
     localStorage.setItem("patientData", JSON.stringify(patientData))
 
@@ -185,8 +188,10 @@ export default function PatientInputPage() {
         editablePatientData={{
           name: patientName,
           gender: gender,
+          age: age,
           onNameChange: setPatientName,
           onGenderChange: setGender,
+          onAgeChange: setAge,
         }}
       />
 

@@ -49,103 +49,66 @@ export function ExtractionsSection({
   const [opposingExtractionStatuses, setOpposingExtractionStatuses] = useState<any[]>([])
   const isUpdatingRef = useRef(false)
   const isOpposingUpdatingRef = useRef(false)
+  const hasInitializedRef = useRef(false)
+  const hasInitializedOpposingRef = useRef(false)
 
-  // Update extractionStatuses when extractions data or form data changes
-  useEffect(() => {
-    if (extractions.length > 0 && !isUpdatingRef.current) {
-      // Always show ALL extractions from the listing API
-      // Compare with product extractions and mark matching ones as active
-      const convertedStatuses = extractions.map((apiExtraction: Extraction) => {
-        // Find if this extraction exists in the product's extractions
-        const productExtraction = watchedExtractions.find(
-          (ext: any) => ext.extraction_id === apiExtraction.id
-        )
+  // Helper to build statuses from API extractions + form data
+  const buildStatuses = (apiExtractions: Extraction[], formExtractions: any[]) => {
+    return apiExtractions.map((apiExtraction: Extraction) => {
+      const productExtraction = formExtractions.find(
+        (ext: any) => ext.extraction_id === apiExtraction.id
+      )
 
-        if (productExtraction) {
-          // This extraction is in the product, mark it as active and use product data
-          // Determine is_active based on extraction.status field
-          const isActive = productExtraction.status === "Active"
-
-          return {
-            extraction_id: apiExtraction.id,
-            name: apiExtraction.name, // Always use name from API
-            color: apiExtraction.color, // Always use color from API
-            is_default: productExtraction.is_default === "Yes",
-            is_required: productExtraction.is_required === "Yes",
-            is_optional: productExtraction.is_optional === "Yes",
-            is_active: isActive,
-            min_teeth: productExtraction.min_teeth ?? null,
-            max_teeth: productExtraction.max_teeth ?? null,
-          }
-        } else {
-          // This extraction is NOT in the product, mark it as inactive with defaults
-          return {
-            extraction_id: apiExtraction.id,
-            name: apiExtraction.name,
-            color: apiExtraction.color,
-            is_default: false,
-            is_required: false,
-            is_optional: false,
-            is_active: false, // Not in product, so inactive by default
-            min_teeth: null,
-            max_teeth: null,
-          }
+      if (productExtraction) {
+        const isActive = productExtraction.status === "Active"
+        return {
+          extraction_id: apiExtraction.id,
+          name: apiExtraction.name,
+          color: apiExtraction.color,
+          is_default: productExtraction.is_default === "Yes",
+          is_required: productExtraction.is_required === "Yes",
+          is_optional: productExtraction.is_optional === "Yes",
+          is_active: isActive,
+          min_teeth: productExtraction.min_teeth ?? null,
+          max_teeth: productExtraction.max_teeth ?? null,
         }
-      })
-      
-      setExtractionStatuses(convertedStatuses)
+      } else {
+        return {
+          extraction_id: apiExtraction.id,
+          name: apiExtraction.name,
+          color: apiExtraction.color,
+          is_default: false,
+          is_required: false,
+          is_optional: false,
+          is_active: false,
+          min_teeth: null,
+          max_teeth: null,
+        }
+      }
+    })
+  }
+
+  // Initialize extractionStatuses ONCE when API extractions load
+  useEffect(() => {
+    if (extractions.length > 0 && !hasInitializedRef.current) {
+      hasInitializedRef.current = true
+      setExtractionStatuses(buildStatuses(extractions, watchedExtractions))
     }
-  }, [extractions, watchedExtractions])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [extractions])
 
   // Auto-uncheck "apply same status to opposing" if opposite_extractions has values on initial load
-  const hasInitializedOpposingRef = useRef(false)
+  // Initialize opposingExtractionStatuses ONCE when API extractions load
   useEffect(() => {
-    if (!hasInitializedOpposingRef.current && watchedOppositeExtractions.length > 0) {
+    if (extractions.length > 0 && !hasInitializedOpposingRef.current) {
       hasInitializedOpposingRef.current = true
-      setValue("apply_same_status_to_opposing", false, { shouldDirty: false })
+      if (watchedOppositeExtractions.length > 0) {
+        setValue("apply_same_status_to_opposing", false, { shouldDirty: false })
+      }
+      setOpposingExtractionStatuses(buildStatuses(extractions, watchedOppositeExtractions))
     }
-  }, [watchedOppositeExtractions, setValue])
-
-  // Update opposingExtractionStatuses when extractions data or form data changes
-  useEffect(() => {
-    if (extractions.length > 0 && !isOpposingUpdatingRef.current) {
-      const convertedStatuses = extractions.map((apiExtraction: Extraction) => {
-        const productExtraction = watchedOppositeExtractions.find(
-          (ext: any) => ext.extraction_id === apiExtraction.id
-        )
-
-        if (productExtraction) {
-          const isActive = productExtraction.status === "Active"
-
-          return {
-            extraction_id: apiExtraction.id,
-            name: apiExtraction.name,
-            color: apiExtraction.color,
-            is_default: productExtraction.is_default === "Yes",
-            is_required: productExtraction.is_required === "Yes",
-            is_optional: productExtraction.is_optional === "Yes",
-            is_active: isActive,
-            min_teeth: productExtraction.min_teeth ?? null,
-            max_teeth: productExtraction.max_teeth ?? null,
-          }
-        } else {
-          return {
-            extraction_id: apiExtraction.id,
-            name: apiExtraction.name,
-            color: apiExtraction.color,
-            is_default: false,
-            is_required: false,
-            is_optional: false,
-            is_active: false,
-            min_teeth: null,
-            max_teeth: null,
-          }
-        }
-      })
-      
-      setOpposingExtractionStatuses(convertedStatuses)
-    }
-  }, [extractions, watchedOppositeExtractions])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [extractions])
 
   const handleStatusChange = (extractionId: number, field: string, value: any) => {
     if (isUpdatingRef.current) return // Prevent infinite loops

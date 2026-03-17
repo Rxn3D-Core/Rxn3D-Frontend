@@ -1,6 +1,6 @@
 "use client"
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react"
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 
 // --- Types based on sample payload ---
@@ -425,13 +425,17 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
     }
   }, [token])
 
+  // Module-level cache & in-flight dedup for product details
+  const productDetailsCacheRef = useRef<Map<string, any>>(new Map());
+  const productDetailsInflightRef = useRef<Map<string, Promise<any>>>(new Map());
+
   // Add function to fetch individual product details from library API
   const fetchProductDetails = useCallback(async (productId: number, labId?: number) => {
     try {
       // Get user role information
       const userRole = typeof window !== "undefined" ? localStorage.getItem("role") : null;
       let userRoles: string[] = [];
-      
+
       if (userRole) {
         try {
           userRoles = JSON.parse(userRole);
@@ -442,9 +446,8 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
 
       // Determine which customer_id to use based on user role
       let effectiveCustomerId: number | null = null;
-      
+
       if (userRoles.includes("lab_admin") || userRoles.includes("superadmin")) {
-        // For lab_admin or superadmin roles, use customer_id from localStorage
         if (typeof window !== "undefined") {
           const storedCustomerId = localStorage.getItem("customerId");
           if (storedCustomerId) {
@@ -453,11 +456,20 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
         }
       } else {
         const selectedLabId = localStorage.getItem("selectedLabId");
-        // For other roles, use labId parameter (which is the selectedLabId)
         if (selectedLabId) {
           effectiveCustomerId = Number(selectedLabId);
         }
       }
+
+      const cacheKey = `${productId}_${effectiveCustomerId ?? 0}`;
+
+      // Return from cache
+      const cached = productDetailsCacheRef.current.get(cacheKey);
+      if (cached) return cached;
+
+      // Deduplicate in-flight requests
+      const inflight = productDetailsInflightRef.current.get(cacheKey);
+      if (inflight) return inflight;
 
       // Build URL with required parameters
       const url = new URL(`/v1/library/products/${productId}`, process.env.NEXT_PUBLIC_API_BASE_URL);
@@ -466,39 +478,48 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
         url.searchParams.append('customer_id', effectiveCustomerId.toString());
       }
 
-      // Create AbortController for timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      const promise = (async () => {
+        // Create AbortController for timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-      try {
-        const res = await fetch(url.toString(), { 
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-          signal: controller.signal
-        });
-        
-        clearTimeout(timeoutId);
-        
-        if (res.status === 401) { 
-          window.location.href = '/login'; 
+        try {
+          const res = await fetch(url.toString(), {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            signal: controller.signal
+          });
+
+          clearTimeout(timeoutId);
+
+          if (res.status === 401) {
+            window.location.href = '/login';
+            return null;
+          }
+
+          if (!res.ok) {
+            console.error(`API error: ${res.status} ${res.statusText}`);
+            return null;
+          }
+
+          const json = await res.json();
+          const data = json.data || json;
+          if (data) productDetailsCacheRef.current.set(cacheKey, data);
+          return data;
+        } catch (e: any) {
+          clearTimeout(timeoutId);
+          if (e.name === 'AbortError') {
+            console.error('Request timeout: Product details fetch took too long');
+          } else {
+            console.error('Error fetching product details:', e);
+          }
           return null;
+        } finally {
+          productDetailsInflightRef.current.delete(cacheKey);
         }
-        
-        if (!res.ok) {
-          console.error(`API error: ${res.status} ${res.statusText}`);
-          return null;
-        }
-        
-        const json = await res.json();
-        return json.data || json; // Return the product data
-      } catch (e: any) {
-        clearTimeout(timeoutId);
-        if (e.name === 'AbortError') {
-          console.error('Request timeout: Product details fetch took too long');
-        } else {
-          console.error('Error fetching product details:', e);
-        }
-        return null;
-      }
+      })();
+
+      productDetailsInflightRef.current.set(cacheKey, promise);
+      return promise;
     } catch (e) {
       console.error('Error fetching product details:', e);
       return null;

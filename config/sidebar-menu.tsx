@@ -189,6 +189,12 @@ export const superadminMenu: MenuItem[] = [
         path: "/dashboard/settings",
       },
       {
+        id: "slip-settings",
+        title: "Slip Settings",
+        icon: <FileText className="h-5 w-5" />,
+        path: "/dashboard/slip-settings",
+      },
+      {
         id: "system-setting-main",
         title: "System Setting",
     path: "/system-setting",
@@ -318,6 +324,12 @@ export const labAdminMenu: MenuItem[] = [
         path: "/dashboard/settings",
       },
       {
+        id: "slip-settings",
+        title: "Slip Settings",
+        icon: <FileText className="h-5 w-5" />,
+        path: "/dashboard/slip-settings",
+      },
+      {
         id: "system-setting-main",
         title: "System Setting",
     path: "/lab-administrator/system-settings",
@@ -414,6 +426,12 @@ export const officeAdminMenu: MenuItem[] = [
         path: "/dashboard/settings",
       },
       {
+        id: "slip-settings",
+        title: "Slip Settings",
+        icon: <FileText className="h-5 w-5" />,
+        path: "/dashboard/slip-settings",
+      },
+      {
         id: "system-settings-main",
         title: "System Settings",
     path: "/office-administrator/system-settings",
@@ -456,6 +474,12 @@ export const doctorAdminMenu: MenuItem[] = [
         title: "Dashboard Settings",
         icon: <LayoutDashboard className="h-5 w-5" />,
         path: "/dashboard/settings",
+      },
+      {
+        id: "slip-settings",
+        title: "Slip Settings",
+        icon: <FileText className="h-5 w-5" />,
+        path: "/dashboard/slip-settings",
       },
       {
         id: "system-setting-main",
@@ -518,6 +542,12 @@ export const officeUserMenu: MenuItem[] = [
         title: "Dashboard Settings",
         icon: <LayoutDashboard className="h-5 w-5" />,
         path: "/dashboard/settings",
+      },
+      {
+        id: "slip-settings",
+        title: "Slip Settings",
+        icon: <FileText className="h-5 w-5" />,
+        path: "/dashboard/slip-settings",
       },
       {
         id: "system-setting-main",

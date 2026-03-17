@@ -53,6 +53,7 @@ export interface SlipCreationCase {
   doctor: number;
   patient_name: string;
   gender?: string;
+  age?: number;
   case_status?: string;
 }
 
@@ -135,6 +136,7 @@ export interface SlipCreationResponse {
     case_number: string;
     patient_name: string;
     gender: string;
+    age?: number;
     case_status: string;
     created_at: string;
     updated_at: string;

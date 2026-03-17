@@ -84,39 +84,60 @@ export function ProductDetailsSection({
     }
   }, [setValue])
 
+  // When editing, set category_id and subcategory_id from the product's data
+  const editingCategoryId = editingProduct?.subcategory?.category_id || editingProduct?.subcategory?.category?.id
+  const editingSubcategoryId = editingProduct?.subcategory_id || editingProduct?.subcategory?.id
+  const [initialEditDone, setInitialEditDone] = React.useState(false)
+
+  // Reset flag when editingProduct changes
+  useEffect(() => {
+    setInitialEditDone(false)
+  }, [editingProduct])
+
+  // Set both category and subcategory from the product API response
+  useEffect(() => {
+    if (!initialEditDone && setValue && editingProduct) {
+      if (editingCategoryId && !selectedCategoryId) {
+        setValueWithOptions("category_id", editingCategoryId, { shouldDirty: false })
+      }
+      if (editingSubcategoryId && !subcategoryId) {
+        setValueWithOptions("subcategory_id", editingSubcategoryId, { shouldDirty: false })
+      }
+      setInitialEditDone(true)
+    }
+  }, [editingProduct, editingCategoryId, editingSubcategoryId, initialEditDone, selectedCategoryId, subcategoryId, setValueWithOptions, setValue])
+
+  // Categories list with editing product's category injected as fallback
+  const categoriesForDropdown = React.useMemo(() => {
+    const cats = [...(categoriesWithSubcategories || [])]
+    if (editingProduct?.subcategory?.category) {
+      const editCat = editingProduct.subcategory.category
+      if (!cats.some((c: any) => c.id === editCat.id)) {
+        cats.push({
+          id: editCat.id,
+          name: editCat.name,
+          subcategories: editingProduct.subcategory ? [{ id: editingProduct.subcategory.id, name: editingProduct.subcategory.name }] : []
+        })
+      }
+    }
+    return cats
+  }, [categoriesWithSubcategories, editingProduct])
+
   // Get available subcategories based on selected category
   const availableSubcategories = React.useMemo(() => {
-    if (!selectedCategoryId || categoriesWithSubcategories.length === 0) {
-      return []
-    }
-    const selectedCategory = categoriesWithSubcategories.find(cat => cat.id === selectedCategoryId)
+    if (!selectedCategoryId) return []
+    const selectedCategory = categoriesForDropdown.find(cat => cat.id === selectedCategoryId)
     return selectedCategory?.subcategories || []
-  }, [selectedCategoryId, categoriesWithSubcategories])
+  }, [selectedCategoryId, categoriesForDropdown])
 
-  // When editing, determine category from subcategory_id
+  // Clear subcategory when user manually changes category (not during initial edit)
+  const prevCategoryRef = React.useRef<number | null>(null)
   useEffect(() => {
-    if (editingProduct?.subcategory_id && categoriesWithSubcategories.length > 0 && !selectedCategoryId && setValue) {
-      // Find the category that contains this subcategory
-      const category = categoriesWithSubcategories.find(cat => 
-        cat.subcategories.some(sub => sub.id === editingProduct.subcategory_id)
-      )
-      if (category) {
-        setValueWithOptions("category_id", category.id, { shouldDirty: false })
-      }
+    if (selectedCategoryId && prevCategoryRef.current !== null && prevCategoryRef.current !== selectedCategoryId && subcategoryId) {
+      setValueWithOptions("subcategory_id", null, { shouldDirty: true })
     }
-  }, [editingProduct?.subcategory_id, categoriesWithSubcategories, selectedCategoryId, setValueWithOptions])
-
-  // Clear subcategory when category changes
-  useEffect(() => {
-    if (selectedCategoryId && setValue && subcategoryId) {
-      // Check if current subcategory belongs to selected category
-      const selectedCategory = categoriesWithSubcategories.find(cat => cat.id === selectedCategoryId)
-      const subcategoryExists = selectedCategory?.subcategories.some(sub => sub.id === subcategoryId)
-      if (!subcategoryExists) {
-        setValueWithOptions("subcategory_id", null, { shouldDirty: true })
-      }
-    }
-  }, [selectedCategoryId, categoriesWithSubcategories, subcategoryId, setValueWithOptions])
+    prevCategoryRef.current = selectedCategoryId
+  }, [selectedCategoryId, subcategoryId, setValueWithOptions])
 
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -160,15 +181,15 @@ export function ProductDetailsSection({
     }
   }, [defaultGradePrice, sections.grades, setValueWithOptions])
 
-  // Auto-generate code from name when name changes
+  // Auto-generate code from name when name changes (only for new products, not editing)
   useEffect(() => {
-    if (name && typeof name === "string") {
+    if (!editingProduct && name && typeof name === "string") {
       const generatedCode = generateCodeFromName(name)
       if (generatedCode) {
         setValueWithOptions("code", generatedCode, { shouldDirty: true })
       }
     }
-  }, [name, setValueWithOptions])
+  }, [name, setValueWithOptions, editingProduct])
 
   const handleImageClick = () => {
     fileInputRef.current?.click()
@@ -346,29 +367,28 @@ export function ProductDetailsSection({
                     name="category_id"
                     control={control}
                     render={({ field }) => {
-                      const hasValue = field.value !== null && field.value !== undefined && field.value !== ""
-                      const selectedCategory = categoriesWithSubcategories.find(cat => cat.id === field.value)
-                      const displayValue = selectedCategory?.name || ""
-                      const isFocused = false // Select doesn't expose focus state easily, but label shows when value exists
-                      
+                      const selectedCategory = categoriesForDropdown.find(cat => cat.id === field.value)
+                      const hasValue = !!selectedCategory
+                      const hasError = getValidationError("category_id")
+
                       return (
                         <div className="relative">
-                          {(hasValue || isFocused) && (
+                          {(hasValue || hasError) && (
                             <label
                               className={cn(
                                 "absolute -top-2 left-3 bg-white px-1 text-xs transition-all z-10",
-                                getValidationError("category_id")
+                                hasError
                                   ? "text-[#CF0202]"
                                   : hasValue
                                     ? "text-[#119933]"
-                                    : "text-gray-500"
+                                    : "text-[#CF0202]"
                               )}
                             >
                               Category *
                             </label>
                           )}
                           <Select
-                            value={field.value ? String(field.value) : ""}
+                            value={hasValue ? String(field.value) : ""}
                             onValueChange={(value) => {
                               const numValue = value ? Number(value) : null
                               field.onChange(numValue)
@@ -377,10 +397,10 @@ export function ProductDetailsSection({
                             }}
                             disabled={isCustomDisabled}
                           >
-                            <SelectTrigger 
+                            <SelectTrigger
                               className={cn(
                                 "h-14 pt-6 pb-2 rounded-lg border-2 transition-all",
-                                getValidationError("category_id")
+                                hasError
                                   ? "border-[#CF0202]"
                                   : hasValue
                                     ? "border-[#119933]"
@@ -390,8 +410,8 @@ export function ProductDetailsSection({
                               <SelectValue placeholder={hasValue ? "" : "Select Category *"} />
                             </SelectTrigger>
                             <SelectContent>
-                              {categoriesWithSubcategories?.length > 0 ? (
-                                categoriesWithSubcategories.map((cat) => (
+                              {categoriesForDropdown?.length > 0 ? (
+                                categoriesForDropdown.map((cat) => (
                                   <SelectItem key={cat.id} value={String(cat.id)}>
                                     {cat.name}
                                   </SelectItem>
@@ -415,37 +435,37 @@ export function ProductDetailsSection({
                     name="subcategory_id"
                     control={control}
                     render={({ field }) => {
-                      const hasValue = field.value !== null && field.value !== undefined && field.value !== ""
                       const selectedSubcategory = availableSubcategories.find(sub => sub.id === field.value)
-                      const displayValue = selectedSubcategory?.name || ""
-                      
+                      const hasValue = !!selectedSubcategory
+                      const hasError = getValidationError("subcategory_id")
+
                       return (
                         <div className="relative">
-                          {(hasValue) && (
+                          {(hasValue || hasError) && (
                             <label
                               className={cn(
                                 "absolute -top-2 left-3 bg-white px-1 text-xs transition-all z-10",
-                                getValidationError("subcategory_id")
+                                hasError
                                   ? "text-[#CF0202]"
                                   : hasValue
                                     ? "text-[#119933]"
-                                    : "text-gray-500"
+                                    : "text-[#CF0202]"
                               )}
                             >
                               Subcategory *
                             </label>
                           )}
                           <Select
-                            value={field.value ? String(field.value) : ""}
+                            value={hasValue ? String(field.value) : ""}
                             onValueChange={(value) => {
                               field.onChange(value ? Number(value) : null)
                             }}
                             disabled={!selectedCategoryId || isCustomDisabled}
                           >
-                            <SelectTrigger 
+                            <SelectTrigger
                               className={cn(
                                 "h-14 pt-6 pb-2 rounded-lg border-2 transition-all",
-                                getValidationError("subcategory_id")
+                                hasError
                                   ? "border-[#CF0202]"
                                   : hasValue
                                     ? "border-[#119933]"
@@ -453,8 +473,8 @@ export function ProductDetailsSection({
                                 (!selectedCategoryId || isCustomDisabled) && "opacity-40 cursor-not-allowed bg-gray-50"
                               )}
                             >
-                              <SelectValue 
-                                placeholder={hasValue ? "" : (selectedCategoryId ? "Select Subcategory *" : "Select category first")} 
+                              <SelectValue
+                                placeholder={hasValue ? "" : (selectedCategoryId ? "Select Subcategory *" : "Select category first")}
                               />
                             </SelectTrigger>
                             <SelectContent>

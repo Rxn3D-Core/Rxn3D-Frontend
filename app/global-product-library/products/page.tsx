@@ -1,21 +1,21 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { Search, ArrowUp, ArrowDown, Copy, Edit, TrashIcon, Package2, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { SearchableSelect } from "@/components/ui/searchable-select"
+import { TableRowSkeleton } from "@/components/ui/loading-skeleton"
 import { AddProductModal } from "@/components/product-management/add-product-modal"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import { useProducts } from "@/contexts/product-products-context"
 import { useProductCategory } from "@/contexts/product-category-context"
 import { useLanguage } from "@/contexts/language-context"
 import { useTranslation } from "react-i18next"
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
-import { faTooth } from "@fortawesome/free-solid-svg-icons"
+import { LoadingOverlay } from "@/components/ui/loading-overlay"
 
 export default function ProductsPage() {
   const {
@@ -41,12 +41,21 @@ export default function ProductsPage() {
     getProductDetail,
   } = useProducts()
 
-  const { categories, fetchParentDropdownCategories } = useProductCategory()
+  const {
+    categories,
+    fetchParentDropdownCategories,
+    allCategories,
+    allCategoriesLoading,
+    fetchAllCategories,
+    subcategoriesByCategory,
+    subcategoriesLoading,
+    fetchSubcategoriesByCategory,
+  } = useProductCategory()
 
-  const [entriesPerPage, setEntriesPerPage] = useState(pagination.per_page.toString() || "25")
+  const [entriesPerPage, setEntriesPerPage] = useState(pagination.per_page.toString() || "10")
   const [currentPage, setCurrentPage] = useState(pagination.current_page || 1)
   const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false)
-  const [searchInput, setSearchInput] = useState(searchQuery) // Local state for debounced input
+  const [searchInput, setSearchInput] = useState(searchQuery)
   const { currentLanguage } = useLanguage()
   const { t } = useTranslation();
   const isInitialMount = useRef(true)
@@ -59,6 +68,10 @@ export default function ProductsPage() {
   // State for editing product
   const [editingProduct, setEditingProduct] = useState<any | null>(null)
   const [isEditLoading, setIsEditLoading] = useState(false)
+
+  // State for category/subcategory filters
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null)
+  const [availableSubcategories, setAvailableSubcategories] = useState<any[]>([])
 
   // Open single delete modal
   const openDeleteModal = (id: number) => {
@@ -140,9 +153,19 @@ export default function ProductsPage() {
     currentLanguage,
   ])
 
+  // Fetch all categories on mount
   useEffect(() => {
-    fetchParentDropdownCategories()
-  }, [fetchParentDropdownCategories])
+    fetchAllCategories(currentLanguage)
+  }, [fetchAllCategories, currentLanguage])
+
+  // Update available subcategories when subcategoriesByCategory changes
+  useEffect(() => {
+    if (selectedCategoryId && subcategoriesByCategory && subcategoriesByCategory.length > 0) {
+      setAvailableSubcategories(subcategoriesByCategory)
+    } else if (!selectedCategoryId) {
+      setAvailableSubcategories([])
+    }
+  }, [subcategoriesByCategory, selectedCategoryId])
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page)
@@ -162,6 +185,7 @@ export default function ProductsPage() {
     }
     setCurrentPage(1)
   }
+
   const renderSortIndicator = (columnKey: string) => {
     if (sortColumn !== columnKey) return null
     return sortDirection === "asc" ? (
@@ -197,10 +221,6 @@ export default function ProductsPage() {
     setEditingProduct(null)
   }
 
-  const getVisibilityStatus = (productStatus: string) => {
-    return productStatus === "Active" ? "All labs" : "Selected"
-  }
-
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text)
   }
@@ -217,6 +237,96 @@ export default function ProductsPage() {
     })
   }
 
+  const handleDuplicate = async (id: number) => {
+    setIsEditLoading(true)
+    setEditingProduct(null)
+    setIsAddProductModalOpen(false)
+
+    try {
+      const detail = await getProductDetail(id)
+      const productDetail = detail && detail.data ? detail.data : detail
+
+      const timestamp = Date.now().toString().slice(-6)
+      const uniqueCode = productDetail.code
+        ? `${productDetail.code}_COPY_${timestamp}`
+        : `PROD_${timestamp}`
+
+      const {
+        id: _,
+        created_at,
+        updated_at,
+        deleted_at,
+        image_url,
+        ...productWithoutId
+      } = productDetail
+
+      const duplicatedProduct = {
+        ...productWithoutId,
+        name: productDetail.name ? `${productDetail.name} (Copy)` : productDetail.name,
+        code: uniqueCode,
+        image: productDetail.image || null,
+      }
+
+      setEditingProduct(duplicatedProduct)
+      setIsEditLoading(false)
+      setIsAddProductModalOpen(true)
+    } catch (error) {
+      console.error("Failed to duplicate product:", error)
+      setIsEditLoading(false)
+    }
+  }
+
+  // Handle category selection
+  const handleCategoryChange = async (categoryId: string) => {
+    if (categoryId === "all") {
+      setSelectedCategoryId(null)
+      setSubcategoryFilter(null)
+      setAvailableSubcategories([])
+    } else {
+      const id = parseInt(categoryId)
+      setSelectedCategoryId(id)
+      setSubcategoryFilter(null)
+
+      try {
+        await fetchSubcategoriesByCategory(id, currentLanguage)
+      } catch (error) {
+        console.error('Error fetching subcategories:', error)
+        setAvailableSubcategories([])
+      }
+    }
+  }
+
+  // Handle subcategory selection
+  const handleSubcategoryChange = useCallback((subcategoryId: string) => {
+    if (subcategoryId === "all") {
+      setSubcategoryFilter(null)
+    } else {
+      setSubcategoryFilter(parseInt(subcategoryId))
+    }
+  }, [])
+
+  // Memoize category options
+  const categoryOptions = useMemo(() => [
+    { value: "all", label: t("All Categories") },
+    ...(Array.isArray(allCategories) && allCategories.length > 0
+      ? allCategories.map((category: any) => ({
+          value: category.id.toString(),
+          label: category.name,
+        }))
+      : [])
+  ], [allCategories, t])
+
+  // Memoize subcategory options
+  const subcategoryOptions = useMemo(() => [
+    { value: "all", label: t("All Subcategories") },
+    ...(Array.isArray(availableSubcategories) && availableSubcategories.length > 0
+      ? availableSubcategories.map((subcategory: any) => ({
+          value: subcategory.id.toString(),
+          label: subcategory.name || subcategory.sub_name,
+        }))
+      : [])
+  ], [availableSubcategories, t])
+
   return (
     <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
       {/* Page Title */}
@@ -226,33 +336,80 @@ export default function ProductsPage() {
             <Package2 className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold text-gray-900">Products Management</h1>
-            <p className="text-sm text-gray-500">Manage your product catalog and configurations</p>
+            <h1 className="text-xl font-semibold text-gray-900">{t("Products Management")}</h1>
+            <p className="text-sm text-gray-500">{t("Manage your product catalog and configurations")}</p>
           </div>
         </div>
       </div>
 
-      {/* Enhanced Header */}
-      <div className="px-6 py-4 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 border-b border-gray-200">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-medium text-gray-700">{t("Show", { defaultValue: "Show" })}</span>
-            <Select value={entriesPerPage} onValueChange={handleEntriesPerPageChange}>
-              <SelectTrigger className="w-[70px] h-8">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="10">10</SelectItem>
-                <SelectItem value="25">25</SelectItem>
-                <SelectItem value="50">50</SelectItem>
-                <SelectItem value="100">100</SelectItem>
-              </SelectContent>
-            </Select>
-            <span className="text-sm ml-2">{t("entries", { defaultValue: "entries" })}</span>
+      {/* Header Section */}
+      <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
+        {/* Filters Row */}
+        <div className="flex flex-col lg:flex-row lg:items-center gap-4 mb-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-700">{t("Show")}</span>
+              <Select value={entriesPerPage} onValueChange={handleEntriesPerPageChange}>
+                <SelectTrigger className="w-20 h-9 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="25">25</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                </SelectContent>
+              </Select>
+              <span className="text-sm text-gray-700">{t("entries")}</span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-700">{t("Status")}</span>
+              <Select value={statusFilter || "all"} onValueChange={(val) => setStatusFilter(val === "all" ? "" : val)}>
+                <SelectTrigger className="w-24 h-9 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("All")}</SelectItem>
+                  <SelectItem value="Active">{t("Active")}</SelectItem>
+                  <SelectItem value="Inactive">{t("Inactive")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-700">{t("Category")}</span>
+              <SearchableSelect
+                value={selectedCategoryId?.toString() || "all"}
+                onValueChange={handleCategoryChange}
+                placeholder={allCategoriesLoading ? t("Loading...") : t("All Categories")}
+                disabled={allCategoriesLoading}
+                className="w-40 sm:w-48 h-9 text-sm"
+                options={categoryOptions}
+                emptyMessage={t("No categories found")}
+                searchPlaceholder={t("Search categories...")}
+              />
+            </div>
+
+            {selectedCategoryId && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-700">{t("Subcategory")}</span>
+                <SearchableSelect
+                  value={subcategoryFilter?.toString() || "all"}
+                  onValueChange={handleSubcategoryChange}
+                  placeholder={subcategoriesLoading ? t("Loading...") : t("All Subcategories")}
+                  disabled={subcategoriesLoading}
+                  className="w-40 sm:w-48 h-9 text-sm"
+                  options={subcategoryOptions}
+                  emptyMessage={t("No subcategories found")}
+                  searchPlaceholder={t("Search subcategories...")}
+                />
+              </div>
+            )}
           </div>
 
           {selectedItems.length > 0 && (
-            <div className="ml-6 flex items-center gap-2">
+            <div className="flex items-center gap-2">
               <span className="text-sm font-medium text-gray-700">
                 {selectedItems.length} {t("selected")}
               </span>
@@ -269,24 +426,27 @@ export default function ProductsPage() {
           )}
         </div>
 
-        <div className="flex gap-3">
-          {/* <Button className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors">
-            {t("Import from product library", { defaultValue: "Import from product library" })}
-          </Button> */}
-          <Button
-            className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
-            onClick={() => setIsAddProductModalOpen(true)}
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            {t("Add Product", { defaultValue: "Add Product" })}
-          </Button>
+        {/* Actions Row */}
+        <div className="flex flex-col sm:flex-row gap-3 sm:justify-between sm:items-center">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Button
+              className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
+              onClick={() => {
+                setEditingProduct(null)
+                setIsAddProductModalOpen(true)
+              }}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              {t("Add Product")}
+            </Button>
+          </div>
 
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
               type="search"
-              placeholder={t("Search products...", { defaultValue: "Search products..." })}
-              className="pl-10 h-10 w-64 text-sm border-gray-300 focus:border-[#1162a8] focus:ring-[#1162a8]"
+              placeholder={t("Search products...")}
+              className="pl-10 h-10 w-full sm:w-64 text-sm border-gray-300 focus:border-[#1162a8] focus:ring-[#1162a8]"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
             />
@@ -294,201 +454,211 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      {/* Enhanced Table */}
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-gray-50/80 hover:bg-gray-50">
-              <TableHead className="w-12 pl-6">
-                <Checkbox
-                  checked={selectedItems.length === products.length && products.length > 0}
-                  onCheckedChange={handleSelectAll}
-                  className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]"
-                  aria-label={t("Select all products", { defaultValue: "Select all products" })}
-                />
-              </TableHead>
-              <TableHead className="cursor-pointer font-semibold text-gray-900">{t("Case Pan", { defaultValue: "Case Pan" })}</TableHead>
-              <TableHead className="cursor-pointer font-semibold text-gray-900">{t("Category", { defaultValue: "Category" })}</TableHead>
-              <TableHead className="cursor-pointer font-semibold text-gray-900">{t("Sub Category", { defaultValue: "Sub Category" })}</TableHead>
-              <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("name")}>
-                {t("Product", { defaultValue: "Product" })} {renderSortIndicator("name")}
-              </TableHead>
-              <TableHead className="cursor-pointer font-semibold text-gray-900">{t("Stages", { defaultValue: "Stages" })}</TableHead>
-              <TableHead className="cursor-pointer font-semibold text-gray-900">{t("Code", { defaultValue: "Code" })}</TableHead>
-              <TableHead className="cursor-pointer font-semibold text-gray-900">{t("Visibility", { defaultValue: "Visibility" })}</TableHead>
-              <TableHead className="cursor-pointer font-semibold text-gray-900">{t("Action", { defaultValue: "Action" })}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              Array.from({ length: Number.parseInt(entriesPerPage) }).map((_, index) => (
-                <TableRow key={`skeleton-${index}`}>
-                  <TableCell className="pl-6">
-                    <div className="w-4 h-4 bg-gray-200 rounded animate-pulse" />
-                  </TableCell>
-                  <TableCell>
-                    <div className="w-8 h-6 bg-gray-200 rounded animate-pulse" />
-                  </TableCell>
-                  <TableCell>
-                    <div className="w-24 h-4 bg-gray-200 rounded animate-pulse" />
-                  </TableCell>
-                  <TableCell>
-                    <div className="w-28 h-4 bg-gray-200 rounded animate-pulse" />
-                  </TableCell>
-                  <TableCell>
-                    <div className="w-32 h-4 bg-gray-200 rounded animate-pulse" />
-                  </TableCell>
-                  <TableCell>
-                    <div className="w-20 h-4 bg-gray-200 rounded animate-pulse" />
-                  </TableCell>
-                  <TableCell>
-                    <div className="w-16 h-4 bg-gray-200 rounded animate-pulse" />
-                  </TableCell>
-                  <TableCell>
-                    <div className="w-20 h-4 bg-gray-200 rounded animate-pulse" />
-                  </TableCell>
-                  <TableCell>
-                    <div className="w-24 h-4 bg-gray-200 rounded animate-pulse" />
+      {error && (
+        <div className="px-6 py-3 bg-red-50 border-b border-red-200">
+          <p className="text-sm text-red-600">{typeof error === 'string' ? error : String(error)}</p>
+        </div>
+      )}
+
+      {/* Table Section */}
+      <div className="relative">
+        <div className="overflow-x-auto">
+          <Table className="w-full text-xs">
+            <TableHeader>
+              <TableRow className="bg-gray-50/80 hover:bg-gray-50">
+                <TableHead className="w-10 pl-4 py-2">
+                  <Checkbox
+                    checked={selectedItems.length === products.length && products.length > 0}
+                    onCheckedChange={handleSelectAll}
+                    className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8] h-4 w-4"
+                  />
+                </TableHead>
+                <TableHead className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors" onClick={() => handleSort("name")}>
+                  {t("Product")} {renderSortIndicator("name")}
+                </TableHead>
+                <TableHead className="font-semibold text-gray-900 py-2 px-2">{t("Case Pan")}</TableHead>
+                <TableHead className="font-semibold text-gray-900 py-2 px-2">{t("Category Hierarchy")}</TableHead>
+                <TableHead className="font-semibold text-gray-900 py-2 px-2">{t("Code")}</TableHead>
+                <TableHead className="font-semibold text-gray-900 py-2 px-2">{t("Arch type")}</TableHead>
+                <TableHead className="font-semibold text-gray-900 py-2 px-2">{t("Price")}</TableHead>
+                <TableHead className="font-semibold text-gray-900 text-center py-2 px-2">{t("Actions")}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <>
+                  {Array.from({ length: 5 }).map((_, index) => (
+                    <TableRowSkeleton key={index} />
+                  ))}
+                </>
+              ) : products.length > 0 ? (
+                products.map((product: any) => {
+                  // Case Pan
+                  const casePanObj = (product.subcategory as any)?.case_pan
+                  const casePanName = casePanObj?.name || "-"
+                  const casePanColor = casePanObj?.color_code || "#e5e7eb"
+
+                  // Category hierarchy
+                  const categoryName = product.subcategory?.category?.name || "-"
+                  const subcategoryName = product.subcategory?.name || "-"
+                  const categoryHierarchy = categoryName !== "-" && subcategoryName !== "-"
+                    ? `${categoryName} → ${subcategoryName}`
+                    : categoryName !== "-"
+                      ? categoryName
+                      : subcategoryName
+
+                  // Product details
+                  const productName = product.name || "-"
+                  const code = product.code || "-"
+                  const archType = product.subcategory?.type || "-"
+                  const priceValue = product.price ?? product.base_price
+                  const price = priceValue !== null && priceValue !== undefined ? `$${priceValue}` : "-"
+
+                  return (
+                    <TableRow key={product.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                      <TableCell className="pl-4 py-2">
+                        <Checkbox
+                          checked={selectedItems.includes(product.id)}
+                          onCheckedChange={(checked) => handleSelectItem(product.id, !!checked)}
+                          className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8] h-4 w-4"
+                        />
+                      </TableCell>
+                      <TableCell className="py-2 px-2">
+                        <span className="truncate block text-xs max-w-[180px]">{productName}</span>
+                      </TableCell>
+                      <TableCell className="py-2 px-2">
+                        <span className="inline-flex items-center gap-1.5">
+                          <span
+                            className="inline-block w-4 h-4 rounded border border-gray-200 flex-shrink-0"
+                            style={{ backgroundColor: casePanColor }}
+                            title={casePanColor}
+                          />
+                          <span className="truncate text-xs">{casePanName}</span>
+                        </span>
+                      </TableCell>
+                      <TableCell className="py-2 px-2">
+                        <span className="text-xs font-medium text-gray-900 truncate max-w-[200px]">{categoryHierarchy}</span>
+                      </TableCell>
+                      <TableCell className="py-2 px-2">
+                        <code className="bg-gray-100 px-1.5 py-0.5 rounded text-[10px] font-mono text-gray-800 inline-block">
+                          {code}
+                        </code>
+                      </TableCell>
+                      <TableCell className="py-2 px-2">
+                        <span className="truncate block text-xs">{archType}</span>
+                      </TableCell>
+                      <TableCell className="py-2 px-2">
+                        <span className="font-medium text-gray-900 text-xs">{price}</span>
+                      </TableCell>
+                      <TableCell className="text-center py-2 px-2">
+                        <div className="flex items-center justify-center gap-0.5">
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-600 hover:text-[#1162a8] hover:bg-blue-50" onClick={() => handleEdit(product.id)}>
+                            <Edit className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-gray-600 hover:text-red-600 hover:bg-red-50"
+                            onClick={() => openDeleteModal(product.id)}
+                          >
+                            <TrashIcon className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                            onClick={() => handleDuplicate(product.id)}
+                            title={t("Duplicate product")}
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-12">
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="p-4 bg-gray-100 rounded-full">
+                        <Package2 className="h-8 w-8 text-gray-400" />
+                      </div>
+                      <div className="text-center">
+                        <h3 className="font-medium text-gray-900 mb-1">{t("No products found")}</h3>
+                        <p className="text-sm text-gray-500 mb-4">
+                          {searchInput || statusFilter || subcategoryFilter
+                            ? t("Try adjusting your search terms or filters")
+                            : t("Get started by creating your first product")
+                          }
+                        </p>
+                        {!searchInput && !statusFilter && !subcategoryFilter && (
+                          <Button
+                            className="bg-[#1162a8] hover:bg-[#0f5497] text-white"
+                            onClick={() => {
+                              setEditingProduct(null)
+                              setIsAddProductModalOpen(true)
+                            }}
+                          >
+                            <Plus className="h-4 w-4 mr-2" />
+                            {t("Add Your First Product")}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
                   </TableCell>
                 </TableRow>
-              ))
-            ) : error ? (
-              <TableRow>
-                <TableCell colSpan={9} className="text-center py-6 text-red-500">
-                  {t(error, { defaultValue: error })}
-                </TableCell>
-              </TableRow>
-            ) : products.length > 0 ? (
-              products.map((product) => (
-                <TableRow key={product.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-                  <TableCell className="pl-6">
-                    <Checkbox
-                      checked={selectedItems.includes(product.id)}
-                      onCheckedChange={(checked) => handleSelectItem(product.id, !!checked)}
-                      className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]"
-                      aria-labelledby={`product-name-${product.id}`}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-center">
-                      <Badge
-                        className="text-white border-0 px-3 py-1 rounded"
-                        style={{
-                          backgroundColor: "#6b7280",
-                        }}
-                      >
-                        ---
-                      </Badge>
-                    </div>
-                  </TableCell>
-                  <TableCell className="font-medium text-gray-900">{product.subcategory?.category?.name || t("N/A", { defaultValue: "N/A" })}</TableCell>
-                  <TableCell className="font-medium text-gray-900" id={`product-name-${product.id}`}>
-                    {product.subcategory?.name || t("N/A", { defaultValue: "N/A" })}
-                  </TableCell>
-                  <TableCell className="font-medium text-gray-900">{product.name}</TableCell>
-                  <TableCell className="text-gray-600">{product.stages?.[0]?.name || t("N/A", { defaultValue: "N/A" })}</TableCell>
-                  <TableCell className="text-gray-600">{product.code}</TableCell>
-                  <TableCell className="text-gray-600">{getVisibilityStatus(product.status)}</TableCell>
-                  <TableCell>
-                    <div className="flex space-x-2">
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-600 hover:text-[#1162a8] hover:bg-blue-50" onClick={() => handleEdit(product.id)}>
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0 text-gray-600 hover:text-red-600 hover:bg-red-50"
-                        onClick={() => openDeleteModal(product.id)}
-                      >
-                        <TrashIcon className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
-                        onClick={() => handleCopy(product.sequence.toString())}
-                        aria-label={t("Copy days", { defaultValue: "Copy days" })}
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={9} className="text-center py-12">
-                  <div className="flex flex-col items-center gap-4">
-                    <div className="p-4 bg-gray-100 rounded-full">
-                      <Package2 className="h-8 w-8 text-gray-400" />
-                    </div>
-                    <div className="text-center">
-                      <h3 className="font-medium text-gray-900 mb-1">No products found</h3>
-                      <p className="text-sm text-gray-500 mb-4">
-                        Try adjusting your search or filters, or add a new product
-                      </p>
-                      <Button
-                        className="bg-[#1162a8] hover:bg-[#0f5497] text-white"
-                        onClick={() => setIsAddProductModalOpen(true)}
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Your First Product
-                      </Button>
-                    </div>
-                  </div>
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
 
-      {/* Enhanced Pagination */}
-      <div className="px-6 py-4 flex justify-between items-center border-t border-gray-200">
-        <div className="text-sm text-[#6b7280]">
-          {t("Showing", { defaultValue: "Showing" })} {startEntry} {t("to", { defaultValue: "to" })} {endEntry} {t("of", { defaultValue: "of" })} {pagination.total} {t("entries", { defaultValue: "entries" })}
-        </div>
-        <div className="flex items-center space-x-1">
-          <button
-            className="h-8 w-8 rounded-full flex items-center justify-center text-xs bg-[#f0f0f0] text-[#6b7280] disabled:opacity-50"
-            onClick={() => handlePageChange(currentPage - 1)}
-            disabled={currentPage === 1}
-            aria-label={t("Previous page", { defaultValue: "Previous page" })}
-          >
-            «
-          </button>
-          {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-            let pageNum = i + 1
-            if (totalPages > 5) {
-              if (currentPage <= 3) pageNum = i + 1
-              else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i
-              else pageNum = currentPage - 2 + i
-            }
-            if (pageNum <= 0 || pageNum > totalPages) return null
+      {/* Pagination */}
+      {pagination.total > 0 && (
+        <div className="px-4 sm:px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-4 border-t border-gray-200">
+          <div className="text-sm text-gray-600 order-2 sm:order-1">
+            {t("Showing")} {startEntry} {t("to")} {endEntry} {t("of")} {pagination.total} {t("entries")}
+          </div>
+          <div className="flex items-center space-x-1 order-1 sm:order-2">
+            <button
+              className="h-8 w-8 rounded-full flex items-center justify-center text-xs bg-gray-100 text-gray-600 disabled:opacity-50 hover:bg-gray-200 transition-colors"
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage === 1}
+            >
+              «
+            </button>
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              let pageNum = i + 1
+              if (totalPages > 5) {
+                if (currentPage <= 3) pageNum = i + 1
+                else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i
+                else pageNum = currentPage - 2 + i
+              }
+              if (pageNum <= 0 || pageNum > totalPages) return null
 
-            return (
-              <button
-                key={pageNum}
-                className={`h-8 w-8 rounded-full flex items-center justify-center text-xs ${pageNum === currentPage ? "bg-[#1162a8] text-white" : "bg-[#f0f0f0] text-[#6b7280] hover:bg-[#e5e7eb]"
+              return (
+                <button
+                  key={pageNum}
+                  className={`h-8 w-8 rounded-full flex items-center justify-center text-xs transition-colors ${
+                    pageNum === currentPage ? "bg-[#1162a8] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                   }`}
-                onClick={() => handlePageChange(pageNum)}
-                aria-label={t("Go to page", { defaultValue: "Go to page" }) + ` ${pageNum}`}
-                aria-current={pageNum === currentPage ? "page" : undefined}
-              >
-                {pageNum}
-              </button>
-            )
-          })}
-          <button
-            className="h-8 w-8 rounded-full flex items-center justify-center text-xs bg-[#f0f0f0] text-[#6b7280] disabled:opacity-50"
-            onClick={() => handlePageChange(currentPage + 1)}
-            disabled={currentPage === totalPages || totalPages === 0}
-            aria-label={t("Next page", { defaultValue: "Next page" })}
-          >
-            »
-          </button>
+                  onClick={() => handlePageChange(pageNum)}
+                >
+                  {pageNum}
+                </button>
+              )
+            })}
+            <button
+              className="h-8 w-8 rounded-full flex items-center justify-center text-xs bg-gray-100 text-gray-600 disabled:opacity-50 hover:bg-gray-200 transition-colors"
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage === totalPages || totalPages === 0}
+            >
+              »
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       <DeleteConfirmationModal
@@ -508,31 +678,12 @@ export default function ProductsPage() {
         isLoading={isLoading}
       />
 
-     {/* Edit Loading Dots Overlay */}
-     {isEditLoading && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black bg-opacity-30">
-          <div className="bg-white rounded-lg px-8 py-6 shadow-lg flex flex-col items-center">
-            {/* FontAwesome Tooth icon animation */}
-            <FontAwesomeIcon
-              icon={faTooth}
-              className="text-[#1162a8] mb-4 fa-regular"
-              style={{ fontSize: "4rem", animation: "bounce 1s infinite" }}
-            />
-            <style>
-              {`
-                @keyframes bounce {
-                  0%, 100% { transform: translateY(0);}
-                  50% { transform: translateY(-16px);}
-                }
-                .fa-tooth {
-                  filter: drop-shadow(0 2px 4px rgba(17,98,168,0.15));
-                }
-              `}
-            </style>
-            <span className="text-lg font-medium text-gray-700 mb-2">{t("Loading product details")}</span>
-          </div>
-        </div>
-      )}
+      <LoadingOverlay
+        isLoading={isEditLoading}
+        title={t("Loading product details", "Loading Product Details...")}
+        message={t("Please wait while we load the product information.", "Please wait while we load the product information.")}
+        zIndex={9999}
+      />
 
       <AddProductModal isOpen={isAddProductModalOpen && !isEditLoading} onClose={handleModalClose} editingProduct={editingProduct} />
     </div>

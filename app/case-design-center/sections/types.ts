@@ -29,6 +29,7 @@ export interface Lab {
 export interface PatientData {
   name: string
   gender: string
+  age?: number | string
 }
 
 export interface Product {

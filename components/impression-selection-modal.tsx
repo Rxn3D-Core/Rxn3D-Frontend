@@ -366,9 +366,16 @@ export function ImpressionSelectionModal({
   oppositeImpression = "No",
   oppositeImpressions,
 }: ImpressionSelectionModalProps) {
-  const isSplit = oppositeImpression === "Yes"
   const oppositeArch = arch === "maxillary" ? "mandibular" : "maxillary"
   const oppositeList = oppositeImpressions ?? impressions
+
+  // Show opposing row only when oppositeImpression is "Yes" AND the main arch
+  // already has at least one impression selected (i.e. user is re-opening the modal)
+  const mainPrefix = `${productId}_${arch}_`
+  const hasMainSelection = Object.entries(selectedImpressions).some(
+    ([key, qty]) => key.startsWith(mainPrefix) && qty > 0
+  )
+  const isSplit = oppositeImpression === "Yes" && hasMainSelection
 
   const sharedGridProps = {
     selectedImpressions,
@@ -388,9 +395,9 @@ export function ImpressionSelectionModal({
           </h2>
 
           {isSplit ? (
-            <div className="flex gap-8 w-full items-start">
+            <div className="flex flex-col gap-8 w-full">
               {/* Main arch */}
-              <div className="flex-1 min-w-0">
+              <div>
                 <h3 className="font-['Verdana'] font-bold text-sm sm:text-base text-[#1162A8] mb-4 uppercase tracking-wide">
                   {arch === "maxillary" ? "Maxillary (Main)" : "Mandibular (Main)"}
                 </h3>
@@ -403,10 +410,10 @@ export function ImpressionSelectionModal({
               </div>
 
               {/* Divider */}
-              <div className="hidden sm:block w-px bg-gray-300 self-stretch" />
+              <div className="hidden sm:block h-px bg-gray-300 w-full" />
 
               {/* Opposite arch */}
-              <div className="flex-1 min-w-0">
+              <div>
                 <h3 className="font-['Verdana'] font-bold text-sm sm:text-base text-[#7F7F7F] mb-4 uppercase tracking-wide">
                   {oppositeArch === "maxillary" ? "Maxillary (Opposing)" : "Mandibular (Opposing)"}
                 </h3>

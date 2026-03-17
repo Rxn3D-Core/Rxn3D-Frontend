@@ -523,9 +523,9 @@ export function RemovableRestorationFields({
       {isFieldVisibleFn(arch, firstToothNumber, "impression") && (() => {
         const showAddons = isFieldVisibleFn(arch, firstToothNumber, "addons");
         return (
-        <div className={`grid grid-cols-1 ${showAddons ? "sm:grid-cols-2" : ""} gap-3 mt-3`}>
+        <div className="flex flex-col gap-3 mt-3">
           <fieldset
-            className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
+            className={`border rounded px-3 py-0 relative min-h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors w-full ${
               isFieldCompletedFn(arch, firstToothNumber, "impression") && !caseSubmitted
                 ? "border-[#34a853]"
                 : isFieldCompletedFn(arch, firstToothNumber, "impression")
@@ -550,7 +550,7 @@ export function RemovableRestorationFields({
               Impression
             </legend>
             <div className="flex items-center gap-2 w-full">
-              <span className="text-[14px] sm:text-lg text-[#000000] truncate">
+              <span className="text-[14px] sm:text-lg text-[#000000] break-words">
                 {getFieldValueFn(arch, firstToothNumber, "impression")}
               </span>
               {isFieldCompletedFn(arch, firstToothNumber, "impression") && !caseSubmitted && (

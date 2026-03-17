@@ -104,6 +104,29 @@ export default function RushRequestModal({
       totalPrice: product.price + rushFee,
     }
     onConfirm(rushData)
+
+    // Auto-rush the other arch when both arches are present (e.g. "Both arches" removable product)
+    if (hasMaxillary && hasMandibular) {
+      const otherArch = arch === "maxillary" ? "mandibular" : "maxillary"
+      const otherRushed = otherArch === "maxillary" ? effectiveMaxRushed : effectiveMandRushed
+      if (!otherRushed) {
+        const otherRushData = {
+          arch: otherArch,
+          targetDate: date ? format(date, "yyyy-MM-dd") : null,
+          daysSaved,
+          rushPercentage,
+          rushFee,
+          totalPrice: product.price + rushFee,
+        }
+        // Set the other arch's date to match
+        if (otherArch === "maxillary") {
+          setMaxTargetDate(date)
+        } else {
+          setMandTargetDate(date)
+        }
+        onConfirm(otherRushData)
+      }
+    }
   }
 
   const labelStyle = { fontWeight: 700, lineHeight: '22px', letterSpacing: '-0.02em', color: '#545F71' } as const
@@ -203,6 +226,11 @@ export default function RushRequestModal({
                 } else {
                   onRemoveRush?.()
                 }
+                // Auto-remove the other arch when both arches are present
+                if (hasMaxillary && hasMandibular) {
+                  const otherRemoveHandler = arch === "maxillary" ? onRemoveMandRush : onRemoveMaxRush
+                  otherRemoveHandler?.()
+                }
                 onClose()
               }}
               className="h-[36px] px-4 rounded-md border-2 border-[#CF0202] bg-transparent flex items-center justify-center gap-2 cursor-pointer"
@@ -230,6 +258,7 @@ export default function RushRequestModal({
       <DialogPortal>
         <DialogOverlay className="!z-[100]" />
         <DialogPrimitive.Content
+          onInteractOutside={(e) => e.preventDefault()}
           className="fixed left-[50%] top-[50%] z-[101] translate-x-[-50%] translate-y-[-50%] p-0 overflow-hidden w-[94vw] max-w-[900px] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
           style={{
             maxHeight: '92vh',

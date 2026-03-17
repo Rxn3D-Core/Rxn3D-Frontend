@@ -18,36 +18,73 @@ import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
+/** Module-level cache & in-flight dedup for product details to avoid duplicate API calls */
+const _productCache = new Map<string, any>();
+const _productInflight = new Map<string, Promise<any>>();
+
 /** Fetch basic product info for the accordion (name/image/category). */
 async function fetchProductDetails(productId: number): Promise<{ name: string; image_url: string | null; category_name: string; subcategory_name: string } | null> {
-  try {
-    const token = localStorage.getItem("token");
-    if (!token) return null;
-    const role = localStorage.getItem("role");
-    const customerId = Number(
-      role === "office_admin" || role === "doctor"
-        ? localStorage.getItem("selectedLabId")
-        : localStorage.getItem("customerId")
-    ) || 1;
-    const url = new URL(`/v1/library/products/${productId}`, API_BASE_URL);
-    url.searchParams.set("lang", "en");
-    url.searchParams.set("customer_id", String(customerId));
-    const res = await fetch(url.toString(), {
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    });
-    if (!res.ok) return null;
-    const json = await res.json();
-    const data = json.data;
-    if (!data) return null;
-    return {
+  const role = localStorage.getItem("role");
+  const customerId = Number(
+    role === "office_admin" || role === "doctor"
+      ? localStorage.getItem("selectedLabId")
+      : localStorage.getItem("customerId")
+  ) || 1;
+  const cacheKey = `${productId}_${customerId}`;
+
+  // Return from cache
+  if (_productCache.has(cacheKey)) {
+    const data = _productCache.get(cacheKey);
+    return data ? {
       name: data.name || "",
       image_url: data.image_url || null,
       category_name: data.subcategory?.category?.name || "",
       subcategory_name: data.subcategory?.name || "",
-    };
-  } catch {
-    return null;
+    } : null;
   }
+
+  // Deduplicate in-flight requests
+  if (_productInflight.has(cacheKey)) {
+    const data = await _productInflight.get(cacheKey);
+    return data ? {
+      name: data.name || "",
+      image_url: data.image_url || null,
+      category_name: data.subcategory?.category?.name || "",
+      subcategory_name: data.subcategory?.name || "",
+    } : null;
+  }
+
+  const promise = (async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return null;
+      const url = new URL(`/v1/library/products/${productId}`, API_BASE_URL);
+      url.searchParams.set("lang", "en");
+      url.searchParams.set("customer_id", String(customerId));
+      const res = await fetch(url.toString(), {
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      });
+      if (!res.ok) return null;
+      const json = await res.json();
+      const data = json.data || null;
+      _productCache.set(cacheKey, data);
+      return data;
+    } catch {
+      return null;
+    } finally {
+      _productInflight.delete(cacheKey);
+    }
+  })();
+
+  _productInflight.set(cacheKey, promise);
+  const data = await promise;
+  if (!data) return null;
+  return {
+    name: data.name || "",
+    image_url: data.image_url || null,
+    category_name: data.subcategory?.category?.name || "",
+    subcategory_name: data.subcategory?.name || "",
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -233,6 +270,7 @@ export default function Page() {
   const [completedLab, setCompletedLab] = useState<WizardLabShape | null>(null);
   const [completedPatientName, setCompletedPatientName] = useState<string>("");
   const [completedGender, setCompletedGender] = useState<string>("");
+  const [completedAge, setCompletedAge] = useState<string>("");
   const [labEditMode, setLabEditMode] = useState(false);
   const [doctorEditMode, setDoctorEditMode] = useState(false);
   const [role, setRole] = useState<string | null>(null);
@@ -319,6 +357,7 @@ export default function Page() {
       setCompletedLab(result?.lab ?? null);
       setCompletedPatientName(result?.patientName ?? "");
       setCompletedGender(result?.gender ?? "");
+      setCompletedAge(result?.age ?? "");
       if (result?.arch) setInitialArch(result.arch);
       setLabEditMode(false);
       setDoctorEditMode(false);
@@ -381,7 +420,8 @@ export default function Page() {
         office_id: officeId,
         doctor: doctorId,
         patient_name: completedPatientName,
-        gender: completedGender,
+        ...(completedGender ? { gender: completedGender } : {}),
+        ...(completedAge ? { age: Number(completedAge) } : {}),
         case_status: "In Progress",
       },
       slips: [
@@ -417,7 +457,7 @@ export default function Page() {
     } finally {
       setSubmitting(false);
     }
-  }, [completedLab, completedDoctor, completedPatientName, completedGender, createSlip, toast]);
+  }, [completedLab, completedDoctor, completedPatientName, completedGender, completedAge, createSlip, toast]);
 
   const wizardStartStep = wizardMode === "backToProducts"
     ? 6
@@ -450,6 +490,7 @@ export default function Page() {
             initialDoctor={((wizardMode === "addProduct" || wizardMode === "backToProducts") && completedDoctor) ? completedDoctor : undefined}
             initialCategory={wizardMode === "backToProducts" ? lastSelectedCategory : null}
             initialSubProduct={wizardMode === "backToProducts" ? lastSelectedSubProduct : null}
+            forceArch={wizardMode === "addProduct" ? pendingProductArch : undefined}
           />
         )}
 
@@ -461,12 +502,14 @@ export default function Page() {
               doctorName={completedDoctor?.name}
               patientName={completedPatientName}
               gender={completedGender}
+              age={completedAge}
               caseSubmitted={caseSubmitted}
               slipHeaderLoading={slipHeaderLoading}
               slipResponseData={slipResponseData}
               onEditDoctorClick={handleEditDoctor}
               onPatientNameChange={setCompletedPatientName}
               onGenderChange={setCompletedGender}
+              onAgeChange={setCompletedAge}
               compactLayout={(addedProducts.length > 0 || !!selectedProductId) && !!selectedProductCategoryName && /removable|orthodontic/i.test(selectedProductCategoryName)}
             />
             <CaseDesignCenter

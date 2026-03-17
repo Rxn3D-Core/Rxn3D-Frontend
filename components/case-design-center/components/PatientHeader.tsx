@@ -12,6 +12,8 @@ export interface PatientHeaderProps {
   patientName?: string | null;
   /** Gender from the selected user in the patient name section. Updates dynamically when selection changes. */
   gender?: string | null;
+  /** Age from the selected user in the patient name section. Updates dynamically when selection changes. */
+  age?: number | string | null;
   /** When true, show case-related fields (slip number, case number, etc.). Hidden until case is submitted. */
   caseSubmitted?: boolean;
   /** When true, show skeleton placeholders while slip response is loading. */
@@ -24,6 +26,8 @@ export interface PatientHeaderProps {
   onPatientNameChange?: (value: string) => void;
   /** Called when the user edits the gender inline. */
   onGenderChange?: (value: string) => void;
+  /** Called when the user edits the age inline. */
+  onAgeChange?: (value: string) => void;
   /** When true, show Patient name + Gender in one row (for removable restoration / orthodontics with products). */
   compactLayout?: boolean;
 }
@@ -44,12 +48,13 @@ const DEFAULT_DOCTOR_NAME = "Cody Mugglestone, DDS";
 const DEFAULT_PATIENT_NAME = "Jose Protacio Rizal Mercado y Alonzo";
 const DEFAULT_GENDER = "Male";
 
-export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender, caseSubmitted = false, slipHeaderLoading = false, slipResponseData, onEditDoctorClick, onPatientNameChange, onGenderChange, compactLayout = false }: PatientHeaderProps = {}) {
+export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender, age, caseSubmitted = false, slipHeaderLoading = false, slipResponseData, onEditDoctorClick, onPatientNameChange, onGenderChange, onAgeChange, compactLayout = false }: PatientHeaderProps = {}) {
   const imgSrc = doctorImageUrl && doctorImageUrl.trim() !== "" ? doctorImageUrl : DEFAULT_DOCTOR_IMAGE;
   const displayName = doctorName && doctorName.trim() !== "" ? doctorName : DEFAULT_DOCTOR_NAME;
   const isEditable = !caseSubmitted;
   const displayPatientName = isEditable ? (patientName ?? "") : (patientName && patientName.trim() !== "" ? patientName : DEFAULT_PATIENT_NAME);
   const displayGender = gender && gender.trim() !== "" ? gender : (isEditable ? "" : DEFAULT_GENDER);
+  const displayAge = age !== undefined && age !== null && String(age).trim() !== "" ? String(age) : "";
 
   const firstSlip = slipResponseData?.slips?.[0];
 
@@ -154,6 +159,13 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
                 ) : (
                   <FieldInput label="Gender" value={displayGender} submitted={false} className="w-[330px]" />
                 )}
+                <FieldInput
+                  label="Age"
+                  value={displayAge}
+                  submitted={false}
+                  onChange={onAgeChange}
+                  className="w-[100px]"
+                />
               </div>
             ) : (
               /* Default: Patient name and Gender stacked (fixed restoration) */
@@ -181,6 +193,13 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
                   ) : (
                     <FieldInput label="Gender" value={displayGender} submitted={false} className="w-[330px]" />
                   )}
+                  <FieldInput
+                    label="Age"
+                    value={displayAge}
+                    submitted={false}
+                    onChange={onAgeChange}
+                    className="w-[100px]"
+                  />
                 </div>
               </>
             )
@@ -210,9 +229,10 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
                   </>
                 )}
               </div>
-              {/* Row 2: Gender, Pick up Date, Due Date, Delivery Time, Location */}
+              {/* Row 2: Gender, Age, Pick up Date, Due Date, Delivery Time, Location */}
               <div className="flex flex-nowrap gap-3 sm:gap-4 items-start justify-center lg:justify-start">
                 <FieldInput label="Gender" value={displayGender} submitted className="flex-1 min-w-0" />
+                <FieldInput label="Age" value={displayAge} submitted className="flex-1 min-w-0" />
                 {slipHeaderLoading ? (
                   <>
                     <SkeletonField label="Pick up Date" width="flex-1 min-w-0" />

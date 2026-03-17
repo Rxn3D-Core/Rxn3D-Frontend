@@ -119,6 +119,7 @@ interface WizardResult {
   lab: WizardLabShape;
   patientName: string;
   gender: string;
+  age?: string;
   category: string;
   product: string;
   material: string;
@@ -512,6 +513,17 @@ function StepPatientInfo({
     if (isGenderFocused) return "text-[#1162A8]";
     return "text-[#7F7F7F]";
   };
+  const getNameLabel = () => {
+    const trimmed = name.trim();
+    const parts = trimmed.split(/\s+/).filter((p) => p.length > 0);
+    const firstWord = parts[0] ?? "";
+    const secondWord = parts[1] ?? "";
+    if (firstWord.length === 0) return "Patient name";
+    if (secondWord.length >= 3) return "Patient name";
+    if (firstWord.length >= 3) return "Enter patient's last name";
+    return "Enter patient's full name";
+  };
+
   const getNameRingEffect = () => {
     if (isNameValid) return "ring-2 ring-[#119933] ring-opacity-20 shadow-[0_0_0_4px_rgba(17,153,51,0.15)]";
     if (hasNameValue) return "ring-2 ring-[#FF9900] ring-opacity-20 shadow-[0_0_0_4px_rgba(255,153,0,0.15)]";
@@ -578,7 +590,7 @@ function StepPatientInfo({
                   style={{ padding: "25px 30.8px 9.24px 12.32px", borderWidth: "0.740384px", fontFamily: "Arial", fontSize: "17px", lineHeight: "18px" }}
                 />
                 <label className={cn("absolute bg-white pointer-events-none transition-all text-[#7F7F7F]", getNameLabelColor())} style={{ left: "9.23px", top: "-6.15px", fontFamily: "Arial", fontWeight: 400, fontSize: "14px", lineHeight: "14px" }}>
-                  Patient name
+                  {getNameLabel()}
                 </label>
                 {isNameValid && (
                   <div className="absolute right-[12.32px] top-1/2 -translate-y-1/2"><Check className="h-5 w-5 text-[#119933]" aria-label="Valid" /></div>
@@ -688,7 +700,7 @@ function StepPatientInfo({
                 style={{ padding: "25px 30.8px 9.24px 12.32px", borderWidth: "0.740384px", fontFamily: "Arial", fontSize: "15px", lineHeight: "18px" }}
               />
               <label className={cn("absolute bg-white pointer-events-none transition-all text-[#7F7F7F]", getNameLabelColor())} style={{ left: "9.23px", top: "-6.15px", fontFamily: "Arial", fontWeight: 400, fontSize: "13px", lineHeight: "14px" }}>
-                Patient name
+                {getNameLabel()}
               </label>
               {isNameValid && (
                 <div className="absolute right-[12.32px] top-1/2 -translate-y-1/2"><Check className="h-5 w-5 text-[#119933]" aria-label="Valid" /></div>
@@ -963,6 +975,7 @@ function StepMaterial({
   isLoading,
   error,
   isRemovableRestoration,
+  forceArch,
   onPatientNameChange,
   onGenderChange,
 }: {
@@ -978,6 +991,7 @@ function StepMaterial({
   isLoading?: boolean;
   error?: Error | null;
   isRemovableRestoration?: boolean;
+  forceArch?: "maxillary" | "mandibular";
   onPatientNameChange?: (value: string) => void;
   onGenderChange?: (value: string) => void;
 }) {
@@ -1052,10 +1066,10 @@ function StepMaterial({
               <button
                 ref={(el) => { cardRefs.current[prodId] = el; }}
                 onClick={() => {
-                  if (isRemovableRestoration) {
+                  if (isRemovableRestoration && !forceArch) {
                     setArchPopoverProductId(archPopoverProductId === prodId ? null : prodId);
                   } else {
-                    onSelect(prodId);
+                    onSelect(prodId, forceArch);
                   }
                 }}
                 className={`group relative flex flex-col items-center px-4 py-[5px] gap-2 w-[155px] sm:w-[180px] md:w-[200px] rounded-[7px] border-[3px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${
@@ -1102,6 +1116,13 @@ function StepMaterial({
           );
         })}
       </div>
+
+      {/* Arch hint when adding product to a specific arch */}
+      {forceArch && (
+        <p className="text-center text-[13px] text-[#7f7f7f] mb-4" style={{ fontFamily: "Verdana, sans-serif" }}>
+          This product will be added to the <span className="font-semibold text-[#1162A8]">{forceArch === "maxillary" ? "upper (maxillary)" : "lower (mandibular)"}</span> arch
+        </p>
+      )}
 
       {/* Breadcrumb bar showing category > sub-product */}
       <div className="max-w-[600px] mx-auto w-full">
@@ -1241,6 +1262,7 @@ export default function NewCaseWizard({
   initialDoctor = undefined,
   initialCategory = null,
   initialSubProduct = null,
+  forceArch,
 }: {
   onComplete: (result: WizardResult) => void;
   onLabSelect?: (lab: WizardLabShape) => void;
@@ -1252,12 +1274,14 @@ export default function NewCaseWizard({
   initialDoctor?: WizardDoctorShape;
   initialCategory?: number | null;
   initialSubProduct?: number | null;
+  forceArch?: "maxillary" | "mandibular";
 }) {
   const [step, setStep] = useState(startStep);
   const [selectedDoctor, setSelectedDoctor] = useState<number | null>(null);
   const [selectedLab, setSelectedLab] = useState<number | null>(initialLabId);
   const [patientName, setPatientName] = useState(initialPatientName);
   const [gender, setGender] = useState(initialGender);
+  const [age, setAge] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<number | null>(initialCategory);
   const [selectedSubProduct, setSelectedSubProduct] = useState<number | null>(initialSubProduct);
   const [selectedMaterial, setSelectedMaterial] = useState<string | null>(null);
@@ -1391,6 +1415,7 @@ export default function NewCaseWizard({
         lab: lab ?? { id: 0, name: "", location: "", logo: null },
         patientName,
         gender,
+        age,
         category: selectedCategory != null ? String(selectedCategory) : "",
         categoryName: resolvedCategoryName,
         product: selectedSubProduct != null ? String(selectedSubProduct) : "",
@@ -1402,6 +1427,7 @@ export default function NewCaseWizard({
         lab,
         patientName,
         gender,
+        age,
         category: selectedCategory != null ? String(selectedCategory) : "",
         categoryName: resolvedCategoryName,
         product: selectedSubProduct != null ? String(selectedSubProduct) : "",
@@ -1550,6 +1576,7 @@ export default function NewCaseWizard({
               isLoading={productsLoading}
               error={productsError}
               isRemovableRestoration={isRemovable}
+              forceArch={forceArch}
               onBack={() => setStep(5)}
               onSelect={(id, arch) => {
                 setSelectedMaterial(id);
@@ -1560,6 +1587,7 @@ export default function NewCaseWizard({
                       lab: lab ?? { id: 0, name: "", location: "", logo: null },
                       patientName,
                       gender,
+                      age,
                       category: String(selectedCategory),
                       categoryName: selectedCategoryName,
                       product: String(selectedSubProduct),
@@ -1574,6 +1602,7 @@ export default function NewCaseWizard({
                       lab,
                       patientName,
                       gender,
+                      age,
                       category: String(selectedCategory),
                       categoryName: selectedCategoryName,
                       product: String(selectedSubProduct),

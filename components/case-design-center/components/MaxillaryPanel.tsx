@@ -42,6 +42,7 @@ import { isRemovableCategory, isFixedCategory, getCategoryName } from "../utils/
 import { FixedRestorationFields } from "./FixedRestorationFields";
 import { RemovableRestorationFields } from "./RemovableRestorationFields";
 import { AccordionBadge, EstDaysLabel } from "./AccordionBadge";
+import { ProductImagePreview } from "./ProductImagePreview";
 
 /* ------------------------------------------------------------------ */
 /*  Articulator icon (Stage field)                                     */
@@ -907,15 +908,17 @@ export function MaxillaryPanel({
                       </div>
                       {/* Image left + product name, status boxes & badges right */}
                       <div className="flex items-stretch gap-[10px] px-[8px] py-[14px]" onClick={(e) => e.stopPropagation()}>
-                        <div className="w-[64px] rounded-[6px] bg-white flex items-center justify-center flex-shrink-0 overflow-hidden shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]">
-                          {cardProductImage ? (
-                            <img src={cardProductImage} alt={cardProductName} className="w-[61.58px] h-[28.79px] object-contain" />
-                          ) : (
+                        <ProductImagePreview
+                          imageUrl={cardProductImage}
+                          altText={cardProductName}
+                          containerClassName="w-[64px] rounded-[6px] bg-white flex items-center justify-center flex-shrink-0 overflow-hidden shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]"
+                          imgClassName="w-[61.58px] h-[28.79px] object-contain"
+                          fallback={
                             <div className="w-[61.58px] h-[28.79px] flex items-center justify-center">
                               <span className="text-[10px] text-gray-400">No img</span>
                             </div>
-                          )}
-                        </div>
+                          }
+                        />
                         <div className="flex-1 min-w-0 flex flex-col gap-[9.94px]">
                           {/* Product name — left aligned (centered when submitted) */}
                           <p className={`font-[Inter] text-[20px] font-bold leading-tight text-black pr-6 ${caseSubmitted ? "text-center" : "text-left"}`}>
@@ -973,15 +976,10 @@ export function MaxillaryPanel({
                     }}
                     className={`w-full flex items-center py-[14px] px-2 gap-[10px] transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] ${hasRushedAp ? "bg-[#FCE4E4] hover:bg-[#f8d4d4]" : isActive ? "bg-[#c8e2f7] hover:bg-[#b8d8f4]" : "bg-[#DFEEFB] hover:bg-[#d4e8f8]"}`}
                   >
-                    <div className="w-[50px] h-[50px] rounded-md bg-white flex items-center justify-center flex-shrink-0 overflow-hidden">
-                      {cardProductImage ? (
-                        <img src={cardProductImage} alt={cardProductName} className="w-[50px] h-[50px] object-contain" />
-                      ) : (
-                        <div className="w-[50px] h-[50px] bg-gray-100 rounded flex items-center justify-center">
-                          <span className="text-[10px] text-gray-400">No img</span>
-                        </div>
-                      )}
-                    </div>
+                    <ProductImagePreview
+                      imageUrl={cardProductImage}
+                      altText={cardProductName}
+                    />
                     <div className="flex-1 min-w-0 text-left flex flex-col gap-0.5">
                       <p className="font-[Verdana] text-[14px] sm:text-lg font-bold leading-tight tracking-[-0.02em] text-black flex items-center gap-1 truncate">
                         {cardProductName}
@@ -1435,19 +1433,10 @@ export function MaxillaryPanel({
                         : "bg-[#DFEEFB] hover:bg-[#d4e8f8]"
                   }`}
                 >
-                  <div className="w-[50px] h-[50px] rounded-md bg-white flex items-center justify-center flex-shrink-0 overflow-hidden">
-                    {selectedProduct?.image_url ? (
-                      <img
-                        src={productImage}
-                        alt={productName}
-                        className="w-[50px] h-[50px] object-contain"
-                      />
-                    ) : (
-                      <div className="w-[50px] h-[50px] bg-gray-100 rounded flex items-center justify-center">
-                        <span className="text-[10px] text-gray-400">No img</span>
-                      </div>
-                    )}
-                  </div>
+                  <ProductImagePreview
+                    imageUrl={selectedProduct?.image_url ? productImage : null}
+                    altText={productName}
+                  />
                   <div className="flex-1 min-w-0 text-left flex flex-col gap-0.5">
                     <p className="font-[Verdana] text-[14px] sm:text-lg font-bold leading-tight tracking-[-0.02em] text-black flex items-center gap-1 truncate">
                       {productName}
@@ -1637,15 +1626,17 @@ export function MaxillaryPanel({
                   </div>
                   {/* Image left + product name, status boxes & badges right */}
                   <div className="flex items-stretch gap-[10px] px-[8px] py-[14px]" onClick={(e) => e.stopPropagation()}>
-                    <div className="w-[64px] rounded-[6px] bg-white flex items-center justify-center flex-shrink-0 overflow-hidden shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]">
-                      {cardProductImage ? (
-                        <img src={cardProductImage} alt={cardProductName} className="w-[61.58px] h-[28.79px] object-contain" />
-                      ) : (
+                    <ProductImagePreview
+                      imageUrl={cardProductImage}
+                      altText={cardProductName}
+                      containerClassName="w-[64px] rounded-[6px] bg-white flex items-center justify-center flex-shrink-0 overflow-hidden shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]"
+                      imgClassName="w-[61.58px] h-[28.79px] object-contain"
+                      fallback={
                         <div className="w-[61.58px] h-[28.79px] flex items-center justify-center">
                           <span className="text-[10px] text-gray-400">No img</span>
                         </div>
-                      )}
-                    </div>
+                      }
+                    />
                     <div className="flex-1 min-w-0 flex flex-col gap-[9.94px]">
                       {/* Product name — left aligned (centered when submitted) */}
                       <p className={`font-[Inter] text-[20px] font-bold leading-tight text-black pr-6 ${caseSubmitted ? "text-center" : "text-left"}`}>
