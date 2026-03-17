@@ -154,17 +154,17 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
                     options={["Male", "Female"]}
                     onChange={onGenderChange}
                     caseSubmitted={false}
-                    className="w-[330px]"
+                    className="flex-1"
                   />
                 ) : (
-                  <FieldInput label="Gender" value={displayGender} submitted={false} className="w-[330px]" />
+                  <FieldInput label="Gender" value={displayGender} submitted={false} className="flex-1" />
                 )}
                 <FieldInput
                   label="Age"
                   value={displayAge}
                   submitted={false}
                   onChange={onAgeChange}
-                  className="w-[100px]"
+                  className="flex-1"
                 />
               </div>
             ) : (
@@ -180,7 +180,7 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
                     smartPatientLabel
                   />
                 </div>
-                <div className="flex gap-3 sm:gap-4 items-start justify-center lg:justify-start">
+                <div className="flex gap-3 sm:gap-4 items-start justify-center lg:justify-start w-[330px]">
                   {onGenderChange ? (
                     <SelectField
                       label="Gender"
@@ -188,17 +188,17 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
                       options={["Male", "Female"]}
                       onChange={onGenderChange}
                       caseSubmitted={false}
-                      className="w-[330px]"
+                      className="flex-1"
                     />
                   ) : (
-                    <FieldInput label="Gender" value={displayGender} submitted={false} className="w-[330px]" />
+                    <FieldInput label="Gender" value={displayGender} submitted={false} className="flex-1" />
                   )}
                   <FieldInput
                     label="Age"
                     value={displayAge}
                     submitted={false}
                     onChange={onAgeChange}
-                    className="w-[100px]"
+                    className="flex-1"
                   />
                 </div>
               </>
