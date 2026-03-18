@@ -816,12 +816,16 @@ export function AddLabProductModal({
       let categoryId: number | null = null
       if (editingProduct.subcategory?.id || editingProduct.subcategory_id) {
         const subcategoryId = editingProduct.subcategory?.id || editingProduct.subcategory_id
-        const category = categoriesWithSubcategories.find(cat => 
+        const category = categoriesWithSubcategories.find(cat =>
           cat.subcategories?.some((sub: any) => sub.id === subcategoryId)
         )
         if (category) {
           categoryId = category.id
         }
+      }
+      // Fallback: use category info directly from the editing product if lookup failed
+      if (!categoryId) {
+        categoryId = editingProduct.subcategory?.category_id || editingProduct.subcategory?.category?.id || null
       }
 
       // Determine base_price: use default grade price if available and not empty, else use response price

@@ -109,14 +109,24 @@ export function ProductDetailsSection({
 
   // Categories list with editing product's category injected as fallback
   const categoriesForDropdown = React.useMemo(() => {
-    const cats = [...(categoriesWithSubcategories || [])]
-    if (editingProduct?.subcategory?.category) {
-      const editCat = editingProduct.subcategory.category
-      if (!cats.some((c: any) => c.id === editCat.id)) {
+    const cats = (categoriesWithSubcategories || []).map(c => ({ ...c, subcategories: [...(c.subcategories || [])] }))
+    if (editingProduct?.subcategory) {
+      const editCatId = editingProduct.subcategory.category_id || editingProduct.subcategory.category?.id
+      const editCatName = editingProduct.subcategory.category?.name
+      const editSub = { id: editingProduct.subcategory.id, name: editingProduct.subcategory.name, category_id: editCatId }
+      const existingCat = cats.find((c: any) => c.id === editCatId)
+      if (existingCat) {
+        // Ensure the editing product's subcategory is included in the existing category
+        if (!existingCat.subcategories?.some((s: any) => s.id === editSub.id)) {
+          existingCat.subcategories.push(editSub)
+        }
+      } else if (editCatId) {
+        // Add the category with the editing product's subcategory as fallback
         cats.push({
-          id: editCat.id,
-          name: editCat.name,
-          subcategories: editingProduct.subcategory ? [{ id: editingProduct.subcategory.id, name: editingProduct.subcategory.name }] : []
+          id: editCatId,
+          name: editCatName || "",
+          code: "",
+          subcategories: [editSub]
         })
       }
     }
