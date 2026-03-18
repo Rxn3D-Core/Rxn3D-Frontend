@@ -373,11 +373,8 @@ export default function AddOnsPage() {
                   <TableHead className="font-semibold text-gray-900">
                     {t("Price")}
                   </TableHead>
-                  <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("status")}>
-                    <div className="flex items-center">
-                      {t("Status")}
-                      {renderSortIndicator("status")}
-                    </div>
+                  <TableHead className="font-semibold text-gray-900">
+                    {t("Status")}
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900 text-center pr-6">
                     {t("Actions")}

@@ -50,9 +50,9 @@ export function ProductSidebar({ activeTab = "products", onTabChange }: ProductS
       id: "products",
       label: t("productLibrary.sideBar.Products", "Products"),
       items: [
-        { id: "products", label: t("productLibrary.sideBar.Products", "Products"), href: `${routePrefix}/products` },
         { id: "product-category", label: t("productLibrary.sideBar.Category", "Category"), href: `${routePrefix}/product-category` },
         { id: "product-sub-category", label: t("productLibrary.sideBar.SubCategory", "Sub Category"), href: `${routePrefix}/product-sub-category` },
+        { id: "products", label: t("productLibrary.sideBar.Products", "Products"), href: `${routePrefix}/products` },
       ]
     },
     {

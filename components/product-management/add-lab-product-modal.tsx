@@ -112,6 +112,7 @@ export function AddLabProductModal({
     material: true,
     addOns: true,
     retention: true,
+    extractions: true,
     officePriceManagement: true,
     visibilityManagement: true,
   })
@@ -125,9 +126,13 @@ export function AddLabProductModal({
     material: true,
     addOns: true,
     retention: true,
+    extractions: true,
     officePriceManagement: true,
     visibilityManagement: true,
   })
+
+  // Track initial section toggles when editing (for detecting toggle-only changes)
+  const [initialSections, setInitialSections] = useState<typeof sections | null>(null)
 
   const tabs = [
     { id: "details", label: "Product Details" },
@@ -346,8 +351,11 @@ export function AddLabProductModal({
   const isCurrentStepValid = useMemo(() => {
     const requiredFields = getRequiredFieldsForStep(activeTab, watchedIsSingleStage)
     
-    // For stages tab, always check if stages are selected and have valid prices
+    // For stages tab: skip stages validation when is_single_stage is "Yes" (stages auto-toggled off)
     if (activeTab === "stages") {
+      if (watchedIsSingleStage === "Yes") {
+        return !hasCurrentStepErrors
+      }
       // First check if there are any errors
       if (hasCurrentStepErrors) return false
       
@@ -948,6 +956,25 @@ export function AddLabProductModal({
       setCustomImpressionNames({}) // Clear custom impression names when editing
       setCustomGumShadeNames({}) // Clear custom gum shade names when editing
       setCustomTeethShadeNames({}) // Clear custom teeth shade names when editing
+      // Initialize section toggles from product_configurations (has_* flags). Default true when null.
+      // When is_single_stage is "Yes", stages must be off regardless of has_stage.
+      const isSingleStage = editingProduct.is_single_stage === "Yes"
+      const sectionsFromApi = {
+        productDetails: true,
+        grades: editingProduct.has_grade ?? true,
+        stages: isSingleStage ? false : (editingProduct.has_stage ?? true),
+        impressions: editingProduct.has_impression ?? true,
+        gumShade: editingProduct.has_gum_shade ?? true,
+        teethShade: editingProduct.has_teeth_shade ?? true,
+        material: editingProduct.has_material ?? true,
+        addOns: editingProduct.has_addon ?? true,
+        retention: editingProduct.has_retention ?? true,
+        extractions: editingProduct.has_extraction ?? true,
+        officePriceManagement: true,
+        visibilityManagement: true,
+      }
+      setSections((prev) => ({ ...prev, ...sectionsFromApi }))
+      setInitialSections(sectionsFromApi)
       // Extract releasing stage IDs from fetched stage data (is_releasing_stage === "Yes")
       const stageSource = editingProduct.stage_details && editingProduct.stage_details.length
         ? editingProduct.stage_details
@@ -969,6 +996,22 @@ export function AddLabProductModal({
       setCustomTeethShadeNames({}) // Clear custom teeth shade names for new product
       setReleasingStageIds([]) // Reset releasing stages for new product
       setInitialReleasingStageIds([]) // Reset initial releasing stages for new product
+      // Reset sections to defaults for new product
+      setSections({
+        productDetails: true,
+        grades: false,
+        stages: true,
+        impressions: true,
+        gumShade: true,
+        teethShade: true,
+        material: true,
+        addOns: true,
+        retention: true,
+        extractions: true,
+        officePriceManagement: true,
+        visibilityManagement: true,
+      })
+      setInitialSections(null)
     }
   }, [isOpen, editingProduct, reset, clearValidationErrors, categoriesWithSubcategories])
 
@@ -995,11 +1038,27 @@ export function AddLabProductModal({
         [section]: !prev[section],
       }
 
-      // Removed logic that clears grades when toggling - grades and prices should persist
-
       return newSections
     })
   }, [])
+
+  // When is_single_stage is "Yes": auto toggle off stages, clear stages, use min/max days
+  // Runs when user changes to "Yes" or when stages is somehow on (e.g. re-init overwrote)
+  useEffect(() => {
+    if (watchedIsSingleStage === "Yes" && sections.stages) {
+      setSections((prev) => ({ ...prev, stages: false }))
+      setValue("stages", [], { shouldDirty: true })
+      setReleasingStageIds([])
+    }
+  }, [watchedIsSingleStage, sections.stages, setValue])
+
+  // When grades section is toggled off: use base price (set has_grade_based_pricing to No, clear grades)
+  useEffect(() => {
+    if (!sections.grades) {
+      setValue("has_grade_based_pricing", "No", { shouldDirty: true })
+      setValue("grades", [], { shouldDirty: true })
+    }
+  }, [sections.grades, setValue])
 
   const toggleExpanded = useCallback((section: string) => {
     setExpandedSections((prev) => ({
@@ -1356,6 +1415,31 @@ export function AddLabProductModal({
       }
     }
 
+    // Product slip field flags: when false, field is disabled on the slip (product_configurations)
+    payload.has_stage = sections.stages
+    payload.has_grade = sections.grades
+    payload.has_gum_shade = sections.gumShade
+    payload.has_teeth_shade = sections.teethShade
+    payload.has_impression = sections.impressions
+    payload.has_extraction = sections.extractions
+    payload.has_retention = sections.retention
+    payload.has_material = sections.material
+    payload.has_addon = sections.addOns
+
+    // When section flags are false: send empty arrays so backend deletes relations (per Behavior: Skip Sync & Delete When False)
+    if (!sections.extractions) {
+      payload.extractions = []
+      payload.opposite_extractions = []
+    }
+    if (!sections.grades) payload.grades = []
+    if (!sections.stages) payload.stages = []
+    if (!sections.impressions) payload.impressions = []
+    if (!sections.gumShade) payload.gum_shades = []
+    if (!sections.teethShade) payload.teeth_shades = []
+    if (!sections.material) payload.materials = []
+    if (!sections.addOns) payload.addons = []
+    if (!sections.retention) payload.retentions = []
+
     let success = false
     try {
       if (editingProduct && editingProduct.id) {
@@ -1460,11 +1544,20 @@ export function AddLabProductModal({
     return sortedCurrent.some((id, idx) => id !== sortedInitial[idx])
   }, [releasingStageIds, initialReleasingStageIds])
 
-  // Check if any field across all tabs is dirty
+  // Section keys that map to backend has_* flags (product_configurations)
+  const SECTION_TOGGLE_KEYS = ["grades", "stages", "impressions", "gumShade", "teethShade", "material", "addOns", "retention", "extractions"] as const
+
+  // Check if any section toggle has changed from initial
+  const hasSectionToggleChanges = useMemo(() => {
+    if (!initialSections) return false
+    return SECTION_TOGGLE_KEYS.some((key) => sections[key] !== initialSections[key])
+  }, [sections, initialSections])
+
+  // Check if any field across all tabs is dirty, or section toggles changed
   const hasSectionChanges = useMemo(() => {
     if (!editingProduct || !editingProduct.id) return false
-    return isDirty || hasReleasingStageChanges || imageBase64 !== null
-  }, [editingProduct, isDirty, hasReleasingStageChanges, imageBase64])
+    return isDirty || hasReleasingStageChanges || imageBase64 !== null || hasSectionToggleChanges
+  }, [editingProduct, isDirty, hasReleasingStageChanges, imageBase64, hasSectionToggleChanges])
 
   // Generic handler to update any section
   const handleUpdateSection = async () => {
@@ -1512,9 +1605,9 @@ export function AddLabProductModal({
       // Calculate only the changed fields in this section
       const changes = calculateChanges(initialSectionData, sectionData)
       
-      // If no changes (including releasing stage changes and image), show message and return
+      // If no changes (including releasing stage changes, image, and section toggles), show message and return
       const hasImageChange = imageBase64 !== null && typeof imageBase64 === 'string' && imageBase64.startsWith('data:image/')
-      if (Object.keys(changes).length === 0 && !hasReleasingStageChanges && !hasImageChange) {
+      if (Object.keys(changes).length === 0 && !hasReleasingStageChanges && !hasImageChange && !hasSectionToggleChanges) {
         toast({
           title: "No Changes",
           description: "No changes detected in this section.",
@@ -1784,6 +1877,31 @@ export function AddLabProductModal({
         payload.opposite_impression = payload.request_opposing_extraction ? "Yes" : "No"
         delete payload.request_opposing_extraction
       }
+
+      // Product slip field flags: when false, field is disabled on the slip (product_configurations)
+      payload.has_stage = sections.stages
+      payload.has_grade = sections.grades
+      payload.has_gum_shade = sections.gumShade
+      payload.has_teeth_shade = sections.teethShade
+      payload.has_impression = sections.impressions
+      payload.has_extraction = sections.extractions
+      payload.has_retention = sections.retention
+      payload.has_material = sections.material
+      payload.has_addon = sections.addOns
+
+      // When section flags are false: send empty arrays so backend deletes relations
+      if (!sections.extractions) {
+        payload.extractions = []
+        payload.opposite_extractions = []
+      }
+      if (!sections.grades) payload.grades = []
+      if (!sections.stages) payload.stages = []
+      if (!sections.impressions) payload.impressions = []
+      if (!sections.gumShade) payload.gum_shades = []
+      if (!sections.teethShade) payload.teeth_shades = []
+      if (!sections.material) payload.materials = []
+      if (!sections.addOns) payload.addons = []
+      if (!sections.retention) payload.retentions = []
 
       // Use the updateProduct prop function
       try {
@@ -2154,6 +2272,10 @@ export function AddLabProductModal({
                     setValue={setValue}
                     getValidationError={getValidationError}
                     sectionHasErrors={sectionHasErrors}
+                    sections={sections}
+                    toggleSection={toggleSection}
+                    expandedSections={expandedSections}
+                    toggleExpanded={toggleExpanded}
                   />
                 </TabsContent>
 

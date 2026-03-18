@@ -774,10 +774,12 @@ function StepCategory({
   doctor,
   patientName,
   gender,
+  age,
   isLoading,
   error,
   onPatientNameChange,
   onGenderChange,
+  onAgeChange,
 }: {
   categories: { id: number; name: string; img: string }[];
   selected: number | null;
@@ -785,10 +787,12 @@ function StepCategory({
   doctor: WizardDoctorShape | undefined;
   patientName: string;
   gender: string;
+  age?: string;
   isLoading?: boolean;
   error?: Error | null;
   onPatientNameChange?: (value: string) => void;
   onGenderChange?: (value: string) => void;
+  onAgeChange?: (value: string) => void;
 }) {
   if (error) {
     return (
@@ -801,7 +805,7 @@ function StepCategory({
   if (isLoading) {
     return (
       <div className="flex-1 flex flex-col px-6 py-4">
-        <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} />
+        <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} age={age} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} onAgeChange={onAgeChange} />
         <h2 className="text-center text-[20px] font-bold text-[#1d1d1b] tracking-wide mt-4 mb-2">CASE DESIGN CENTER</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6 max-w-[640px] mx-auto w-full">
           {[1, 2, 3].map((i) => (
@@ -813,7 +817,7 @@ function StepCategory({
   }
   return (
     <div className="flex-1 flex flex-col px-6 py-4">
-      <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} />
+      <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} age={age} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} onAgeChange={onAgeChange} />
 
       <h2 className="text-center text-[20px] font-bold text-[#1d1d1b] tracking-wide mt-4 mb-2">
         CASE DESIGN CENTER
@@ -869,8 +873,10 @@ function StepSubProduct({
   doctor,
   patientName,
   gender,
+  age,
   onPatientNameChange,
   onGenderChange,
+  onAgeChange,
 }: {
   categoryId: number;
   subProducts: { id: number; name: string; img: string }[];
@@ -881,15 +887,17 @@ function StepSubProduct({
   doctor: WizardDoctorShape | undefined;
   patientName: string;
   gender: string;
+  age?: string;
   onPatientNameChange?: (value: string) => void;
   onGenderChange?: (value: string) => void;
+  onAgeChange?: (value: string) => void;
 }) {
   const [accordionOpen, setAccordionOpen] = useState(false);
 
   return (
     <div className="flex-1 flex flex-col px-6 py-4">
       {/* Patient header mini */}
-      <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} />
+      <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} age={age} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} onAgeChange={onAgeChange} />
 
       {onBack && (
         <button
@@ -978,6 +986,8 @@ function StepMaterial({
   forceArch,
   onPatientNameChange,
   onGenderChange,
+  age,
+  onAgeChange,
 }: {
   categoryName: string;
   subProductName: string;
@@ -988,12 +998,14 @@ function StepMaterial({
   doctor: WizardDoctorShape | undefined;
   patientName: string;
   gender: string;
+  age?: string;
   isLoading?: boolean;
   error?: Error | null;
   isRemovableRestoration?: boolean;
   forceArch?: "maxillary" | "mandibular";
   onPatientNameChange?: (value: string) => void;
   onGenderChange?: (value: string) => void;
+  onAgeChange?: (value: string) => void;
 }) {
   const [archPopoverProductId, setArchPopoverProductId] = useState<string | null>(null);
   const cardRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -1008,7 +1020,7 @@ function StepMaterial({
   if (isLoading) {
     return (
       <div className="flex-1 flex flex-col px-6 py-4">
-        <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} />
+        <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} age={age} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} onAgeChange={onAgeChange} />
         <h2 className="text-center text-[20px] font-bold text-[#1d1d1b] tracking-wide mt-4 mb-2">CASE DESIGN CENTER</h2>
         <div className="flex flex-wrap justify-center gap-4 mb-6">
           {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -1021,7 +1033,7 @@ function StepMaterial({
 
   return (
     <div className="flex-1 flex flex-col px-6 py-4">
-      <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} />
+      <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} age={age} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} onAgeChange={onAgeChange} />
 
       {onBack && (
         <button
@@ -1149,14 +1161,18 @@ function PatientMiniHeader({
   doctor,
   patientName,
   gender,
+  age,
   onPatientNameChange,
   onGenderChange,
+  onAgeChange,
 }: {
   doctor: WizardDoctorShape | undefined;
   patientName: string;
   gender: string;
+  age?: string;
   onPatientNameChange?: (value: string) => void;
   onGenderChange?: (value: string) => void;
+  onAgeChange?: (value: string) => void;
 }) {
   const [createdByName, setCreatedByName] = useState("");
   const [createdByImage, setCreatedByImage] = useState("");
@@ -1172,12 +1188,12 @@ function PatientMiniHeader({
   }, []);
 
   return (
-    <div className="bg-[#fdfdfd] border-b border-[#d9d9d9] px-4 sm:px-6 py-4 -mx-6 -mt-4 mb-4">
-      <div className="flex flex-col lg:flex-row items-center lg:items-start gap-4 lg:gap-8">
+    <div className="bg-[#fdfdfd] border-b border-[#d9d9d9] px-4 sm:px-6 py-1 -mx-6 -mt-4 mb-4">
+      <div className="flex flex-col lg:flex-row items-center gap-2 lg:gap-4">
         {/* Doctor photo + name */}
         {doctor && (
           <div className="flex flex-col items-center gap-1 flex-shrink-0">
-            <div className="w-[70px] h-[70px] sm:w-[130px] sm:h-[130px] rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
+            <div className="w-[40px] h-[40px] sm:w-[50px] sm:h-[50px] hover:w-[70px] hover:h-[70px] sm:hover:w-[100px] sm:hover:h-[100px] transition-all duration-300 ease-in-out cursor-pointer rounded-full overflow-hidden bg-gray-200 flex items-center justify-center relative">
               <img
                 src={doctor.img}
                 alt={doctor.name}
@@ -1195,23 +1211,31 @@ function PatientMiniHeader({
           </div>
         )}
 
-        {/* Form fields — Patient name and Gender stacked */}
+        {/* Form fields — Patient name row 1, Gender + Age row 2 (same total width as patient name) */}
         <div className="flex-1 w-full lg:w-auto flex flex-col gap-3 justify-center lg:justify-start">
           <div className="flex gap-3 sm:gap-4 items-start justify-center lg:justify-start">
-            <FieldInput label="Patient name" value={patientName} onChange={onPatientNameChange} className="w-[330px]" />
+            <FieldInput label="Patient name" value={patientName} onChange={onPatientNameChange} className="w-[330px]" smartPatientLabel />
           </div>
-          <div className="flex gap-3 sm:gap-4 items-start justify-center lg:justify-start">
+          <div className="flex gap-3 sm:gap-4 items-start justify-center lg:justify-start w-[330px]">
             {onGenderChange ? (
               <SelectField
                 label="Gender"
                 value={gender}
                 options={["Male", "Female"]}
                 onChange={onGenderChange}
-                className="w-[330px]"
+                caseSubmitted={false}
+                className="flex-1"
               />
             ) : (
-              <FieldInput label="Gender" value={gender} className="w-[330px]" />
+              <FieldInput label="Gender" value={gender} submitted={false} className="flex-1" />
             )}
+            <FieldInput
+              label="Age"
+              value={age ?? ""}
+              submitted={false}
+              onChange={onAgeChange}
+              className="flex-1"
+            />
           </div>
         </div>
 
@@ -1538,10 +1562,12 @@ export default function NewCaseWizard({
             doctor={doctor}
             patientName={patientName}
             gender={gender}
+            age={age}
             isLoading={categoriesLoading}
             error={categoriesError}
             onPatientNameChange={setPatientName}
             onGenderChange={setGender}
+            onAgeChange={setAge}
           />
         )}
         {step === 5 && selectedCategory != null && (
@@ -1558,8 +1584,10 @@ export default function NewCaseWizard({
             doctor={doctor}
             patientName={patientName}
             gender={gender}
+            age={age}
             onPatientNameChange={setPatientName}
             onGenderChange={setGender}
+            onAgeChange={setAge}
           />
         )}
         {step === 6 && selectedCategory != null && selectedSubProduct != null && (() => {
@@ -1615,8 +1643,10 @@ export default function NewCaseWizard({
               doctor={doctor}
               patientName={patientName}
               gender={gender}
+              age={age}
               onPatientNameChange={setPatientName}
               onGenderChange={setGender}
+              onAgeChange={setAge}
             />
           );
         })()}

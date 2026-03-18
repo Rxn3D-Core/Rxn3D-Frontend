@@ -226,13 +226,18 @@ export function GradesSection({
           </span>
         </div>
         <div className="flex items-center gap-4">
+          <Switch
+            checked={sections.grades}
+            onCheckedChange={() => toggleSection("grades")}
+            className="data-[state=checked]:bg-[#1162a8]"
+          />
           <ChevronDown
             className={`h-5 w-5 transition-transform duration-200 cursor-pointer ${expandedSections.grades ? "rotate-180" : ""}`}
             onClick={() => toggleExpanded("grades")}
           />
         </div>
       </div>
-      {expandedSections.grades && (
+      {expandedSections.grades && sections.grades && (
         <div className="px-2 sm:px-6 pb-6"> {/* Add px-2 for mobile, sm:px-6 for desktop */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-4">
             <Label htmlFor="grade-based-pricing" className="whitespace-nowrap">Does this product have grade-based pricing?</Label>

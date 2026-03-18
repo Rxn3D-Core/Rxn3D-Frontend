@@ -293,7 +293,7 @@ export function AddOnsProvider({ children }: { children: ReactNode }) {
         })
 
         if (search) params.append("q", search)
-        if (sortColKey && sortColKey !== "category_name" && sortColKey !== "subcategory_name") {
+        if (sortColKey && sortColKey !== "category_name" && sortColKey !== "subcategory_name" && sortColKey !== "status") {
           params.append("order_by", sortColKey as string)
           params.append("sort_direction", sortDir)
         }

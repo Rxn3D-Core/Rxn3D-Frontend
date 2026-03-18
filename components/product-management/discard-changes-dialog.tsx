@@ -69,47 +69,6 @@ export function DiscardChangesDialog({ isOpen, type, onDiscard, onKeepEditing }:
     }
   }
 
-  const getButtonText = () => {
-    switch (type) {
-      case "teeth-shade":
-        return "Discard Teeth Shade system"
-      case "gum-shade":
-        return "Discard Gum Shade system"
-      case "grade":
-        return "Discard Grade"
-      case "group":
-        return "Discard Group"
-      case "impression":
-        return "Discard Impression"
-      case "case-pan":
-        return "Discard Case Pan"
-      case "product":
-        return "Discard Product"
-      case "category":
-        return "Discard Category"
-      case "stage":
-        return "Discard Stage"
-      case "stage-group":
-        return "Discard Stage Group"
-      case "add-on":
-        return "Discard Add-on"
-      case "retention":
-        return "Discard Retention"
-      case "retention-option":
-        return "Discard Retention Option"
-      case "visibility-group":
-        return "Discard Visibility Group"
-      case "tooth-status":
-        return "Discard Tooth Status"
-      case "tooth-status-group":
-        return "Discard Tooth Status Group"
-      case "material":
-        return "Discard Material"
-      default:
-        return "Discard"
-    }
-  }
-
   return (
     <Dialog open={isOpen} onOpenChange={onKeepEditing}>
       <DialogContent className="sm:max-w-[500px] p-0 gap-0 overflow-hidden bg-white rounded-md">
@@ -164,7 +123,7 @@ export function DiscardChangesDialog({ isOpen, type, onDiscard, onKeepEditing }:
             onClick={onDiscard}
             className="border-gray-300 text-gray-700 hover:bg-gray-100 hover:text-gray-900"
           >
-            {getButtonText()}
+            Discard Changes
           </Button>
           <Button onClick={onKeepEditing} className="bg-[#1162a8]">
             Keep Editing

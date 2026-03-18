@@ -19,6 +19,10 @@ interface ExtractionsSectionProps {
   setValue: UseFormSetValue<ProductCreateForm>
   getValidationError: (fieldName: string) => string | undefined
   sectionHasErrors: (sectionFields: string[]) => boolean
+  sections?: { extractions?: boolean }
+  toggleSection?: (section: string) => void
+  expandedSections?: { extractions?: boolean }
+  toggleExpanded?: (section: string) => void
 }
 
 export function ExtractionsSection({
@@ -27,10 +31,17 @@ export function ExtractionsSection({
   setValue,
   getValidationError,
   sectionHasErrors,
+  sections,
+  toggleSection,
+  expandedSections,
+  toggleExpanded,
 }: ExtractionsSectionProps) {
-  // Internal state for accordion functionality
-  const [isEnabled, setIsEnabled] = useState(true)
-  const [isExpanded, setIsExpanded] = useState(true)
+  // Fallback internal state when parent doesn't pass sections (e.g. used elsewhere)
+  const [internalEnabled, setInternalEnabled] = useState(true)
+  const [internalExpanded, setInternalExpanded] = useState(true)
+  // Use sections.extractions when provided (syncs with parent for has_extraction backend flag), else internal state
+  const isEnabled = sections?.extractions ?? internalEnabled
+  const isExpanded = expandedSections?.extractions ?? internalExpanded
   const watchedExtractions = watch("extractions") || []
   const watchedOppositeExtractions = watch("opposite_extractions" as any) || []
   const watchedApplySameStatus = watch("apply_same_status_to_opposing") ?? true
@@ -544,14 +555,14 @@ export function ExtractionsSection({
           <div className="flex items-center gap-2">
             <Switch
               checked={isEnabled}
-              onCheckedChange={setIsEnabled}
+              onCheckedChange={() => (toggleSection ? toggleSection("extractions") : setInternalEnabled((v) => !v))}
               className="data-[state=checked]:bg-blue-600"
             />
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              onClick={() => setIsExpanded(!isExpanded)}
+              onClick={() => (toggleExpanded ? toggleExpanded("extractions") : setInternalExpanded((v) => !v))}
               className="h-8 w-8 p-0"
             >
               {isExpanded ? (
