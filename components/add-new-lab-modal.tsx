@@ -524,23 +524,48 @@ export function AddNewLabModal({ open, onOpenChange, onLabSelect, onInviteLab }:
               <form onSubmit={handleSubmit((data) => handleInviteSubmit(false))}>
                 <div className="flex gap-6 mb-8">
                   <div className="flex-1">
-                    <Input
-                      {...register("labName")}
-                      placeholder="Lab Name"
-                      className="w-full py-3 px-4 text-base"
-                    />
+                    <div className="relative">
+                      <input
+                        {...register("labName")}
+                        id="invite-lab-name"
+                        type="text"
+                        className={`w-full h-[48px] px-4 pt-5 pb-1 text-base text-[#1F2937] bg-white border rounded-[7px] focus:outline-none focus:ring-1 transition-colors ${
+                          watchedLabName ? "border-[#119933] focus:border-[#119933] focus:ring-[#119933]" : "border-[#7F7F7F] focus:border-[#1162A8] focus:ring-[#1162A8]"
+                        }`}
+                      />
+                      <label
+                        htmlFor="invite-lab-name"
+                        className={`absolute left-3 top-0 -translate-y-1/2 text-xs pointer-events-none bg-white px-1 ${
+                          watchedLabName ? "text-[#119933]" : "text-[#7F7F7F]"
+                        }`}
+                      >
+                        Lab Name
+                      </label>
+                    </div>
                     {errors.labName && (
                       <p className="text-red-500 text-sm mt-1">{errors.labName.message}</p>
                     )}
                   </div>
 
                   <div className="flex-1">
-                    <Input
-                      {...register("email")}
-                      placeholder="Email Address *"
-                      type="email"
-                      className="w-full py-3 px-4 text-base"
-                    />
+                    <div className="relative">
+                      <input
+                        {...register("email")}
+                        id="invite-email"
+                        type="email"
+                        className={`w-full h-[48px] px-4 pt-5 pb-1 text-base text-[#1F2937] bg-white border rounded-[7px] focus:outline-none focus:ring-1 transition-colors ${
+                          watchedEmail ? "border-[#119933] focus:border-[#119933] focus:ring-[#119933]" : "border-[#7F7F7F] focus:border-[#1162A8] focus:ring-[#1162A8]"
+                        }`}
+                      />
+                      <label
+                        htmlFor="invite-email"
+                        className={`absolute left-3 top-0 -translate-y-1/2 text-xs pointer-events-none bg-white px-1 ${
+                          watchedEmail ? "text-[#119933]" : "text-[#7F7F7F]"
+                        }`}
+                      >
+                        Email Address *
+                      </label>
+                    </div>
                     {errors.email && (
                       <p className="text-red-500 text-sm mt-1">{errors.email.message}</p>
                     )}

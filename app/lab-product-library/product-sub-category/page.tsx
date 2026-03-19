@@ -74,11 +74,11 @@ export default function ProductSubCategoryPage() {
 
   const handleSort = (columnKey: string) => {
     if (sortColumn === columnKey) {
-      if (sortDirection === "asc") {
-        setSortDirection("desc")
-      } else {
-        setSortDirection("asc")
-      }
+      if (sortDirection === "asc") setSortDirection("desc")
+      else if (sortDirection === "desc") {
+        setSortColumn(null)
+        setSortDirection(null)
+      } else setSortDirection("asc")
     } else {
       setSortColumn(columnKey)
       setSortDirection("asc")
@@ -295,14 +295,23 @@ export default function ProductSubCategoryPage() {
                   {renderSortIndicator("name")}
                 </div>
               </TableHead>
-              <TableHead className="font-semibold text-gray-900">
-                {t("Default Code", { defaultValue: "Default Code" })}
+              <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("code")}>
+                <div className="flex items-center">
+                  {t("Default Code", { defaultValue: "Default Code" })} 
+                  {renderSortIndicator("code")}
+                </div>
               </TableHead>
-              <TableHead className="font-semibold text-gray-900">
-                {t("Arch Type", { defaultValue: "Arch Type" })}
+              <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("arch_type")}>
+                <div className="flex items-center">
+                  {t("Arch Type", { defaultValue: "Arch Type" })} 
+                  {renderSortIndicator("arch_type")}
+                </div>
               </TableHead>
-              <TableHead className="font-semibold text-gray-900">
-                {t("Status", { defaultValue: "Status" })}
+              <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("status")}>
+                <div className="flex items-center">
+                  {t("Status", { defaultValue: "Status" })} 
+                  {renderSortIndicator("status")}
+                </div>
               </TableHead>
               <TableHead className="font-semibold text-gray-900">
                 {t("Visibility", { defaultValue: "Visibility" })}

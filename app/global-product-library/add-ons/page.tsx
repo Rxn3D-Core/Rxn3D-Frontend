@@ -98,11 +98,11 @@ export default function AddOnsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery])
 
-  // Fetch add-ons when pagination or search changes
+  // Fetch add-ons when pagination, search, or sort changes
   useEffect(() => {
     fetchAddOns(currentPage, Number(entriesPerPage))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, entriesPerPage, searchQuery, currentLanguage])
+  }, [currentPage, entriesPerPage, searchQuery, sortColumn, sortDirection, currentLanguage])
 
   const handlePageChange = (page: number) => {
     if (addOnPagination && page >= 1 && page <= addOnPagination.last_page) {
@@ -316,22 +316,22 @@ export default function AddOnsPage() {
                       className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]"
                     />
                   </TableHead>
-                  <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("category_name")}>
+                  <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("add_on_sub_category")}>
                     <div className="flex items-center">
                       {t("Add-on Category", "Add-on Category")}
-                      {renderSortIndicator("category_name")}
+                      {renderSortIndicator("add_on_sub_category")}
                     </div>
                   </TableHead>
-                  <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors">
+                  <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("code")}>
                     <div className="flex items-center">
                       {t("Category Code", "Category Code")}
-                      {renderSortIndicator("category_name")}
+                      {renderSortIndicator("code")}
                     </div>
                   </TableHead>
-                  <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("subcategory_name")}>
+                  <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("add_on_sub_category")}>
                     <div className="flex items-center">
                       {t("Add-on Sub Category", "Add-on Sub Category")}
-                      {renderSortIndicator("subcategory_name")}
+                      {renderSortIndicator("add_on_sub_category")}
                     </div>
                   </TableHead>
                   <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("name")}>

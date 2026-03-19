@@ -6,59 +6,59 @@ import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Search, ChevronUp, ChevronDown, Edit, TrashIcon, Copy, Plus, Package, Link as LinkIcon, MoreVertical, ArrowUpDown } from 'lucide-react'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Edit, TrashIcon, Copy, Plus, Package, Link as LinkIcon, MoreVertical, ArrowUpDown } from 'lucide-react'
 import { CreateRetentionModal } from "@/components/product-management/create-retention-modal"
-import { DeleteRetentionModal } from "@/components/product-management/delete-retention-modal"
-import { LinkProductsModal } from "@/components/product-management/link-products-modal"
 import { LinkRetentionOptionModal } from "@/components/product-management/link-retention-option-modal"
+import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import { LoadingDots } from "@/components/ui/loading-dots"
 import { useRetention } from "@/contexts/product-retention-context"
 import { useLanguage } from "@/contexts/language-context"
-import { useAuth } from "@/contexts/auth-context"
-import { useTranslation } from "react-i18next"
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-
-type SortField = "name" | "code" | "status" | "price"
+type SortField = "name" | "code" | "sequence" | "linked_retention_option" | "status"
 type SortDirection = "asc" | "desc"
+import { useTranslation } from "react-i18next"
 
 export default function RetentionPage() {
   const { isLoading, retentions, loading, pagination, fetchRetentions, deleteRetention } = useRetention()
   const [selectedRetentions, setSelectedRetentions] = useState<string[]>([])
   const [searchTerm, setSearchTerm] = useState("")
-  const [sortField, setSortField] = useState<SortField>("name")
+  const [searchInput, setSearchInput] = useState("")
+  const [sortField, setSortField] = useState<SortField>("sequence")
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc")
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [entriesPerPage, setEntriesPerPage] = useState("10")
+  const [entriesPerPage, setEntriesPerPage] = useState(10)
   const [currentPage, setCurrentPage] = useState(1)
   const [editRetention, setEditRetention] = useState<any | null>(null)
-  const [isCopying, setIsCopying] = useState(false)
   const [deleteRetentionId, setDeleteRetentionId] = useState<number | null>(null)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
-  const [isLinkProductsModalOpen, setIsLinkProductsModalOpen] = useState(false)
   const [showLinkRetentionOptionModal, setShowLinkRetentionOptionModal] = useState(false)
   const { currentLanguage } = useLanguage()
-  const { user } = useAuth()
   const { t } = useTranslation()
 
-  const isLabAdmin = user?.role === "lab_admin"
-
+  // Debounce search input
   useEffect(() => {
-    fetchRetentions()
-  }, [currentLanguage])
+    const timeoutId = setTimeout(() => {
+      setSearchTerm(searchInput)
+      setCurrentPage(1) // Reset to first page when search changes
+    }, 300)
 
+    return () => clearTimeout(timeoutId)
+  }, [searchInput])
+
+  // Fetch retentions when filters change
   useEffect(() => {
-    fetchRetentions(currentPage, Number(entriesPerPage), searchTerm)
+    fetchRetentions(currentPage, entriesPerPage, searchTerm, sortField, sortDirection)
   }, [fetchRetentions, currentPage, entriesPerPage, searchTerm, sortField, sortDirection, currentLanguage])
 
-  const handleSort = (field: SortField) => {
+  const handleSort = (field: SortField | string) => {
     if (sortField === field) {
       setSortDirection(sortDirection === "asc" ? "desc" : "asc")
     } else {
       setSortField(field)
       setSortDirection("asc")
     }
-    fetchRetentions(currentPage, Number(entriesPerPage), searchTerm)
+    setCurrentPage(1) // Reset to first page when sort changes
   }
 
   const getSortIcon = (field: SortField) => {
@@ -85,8 +85,14 @@ export default function RetentionPage() {
   const isAllSelected = retentions.length > 0 && selectedRetentions.length === retentions.length
   const isIndeterminate = selectedRetentions.length > 0 && selectedRetentions.length < retentions.length
 
-  const handleEntriesPerPageChange = (newEntriesPerPage: string) => {
+  const handleEntriesPerPageChange = (newEntriesPerPage: number) => {
     setEntriesPerPage(newEntriesPerPage)
+    setCurrentPage(1)
+  }
+
+  const handleSearchClear = () => {
+    setSearchInput("")
+    setSearchTerm("")
     setCurrentPage(1)
   }
 
@@ -115,13 +121,6 @@ export default function RetentionPage() {
 
   function handleEdit(retention: any): void {
     setEditRetention(retention)
-    setIsCopying(false)
-    setShowCreateModal(true)
-  }
-
-  function handleCopy(retention: any): void {
-    setEditRetention(retention)
-    setIsCopying(true)
     setShowCreateModal(true)
   }
 
@@ -130,12 +129,28 @@ export default function RetentionPage() {
     setShowDeleteModal(true)
   }
 
+  function handleCopy(retention: any): void {
+    setEditRetention(retention)
+    setShowCreateModal(true)
+  }
+
+  const handleBulkDelete = () => {
+    setDeleteRetentionId(null)
+    setShowDeleteModal(true)
+  }
+
   const confirmDelete = async () => {
     if (deleteRetentionId != null) {
       await deleteRetention(deleteRetentionId)
       setShowDeleteModal(false)
       setDeleteRetentionId(null)
+      setSelectedRetentions(selectedRetentions.filter(id => id !== deleteRetentionId?.toString()))
+    } else if (selectedRetentions.length > 0) {
+      await Promise.all(selectedRetentions.map(id => deleteRetention(Number(id))))
+      setShowDeleteModal(false)
+      setSelectedRetentions([])
     }
+    // The useEffect will automatically refetch with current filters
   }
 
   return (
@@ -147,8 +162,8 @@ export default function RetentionPage() {
             <Package className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold text-gray-900">{t("Retention Management")}</h1>
-            <p className="text-sm text-gray-500">{t("Manage your retention inventory and configurations")}</p>
+            <h1 className="text-xl font-semibold text-gray-900">Retention Management</h1>
+            <p className="text-sm text-gray-500">Manage retention types and configurations</p>
           </div>
         </div>
       </div>
@@ -158,7 +173,10 @@ export default function RetentionPage() {
         <div className="flex flex-col sm:flex-row gap-3 sm:justify-between sm:items-center">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-gray-700">{t("Show")}</span>
-            <Select value={entriesPerPage} onValueChange={handleEntriesPerPageChange}>
+            <Select
+              value={entriesPerPage.toString()}
+              onValueChange={(value) => handleEntriesPerPageChange(Number(value))}
+            >
               <SelectTrigger className="w-20 h-9 text-sm">
                 <SelectValue />
               </SelectTrigger>
@@ -194,8 +212,8 @@ export default function RetentionPage() {
                 type="search"
                 placeholder={t("Search Retention Type")}
                 className="pl-10 h-10 w-full sm:w-64 text-sm border-gray-300 focus:border-[#1162a8] focus:ring-[#1162a8]"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
               />
             </div>
           </div>
@@ -235,23 +253,15 @@ export default function RetentionPage() {
                     <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />
                   </div>
                 </TableHead>
-                <TableHead className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors">
+                <TableHead
+                  className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors"
+                  onClick={() => handleSort("linked_retention_option")}
+                >
                   <div className="flex items-center gap-1">
                     {t("Linked Retention option")}
                     <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />
                   </div>
                 </TableHead>
-                {isLabAdmin && (
-                  <TableHead
-                    className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors"
-                    onClick={() => handleSort("price")}
-                  >
-                    <div className="flex items-center gap-1">
-                      {t("Price")}
-                      <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />
-                    </div>
-                  </TableHead>
-                )}
                 <TableHead
                   className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors"
                   onClick={() => handleSort("status")}
@@ -266,7 +276,7 @@ export default function RetentionPage() {
             <TableBody>
               {retentions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={isLabAdmin ? 6 : 5} className="py-8 text-center">
+                  <TableCell colSpan={5} className="py-8 text-center">
                     <p className="text-gray-500 text-sm">
                       {t("No retentions found")}
                     </p>
@@ -319,13 +329,6 @@ export default function RetentionPage() {
                         <LinkIcon className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
                       </div>
                     </TableCell>
-                    {isLabAdmin && (
-                      <TableCell className="py-2 px-2">
-                        <span className="text-xs font-medium text-gray-900">
-                          ${(retention.price || 0).toFixed(2)}
-                        </span>
-                      </TableCell>
-                    )}
                     <TableCell className="py-2 px-2">
                       <div className="flex items-center gap-2">
                         <div
@@ -420,42 +423,31 @@ export default function RetentionPage() {
         </div>
       )}
 
-      {/* Modals */}
-      <>
-        <CreateRetentionModal
-          isOpen={showCreateModal}
-          onClose={() => {
-            setShowCreateModal(false)
-            setEditRetention(null)
-            setIsCopying(false)
-          }}
-          retention={editRetention}
-          isCopying={isCopying}
-        />
-        <DeleteRetentionModal
-          isOpen={showDeleteModal}
-          onClose={() => setShowDeleteModal(false)}
-          onConfirm={confirmDelete}
-        />
-        <LinkProductsModal
-          isOpen={isLinkProductsModalOpen}
-          onClose={() => setIsLinkProductsModalOpen(false)}
-          entityType="retention"
-          context="lab"
-          onApply={() => {
-            setIsLinkProductsModalOpen(false)
-          }}
-        />
-        <LinkRetentionOptionModal
-          isOpen={showLinkRetentionOptionModal}
-          onClose={() => setShowLinkRetentionOptionModal(false)}
-          onApply={(selectedRetentionTypes, selectedRetentionOptions) => {
-            // Handle the linking logic here
-            console.log("Linking retention types:", selectedRetentionTypes, "to options:", selectedRetentionOptions)
-            setShowLinkRetentionOptionModal(false)
-          }}
-        />
-      </>
+      {/* Create Retention Modal */}
+      <CreateRetentionModal
+        isOpen={showCreateModal}
+        onClose={() => {
+          setShowCreateModal(false)
+          setEditRetention(null)
+        }}
+        retention={editRetention}
+      />
+      <DeleteConfirmationModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={confirmDelete}
+        itemCount={deleteRetentionId == null ? selectedRetentions.length : undefined}
+        itemName={deleteRetentionId != null ? "retention" : undefined}
+      />
+      <LinkRetentionOptionModal
+        isOpen={showLinkRetentionOptionModal}
+        onClose={() => setShowLinkRetentionOptionModal(false)}
+        onApply={(selectedRetentionTypes, selectedRetentionOptions) => {
+          // Handle the linking logic here
+          console.log("Linking retention types:", selectedRetentionTypes, "to options:", selectedRetentionOptions)
+          setShowLinkRetentionOptionModal(false)
+        }}
+      />
     </div>
   )
 }

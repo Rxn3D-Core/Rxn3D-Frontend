@@ -263,10 +263,13 @@ export function GumShadesProvider({ children }: GumShadesProviderProps) {
         const params = new URLSearchParams({
           ...(page != null && { page: page.toString() }),
           ...(perPage != null && { per_page: perPage.toString() }),
-          ...(search && { search }),
-          ...(sortCol && { sort_column: sortCol }),
-          ...(sortDir && { sort_direction: sortDir }),
+          ...(search && { q: search }),
         })
+        // Per LIBRARY_API_SORTING_REFERENCE: order_by and sort_by
+        if (sortCol && sortDir) {
+          params.append("order_by", sortCol)
+          params.append("sort_by", sortDir)
+        }
 
         // Add customer_id if lab_admin with primary customer
         if (user?.roles?.includes("lab_admin") && user?.customers?.length) {

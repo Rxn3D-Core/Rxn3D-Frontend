@@ -476,11 +476,21 @@ export default function ProductsPage() {
                 <TableHead className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors" onClick={() => handleSort("name")}>
                   {t("Product")} {renderSortIndicator("name")}
                 </TableHead>
-                <TableHead className="font-semibold text-gray-900 py-2 px-2">{t("Case Pan")}</TableHead>
-                <TableHead className="font-semibold text-gray-900 py-2 px-2">{t("Category Hierarchy")}</TableHead>
-                <TableHead className="font-semibold text-gray-900 py-2 px-2">{t("Code")}</TableHead>
-                <TableHead className="font-semibold text-gray-900 py-2 px-2">{t("Arch type")}</TableHead>
-                <TableHead className="font-semibold text-gray-900 py-2 px-2">{t("Price")}</TableHead>
+                <TableHead className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors" onClick={() => handleSort("case_pan")}>
+                  {t("Case Pan")} {renderSortIndicator("case_pan")}
+                </TableHead>
+                <TableHead className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors" onClick={() => handleSort("category_hierarchy")}>
+                  {t("Category Hierarchy")} {renderSortIndicator("category_hierarchy")}
+                </TableHead>
+                <TableHead className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors" onClick={() => handleSort("code")}>
+                  {t("Code")} {renderSortIndicator("code")}
+                </TableHead>
+                <TableHead className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors" onClick={() => handleSort("arch_type")}>
+                  {t("Arch type")} {renderSortIndicator("arch_type")}
+                </TableHead>
+                <TableHead className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors" onClick={() => handleSort("price")}>
+                  {t("Price")} {renderSortIndicator("price")}
+                </TableHead>
                 <TableHead className="font-semibold text-gray-900 text-center py-2 px-2">{t("Actions")}</TableHead>
               </TableRow>
             </TableHeader>

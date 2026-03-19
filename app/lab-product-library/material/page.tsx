@@ -4,17 +4,15 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Search, ChevronUp, ChevronDown, Copy, Info, TrashIcon, Edit, Plus, Package, Link } from "lucide-react"
+import { Search, ChevronUp, ChevronDown, Copy, Info, TrashIcon, Edit, Plus, Package } from "lucide-react"
 import { CreateMaterialModal } from "@/components/product-management/create-material-modal"
 import { CreateMaterialGroupModal } from "@/components/product-management/create-material-group-modal"
-import { LinkProductsModal } from "@/components/product-management/link-products-modal"
+import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import { useMaterials } from "@/contexts/product-materials-context"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Badge } from "@/components/ui/badge"
+import { TooltipContent, Tooltip, TooltipProvider, TooltipTrigger } from "@radix-ui/react-tooltip"
 import { useLanguage } from "@/contexts/language-context"
-
 type SortDirection = "asc" | "desc" | null
 
 interface MaterialGroup {
@@ -28,25 +26,6 @@ const mockMaterialGroups: MaterialGroup[] = [
   { id: "3", name: "All Single Crowns" },
   { id: "4", name: "Repairs" },
 ]
-
-// Add a simple Delete Confirmation Modal
-function DeleteMaterialModal({ isOpen, onClose, onConfirm, materialName }: { isOpen: boolean, onClose: () => void, onConfirm: () => void, materialName?: string }) {
-  if (!isOpen) return null
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-      <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-sm">
-        <h2 className="text-lg font-semibold mb-2">Delete Material</h2>
-        <p className="mb-4 text-gray-700">
-          Are you sure you want to delete <span className="font-bold">{materialName}</span>? This action cannot be undone.
-        </p>
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button variant="destructive" onClick={onConfirm}>Delete</Button>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 export default function MaterialPage() {
   const {
@@ -64,21 +43,23 @@ export default function MaterialPage() {
     setSelectedItems,
     deleteMaterial,
     bulkDeleteMaterials,
-    getMaterialDetail,
   } = useMaterials()
 
   const [selectedGroups, setSelectedGroups] = useState<string[]>([])
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false)
-  const [isLinkProductsModalOpen, setIsLinkProductsModalOpen] = useState(false)
   const [entriesPerPage, setEntriesPerPage] = useState("10")
   const [currentPage, setCurrentPage] = useState(1)
-  const [editingMaterial, setEditingMaterial] = useState<any | null>(null)
-  const [isCopying, setIsCopying] = useState(false)
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
-  const [materialToDelete, setMaterialToDelete] = useState<{ id: number | number[], name?: string } | null>(null)
   const { currentLanguage } = useLanguage()
+  const [editingMaterial, setEditingMaterial] = useState<any | null>(null)
 
+  // Delete modal state
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null)
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  // Fetch materials on component mount and when dependencies change
   useEffect(() => {
     fetchMaterials(currentPage, Number.parseInt(entriesPerPage))
   }, [fetchMaterials, currentPage, entriesPerPage, searchQuery, sortColumn, sortDirection, currentLanguage])
@@ -97,7 +78,7 @@ export default function MaterialPage() {
 
   const getSortIcon = (column: string) => {
     if (sortColumn !== column) {
-      return null
+      return <ChevronUp className="w-4 h-4 text-gray-400" />
     }
     if (sortDirection === "asc") {
       return <ChevronUp className="w-4 h-4 text-gray-600" />
@@ -105,7 +86,7 @@ export default function MaterialPage() {
     if (sortDirection === "desc") {
       return <ChevronDown className="w-4 h-4 text-gray-600" />
     }
-    return null
+    return <ChevronUp className="w-4 h-4 text-gray-400" />
   }
 
   const handleSelectAllMaterials = (checked: boolean) => {
@@ -149,97 +130,27 @@ export default function MaterialPage() {
     setCurrentPage(1)
   }
 
-  function handleEdit(material: any): void {
-    setEditingMaterial(material)
-    setShowCreateModal(true)
-  }
+  // Generate page numbers for pagination
+  const getPageNumbers = () => {
+    const totalPages = pagination.last_page
+    const current = pagination.current_page
+    const pages = []
 
-  function handleDelete(materialId: number): void {
-    const mat = materials.find((m) => m.id === materialId)
-    setMaterialToDelete({ id: materialId, name: mat?.name })
-    setDeleteModalOpen(true)
-  }
-
-  async function handleCopy(materialId: number): Promise<void> {
-    try {
-      console.log("🔄 Copying material with ID:", materialId)
-      
-      const materialDetail: any = await getMaterialDetail(materialId)
-      if (!materialDetail) {
-        console.error("❌ Failed to fetch material detail")
-        return
+    if (totalPages <= 5) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i)
       }
-
-      console.log("📋 Original material detail:", materialDetail)
-      console.log("💰 Original price from materialDetail.price:", materialDetail.price)
-      console.log("💰 Original price from lab_material?.price:", materialDetail.lab_material?.price)
-
-      // Generate a unique code by appending timestamp to avoid conflicts
-      const timestamp = Date.now().toString().slice(-6) // Last 6 digits of timestamp
-      const uniqueCode = materialDetail.code 
-        ? `${materialDetail.code}_COPY_${timestamp}` 
-        : `MAT_${timestamp}`
-
-      // Remove id and other read-only/auto-generated fields to make it a new material
-      const {
-        id: _,
-        created_at,
-        updated_at,
-        deleted_at,
-        lab_material,
-        ...materialWithoutId
-      } = materialDetail
-
-      // Get price from materialDetail or lab_material
-      const price = materialDetail.price 
-        ? (typeof materialDetail.price === "number" ? materialDetail.price : parseFloat(materialDetail.price))
-        : (lab_material?.price ? parseFloat(lab_material.price) : 0)
-
-      console.log("💰 Extracted price value:", price, "type:", typeof price)
-
-      // Create duplicated material with unique code and name
-      const duplicatedMaterial = {
-        ...materialWithoutId,
-        name: materialDetail.name ? `${materialDetail.name} (Copy)` : materialDetail.name,
-        code: uniqueCode,
-        price: price,
+    } else {
+      if (current <= 3) {
+        pages.push(1, 2, 3, 4, 5)
+      } else if (current >= totalPages - 2) {
+        pages.push(totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages)
+      } else {
+        pages.push(current - 2, current - 1, current, current + 1, current + 2)
       }
-
-      console.log("=========================================")
-      console.log("📦 Duplicated Material Payload:")
-      console.log("=========================================")
-      console.log(JSON.stringify(duplicatedMaterial, null, 2))
-      console.log("=========================================")
-      console.log("Duplicated material object:", duplicatedMaterial)
-      console.log("Duplicated material price:", duplicatedMaterial.price)
-      console.log("Duplicated material price type:", typeof duplicatedMaterial.price)
-      console.log("=========================================")
-
-      setEditingMaterial(duplicatedMaterial)
-      setShowCreateModal(true)
-    } catch (error) {
-      console.error("❌ Failed to duplicate material:", error)
     }
-  }
 
-  function handleConfirmDelete() {
-    if (materialToDelete && typeof materialToDelete.id === "number") {
-      deleteMaterial(materialToDelete.id)
-    }
-    setDeleteModalOpen(false)
-    setMaterialToDelete(null)
-  }
-
-  function handleBulkDelete() {
-    if (selectedItems.length > 0) {
-      setMaterialToDelete({ id: [...selectedItems], name: `${selectedItems.length} materials` })
-      setDeleteModalOpen(true)
-    }
-  }
-
-  function handleDeleteModalClose() {
-    setDeleteModalOpen(false)
-    setMaterialToDelete(null)
+    return pages
   }
 
   if (isLoading && materials.length === 0) {
@@ -253,6 +164,40 @@ export default function MaterialPage() {
     )
   }
 
+  function handleEdit(material: any): void {
+    setEditingMaterial(material)
+    setShowCreateModal(true)
+  }
+  function handleDelete(materialId: number): void {
+    setDeleteTargetId(materialId)
+    setShowDeleteModal(true)
+  }
+  function handleBulkDelete(): void {
+    setShowBulkDeleteModal(true)
+  }
+  async function confirmDelete() {
+    if (deleteTargetId !== null) {
+      setIsDeleting(true)
+      await deleteMaterial(deleteTargetId)
+      setIsDeleting(false)
+      setShowDeleteModal(false)
+      setDeleteTargetId(null)
+    }
+  }
+  async function confirmBulkDelete() {
+    if (selectedItems.length > 0) {
+      setIsDeleting(true)
+      await bulkDeleteMaterials(selectedItems)
+      setIsDeleting(false)
+      setShowBulkDeleteModal(false)
+    }
+  }
+
+  const handleCloseCreateModal = () => {
+    setShowCreateModal(false)
+    setEditingMaterial(null)
+  }
+
   return (
     <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
       {/* Page Title */}
@@ -262,29 +207,31 @@ export default function MaterialPage() {
             <Package className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold text-gray-900">Materials Management</h1>
-            <p className="text-sm text-gray-500">Manage your material inventory and configurations</p>
+            <h1 className="text-xl font-semibold text-gray-900">Material Management</h1>
+            <p className="text-sm text-gray-500">Manage material types and specifications</p>
           </div>
         </div>
       </div>
 
-      {/* Header Section */}
+      {/* Enhanced Header Section */}
       <div className="px-6 py-4 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 border-b border-gray-200">
         <div className="flex items-center gap-3">
           <span className="text-sm font-medium text-gray-700">Show</span>
-          <Select value={entriesPerPage} onValueChange={handleEntriesPerPageChange}>
-            <SelectTrigger className="w-20 h-9 text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="10">10</SelectItem>
-              <SelectItem value="25">25</SelectItem>
-              <SelectItem value="50">50</SelectItem>
-              <SelectItem value="100">100</SelectItem>
-            </SelectContent>
-          </Select>
+          <select
+            value={entriesPerPage}
+            onChange={(e) => {
+              setEntriesPerPage(e.target.value)
+              setCurrentPage(1)
+            }}
+            className="w-20 h-9 text-sm border border-gray-300 rounded px-2 py-1"
+          >
+            <option value="10">10</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
           <span className="text-sm text-gray-700">entries</span>
-          
+
           {selectedItems.length > 0 && (
             <div className="ml-6 flex items-center gap-2">
               <span className="text-sm font-medium text-gray-700">
@@ -302,16 +249,8 @@ export default function MaterialPage() {
             </div>
           )}
         </div>
-        
-        <div className="flex gap-3">
-          <Button
-            className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
-            onClick={() => setIsLinkProductsModalOpen(true)}
-          >
-            <Link className="h-4 w-4 mr-2" />
-            Link Products
-          </Button>
 
+        <div className="flex gap-3">
           <Button
             className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
             onClick={() => setShowCreateModal(true)}
@@ -319,7 +258,7 @@ export default function MaterialPage() {
             <Plus className="h-4 w-4 mr-2" />
             Add material
           </Button>
-          
+
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
@@ -333,10 +272,9 @@ export default function MaterialPage() {
         </div>
       </div>
 
-      {/* Table Section with Split View */}
+      {/* Enhanced Table Section */}
       <div className="flex">
-        {/* Left side - Materials */}
-        <div className="flex-grow border-r border-gray-200">
+        <div className="flex-grow border-r border-gray-200 flex flex-col">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -349,30 +287,26 @@ export default function MaterialPage() {
                     />
                   </TableHead>
                   <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("name")}>
-                    <div className="flex items-center">
-                      Material
-                      {sortColumn === "name" && getSortIcon("name")}
-                    </div>
+                    <span>Material</span>
+                    {sortColumn === "name" && getSortIcon("name")}
                   </TableHead>
-                  <TableHead className="font-semibold text-gray-900">Additional Price</TableHead>
                   <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("code")}>
-                    <div className="flex items-center">
-                      Code
-                      {sortColumn === "code" && getSortIcon("code")}
-                    </div>
+                    <span>Code</span>
+                    {sortColumn === "code" && getSortIcon("code")}
                   </TableHead>
-                  <TableHead className="font-semibold text-gray-900">Status</TableHead>
-                  <TableHead className="font-semibold text-gray-900 text-center pr-6">Actions</TableHead>
+                  <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("status")}>
+                    <span>Status</span>
+                    {sortColumn === "status" && getSortIcon("status")}
+                  </TableHead>
+                  <TableHead className="font-semibold text-gray-900">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-12">
-                      <div className="flex flex-col items-center gap-3">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1162a8]"></div>
-                        <span className="text-gray-500 text-sm">Loading materials...</span>
-                      </div>
+                    <TableCell colSpan={5} className="text-center py-12">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1162a8] mx-auto"></div>
+                      <p className="mt-2 text-gray-600">Loading materials...</p>
                     </TableCell>
                   </TableRow>
                 ) : materials.length > 0 ? (
@@ -386,32 +320,20 @@ export default function MaterialPage() {
                         />
                       </TableCell>
                       <TableCell className="font-medium text-gray-900">{material.name}</TableCell>
+                      <TableCell className="text-gray-600">{material.code}</TableCell>
                       <TableCell>
-                        {(material as any).lab_material && (material as any).lab_material.price
-                          ? `$${parseFloat((material as any).lab_material.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                          : typeof (material as any).price === "number" && (material as any).price > 0
-                            ? `$${parseFloat((material as any).price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                            : "-"}
-                      </TableCell>
-                      <TableCell>
-                        <code className="bg-gray-100 px-2 py-1 rounded text-xs font-mono text-gray-800">
-                          {material.code}
-                        </code>
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
                             material.status === "Active"
                               ? "bg-green-50 text-green-700 border-green-200"
                               : "bg-red-50 text-red-700 border-red-200"
-                          }
+                          }`}
                         >
                           {material.status}
-                        </Badge>
+                        </span>
                       </TableCell>
-                      <TableCell className="text-center pr-6">
-                        <div className="flex items-center justify-center gap-1">
+                      <TableCell>
+                        <div className="flex space-x-2">
                           <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-600 hover:text-[#1162a8] hover:bg-blue-50" onClick={() => handleEdit(material)}>
                             <Edit className="h-4 w-4" />
                           </Button>
@@ -423,30 +345,16 @@ export default function MaterialPage() {
                           >
                             <TrashIcon className="h-4 w-4" />
                           </Button>
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm" 
-                                  className="h-8 w-8 p-0 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
-                                  onClick={() => handleCopy(material.id)}
-                                >
-                                  <Copy className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Duplicate material</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-600 hover:text-gray-800 hover:bg-gray-50">
+                            <Copy className="h-4 w-4" />
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-12">
+                    <TableCell colSpan={5} className="text-center py-12">
                       <div className="flex flex-col items-center gap-4">
                         <div className="p-4 bg-gray-100 rounded-full">
                           <Package className="h-8 w-8 text-gray-400" />
@@ -454,20 +362,15 @@ export default function MaterialPage() {
                         <div className="text-center">
                           <h3 className="font-medium text-gray-900 mb-1">No materials found</h3>
                           <p className="text-sm text-gray-500 mb-4">
-                            {searchQuery 
-                              ? "Try adjusting your search terms or filters"
-                              : "Get started by creating your first material"
-                            }
+                            Try adjusting your search or add a new material
                           </p>
-                          {!searchQuery && (
-                            <Button
-                              className="bg-[#1162a8] hover:bg-[#0f5497] text-white"
-                              onClick={() => setShowCreateModal(true)}
-                            >
-                              <Plus className="h-4 w-4 mr-2" />
-                              Add Your First Material
-                            </Button>
-                          )}
+                          <Button
+                            className="bg-[#1162a8] hover:bg-[#0f5497] text-white"
+                            onClick={() => setShowCreateModal(true)}
+                          >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add Your First Material
+                          </Button>
                         </div>
                       </div>
                     </TableCell>
@@ -476,89 +379,85 @@ export default function MaterialPage() {
               </TableBody>
             </Table>
           </div>
-
-          {/* Pagination */}
-          {pagination.total > 0 && (
-            <div className="px-6 py-4 flex justify-between items-center border-t border-gray-200">
-              <div className="text-sm text-gray-600">
-                Showing {Math.min(pagination.total, 1 + (currentPage - 1) * pagination.per_page)} to{" "}
-                {Math.min(pagination.total, currentPage * pagination.per_page)} of {pagination.total} entries
-              </div>
-              <div className="flex items-center space-x-1">
-                <button
-                  className="h-8 w-8 rounded-full flex items-center justify-center text-xs bg-gray-100 text-gray-600 disabled:opacity-50"
-                  onClick={() => setCurrentPage(currentPage - 1)}
-                  disabled={currentPage === 1}
-                >
-                  «
-                </button>
-                {Array.from({ length: Math.min(5, pagination.last_page) }, (_, i) => {
-                  let pageNum = i + 1
-                  if (pagination.last_page > 5) {
-                    if (currentPage <= 3) {
-                      pageNum = i + 1
-                    } else if (currentPage >= pagination.last_page - 2) {
-                      pageNum = pagination.last_page - 4 + i
-                    } else {
-                      pageNum = currentPage - 2 + i
-                    }
-                  }
-
-                  return (
-                    <button
-                      key={pageNum}
-                      className={`h-8 w-8 rounded-full flex items-center justify-center text-xs ${
-                        pageNum === currentPage ? "bg-[#1162a8] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                      }`}
-                      onClick={() => setCurrentPage(pageNum)}
-                    >
-                      {pageNum}
-                    </button>
-                  )
-                })}
-                <button
-                  className="h-8 w-8 rounded-full flex items-center justify-center text-xs bg-gray-100 text-gray-600 disabled:opacity-50"
-                  onClick={() => setCurrentPage(currentPage + 1)}
-                  disabled={currentPage === pagination.last_page}
-                >
-                  »
-                </button>
-              </div>
-            </div>
-          )}
         </div>
-     
       </div>
+
+      {/* Enhanced Pagination */}
+      {pagination.total > 0 && (
+        <div className="px-6 py-4 flex justify-between items-center border-t border-gray-200">
+          <div className="text-sm text-gray-600">
+            Showing {Math.min(pagination.total, 1 + (currentPage - 1) * pagination.per_page)} to{" "}
+            {Math.min(pagination.total, currentPage * pagination.per_page)} of {pagination.total} entries
+          </div>
+          <div className="flex items-center space-x-1">
+            <button
+              className="h-8 w-8 rounded-full flex items-center justify-center text-xs bg-gray-200 text-gray-600 disabled:opacity-50"
+              onClick={() => setCurrentPage(currentPage - 1)}
+              disabled={currentPage === 1}
+            >
+              «
+            </button>
+            {Array.from({ length: Math.min(5, pagination.last_page) }, (_, i) => {
+              let pageNum = i + 1
+              if (pagination.last_page > 5) {
+                if (currentPage <= 3) {
+                  pageNum = i + 1
+                } else if (currentPage >= pagination.last_page - 2) {
+                  pageNum = pagination.last_page - 4 + i
+                } else {
+                  pageNum = currentPage - 2 + i
+                }
+              }
+
+              return (
+                <button
+                  key={pageNum}
+                  className={`h-8 w-8 rounded-full flex items-center justify-center text-xs ${
+                    pageNum === currentPage ? "bg-[#1162a8] text-white" : "bg-gray-200 text-gray-600 hover:bg-gray-300"
+                  }`}
+                  onClick={() => setCurrentPage(pageNum)}
+                >
+                  {pageNum}
+                </button>
+              )
+            })}
+            <button
+              className="h-8 w-8 rounded-full flex items-center justify-center text-xs bg-gray-200 text-gray-600 disabled:opacity-50"
+              onClick={() => setCurrentPage(currentPage + 1)}
+              disabled={currentPage === pagination.last_page}
+            >
+              »
+            </button>
+          </div>
+        </div>
+      )}
 
       <CreateMaterialModal
         isOpen={showCreateModal}
-        onClose={() => {
-          setShowCreateModal(false)
-          setEditingMaterial(null)
-          setIsCopying(false)
-        }}
-        material={editingMaterial}
-        isCopying={isCopying}
+        onClose={handleCloseCreateModal}
+        material={editingMaterial} // Pass the editing material for edit mode
       />
       <CreateMaterialGroupModal isOpen={showCreateGroupModal} onClose={() => setShowCreateGroupModal(false)} />
-      <LinkProductsModal
-        isOpen={isLinkProductsModalOpen}
-        onClose={() => setIsLinkProductsModalOpen(false)}
-        entityType="material"
-        context="lab"
+
+      {/* Delete Confirmation Modals */}
+      <DeleteConfirmationModal
+        isOpen={showDeleteModal}
+        onClose={() => { setShowDeleteModal(false); setDeleteTargetId(null) }}
+        onConfirm={confirmDelete}
+        itemName="material"
+        title="Delete Material"
+        description="Are you sure you want to delete this material? This action cannot be undone."
+        isLoading={isDeleting}
       />
-      <DeleteMaterialModal
-        isOpen={deleteModalOpen}
-        onClose={handleDeleteModalClose}
-        onConfirm={() => {
-          if (materialToDelete?.id && Array.isArray(materialToDelete.id)) {
-            bulkDeleteMaterials(materialToDelete.id)
-          } else if (materialToDelete?.id) {
-            handleConfirmDelete()
-          }
-          handleDeleteModalClose()
-        }}
-        materialName={materialToDelete?.name}
+      <DeleteConfirmationModal
+        isOpen={showBulkDeleteModal}
+        onClose={() => setShowBulkDeleteModal(false)}
+        onConfirm={confirmBulkDelete}
+        itemName="materials"
+        itemCount={selectedItems.length}
+        title="Delete Selected Materials"
+        description={`Are you sure you want to delete ${selectedItems.length} selected materials? This action cannot be undone.`}
+        isLoading={isDeleting}
       />
     </div>
   )

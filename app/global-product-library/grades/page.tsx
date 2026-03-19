@@ -58,9 +58,10 @@ export default function GradesPage() {
   const [isBulkDelete, setIsBulkDelete] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
 
+  // Refetch when sort, search, or language changes (reset to page 1)
   useEffect(() => {
-    fetchGrades()
-  }, [fetchGrades, currentLanguage])
+    fetchGrades(1, Number.parseInt(entriesPerPage))
+  }, [fetchGrades, currentLanguage, sortColumn, sortDirection])
   
   useEffect(() => {
     const timer = setTimeout(() => {

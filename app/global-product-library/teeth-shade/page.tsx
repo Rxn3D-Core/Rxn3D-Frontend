@@ -353,14 +353,23 @@ export default function TeethShadePage() {
                       {renderSortIndicator("name")}
                     </div>
                   </TableHead>
-                  <TableHead className="font-semibold text-gray-900">
-                    <span>{t("System")}</span>
+                  <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("system")}>
+                    <div className="flex items-center">
+                      <span>{t("System")}</span>
+                      {renderSortIndicator("system")}
+                    </div>
                   </TableHead>
-                  <TableHead className="font-semibold text-gray-900">
-                    <span>{t("Shades")}</span>
+                  <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("shades")}>
+                    <div className="flex items-center">
+                      <span>{t("Shades")}</span>
+                      {renderSortIndicator("shades")}
+                    </div>
                   </TableHead>
-                  <TableHead className="font-semibold text-gray-900">
-                    <span>{t("Status")}</span>
+                  <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("status")}>
+                    <div className="flex items-center">
+                      <span>{t("Status")}</span>
+                      {renderSortIndicator("status")}
+                    </div>
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900 text-center pr-6">
                     <span>{t("Actions")}</span>

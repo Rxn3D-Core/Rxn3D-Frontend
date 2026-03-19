@@ -96,15 +96,18 @@ export default function ToothMappingPage() {
     }))
   }, [currentLanguage])
 
-  // Handle search
-  const handleSearch = (searchTerm: string) => {
-    setSearchQuery(searchTerm)
-    setFilters(prev => ({
-      ...prev,
-      search: searchTerm || undefined,
-      page: 1, // Reset to first page when searching
-    }))
-  }
+  // Handle search with debounce
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setFilters(prev => ({
+        ...prev,
+        search: searchQuery || undefined,
+        page: 1, // Reset to first page when searching
+      }))
+    }, 500) // 500ms debounce
+    
+    return () => clearTimeout(timer)
+  }, [searchQuery])
 
   // Handle sorting
   const handleSort = (column: keyof Extraction) => {
@@ -129,7 +132,7 @@ export default function ToothMappingPage() {
     setSortDirection(newDirection)
     setFilters(prev => ({
       ...prev,
-      sort_by: column as "name" | "code" | "sequence" | "created_at",
+      sort_by: column as "name" | "code" | "sequence" | "created_at" | "color" | "status",
       sort_order: newDirection
     }))
   }
@@ -180,7 +183,6 @@ export default function ToothMappingPage() {
     setIsCreateToothStatusGroupModalOpen(true)
   }
 
-
   function handleEdit(toothStatus: Extraction): void {
     setEditingToothStatus(toothStatus)
     setIsCopying(false)
@@ -214,16 +216,31 @@ export default function ToothMappingPage() {
   }
 
   async function handleDelete(id: number): Promise<void> {
-    deleteMutation.mutate(id)
+    deleteMutation.mutate(id, {
+      onSuccess: () => {
+        // Remove from selected items if it was selected
+        setSelectedItems(prev => prev.filter(itemId => itemId !== id))
+        // Refetch data
+        refetch()
+      }
+    })
   }
 
   async function handleBulkDelete(): Promise<void> {
     if (selectedItems.length > 0) {
-      // Delete all selected items
-      selectedItems.forEach(id => {
-        deleteMutation.mutate(id)
-      })
+      // Delete all selected items sequentially to avoid race conditions
+      const itemsToDelete = [...selectedItems]
       setSelectedItems([])
+      
+      // Delete items one by one
+      for (const id of itemsToDelete) {
+        deleteMutation.mutate(id, {
+          onSuccess: () => {
+            // Refetch after each deletion
+            refetch()
+          }
+        })
+      }
     }
   }
 
@@ -313,7 +330,7 @@ export default function ToothMappingPage() {
               placeholder="Search tooth statuses..."
               className="pl-10 h-10 w-64 text-sm border-gray-300 focus:border-[#1162a8] focus:ring-[#1162a8]"
               value={searchQuery}
-              onChange={(e) => handleSearch(e.target.value)}
+              onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
         </div>
@@ -340,9 +357,24 @@ export default function ToothMappingPage() {
                       {sortColumn === "name" && renderSortIndicator("name")}
                     </div>
                   </TableHead>
-                  <TableHead className="font-semibold text-gray-900">Color</TableHead>
-                  <TableHead className="font-semibold text-gray-900">Code</TableHead>
-                  <TableHead className="font-semibold text-gray-900">Status</TableHead>
+                  <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("color")}>
+                    <div className="flex items-center">
+                      Color
+                      {sortColumn === "color" && renderSortIndicator("color")}
+                    </div>
+                  </TableHead>
+                  <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("code")}>
+                    <div className="flex items-center">
+                      Code
+                      {sortColumn === "code" && renderSortIndicator("code")}
+                    </div>
+                  </TableHead>
+                  <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("status")}>
+                    <div className="flex items-center">
+                      Status
+                      {sortColumn === "status" && renderSortIndicator("status")}
+                    </div>
+                  </TableHead>
                   <TableHead className="font-semibold text-gray-900 text-center pr-6">Actions</TableHead>
                 </TableRow>
               </TableHeader>

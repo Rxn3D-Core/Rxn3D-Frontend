@@ -303,10 +303,13 @@ export default function StagesPage() {
                       {renderSortIndicator("sequence")}
                     </div>
                   </TableHead>
-                  <TableHead className="font-semibold text-gray-900">
-                    {t("Process Days")}
+                  <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("days")}>
+                    <div className="flex items-center">
+                      <span>{t("Process Days")}</span>
+                      {renderSortIndicator("days")}
+                    </div>
                   </TableHead>
-                  <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors">
+                  <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("status")}>
                     <div className="flex items-center">
                       <span>{t("Status")}</span>
                       {renderSortIndicator("status")}

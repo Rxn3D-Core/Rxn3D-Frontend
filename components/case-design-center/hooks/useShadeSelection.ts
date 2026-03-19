@@ -12,8 +12,8 @@ export function useShadeSelection() {
   });
 
   const [selectedShades, setSelectedShades] = useState<Record<string, string>>({});
-  const [selectedShadeGuide, setSelectedShadeGuide] = useState<string>("Vita Classical");
-  const [showShadeGuideDropdown, setShowShadeGuideDropdown] = useState<boolean>(false);
+  const [selectedShadeGuide, setSelectedShadeGuide] = useState<string>("");
+  const [showShadeGuideDropdown, setShowShadeGuideDropdown] = useState<boolean>(true);
 
   const handleShadeFieldClick = (
     arch: Arch,

@@ -207,8 +207,8 @@ export const GradesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (statusFilter) params.append("status", statusFilter)
         if (groupIdFilter) params.append("group_id", groupIdFilter)
         
-        // Valid order_by values according to backend: created_at, name, code, sequence
-        const validOrderByValues = ["created_at", "name", "code", "sequence"]
+        // Valid order_by values per LIBRARY_API_SORTING_REFERENCE: grade_name/name, code, sequence, status, created_at
+        const validOrderByValues = ["created_at", "name", "code", "sequence", "status", "grade_name"]
         if (sortColumn && sortDirection && validOrderByValues.includes(sortColumn)) {
           params.append("order_by", sortColumn)
           params.append("sort_by", sortDirection)

@@ -539,7 +539,9 @@ function StepPatientInfo({
   const fieldWidth = 330;
   const fieldHeight = 36.95;
   const fieldGap = 10;
-  const containerHeight = showGenderField ? 10 + fieldHeight + fieldGap + fieldHeight + 10 : 10 + fieldHeight + 10;
+  const containerHeight = showGenderField
+    ? 10 + fieldHeight + fieldGap + fieldHeight + 10
+    : 10 + fieldHeight + 10;
 
   return (
     <div className="flex-1 flex flex-col px-3 sm:px-6 py-4 sm:py-6">
@@ -743,6 +745,7 @@ function StepPatientInfo({
               </div>
             </div>
           )}
+
         </div>
 
         {/* Row 3: Created By avatar */}
@@ -840,19 +843,19 @@ function StepCategory({
           <button
             key={cat.id}
             onClick={() => onSelect(cat.id)}
-            className={`group flex flex-col items-center px-3 sm:px-4 py-[5px] gap-2 rounded-[7px] border-[3px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${
+            className={`group flex flex-col overflow-hidden rounded-[7px] border-[3px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${
               selected === cat.id
                 ? "border-[#1162A8] bg-[#1162A8]/5"
                 : "border-[#d9d9d9] bg-white"
             }`}
           >
-            <ProductImageWithFallback src={cat.img} alt={cat.name} name={cat.name} />
             <span
-              className="text-[14px] font-normal text-black text-center self-stretch tracking-[-0.02em] leading-[15px] pb-1"
+              className="text-[14px] font-normal text-black text-center self-stretch tracking-[-0.02em] leading-[15px] py-2 px-2"
               style={{ fontFamily: "Verdana, sans-serif" }}
             >
               {cat.name}
             </span>
+            <ProductImageWithFallback src={cat.img} alt={cat.name} name={cat.name} className="rounded-none" bgClassName="" />
           </button>
         ))}
       </div>
@@ -936,13 +939,13 @@ function StepSubProduct({
                 : "border-[#d9d9d9] bg-white"
             }`}
           >
-            <ProductImageWithFallback src={prod.img} alt={prod.name} name={prod.name} />
             <span
-              className="text-[14px] font-normal text-black text-center self-stretch tracking-[-0.02em] leading-[15px] pb-1"
+              className="text-[14px] font-normal text-black text-center self-stretch tracking-[-0.02em] leading-[15px] pt-1"
               style={{ fontFamily: "Verdana, sans-serif" }}
             >
               {prod.name}
             </span>
+            <ProductImageWithFallback src={prod.img} alt={prod.name} name={prod.name} />
           </button>
         ))}
       </div>
@@ -1090,16 +1093,13 @@ function StepMaterial({
                     : "border-[#d9d9d9] bg-white"
                 }`}
               >
-                <span className="absolute top-1 text-[10px] text-[#7f7f7f] opacity-0 group-hover:opacity-100 transition-opacity">
-                  Click and select
-                </span>
-                <ProductImageWithFallback src={prod.img} alt={prod.name} name={prod.name} className="rounded-[5px]" bgClassName="bg-[#080808]" textClassName="text-[#b4b0b0]" />
                 <span
                   style={{ fontFamily: "Verdana, sans-serif", fontSize: 14, lineHeight: "15px", letterSpacing: "-0.02em" }}
-                  className="text-[#000000] text-center self-stretch"
+                  className="text-[#000000] text-center self-stretch pt-1"
                 >
                   {prod.name}
                 </span>
+                <ProductImageWithFallback src={prod.img} alt={prod.name} name={prod.name} className="rounded-[5px]" bgClassName="bg-[#080808]" textClassName="text-[#b4b0b0]" />
               </button>
 
               {/* Arch selection popover */}

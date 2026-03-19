@@ -293,9 +293,18 @@ export function AddOnsProvider({ children }: { children: ReactNode }) {
         })
 
         if (search) params.append("q", search)
-        if (sortColKey && sortColKey !== "category_name" && sortColKey !== "subcategory_name" && sortColKey !== "status") {
-          params.append("order_by", sortColKey as string)
-          params.append("sort_direction", sortDir)
+        if (sortColKey && sortDir) {
+          // Map UI column keys to API order_by values per LIBRARY_API_SORTING_REFERENCE
+          const orderByMap: Record<string, string> = {
+            category_name: "add_on_sub_category",
+            subcategory_name: "add_on_sub_category",
+            name: "add_on",
+            add_on_sub_category: "add_on_sub_category",
+            add_on: "add_on",
+          }
+          const orderBy = orderByMap[sortColKey as string] || sortColKey
+          params.append("order_by", orderBy)
+          params.append("sort_by", sortDir)
         }
         // Pass customer_id if isLabAdmin and customerId is defined
         if (isLabAdmin && customerId) {

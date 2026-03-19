@@ -294,7 +294,10 @@ export default function MaterialPage() {
                     <span>Code</span>
                     {sortColumn === "code" && getSortIcon("code")}
                   </TableHead>
-                  <TableHead className="font-semibold text-gray-900">Status</TableHead>
+                  <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("status")}>
+                    <span>Status</span>
+                    {sortColumn === "status" && getSortIcon("status")}
+                  </TableHead>
                   <TableHead className="font-semibold text-gray-900">Action</TableHead>
                 </TableRow>
               </TableHeader>

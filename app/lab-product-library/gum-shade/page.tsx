@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Search, ArrowUp, ArrowDown, Info, Edit, TrashIcon, Copy, Plus, Package } from "lucide-react"
+import { Search, ArrowUp, ArrowDown, Info, Edit, TrashIcon, Copy, Package, Plus, Package2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -9,11 +9,12 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
 import { CreateGumShadeModal } from "@/components/product-management/create-gum-shade-modal"
 import { CreateGumShadeGroupModal } from "@/components/product-management/create-gum-shade-group-modal"
+import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import { GumShadeBrand, useGumShades } from "@/contexts/product-gum-shade-context"
 import { useLanguage } from "@/contexts/language-context"
+import { useTranslation } from "react-i18next"
 
 // Define sort direction type
 type SortDirection = "asc" | "desc" | null
@@ -47,7 +48,6 @@ export default function GumShadePage() {
   const [isCreateGumShadeModalOpen, setIsCreateGumShadeModalOpen] = useState(false)
   const [isCreateGumShadeGroupModalOpen, setIsCreateGumShadeGroupModalOpen] = useState(false)
   const [editingGumShade, setEditingGumShade] = useState<any>(null)
-  const [isCopying, setIsCopying] = useState(false)
 
   // Discard dialog states
   const [showPageLevelDiscardDialog, setShowPageLevelDiscardDialog] = useState(false)
@@ -56,19 +56,23 @@ export default function GumShadePage() {
   const [modalToClose, setModalToClose] = useState<"gum-shade" | "group" | null>(null)
 
   const { currentLanguage } = useLanguage()
+  const { t } = useTranslation()
+
   // Delete confirmation state
   const [deleteConfirmation, setDeleteConfirmation] = useState<{
     isOpen: boolean
     item: any | null
+    isBulk?: boolean
   }>({
     isOpen: false,
     item: null,
+    isBulk: false,
   })
 
   // Fetch when search, sort, or pagination changes
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      fetchGumShadeBrands(pagination.current_page, pagination.per_page, searchQuery ?? undefined, sortColumn ?? undefined, sortDirection ?? undefined)
+      fetchGumShadeBrands(pagination.current_page, pagination.per_page, searchQuery, sortColumn, sortDirection)
     }, 300)
 
     return () => clearTimeout(timeoutId)
@@ -130,41 +134,39 @@ export default function GumShadePage() {
   // Handle opening edit modal
   const handleEditGumShade = (gumShade: any) => {
     setEditingGumShade(gumShade)
-    setIsCopying(false)
     setIsCreateGumShadeModalOpen(true)
   }
 
-  // Handle opening copy modal
-  const handleCopyGumShade = (gumShade: any) => {
-    setEditingGumShade(gumShade)
-    setIsCopying(true)
-    setIsCreateGumShadeModalOpen(true)
-  }
-
-  // Handle delete confirmation
+  // Handle delete confirmation (single)
   const handleDeleteClick = (gumShade: any) => {
     setDeleteConfirmation({
       isOpen: true,
       item: gumShade,
+      isBulk: false,
     })
   }
 
+  // Handle bulk delete confirmation
+  const handleBulkDeleteClick = () => {
+    setDeleteConfirmation({
+      isOpen: true,
+      item: null,
+      isBulk: true,
+    })
+  }
+
+  // Confirm delete (single or bulk)
   const handleConfirmDelete = async () => {
-    if (deleteConfirmation.item) {
-      const deleted = await deleteGumShadeBrand(deleteConfirmation.item.id)
-      setDeleteConfirmation({ isOpen: false, item: null })
-      if (deleted) {
-        // Always refetch the list after delete
-        await fetchGumShadeBrands(
-          1, // reset to first page after delete for consistency
-          parseInt(entriesPerPage),
-          searchInput ?? undefined,
-          sortColumn ?? undefined,
-          sortDirection ?? undefined
-        )
-        setCurrentPage(1)
+    if (deleteConfirmation.isBulk) {
+      // Bulk delete
+      for (const id of selectedItems) {
+        await deleteGumShadeBrand(id)
       }
+      setSelectedItems([])
+    } else if (deleteConfirmation.item) {
+      await deleteGumShadeBrand(deleteConfirmation.item.id)
     }
+    setDeleteConfirmation({ isOpen: false, item: null, isBulk: false })
   }
 
   // Handle modal close with discard check
@@ -215,72 +217,6 @@ export default function GumShadePage() {
     setCurrentPage(1)
   }
 
-  // Render loading skeleton
-  const renderLoadingSkeleton = () => {
-    const skeletonCount = Number.parseInt(entriesPerPage.toString()) || 10
-    return (
-      <>
-        {Array.from({ length: skeletonCount }).map((_, index) => (
-          <TableRow key={index}>
-            <TableCell>
-              <Skeleton className="h-4 w-4" />
-            </TableCell>
-            <TableCell>
-              <Skeleton className="h-4 w-24" />
-            </TableCell>
-            <TableCell>
-              <Skeleton className="h-4 w-32" />
-            </TableCell>
-            <TableCell>
-              <Skeleton className="h-4 w-40" />
-            </TableCell>
-            <TableCell>
-              <Skeleton className="h-4 w-16" />
-            </TableCell>
-            <TableCell>
-              <Skeleton className="h-8 w-20" />
-            </TableCell>
-          </TableRow>
-        ))}
-      </>
-    )
-  }
-
-  // Render groups loading skeleton
-  const renderGroupsLoadingSkeleton = () => (
-    <>
-      {Array.from({ length: 5 }).map((_, index) => (
-        <TableRow key={index}>
-          <TableCell>
-            <Skeleton className="h-4 w-4" />
-          </TableCell>
-          <TableCell>
-            <Skeleton className="h-4 w-32" />
-          </TableCell>
-        </TableRow>
-      ))}
-    </>
-  )
-
-  function handleEdit(shade: GumShadeBrand): void {
-    setEditingGumShade(shade)
-    setIsCopying(false)
-    setIsCreateGumShadeModalOpen(true)
-  }
-
-  function handleCopy(shade: GumShadeBrand): void {
-    setEditingGumShade(shade)
-    setIsCopying(true)
-    setIsCreateGumShadeModalOpen(true)
-  }
-
-  function handleDelete(id: number): void {
-    const gumShade = gumShadeBrands.find((shade) => shade.id === id)
-    if (gumShade) {
-      handleDeleteClick(gumShade)
-    }
-  }
-
   return (
     <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
       {/* Page Title */}
@@ -290,63 +226,64 @@ export default function GumShadePage() {
             <Package className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold text-gray-900">Gum Shades Management</h1>
-            <p className="text-sm text-gray-500">Manage your gum shade inventory and configurations</p>
+            <h1 className="text-xl font-semibold text-gray-900">{t("Gum Shade Management")}</h1>
+            <p className="text-sm text-gray-500">{t("Manage gum shade brands, systems, and groupings")}</p>
           </div>
         </div>
       </div>
 
-      {/* Header Section */}
+      {/* Enhanced Header Section */}
       <div className="px-6 py-4 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 border-b border-gray-200">
         <div className="flex items-center gap-3">
-          <span className="text-sm font-medium text-gray-700">Show</span>
+          <span className="text-sm font-medium text-gray-700">{t("Show")}</span>
           <Select value={entriesPerPage} onValueChange={handleEntriesPerPageChange}>
             <SelectTrigger className="w-20 h-9 text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="10">10</SelectItem>
-              <SelectItem value="20">20</SelectItem>
+              <SelectItem value="25">25</SelectItem>
               <SelectItem value="50">50</SelectItem>
               <SelectItem value="100">100</SelectItem>
             </SelectContent>
           </Select>
-          <span className="text-sm text-gray-700">entries</span>
-          
+          <span className="text-sm text-gray-700">{t("entries")}</span>
+
           {selectedItems.length > 0 && (
             <div className="ml-6 flex items-center gap-2">
               <span className="text-sm font-medium text-gray-700">
-                {selectedItems.length} selected
+                {selectedItems.length} {t("selected")}
               </span>
               <Button
                 variant="outline"
                 size="sm"
                 className="text-red-600 border-red-200 hover:bg-red-50"
+                onClick={handleBulkDeleteClick}
               >
                 <TrashIcon className="h-4 w-4 mr-1" />
-                Delete Selected
+                {t("Delete Selected")}
               </Button>
             </div>
           )}
         </div>
-        
+
         <div className="flex gap-3">
           {/* <Button className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors">
-            Import gum shade
+            {t("Import gum shade")}
           </Button> */}
           <Button
             className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
             onClick={handleOpenCreateGumShadeModal}
           >
             <Plus className="h-4 w-4 mr-2" />
-            Add gum shade
+            {t("Add gum shade")}
           </Button>
-          
+
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
               type="search"
-              placeholder="Search gum shades..."
+              placeholder={t("Search gum shades...")}
               className="pl-10 h-10 w-64 text-sm border-gray-300 focus:border-[#1162a8] focus:ring-[#1162a8]"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
@@ -355,6 +292,14 @@ export default function GumShadePage() {
         </div>
       </div>
 
+      {/* Enhanced Error Display */}
+      {error && (
+        <div className="px-6 py-4 bg-red-50 border-b border-red-200">
+          <div className="text-red-600 text-sm">{error}</div>
+        </div>
+      )}
+
+      {/* Enhanced Table Section */}
       <div className="flex">
         <div className="flex-grow border-r border-gray-200">
           <div className="overflow-x-auto">
@@ -370,32 +315,49 @@ export default function GumShadePage() {
                   </TableHead>
                   <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("name")}>
                     <div className="flex items-center">
-                      Brand
+                      <span>{t("Brand")}</span>
                       {renderSortIndicator("name")}
                     </div>
                   </TableHead>
                   <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("system_name")}>
                     <div className="flex items-center">
-                      System
+                      <span>{t("System")}</span>
                       {renderSortIndicator("system_name")}
                     </div>
                   </TableHead>
-                  <TableHead className="font-semibold text-gray-900">Shades</TableHead>
+                  <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("shades")}>
+                    <div className="flex items-center">
+                      <span>{t("Shades")}</span>
+                      {renderSortIndicator("shades")}
+                    </div>
+                  </TableHead>
                   <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("status")}>
                     <div className="flex items-center">
-                      Status
+                      <span>{t("Status")}</span>
                       {renderSortIndicator("status")}
                     </div>
                   </TableHead>
-                  <TableHead className="font-semibold text-gray-900 text-center pr-6">Actions</TableHead>
+                  <TableHead className="font-semibold text-gray-900 text-center pr-6">{t("Actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  renderLoadingSkeleton()
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-12">
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1162a8]"></div>
+                        <span className="text-gray-500 text-sm">{t("Loading gum shades...")}</span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
                 ) : gumShadeBrands.length > 0 ? (
                   gumShadeBrands.map((shade) => (
-                    <TableRow key={shade.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                    <TableRow 
+                      key={shade.id} 
+                      className={`border-b border-gray-100 hover:bg-gray-50/50 transition-colors ${
+                        selectedItems.includes(shade.id) ? 'bg-blue-50/50' : ''
+                      }`}
+                    >
                       <TableCell className="pl-6">
                         <Checkbox
                           checked={selectedItems.includes(shade.id)}
@@ -403,21 +365,34 @@ export default function GumShadePage() {
                           className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]"
                         />
                       </TableCell>
-                      <TableCell className="font-medium text-gray-900">{shade.name}</TableCell>
-                      <TableCell className="text-gray-600">{(shade.system_name || "-").replace(/_/g, " ")}</TableCell>
+                      <TableCell className="font-medium text-gray-900">
+                        <div className="flex flex-col">
+                          <span className="font-semibold">{shade.name}</span>
+                          {shade.description && (
+                            <span className="text-xs text-gray-500 mt-1 truncate max-w-xs">
+                              {shade.description}
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                          {shade.system_name || "-"}
+                        </Badge>
+                      </TableCell>
                       <TableCell className="text-gray-600">
                         <div className="flex flex-wrap gap-1">
                           {shade.shades && shade.shades.length > 0 ? (
-                            shade.shades.slice(0, 3).map((shadeItem, idx) => (
+                            shade.shades.slice(0, 3).map((shade, idx) => (
                               <span key={idx} className="text-xs bg-gray-100 px-2 py-1 rounded">
-                                {shadeItem.name}
+                                {shade.name}
                               </span>
                             ))
                           ) : (
-                            <span className="text-xs text-gray-400">N/A</span>
+                            <span className="text-xs text-gray-400">{t("No shades")}</span>
                           )}
                           {shade.shades && shade.shades.length > 3 && (
-                            <span className="text-xs text-gray-500">+{shade.shades.length - 3} more</span>
+                            <span className="text-xs text-gray-500">+{shade.shades.length - 3} {t("more")}</span>
                           )}
                         </div>
                       </TableCell>
@@ -430,29 +405,36 @@ export default function GumShadePage() {
                               : "bg-gray-50 text-gray-700 border-gray-200"
                           }
                         >
-                          {shade.status}
+                          {t(shade.status)}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-center pr-6">
                         <div className="flex items-center justify-center gap-1">
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-600 hover:text-[#1162a8] hover:bg-blue-50" onClick={() => handleEdit(shade)}>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-8 w-8 p-0 text-gray-600 hover:text-[#1162a8] hover:bg-blue-50" 
+                            onClick={() => handleEditGumShade(shade)}
+                            title={t("Edit")}
+                          >
                             <Edit className="h-4 w-4" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-8 w-8 p-0 text-gray-600 hover:text-red-600 hover:bg-red-50"
-                            onClick={() => handleDelete(shade.id)}
-                          >
-                            <TrashIcon className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
                             className="h-8 w-8 p-0 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
-                            onClick={() => handleCopy(shade)}
+                            title={t("Duplicate")}
                           >
                             <Copy className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-gray-600 hover:text-red-600 hover:bg-red-50"
+                            onClick={() => handleDeleteClick(shade)}
+                            title={t("Delete")}
+                          >
+                            <TrashIcon className="h-4 w-4" />
                           </Button>
                         </div>
                       </TableCell>
@@ -466,20 +448,20 @@ export default function GumShadePage() {
                           <Package className="h-8 w-8 text-gray-400" />
                         </div>
                         <div className="text-center">
-                          <h3 className="font-medium text-gray-900 mb-1">No gum shades found</h3>
+                          <h3 className="font-medium text-gray-900 mb-1">{t("No gum shades found")}</h3>
                           <p className="text-sm text-gray-500 mb-4">
-                            {searchInput 
-                              ? "Try adjusting your search terms or filters"
-                              : "Get started by creating your first gum shade"
+                            {searchQuery 
+                              ? t("Try adjusting your search terms or filters")
+                              : t("Get started by creating your first gum shade")
                             }
                           </p>
-                          {!searchInput && (
+                          {!searchQuery && (
                             <Button
                               className="bg-[#1162a8] hover:bg-[#0f5497] text-white"
                               onClick={handleOpenCreateGumShadeModal}
                             >
                               <Plus className="h-4 w-4 mr-2" />
-                              Add Your First Gum Shade
+                              {t("Add Your First Gum Shade")}
                             </Button>
                           )}
                         </div>
@@ -491,16 +473,16 @@ export default function GumShadePage() {
             </Table>
           </div>
 
-          {/* Pagination */}
-          <div className="p-4 flex justify-between items-center border-t border-gray-200">
+          {/* Enhanced Pagination */}
+          <div className="px-6 py-4 flex justify-between items-center border-t border-gray-200">
             <div className="text-sm text-gray-600">
               {pagination ? (
                 <>
-                  Showing {Math.min(pagination.total, 1 + (currentPage - 1) * pagination.per_page)} to{" "}
-                  {Math.min(pagination.total, currentPage * pagination.per_page)} of {pagination.total} entries
+                  {t("Showing")} {Math.min(pagination.total, 1 + (currentPage - 1) * pagination.per_page)} {t("to")}{" "}
+                  {Math.min(pagination.total, currentPage * pagination.per_page)} {t("of")} {pagination.total} {t("entries")}
                 </>
               ) : (
-                "Loading entries..."
+                t("Loading entries...")
               )}
             </div>
             <div className="flex items-center space-x-1">
@@ -524,18 +506,18 @@ export default function GumShadePage() {
                     }
                   }
 
-                return (
-                  <button
-                    key={pageNum}
-                    className={`h-8 w-8 rounded-full flex items-center justify-center text-xs ${
-                      pageNum === currentPage ? "bg-[#1162a8] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                    }`}
-                    onClick={() => handlePageChange(pageNum)}
-                  >
-                    {pageNum}
-                  </button>
-                )
-              })}
+                  return (
+                    <button
+                      key={pageNum}
+                      className={`h-8 w-8 rounded-full flex items-center justify-center text-xs ${
+                        pageNum === currentPage ? "bg-[#1162a8] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      }`}
+                      onClick={() => handlePageChange(pageNum)}
+                    >
+                      {pageNum}
+                    </button>
+                  )
+                })}
               <button
                 className="h-8 w-8 rounded-full flex items-center justify-center text-xs bg-gray-100 text-gray-600 disabled:opacity-50"
                 onClick={() => handlePageChange(currentPage + 1)}
@@ -546,20 +528,104 @@ export default function GumShadePage() {
             </div>
           </div>
         </div>
-       
+
+        {/* Enhanced Right side - Gum Shade Groups */}
+        {/* <div className="w-1/3 min-w-[300px]">
+          <div className="px-4 py-3 bg-gray-50/50 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-gray-900">{t("Gum Shade Groups")}</span>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-4 w-4 text-gray-400 cursor-pointer" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs p-4 bg-white border border-gray-200 shadow-lg rounded-md">
+                      <p className="text-sm text-gray-600">
+                        {t("Gum Shade Groups help organize gum shades into logical sets for easier management and assignment to products.")}
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+              <Button
+                size="sm"
+                className="bg-[#1162a8] hover:bg-[#0f5497] text-white text-xs px-3 py-1.5 h-8"
+                onClick={() => setIsCreateGumShadeGroupModalOpen(true)}
+              >
+                <Plus className="h-3 w-3 mr-1" />
+                {t("Create Group")}
+              </Button>
+            </div>
+          </div>
+          
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-gray-50/80">
+                  <TableHead className="w-10 pl-4">
+                    <Checkbox className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]" />
+                  </TableHead>
+                  <TableHead className="font-semibold text-gray-900">
+                    {t("Group Name")}
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isGroupsLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={2} className="text-center py-8">
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#1162a8]"></div>
+                        <span className="text-gray-500 text-xs">{t("Loading groups...")}</span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : gumShadeGroups.length > 0 ? (
+                  gumShadeGroups.map((group) => (
+                    <TableRow key={group.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                      <TableCell className="pl-4">
+                        <Checkbox className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]" />
+                      </TableCell>
+                      <TableCell className="font-medium text-gray-900">{group.name}</TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={2} className="text-center py-8">
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="p-3 bg-gray-100 rounded-full">
+                          <Package2 className="h-6 w-6 text-gray-400" />
+                        </div>
+                        <div className="text-center">
+                          <p className="text-sm text-gray-500 mb-2">
+                            {t("No groups found")}
+                          </p>
+                          <Button
+                            size="sm"
+                            className="bg-[#1162a8] hover:bg-[#0f5497] text-white text-xs"
+                            onClick={() => setIsCreateGumShadeGroupModalOpen(true)}
+                          >
+                            <Plus className="h-3 w-3 mr-1" />
+                            {t("Create First Group")}
+                          </Button>
+                        </div>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </div> */}
       </div>
 
       {/* Create/Edit Gum Shade Modal */}
       <CreateGumShadeModal
         isOpen={isCreateGumShadeModalOpen}
-        onClose={() => {
-          setIsCreateGumShadeModalOpen(false)
-          setEditingGumShade(null)
-          setIsCopying(false)
-        }}
+        onClose={() => setIsCreateGumShadeModalOpen(false)}
         onChanges={setIsModalDirty}
         editingGumShade={editingGumShade}
-        isCopying={isCopying}
       />
 
       {/* Create Gum Shade Group Modal */}
@@ -569,25 +635,23 @@ export default function GumShadePage() {
         onChanges={setIsModalDirty}
       />
 
-      {/* Delete Confirmation Dialog */}
-      {deleteConfirmation.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-          <div className="bg-white rounded-lg p-6 shadow-lg max-w-sm w-full">
-            <h2 className="text-lg font-semibold mb-2">Delete Gum Shade Brand?</h2>
-            <p className="mb-4 text-gray-600">
-              Are you sure you want to delete <span className="font-bold">{deleteConfirmation.item?.name}</span>? This action cannot be undone.
-            </p>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setDeleteConfirmation({ isOpen: false, item: null })}>
-                Cancel
-              </Button>
-              <Button variant="destructive" onClick={handleConfirmDelete}>
-                Delete
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={deleteConfirmation.isOpen}
+        onClose={() => setDeleteConfirmation({ isOpen: false, item: null, isBulk: false })}
+        onConfirm={handleConfirmDelete}
+        title={deleteConfirmation.isBulk ? t("Delete Selected Gum Shade Brands") : t("Delete Gum Shade Brand")}
+        description={
+          deleteConfirmation.isBulk
+            ? t("Are you sure you want to delete the selected gum shade brands? This action cannot be undone.")
+            : t("Are you sure you want to delete this gum shade brand? This action cannot be undone.")
+        }
+        itemName={deleteConfirmation.item?.name}
+        itemCount={deleteConfirmation.isBulk ? selectedItems.length : undefined}
+        confirmText={t("Delete")}
+        cancelText={t("Cancel")}
+        isLoading={isLoading}
+      />
     </div>
   )
 }

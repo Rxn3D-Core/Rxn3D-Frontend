@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Search, ArrowUp, ArrowDown, Copy, Edit, TrashIcon, Package2, Plus } from "lucide-react"
+import { Search, ArrowUp, ArrowDown, Copy, Edit, TrashIcon, Package2, Plus, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -10,9 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AddCasePanModal } from "@/components/product-management/add-case-pan-modal"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
-import { LoadingOverlay } from "@/components/ui/loading-overlay"
 import { useProductLibrary } from "@/contexts/product-case-pan-context"
-import { useAuth } from "@/contexts/auth-context"
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/language-context"
 
@@ -33,52 +31,38 @@ export default function CasePansPage() {
     clearSelection,
     deleteCasePan,
     bulkDeleteCasePans,
-    isDetailLoading,
   } = useProductLibrary()
-  
-  const { user } = useAuth()
-
-  const userRole = localStorage.getItem("role")
-
-  
-  const isLabAdmin = userRole === "lab_admin"
 
   const [entriesPerPage, setEntriesPerPage] = useState("25")
   const [isAddCasePanModalOpen, setIsAddCasePanModalOpen] = useState(false)
+  const [editingCasePan, setEditingCasePan] = useState<any>(null)
   const [isCopying, setIsCopying] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [casePanToDelete, setCasePanToDelete] = useState<any>(null)
+  const [bulkDeleteModalOpen, setBulkDeleteModalOpen] = useState(false)
   const { currentLanguage } = useLanguage()
   const { t } = useTranslation();
 
-  // For edit modal state (optional: implement edit modal logic as needed)
-  const [editCasePanId, setEditCasePanId] = useState<number | null>(null)
+  // Initial load effect
+  useEffect(() => {
+    fetchCasePans(1, Number.parseInt(entriesPerPage))
+  }, []) // Only run once on mount
 
-  // Find the case pan to edit
-  const editCasePan = editCasePanId !== null ? casePans.find((cp) => cp.id === editCasePanId) : null
-
-  // Delete confirmation modal state
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState<{ type: "single" | "bulk", id?: number } | null>(null)
-  const [deleteLoading, setDeleteLoading] = useState(false)
-
-  // Handle search with debounce
+  // Search, pagination, and sort effect
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (searchQuery !== undefined) {
-        setCurrentPage(1)
-        fetchCasePans(1, Number.parseInt(entriesPerPage))
-      }
-    }, 500)
+      setCurrentPage(1)
+      fetchCasePans(1, Number.parseInt(entriesPerPage))
+    }, searchQuery !== undefined ? 500 : 0)
 
     return () => clearTimeout(timer)
-  }, [searchQuery, entriesPerPage, fetchCasePans, currentLanguage])
+  }, [searchQuery, entriesPerPage, currentLanguage, sortColumn, sortDirection])
 
-  // Handle page change
   const handlePageChange = (page: number) => {
     setCurrentPage(page)
   }
 
-  // Handle column sort
   const handleSort = (column: string) => {
     if (sortColumn === column) {
       if (sortDirection === "asc") {
@@ -95,7 +79,6 @@ export default function CasePansPage() {
     }
   }
 
-  // Render sort indicator
   const renderSortIndicator = (column: string) => {
     if (sortColumn !== column) return null
 
@@ -106,7 +89,6 @@ export default function CasePansPage() {
     )
   }
 
-  // Handle select all checkbox
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
       setSelectedItems(casePans.map((casePan) => casePan.id))
@@ -115,7 +97,6 @@ export default function CasePansPage() {
     }
   }
 
-  // Handle individual item selection
   const handleSelectItem = (itemId: number, checked: boolean) => {
     if (checked) {
       setSelectedItems([...selectedItems, itemId])
@@ -149,55 +130,63 @@ export default function CasePansPage() {
     return color
   }
 
-  // Handle single delete (open confirmation modal)
-  function handleDelete(id: number): void {
-    setDeleteTarget({ type: "single", id })
+  function handleEdit(id: any): void {
+    const casePan = casePans.find((cp) => cp.id === id)
+    if (casePan) {
+      setEditingCasePan(casePan)
+      setIsCopying(false)
+      setIsAddCasePanModalOpen(true)
+    }
+  }
+
+  function handleCopy(id: any): void {
+    const casePan = casePans.find((cp) => cp.id === id)
+    if (casePan) {
+      console.log("Copying case pan:", casePan)
+      setEditingCasePan(casePan)
+      setIsCopying(true)
+      setIsAddCasePanModalOpen(true)
+    }
+  }
+
+  function handleDelete(id: any): void {
+    const casePan = casePans.find((cp) => cp.id === id)
+    setCasePanToDelete(casePan)
     setDeleteModalOpen(true)
   }
 
-  // Handle bulk delete (open confirmation modal)
+  function confirmDelete() {
+    if (casePanToDelete) {
+      deleteCasePan(casePanToDelete.id)
+      setDeleteModalOpen(false)
+      setCasePanToDelete(null)
+    }
+  }
+
+  function cancelDelete() {
+    setDeleteModalOpen(false)
+    setCasePanToDelete(null)
+  }
+
   function handleBulkDelete(): void {
     if (selectedItems.length > 0) {
-      setDeleteTarget({ type: "bulk" })
-      setDeleteModalOpen(true)
+      setBulkDeleteModalOpen(true)
     }
   }
 
-  // Confirm delete action
-  async function confirmDelete() {
-    setDeleteLoading(true)
-    if (deleteTarget?.type === "single" && deleteTarget.id !== undefined) {
-      await deleteCasePan(deleteTarget.id)
-    } else if (deleteTarget?.type === "bulk") {
-      await bulkDeleteCasePans(selectedItems)
+  function confirmBulkDelete() {
+    if (selectedItems.length > 0) {
+      bulkDeleteCasePans(selectedItems)
+      setBulkDeleteModalOpen(false)
     }
-    setDeleteLoading(false)
-    setDeleteModalOpen(false)
-    setDeleteTarget(null)
   }
 
-  // Handle edit (open modal, set edit id)
-  function handleEdit(id: number): void {
-    setEditCasePanId(id)
-    setIsCopying(false)
-    setIsAddCasePanModalOpen(true)
-  }
-
-  function handleCopy(id: number): void {
-    setEditCasePanId(id)
-    setIsCopying(true)
-    setIsAddCasePanModalOpen(true)
-  }
-
-  // Handle modal close
-  function handleModalClose() {
-    setIsAddCasePanModalOpen(false)
-    setEditCasePanId(null)
+  function cancelBulkDelete() {
+    setBulkDeleteModalOpen(false)
   }
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
-      {/* Page Title */}
       <div className="px-6 py-4 border-b border-gray-200 bg-gray-50/50">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-[#1162a8] rounded-lg">
@@ -210,7 +199,6 @@ export default function CasePansPage() {
         </div>
       </div>
 
-      {/* Header Section */}
       <div className="px-6 py-4 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 border-b border-gray-200">
         <div className="flex items-center gap-3">
           <span className="text-sm font-medium text-gray-700">{t("Show")}</span>
@@ -276,7 +264,6 @@ export default function CasePansPage() {
         </div>
       </div>
 
-      {/* Table Section */}
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
@@ -297,16 +284,19 @@ export default function CasePansPage() {
                   {renderSortIndicator("name")}
                 </div>
               </TableHead>
-              <TableHead className="font-semibold text-gray-900">
-                {t("Code")}
+              <TableHead 
+                className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" 
+                onClick={() => handleSort("code")}
+              >
+                <div className="flex items-center">
+                  {t("Code")} 
+                  {renderSortIndicator("code")}
+                </div>
               </TableHead>
               <TableHead className="font-semibold text-gray-900">
                 {t("Type")}
               </TableHead>
               <TableHead className="font-semibold text-gray-900">{t("Color")}</TableHead>
-              {isLabAdmin && (
-                <TableHead className="font-semibold text-gray-900">{t("Quantity")}</TableHead>
-              )}
               <TableHead className="font-semibold text-gray-900">
                 {t("Status")}
               </TableHead>
@@ -318,7 +308,7 @@ export default function CasePansPage() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={isLabAdmin ? 8 : 7} className="text-center py-12">
+                <TableCell colSpan={7} className="text-center py-12">
                   <div className="flex flex-col items-center gap-3">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1162a8]"></div>
                     <span className="text-gray-500 text-sm">{t("Loading case pans...")}</span>
@@ -326,7 +316,7 @@ export default function CasePansPage() {
                 </TableCell>
               </TableRow>
             ) : casePans.length > 0 ? (
-              casePans.map((casePan, index) => (
+              casePans.map((casePan) => (
                 <TableRow 
                   key={casePan.id} 
                   className={`border-b border-gray-100 hover:bg-gray-50/50 transition-colors ${
@@ -373,15 +363,6 @@ export default function CasePansPage() {
                       <span className="text-xs text-gray-500 font-mono">{casePan.color_code}</span>
                     </div>
                   </TableCell>
-                  {isLabAdmin && (
-                    <TableCell>
-                      <div className="flex items-center">
-                        <span className="font-medium text-gray-900">
-                          {casePan.lab_case_pan?.quantity ?? 0}
-                        </span>
-                      </div>
-                    </TableCell>
-                  )}
                   <TableCell>
                     <Badge
                       variant="outline"
@@ -429,7 +410,7 @@ export default function CasePansPage() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={isLabAdmin ? 8 : 7} className="text-center py-12">
+                <TableCell colSpan={7} className="text-center py-12">
                   <div className="flex flex-col items-center gap-4">
                     <div className="p-4 bg-gray-100 rounded-full">
                       <Package2 className="h-8 w-8 text-gray-400" />
@@ -460,7 +441,6 @@ export default function CasePansPage() {
         </Table>
       </div>
 
-      {/* Pagination */}
       <div className="px-6 py-4 flex justify-between items-center border-t border-gray-200">
         <div className="text-sm text-gray-600">
           {t("Showing")} {Math.min(pagination.total, 1 + (currentPage - 1) * pagination.per_page)} {t("to")}{" "}
@@ -468,7 +448,7 @@ export default function CasePansPage() {
         </div>
         <div className="flex items-center space-x-1">
           <button
-            className="h-8 w-8 rounded-full flex items-center justify-center text-xs bg-[#f0f0f0] text-[#6b7280] disabled:opacity-50"
+            className="h-8 w-8 rounded-full flex items-center justify-center text-xs bg-gray-100 text-gray-600 disabled:opacity-50"
             onClick={() => handlePageChange(currentPage - 1)}
             disabled={currentPage === 1}
           >
@@ -489,7 +469,7 @@ export default function CasePansPage() {
             return (
               <button
                 key={pageNum}
-                className={`h-8 w-8 rounded-full flex items-center justify-center text-xs ${pageNum === currentPage ? "bg-[#1162a8] text-white" : "bg-[#f0f0f0] text-[#6b7280] hover:bg-[#e5e7eb]"
+                className={`h-8 w-8 rounded-full flex items-center justify-center text-xs ${pageNum === currentPage ? "bg-[#1162a8] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                   }`}
                 onClick={() => handlePageChange(pageNum)}
               >
@@ -498,7 +478,7 @@ export default function CasePansPage() {
             )
           })}
           <button
-            className="h-8 w-8 rounded-full flex items-center justify-center text-xs bg-[#f0f0f0] text-[#6b7280] disabled:opacity-50"
+            className="h-8 w-8 rounded-full flex items-center justify-center text-xs bg-gray-100 text-gray-600 disabled:opacity-50"
             onClick={() => handlePageChange(currentPage + 1)}
             disabled={currentPage === pagination.last_page}
           >
@@ -510,50 +490,35 @@ export default function CasePansPage() {
       <AddCasePanModal
         isOpen={isAddCasePanModalOpen}
         onClose={() => {
-          setEditCasePanId(null)
-          setIsCopying(false)
           setIsAddCasePanModalOpen(false)
+          setEditingCasePan(null)
+          setIsCopying(false)
         }}
-        editCasePan={editCasePan || undefined}
+        editCasePan={editingCasePan}
         isCopying={isCopying}
         onEditDone={() => {
-          setEditCasePanId(null)
-          setIsCopying(false)
           setIsAddCasePanModalOpen(false)
+          setEditingCasePan(null)
+          setIsCopying(false)
         }}
       />
       
-      {/* Loading Overlay when modal is open and loading details */}
-      <LoadingOverlay
-        isLoading={isAddCasePanModalOpen && isDetailLoading && !!editCasePan}
-        title={t("loading", "Loading...")}
-        message={t("csePanModal.loadingCasePanDetails", "Please wait while we load case pan details...")}
-        zIndex={10000}
-      />
-      
+      {/* Delete Confirmation Modal */}
       <DeleteConfirmationModal
         isOpen={deleteModalOpen}
-        onClose={() => {
-          setDeleteModalOpen(false)
-          setDeleteTarget(null)
-        }}
+        onClose={cancelDelete}
         onConfirm={confirmDelete}
-        isLoading={deleteLoading}
-        itemName={deleteTarget?.type === "single"
-          ? t("case pan")
-          : t("case pans")
-        }
-        itemCount={deleteTarget?.type === "bulk" ? selectedItems.length : undefined}
-        title={deleteTarget?.type === "bulk"
-          ? t("Delete Selected Case Pans?")
-          : t("Delete Case Pan?")
-        }
-        description={deleteTarget?.type === "bulk"
-          ? t("This action cannot be undone. This will permanently delete {{count}} case pans and remove your data from our servers.", { count: selectedItems.length })
-          : t("This action cannot be undone. This will permanently delete this case pan and remove your data from our servers.")
-        }
-        confirmText={t("Delete")}
-        cancelText={t("Cancel")}
+        itemName="case pan"
+        isLoading={isLoading}
+      />
+
+      {/* Bulk Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={bulkDeleteModalOpen}
+        onClose={cancelBulkDelete}
+        onConfirm={confirmBulkDelete}
+        itemCount={selectedItems.length}
+        isLoading={isLoading}
       />
     </div>
   )

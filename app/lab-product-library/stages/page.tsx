@@ -1,21 +1,21 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Search, ArrowUp, ArrowDown, Info, Edit, TrashIcon, Copy, Plus, Package, Upload, Link } from "lucide-react"
+import { Search, ArrowUp, ArrowDown, Info, Edit, TrashIcon, Copy, Package, Plus, Package2, Upload, Link } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
+import { useStages, type Stage } from "@/contexts/product-stages-context"
 import { CreateStageModal } from "@/components/product-management/create-stage-modal"
 import { CreateStageGroupModal } from "@/components/product-management/create-stage-group-modal"
 import { LinkProductsModal } from "@/components/product-management/link-products-modal"
-import { useStages, type Stage } from "@/contexts/product-stages-context"
 import { useLanguage } from "@/contexts/language-context"
 import { useTranslation } from "react-i18next"
+import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 
 const mockStageGroups = [
   { id: 1, name: "Default Stage Group" },
@@ -46,27 +46,32 @@ export default function StagesPage() {
   const [isCreateStageModalOpen, setIsCreateStageModalOpen] = useState(false)
   const [isCreateStageGroupModalOpen, setIsCreateStageGroupModalOpen] = useState(false)
   const [isLinkProductsModalOpen, setIsLinkProductsModalOpen] = useState(false)
-  const [isModalDirty, setIsModalDirty] = useState(false)
-  const [editingStage, setEditingStage] = useState<Stage | null>(null)
-  const [isCopying, setIsCopying] = useState(false)
-
   const [searchInput, setSearchInput] = useState(contextSearchQuery)
   const [entriesPerPage, setEntriesPerPage] = useState(pagination.per_page.toString())
   const [currentPage, setCurrentPage] = useState(pagination.current_page)
   const { currentLanguage } = useLanguage()
   const { t } = useTranslation()
 
+  const [editingStage, setEditingStage] = useState<Stage | null>(null)
+  const [isModalDirty, setIsModalDirty] = useState(false)
+
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  const [isStageDeleteModalOpen, setIsStageDeleteModalOpen] = useState(false)
+  const [stageDeleteTargetId, setStageDeleteTargetId] = useState<number | null>(null)
+  const [isStageDeleting, setIsStageDeleting] = useState(false)
+
   useEffect(() => {
     fetchStages()
   }, [fetchStages, currentLanguage])
 
-  // Sync local pagination with context
   useEffect(() => {
     setCurrentPage(pagination.current_page)
     setEntriesPerPage(pagination.per_page.toString())
   }, [pagination, currentLanguage])
 
-  // Debounce search input
   useEffect(() => {
     const timer = setTimeout(() => {
       if (searchInput !== contextSearchQuery) {
@@ -118,41 +123,37 @@ export default function StagesPage() {
     setCurrentPage(page)
   }
 
-  const renderLoadingSkeleton = () => (
-    <>
-      {[...Array(Number(entriesPerPage) || 5)].map((_, index) => (
-        <TableRow key={`skeleton-${index}`}>
-          <TableCell><Skeleton className="h-5 w-5 rounded" /></TableCell>
-          <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-          <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-          <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-          <TableCell><Skeleton className="h-4 w-12" /></TableCell>
-          <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-          <TableCell><Skeleton className="h-4 w-12" /></TableCell>
-          <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-          <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-        </TableRow>
-      ))}
-    </>
-  )
-
-  function handleEdit(stage: Stage): void {
+  const handleEdit = (stage: Stage): void => {
     setEditingStage(stage)
-    setIsCopying(false)
     setIsCreateStageModalOpen(true)
   }
 
-  function handleCopy(stage: Stage): void {
-    setEditingStage(stage)
-    setIsCopying(true)
-    setIsCreateStageModalOpen(true)
+  const handleDelete = (id: number): void => {
+    setStageDeleteTargetId(id)
+    setIsStageDeleteModalOpen(true)
   }
-  async function handleDelete(id: number): Promise<void> {
-    await deleteStage(id)
+
+  const handleDeleteGroup = (id: number) => {
+    setDeleteTargetId(id)
+    setIsDeleteModalOpen(true)
   }
-  async function handleBulkDelete(): Promise<void> {
-    await bulkDeleteStages(selectedItems)
-    setSelectedItems([])
+
+  const confirmDelete = async () => {
+    setIsDeleting(true)
+    // await deleteStageGroup(deleteTargetId) // implement your delete logic here
+    setIsDeleting(false)
+    setIsDeleteModalOpen(false)
+    setDeleteTargetId(null)
+  }
+
+  const confirmStageDelete = async () => {
+    setIsStageDeleting(true)
+    if (stageDeleteTargetId !== null) {
+      await deleteStage(stageDeleteTargetId)
+    }
+    setIsStageDeleting(false)
+    setIsStageDeleteModalOpen(false)
+    setStageDeleteTargetId(null)
   }
 
   return (
@@ -165,12 +166,12 @@ export default function StagesPage() {
           </div>
           <div>
             <h1 className="text-xl font-semibold text-gray-900">{t("Stages Management")}</h1>
-            <p className="text-sm text-gray-500">{t("Manage your stage inventory and configurations")}</p>
+            <p className="text-sm text-gray-500">{t("Manage workflow stages and processing configurations")}</p>
           </div>
         </div>
       </div>
 
-      {/* Header Section */}
+      {/* Enhanced Header Section */}
       <div className="px-6 py-4 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 border-b border-gray-200">
         <div className="flex items-center gap-3">
           <span className="text-sm font-medium text-gray-700">{t("Show")}</span>
@@ -185,28 +186,29 @@ export default function StagesPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="10">10</SelectItem>
-              <SelectItem value="25">25</SelectItem>
-              <SelectItem value="50">50</SelectItem>
-              <SelectItem value="100">100</SelectItem>
+              {["10", "25", "50", "100"].map((val) => (
+                <SelectItem key={val} value={val}>
+                  {val}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <span className="text-sm text-gray-700">{t("entries")}</span>
-          
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-gray-700">{t("Status")}</span>
+
+          <div className="flex items-center ml-4">
+            <span className="text-sm font-medium text-gray-700 mr-2">{t("Status")}</span>
             <Select value={statusFilter} onValueChange={(val) => setStatusFilter(val === "all" ? "" : val)}>
-              <SelectTrigger className="w-32 h-9 text-sm">
+              <SelectTrigger className="w-[150px] h-9 text-sm">
                 <SelectValue placeholder={t("All Statuses")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">{t("All")}</SelectItem>
+                <SelectItem value="all">{t("All Statuses")}</SelectItem>
                 <SelectItem value="Active">{t("Active")}</SelectItem>
                 <SelectItem value="Inactive">{t("Inactive")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
-          
+
           {selectedItems.length > 0 && (
             <div className="ml-6 flex items-center gap-2">
               <span className="text-sm font-medium text-gray-700">
@@ -216,7 +218,6 @@ export default function StagesPage() {
                 variant="outline"
                 size="sm"
                 className="text-red-600 border-red-200 hover:bg-red-50"
-                onClick={handleBulkDelete}
               >
                 <TrashIcon className="h-4 w-4 mr-1" />
                 {t("Delete Selected")}
@@ -224,15 +225,15 @@ export default function StagesPage() {
             </div>
           )}
         </div>
-        
+
         <div className="flex gap-3">
-          {/* <Button
+          <Button
             variant="outline"
             className="text-gray-700 border-gray-300 hover:bg-gray-50 px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
           >
             <Upload className="h-4 w-4 mr-2" />
             {t("Import stages")}
-          </Button> */}
+          </Button>
 
           <Button
             className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
@@ -249,7 +250,7 @@ export default function StagesPage() {
             <Plus className="h-4 w-4 mr-2" />
             {t("Add Stage")}
           </Button>
-          
+
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
@@ -263,13 +264,14 @@ export default function StagesPage() {
         </div>
       </div>
 
+      {/* Enhanced Error Display */}
       {error && (
-        <div className="px-6 py-3 bg-red-50 border-b border-red-200">
-          <p className="text-sm text-red-600">{error}</p>
+        <div className="px-6 py-4 bg-red-50 border-b border-red-200">
+          <div className="text-red-600 text-sm">{error}</div>
         </div>
       )}
 
-      {/* Table Section with Split View */}
+      {/* Enhanced Table Section with Split View */}
       <div className="flex">
         <div className="flex-grow border-r border-gray-200">
           <div className="overflow-x-auto">
@@ -285,40 +287,64 @@ export default function StagesPage() {
                   </TableHead>
                   <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("name")}>
                     <div className="flex items-center">
-                      {t("Stage Name")}
+                      <span>{t("Name")}</span>
                       {renderSortIndicator("name")}
                     </div>
                   </TableHead>
                   <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("code")}>
                     <div className="flex items-center">
-                      {t("Code")}
+                      <span>{t("Code")}</span>
                       {renderSortIndicator("code")}
                     </div>
                   </TableHead>
                   <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("sequence")}>
                     <div className="flex items-center">
-                      {t("Sequence")}
+                      <span>{t("Seq.")}</span>
                       {renderSortIndicator("sequence")}
                     </div>
                   </TableHead>
-                  <TableHead className="font-semibold text-gray-900">
-                    {t("Days")}
+                  <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("days")}>
+                    <div className="flex items-center">
+                      <span>{t("Process Days")}</span>
+                      {renderSortIndicator("days")}
+                    </div>
+                  </TableHead>
+                  <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("status")}>
+                    <div className="flex items-center">
+                      <span>{t("Status")}</span>
+                      {renderSortIndicator("status")}
+                    </div>
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
-                    {t("Price")}
+                    {t("Common")}
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
-                    {t("Status")}
+                    {t("Releasing")}
+                  </TableHead>
+                  <TableHead className="font-semibold text-gray-900">
+                    {t("Add-ons")}
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900 text-center pr-6">{t("Actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isLoading ? (
-                  renderLoadingSkeleton()
+                {isLoading && stages.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={10} className="text-center py-12">
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1162a8]"></div>
+                        <span className="text-gray-500 text-sm">{t("Loading stages...")}</span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
                 ) : stages.length > 0 ? (
                   stages.map((stage) => (
-                    <TableRow key={stage.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                    <TableRow 
+                      key={stage.id} 
+                      className={`border-b border-gray-100 hover:bg-gray-50/50 transition-colors ${
+                        selectedItems.includes(stage.id) ? 'bg-blue-50/50' : ''
+                      }`}
+                    >
                       <TableCell className="pl-6">
                         <Checkbox
                           checked={selectedItems.includes(stage.id)}
@@ -326,18 +352,29 @@ export default function StagesPage() {
                           className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]"
                         />
                       </TableCell>
-                      <TableCell className="font-medium text-gray-900">{stage.name}</TableCell>
+                      <TableCell className="font-medium text-gray-900">
+                        <div className="flex flex-col">
+                          <span className="font-semibold">{stage.name}</span>
+                          {stage.description && (
+                            <span className="text-xs text-gray-500 mt-1 truncate max-w-xs">
+                              {stage.description}
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <code className="bg-gray-100 px-2 py-1 rounded text-xs font-mono text-gray-800">
                           {stage.code}
                         </code>
                       </TableCell>
-                      <TableCell className="text-center font-medium text-gray-700">{stage.sequence}</TableCell>
-                      <TableCell className="text-center font-medium text-gray-700">
-                        {stage.days_to_pickup + stage.days_to_process + stage.days_to_deliver}
+                      <TableCell>
+                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                          {stage.sequence}
+                        </Badge>
                       </TableCell>
-                      <TableCell className="font-medium text-gray-700">
-                        {stage.price !== undefined ? `$${stage.price}` : stage.lab_stage?.price ? `$${stage.lab_stage.price}` : '-'}
+                      <TableCell className="text-gray-600">
+                        <span className="font-medium">{stage.days_to_process}</span>
+                        <span className="text-xs text-gray-500 ml-1">{t("days")}</span>
                       </TableCell>
                       <TableCell>
                         <Badge
@@ -348,29 +385,72 @@ export default function StagesPage() {
                               : "bg-gray-50 text-gray-700 border-gray-200"
                           }
                         >
-                          {stage.status}
+                          {t(stage.status)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={
+                            stage.is_common === "Yes"
+                              ? "bg-[#1162a8] text-white border-[#1162a8]"
+                              : "bg-gray-50 text-gray-700 border-gray-200"
+                          }
+                        >
+                          {t(stage.is_common)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={
+                            stage.is_releasing_stage === "Yes"
+                              ? "bg-[#1162a8] text-white border-[#1162a8]"
+                              : "bg-gray-50 text-gray-700 border-gray-200"
+                          }
+                        >
+                          {t(stage.is_releasing_stage)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={
+                            stage.is_stage_with_addons === "Yes"
+                              ? "bg-[#1162a8] text-white border-[#1162a8]"
+                              : "bg-gray-50 text-gray-700 border-gray-200"
+                          }
+                        >
+                          {t(stage.is_stage_with_addons)}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-center pr-6">
                         <div className="flex items-center justify-center gap-1">
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-600 hover:text-[#1162a8] hover:bg-blue-50" onClick={() => handleEdit(stage)}>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-8 w-8 p-0 text-gray-600 hover:text-[#1162a8] hover:bg-blue-50" 
+                            onClick={() => handleEdit(stage)}
+                            title={t("Edit")}
+                          >
                             <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                            title={t("Duplicate")}
+                          >
+                            <Copy className="h-4 w-4" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="sm"
                             className="h-8 w-8 p-0 text-gray-600 hover:text-red-600 hover:bg-red-50"
                             onClick={() => handleDelete(stage.id)}
+                            title={t("Delete")}
                           >
                             <TrashIcon className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className="h-8 w-8 p-0 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
-                            onClick={() => handleCopy(stage)}
-                          >
-                            <Copy className="h-4 w-4" />
                           </Button>
                         </div>
                       </TableCell>
@@ -378,7 +458,7 @@ export default function StagesPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-12">
+                    <TableCell colSpan={10} className="text-center py-12">
                       <div className="flex flex-col items-center gap-4">
                         <div className="p-4 bg-gray-100 rounded-full">
                           <Package className="h-8 w-8 text-gray-400" />
@@ -386,12 +466,12 @@ export default function StagesPage() {
                         <div className="text-center">
                           <h3 className="font-medium text-gray-900 mb-1">{t("No stages found")}</h3>
                           <p className="text-sm text-gray-500 mb-4">
-                            {searchInput 
-                              ? t("Try adjusting your search terms or filters")
-                              : t("Get started by creating your first stage")
+                            {contextSearchQuery 
+                              ? t("Try adjusting your search or filters")
+                              : t("Create a new stage to get started")
                             }
                           </p>
-                          {!searchInput && (
+                          {!contextSearchQuery && (
                             <Button
                               className="bg-[#1162a8] hover:bg-[#0f5497] text-white"
                               onClick={() => setIsCreateStageModalOpen(true)}
@@ -409,47 +489,68 @@ export default function StagesPage() {
             </Table>
           </div>
           
-          {/* Pagination */}
+          {/* Enhanced Pagination */}
           <div className="px-6 py-4 flex justify-between items-center border-t border-gray-200">
             <div className="text-sm text-gray-600">
               {t("Showing")} {Math.min(pagination.total, 1 + (currentPage - 1) * pagination.per_page)} {t("to")}{" "}
               {Math.min(pagination.total, currentPage * pagination.per_page)} {t("of")} {pagination.total} {t("entries")}
             </div>
             <div className="flex items-center space-x-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={currentPage === 1}
+              <button
+                className="h-8 w-8 rounded-full flex items-center justify-center text-xs bg-gray-100 text-gray-600 disabled:opacity-50"
                 onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
               >
-                &lt;
-              </Button>
-              <span className="text-sm">{currentPage} / {pagination.last_page}</span>
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={currentPage === pagination.last_page}
+                «
+              </button>
+              {Array.from({ length: Math.min(5, pagination.last_page) }, (_, i) => {
+                let pageNum = i + 1
+                if (pagination.last_page > 5) {
+                  if (currentPage <= 3) {
+                    pageNum = i + 1
+                  } else if (currentPage >= pagination.last_page - 2) {
+                    pageNum = pagination.last_page - 4 + i
+                  } else {
+                    pageNum = currentPage - 2 + i
+                  }
+                }
+
+                return (
+                  <button
+                    key={pageNum}
+                    className={`h-8 w-8 rounded-full flex items-center justify-center text-xs ${
+                      pageNum === currentPage ? "bg-[#1162a8] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    }`}
+                    onClick={() => handlePageChange(pageNum)}
+                  >
+                    {pageNum}
+                  </button>
+                )
+              })}
+              <button
+                className="h-8 w-8 rounded-full flex items-center justify-center text-xs bg-gray-100 text-gray-600 disabled:opacity-50"
                 onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === pagination.last_page}
               >
-                &gt;
-              </Button>
+                »
+              </button>
             </div>
           </div>
         </div>
       </div>
-
+     
       <CreateStageModal
         isOpen={isCreateStageModalOpen}
         onClose={() => {
           setIsCreateStageModalOpen(false)
           setEditingStage(null)
-          setIsCopying(false)
+          setIsModalDirty(false)
         }}
         onHasChangesChange={setIsModalDirty}
         stage={editingStage}
-        mode={editingStage && !isCopying ? "edit" : "create"}
-        isCopying={isCopying}
+        mode={editingStage ? "edit" : "create"}
       />
+      
       <CreateStageGroupModal
         isOpen={isCreateStageGroupModalOpen}
         onClose={() => setIsCreateStageGroupModalOpen(false)}
@@ -458,7 +559,25 @@ export default function StagesPage() {
       <LinkProductsModal
         isOpen={isLinkProductsModalOpen}
         onClose={() => setIsLinkProductsModalOpen(false)}
-        context="lab"
+        context="global"
+      />
+
+      {/* Delete Confirmation Modal for stage group */}
+      <DeleteConfirmationModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={confirmDelete}
+        itemName="stage group"
+        isLoading={isDeleting}
+      />
+
+      {/* Delete Confirmation Modal for stage */}
+      <DeleteConfirmationModal
+        isOpen={isStageDeleteModalOpen}
+        onClose={() => setIsStageDeleteModalOpen(false)}
+        onConfirm={confirmStageDelete}
+        itemName="stage"
+        isLoading={isStageDeleting}
       />
     </div>
   )

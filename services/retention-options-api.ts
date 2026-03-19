@@ -226,11 +226,17 @@ export async function updateRetentionOption(
 /**
  * Delete a retention option
  */
-export async function deleteRetentionOption(id: number): Promise<{ status: boolean; message: string }> {
+export async function deleteRetentionOption(id: number, customerId?: number): Promise<{ status: boolean; message: string }> {
   const token = getAuthToken()
 
+  const params = new URLSearchParams()
+  if (customerId != null) {
+    params.append("customer_id", customerId.toString())
+  }
+  const queryString = params.toString()
+
   const response = await fetch(
-    `${API_BASE_URL}/library/retention-options/${id}`,
+    `${API_BASE_URL}/library/retention-options/${id}${queryString ? `?${queryString}` : ""}`,
     {
       method: "DELETE",
       headers: {
@@ -257,12 +263,19 @@ export async function deleteRetentionOption(id: number): Promise<{ status: boole
 
 /**
  * Update retention option status
+ * @param customerId - Optional; when provided (lab_admin context), updates lab library status
  */
 export async function updateRetentionOptionStatus(
   id: number,
-  status: "Active" | "Inactive"
+  status: "Active" | "Inactive",
+  customerId?: number
 ): Promise<RetentionOptionResponse> {
   const token = getAuthToken()
+
+  const body: { status: "Active" | "Inactive"; customer_id?: number } = { status }
+  if (customerId != null) {
+    body.customer_id = customerId
+  }
 
   const response = await fetch(
     `${API_BASE_URL}/library/retention-options/${id}/status`,
@@ -272,7 +285,7 @@ export async function updateRetentionOptionStatus(
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify(body),
     }
   )
 

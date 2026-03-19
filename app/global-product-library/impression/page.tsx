@@ -305,7 +305,10 @@ export default function ImpressionPage() {
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">Opposing warning</TableHead>
                   <TableHead className="font-semibold text-gray-900">URL</TableHead>
-                  <TableHead className="font-semibold text-gray-900">Status</TableHead>
+                  <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("status")}>
+                    <span>Status</span>
+                    {sortColumn === "status" && renderSortIndicator("status")}
+                  </TableHead>
                   <TableHead className="font-semibold text-gray-900">Action</TableHead>
                 </TableRow>
               </TableHeader>

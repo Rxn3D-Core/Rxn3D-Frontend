@@ -15,6 +15,7 @@ import { useTeethShades } from "@/contexts/product-teeth-shade-context"
 import { Badge } from "@/components/ui/badge"
 import { useLanguage } from "@/contexts/language-context"
 import { useTranslation } from "react-i18next"
+import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 
 export default function TeethShadePage() {
   const {
@@ -32,23 +33,23 @@ export default function TeethShadePage() {
     setSelectedItems,
     fetchTeethShadeBrands,
     deleteTeethShadeBrand,
-    bulkDeleteTeethShadeBrands,
+    updateTeethShadeBrand,
     teethShadeGroups,
     fetchTeethShadeGroups,
     isGroupsLoading,
-    updateTeethShadeBrand,
   } = useTeethShades()
 
   // Modal states
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [isCopyModalOpen, setIsCopyModalOpen] = useState(false)
   const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false)
   const [editingTeethShadeBrand, setEditingTeethShadeBrand] = useState<any>(null)
-  const [isCopying, setIsCopying] = useState(false)
+  const [copyingTeethShadeBrand, setCopyingTeethShadeBrand] = useState<any>(null)
 
   // Discard dialog states
   const [showDiscardDialog, setShowDiscardDialog] = useState(false)
-  const [modalToClose, setModalToClose] = useState<"create" | "edit" | "group" | null>(null)
+  const [modalToClose, setModalToClose] = useState<"create" | "edit" | "copy" | "group" | null>(null)
   const [hasModalChanges, setHasModalChanges] = useState(false)
 
   // Pagination states
@@ -57,6 +58,11 @@ export default function TeethShadePage() {
 
   // Search state
   const [searchInput, setSearchInput] = useState(searchQuery)
+
+  // Delete modal states
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null)
+  const [isBulkDelete, setIsBulkDelete] = useState(false)
 
   const { currentLanguage } = useLanguage()
   const { t } = useTranslation()
@@ -146,43 +152,63 @@ export default function TeethShadePage() {
   // Handle edit
   const handleEdit = (brand: any) => {
     setEditingTeethShadeBrand(brand)
-    setIsCopying(false)
     setIsEditModalOpen(true)
   }
 
-  // Handle copy
-  const handleCopy = (brand: any) => {
-    setEditingTeethShadeBrand(brand)
-    setIsCopying(true)
-    setIsCreateModalOpen(true)
+  // Handle duplicate
+  const handleDuplicate = (brand: any) => {
+    setCopyingTeethShadeBrand(brand)
+    setIsCopyModalOpen(true)
   }
 
-  // Handle save after editing
-  const handleEditSave = async (updatedBrand: any) => {
+  // Handle update (for edit modal)
+  const handleUpdate = async (payload: any) => {
     if (!editingTeethShadeBrand) return
-    await updateTeethShadeBrand(editingTeethShadeBrand.id, updatedBrand)
-    setIsEditModalOpen(false)
-    setEditingTeethShadeBrand(null)
+    
+    const success = await updateTeethShadeBrand(editingTeethShadeBrand.id, payload)
+    if (success) {
+      setIsEditModalOpen(false)
+      setEditingTeethShadeBrand(null)
+      setHasModalChanges(false)
+    }
   }
 
   // Handle delete (single)
-  const handleDelete = async (id: number) => {
-    const success = await deleteTeethShadeBrand(id)
-      if (success) {
-        setSelectedItems((prev) => prev.filter((itemId) => itemId !== id))
-      }
+  const handleDelete = (id: number) => {
+    setDeleteTargetId(id)
+    setIsBulkDelete(false)
+    setIsDeleteModalOpen(true)
   }
 
   // Handle bulk delete
-  const handleBulkDelete = async () => {
-    const success = await bulkDeleteTeethShadeBrands(selectedItems)
-      if (success) {
-        setSelectedItems([])
+  const handleBulkDelete = () => {
+    setIsBulkDelete(true)
+    setIsDeleteModalOpen(true)
+  }
+
+  // Confirm delete
+  const handleConfirmDelete = async () => {
+    if (isBulkDelete) {
+      for (const id of selectedItems) {
+        await deleteTeethShadeBrand(id)
       }
+      setSelectedItems([])
+      // Refresh the list after bulk delete
+      await fetchTeethShadeBrands(currentPage, Number(entriesPerPage))
+    } else if (deleteTargetId !== null) {
+      const success = await deleteTeethShadeBrand(deleteTargetId)
+      if (success) {
+        // Refresh the list after delete
+        await fetchTeethShadeBrands(currentPage, Number(entriesPerPage))
+      }
+    }
+    setIsDeleteModalOpen(false)
+    setDeleteTargetId(null)
+    setIsBulkDelete(false)
   }
 
   // Modal close handlers
-  const handleAttemptCloseModal = (type: "create" | "edit" | "group") => {
+  const handleAttemptCloseModal = (type: "create" | "edit" | "copy" | "group") => {
     if (hasModalChanges) {
       setModalToClose(type)
       setShowDiscardDialog(true)
@@ -191,12 +217,15 @@ export default function TeethShadePage() {
     }
   }
 
-  const closeModal = (type: "create" | "edit" | "group") => {
+  const closeModal = (type: "create" | "edit" | "copy" | "group") => {
     if (type === "create") {
       setIsCreateModalOpen(false)
     } else if (type === "edit") {
       setIsEditModalOpen(false)
       setEditingTeethShadeBrand(null)
+    } else if (type === "copy") {
+      setIsCopyModalOpen(false)
+      setCopyingTeethShadeBrand(null)
     } else {
       setIsCreateGroupModalOpen(false)
     }
@@ -217,9 +246,9 @@ export default function TeethShadePage() {
   }
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 shadow-sm flex flex-col" style={{ height: '100%', minHeight: 0 }}>
+    <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
       {/* Page Title */}
-      <div className="px-6 py-4 border-b border-gray-200 bg-gray-50/50 flex-shrink-0">
+      <div className="px-6 py-4 border-b border-gray-200 bg-gray-50/50">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-[#1162a8] rounded-lg">
             <Package className="h-5 w-5 text-white" />
@@ -232,7 +261,7 @@ export default function TeethShadePage() {
       </div>
 
       {/* Enhanced Header Section */}
-      <div className="px-6 py-4 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 border-b border-gray-200 flex-shrink-0">
+      <div className="px-6 py-4 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 border-b border-gray-200">
         <div className="flex items-center gap-3">
           <span className="text-sm font-medium text-gray-700">{t("Show")}</span>
           <Select
@@ -299,15 +328,15 @@ export default function TeethShadePage() {
 
       {/* Enhanced Error Display */}
       {error && (
-        <div className="px-6 py-4 bg-red-50 border-b border-red-200 flex-shrink-0">
+        <div className="px-6 py-4 bg-red-50 border-b border-red-200">
           <div className="text-red-600 text-sm">{error}</div>
         </div>
       )}
 
       {/* Enhanced Table Section */}
-      <div className="flex flex-1 min-h-0">
-        <div className="flex-grow border-r border-gray-200 flex flex-col min-h-0">
-          <div className="overflow-x-auto flex-1">
+      <div className="flex">
+        <div className="flex-grow border-r border-gray-200">
+          <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="bg-gray-50/80 hover:bg-gray-50">
@@ -324,14 +353,23 @@ export default function TeethShadePage() {
                       {renderSortIndicator("name")}
                     </div>
                   </TableHead>
-                  <TableHead className="font-semibold text-gray-900">
-                    <span>{t("System")}</span>
+                  <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("system")}>
+                    <div className="flex items-center">
+                      <span>{t("System")}</span>
+                      {renderSortIndicator("system")}
+                    </div>
                   </TableHead>
-                  <TableHead className="font-semibold text-gray-900">
-                    <span>{t("Shades")}</span>
+                  <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("shades")}>
+                    <div className="flex items-center">
+                      <span>{t("Shades")}</span>
+                      {renderSortIndicator("shades")}
+                    </div>
                   </TableHead>
-                  <TableHead className="font-semibold text-gray-900">
-                    <span>{t("Status")}</span>
+                  <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("status")}>
+                    <div className="flex items-center">
+                      <span>{t("Status")}</span>
+                      {renderSortIndicator("status")}
+                    </div>
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900 text-center pr-6">
                     <span>{t("Actions")}</span>
@@ -375,7 +413,7 @@ export default function TeethShadePage() {
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                          {brand.system_name?.replace(/_/g, ' ') || brand.system_name}
+                          {brand.system_name}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-gray-600">
@@ -421,8 +459,8 @@ export default function TeethShadePage() {
                             variant="ghost"
                             size="sm"
                             className="h-8 w-8 p-0 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
-                            onClick={() => handleCopy(brand)}
                             title={t("Duplicate")}
+                            onClick={() => handleDuplicate(brand)}
                           >
                             <Copy className="h-4 w-4" />
                           </Button>
@@ -473,7 +511,7 @@ export default function TeethShadePage() {
           </div>
 
           {/* Enhanced Pagination */}
-          <div className="px-6 py-4 flex justify-between items-center border-t border-gray-200 flex-shrink-0 bg-white">
+          <div className="px-6 py-4 flex justify-between items-center border-t border-gray-200">
             <div className="text-sm text-gray-600">
               {t("Showing")} {Math.min(pagination.total, 1 + (currentPage - 1) * pagination.per_page)} {t("to")}{" "}
               {Math.min(pagination.total, currentPage * pagination.per_page)} {t("of")} {pagination.total} {t("entries")}
@@ -520,35 +558,35 @@ export default function TeethShadePage() {
             </div>
           </div>
         </div>
-      
       </div>
 
       {/* Create Teeth Shade Modal */}
       <CreateTeethShadeModal
         isOpen={isCreateModalOpen}
-        onClose={() => {
-          setIsCreateModalOpen(false)
-          setEditingTeethShadeBrand(null)
-          setIsCopying(false)
-        }}
+        onClose={() => setIsCreateModalOpen(false)}
         onHasChangesChange={setHasModalChanges}
-        teethShadeBrand={isCopying ? editingTeethShadeBrand : undefined}
-        isCopying={isCopying}
       />
 
       {/* Edit Teeth Shade Modal */}
-      {editingTeethShadeBrand && !isCopying && (
+      {editingTeethShadeBrand && (
         <CreateTeethShadeModal
           isOpen={isEditModalOpen}
-          onClose={() => {
-            setIsEditModalOpen(false)
-            setEditingTeethShadeBrand(null)
-            setIsCopying(false)
-          }}
+          onClose={() => handleAttemptCloseModal("edit")}
           onHasChangesChange={setHasModalChanges}
           teethShadeBrand={editingTeethShadeBrand}
           isEditing={true}
-          onSave={handleEditSave}
+          onSave={handleUpdate}
+        />
+      )}
+
+      {/* Copy/Duplicate Teeth Shade Modal */}
+      {copyingTeethShadeBrand && (
+        <CreateTeethShadeModal
+          isOpen={isCopyModalOpen}
+          onClose={() => handleAttemptCloseModal("copy")}
+          onHasChangesChange={setHasModalChanges}
+          teethShadeBrand={copyingTeethShadeBrand}
+          isCopying={true}
         />
       )}
 
@@ -557,6 +595,18 @@ export default function TeethShadePage() {
         isOpen={isCreateGroupModalOpen}
         onClose={() => setIsCreateGroupModalOpen(false)}
         onChanges={setHasModalChanges}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={handleConfirmDelete}
+        itemName={isBulkDelete ? t("teeth shade brands") : t("teeth shade brand")}
+        itemCount={isBulkDelete ? selectedItems.length : undefined}
+        title={isBulkDelete ? t("Delete Selected Teeth Shade Brands?") : t("Delete Teeth Shade Brand?")}
+        confirmText={t("Delete")}
+        cancelText={t("Cancel")}
       />
     </div>
   )

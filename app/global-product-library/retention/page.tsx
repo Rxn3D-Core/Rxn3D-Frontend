@@ -15,7 +15,7 @@ import { useRetention } from "@/contexts/product-retention-context"
 import { useLanguage } from "@/contexts/language-context"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-type SortField = "name" | "code" | "sequence"
+type SortField = "name" | "code" | "sequence" | "linked_retention_option" | "status"
 type SortDirection = "asc" | "desc"
 import { useTranslation } from "react-i18next"
 
@@ -51,7 +51,7 @@ export default function RetentionPage() {
     fetchRetentions(currentPage, entriesPerPage, searchTerm, sortField, sortDirection)
   }, [fetchRetentions, currentPage, entriesPerPage, searchTerm, sortField, sortDirection, currentLanguage])
 
-  const handleSort = (field: SortField) => {
+  const handleSort = (field: SortField | string) => {
     if (sortField === field) {
       setSortDirection(sortDirection === "asc" ? "desc" : "asc")
     } else {
@@ -253,7 +253,10 @@ export default function RetentionPage() {
                     <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />
                   </div>
                 </TableHead>
-                <TableHead className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors">
+                <TableHead
+                  className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors"
+                  onClick={() => handleSort("linked_retention_option")}
+                >
                   <div className="flex items-center gap-1">
                     {t("Linked Retention option")}
                     <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />
@@ -261,7 +264,7 @@ export default function RetentionPage() {
                 </TableHead>
                 <TableHead
                   className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors"
-                  onClick={() => handleSort("sequence")}
+                  onClick={() => handleSort("status")}
                 >
                   <div className="flex items-center gap-1">
                     {t("Status")}

@@ -132,7 +132,7 @@ export default function ToothMappingPage() {
     setSortDirection(newDirection)
     setFilters(prev => ({
       ...prev,
-      sort_by: column as "name" | "code" | "sequence" | "created_at",
+      sort_by: column as "name" | "code" | "sequence" | "created_at" | "color" | "status",
       sort_order: newDirection
     }))
   }
@@ -357,9 +357,24 @@ export default function ToothMappingPage() {
                       {sortColumn === "name" && renderSortIndicator("name")}
                     </div>
                   </TableHead>
-                  <TableHead className="font-semibold text-gray-900">Color</TableHead>
-                  <TableHead className="font-semibold text-gray-900">Code</TableHead>
-                  <TableHead className="font-semibold text-gray-900">Status</TableHead>
+                  <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("color")}>
+                    <div className="flex items-center">
+                      Color
+                      {sortColumn === "color" && renderSortIndicator("color")}
+                    </div>
+                  </TableHead>
+                  <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("code")}>
+                    <div className="flex items-center">
+                      Code
+                      {sortColumn === "code" && renderSortIndicator("code")}
+                    </div>
+                  </TableHead>
+                  <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("status")}>
+                    <div className="flex items-center">
+                      Status
+                      {sortColumn === "status" && renderSortIndicator("status")}
+                    </div>
+                  </TableHead>
                   <TableHead className="font-semibold text-gray-900 text-center pr-6">Actions</TableHead>
                 </TableRow>
               </TableHeader>

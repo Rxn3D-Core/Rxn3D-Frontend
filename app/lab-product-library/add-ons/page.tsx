@@ -1,20 +1,19 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Search, ArrowUp, ArrowDown, Edit, Trash2, Copy, TrashIcon, Plus, Package } from "lucide-react"
+import { Search, ArrowUp, ArrowDown, Info, ChevronLeft, ChevronRight, Edit, Trash2, Copy, TrashIcon, Plus, Package } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Badge } from "@/components/ui/badge"
 import { AddAddOnModal } from "@/components/product-management/add-add-on-modal"
+import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import { useAddOns } from "@/contexts/product-add-on-context"
 import { useLanguage } from "@/contexts/language-context"
 import { useTranslation } from "react-i18next"
-import { getAuthToken } from "@/lib/auth-utils"
-import { redirectToLogin } from "@/lib/auth-utils"
 
 export default function AddOnsPage() {
   const {
@@ -32,14 +31,15 @@ export default function AddOnsPage() {
     setSelectedItems,
     fetchAddOns,
     deleteAddOn,
+    addOnGroups,
+    fetchAddOnGroups,
+    isLoadingGroups,
   } = useAddOns()
 
   // Modal states
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [editingAddOn, setEditingAddOn] = useState<any>(null)
-  const [isEditLoading, setIsEditLoading] = useState(false)
-  const [isCopying, setIsCopying] = useState(false)
 
   // Discard dialog states
   const [hasModalChanges, setHasModalChanges] = useState(false)
@@ -52,26 +52,55 @@ export default function AddOnsPage() {
   const { currentLanguage } = useLanguage()
   const { t } = useTranslation()
 
+  // Delete confirmation modal states
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null)
+  const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  // Fetch add-ons and groups when language changes
+  useEffect(() => {
+    fetchAddOns(currentPage, Number(entriesPerPage))
+    fetchAddOnGroups()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentLanguage])
+
   // Keep local pagination state in sync with context pagination
   useEffect(() => {
     if (addOnPagination) {
-      setEntriesPerPage(addOnPagination.per_page.toString())
-      setCurrentPage(addOnPagination.current_page)
+      if (addOnPagination.per_page.toString() !== entriesPerPage) {
+        setEntriesPerPage(addOnPagination.per_page.toString())
+      }
+      if (addOnPagination.current_page !== currentPage) {
+        setCurrentPage(addOnPagination.current_page)
+      }
     }
-  }, [addOnPagination?.per_page, addOnPagination?.current_page])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addOnPagination])
 
-  // Debounce search input and update searchQuery
+  // Debounced search
   useEffect(() => {
-    const handler = setTimeout(() => {
-      setSearchQuery(searchInput)
-      setCurrentPage(1)
-    }, 400)
-    return () => clearTimeout(handler)
+    const timer = setTimeout(() => {
+      if (searchInput !== searchQuery) {
+        setSearchQuery(searchInput)
+        setCurrentPage(1)
+      }
+    }, 500)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchInput])
 
-  // Only fetch add-ons when relevant state changes
+  // Keep search input in sync with context searchQuery
   useEffect(() => {
-    fetchAddOns(currentPage, Number(entriesPerPage), searchQuery, sortColumn ?? undefined, sortDirection)
+    if (searchQuery !== searchInput) {
+      setSearchInput(searchQuery)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery])
+
+  // Fetch add-ons when pagination, search, or sort changes
+  useEffect(() => {
+    fetchAddOns(currentPage, Number(entriesPerPage))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, entriesPerPage, searchQuery, sortColumn, sortDirection, currentLanguage])
 
@@ -82,8 +111,7 @@ export default function AddOnsPage() {
   }
 
   const handleSort = (column: string) => {
-    const columnKey = column as keyof import("@/contexts/product-add-on-context").AddOn
-    if (sortColumn === columnKey) {
+    if (sortColumn === column) {
       if (sortDirection === "asc") {
         setSortDirection("desc")
       } else if (sortDirection === "desc") {
@@ -93,10 +121,10 @@ export default function AddOnsPage() {
         setSortDirection("asc")
       }
     } else {
-      setSortColumn(columnKey)
+      setSortColumn(column)
       setSortDirection("asc")
     }
-    setCurrentPage(1) 
+    setCurrentPage(1)
   }
 
   const renderSortIndicator = (column: string) => {
@@ -125,105 +153,38 @@ export default function AddOnsPage() {
     }
   }
 
-  const handleEdit = async (addOn: any) => {
-    setIsEditLoading(true)
-    setEditingAddOn(null)
-    setIsEditModalOpen(false)
-    setIsCopying(false)
-    
-    try {
-      const detail = await getAddOnDetail(addOn.id)
-      const addOnDetail = detail && detail.data ? detail.data : detail
-      setEditingAddOn(addOnDetail)
-      setIsEditLoading(false)
-      setIsEditModalOpen(true)
-    } catch (error) {
-      console.error("Failed to fetch add-on detail:", error)
-      setIsEditLoading(false)
-    }
+  const handleEdit = (addOn: any) => {
+    setEditingAddOn(addOn)
+    setIsEditModalOpen(true)
   }
 
   const handleDelete = async (id: number) => {
-    await deleteAddOn(id)
+    setDeleteTargetId(id)
+    setIsDeleteModalOpen(true)
   }
 
-  // Create a standalone getAddOnDetail function
-  const getAddOnDetail = async (id: number) => {
-    try {
-      const token = getAuthToken()
-      const customerId = localStorage.getItem("customerId")
-      const url = customerId 
-        ? `${process.env.NEXT_PUBLIC_API_BASE_URL}/library/addons/${id}?customer_id=${customerId}`
-        : `${process.env.NEXT_PUBLIC_API_BASE_URL}/library/addons/${id}`
-      
-      const response = await fetch(url, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      })
-
-      if (response.status === 401) {
-        redirectToLogin()
-        throw new Error("Unauthorized")
-      }
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      const result = await response.json()
-      return result
-    } catch (error) {
-      console.error("Failed to fetch add-on detail:", error)
-      throw error
+  const confirmDelete = async () => {
+    if (deleteTargetId !== null) {
+      setIsDeleting(true)
+      await deleteAddOn(deleteTargetId)
+      setIsDeleting(false)
+      setIsDeleteModalOpen(false)
+      setDeleteTargetId(null)
     }
   }
 
-  const handleDuplicate = async (id: number) => {
-    setIsEditLoading(true)
-    setEditingAddOn(null)
-    setIsEditModalOpen(false)
-    setIsCopying(true)
-    
-    try {
-      const detail = await getAddOnDetail(id)
-      const addOnDetail = detail && detail.data ? detail.data : detail
-      
-      // Generate a unique code by appending timestamp to avoid conflicts
-      const timestamp = Date.now().toString().slice(-6) // Last 6 digits of timestamp
-      const uniqueCode = addOnDetail.code 
-        ? `${addOnDetail.code}_COPY_${timestamp}` 
-        : `ADDON_${timestamp}`
-      
-      // Remove id and other read-only/auto-generated fields to make it a new add-on
-      const {
-        id: _,
-        created_at,
-        updated_at,
-        deleted_at,
-        category_name,
-        subcategory_name,
-        subcategory,
-        ...addOnWithoutId
-      } = addOnDetail
-      
-      // Create duplicated add-on with unique code and name
-      const duplicatedAddOn = {
-        ...addOnWithoutId,
-        name: addOnDetail.name ? `${addOnDetail.name} (Copy)` : addOnDetail.name,
-        code: uniqueCode,
-      }
-      
-      setEditingAddOn(duplicatedAddOn)
-      setIsEditLoading(false)
-      setIsEditModalOpen(true)
-    } catch (error) {
-      console.error("Failed to duplicate add-on:", error)
-      setIsEditLoading(false)
-      setIsCopying(false)
+  const handleBulkDelete = () => {
+    setIsBulkDeleteModalOpen(true)
+  }
+
+  const confirmBulkDelete = async () => {
+    setIsDeleting(true)
+    for (const id of selectedItems) {
+      await deleteAddOn(id)
     }
+    setIsDeleting(false)
+    setIsBulkDeleteModalOpen(false)
+    setSelectedItems([])
   }
 
   const renderLoadingSkeleton = () => (
@@ -248,9 +209,6 @@ export default function AddOnsPage() {
           <TableCell>
             <Skeleton className="h-4 w-20" />
           </TableCell>
-          <TableCell>
-            <Skeleton className="h-4 w-16" />
-          </TableCell>
         </TableRow>
       ))}
     </>
@@ -265,8 +223,8 @@ export default function AddOnsPage() {
             <Package className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold text-gray-900">{t("Add-ons Management")}</h1>
-            <p className="text-sm text-gray-500">{t("Manage your add-on inventory and configurations")}</p>
+            <h1 className="text-xl font-semibold text-gray-900">{t("Global Add-ons Management")}</h1>
+            <p className="text-sm text-gray-500">{t("Manage your global add-on inventory and configurations")}</p>
           </div>
         </div>
       </div>
@@ -293,7 +251,7 @@ export default function AddOnsPage() {
             </SelectContent>
           </Select>
           <span className="text-sm text-gray-700">{t("entries")}</span>
-          
+
           {selectedItems.length > 0 && (
             <div className="ml-6 flex items-center gap-2">
               <span className="text-sm font-medium text-gray-700">
@@ -303,6 +261,7 @@ export default function AddOnsPage() {
                 variant="outline"
                 size="sm"
                 className="text-red-600 border-red-200 hover:bg-red-50"
+                onClick={handleBulkDelete}
               >
                 <TrashIcon className="h-4 w-4 mr-1" />
                 {t("Delete Selected")}
@@ -310,7 +269,7 @@ export default function AddOnsPage() {
             </div>
           )}
         </div>
-        
+
         <div className="flex gap-3">
           {/* <Button className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors">
             Import add-ons
@@ -322,7 +281,7 @@ export default function AddOnsPage() {
             <Plus className="h-4 w-4 mr-2" />
             Add add-ons
           </Button>
-          
+
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
@@ -342,10 +301,10 @@ export default function AddOnsPage() {
         </div>
       )}
 
-      {/* Table Section */}
-      <div>
-        {/* Add-ons Table */}
-        <div className="flex-grow">
+      {/* Table Section with Split View */}
+      <div className="flex">
+        {/* Left side - Add-ons */}
+        <div className="flex-grow border-r border-gray-200">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -357,27 +316,35 @@ export default function AddOnsPage() {
                       className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]"
                     />
                   </TableHead>
-                  <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("subcategory_name")}>
+                  <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("add_on_sub_category")}>
                     <div className="flex items-center">
-                      {t("Add-on Sub Category")}
-                      {renderSortIndicator("subcategory_name")}
+                      {t("Add-on Category", "Add-on Category")}
+                      {renderSortIndicator("add_on_sub_category")}
+                    </div>
+                  </TableHead>
+                  <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("code")}>
+                    <div className="flex items-center">
+                      {t("Category Code", "Category Code")}
+                      {renderSortIndicator("code")}
+                    </div>
+                  </TableHead>
+                  <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("add_on_sub_category")}>
+                    <div className="flex items-center">
+                      {t("Add-on Sub Category", "Add-on Sub Category")}
+                      {renderSortIndicator("add_on_sub_category")}
                     </div>
                   </TableHead>
                   <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("name")}>
                     <div className="flex items-center">
-                      {t("Add on")}
+                      {t("Add on", "Add on")}
                       {renderSortIndicator("name")}
                     </div>
                   </TableHead>
-                  {/* New Price Column */}
                   <TableHead className="font-semibold text-gray-900">
-                    {t("Price")}
-                  </TableHead>
-                  <TableHead className="font-semibold text-gray-900">
-                    {t("Status")}
+                    {t("Visibility", "Visibility")}
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900 text-center pr-6">
-                    {t("Actions")}
+                    {t("Actions", "Actions")}
                   </TableHead>
                 </TableRow>
               </TableHeader>
@@ -394,23 +361,14 @@ export default function AddOnsPage() {
                           className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]"
                         />
                       </TableCell>
+                      <TableCell className="font-medium text-gray-900">{addOn.category_name}</TableCell>
                       <TableCell className="text-gray-600">{addOn.subcategory_name}</TableCell>
                       <TableCell className="font-medium text-gray-900">{addOn.name}</TableCell>
-                      {/* New Price Cell */}
-                      <TableCell className="font-medium text-gray-900">
-                        {(addOn as any).lab_addon?.price ?? addOn.price ?? "-"}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={
-                            addOn.status === "Active"
-                              ? "bg-green-50 text-green-700 border-green-200"
-                              : "bg-gray-50 text-gray-700 border-gray-200"
-                          }
-                        >
-                          {t(addOn.status)}
-                        </Badge>
+                      <TableCell className="font-medium text-gray-700">
+                        All Labs
+                        <Button variant="ghost" size="sm" className="ml-2 h-6 w-6 p-0 text-gray-400 hover:text-gray-600">
+                          <Copy className="h-4 w-4" />
+                        </Button>
                       </TableCell>
                       <TableCell className="text-center pr-6">
                         <div className="flex items-center justify-center gap-1">
@@ -425,13 +383,7 @@ export default function AddOnsPage() {
                           >
                             <TrashIcon className="h-4 w-4" />
                           </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className="h-8 w-8 p-0 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
-                            onClick={() => handleDuplicate(addOn.id)}
-                            title={t("Duplicate add-on")}
-                          >
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-600 hover:text-gray-800 hover:bg-gray-50">
                             <Copy className="h-4 w-4" />
                           </Button>
                         </div>
@@ -440,7 +392,7 @@ export default function AddOnsPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-12">
+                    <TableCell colSpan={6} className="text-center py-12">
                       <div className="flex flex-col items-center gap-4">
                         <div className="p-4 bg-gray-100 rounded-full">
                           <Package className="h-8 w-8 text-gray-400" />
@@ -519,6 +471,86 @@ export default function AddOnsPage() {
             </div>
           </div>
         </div>
+
+        {/* Right side - Add-on Groups */}
+        {/* <div className="w-1/3 min-w-[300px] bg-gray-50/30">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-gray-50/80 hover:bg-gray-50">
+                  <TableHead className="w-12 pl-6">
+                    <Checkbox className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]" />
+                  </TableHead>
+                  <TableHead>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <span className="font-semibold text-gray-900">{t("Add-on Group")}</span>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Info className="ml-1 h-4 w-4 text-gray-400 cursor-pointer" />
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs p-4 bg-white border border-gray-200 shadow-lg rounded-md">
+                              <p className="text-sm text-gray-600">
+                                {t("Add-on Groups are sets of frequently used add-ons linked to specific products for faster, cleaner case setup.", "Add-on Groups are sets of frequently used add-ons linked to specific products for faster, cleaner case setup.")}
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+                      <Button className="bg-[#1162a8] hover:bg-[#0f5497] text-white text-xs px-2 py-1 h-7 rounded-lg shadow-sm transition-colors">
+                        {t("Create Group", "Create Group")}
+                      </Button>
+                    </div>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoadingGroups ? (
+                  [...Array(5)].map((_, index) => (
+                    <TableRow key={index}>
+                      <TableCell>
+                        <Skeleton className="h-4 w-4" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-32" />
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : addOnGroups && addOnGroups.length > 0 ? (
+                  addOnGroups.map((group) => (
+                    <TableRow key={group.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                      <TableCell className="pl-6">
+                        <Checkbox className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]" />
+                      </TableCell>
+                      <TableCell className="font-medium text-gray-900">{group.name}</TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={2} className="text-center py-12">
+                      <div className="flex flex-col items-center gap-4">
+                        <div className="p-4 bg-gray-100 rounded-full">
+                          <Package className="h-8 w-8 text-gray-400" />
+                        </div>
+                        <div className="text-center">
+                          <h3 className="font-medium text-gray-900 mb-1">{t("No add-on groups found", "No add-on groups found")}</h3>
+                          <p className="text-sm text-gray-500 mb-4">
+                            {t("Get started by creating your first add-on group", "Get started by creating your first add-on group")}
+                          </p>
+                          <Button className="bg-[#1162a8] hover:bg-[#0f5497] text-white">
+                            <Plus className="h-4 w-4 mr-2" />
+                            {t("Create Group", "Create Group")}
+                          </Button>
+                        </div>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </div> */}
       </div>
 
       {/* Create Add-on Modal */}
@@ -531,17 +563,35 @@ export default function AddOnsPage() {
       {/* Edit Add-on Modal */}
       {editingAddOn && (
         <AddAddOnModal
-          isOpen={isEditModalOpen && !isEditLoading}
-          onClose={() => {
-            setIsEditModalOpen(false)
-            setIsCopying(false)
-          }}
+          isOpen={isEditModalOpen}
+          onClose={() => setIsEditModalOpen(false)}
           onHasChangesChange={setHasModalChanges}
           addOn={editingAddOn}
-          isEditing={!isCopying}
-          isCopying={isCopying}
+          isEditing={true}
         />
       )}
+
+      {/* Delete Confirmation Modal for single delete */}
+      <DeleteConfirmationModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => {
+          setIsDeleteModalOpen(false)
+          setDeleteTargetId(null)
+        }}
+        onConfirm={confirmDelete}
+        itemName={t("add-on")}
+        isLoading={isDeleting}
+      />
+
+      {/* Delete Confirmation Modal for bulk delete */}
+      <DeleteConfirmationModal
+        isOpen={isBulkDeleteModalOpen}
+        onClose={() => setIsBulkDeleteModalOpen(false)}
+        onConfirm={confirmBulkDelete}
+        itemName={t("add-on")}
+        itemCount={selectedItems.length}
+        isLoading={isDeleting}
+      />
     </div>
   )
 }

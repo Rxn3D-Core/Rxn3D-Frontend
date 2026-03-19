@@ -588,7 +588,7 @@ export const ExtractionsFiltersSchema = z.object({
   is_custom: z.enum(["Yes", "No"]).optional(),
   per_page: z.number().min(1).max(100).default(10),
   page: z.number().min(1).default(1),
-  sort_by: z.enum(["name", "code", "sequence", "created_at"]).default("sequence"),
+  sort_by: z.enum(["name", "code", "sequence", "created_at", "color", "status"]).default("sequence"),
   sort_order: z.enum(["asc", "desc"]).default("asc"),
   lang: z.string().optional(),
 })

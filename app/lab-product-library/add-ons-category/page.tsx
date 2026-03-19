@@ -254,11 +254,17 @@ export default function AddOnsCategoryPage() {
                   {renderSortIndicator("name")}
                 </div>
               </TableHead>
-              <TableHead className="font-semibold text-gray-900">
-                {t("Category Code", { defaultValue: "Category Code" })}
+              <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("code")}>
+                <div className="flex items-center">
+                  {t("Category Code", { defaultValue: "Category Code" })} 
+                  {renderSortIndicator("code")}
+                </div>
               </TableHead>
-              <TableHead className="font-semibold text-gray-900">
-                {t("Status", { defaultValue: "Status" })}
+              <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("status")}>
+                <div className="flex items-center">
+                  {t("Status", { defaultValue: "Status" })} 
+                  {renderSortIndicator("status")}
+                </div>
               </TableHead>
               <TableHead className="font-semibold text-gray-900 text-center pr-6">
                 {t("Action", { defaultValue: "Action" })}

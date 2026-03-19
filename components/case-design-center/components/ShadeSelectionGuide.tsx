@@ -56,20 +56,20 @@ export function ShadeSelectionGuide({
   return (
     <div className="mb-4 border border-[#1162A8] rounded-lg p-4 bg-white">
       {/* Fields grid */}
-      <div className={`grid ${toothShadeOnly ? 'grid-cols-2' : stumpShade ? 'grid-cols-3' : 'grid-cols-2'} gap-3 mb-3`}>
+      <div className={`grid ${!selectedShadeGuide ? 'grid-cols-1' : toothShadeOnly ? 'grid-cols-2' : stumpShade ? 'grid-cols-3' : 'grid-cols-2'} gap-3 mb-3`}>
         {/* Shade Guide Selector Dropdown */}
         <div className="relative">
-          <fieldset className="border border-[#34a853] rounded px-3 py-0 relative h-[42px] flex items-center">
-            <legend className="text-sm text-[#34a853] px-1 leading-none">
-              Shade guide selected
+          <fieldset className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${selectedShadeGuide ? 'border-[#34a853]' : 'border-[#cf0202]'}`}>
+            <legend className={`text-sm px-1 leading-none ${selectedShadeGuide ? 'text-[#34a853]' : 'text-[#cf0202]'}`}>
+              {selectedShadeGuide ? 'Shade guide selected' : 'Select Shade Guide'}
             </legend>
             <button
               onClick={() => setShowShadeGuideDropdown(!showShadeGuideDropdown)}
               className="w-full flex items-center justify-between text-left"
             >
-              <span className="text-lg text-[#000000]">{selectedShadeGuide}</span>
+              <span className="text-lg text-[#000000]">{selectedShadeGuide || ''}</span>
               <div className="flex items-center gap-2">
-                <Check size={16} className="text-[#34a853]" />
+                {selectedShadeGuide && <Check size={16} className="text-[#34a853]" />}
                 <ChevronDown size={16} className={`text-[#7f7f7f] transition-transform ${showShadeGuideDropdown ? 'rotate-180' : ''}`} />
               </div>
             </button>
@@ -101,50 +101,11 @@ export function ShadeSelectionGuide({
           )}
         </div>
 
-        {/* Tooth-shade-only mode (removable products): show Tooth Shade directly */}
-        {toothShadeOnly ? (
-          <div
-            className={`relative border rounded h-[42px] flex items-center px-3 cursor-pointer hover:bg-gray-50 transition-colors ${
-              toothShade ? 'border-[#34a853]' : 'border-[#cf0202]'
-            }`}
-            onClick={() => setShadeSelectionState(prev => ({ ...prev, fieldType: 'tooth_shade' }))}
-          >
-            <label className={`absolute left-3 top-0 -translate-y-1/2 text-xs bg-white px-1 pointer-events-none ${
-              toothShade ? 'text-[#34a853]' : 'text-[#cf0202]'
-            }`}>
-              Tooth Shade
-            </label>
-            {toothShade && (
-              <div className="flex items-center gap-2 w-full">
-                <span className="text-base text-[#000000]">{`${selectedShadeGuide} - ${toothShade}`}</span>
-                <Check size={16} className="text-[#34a853] ml-auto" />
-              </div>
-            )}
-          </div>
-        ) : (
+        {/* Only show shade fields after a shade guide is selected */}
+        {selectedShadeGuide && (
           <>
-            {/* Stump Shade Field — always visible for fixed products, clickable to re-select */}
-            <div
-              className={`relative border rounded h-[42px] flex items-center px-3 cursor-pointer hover:bg-gray-50 transition-colors ${
-                stumpShade ? 'border-[#34a853]' : 'border-[#cf0202]'
-              }`}
-              onClick={() => setShadeSelectionState(prev => ({ ...prev, fieldType: 'stump_shade' }))}
-            >
-              <label className={`absolute left-3 top-0 -translate-y-1/2 text-xs bg-white px-1 pointer-events-none ${
-                stumpShade ? 'text-[#34a853]' : 'text-[#cf0202]'
-              }`}>
-                Stump Shade
-              </label>
-              {stumpShade && (
-                <div className="flex items-center gap-2 w-full">
-                  <span className="text-base text-[#000000]">{`${selectedShadeGuide} - ${stumpShade}`}</span>
-                  <Check size={16} className="text-[#34a853] ml-auto" />
-                </div>
-              )}
-            </div>
-
-            {/* Tooth Shade Field — only shown after stump shade is filled */}
-            {stumpShade && (
+            {/* Tooth-shade-only mode (removable products): show Tooth Shade directly */}
+            {toothShadeOnly ? (
               <div
                 className={`relative border rounded h-[42px] flex items-center px-3 cursor-pointer hover:bg-gray-50 transition-colors ${
                   toothShade ? 'border-[#34a853]' : 'border-[#cf0202]'
@@ -163,17 +124,63 @@ export function ShadeSelectionGuide({
                   </div>
                 )}
               </div>
+            ) : (
+              <>
+                {/* Stump Shade Field — shown after shade guide selected */}
+                <div
+                  className={`relative border rounded h-[42px] flex items-center px-3 cursor-pointer hover:bg-gray-50 transition-colors ${
+                    stumpShade ? 'border-[#34a853]' : 'border-[#cf0202]'
+                  }`}
+                  onClick={() => setShadeSelectionState(prev => ({ ...prev, fieldType: 'stump_shade' }))}
+                >
+                  <label className={`absolute left-3 top-0 -translate-y-1/2 text-xs bg-white px-1 pointer-events-none ${
+                    stumpShade ? 'text-[#34a853]' : 'text-[#cf0202]'
+                  }`}>
+                    Stump Shade
+                  </label>
+                  {stumpShade && (
+                    <div className="flex items-center gap-2 w-full">
+                      <span className="text-base text-[#000000]">{`${selectedShadeGuide} - ${stumpShade}`}</span>
+                      <Check size={16} className="text-[#34a853] ml-auto" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Tooth Shade Field — only shown after stump shade is filled */}
+                {stumpShade && (
+                  <div
+                    className={`relative border rounded h-[42px] flex items-center px-3 cursor-pointer hover:bg-gray-50 transition-colors ${
+                      toothShade ? 'border-[#34a853]' : 'border-[#cf0202]'
+                    }`}
+                    onClick={() => setShadeSelectionState(prev => ({ ...prev, fieldType: 'tooth_shade' }))}
+                  >
+                    <label className={`absolute left-3 top-0 -translate-y-1/2 text-xs bg-white px-1 pointer-events-none ${
+                      toothShade ? 'text-[#34a853]' : 'text-[#cf0202]'
+                    }`}>
+                      Tooth Shade
+                    </label>
+                    {toothShade && (
+                      <div className="flex items-center gap-2 w-full">
+                        <span className="text-base text-[#000000]">{`${selectedShadeGuide} - ${toothShade}`}</span>
+                        <Check size={16} className="text-[#34a853] ml-auto" />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </>
         )}
       </div>
 
-      {/* Shade guide image — always shown for the active field */}
-      <ToothShadeSelectionSVG
-        selectedShades={activeShade ? [activeShade] : []}
-        onShadeClick={handleShadeSelect}
-        className="w-full"
-      />
+      {/* Shade guide image — only shown after user selects a shade guide */}
+      {selectedShadeGuide && (
+        <ToothShadeSelectionSVG
+          selectedShades={activeShade ? [activeShade] : []}
+          onShadeClick={handleShadeSelect}
+          className="w-full"
+        />
+      )}
     </div>
   );
 }

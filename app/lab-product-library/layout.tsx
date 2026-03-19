@@ -15,7 +15,7 @@ import { StagesProvider } from "@/contexts/product-stages-context"
 import { TeethShadesProvider } from "@/contexts/product-teeth-shade-context"
 import { GumShadesProvider } from "@/contexts/product-gum-shade-context"
 import { AddOnsProvider } from "@/contexts/product-add-on-context"
-// Removed ProductsProvider - now using React Query hooks directly in components
+import { ProductsProvider } from "@/contexts/product-products-context"
 import { AddOnsCategoryProvider } from "@/contexts/product-add-on-category-context"
 import { CaseTrackingProvider } from "@/contexts/case-tracking-context"
 import { ProtectedRoute } from "@/components/protected-route"
@@ -38,7 +38,8 @@ export default function LabProductLibraryLayout({
                       <GumShadesProvider>
                         <AddOnsProvider>
                           <AddOnsCategoryProvider>
-                            <CaseTrackingProvider>
+                            <ProductsProvider>
+                              <CaseTrackingProvider>
                               <div className="flex h-screen bg-[#f9f9f9] overflow-hidden">
                                 <DashboardSidebar />
                                 <div className="flex-1 flex flex-col overflow-hidden">
@@ -51,7 +52,8 @@ export default function LabProductLibraryLayout({
                                   </div>
                                 </div>
                               </div>
-                            </CaseTrackingProvider>
+                              </CaseTrackingProvider>
+                            </ProductsProvider>
                           </AddOnsCategoryProvider>
                         </AddOnsProvider>
                       </GumShadesProvider>

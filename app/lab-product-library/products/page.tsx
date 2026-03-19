@@ -1,136 +1,101 @@
 "use client"
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react"
-import { Search, ArrowUp, ArrowDown, Edit, TrashIcon, Copy, Plus, Package } from "lucide-react"
+import { Search, ArrowUp, ArrowDown, Copy, Edit, TrashIcon, Package2, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { SearchableSelect } from "@/components/ui/searchable-select"
 import { TableRowSkeleton } from "@/components/ui/loading-skeleton"
-import { AddLabProductModal } from "@/components/product-management/add-lab-product-modal"
-import { useProductsQuery } from "@/hooks/useProductsQuery"
-import { useProductMutations } from "@/hooks/useProductMutations"
-import { getAuthToken, redirectToLogin } from "@/lib/auth-utils"
+import { AddProductModal } from "@/components/product-management/add-product-modal"
+import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
+import { useProducts } from "@/contexts/product-products-context"
 import { useProductCategory } from "@/contexts/product-category-context"
 import { useLanguage } from "@/contexts/language-context"
 import { useTranslation } from "react-i18next"
 import { LoadingOverlay } from "@/components/ui/loading-overlay"
 
 export default function ProductsPage() {
-  // Use React Query hooks for better state management
   const {
-    updateProduct: updateProductMutation,
-    createProduct: createProductMutation,
-    deleteProduct: deleteProductMutation,
-    isUpdating,
-    isCreating,
-    isDeleting,
-  } = useProductMutations()
-
-  // Create a standalone getProductDetail function
-  const getProductDetail = async (id: number) => {
-    try {
-      const token = getAuthToken()
-      const customerId = localStorage.getItem("customerId")
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/library/products/${id}?customer_id=${customerId}`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      })
-
-      if (response.status === 401) {
-        redirectToLogin()
-        throw new Error("Unauthorized")
-      }
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      const result = await response.json()
-      return result
-    } catch (error) {
-      console.error("Failed to fetch product detail:", error)
-      throw error
-    }
-  }
-
-  // Local state for selected items
-  const [selectedItems, setSelectedItems] = useState<number[]>([])
-
-  // Local state for filters and pagination
-  const [searchQuery, setSearchQuery] = useState("")
-  const [sortColumn, setSortColumn] = useState<string | null>(null)
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc" | null>(null)
-  const [statusFilter, setStatusFilter] = useState<string | null>(null)
-  const [subcategoryFilter, setSubcategoryFilter] = useState<number | null>(null)
-  const [currentPage, setCurrentPage] = useState(1)
-  const [entriesPerPage, setEntriesPerPage] = useState("10")
-
-  // Use React Query for data fetching
-  const {
-    data: productsData,
+    products,
+    pagination,
     isLoading,
     error,
-    refetch,
-  } = useProductsQuery({
-    page: currentPage,
-    perPage: Number(entriesPerPage),
     searchQuery,
     sortColumn,
     sortDirection,
     statusFilter,
     subcategoryFilter,
-  })
+    selectedItems,
+    fetchProducts,
+    setSearchQuery,
+    setSortColumn,
+    setSortDirection,
+    setStatusFilter,
+    setSubcategoryFilter,
+    setSelectedItems,
+    deleteProduct,
+    deleteMultipleProducts,
+    getProductDetail,
+  } = useProducts()
 
-  // Ensure products is always an array to prevent rendering errors
-  const products = useMemo(() => {
-    const productsFromData = productsData?.products
-    if (Array.isArray(productsFromData)) {
-      return productsFromData
-    }
-    // If it's an object with a data property, extract it
-    if (productsFromData && typeof productsFromData === 'object' && 'data' in productsFromData) {
-      return Array.isArray(productsFromData.data) ? productsFromData.data : []
-    }
-    return []
-  }, [productsData?.products])
-  
-  const pagination = productsData?.pagination || {
-    total: 0,
-    per_page: 10,
-    current_page: 1,
-    last_page: 1,
-  }
-
-  const { 
-    categories, 
-    fetchParentDropdownCategories, 
-    allCategories, 
-    allCategoriesLoading, 
+  const {
+    categories,
+    fetchParentDropdownCategories,
+    allCategories,
+    allCategoriesLoading,
     fetchAllCategories,
     subcategoriesByCategory,
     subcategoriesLoading,
-    fetchSubcategoriesByCategory
+    fetchSubcategoriesByCategory,
   } = useProductCategory()
 
+  const [entriesPerPage, setEntriesPerPage] = useState(pagination.per_page.toString() || "10")
+  const [currentPage, setCurrentPage] = useState(pagination.current_page || 1)
   const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false)
-  const [editingProduct, setEditingProduct] = useState<any | null>(null)
-  const [isEditLoading, setIsEditLoading] = useState(false)
-  const [deletingProductId, setDeletingProductId] = useState<number | null>(null)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false)
   const [searchInput, setSearchInput] = useState(searchQuery)
-  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null)
-  const [availableSubcategories, setAvailableSubcategories] = useState<any[]>([])
   const { currentLanguage } = useLanguage()
   const { t } = useTranslation();
   const isInitialMount = useRef(true)
+
+  // State for delete modal
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [deleteProductId, setDeleteProductId] = useState<number | null>(null)
+  const [isMultiDelete, setIsMultiDelete] = useState(false)
+
+  // State for editing product
+  const [editingProduct, setEditingProduct] = useState<any | null>(null)
+  const [isEditLoading, setIsEditLoading] = useState(false)
+
+  // State for category/subcategory filters
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null)
+  const [availableSubcategories, setAvailableSubcategories] = useState<any[]>([])
+
+  // Open single delete modal
+  const openDeleteModal = (id: number) => {
+    setDeleteProductId(id)
+    setIsMultiDelete(false)
+    setIsDeleteModalOpen(true)
+  }
+
+  // Open multi delete modal
+  const openMultiDeleteModal = () => {
+    setDeleteProductId(null)
+    setIsMultiDelete(true)
+    setIsDeleteModalOpen(true)
+  }
+
+  // Confirm delete handler
+  const handleConfirmDelete = async () => {
+    if (isMultiDelete) {
+      await deleteMultipleProducts(selectedItems)
+    } else if (deleteProductId !== null) {
+      await deleteProduct(deleteProductId)
+    }
+    setIsDeleteModalOpen(false)
+  }
 
   // Debounce search input
   useEffect(() => {
@@ -149,9 +114,46 @@ export default function ProductsPage() {
     }
   }, [searchQuery, currentPage])
 
-  // React Query will automatically refetch when dependencies change
+  // Initial load effect
+  useEffect(() => {
+    fetchProducts(
+      currentPage,
+      Number(entriesPerPage),
+      searchQuery,
+      sortColumn,
+      sortDirection,
+      statusFilter,
+      subcategoryFilter,
+    )
+  }, []) // Only run once on mount
 
-  // Fetch all categories on component mount
+  // Effect for when filters/search change
+  useEffect(() => {
+    if (!isInitialMount.current) {
+      fetchProducts(
+        currentPage,
+        Number(entriesPerPage),
+        searchQuery,
+        sortColumn,
+        sortDirection,
+        statusFilter,
+        subcategoryFilter,
+      )
+    } else {
+      isInitialMount.current = false
+    }
+  }, [
+    currentPage,
+    entriesPerPage,
+    searchQuery,
+    sortColumn,
+    sortDirection,
+    statusFilter,
+    subcategoryFilter,
+    currentLanguage,
+  ])
+
+  // Fetch all categories on mount
   useEffect(() => {
     fetchAllCategories(currentLanguage)
   }, [fetchAllCategories, currentLanguage])
@@ -165,10 +167,6 @@ export default function ProductsPage() {
     }
   }, [subcategoriesByCategory, selectedCategoryId])
 
-  // Debug: Log categories data
-  useEffect(() => {
-  }, [allCategories, availableSubcategories, subcategoriesByCategory, selectedCategoryId])
-
   const handlePageChange = (page: number) => {
     setCurrentPage(page)
   }
@@ -179,23 +177,12 @@ export default function ProductsPage() {
   }
 
   const handleSort = (columnKey: string) => {
-    let newSortDirection = sortDirection
-    let newSortColumn = sortColumn
     if (sortColumn === columnKey) {
-      if (sortDirection === "asc") {
-        newSortDirection = "desc"
-      } else if (sortDirection === "desc") {
-        newSortColumn = null
-        newSortDirection = null
-      } else {
-        newSortDirection = "asc"
-      }
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc")
     } else {
-      newSortColumn = columnKey
-      newSortDirection = "asc"
+      setSortColumn(columnKey)
+      setSortDirection("asc")
     }
-    setSortColumn(newSortColumn)
-    setSortDirection(newSortDirection)
     setCurrentPage(1)
   }
 
@@ -210,7 +197,7 @@ export default function ProductsPage() {
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedItems(products.map((product: any) => product.id))
+      setSelectedItems(products.map((product) => product.id))
     } else {
       setSelectedItems([])
     }
@@ -234,93 +221,8 @@ export default function ProductsPage() {
     setEditingProduct(null)
   }
 
-  const getVisibilityStatus = (productStatus: string) => {
-    return productStatus === "Active" ? "All labs" : "Selected"
-  }
-
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text)
-  }
-
-  const handleDuplicate = async (id: number) => {
-    setIsEditLoading(true)
-    setEditingProduct(null)
-    setIsAddProductModalOpen(false)
-    
-    try {
-      const detail = await getProductDetail(id)
-      const productDetail = detail && detail.data ? detail.data : detail
-      
-      // Generate a unique code by appending timestamp to avoid conflicts
-      const timestamp = Date.now().toString().slice(-6) // Last 6 digits of timestamp
-      const uniqueCode = productDetail.code 
-        ? `${productDetail.code}_COPY_${timestamp}` 
-        : `PROD_${timestamp}`
-      
-      // Remove id and other read-only/auto-generated fields to make it a new product
-      const {
-        id: _,
-        created_at,
-        updated_at,
-        deleted_at,
-        image_url, // Use image instead if base64, but remove URL
-        ...productWithoutId
-      } = productDetail
-      
-      // Create duplicated product with unique code and name
-      const duplicatedProduct = {
-        ...productWithoutId,
-        name: productDetail.name ? `${productDetail.name} (Copy)` : productDetail.name,
-        code: uniqueCode,
-        // Ensure image is null if it's just a URL (we don't want to copy the URL)
-        image: productDetail.image || null, // Keep base64 image if present, otherwise null
-      }
-      
-      setEditingProduct(duplicatedProduct)
-      setIsEditLoading(false)
-      setIsAddProductModalOpen(true)
-    } catch (error) {
-      console.error("Failed to duplicate product:", error)
-      setIsEditLoading(false)
-    }
-  }
-
-  async function handleDelete(id: number): Promise<void> {
-    setDeletingProductId(id)
-    setShowDeleteConfirm(true)
-  }
-
-  const confirmDelete = async () => {
-    if (deletingProductId) {
-      try {
-        await deleteProductMutation(deletingProductId)
-        setShowDeleteConfirm(false)
-        setDeletingProductId(null)
-        // React Query will automatically refetch the data
-      } catch (error) {
-        console.error("Failed to delete product:", error)
-      }
-    }
-  }
-
-  const handleBulkDelete = async () => {
-    setShowBulkDeleteConfirm(true)
-  }
-
-  const confirmBulkDelete = async () => {
-    if (selectedItems.length > 0) {
-      try {
-        // Delete products one by one using the mutation
-        for (const id of selectedItems) {
-          await deleteProductMutation(id)
-        }
-        setShowBulkDeleteConfirm(false)
-        setSelectedItems([])
-        // React Query will automatically refetch the data
-      } catch (error) {
-        console.error("Failed to delete products:", error)
-      }
-    }
   }
 
   function handleEdit(id: number): void {
@@ -335,6 +237,45 @@ export default function ProductsPage() {
     })
   }
 
+  const handleDuplicate = async (id: number) => {
+    setIsEditLoading(true)
+    setEditingProduct(null)
+    setIsAddProductModalOpen(false)
+
+    try {
+      const detail = await getProductDetail(id)
+      const productDetail = detail && detail.data ? detail.data : detail
+
+      const timestamp = Date.now().toString().slice(-6)
+      const uniqueCode = productDetail.code
+        ? `${productDetail.code}_COPY_${timestamp}`
+        : `PROD_${timestamp}`
+
+      const {
+        id: _,
+        created_at,
+        updated_at,
+        deleted_at,
+        image_url,
+        ...productWithoutId
+      } = productDetail
+
+      const duplicatedProduct = {
+        ...productWithoutId,
+        name: productDetail.name ? `${productDetail.name} (Copy)` : productDetail.name,
+        code: uniqueCode,
+        image: productDetail.image || null,
+      }
+
+      setEditingProduct(duplicatedProduct)
+      setIsEditLoading(false)
+      setIsAddProductModalOpen(true)
+    } catch (error) {
+      console.error("Failed to duplicate product:", error)
+      setIsEditLoading(false)
+    }
+  }
+
   // Handle category selection
   const handleCategoryChange = async (categoryId: string) => {
     if (categoryId === "all") {
@@ -344,13 +285,10 @@ export default function ProductsPage() {
     } else {
       const id = parseInt(categoryId)
       setSelectedCategoryId(id)
-      setSubcategoryFilter(null) // Reset subcategory filter when category changes
-      
-      // Fetch subcategories for the selected category
+      setSubcategoryFilter(null)
+
       try {
         await fetchSubcategoriesByCategory(id, currentLanguage)
-        // The subcategoriesByCategory will be updated by the context, 
-        // we need to wait for it to be updated
       } catch (error) {
         console.error('Error fetching subcategories:', error)
         setAvailableSubcategories([])
@@ -367,11 +305,11 @@ export default function ProductsPage() {
     }
   }, [])
 
-  // Memoize category options to prevent unnecessary re-renders
+  // Memoize category options
   const categoryOptions = useMemo(() => [
     { value: "all", label: t("All Categories") },
     ...(Array.isArray(allCategories) && allCategories.length > 0
-      ? allCategories.map((category) => ({
+      ? allCategories.map((category: any) => ({
           value: category.id.toString(),
           label: category.name,
         }))
@@ -382,9 +320,9 @@ export default function ProductsPage() {
   const subcategoryOptions = useMemo(() => [
     { value: "all", label: t("All Subcategories") },
     ...(Array.isArray(availableSubcategories) && availableSubcategories.length > 0
-      ? availableSubcategories.map((subcategory) => ({
+      ? availableSubcategories.map((subcategory: any) => ({
           value: subcategory.id.toString(),
-          label: subcategory.name || subcategory.sub_name, // Use name first, fallback to sub_name
+          label: subcategory.name || subcategory.sub_name,
         }))
       : [])
   ], [availableSubcategories, t])
@@ -395,11 +333,11 @@ export default function ProductsPage() {
       <div className="px-6 py-4 border-b border-gray-200 bg-gray-50/50">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-[#1162a8] rounded-lg">
-            <Package className="h-5 w-5 text-white" />
+            <Package2 className="h-5 w-5 text-white" />
           </div>
           <div>
             <h1 className="text-xl font-semibold text-gray-900">{t("Products Management")}</h1>
-            <p className="text-sm text-gray-500">{t("Manage your product inventory and configurations")}</p>
+            <p className="text-sm text-gray-500">{t("Manage your product catalog and configurations")}</p>
           </div>
         </div>
       </div>
@@ -479,7 +417,7 @@ export default function ProductsPage() {
                 variant="outline"
                 size="sm"
                 className="text-red-600 border-red-200 hover:bg-red-50"
-                onClick={handleBulkDelete}
+                onClick={openMultiDeleteModal}
               >
                 <TrashIcon className="h-4 w-4 mr-1" />
                 {t("Delete Selected")}
@@ -491,9 +429,6 @@ export default function ProductsPage() {
         {/* Actions Row */}
         <div className="flex flex-col sm:flex-row gap-3 sm:justify-between sm:items-center">
           <div className="flex flex-col sm:flex-row gap-3">
-            {/* <Button className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors">
-              {t("Import from product library")}
-            </Button> */}
             <Button
               className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
               onClick={() => {
@@ -505,7 +440,7 @@ export default function ProductsPage() {
               {t("Add Product")}
             </Button>
           </div>
-          
+
           <div className="relative w-full sm:w-auto">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
@@ -521,7 +456,7 @@ export default function ProductsPage() {
 
       {error && (
         <div className="px-6 py-3 bg-red-50 border-b border-red-200">
-          <p className="text-sm text-red-600">{error instanceof Error ? error.message : String(error)}</p>
+          <p className="text-sm text-red-600">{typeof error === 'string' ? error : String(error)}</p>
         </div>
       )}
 
@@ -538,150 +473,153 @@ export default function ProductsPage() {
                     className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8] h-4 w-4"
                   />
                 </TableHead>
-                <TableHead className="font-semibold text-gray-900 py-2 px-2">{t("Product")}</TableHead>
-                <TableHead className="font-semibold text-gray-900 py-2 px-2">{t("Case Pan")}</TableHead>
-                <TableHead className="font-semibold text-gray-900 py-2 px-2">{t("Category Hierarchy")}</TableHead>
-                <TableHead className="font-semibold text-gray-900 py-2 px-2">{t("Code")}</TableHead>
-                <TableHead className="font-semibold text-gray-900 py-2 px-2">{t("Arch type")}</TableHead>
-                <TableHead className="font-semibold text-gray-900 py-2 px-2">{t("Price")}</TableHead>
+                <TableHead className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors" onClick={() => handleSort("name")}>
+                  {t("Product")} {renderSortIndicator("name")}
+                </TableHead>
+                <TableHead className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors" onClick={() => handleSort("case_pan")}>
+                  {t("Case Pan")} {renderSortIndicator("case_pan")}
+                </TableHead>
+                <TableHead className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors" onClick={() => handleSort("category_hierarchy")}>
+                  {t("Category Hierarchy")} {renderSortIndicator("category_hierarchy")}
+                </TableHead>
+                <TableHead className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors" onClick={() => handleSort("code")}>
+                  {t("Code")} {renderSortIndicator("code")}
+                </TableHead>
+                <TableHead className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors" onClick={() => handleSort("arch_type")}>
+                  {t("Arch type")} {renderSortIndicator("arch_type")}
+                </TableHead>
+                <TableHead className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors" onClick={() => handleSort("price")}>
+                  {t("Price")} {renderSortIndicator("price")}
+                </TableHead>
                 <TableHead className="font-semibold text-gray-900 text-center py-2 px-2">{t("Actions")}</TableHead>
               </TableRow>
             </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <>
-                {Array.from({ length: 5 }).map((_, index) => (
-                  <TableRowSkeleton key={index} />
-                ))}
-              </>
-            ) : products.length > 0 ? (
-              products.map((product: any) => {
-                // Case Pan
-                const casePanObj = (product.subcategory as any)?.case_pan
-                const casePanName = casePanObj?.name || "-"
-                const casePanColor = casePanObj?.color_code || "#e5e7eb" // fallback to gray if not present
-                // Category
-                const categoryName = product.subcategory?.category?.name || "-"
+            <TableBody>
+              {isLoading ? (
+                <>
+                  {Array.from({ length: 5 }).map((_, index) => (
+                    <TableRowSkeleton key={index} />
+                  ))}
+                </>
+              ) : products.length > 0 ? (
+                products.map((product: any) => {
+                  // Case Pan
+                  const casePanObj = (product.subcategory as any)?.case_pan
+                  const casePanName = casePanObj?.name || "-"
+                  const casePanColor = casePanObj?.color_code || "#e5e7eb"
 
-                // Sub Category
-                const subcategoryName = product.subcategory?.name || "-"
-                
-                // Category hierarchy display
-                const categoryHierarchy = categoryName !== "-" && subcategoryName !== "-" 
-                  ? `${categoryName} → ${subcategoryName}`
-                  : categoryName !== "-" 
-                    ? categoryName 
-                    : subcategoryName
+                  // Category hierarchy
+                  const categoryName = product.subcategory?.category?.name || "-"
+                  const subcategoryName = product.subcategory?.name || "-"
+                  const categoryHierarchy = categoryName !== "-" && subcategoryName !== "-"
+                    ? `${categoryName} → ${subcategoryName}`
+                    : categoryName !== "-"
+                      ? categoryName
+                      : subcategoryName
 
-                // Product Name
-                const productName = product.name || "-"
+                  // Product details
+                  const productName = product.name || "-"
+                  const code = product.code || "-"
+                  const archType = product.subcategory?.type || "-"
+                  const priceValue = product.price ?? product.base_price
+                  const price = priceValue !== null && priceValue !== undefined ? `$${priceValue}` : "-"
 
-                // Code
-                const code = product.code || "-"
-
-                // Arch type from subcategory.type
-                const archType = product.subcategory?.type || "-";
-
-                // Price: check for price in various possible locations
-                const priceValue = (product as any).price ?? (product as any).lab_product?.price ?? (product as any).base_price;
-                const price = priceValue !== null && priceValue !== undefined ? `$${priceValue}` : "-";
-
-                return (
-                  <TableRow key={product.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-                    <TableCell className="pl-4 py-2">
-                      <Checkbox
-                        checked={selectedItems.includes(product.id)}
-                        onCheckedChange={(checked) => handleSelectItem(product.id, !!checked)}
-                        className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8] h-4 w-4"
-                      />
-                    </TableCell>
-                    <TableCell className="py-2 px-2">
-                      <span className="truncate block text-xs max-w-[180px]">{productName}</span>
-                    </TableCell>
-                    <TableCell className="py-2 px-2">
-                      <span className="inline-flex items-center gap-1.5">
-                        <span
-                          className="inline-block w-4 h-4 rounded border border-gray-200 flex-shrink-0"
-                          style={{ backgroundColor: casePanColor }}
-                          title={casePanColor}
+                  return (
+                    <TableRow key={product.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                      <TableCell className="pl-4 py-2">
+                        <Checkbox
+                          checked={selectedItems.includes(product.id)}
+                          onCheckedChange={(checked) => handleSelectItem(product.id, !!checked)}
+                          className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8] h-4 w-4"
                         />
-                        <span className="truncate text-xs">{casePanName}</span>
-                      </span>
-                    </TableCell>
-                    <TableCell className="py-2 px-2">
-                      <span className="text-xs font-medium text-gray-900 truncate max-w-[200px]">{categoryHierarchy}</span>
-                    </TableCell>
-                    <TableCell className="py-2 px-2">
-                      <code className="bg-gray-100 px-1.5 py-0.5 rounded text-[10px] font-mono text-gray-800 inline-block">
-                        {code}
-                      </code>
-                    </TableCell>
-                    <TableCell className="py-2 px-2">
-                      <span className="truncate block text-xs">{archType}</span>
-                    </TableCell>
-                    <TableCell className="py-2 px-2">
-                      <span className="font-medium text-gray-900 text-xs">{price}</span>
-                    </TableCell>
-                    <TableCell className="text-center py-2 px-2">
-                      <div className="flex items-center justify-center gap-0.5">
-                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-600 hover:text-[#1162a8] hover:bg-blue-50" onClick={() => handleEdit(product.id)}>
-                          <Edit className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 w-7 p-0 text-gray-600 hover:text-red-600 hover:bg-red-50"
-                          onClick={() => handleDelete(product.id)}
-                        >
-                          <TrashIcon className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 w-7 p-0 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
-                          onClick={() => handleDuplicate(product.id)}
-                          title={t("Duplicate product")}
-                        >
-                          <Copy className="h-3.5 w-3.5" />
-                        </Button>
+                      </TableCell>
+                      <TableCell className="py-2 px-2">
+                        <span className="truncate block text-xs max-w-[180px]">{productName}</span>
+                      </TableCell>
+                      <TableCell className="py-2 px-2">
+                        <span className="inline-flex items-center gap-1.5">
+                          <span
+                            className="inline-block w-4 h-4 rounded border border-gray-200 flex-shrink-0"
+                            style={{ backgroundColor: casePanColor }}
+                            title={casePanColor}
+                          />
+                          <span className="truncate text-xs">{casePanName}</span>
+                        </span>
+                      </TableCell>
+                      <TableCell className="py-2 px-2">
+                        <span className="text-xs font-medium text-gray-900 truncate max-w-[200px]">{categoryHierarchy}</span>
+                      </TableCell>
+                      <TableCell className="py-2 px-2">
+                        <code className="bg-gray-100 px-1.5 py-0.5 rounded text-[10px] font-mono text-gray-800 inline-block">
+                          {code}
+                        </code>
+                      </TableCell>
+                      <TableCell className="py-2 px-2">
+                        <span className="truncate block text-xs">{archType}</span>
+                      </TableCell>
+                      <TableCell className="py-2 px-2">
+                        <span className="font-medium text-gray-900 text-xs">{price}</span>
+                      </TableCell>
+                      <TableCell className="text-center py-2 px-2">
+                        <div className="flex items-center justify-center gap-0.5">
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-600 hover:text-[#1162a8] hover:bg-blue-50" onClick={() => handleEdit(product.id)}>
+                            <Edit className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-gray-600 hover:text-red-600 hover:bg-red-50"
+                            onClick={() => openDeleteModal(product.id)}
+                          >
+                            <TrashIcon className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                            onClick={() => handleDuplicate(product.id)}
+                            title={t("Duplicate product")}
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-12">
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="p-4 bg-gray-100 rounded-full">
+                        <Package2 className="h-8 w-8 text-gray-400" />
                       </div>
-                    </TableCell>
-                  </TableRow>
-                )
-              })
-            ) : (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center py-12">
-                  <div className="flex flex-col items-center gap-4">
-                    <div className="p-4 bg-gray-100 rounded-full">
-                      <Package className="h-8 w-8 text-gray-400" />
+                      <div className="text-center">
+                        <h3 className="font-medium text-gray-900 mb-1">{t("No products found")}</h3>
+                        <p className="text-sm text-gray-500 mb-4">
+                          {searchInput || statusFilter || subcategoryFilter
+                            ? t("Try adjusting your search terms or filters")
+                            : t("Get started by creating your first product")
+                          }
+                        </p>
+                        {!searchInput && !statusFilter && !subcategoryFilter && (
+                          <Button
+                            className="bg-[#1162a8] hover:bg-[#0f5497] text-white"
+                            onClick={() => {
+                              setEditingProduct(null)
+                              setIsAddProductModalOpen(true)
+                            }}
+                          >
+                            <Plus className="h-4 w-4 mr-2" />
+                            {t("Add Your First Product")}
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-center">
-                      <h3 className="font-medium text-gray-900 mb-1">{t("No products found")}</h3>
-                      <p className="text-sm text-gray-500 mb-4">
-                        {searchInput || statusFilter || subcategoryFilter 
-                          ? t("Try adjusting your search terms or filters")
-                          : t("Get started by creating your first product")
-                        }
-                      </p>
-                      {!searchInput && !statusFilter && !subcategoryFilter && (
-                        <Button
-                          className="bg-[#1162a8] hover:bg-[#0f5497] text-white"
-                          onClick={() => {
-                            setEditingProduct(null)
-                            setIsAddProductModalOpen(true)
-                          }}
-                        >
-                          <Plus className="h-4 w-4 mr-2" />
-                          {t("Add Your First Product")}
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
           </Table>
         </div>
       </div>
@@ -703,14 +641,12 @@ export default function ProductsPage() {
             {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
               let pageNum = i + 1
               if (totalPages > 5) {
-                if (currentPage <= 3) {
-                  pageNum = i + 1
-                } else if (currentPage >= totalPages - 2) {
-                  pageNum = totalPages - 4 + i
-                } else {
-                  pageNum = currentPage - 2 + i
-                }
+                if (currentPage <= 3) pageNum = i + 1
+                else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i
+                else pageNum = currentPage - 2 + i
               }
+              if (pageNum <= 0 || pageNum > totalPages) return null
+
               return (
                 <button
                   key={pageNum}
@@ -726,7 +662,7 @@ export default function ProductsPage() {
             <button
               className="h-8 w-8 rounded-full flex items-center justify-center text-xs bg-gray-100 text-gray-600 disabled:opacity-50 hover:bg-gray-200 transition-colors"
               onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage === totalPages}
+              disabled={currentPage === totalPages || totalPages === 0}
             >
               »
             </button>
@@ -734,83 +670,32 @@ export default function ProductsPage() {
         </div>
       )}
 
-      {/* Delete Confirmation Dialog */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white rounded-lg p-6 shadow-lg max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              {t("Confirm Delete")}
-            </h3>
-            <p className="text-sm text-gray-600 mb-6">
-              {t("Are you sure you want to delete this product? This action cannot be undone.")}
-            </p>
-            <div className="flex gap-3 justify-end">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowDeleteConfirm(false)
-                  setDeletingProductId(null)
-                }}
-              >
-                {t("Cancel")}
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={confirmDelete}
-              >
-                {t("Delete")}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Bulk Delete Confirmation Dialog */}
-      {showBulkDeleteConfirm && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-          <div className="bg-white rounded-lg p-6 shadow-lg max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              {t("Confirm Bulk Delete")}
-            </h3>
-            <p className="text-sm text-gray-600 mb-6">
-              {t("Are you sure you want to delete {{count}} products? This action cannot be undone.", { count: selectedItems.length })}
-            </p>
-            <div className="flex gap-3 justify-end">
-              <Button
-                variant="outline"
-                onClick={() => setShowBulkDeleteConfirm(false)}
-              >
-                {t("Cancel")}
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={confirmBulkDelete}
-              >
-                {t("Delete All")}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Only show modal when not loading */}
-      <AddLabProductModal 
-        isOpen={isAddProductModalOpen && !isEditLoading} 
-        onClose={handleModalClose}
-        editingProduct={editingProduct}
-        updateProduct={updateProductMutation}
-        createProduct={createProductMutation}
-        isUpdating={isUpdating}
-        isCreating={isCreating}
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={handleConfirmDelete}
+        title={isMultiDelete ? t("Delete Selected Products") : t("Delete Product")}
+        description={
+          isMultiDelete
+            ? t("Are you sure you want to delete {{count}} products? This action cannot be undone.", { count: selectedItems.length })
+            : t("Are you sure you want to delete this product? This action cannot be undone.")
+        }
+        itemName={isMultiDelete ? t("products") : t("product")}
+        itemCount={isMultiDelete ? selectedItems.length : undefined}
+        confirmText={t("Delete")}
+        cancelText={t("Cancel")}
+        isLoading={isLoading}
       />
 
-      {/* Edit Loading Overlay */}
       <LoadingOverlay
         isLoading={isEditLoading}
         title={t("Loading product details", "Loading Product Details...")}
         message={t("Please wait while we load the product information.", "Please wait while we load the product information.")}
         zIndex={9999}
       />
+
+      <AddProductModal isOpen={isAddProductModalOpen && !isEditLoading} onClose={handleModalClose} editingProduct={editingProduct} />
     </div>
   )
 }

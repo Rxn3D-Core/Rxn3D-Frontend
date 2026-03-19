@@ -759,7 +759,7 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
         if (search) params.append("q", search)
         if (sortColKey && typeof sortColKey === "string") {
           params.append("order_by", sortColKey)
-          params.append("sort_direction", sortDir)
+          params.append("sort_by", sortDir)
         }
         // Pass customer_id if customerId is defined (for lab_admin, superadmin, or other roles)
         if (customerId) {
@@ -830,7 +830,7 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
         if (search) params.append("q", search)
         if (sortColKey && typeof sortColKey === "string") {
           params.append("order_by", sortColKey)
-          params.append("sort_direction", sortDir)
+          params.append("sort_by", sortDir)
         }
         // Pass customer_id if customerId is defined (for lab_admin, superadmin, or other roles)
         if (customerId) {

@@ -4,80 +4,70 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Search, Edit, TrashIcon, Copy, Plus, Package, Link as LinkIcon, MoreVertical, ArrowUpDown } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { LoadingDots } from "@/components/ui/loading-dots"
 import { useLanguage } from "@/contexts/language-context"
-import { useAuth } from "@/contexts/auth-context"
 import { useTranslation } from "react-i18next"
 import { CreateRetentionOptionModal } from "@/components/product-management/create-retention-option-modal"
 import { LinkRetentionTypeModal } from "@/components/product-management/link-retention-type-modal"
 import { LinkProductsModal } from "@/components/product-management/link-products-modal"
-import { getRetentionOptions, updateRetentionOptionStatus } from "@/services/retention-options-api"
+import { getRetentionOptions, updateRetentionOptionStatus, deleteRetentionOption } from "@/services/retention-options-api"
+import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import { useToast } from "@/hooks/use-toast"
 
-type SortField = "name" | "code" | "status"
+type SortField = "name" | "code" | "status" | "linked_retention"
 type SortDirection = "asc" | "desc"
 
 export default function RetentionOptionPage() {
   const [retentionOptions, setRetentionOptions] = useState<any[]>([])
   const [selectedOptions, setSelectedOptions] = useState<string[]>([])
   const [searchTerm, setSearchTerm] = useState("")
+  const [searchInput, setSearchInput] = useState("")
   const [sortField, setSortField] = useState<SortField>("name")
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc")
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [entriesPerPage, setEntriesPerPage] = useState("20")
+  const [entriesPerPage, setEntriesPerPage] = useState(20)
   const [currentPage, setCurrentPage] = useState(1)
   const [editOption, setEditOption] = useState<any | null>(null)
-  const [isCopying, setIsCopying] = useState(false)
   const [loading, setLoading] = useState(false)
   const [pagination, setPagination] = useState({ total: 0, per_page: 20, last_page: 1, current_page: 1 })
   const [showLinkRetentionTypeModal, setShowLinkRetentionTypeModal] = useState(false)
   const [showLinkProductsModal, setShowLinkProductsModal] = useState(false)
+  const [deleteOptionId, setDeleteOptionId] = useState<number | null>(null)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
   const { currentLanguage } = useLanguage()
-  const { user } = useAuth()
   const { t } = useTranslation()
 
-  const getCustomerId = () => {
-    if (typeof window === "undefined") return null
-    const storedCustomerId = localStorage.getItem("customerId")
-    if (storedCustomerId) {
-      return parseInt(storedCustomerId, 10)
-    }
-    if (user?.customers && user.customers.length > 0) {
-      return user.customers[0].id
-    }
-    if (user?.customer_id) {
-      return user.customer_id
-    }
-    if (user?.customer?.id) {
-      return user.customer.id
-    }
-    return null
-  }
+  // Debounce search input
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setSearchTerm(searchInput)
+      setCurrentPage(1)
+    }, 300)
+
+    return () => clearTimeout(timeoutId)
+  }, [searchInput])
 
   const fetchRetentionOptions = async () => {
     setLoading(true)
     try {
-      const customerId = getCustomerId()
-      
+      // Global page - don't pass customer_id (for super admin)
       const response = await getRetentionOptions({
         q: searchTerm || undefined,
-        per_page: Number(entriesPerPage),
+        per_page: entriesPerPage,
         page: currentPage,
         order_by: sortField,
         sort_by: sortDirection,
-        // Pass customer_id when available
-        ...(customerId ? { customer_id: customerId } : {}),
+        // Explicitly don't pass customer_id for global/super admin
       })
 
       if (response.status && response.data) {
         setRetentionOptions(response.data.data || [])
         setPagination(response.data.pagination || {
           total: 0,
-          per_page: Number(entriesPerPage),
+          per_page: entriesPerPage,
           last_page: 1,
           current_page: 1,
         })
@@ -87,7 +77,7 @@ export default function RetentionOptionPage() {
       setRetentionOptions([])
       setPagination({
         total: 0,
-        per_page: Number(entriesPerPage),
+        per_page: entriesPerPage,
         last_page: 1,
         current_page: 1,
       })
@@ -128,8 +118,14 @@ export default function RetentionOptionPage() {
 
   const isAllSelected = retentionOptions.length > 0 && selectedOptions.length === retentionOptions.length
 
-  const handleEntriesPerPageChange = (newEntriesPerPage: string) => {
+  const handleEntriesPerPageChange = (newEntriesPerPage: number) => {
     setEntriesPerPage(newEntriesPerPage)
+    setCurrentPage(1)
+  }
+
+  const handleSearchClear = () => {
+    setSearchInput("")
+    setSearchTerm("")
     setCurrentPage(1)
   }
 
@@ -158,19 +154,39 @@ export default function RetentionOptionPage() {
 
   function handleEdit(option: any): void {
     setEditOption(option)
-    setIsCopying(false)
     setShowCreateModal(true)
   }
 
   function handleCopy(option: any): void {
     setEditOption(option)
-    setIsCopying(true)
     setShowCreateModal(true)
   }
 
-  function handleDelete(optionId: number): void {
-    // TODO: Implement delete
-    console.log('Delete retention option:', optionId)
+  const handleDelete = (optionId: number) => {
+    setDeleteOptionId(optionId)
+    setShowDeleteModal(true)
+  }
+
+  const confirmDelete = async () => {
+    if (deleteOptionId != null) {
+      try {
+        await deleteRetentionOption(deleteOptionId)
+        toast({
+          title: "Success",
+          description: "Retention option deleted successfully",
+        })
+        fetchRetentionOptions()
+      } catch (error: any) {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to delete retention option",
+          variant: "destructive",
+        })
+      } finally {
+        setShowDeleteModal(false)
+        setDeleteOptionId(null)
+      }
+    }
   }
 
   return (
@@ -193,7 +209,10 @@ export default function RetentionOptionPage() {
         <div className="flex flex-col sm:flex-row gap-3 sm:justify-between sm:items-center">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-gray-700">{t("Show")}</span>
-            <Select value={entriesPerPage} onValueChange={handleEntriesPerPageChange}>
+            <Select
+              value={entriesPerPage.toString()}
+              onValueChange={(value) => handleEntriesPerPageChange(Number(value))}
+            >
               <SelectTrigger className="w-20 h-9 text-sm">
                 <SelectValue />
               </SelectTrigger>
@@ -212,7 +231,6 @@ export default function RetentionOptionPage() {
             <Button
               onClick={() => {
                 setEditOption(null)
-                setIsCopying(false)
                 setShowCreateModal(true)
               }}
               className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
@@ -240,10 +258,18 @@ export default function RetentionOptionPage() {
               <Input
                 type="search"
                 placeholder={t("Search Retention Option")}
-                className="pl-10 h-10 w-full sm:w-64 text-sm border-gray-300 focus:border-[#1162a8] focus:ring-[#1162a8]"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 pr-10 h-10 w-full sm:w-64 text-sm border-gray-300 focus:border-[#1162a8] focus:ring-[#1162a8]"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
               />
+              {searchInput && (
+                <button
+                  onClick={handleSearchClear}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  ×
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -286,7 +312,10 @@ export default function RetentionOptionPage() {
                     <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />
                   </div>
                 </TableHead>
-                <TableHead className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors">
+                <TableHead
+                  className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors"
+                  onClick={() => handleSort("linked_retention")}
+                >
                   <div className="flex items-center gap-1">
                     {t("Linked Retention option")}
                     <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />
@@ -460,10 +489,8 @@ export default function RetentionOptionPage() {
           onClose={() => {
             setShowCreateModal(false)
             setEditOption(null)
-            setIsCopying(false)
           }}
           option={editOption}
-          isCopying={isCopying}
           onSuccess={() => {
             // Refresh the list after successful create/update
             fetchRetentionOptions()
@@ -489,7 +516,16 @@ export default function RetentionOptionPage() {
             fetchRetentionOptions()
           }}
           entityType="retention-option"
-          context="lab"
+          context="global"
+        />
+        <DeleteConfirmationModal
+          isOpen={showDeleteModal}
+          onClose={() => {
+            setShowDeleteModal(false)
+            setDeleteOptionId(null)
+          }}
+          onConfirm={confirmDelete}
+          itemName="retention option"
         />
       </>
     </div>

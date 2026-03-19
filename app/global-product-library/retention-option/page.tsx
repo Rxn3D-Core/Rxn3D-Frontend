@@ -13,10 +13,11 @@ import { useTranslation } from "react-i18next"
 import { CreateRetentionOptionModal } from "@/components/product-management/create-retention-option-modal"
 import { LinkRetentionTypeModal } from "@/components/product-management/link-retention-type-modal"
 import { LinkProductsModal } from "@/components/product-management/link-products-modal"
-import { getRetentionOptions, updateRetentionOptionStatus } from "@/services/retention-options-api"
+import { getRetentionOptions, updateRetentionOptionStatus, deleteRetentionOption } from "@/services/retention-options-api"
+import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import { useToast } from "@/hooks/use-toast"
 
-type SortField = "name" | "code" | "status"
+type SortField = "name" | "code" | "status" | "linked_retention"
 type SortDirection = "asc" | "desc"
 
 export default function RetentionOptionPage() {
@@ -34,6 +35,8 @@ export default function RetentionOptionPage() {
   const [pagination, setPagination] = useState({ total: 0, per_page: 20, last_page: 1, current_page: 1 })
   const [showLinkRetentionTypeModal, setShowLinkRetentionTypeModal] = useState(false)
   const [showLinkProductsModal, setShowLinkProductsModal] = useState(false)
+  const [deleteOptionId, setDeleteOptionId] = useState<number | null>(null)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
   const { currentLanguage } = useLanguage()
   const { t } = useTranslation()
 
@@ -159,9 +162,31 @@ export default function RetentionOptionPage() {
     setShowCreateModal(true)
   }
 
-  function handleDelete(optionId: number): void {
-    // TODO: Implement delete
-    console.log('Delete retention option:', optionId)
+  const handleDelete = (optionId: number) => {
+    setDeleteOptionId(optionId)
+    setShowDeleteModal(true)
+  }
+
+  const confirmDelete = async () => {
+    if (deleteOptionId != null) {
+      try {
+        await deleteRetentionOption(deleteOptionId)
+        toast({
+          title: "Success",
+          description: "Retention option deleted successfully",
+        })
+        fetchRetentionOptions()
+      } catch (error: any) {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to delete retention option",
+          variant: "destructive",
+        })
+      } finally {
+        setShowDeleteModal(false)
+        setDeleteOptionId(null)
+      }
+    }
   }
 
   return (
@@ -287,7 +312,10 @@ export default function RetentionOptionPage() {
                     <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />
                   </div>
                 </TableHead>
-                <TableHead className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors">
+                <TableHead
+                  className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors"
+                  onClick={() => handleSort("linked_retention")}
+                >
                   <div className="flex items-center gap-1">
                     {t("Linked Retention option")}
                     <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />
@@ -489,6 +517,15 @@ export default function RetentionOptionPage() {
           }}
           entityType="retention-option"
           context="global"
+        />
+        <DeleteConfirmationModal
+          isOpen={showDeleteModal}
+          onClose={() => {
+            setShowDeleteModal(false)
+            setDeleteOptionId(null)
+          }}
+          onConfirm={confirmDelete}
+          itemName="retention option"
         />
       </>
     </div>

@@ -224,7 +224,7 @@ export const ExtractionsApi = {
     is_custom?: "Yes" | "No";
     per_page?: number;
     page?: number;
-    sort_by?: "name" | "code" | "sequence" | "created_at";
+    sort_by?: "name" | "code" | "sequence" | "created_at" | "color" | "status";
     sort_order?: "asc" | "desc";
     lang?: string;
   } = {}) => {
@@ -236,10 +236,16 @@ export const ExtractionsApi = {
       filters.customer_id = customerId
     }
     
-    // Add filters to query params
+    // Add filters to query params (map sort_by/sort_order to order_by/sort_by per LIBRARY_API_SORTING_REFERENCE)
     Object.entries(filters).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
-        queryParams.append(key, value.toString());
+        if (key === 'sort_by') {
+          queryParams.append('order_by', value.toString());
+        } else if (key === 'sort_order') {
+          queryParams.append('sort_by', value.toString());
+        } else {
+          queryParams.append(key, value.toString());
+        }
       }
     });
 

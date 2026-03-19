@@ -49,17 +49,15 @@ export default function CasePansPage() {
     fetchCasePans(1, Number.parseInt(entriesPerPage))
   }, []) // Only run once on mount
 
-  // Search and pagination effect
+  // Search, pagination, and sort effect
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (searchQuery !== undefined) {
-        setCurrentPage(1)
-        fetchCasePans(1, Number.parseInt(entriesPerPage))
-      }
-    }, 500)
+      setCurrentPage(1)
+      fetchCasePans(1, Number.parseInt(entriesPerPage))
+    }, searchQuery !== undefined ? 500 : 0)
 
     return () => clearTimeout(timer)
-  }, [searchQuery, entriesPerPage, currentLanguage])
+  }, [searchQuery, entriesPerPage, currentLanguage, sortColumn, sortDirection])
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page)
@@ -286,8 +284,14 @@ export default function CasePansPage() {
                   {renderSortIndicator("name")}
                 </div>
               </TableHead>
-              <TableHead className="font-semibold text-gray-900">
-                {t("Code")}
+              <TableHead 
+                className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" 
+                onClick={() => handleSort("code")}
+              >
+                <div className="flex items-center">
+                  {t("Code")} 
+                  {renderSortIndicator("code")}
+                </div>
               </TableHead>
               <TableHead className="font-semibold text-gray-900">
                 {t("Type")}

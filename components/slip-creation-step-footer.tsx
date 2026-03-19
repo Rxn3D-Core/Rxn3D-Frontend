@@ -161,14 +161,6 @@ export function SlipCreationStepFooter({
                 </Button>
               )}
 
-              {mode === "submit" && !isAccordionComplete?.() && (
-                <span className="text-[13px] text-[#CF0202] flex items-center gap-1">
-                  <TriangleAlert size={14} />
-                  {incompleteFieldLabel
-                    ? `Complete ${incompleteFieldLabel} before submitting.`
-                    : "Complete all required fields before submitting."}
-                </span>
-              )}
 
               {mode === "submit" && isAccordionComplete?.() && !hasToothStatusValidation && (
                 <>
