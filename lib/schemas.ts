@@ -225,12 +225,15 @@ export const ProductCreateFormSchema = z
       .array(
         z.object({
           stage_id: z.union([z.string(), z.number()]),
-          economy_price: z.string().optional(),
-          standard_price: z.string().optional(),
-          days: z.string().optional(),
-          sequence: z.number().optional(),
+          economy_price: z.union([z.string(), z.number()]).optional(),
+          standard_price: z.union([z.string(), z.number()]).optional(),
+          days: z.union([z.string(), z.number()]).optional(),
+          sequence: z.union([z.string(), z.number()]).optional(),
           status: z.enum(["Active", "Inactive"]).default("Active").optional(),
-        }),
+          is_default: z.enum(["Yes", "No"]).optional(),
+          is_releasing_stage: z.enum(["Yes", "No"]).optional(),
+          grade_prices: z.record(z.any()).optional(),
+        }).passthrough(),
       )
       .optional()
       .transform((arr) =>

@@ -209,6 +209,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
 
   useEffect(() => {
     if (!isValid && errors) {
+      console.log('❌ Form validation errors:', JSON.stringify(errors, null, 2))
       const errorList = Object.entries(errors).map(([field, error]: any) => ({
         field,
         message: error?.message || "This field is required",
@@ -313,6 +314,18 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
             is_optional: item.is_optional === "Yes" ? "Yes" : "No",
             min_teeth: item.min_teeth ?? null,
             max_teeth: item.max_teeth ?? null,
+          }
+        } else if (idKey === "stage_id") {
+          const stagePrice = item.price ?? item.economy_price ?? ""
+          const stageDays = item.days !== undefined && item.days !== null ? String(item.days) : ""
+          return {
+            ...baseItem,
+            economy_price: String(stagePrice),
+            standard_price: String(stagePrice),
+            days: stageDays,
+            is_default: item.is_default === "Yes" ? "Yes" : "No",
+            is_releasing_stage: item.is_releasing_stage ?? "No",
+            grade_prices: item.grade_prices ?? {},
           }
         } else if (idKey === "addon_id") {
           const priceValue =
@@ -437,6 +450,13 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
           retention: hasRetention,
           extractions: hasExtractions,
         }))
+
+        // Initialize releasing stage IDs from existing stage data
+        const existingReleasingIds = (editingProduct.stages || [])
+          .filter((s: any) => s.is_releasing_stage === "Yes")
+          .map((s: any) => s.stage_id ?? s.id)
+        setReleasingStageIds(existingReleasingIds)
+        setInitialReleasingStageIds(existingReleasingIds)
       }
     }
     // Only depend on isOpen and editingProduct!
@@ -476,10 +496,6 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
     setIsMaximized(!isMaximized)
   }
 
-  // Consider form changed if fields are dirty OR a new image was uploaded
-  const hasFormChanges = useMemo(() => {
-    return isDirty || imageBase64 !== null
-  }, [isDirty, imageBase64])
 
   const handleClose = () => {
     if (hasFormChanges) {
@@ -549,6 +565,11 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
         }
       }
 
+      // When releasing stages changed, always include stages in the payload
+      if (hasReleasingStageChanges && !payload.stages && data.stages) {
+        payload.stages = data.stages
+      }
+
       // Remove UI-only field
       delete payload.category_id
 
@@ -585,7 +606,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
         payload.image = imageBase64
       }
 
-      success = await updateProduct(editingProduct.id, payload)
+      success = await updateProduct(editingProduct.id, payload, releasingStageIds)
     } else {
       // Send full payload for creating new product
       const payload = { ...data } as any
@@ -711,9 +732,22 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
   const watchedApplyRetentionMechanism = watch("apply_retention_mechanism")
   const watchedLinkAllAddons = watch("link_all_addons")
 
-  const [releasingStageId, setReleasingStageId] = useState<string | number | null>(null)
+  const [releasingStageIds, setReleasingStageIds] = useState<(string | number)[]>([])
+  const [initialReleasingStageIds, setInitialReleasingStageIds] = useState<(string | number)[]>([])
   const [draggedStageId, setDraggedStageId] = useState<string | number | null>(null)
   const [customGradeNames, setCustomGradeNames] = useState<Record<number, string>>({})
+
+  // Consider form changed if fields are dirty OR a new image was uploaded OR releasing stages changed
+  const hasReleasingStageChanges = useMemo(() => {
+    if (releasingStageIds.length !== initialReleasingStageIds.length) return true
+    const sortedCurrent = [...releasingStageIds].map(String).sort()
+    const sortedInitial = [...initialReleasingStageIds].map(String).sort()
+    return sortedCurrent.some((id, i) => id !== sortedInitial[i])
+  }, [releasingStageIds, initialReleasingStageIds])
+
+  const hasFormChanges = useMemo(() => {
+    return isDirty || imageBase64 !== null || hasReleasingStageChanges
+  }, [isDirty, imageBase64, hasReleasingStageChanges])
 
   const normalizedGumShadeBrands =
     Array.isArray(gumShadeBrands)
@@ -842,8 +876,8 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
                     sectionHasErrors={sectionHasErrors}
                     expandedSections={expandedSections}
                     toggleExpanded={toggleExpanded}
-                    releasingStageId={releasingStageId}
-                    setReleasingStageId={setReleasingStageId}
+                    releasingStageIds={releasingStageIds}
+                    setReleasingStageIds={setReleasingStageIds}
                     draggedStageId={draggedStageId}
                     setDraggedStageId={setDraggedStageId}
                     handleStageToggle={handleToggleSelection}
