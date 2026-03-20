@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { ChevronDown, Info, Plus, AlertCircle, X } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { ValidationError } from "@/components/ui/validation-error"
+import { cn } from "@/lib/utils"
 
 type WatchedTeethShade = {
   teeth_shade_id: number
@@ -306,6 +307,11 @@ export function TeethShadeSection({
     <div className="border-t">
       <div className="px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
+          <Switch
+            checked={sections.teethShade}
+            onCheckedChange={() => toggleSection("teethShade")}
+            className="data-[state=checked]:bg-[#1162a8]"
+          />
           <span className="font-medium">Teeth Shade</span>
           {sectionHasErrors(["teeth_shades"]) ? (
             <AlertCircle className="h-4 w-4 text-red-500" />
@@ -343,19 +349,14 @@ export function TeethShadeSection({
           </div>
         </div>
         <div className="flex items-center gap-4">
-          <Switch
-            checked={sections.teethShade}
-            onCheckedChange={() => toggleSection("teethShade")}
-            className="data-[state=checked]:bg-[#1162a8]"
-          />
           <ChevronDown
             className={`h-5 w-5 transition-transform duration-200 cursor-pointer ${expandedSections.teethShade ? "rotate-180" : ""}`}
             onClick={() => toggleExpanded("teethShade")}
           />
         </div>
       </div>
-      {expandedSections.teethShade && sections.teethShade && (
-        <div className="px-6 pb-6">
+      {expandedSections.teethShade && (
+        <div className={cn("px-6 pb-6", !sections.teethShade && "opacity-50 pointer-events-none select-none")}>
           <p className="text-sm text-gray-700 mb-4">
             Choose your preferred teeth shade system for this product.
           </p>

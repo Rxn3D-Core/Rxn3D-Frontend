@@ -8,6 +8,7 @@ import { ValidationError } from "@/components/ui/validation-error"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { ChevronDown, Info, Plus, AlertCircle, X, Check } from "lucide-react"
 import { ProductCreateForm } from "@/lib/schemas"
+import { cn } from "@/lib/utils"
 
 interface Grade {
   id: number | string
@@ -212,6 +213,11 @@ export function GradesSection({
     <div className="border-t">
       <div className="px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
+          <Switch
+            checked={sections.grades}
+            onCheckedChange={() => toggleSection("grades")}
+            className="data-[state=checked]:bg-[#1162a8]"
+          />
           <span className="font-medium">Grades</span>
           {sectionHasErrors(["grades"]) ? (
             <AlertCircle className="h-4 w-4 text-red-500" />
@@ -226,19 +232,14 @@ export function GradesSection({
           </span>
         </div>
         <div className="flex items-center gap-4">
-          <Switch
-            checked={sections.grades}
-            onCheckedChange={() => toggleSection("grades")}
-            className="data-[state=checked]:bg-[#1162a8]"
-          />
           <ChevronDown
             className={`h-5 w-5 transition-transform duration-200 cursor-pointer ${expandedSections.grades ? "rotate-180" : ""}`}
             onClick={() => toggleExpanded("grades")}
           />
         </div>
       </div>
-      {expandedSections.grades && sections.grades && (
-        <div className="px-2 sm:px-6 pb-6"> {/* Add px-2 for mobile, sm:px-6 for desktop */}
+      {expandedSections.grades && (
+        <div className={cn("px-2 sm:px-6 pb-6", !sections.grades && "opacity-50 pointer-events-none select-none")}> {/* Add px-2 for mobile, sm:px-6 for desktop */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-4">
             <Label htmlFor="grade-based-pricing" className="whitespace-nowrap">Does this product have grade-based pricing?</Label>
             <Controller

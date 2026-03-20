@@ -441,12 +441,12 @@ export function ImpressionSelectionModal({
           )}
 
           {/* Cancel button */}
-          <div className="flex justify-end w-full">
+          <div className="flex justify-start w-full">
             <button
               onClick={onClose}
-              className="flex items-center justify-center px-[16px] py-[12px] border-2 border-[#9BA5B7] rounded-[6px] bg-white hover:bg-gray-50 transition-colors"
+              className="flex items-center justify-center px-[16px] py-[12px] rounded-[6px] bg-red-600 hover:bg-red-700 transition-colors"
             >
-              <span className="font-['Verdana'] font-bold text-[12px] leading-[22px] tracking-[-0.02em] text-[#9BA5B7]">
+              <span className="font-['Verdana'] font-bold text-[12px] leading-[22px] tracking-[-0.02em] text-white">
                 Cancel
               </span>
             </button>

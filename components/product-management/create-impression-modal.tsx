@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { useImpressions, Impression } from "@/contexts/product-impression-context"
+import { useImpressions, Impression, ImpressionPayload } from "@/contexts/product-impression-context"
 import { DialogTitle } from "@radix-ui/react-dialog"
 import { generateCodeFromName } from "@/lib/utils"
 
@@ -90,17 +90,32 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
     }
   }, [impressionUrl, showOpposingWarning])
 
-  // Re-validate URL when showOpposingWarning changes
+  // Re-validate URL only when showOpposingWarning toggles (not on initial open)
+  const hasInteractedRef = useRef(false);
+  const prevOpposingRef = useRef(showOpposingWarning);
   useEffect(() => {
-    if (isOpen) {
-      // If switching to "yes" and URL is empty, show error immediately
-      if (showOpposingWarning === "yes" && !impressionUrl.trim()) {
-        setErrors((prev) => ({ ...prev, impressionUrl: "URL is required when 'Show opposing warning scan?' is Yes" }))
+    // Only fire when the radio actually changed, not on mount or other re-renders
+    if (isOpen && hasInteractedRef.current && prevOpposingRef.current !== showOpposingWarning) {
+      // When switching to "no", clear the required error
+      if (showOpposingWarning === "no") {
+        setErrors((prev) => {
+          const newErrors = { ...prev }
+          delete newErrors.impressionUrl
+          return newErrors
+        })
       } else {
         validateUrlField()
       }
     }
-  }, [showOpposingWarning, isOpen, validateUrlField, impressionUrl])
+    prevOpposingRef.current = showOpposingWarning;
+  }, [showOpposingWarning, isOpen, validateUrlField])
+
+  // Clear the interaction flag when modal opens/closes
+  useEffect(() => {
+    if (!isOpen) {
+      hasInteractedRef.current = false;
+    }
+  }, [isOpen])
 
   // Reset form when modal opens or impression changes
   useEffect(() => {
@@ -296,27 +311,37 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
       return
     }
 
-    // When updating or copying, ensure image is in base64 format
-    let imageToSend: string | undefined = selectedImage || undefined
-    if ((mode === "edit" || isCopying) && imageToSend && !isBase64(imageToSend)) {
-      try {
-        imageToSend = await urlToBase64(imageToSend)
-      } catch (error) {
-        console.error("Error converting image to base64:", error)
-        setErrors(prev => ({ ...prev, image: "Failed to process image" }))
-        return
+    // Only send image if the user uploaded a new one (imageFile is set)
+    // For edit mode without a new upload, skip sending image to avoid re-processing the existing one
+    let imageToSend: string | undefined = undefined
+    if (imageFile) {
+      // User picked a new file — it's already base64 in selectedImage
+      imageToSend = selectedImage || undefined
+    } else if (isCopying && selectedImage) {
+      // Copying: need to send the existing image
+      if (!isBase64(selectedImage)) {
+        try {
+          imageToSend = await urlToBase64(selectedImage)
+        } catch (error) {
+          console.error("Error converting image to base64:", error)
+          setErrors(prev => ({ ...prev, image: "Failed to process image" }))
+          return
+        }
+      } else {
+        imageToSend = selectedImage
       }
+    } else if (mode === "create") {
+      imageToSend = selectedImage || undefined
     }
 
-    const payload = {
+    const payload: ImpressionPayload = {
       name: impressionName.trim(),
       code: impressionCode.trim(),
       sequence: 1,
-      // URL is optional - only include if provided
       url: impressionUrl.trim() || undefined,
-      image: imageToSend,
       is_digital_impression: showOpposingWarning === "yes" ? "Yes" : "No",
       status: status,
+      ...(imageToSend !== undefined ? { image: imageToSend } : {}),
     }
 
     try {
@@ -475,7 +500,6 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
                 <div className="flex-1 space-y-4">
                   <Input
                     label="Impression Name"
-                    placeholder="Impression Name"
                     value={impressionName}
                     onChange={(e) => {
                       const newName = e.target.value
@@ -497,7 +521,6 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <Input
                       label="Code"
-                      placeholder="Code"
                       value={impressionCode}
                       onChange={(e) => {
                         const newCode = e.target.value
@@ -560,22 +583,13 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
                     <div className="relative">
                       <Input
                         label={`URL${showOpposingWarning === "yes" ? " *" : ""}`}
-                        placeholder={showOpposingWarning === "yes" ? "https://example.com" : "https://example.com (optional)"}
                         value={impressionUrl}
                         validationState={
-                          errors.impressionUrl 
-                            ? "error" 
-                            : (showOpposingWarning === "yes" && !impressionUrl.trim())
+                          errors.impressionUrl
                             ? "error"
                             : (impressionUrl.trim() ? "valid" : "default")
                         }
-                        errorMessage={
-                          errors.impressionUrl 
-                            ? errors.impressionUrl 
-                            : (showOpposingWarning === "yes" && !impressionUrl.trim())
-                            ? "URL is required when 'Show opposing warning scan?' is Yes"
-                            : undefined
-                        }
+                        errorMessage={errors.impressionUrl || undefined}
                         onChange={(e) => {
                           setImpressionUrl(e.target.value)
                           // Clear error when user starts typing
@@ -628,9 +642,8 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
                             showOpposingWarning === "yes" ? "border-[#1162a8]" : "border-gray-300"
                           } flex items-center justify-center cursor-pointer`}
                           onClick={() => {
+                            hasInteractedRef.current = true;
                             setShowOpposingWarning("yes")
-                            // Re-validate URL when switching to "yes"
-                            setTimeout(() => validateUrlField(), 0)
                           }}
                         >
                           {showOpposingWarning === "yes" && <div className="w-2 h-2 rounded-full bg-[#1162a8]"></div>}
@@ -644,15 +657,8 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
                             showOpposingWarning === "no" ? "border-[#1162a8]" : "border-gray-300"
                           } flex items-center justify-center cursor-pointer`}
                           onClick={() => {
+                            hasInteractedRef.current = true;
                             setShowOpposingWarning("no")
-                            // Clear URL requirement error when switching to "no"
-                            if (errors.impressionUrl && errors.impressionUrl.includes("required")) {
-                              setErrors((prev) => {
-                                const newErrors = { ...prev }
-                                delete newErrors.impressionUrl
-                                return newErrors
-                              })
-                            }
                           }}
                         >
                           {showOpposingWarning === "no" && <div className="w-2 h-2 rounded-full bg-[#1162a8]"></div>}

@@ -10,10 +10,6 @@ export const implantBrandList = Object.keys(implantBrandPlatforms);
 
 export const shadeGuideOptions = ["Vita Classical", "Chromascop", "Trubyte Bioform IPN"];
 
-export const stageOptions = [
-  { name: "Digital design", letter: "D" },
-  { name: "Finish", letter: "F" },
-];
 
 export const mockImpressions = [
   { id: 1, name: "Clean Impression", code: "clean", value: "clean_impression", label: "Clean Impression" },

@@ -165,6 +165,7 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
                   submitted={false}
                   onChange={onAgeChange}
                   className="flex-1"
+                  type="number"
                 />
               </div>
             ) : (
@@ -199,6 +200,7 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
                     submitted={false}
                     onChange={onAgeChange}
                     className="flex-1"
+                    type="number"
                   />
                 </div>
               </>

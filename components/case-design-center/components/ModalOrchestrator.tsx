@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { ImpressionSelectionModal } from "@/components/impression-selection-modal";
 import AddOnsModal from "@/components/add-ons-modal";
 import FileAttachmentModalContent from "@/components/file-attachment-modal-content";
@@ -14,7 +15,6 @@ import {
 import { StageSelectionModal } from "./StageSelectionModal";
 import type { Arch, ImpressionOptionForModal } from "../types";
 import type { AddOnsProduct } from "@/components/add-ons-modal";
-import { stageOptions } from "../constants";
 
 interface ModalOrchestratorProps {
   // Impression
@@ -149,6 +149,7 @@ export function ModalOrchestrator({
   handleStageSelect,
   onStageConfirm,
 }: ModalOrchestratorProps) {
+  const router = useRouter();
   const [attachViewerOpen, setAttachViewerOpen] = useState(false)
   const handleViewerToggle = useCallback((isOpen: boolean) => setAttachViewerOpen(isOpen), [])
   return (
@@ -206,9 +207,9 @@ export function ModalOrchestrator({
       />
 
       {/* Stage Selection Modal — auto-selects when only 1 stage is available */}
-      {isStageModalOpen && (
+      {isStageModalOpen && currentStageOptions && currentStageOptions.length > 0 && (
         <AutoSelectSingleStage
-          stages={currentStageOptions || stageOptions}
+          stages={currentStageOptions}
           onAutoSelect={(stageName) => {
             handleStageSelect(stageName);
             onStageConfirm(stageName);
@@ -216,7 +217,7 @@ export function ModalOrchestrator({
           onClose={() => setIsStageModalOpen(false)}
         >
           <StageSelectionModal
-            stages={currentStageOptions || stageOptions}
+            stages={currentStageOptions}
             selectedStage={selectedStages[currentStageProductId]}
             onSelect={(stageName) => {
               handleStageSelect(stageName);
@@ -225,6 +226,37 @@ export function ModalOrchestrator({
             onClose={() => setIsStageModalOpen(false)}
           />
         </AutoSelectSingleStage>
+      )}
+
+      {/* Stage not configured error dialog */}
+      {isStageModalOpen && (!currentStageOptions || currentStageOptions.length === 0) && (
+        <Dialog open onOpenChange={() => setIsStageModalOpen(false)}>
+          <DialogContent className="max-w-[400px] w-[90vw]">
+            <DialogHeader>
+              <DialogTitle>Stage Not Configured</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-gray-600 py-2">
+              Stage is not configured for this product. Please configure stages in Product Management.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setIsStageModalOpen(false)}
+                className="px-4 py-2 border border-gray-300 text-sm rounded-md hover:bg-gray-50 cursor-pointer"
+              >
+                OK
+              </button>
+              <button
+                onClick={() => {
+                  setIsStageModalOpen(false);
+                  router.push("/lab-product-library/products");
+                }}
+                className="px-4 py-2 bg-[#1162A8] text-white text-sm rounded-md hover:bg-[#0d4a85] cursor-pointer"
+              >
+                Go to Product Management
+              </button>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* File Attachment Modal */}

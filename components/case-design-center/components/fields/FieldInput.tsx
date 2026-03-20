@@ -30,6 +30,7 @@ export function FieldInput({
   submitted = false,
   onChange,
   smartPatientLabel = false,
+  type = "text",
 }: {
   label: string;
   value: string;
@@ -39,6 +40,8 @@ export function FieldInput({
   onChange?: (value: string) => void;
   /** When true, applies smart dynamic floating hint logic for the patient name input. */
   smartPatientLabel?: boolean;
+  /** Input type — use "number" to restrict to numeric input. */
+  type?: "text" | "number";
 }) {
   const [isFocused, setIsFocused] = useState(false);
   const hasValue = value.trim().length > 0;
@@ -60,10 +63,19 @@ export function FieldInput({
       </legend>
       <div className="flex items-center gap-2 min-w-0 w-full">
         <input
-          type="text"
+          type={type === "number" ? "text" : "text"}
+          inputMode={type === "number" ? "numeric" : undefined}
+          pattern={type === "number" ? "[0-9]*" : undefined}
           readOnly={!isEditable}
           value={value}
-          onChange={isEditable ? (e) => onChange(e.target.value) : undefined}
+          onChange={isEditable ? (e) => {
+            if (type === "number") {
+              const v = e.target.value.replace(/[^0-9]/g, "").slice(0, 2);
+              onChange(v);
+            } else {
+              onChange(e.target.value);
+            }
+          } : undefined}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
           className={`text-lg font-normal text-[#000000] bg-transparent outline-none leading-tight min-w-0 flex-1 truncate ${onClick ? "cursor-pointer" : ""}`}

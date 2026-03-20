@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input"
 import { ChevronDown, Info, AlertCircle } from "lucide-react"
 import { ValidationError } from "@/components/ui/validation-error"
 import { useState, useEffect } from "react"
+import { cn } from "@/lib/utils"
 import { useExtractionsData } from "@/hooks/use-extractions"
 import type { Extraction } from "@/lib/schemas"
 
@@ -156,6 +157,11 @@ export function ToothMappingSection({
     <div className="border-t">
       <div className="px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
+          <Switch
+            checked={sections.toothMapping}
+            onCheckedChange={() => toggleSection("toothMapping")}
+            className="data-[state=checked]:bg-[#1162a8]"
+          />
           <span className="font-medium">Tooth Mapping</span>
           {sectionHasErrors(["toothMapping"]) ? (
             <AlertCircle className="h-4 w-4 text-red-500" />
@@ -164,19 +170,14 @@ export function ToothMappingSection({
           )}
         </div>
         <div className="flex items-center gap-4">
-          <Switch
-            checked={sections.toothMapping}
-            onCheckedChange={() => toggleSection("toothMapping")}
-            className="data-[state=checked]:bg-[#1162a8]"
-          />
           <ChevronDown
             className={`h-5 w-5 transition-transform duration-200 cursor-pointer ${expandedSections.toothMapping ? "rotate-180" : ""}`}
             onClick={() => toggleExpanded("toothMapping")}
           />
         </div>
       </div>
-      {expandedSections.toothMapping && sections.toothMapping && (
-        <div className="px-6 pb-6">
+      {expandedSections.toothMapping && (
+        <div className={cn("px-6 pb-6", !sections.toothMapping && "opacity-50 pointer-events-none select-none")}>
           <div className="text-sm text-gray-600 mb-4">
             All available tooth status will be visible. User can toggle them on if they want it configured, off if not.
           </div>

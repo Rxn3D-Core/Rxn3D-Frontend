@@ -12,6 +12,7 @@ import { ProductCreateForm } from "@/lib/schemas"
 import { useExtractionsData } from "@/hooks/use-extractions"
 import type { Extraction } from "@/lib/schemas"
 import { ValidationError } from "@/components/ui/validation-error"
+import { cn } from "@/lib/utils"
 
 interface ExtractionsSectionProps {
   control: Control<ProductCreateForm>
@@ -539,6 +540,11 @@ export function ExtractionsSection({
       <div className="px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
+            <Switch
+              checked={isEnabled}
+              onCheckedChange={() => (toggleSection ? toggleSection("extractions") : setInternalEnabled((v) => !v))}
+              className="data-[state=checked]:bg-blue-600"
+            />
             <span className="font-medium text-gray-900">Main Product Fields</span>
             {hasErrors ? (
               <AlertCircle className="h-4 w-4 text-red-500" />
@@ -553,11 +559,6 @@ export function ExtractionsSection({
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <Switch
-              checked={isEnabled}
-              onCheckedChange={() => (toggleSection ? toggleSection("extractions") : setInternalEnabled((v) => !v))}
-              className="data-[state=checked]:bg-blue-600"
-            />
             <Button
               type="button"
               variant="ghost"
@@ -574,8 +575,8 @@ export function ExtractionsSection({
           </div>
         </div>
 
-        {isEnabled && isExpanded && (
-          <div className="mt-4">
+        {isExpanded && (
+          <div className={cn("mt-4", !isEnabled && "opacity-50 pointer-events-none select-none")}>
             <div className="text-sm text-gray-600 mb-4">
               <p>All available extraction statuses will be visible. User can toggle them on if they want it configured, off if not.</p>
               <p>Once user choose between Default, required and optional, checkboxes will be disabled.</p>

@@ -83,9 +83,13 @@ export function useProductMutations() {
             ? parseFloat(String(basePriceValue).trim())
             : Number(basePriceValue)
 
-          if (!isNaN(priceValue) && isFinite(priceValue) && priceValue > 0) {
+          if (!isNaN(priceValue) && isFinite(priceValue) && priceValue >= 0) {
             finalPayload.price = priceValue
           }
+        }
+        // Fallback: send price: 0 if still not set to satisfy backend validation
+        if (finalPayload.price === undefined) {
+          finalPayload.price = 0
         }
       }
 
@@ -128,7 +132,9 @@ export function useProductMutations() {
       }
 
       const apiUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL}/library/products/${id}`
-      
+
+      console.log('💰 [useProductMutations] Final payload price:', finalPayload.price, 'base_price:', finalPayload.base_price, 'customer_id:', finalPayload.customer_id)
+
       let response: Response
       try {
         response = await fetch(apiUrl, {
@@ -307,9 +313,10 @@ export function useProductMutations() {
           finalPayload.addons = finalPayload.addons.map(({ price, ...rest }) => rest)
         }
       } else {
-        // For lab products (with customer_id), keep stage_grades but remove other pricing fields for non-admin users
+        // For lab products (with customer_id), keep price and stage_grades but remove other pricing fields for non-admin users
         if (!isLabAdmin) {
-          delete finalPayload.price
+          // DO NOT delete price - backend requires it when customer_id is present
+          // delete finalPayload.price
           delete finalPayload.price_type
           delete finalPayload.grade_prices
           delete finalPayload.stage_prices
@@ -317,6 +324,23 @@ export function useProductMutations() {
           delete finalPayload.office_grade_pricing
           delete finalPayload.office_stage_pricing
           delete finalPayload.office_stage_grade_pricing
+        }
+
+        // Ensure price is set when customer_id is present
+        if (finalPayload.price === undefined || finalPayload.price === null) {
+          const basePriceValue = finalPayload.base_price
+          if (basePriceValue !== undefined && basePriceValue !== null && basePriceValue !== "") {
+            const priceValue = typeof basePriceValue === 'string'
+              ? parseFloat(String(basePriceValue).trim())
+              : Number(basePriceValue)
+            if (!isNaN(priceValue) && isFinite(priceValue) && priceValue >= 0) {
+              finalPayload.price = priceValue
+            }
+          }
+          // Final fallback
+          if (finalPayload.price === undefined || finalPayload.price === null) {
+            finalPayload.price = 0
+          }
         }
       }
 

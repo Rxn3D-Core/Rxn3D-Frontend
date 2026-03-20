@@ -933,19 +933,19 @@ function StepSubProduct({
           <button
             key={prod.id}
             onClick={() => onSelect(prod.id)}
-            className={`group flex flex-col items-center px-4 py-[5px] gap-2 w-[155px] sm:w-[180px] md:w-[200px] rounded-[7px] border-[3px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${
+            className={`group flex flex-col overflow-hidden rounded-[7px] border-[3px] w-[155px] sm:w-[180px] md:w-[200px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${
               selected === prod.id
                 ? "border-[#1162A8] bg-[#1162A8]/5"
                 : "border-[#d9d9d9] bg-white"
             }`}
           >
             <span
-              className="text-[14px] font-normal text-black text-center self-stretch tracking-[-0.02em] leading-[15px] pt-1"
+              className="text-[14px] font-normal text-black text-center self-stretch tracking-[-0.02em] leading-[15px] py-2 px-2"
               style={{ fontFamily: "Verdana, sans-serif" }}
             >
               {prod.name}
             </span>
-            <ProductImageWithFallback src={prod.img} alt={prod.name} name={prod.name} />
+            <ProductImageWithFallback src={prod.img} alt={prod.name} name={prod.name} className="rounded-none" bgClassName="" />
           </button>
         ))}
       </div>
@@ -1235,6 +1235,7 @@ function PatientMiniHeader({
               submitted={false}
               onChange={onAgeChange}
               className="flex-1"
+              type="number"
             />
           </div>
         </div>
@@ -1283,10 +1284,13 @@ export default function NewCaseWizard({
   initialLabId = null,
   initialPatientName = "",
   initialGender = "",
+  initialAge = "",
   initialDoctor = undefined,
   initialCategory = null,
   initialSubProduct = null,
   forceArch,
+  editTarget,
+  onEditDone,
 }: {
   onComplete: (result: WizardResult) => void;
   onLabSelect?: (lab: WizardLabShape) => void;
@@ -1295,17 +1299,22 @@ export default function NewCaseWizard({
   initialLabId?: number | null;
   initialPatientName?: string;
   initialGender?: string;
+  initialAge?: string;
   initialDoctor?: WizardDoctorShape;
   initialCategory?: number | null;
   initialSubProduct?: number | null;
   forceArch?: "maxillary" | "mandibular";
+  /** When set, the wizard is in single-step edit mode — selecting the target completes immediately via onEditDone. */
+  editTarget?: "lab" | "doctor";
+  /** Called when a single-step edit selection is made (used with editTarget). */
+  onEditDone?: () => void;
 }) {
   const [step, setStep] = useState(startStep);
-  const [selectedDoctor, setSelectedDoctor] = useState<number | null>(null);
+  const [selectedDoctor, setSelectedDoctor] = useState<number | null>(initialDoctor?.id ?? null);
   const [selectedLab, setSelectedLab] = useState<number | null>(initialLabId);
   const [patientName, setPatientName] = useState(initialPatientName);
   const [gender, setGender] = useState(initialGender);
-  const [age, setAge] = useState("");
+  const [age, setAge] = useState(initialAge);
   const [selectedCategory, setSelectedCategory] = useState<number | null>(initialCategory);
   const [selectedSubProduct, setSelectedSubProduct] = useState<number | null>(initialSubProduct);
   const [selectedMaterial, setSelectedMaterial] = useState<string | null>(null);
@@ -1399,7 +1408,11 @@ export default function NewCaseWizard({
     ) {
       didAutoAdvanceDoctorRef.current = true;
       setSelectedDoctor(oneDoctor.id);
-      setStep((s) => s + 1);
+      if (editTarget === "doctor" && onEditDone) {
+        onEditDone();
+      } else {
+        setStep((s) => s + 1);
+      }
     }
   }, [step, role, doctorsSuccess, doctorsForWizard, selectedDoctor]);
 
@@ -1486,7 +1499,11 @@ export default function NewCaseWizard({
             selected={selectedDoctor}
             onSelect={(id) => {
               setSelectedDoctor(id);
-              setTimeout(() => setStep(2), 300);
+              if (editTarget === "doctor" && onEditDone) {
+                setTimeout(() => onEditDone(), 300);
+              } else {
+                setTimeout(() => setStep(2), 300);
+              }
             }}
             isLoading={doctorsLoading}
             error={doctorsError}
@@ -1501,7 +1518,11 @@ export default function NewCaseWizard({
               setSelectedLab(id);
               const selected = officesAsLabs.find((l) => l.id === id);
               if (selected) onLabSelect?.(selected);
-              setTimeout(() => setStep(2), 300);
+              if (editTarget === "lab" && onEditDone) {
+                setTimeout(() => onEditDone(), 300);
+              } else {
+                setTimeout(() => setStep(2), 300);
+              }
             }}
             isLoading={labsLoading}
             error={labsError}
@@ -1516,7 +1537,11 @@ export default function NewCaseWizard({
             selected={selectedDoctor}
             onSelect={(id) => {
               setSelectedDoctor(id);
-              setTimeout(() => setStep(3), 300);
+              if (editTarget === "doctor" && onEditDone) {
+                setTimeout(() => onEditDone(), 300);
+              } else {
+                setTimeout(() => setStep(3), 300);
+              }
             }}
             isLoading={doctorsLoading}
             error={doctorsError}
@@ -1531,7 +1556,11 @@ export default function NewCaseWizard({
               setSelectedLab(id);
               const selected = officesAsLabs.find((l) => l.id === id);
               if (selected) onLabSelect?.(selected);
-              setTimeout(() => setStep(3), 300);
+              if (editTarget === "lab" && onEditDone) {
+                setTimeout(() => onEditDone(), 300);
+              } else {
+                setTimeout(() => setStep(3), 300);
+              }
             }}
             isLoading={labsLoading}
             error={labsError}

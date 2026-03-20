@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { ChevronDown, Info, Plus, AlertCircle, X, Trash2 } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { ValidationError } from "@/components/ui/validation-error"
+import { cn } from "@/lib/utils"
 
 type WatchedImpression = {
   impression_id: number
@@ -171,6 +172,11 @@ export function ImpressionsSection({
     <div className="border-t">
       <div className="px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
+          <Switch
+            checked={sections.impressions}
+            onCheckedChange={() => toggleSection("impressions")}
+            className="data-[state=checked]:bg-[#1162a8]"
+          />
           <span className="font-medium">Impressions</span>
           {sectionHasErrors(["impressions"]) ? (
             <AlertCircle className="h-4 w-4 text-red-500" />
@@ -199,19 +205,14 @@ export function ImpressionsSection({
           </div>
         </div>
         <div className="flex items-center gap-4">
-          <Switch
-            checked={sections.impressions}
-            onCheckedChange={() => toggleSection("impressions")}
-            className="data-[state=checked]:bg-[#1162a8]"
-          />
           <ChevronDown
             className={`h-5 w-5 transition-transform duration-200 cursor-pointer ${expandedSections.impressions ? "rotate-180" : ""}`}
             onClick={() => toggleExpanded("impressions")}
           />
         </div>
       </div>
-      {expandedSections.impressions && sections.impressions && (
-        <div className="px-6 pb-6">
+      {expandedSections.impressions && (
+        <div className={cn("px-6 pb-6", !sections.impressions && "opacity-50 pointer-events-none select-none")}>
           <p className="text-sm text-gray-700 mb-4">
             Choose the impressions you accept for this product.
           </p>

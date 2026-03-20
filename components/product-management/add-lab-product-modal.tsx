@@ -839,9 +839,9 @@ export function AddLabProductModal({
       // Determine base_price: use default grade price if available and not empty, else use response price
       const mappedGrades = mapWithStatus(gradesArr, "grade_id")
       // Check both base_price and price from response
-      let basePrice = editingProduct.base_price || editingProduct.price || ""
+      let basePrice = editingProduct.base_price ?? editingProduct.price ?? ""
       // Store the API price so handleUpdateSection can always send a valid price
-      apiPriceRef.current = basePrice || null
+      apiPriceRef.current = basePrice !== "" ? basePrice : null
       
       if (mappedGrades.length > 0) {
         // First, try to find default grade with price (price must be > 0)
@@ -1373,6 +1373,12 @@ export function AddLabProductModal({
       }
     })
 
+    // Add customer_id if user is lab_admin (for both create and update)
+    // Must be set before price block so the fallback can check for customer_id
+    if (user?.role === "lab_admin" && user.customers?.length) {
+      payload.customer_id = payload.customer_id ?? user.customers[0]?.id
+    }
+
     // If grades are enabled (has_grade_based_pricing === "Yes"), set base_price from default grade
     if (data.has_grade_based_pricing === "Yes" && payload.grades?.length > 0) {
       const defaultGrade = payload.grades?.find((g: any) => g.is_default === "Yes")
@@ -1381,20 +1387,36 @@ export function AddLabProductModal({
         setValue("base_price", defaultGrade.price, { shouldDirty: true, shouldValidate: true })
       }
     }
-    // Always send price — use base_price from payload, form data, or API response ref as fallback.
+    // Always send base_price and price — backend requires price when customer_id is present.
+    // Try multiple sources to find a valid base price value.
     {
-      const basePriceVal = payload.base_price
-        || data.base_price
-        || editingProduct?.base_price
-        || editingProduct?.price
-        || apiPriceRef.current
-      if (basePriceVal !== undefined && basePriceVal !== null && basePriceVal !== "") {
-        const numPrice = typeof basePriceVal === "string" ? parseFloat(String(basePriceVal)) : Number(basePriceVal)
-        if (!isNaN(numPrice) && numPrice > 0) {
-          payload.base_price = basePriceVal
-          payload.price = numPrice
+      const candidates = [
+        payload.base_price,
+        data.base_price,
+        watchedBasePrice,
+        editingProduct?.base_price,
+        editingProduct?.price,
+        apiPriceRef.current,
+      ]
+      console.log('💰 Price candidates (onSubmit):', candidates.map((v, i) => `[${i}]=${JSON.stringify(v)}`))
+      let resolvedPrice: number | undefined
+      let resolvedBasePrice: any
+      for (const val of candidates) {
+        if (val === undefined || val === null || val === "") continue
+        const num = typeof val === "string" ? parseFloat(val) : Number(val)
+        if (!isNaN(num) && num >= 0) {
+          resolvedPrice = num
+          resolvedBasePrice = val
+          break
         }
       }
+      if (resolvedPrice !== undefined) {
+        payload.base_price = resolvedBasePrice
+        payload.price = resolvedPrice
+      } else {
+        payload.price = 0
+      }
+      console.log('💰 Resolved price:', payload.price, 'base_price:', payload.base_price)
     }
 
     // Add image only if user selected a new one (base64 data URL)
@@ -1406,13 +1428,6 @@ export function AddLabProductModal({
     if (payload.request_opposing_extraction !== undefined) {
       payload.opposite_impression = payload.request_opposing_extraction ? "Yes" : "No"
       delete payload.request_opposing_extraction
-    }
-
-    if (!editingProduct) {
-      // Add customer_id if user is lab_admin
-      if (user?.role === "lab_admin" && user.customers?.length) {
-        payload.customer_id = user.customers[0]?.id
-      }
     }
 
     // Product slip field flags: when false, field is disabled on the slip (product_configurations)
@@ -1789,19 +1804,34 @@ export function AddLabProductModal({
       }
 
       // Always include price in every section update — backend requires it when customer_id is present.
-      // Use the latest value: form base_price → editingProduct.base_price → editingProduct.price → apiPriceRef
+      // Try multiple sources to find a valid base price value.
       {
-        const currentBasePrice = formData.base_price
-          || editingProduct?.base_price
-          || editingProduct?.price
-          || apiPriceRef.current
-        if (currentBasePrice !== undefined && currentBasePrice !== null && currentBasePrice !== "") {
-          const numPrice = typeof currentBasePrice === "string" ? parseFloat(String(currentBasePrice)) : Number(currentBasePrice)
-          if (!isNaN(numPrice) && numPrice > 0) {
-            payload.price = numPrice
-            payload.base_price = currentBasePrice
+        const candidates = [
+          formData.base_price,
+          watchedBasePrice,
+          editingProduct?.base_price,
+          editingProduct?.price,
+          apiPriceRef.current,
+        ]
+        console.log('💰 Price candidates (handleUpdateSection):', candidates.map((v, i) => `[${i}]=${JSON.stringify(v)}`))
+        let resolvedPrice: number | undefined
+        let resolvedBasePrice: any
+        for (const val of candidates) {
+          if (val === undefined || val === null || val === "") continue
+          const num = typeof val === "string" ? parseFloat(String(val)) : Number(val)
+          if (!isNaN(num) && num >= 0) {
+            resolvedPrice = num
+            resolvedBasePrice = val
+            break
           }
         }
+        if (resolvedPrice !== undefined) {
+          payload.price = resolvedPrice
+          payload.base_price = resolvedBasePrice
+        } else {
+          payload.price = 0
+        }
+        console.log('💰 Resolved price:', payload.price, 'base_price:', payload.base_price)
       }
 
       // Special handling for stages: always include stages if stages field is dirty

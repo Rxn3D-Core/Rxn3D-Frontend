@@ -107,7 +107,10 @@ export function TopBar({ selectedLab, onEditClick, caseSubmitted = false }: TopB
             {!caseSubmitted && (
               <button
                 type="button"
-                onClick={onEditClick}
+                onClick={() => {
+                  console.log("[TopBar] Pencil clicked, onEditClick is:", onEditClick);
+                  onEditClick?.();
+                }}
                 className="p-0.5 sm:p-1 rounded hover:bg-[#e5e7eb] transition-colors text-[#7f7f7f] hover:text-[#1d1d1b] flex-shrink-0"
                 aria-label="Change lab or office"
               >

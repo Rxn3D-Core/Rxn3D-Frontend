@@ -119,72 +119,52 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       )
     }
 
-    // Return floating label input - label always visible inside field at top
     return (
-      <div className="relative w-full">
-        <div className="relative">
-          <input
-            type={type}
-            ref={ref}
-            value={value}
-            disabled={disabled || validationState === "disabled"}
+      <div className="w-full">
+        <fieldset
+          className={cn(
+            "border-2 rounded-lg px-3 py-0 relative h-14 flex items-center min-w-0 transition-colors duration-150 bg-white",
+            getBorderColor(),
+            getRingEffect(),
+            !disabled && !isFocused && "hover:shadow-[0_0_8px_rgba(17,98,168,0.2)]",
+            (disabled || validationState === "disabled") && "opacity-40 cursor-not-allowed bg-gray-50",
+            className
+          )}
+        >
+          <legend
             className={cn(
-              // Increased height for internal label, padding-top for label space
-              "flex h-14 w-full rounded-lg border-2 bg-white px-4 pt-6 pb-2 text-base",
-              "transition-all ease-out",
-              "focus:outline-none",
-              "placeholder:text-gray-400",
-              getBorderColor(),
-              getRingEffect(),
-              // Hover glow: 150ms ease-out with 20% opacity
-              !disabled && !isFocused && "hover:shadow-[0_0_8px_rgba(17,98,168,0.2)] transition-shadow duration-150",
-              // Disabled: 40% opacity, 200ms ease-in
-              (disabled || validationState === "disabled") &&
-                "opacity-40 cursor-not-allowed bg-gray-50 transition-opacity duration-200",
-              className
+              "text-sm px-1 leading-none whitespace-nowrap transition-colors duration-150",
+              getLabelColor()
             )}
-            style={{
-              fontSize: '16px',
-              transitionDuration: isFocused ? '250ms' : '150ms',
-              transitionTimingFunction: isFocused ? 'ease-in-out' : 'ease-out'
-            }}
-            placeholder={props.placeholder}
-            onFocus={(e) => {
-              setIsFocused(true)
-              props.onFocus?.(e)
-            }}
-            onBlur={(e) => {
-              setIsFocused(false)
-              props.onBlur?.(e)
-            }}
-            {...props}
-          />
-
-          {/* Floating Label - always visible at top inside field when focused or has value */}
-          {(isFocused || hasValue) && (
-            <label
-              className={cn(
-                "absolute top-1 left-4 text-xs transition-all duration-200 ease-out pointer-events-none",
-                getLabelColor()
-              )}
-              style={{ fontSize: '11px', lineHeight: '1' }}
-            >
-              {/* Show error/warning message as label if present, otherwise show regular label */}
-              {validationState === "error" && errorMessage
-                ? errorMessage
-                : validationState === "warning" && warningMessage
-                ? warningMessage
-                : label}
-            </label>
-          )}
-
-          {/* Validation Icon */}
-          {getValidationIcon() && (
-            <div className="absolute right-3 top-1/2 -translate-y-1/2">
-              {getValidationIcon()}
-            </div>
-          )}
-        </div>
+          >
+            {label}
+          </legend>
+          <div className="flex items-center gap-2 min-w-0 w-full">
+            <input
+              type={type}
+              ref={ref}
+              value={value}
+              disabled={disabled || validationState === "disabled"}
+              className="text-lg font-normal text-[#000000] bg-transparent outline-none leading-tight min-w-0 flex-1 truncate"
+              onFocus={(e) => {
+                setIsFocused(true)
+                props.onFocus?.(e)
+              }}
+              onBlur={(e) => {
+                setIsFocused(false)
+                props.onBlur?.(e)
+              }}
+              {...props}
+            />
+            {getValidationIcon()}
+          </div>
+        </fieldset>
+        {validationState === "error" && errorMessage && (
+          <p className="text-xs text-[#CF0202] mt-1 px-1">{errorMessage}</p>
+        )}
+        {validationState === "warning" && warningMessage && (
+          <p className="text-xs text-[#FF9900] mt-1 px-1">{warningMessage}</p>
+        )}
       </div>
     )
   }

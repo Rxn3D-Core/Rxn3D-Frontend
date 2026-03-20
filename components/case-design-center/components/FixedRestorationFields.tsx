@@ -313,11 +313,15 @@ export function FixedRestorationFields({
       {/* All remaining fields hidden until both shades are selected */}
       {!fixedShadeIncomplete && <>
 
-      {/* Step 1 & 2: Stage and Stump Shade in one row */}
+      {/* Step 1 & 2: Stage, Stump Shade, and Tooth Shade in one row */}
       {(isFixed("fixed_stage") || (isFixed("fixed_stump_shade") && hasAdvanceField("fixed_stump_shade", selectedProduct?.advance_fields))) && (() => {
         const showStumpShade = isFixed("fixed_stump_shade") && hasAdvanceField("fixed_stump_shade", selectedProduct?.advance_fields);
+        const toothShadeValue = getSelectedShade(`fixed_${firstToothNumber}`, arch, "tooth_shade");
+        const showToothShade = showStumpShade && !!toothShadeValue;
+        const colCount = 1 + (showStumpShade ? 1 : 0) + (showToothShade ? 1 : 0);
+        const gridCols = colCount === 3 ? "sm:grid-cols-3" : colCount === 2 ? "sm:grid-cols-2" : "";
         return (
-        <div className={`grid grid-cols-1 ${showStumpShade ? "sm:grid-cols-2" : ""} gap-3`}>
+        <div className={`grid grid-cols-1 ${gridCols} gap-3`}>
           {isFixed("fixed_stage") && (() => {
             const fixedStageValue = selectedStages[groupStageProductIdFixed] || getFieldValue(arch, groupStageToothNumber, "fixed_stage");
             const isStageComplete = isFieldCompleted(arch, groupStageToothNumber, "fixed_stage") || !!(fixedStageValue && fixedStageValue.trim());
@@ -354,6 +358,15 @@ export function FixedRestorationFields({
               value={selectedShadeGuide}
               shade={getSelectedShade(`fixed_${firstToothNumber}`, arch, "stump_shade")}
               onClick={() => handleShadeFieldClick(arch, "stump_shade", `fixed_${firstToothNumber}`)}
+              submitted={caseSubmitted}
+            />
+          )}
+          {showToothShade && (
+            <ShadeField
+              label="Tooth Shade"
+              value={selectedShadeGuide}
+              shade={toothShadeValue}
+              onClick={() => handleShadeFieldClick(arch, "tooth_shade", `fixed_${firstToothNumber}`)}
               submitted={caseSubmitted}
             />
           )}

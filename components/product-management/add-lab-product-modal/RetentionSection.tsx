@@ -1,4 +1,5 @@
 import React from "react"
+import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
 import { ChevronDown, Info, AlertCircle } from "lucide-react"
 import { Label } from "@/components/ui/label"
@@ -6,6 +7,7 @@ import { ValidationError } from "@/components/ui/validation-error"
 import { Controller } from "react-hook-form"
 import { Input } from "@/components/ui/input"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { cn } from "@/lib/utils"
 
 export function RetentionSection({
   control,
@@ -81,6 +83,11 @@ export function RetentionSection({
     <div className="border-t">
       <div className="px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
+          <Switch
+            checked={sections.retention !== false}
+            onCheckedChange={() => toggleSection("retention")}
+            className="data-[state=checked]:bg-[#1162a8]"
+          />
           <span className="font-medium">Retention</span>
           {sectionHasErrors(["retentions"]) ? (
             <AlertCircle className="h-4 w-4 text-red-500" />
@@ -102,7 +109,7 @@ export function RetentionSection({
         </div>
       </div>
       {expandedSections.retention && (
-        <div className="px-6 pb-6">
+        <div className={cn("px-6 pb-6", sections.retention === false && "opacity-50 pointer-events-none select-none")}>
           <div className="flex items-center gap-4 mb-4">
             <Label htmlFor="apply-retention">
               Does retention mechanism apply to this product?

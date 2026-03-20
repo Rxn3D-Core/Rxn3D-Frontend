@@ -9,6 +9,7 @@ import { ValidationError } from "@/components/ui/validation-error"
 import { generateCodeFromName } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { useWatch } from "react-hook-form"
+import { cn } from "@/lib/utils"
 
 type WatchedMaterial = {
   material_id: number
@@ -380,6 +381,11 @@ export function MaterialSection({
     <div className="border-t">
       <div className="px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
+          <Switch
+            checked={sections.material}
+            onCheckedChange={() => toggleSection("material")}
+            className="data-[state=checked]:bg-[#1162a8]"
+          />
           <span className="font-medium">Material</span>
           {sectionHasErrors(["materials"]) ? (
             <AlertCircle className="h-4 w-4 text-red-500" />
@@ -408,19 +414,14 @@ export function MaterialSection({
           </div>
         </div>
         <div className="flex items-center gap-4">
-          <Switch
-            checked={sections.material}
-            onCheckedChange={() => toggleSection("material")}
-            className="data-[state=checked]:bg-[#1162a8]"
-          />
           <ChevronDown
             className={`h-5 w-5 transition-transform duration-200 cursor-pointer ${expandedSections.material ? "rotate-180" : ""}`}
             onClick={() => toggleExpanded("material")}
           />
         </div>
       </div>
-      {expandedSections.material && sections.material && (
-        <div className="px-6 pb-6">
+      {expandedSections.material && (
+        <div className={cn("px-6 pb-6", !sections.material && "opacity-50 pointer-events-none select-none")}>
           <div className="flex items-center gap-4 mb-4">
             <Label htmlFor="hide-unselected-materials">Hide unselected materials?</Label>
             {["Yes", "No"].map((option) => (

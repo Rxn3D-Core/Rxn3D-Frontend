@@ -525,6 +525,34 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
       // Remove UI-only field
       delete payload.category_id
 
+      // Always include price — backend requires it when customer_id is present (lab_admin).
+      // useProductMutations adds customer_id for lab_admin, so we must send price too.
+      {
+        const candidates = [
+          payload.base_price,
+          data.base_price,
+          editingProduct?.base_price,
+          editingProduct?.price,
+        ]
+        let resolvedPrice: number | undefined
+        let resolvedBasePrice: any
+        for (const val of candidates) {
+          if (val === undefined || val === null || val === "") continue
+          const num = typeof val === "string" ? parseFloat(val) : Number(val)
+          if (!isNaN(num) && num >= 0) {
+            resolvedPrice = num
+            resolvedBasePrice = val
+            break
+          }
+        }
+        if (resolvedPrice !== undefined) {
+          payload.base_price = resolvedBasePrice
+          payload.price = resolvedPrice
+        } else {
+          payload.price = 0
+        }
+      }
+
       // Attach image if uploaded
       if (imageBase64 && typeof imageBase64 === 'string' && imageBase64.startsWith('data:image/')) {
         payload.image = imageBase64

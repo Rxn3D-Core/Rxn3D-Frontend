@@ -5,6 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { ChevronDown, Info, Plus, Trash2, AlertCircle, GripVertical } from "lucide-react"
 import { ValidationError } from "@/components/ui/validation-error"
 import { useState, useCallback } from "react"
+import { cn } from "@/lib/utils"
 
 interface Stage {
     stage_id: string | number;
@@ -453,6 +454,11 @@ export function StagesSection({
         <div className="border-t">
             <div className="px-6 py-4 flex items-center justify-between">
                 <div className="flex items-center gap-2">
+                    <Switch
+                        checked={sections.stages}
+                        onCheckedChange={() => toggleSection("stages")}
+                        className="data-[state=checked]:bg-[#1162a8]"
+                    />
                     <span className="font-medium">Stages</span>
                     {sectionHasErrors(["stages"]) ? (
                         <AlertCircle className="h-4 w-4 text-red-500" />
@@ -467,19 +473,14 @@ export function StagesSection({
                     </span>
                 </div>
                 <div className="flex items-center gap-4">
-                    <Switch
-                        checked={sections.stages}
-                        onCheckedChange={() => toggleSection("stages")}
-                        className="data-[state=checked]:bg-[#1162a8]"
-                    />
                     <ChevronDown
                         className={`h-5 w-5 transition-transform duration-200 cursor-pointer ${expandedSections.stages ? "rotate-180" : ""}`}
                         onClick={() => toggleExpanded("stages")}
                     />
                 </div>
             </div>
-            {expandedSections.stages && sections.stages && (
-                <div className="px-6 pb-6">
+            {expandedSections.stages && (
+                <div className={cn("px-6 pb-6", !sections.stages && "opacity-50 pointer-events-none select-none")}>
                     {/* Pricing suggestion banner */}
                     {showPriceSuggestion && (
                         <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 mb-4">

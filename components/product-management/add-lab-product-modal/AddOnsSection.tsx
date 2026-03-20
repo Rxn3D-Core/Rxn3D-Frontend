@@ -6,7 +6,7 @@ import { ValidationError } from "@/components/ui/validation-error"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useState } from "react"
-import { generateCodeFromName } from "@/lib/utils"
+import { generateCodeFromName, cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 
 export function AddOnsSection({
@@ -393,6 +393,11 @@ export function AddOnsSection({
     <div className="border-t">
       <div className="px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
+          <Switch
+            checked={sections.addOns}
+            onCheckedChange={() => toggleSection("addOns")}
+            className="data-[state=checked]:bg-[#1162a8]"
+          />
           <span className="font-medium">Add-ons</span>
           {sectionHasErrors(["addons"]) ? (
             <AlertCircle className="h-4 w-4 text-red-500" />
@@ -422,19 +427,14 @@ export function AddOnsSection({
           </div>
         </div>
         <div className="flex items-center gap-4">
-          <Switch
-            checked={sections.addOns}
-            onCheckedChange={() => toggleSection("addOns")}
-            className="data-[state=checked]:bg-[#1162a8]"
-          />
           <ChevronDown
             className={`h-5 w-5 transition-transform duration-200 cursor-pointer ${expandedSections.addOns ? "rotate-180" : ""}`}
             onClick={() => toggleExpanded("addOns")}
           />
         </div>
       </div>
-      {expandedSections.addOns && sections.addOns && (
-        <div className="px-6 pb-6">
+      {expandedSections.addOns && (
+        <div className={cn("px-6 pb-6", !sections.addOns && "opacity-50 pointer-events-none select-none")}>
           <div className="relative mb-4">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input

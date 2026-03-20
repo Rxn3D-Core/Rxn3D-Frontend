@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label"
 import { useCustomer } from "@/contexts/customer-context"
 import { useEffect, useRef, useState } from "react"
 import { Controller } from "react-hook-form"
+import { cn } from "@/lib/utils"
 
 export function VisibilityManagementSection({
   control,
@@ -94,6 +95,11 @@ export function VisibilityManagementSection({
     <div className="border-t">
       <div className="px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
+          <Switch
+            checked={sections.visibilityManagement}
+            onCheckedChange={() => toggleSection("visibilityManagement")}
+            className="data-[state=checked]:bg-[#1162a8]"
+          />
           <span className="font-medium">Visibility Management</span>
           <Info className="h-4 w-4 text-gray-400" />
           <span
@@ -104,19 +110,14 @@ export function VisibilityManagementSection({
           </span>
         </div>
         <div className="flex items-center gap-4">
-          <Switch
-            checked={sections.visibilityManagement}
-            onCheckedChange={() => toggleSection("visibilityManagement")}
-            className="data-[state=checked]:bg-[#1162a8]"
-          />
           <ChevronDown
             className={`h-5 w-5 transition-transform duration-200 cursor-pointer ${expandedSections.visibilityManagement ? "rotate-180" : ""}`}
             onClick={() => toggleExpanded("visibilityManagement")}
           />
         </div>
       </div>
-      {expandedSections.visibilityManagement && sections.visibilityManagement && (
-        <div className="px-6 pb-6">
+      {expandedSections.visibilityManagement && (
+        <div className={cn("px-6 pb-6", !sections.visibilityManagement && "opacity-50 pointer-events-none select-none")}>
           <div className="mb-6">
             <div className="mb-4">
               <div className="flex items-center gap-4 mb-4">

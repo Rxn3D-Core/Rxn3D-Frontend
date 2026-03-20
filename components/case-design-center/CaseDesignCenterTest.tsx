@@ -297,6 +297,7 @@ export default function Page() {
   const [caseDesignMounted, setCaseDesignMounted] = useState(false);
 
   // ---- Add Product via wizard redirect ----
+  const [wizardKey, setWizardKey] = useState(0);
   const [wizardMode, setWizardMode] = useState<"initial" | "addProduct" | "backToProducts">("initial");
   const [pendingProductArch, setPendingProductArch] = useState<"maxillary" | "mandibular">("maxillary");
   const [selectedProductId, setSelectedProductId] = useState<number | undefined>(undefined);
@@ -378,15 +379,27 @@ export default function Page() {
   };
 
   const handleTopBarEditLab = () => {
+    console.log("[CaseDesignCenter] handleTopBarEditLab called, wizardComplete:", wizardComplete);
+    setWizardMode("initial");
     setLabEditMode(true);
     setDoctorEditMode(false);
     setWizardComplete(false);
+    setWizardKey((k) => k + 1);
   };
 
   const handleEditDoctor = () => {
+    setWizardMode("initial");
     setDoctorEditMode(true);
     setLabEditMode(false);
     setWizardComplete(false);
+    setWizardKey((k) => k + 1);
+  };
+
+  /** Called by the wizard when a single-step edit (lab or doctor) selection is made. */
+  const handleEditDone = () => {
+    setLabEditMode(false);
+    setDoctorEditMode(false);
+    setWizardComplete(true);
   };
 
   const handleSubmit = useCallback(async () => {
@@ -474,23 +487,27 @@ export default function Page() {
       <main className="flex-1 flex flex-col overflow-auto min-w-0">
         <TopBar
           selectedLab={completedLab ? { logo: completedLab.logo, name: completedLab.name } : null}
-          onEditClick={wizardComplete ? handleTopBarEditLab : undefined}
+          onEditClick={handleTopBarEditLab}
           caseSubmitted={caseSubmitted}
         />
         {/* Wizard — shown when wizardComplete is false */}
         {!wizardComplete && (
           <NewCaseWizard
+            key={wizardKey}
             onComplete={handleWizardComplete}
             onLabSelect={(lab) => setCompletedLab(lab)}
             startStep={wizardStartStep}
             mode={wizardMode === "backToProducts" ? "addProduct" : wizardMode}
-            initialLabId={(doctorEditMode || wizardMode === "addProduct" || wizardMode === "backToProducts") && completedLab ? completedLab.id : null}
-            initialPatientName={wizardMode === "addProduct" || wizardMode === "backToProducts" ? completedPatientName : ""}
-            initialGender={wizardMode === "addProduct" || wizardMode === "backToProducts" ? completedGender : ""}
-            initialDoctor={((wizardMode === "addProduct" || wizardMode === "backToProducts") && completedDoctor) ? completedDoctor : undefined}
+            initialLabId={(labEditMode || doctorEditMode || wizardMode === "addProduct" || wizardMode === "backToProducts") && completedLab ? completedLab.id : null}
+            initialPatientName={(labEditMode || doctorEditMode || wizardMode === "addProduct" || wizardMode === "backToProducts") ? completedPatientName : ""}
+            initialGender={(labEditMode || doctorEditMode || wizardMode === "addProduct" || wizardMode === "backToProducts") ? completedGender : ""}
+            initialAge={(labEditMode || doctorEditMode) ? completedAge : ""}
+            initialDoctor={(labEditMode || doctorEditMode || wizardMode === "addProduct" || wizardMode === "backToProducts") && completedDoctor ? completedDoctor : undefined}
             initialCategory={wizardMode === "backToProducts" ? lastSelectedCategory : null}
             initialSubProduct={wizardMode === "backToProducts" ? lastSelectedSubProduct : null}
             forceArch={wizardMode === "addProduct" ? pendingProductArch : undefined}
+            editTarget={undefined}
+            onEditDone={handleEditDone}
           />
         )}
 

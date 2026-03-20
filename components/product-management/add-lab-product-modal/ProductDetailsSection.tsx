@@ -263,26 +263,21 @@ export function ProductDetailsSection({
 
   return (
     <div className="px-4 sm:px-6 py-6 bg-white rounded-lg border border-gray-100">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <span className="font-semibold text-xl text-gray-900">
-            Product Details
-          </span>
-          {hasErrors && (
-            <AlertCircle className="h-5 w-5 text-red-500" />
-          )}
-        </div>
-        <div className="flex items-center gap-3">
-          <Switch
-            checked={sections.productDetails}
-            onCheckedChange={() => toggleSection("productDetails")}
-            className="data-[state=checked]:bg-[#1162a8]"
-          />
-        </div>
+      <div className="flex items-center gap-3 mb-6">
+        <Switch
+          checked={sections.productDetails}
+          onCheckedChange={() => toggleSection("productDetails")}
+          className="data-[state=checked]:bg-[#1162a8]"
+        />
+        <span className="font-semibold text-xl text-gray-900">
+          Product Details
+        </span>
+        {hasErrors && (
+          <AlertCircle className="h-5 w-5 text-red-500" />
+        )}
       </div>
       
-      {sections.productDetails && (
-        <div className="space-y-6">
+      <div className={cn("space-y-6", !sections.productDetails && "opacity-50 pointer-events-none select-none")}>
           {/* Image Upload Section - Full Width on Mobile, Side on Desktop */}
           <div className="flex flex-col sm:flex-row gap-6">
             {/* Image Upload */}
@@ -546,9 +541,9 @@ export function ProductDetailsSection({
                         <Input
                           label="Base Price *"
                           placeholder="0.00"
-                          className={`h-14 pl-8 ${
-                            sections.grades 
-                              ? "border-gray-200 bg-gray-50 cursor-not-allowed" 
+                          className={`pl-8 ${
+                            sections.grades
+                              ? "border-gray-200 bg-gray-50 cursor-not-allowed"
                               : ""
                           }`}
                           type="number"
@@ -638,7 +633,6 @@ export function ProductDetailsSection({
                       <Input
                         label="Min Days to Process *"
                         placeholder="Enter minimum days"
-                        className="h-14"
                         type="number"
                         min="1"
                         value={field.value !== null && field.value !== undefined ? field.value : ""}
@@ -682,7 +676,6 @@ export function ProductDetailsSection({
                         <Input
                           label="Max Days to Process *"
                           placeholder="Enter maximum days"
-                          className="h-14"
                           type="number"
                           min="1"
                           value={field.value !== null && field.value !== undefined ? field.value : ""}
@@ -735,8 +728,7 @@ export function ProductDetailsSection({
               </Tooltip>
             </TooltipProvider>
           </div>
-        </div>
-      )}
+      </div>
 
       {/* Image Preview Modal */}
       <Dialog open={showPreviewModal} onOpenChange={setShowPreviewModal}>
