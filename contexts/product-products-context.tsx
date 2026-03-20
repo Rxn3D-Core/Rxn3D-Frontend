@@ -158,8 +158,11 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
     payload.has_multiple_grades = Array.isArray(form.grades) && form.grades.length > 1 ? "Yes" : "No"
 
     // Set price (from base_price if grades are disabled)
-    if (form.has_grade_based_pricing === "No") {
-      // Use base_price if present, else fallback to price if present
+    if (form.has_grade_based_pricing === "Yes" && Array.isArray(form.grades) && form.grades.length > 0) {
+      const defaultGrade = form.grades.find((g: any) => g.is_default === "Yes")
+      payload.price = defaultGrade?.price ? parseFloat(defaultGrade.price) : (form.base_price ? parseFloat(form.base_price) : 0)
+    } else {
+      // No grade-based pricing or has_grade_based_pricing is "No"/undefined — use base_price or price
       if (form.base_price !== undefined && form.base_price !== null && form.base_price !== "") {
         payload.price = typeof form.base_price === "string" ? parseFloat(form.base_price) : form.base_price
       } else if (form.price !== undefined && form.price !== null && form.price !== "") {
@@ -167,10 +170,9 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
       } else {
         payload.price = 0
       }
-      payload.grades = []
-    } else if (Array.isArray(form.grades) && form.has_grade_based_pricing === "Yes") {
-      const defaultGrade = form.grades.find((g: any) => g.is_default === "Yes")
-      payload.price = defaultGrade?.price ? parseFloat(defaultGrade.price) : (form.base_price ? parseFloat(form.base_price) : 0)
+      if (form.has_grade_based_pricing === "No") {
+        payload.grades = []
+      }
     }
 
     // Map stages according to API validation rules:

@@ -411,6 +411,33 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
       setImageBase64(null)
       clearValidationErrors()
       fetchData()
+
+      // Initialize section toggles from product's has_* flags when editing.
+      // When has_* flag is not in the API response (undefined), derive from whether items exist.
+      if (editingProduct) {
+        const isSingleStage = editingProduct.is_single_stage === "Yes"
+        const hasGrades = editingProduct.has_grade ?? (Array.isArray(editingProduct.grades) && editingProduct.grades.length > 0)
+        const hasStages = editingProduct.has_stage ?? (Array.isArray(editingProduct.stages) && editingProduct.stages.length > 0)
+        const hasImpressions = editingProduct.has_impression ?? (Array.isArray(editingProduct.impressions) && editingProduct.impressions.length > 0)
+        const hasGumShade = editingProduct.has_gum_shade ?? (Array.isArray(editingProduct.gum_shades) && editingProduct.gum_shades.length > 0)
+        const hasTeethShade = editingProduct.has_teeth_shade ?? (Array.isArray(editingProduct.teeth_shades) && editingProduct.teeth_shades.length > 0)
+        const hasMaterial = editingProduct.has_material ?? (Array.isArray(editingProduct.materials) && editingProduct.materials.length > 0)
+        const hasAddons = editingProduct.has_addon ?? (Array.isArray(editingProduct.addons) && editingProduct.addons.length > 0)
+        const hasRetention = editingProduct.has_retention ?? (Array.isArray(editingProduct.retentions) && editingProduct.retentions.length > 0)
+        const hasExtractions = editingProduct.has_extraction ?? (Array.isArray(editingProduct.extractions) && editingProduct.extractions.length > 0)
+        setSections((prev) => ({
+          ...prev,
+          grades: hasGrades,
+          stages: isSingleStage ? false : hasStages,
+          impressions: hasImpressions,
+          gumShade: hasGumShade,
+          teethShade: hasTeethShade,
+          material: hasMaterial,
+          addOns: hasAddons,
+          retention: hasRetention,
+          extractions: hasExtractions,
+        }))
+      }
     }
     // Only depend on isOpen and editingProduct!
     // Do NOT include fetchData, reset, or getNormalizedFormValues as dependencies
