@@ -982,6 +982,8 @@ export function AddLabProductModal({
         max_days_to_process: editingProduct.max_days_to_process ?? null,
       }
       reset(formValues)
+      // Conditionally-rendered fields (min/max_days_to_process, is_teeth_based_price) are
+      // synced in ProductDetailsSection via useEffect after their Controllers mount.
       if (Array.isArray(editingProduct.opposite_extractions) && editingProduct.opposite_extractions.length > 0) {
         const opp = mapOppositeExtractions(editingProduct.opposite_extractions)
         const syncOpposite = () => {
@@ -1680,6 +1682,16 @@ export function AddLabProductModal({
       // Remove category_id from changes (UI-only field)
       delete changes.category_id
 
+      // Only include stages / has_stage / stage_grades (via buildProductPayload) when this update touches stages
+      const stagesSectionToggleChanged =
+        !!initialSections && initialSections.stages !== sections.stages
+      const shouldIncludeStagePayload =
+        hasReleasingStageChanges ||
+        stagesSectionToggleChanged ||
+        changes.stages !== undefined ||
+        changes.is_single_stage !== undefined ||
+        (!!dirtyFields.stages && activeTab === "stages")
+
       // Determine if customer_id will be in the final payload (needed for stage formatting)
       // This must be determined before processing stages
       const willHaveCustomerId = (formData.customer_id !== undefined &&
@@ -1875,8 +1887,8 @@ export function AddLabProductModal({
         console.log('💰 Resolved price:', payload.price, 'base_price:', payload.base_price)
       }
 
-      // Special handling for stages: always include stages if stages field is dirty
-      if (dirtyFields.stages) {
+      // Special handling for stages: include current stages if dirty on the stages tab (and we're syncing stages)
+      if (dirtyFields.stages && shouldIncludeStagePayload) {
         // Even if changes doesn't have stages (due to comparison issues), include current stages
         const currentStages = formData.stages || []
         if (currentStages.length > 0) {
@@ -1898,7 +1910,7 @@ export function AddLabProductModal({
         
         // For stages, always use current formData value (all stages) if stages changed
         // This ensures we send the complete stage array with proper sequencing
-        if (key === 'stages' && changes[key] !== undefined) {
+        if (key === 'stages' && changes[key] !== undefined && shouldIncludeStagePayload) {
           // Use current formData stages (all of them) instead of just changed ones
           const currentStages = formData.stages || []
           if (currentStages.length > 0) {
@@ -1950,7 +1962,12 @@ export function AddLabProductModal({
       }
 
       // Product slip field flags: when false, field is disabled on the slip (product_configurations)
-      payload.has_stage = sections.stages
+      if (shouldIncludeStagePayload) {
+        payload.has_stage = sections.stages
+        if (!sections.stages) {
+          payload.stages = []
+        }
+      }
       payload.has_grade = sections.grades
       payload.has_gum_shade = sections.gumShade
       payload.has_teeth_shade = sections.teethShade
@@ -1966,7 +1983,6 @@ export function AddLabProductModal({
         payload.opposite_extractions = []
       }
       if (!sections.grades) payload.grades = []
-      if (!sections.stages) payload.stages = []
       if (!sections.impressions) payload.impressions = []
       if (!sections.gumShade) payload.gum_shades = []
       if (!sections.teethShade) payload.teeth_shades = []

@@ -350,9 +350,12 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
         
         return stageData
       })
-    } else {
-      // If stages section is disabled or empty, ensure stages is not sent or is empty array
+    } else if (Object.prototype.hasOwnProperty.call(form, "stages")) {
+      // Caller explicitly included stages (e.g. [] when section off) — sync empty
       payload.stages = []
+    } else {
+      // Partial update: do not send stages — avoids wiping lab stages when editing other tabs
+      delete payload.stages
     }
 
     // Build stage_grades according to API validation rules:
@@ -419,9 +422,10 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
       if (payload.stage_grades.length === 0) {
         payload.stage_grades = []
       }
-    } else {
-      // If no stages, ensure stage_grades is not sent or is empty array
+    } else if (Object.prototype.hasOwnProperty.call(form, "stages")) {
       payload.stage_grades = []
+    } else {
+      delete payload.stage_grades
     }
 
     ["office_pricing", "office_grade_pricing", "office_stage_pricing", "office_stage_grade_pricing"].forEach(key => {
@@ -704,14 +708,10 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
             finalPayload.addons = finalPayload.addons.map(({ price, ...rest }: any) => rest)
           }
         } else {
-          // For lab products (with customer_id), keep stage_grades and ensure it's included
-          // stage_grades is built by buildProductPayload from stage.grade_prices
-          // It should always be included (even if empty array) to ensure proper updates
-          if (!Array.isArray(finalPayload.stage_grades)) {
+          if (Object.prototype.hasOwnProperty.call(finalPayload, "stages") && !Array.isArray(finalPayload.stage_grades)) {
             finalPayload.stage_grades = []
           }
-          
-          // Remove other pricing fields for non-admin users, but keep stage_grades
+
           if (!isLabAdmin) {
             delete finalPayload.price
             delete finalPayload.price_type
@@ -850,14 +850,12 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
             finalPayload.addons = finalPayload.addons.map(({ price, ...rest }: any) => rest)
           }
         } else {
-          // For lab products (with customer_id), keep stage_grades and ensure it's included
-          // stage_grades is built by buildProductPayload from stage.grade_prices
-          // It should always be included (even if empty array) to ensure proper updates
-          if (!Array.isArray(finalPayload.stage_grades)) {
+          // For lab products: only default stage_grades when this request includes stages (full or explicit [])
+          if (Object.prototype.hasOwnProperty.call(finalPayload, "stages") && !Array.isArray(finalPayload.stage_grades)) {
             finalPayload.stage_grades = []
           }
-          
-          // Remove other pricing fields for non-admin users, but keep stage_grades
+
+          // Remove other pricing fields for non-admin users, but keep stage_grades when stages are sent
           if (!isLabAdmin) {
             delete finalPayload.price
             delete finalPayload.price_type

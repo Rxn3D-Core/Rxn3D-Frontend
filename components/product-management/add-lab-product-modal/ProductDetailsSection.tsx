@@ -107,6 +107,25 @@ export function ProductDetailsSection({
     }
   }, [editingProduct, editingCategoryId, editingSubcategoryId, initialEditDone, selectedCategoryId, subcategoryId, setValueWithOptions, setValue])
 
+  // Sync conditionally-rendered fields from editingProduct after Controllers mount.
+  // min/max_days_to_process only render when is_single_stage === "Yes", so they miss the reset().
+  // is_teeth_based_price also needs explicit sync since its Controller may not pick up reset values.
+  useEffect(() => {
+    if (editingProduct && setValue) {
+      if (editingProduct.is_teeth_based_price) {
+        setValueWithOptions("is_teeth_based_price", editingProduct.is_teeth_based_price, { shouldDirty: false })
+      }
+      if (isSingleStage === "Yes") {
+        if (editingProduct.min_days_to_process != null) {
+          setValueWithOptions("min_days_to_process", editingProduct.min_days_to_process, { shouldDirty: false })
+        }
+        if (editingProduct.max_days_to_process != null) {
+          setValueWithOptions("max_days_to_process", editingProduct.max_days_to_process, { shouldDirty: false })
+        }
+      }
+    }
+  }, [editingProduct, isSingleStage, setValue, setValueWithOptions])
+
   // Categories list with editing product's category injected as fallback
   const categoriesForDropdown = React.useMemo(() => {
     const cats = (categoriesWithSubcategories || []).map(c => ({ ...c, subcategories: [...(c.subcategories || [])] }))
@@ -587,7 +606,6 @@ export function ProductDetailsSection({
             <Controller
               name="is_single_stage"
               control={control}
-              defaultValue="No"
               render={({ field }) => (
                 <RadioGroup
                   value={field.value || "No"}
@@ -705,7 +723,6 @@ export function ProductDetailsSection({
             <Controller
               name="is_teeth_based_price"
               control={control}
-              defaultValue="No"
               render={({ field }) => (
                 <Switch
                   checked={field.value === "Yes"}
