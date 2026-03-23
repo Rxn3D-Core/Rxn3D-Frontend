@@ -333,7 +333,7 @@ export default function ImpressionPage() {
                       <TableCell className="font-medium text-gray-900">{impression.name}</TableCell>
                       <TableCell className="text-gray-600">{impression.code}</TableCell>
                       <TableCell className="text-gray-600">{impression.is_digital_impression || "No"}</TableCell>
-                      <TableCell className="text-gray-600">{impression.url || "---"}</TableCell>
+                      <TableCell className="text-gray-600 max-w-[200px] truncate" title={impression.url || ""}>{impression.url || "---"}</TableCell>
                       <TableCell>
                         <span
                           className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
