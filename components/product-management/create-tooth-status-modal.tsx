@@ -388,6 +388,8 @@ export function CreateToothStatusModal({
                         value={watchedColor?.startsWith('#') ? watchedColor : getHexColor(watchedColor)}
                         onChange={handleColorChange}
                         predefinedColors={Object.keys(colorMapDropdown).map(colorName => getHexColor(colorName))}
+                        side="left"
+                        align="center"
                       />
                       
                     </div>

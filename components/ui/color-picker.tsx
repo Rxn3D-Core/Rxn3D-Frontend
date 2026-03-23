@@ -111,9 +111,9 @@ export function ColorPicker({ value, onChange, predefinedColors = [], side = "bo
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    // Set canvas size
-    canvas.width = 400
-    canvas.height = 200
+    // Set canvas size to match container
+    canvas.width = canvas.offsetWidth || 320
+    canvas.height = 160
 
     // Create gradient based on current hue
     // White to pure color (left to right)
@@ -200,7 +200,7 @@ export function ColorPicker({ value, onChange, predefinedColors = [], side = "bo
           </span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[520px] p-0" side={side} align={align}>
+      <PopoverContent className="w-[360px] p-0" side={side} align={align}>
         <div className="flex flex-col">
           {showCustomPicker ? (
             <div className="p-4 relative border-b">
@@ -219,8 +219,7 @@ export function ColorPicker({ value, onChange, predefinedColors = [], side = "bo
                 <canvas
                   ref={canvasRef}
                   onClick={handleCanvasClick}
-                  className="w-full h-48 rounded-lg cursor-crosshair border border-gray-300"
-                  style={{ maxWidth: '400px', height: '200px' }}
+                  className="w-full h-40 rounded-lg cursor-crosshair border border-gray-300"
                 />
               </div>
 
@@ -228,19 +227,19 @@ export function ColorPicker({ value, onChange, predefinedColors = [], side = "bo
               <div
                 ref={hueRef}
                 onClick={handleHueClick}
-                className="w-full h-6 rounded-full cursor-pointer mb-4 relative"
+                className="w-full h-5 rounded-full cursor-pointer mb-4 relative"
                 style={{
                   background: 'linear-gradient(to right, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%)'
                 }}
               >
                 <div
-                  className="absolute w-5 h-5 bg-white border-2 border-gray-400 rounded-full top-1/2 transform -translate-y-1/2 -translate-x-1/2 shadow-md"
+                  className="absolute w-4 h-4 bg-white border-2 border-gray-400 rounded-full top-1/2 transform -translate-y-1/2 -translate-x-1/2 shadow-md"
                   style={{ left: `${(hue / 360) * 100}%` }}
                 />
               </div>
 
               {/* RGB Inputs */}
-              <div className="flex gap-3 mb-4">
+              <div className="flex gap-2 mb-3">
                 <div className="flex-1">
                   <Input
                     type="number"
@@ -248,7 +247,7 @@ export function ColorPicker({ value, onChange, predefinedColors = [], side = "bo
                     onChange={(e) => handleRgbChange('r', e.target.value)}
                     min="0"
                     max="255"
-                    className="w-full text-center"
+                    className="w-full text-center text-sm"
                   />
                   <p className="text-xs text-center mt-1 text-gray-500">R</p>
                 </div>
@@ -259,7 +258,7 @@ export function ColorPicker({ value, onChange, predefinedColors = [], side = "bo
                     onChange={(e) => handleRgbChange('g', e.target.value)}
                     min="0"
                     max="255"
-                    className="w-full text-center"
+                    className="w-full text-center text-sm"
                   />
                   <p className="text-xs text-center mt-1 text-gray-500">G</p>
                 </div>
@@ -270,36 +269,36 @@ export function ColorPicker({ value, onChange, predefinedColors = [], side = "bo
                     onChange={(e) => handleRgbChange('b', e.target.value)}
                     min="0"
                     max="255"
-                    className="w-full text-center"
+                    className="w-full text-center text-sm"
                   />
                   <p className="text-xs text-center mt-1 text-gray-500">B</p>
                 </div>
               </div>
 
               {/* Hex Input */}
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 <div
-                  className="w-16 h-12 rounded-lg border-2 border-gray-300"
+                  className="w-12 h-10 rounded-lg border-2 border-gray-300 shrink-0"
                   style={{ backgroundColor: customColor }}
                 />
                 <Input
                   value={customColor.toUpperCase()}
                   onChange={(e) => handleHexChange(e.target.value)}
                   placeholder="#00ACC1"
-                  className="flex-1"
+                  className="flex-1 text-sm"
                 />
               </div>
             </div>
           ) : null}
-          
+
           <div className="p-4">
             <h3 className="font-semibold mb-3">Preset Colors</h3>
-            <div className="grid grid-cols-6 gap-3 mb-4">
+            <div className="grid grid-cols-6 gap-2 mb-4">
               {colors.map((color) => (
                 <button
                   key={color}
                   type="button"
-                  className="w-12 h-12 rounded-lg border-2 border-gray-300 hover:border-[#1162a8] transition-colors"
+                  className="w-10 h-10 rounded-lg border-2 border-gray-300 hover:border-[#1162a8] transition-colors"
                   style={{ backgroundColor: color }}
                   onClick={() => {
                     onChange(color)
@@ -326,14 +325,14 @@ export function ColorPicker({ value, onChange, predefinedColors = [], side = "bo
                     </button>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>Click the color box below to open the picker</p>
+                    <p>Click the color box or type a hex value</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <div
-                className="w-16 h-12 rounded-lg border-2 border-gray-300 cursor-pointer"
+                className="w-12 h-10 rounded-lg border-2 border-gray-300 cursor-pointer shrink-0"
                 style={{ backgroundColor: customColor }}
                 onClick={() => setShowCustomPicker(true)}
               />
@@ -341,8 +340,7 @@ export function ColorPicker({ value, onChange, predefinedColors = [], side = "bo
                 value={customColor.toUpperCase()}
                 onChange={(e) => handleHexChange(e.target.value)}
                 placeholder="#00ACC1"
-                className="flex-1"
-                readOnly
+                className="flex-1 text-sm"
               />
             </div>
           </div>
