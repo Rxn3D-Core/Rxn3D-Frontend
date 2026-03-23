@@ -23,7 +23,6 @@ import { useRetention } from "@/contexts/product-retention-context"
 import { useAddOns } from "@/contexts/product-add-on-context"
 import { useTranslation } from "react-i18next"
 import { useAuth } from "@/contexts/auth-context"
-
 import { ProductDetailsSection } from "./add-lab-product-modal/ProductDetailsSection"
 import { GradesSection } from "@/components/product-management/add-lab-product-modal/GradesSection"
 import { StagesSection } from "@/components/product-management/add-lab-product-modal/StagesSection"
@@ -68,7 +67,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
   const { teethShadeBrands, fetchTeethShadeBrands } = useTeethShades()
   const { materials, fetchMaterials } = useMaterials()
   const { retentions, fetchRetentions } = useRetention()
-  const { addOns, fetchAddOns } = useAddOns()
+  const { addOns, fetchAllAddOns } = useAddOns()
   const { user } = useAuth()
   const userRole =
     typeof user?.role === "string"
@@ -273,7 +272,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
     fetchTeethShadeBrands()
     fetchMaterials()
     fetchRetentions()
-    fetchAddOns()
+    fetchAllAddOns()
   }, [
     fetchParentDropdownCategories,
     fetchCategoriesWithSubcategories,
@@ -284,7 +283,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
     fetchTeethShadeBrands,
     fetchMaterials,
     fetchRetentions,
-    fetchAddOns,
+    fetchAllAddOns,
   ])
 
   const getNormalizedFormValues = useCallback((): ProductCreateForm => {

@@ -22,3 +22,6 @@ export const CONNECTION_STATUS = {
   REQUESTED: "Requested",
   PENDING: "Pending",
 } as const
+
+/** Max `per_page` the add-ons API accepts; use multi-page fetches on the client to load the full list. */
+export const ADDONS_LIBRARY_API_MAX_PER_PAGE = 100

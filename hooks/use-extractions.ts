@@ -30,7 +30,6 @@ export function useExtractions(filters: ExtractionsFilters = {}) {
       return response
     },
     staleTime: 0, // always refetch so we can load the latest localized detail
-    gcTime: 10 * 60 * 1000, // 10 minutes
   })
 }
 
@@ -64,7 +63,6 @@ export function useExtraction(id: number | null, lang?: string) {
     },
     enabled: !!id,
     staleTime: 0, // always refetch so we can load the latest localized detail
-    gcTime: 10 * 60 * 1000, // 10 minutes
   })
 }
 
@@ -179,7 +177,7 @@ export function usePrefetchExtractions() {
     queryClient.prefetchQuery({
       queryKey: extractionsKeys.list(filters),
       queryFn: async () => ExtractionsApi.getExtractions(filters),
-      staleTime: 5 * 60 * 1000, // 5 minutes
+      staleTime: 0,
     })
   }, [queryClient])
 }
@@ -193,7 +191,7 @@ export function usePrefetchExtraction() {
     queryClient.prefetchQuery({
       queryKey: extractionsKeys.detail(id),
       queryFn: async () => ExtractionsApi.getExtraction(id, customerId || undefined),
-      staleTime: 5 * 60 * 1000, // 5 minutes
+      staleTime: 0,
     })
   }, [queryClient])
 }

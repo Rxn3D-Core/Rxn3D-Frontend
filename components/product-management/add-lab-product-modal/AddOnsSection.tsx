@@ -212,8 +212,7 @@ export function AddOnsSection({
           try {
             // Wait a bit to ensure the backend has fully processed the creation
             await new Promise(resolve => setTimeout(resolve, 300))
-            // Fetch all addons without pagination (page 1, high limit)
-            await onAddonCreated(1, 9999, "", undefined, undefined)
+            await onAddonCreated()
           } catch (error) {
             console.error("Error refreshing addons list:", error)
             // Don't throw - addon was created successfully, just refresh failed
@@ -350,10 +349,17 @@ export function AddOnsSection({
     }
   }
 
-  // Filter addOns by search query
-  const filteredAddOns = addOns.filter(addOn =>
-    addOn.name?.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  const selectedAddonIdSet = new Set(watchedAddons.map((a) => a.addon_id))
+
+  // Filter addOns by search query, then show checked add-ons first
+  const filteredAddOns = addOns
+    .filter((addOn) => addOn.name?.toLowerCase().includes(searchQuery.toLowerCase()))
+    .sort((a, b) => {
+      const aSel = selectedAddonIdSet.has(a.id)
+      const bSel = selectedAddonIdSet.has(b.id)
+      if (aSel === bSel) return 0
+      return aSel ? -1 : 1
+    })
 
   // Check if all filtered add-ons are selected
   const allAddOnIds = filteredAddOns.map((addOn) => addOn.id)

@@ -9,7 +9,6 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
 import { ProductCreateForm } from "@/lib/schemas"
-import { useExtractionsData } from "@/hooks/use-extractions"
 import type { Extraction } from "@/lib/schemas"
 import { ValidationError } from "@/components/ui/validation-error"
 import { cn } from "@/lib/utils"
@@ -24,6 +23,8 @@ interface ExtractionsSectionProps {
   toggleSection?: (section: string) => void
   expandedSections?: { extractions?: boolean }
   toggleExpanded?: (section: string) => void
+  allExtractions?: Extraction[]
+  isExtractionsLoading?: boolean
 }
 
 export function ExtractionsSection({
@@ -36,6 +37,8 @@ export function ExtractionsSection({
   toggleSection,
   expandedSections,
   toggleExpanded,
+  allExtractions = [],
+  isExtractionsLoading = false,
 }: ExtractionsSectionProps) {
   // Fallback internal state when parent doesn't pass sections (e.g. used elsewhere)
   const [internalEnabled, setInternalEnabled] = useState(true)
@@ -47,22 +50,18 @@ export function ExtractionsSection({
   const watchedOppositeExtractions = watch("opposite_extractions" as any) || []
   const watchedApplySameStatus = watch("apply_same_status_to_opposing") ?? true
 
-  // Fetch extractions data from API
-  const { extractions, isLoading } = useExtractionsData({
-    status: 'Active',
-    per_page: 100, // Get all active extractions
-    page: 1,
-    sort_by: 'sequence',
-    sort_order: 'asc'
-  })
+  // Use extractions passed from parent
+  const extractions = allExtractions
+  const isLoading = isExtractionsLoading
 
   // Convert API extractions to form format
   const [extractionStatuses, setExtractionStatuses] = useState<any[]>([])
   const [opposingExtractionStatuses, setOpposingExtractionStatuses] = useState<any[]>([])
   const isUpdatingRef = useRef(false)
   const isOpposingUpdatingRef = useRef(false)
-  const hasInitializedRef = useRef(false)
-  const hasInitializedOpposingRef = useRef(false)
+  // Track whether user has manually interacted with main/opposing table (prevents re-init overwriting user changes)
+  const userModifiedMainRef = useRef(false)
+  const userModifiedOpposingRef = useRef(false)
 
   // Helper to build statuses from API extractions + form data
   const buildStatuses = (apiExtractions: Extraction[], formExtractions: any[]) => {
@@ -100,31 +99,48 @@ export function ExtractionsSection({
     })
   }
 
-  // Initialize extractionStatuses ONCE when API extractions load
+  // Build extraction statuses whenever API extractions or form data changes.
+  // Skips rebuild if user has manually interacted with the table (prevents overwriting user changes).
   useEffect(() => {
-    if (extractions.length > 0 && !hasInitializedRef.current) {
-      hasInitializedRef.current = true
-      setExtractionStatuses(buildStatuses(extractions, watchedExtractions))
-    }
+    if (extractions.length === 0) return
+    if (userModifiedMainRef.current) return
+    setExtractionStatuses(buildStatuses(extractions, watchedExtractions))
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [extractions])
+  }, [extractions, watchedExtractions])
 
-  // Auto-uncheck "apply same status to opposing" if opposite_extractions has values on initial load
-  // Initialize opposingExtractionStatuses ONCE when API extractions load
+  // Build opposing extraction statuses and sync the checkbox.
+  // When opposite_extractions exist in form data, uncheck "Apply same status to opposing".
   useEffect(() => {
-    if (extractions.length > 0 && !hasInitializedOpposingRef.current) {
-      hasInitializedOpposingRef.current = true
-      if (watchedOppositeExtractions.length > 0) {
-        setValue("apply_same_status_to_opposing", false, { shouldDirty: false })
-      }
+    if (extractions.length === 0) return
+    if (userModifiedOpposingRef.current) return
+
+    if (watchedOppositeExtractions.length > 0) {
+      setValue("apply_same_status_to_opposing", false, { shouldDirty: false })
       setOpposingExtractionStatuses(buildStatuses(extractions, watchedOppositeExtractions))
+    } else {
+      setOpposingExtractionStatuses(buildStatuses(extractions, []))
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [extractions])
+  }, [extractions, watchedOppositeExtractions])
+
+  // Reset user-modified refs when form is reset (detected by watching form extraction IDs change)
+  const prevFormKeyRef = useRef<string>("")
+  useEffect(() => {
+    const key = watchedExtractions.map((e: any) => e.extraction_id).sort().join(',')
+      + '|' + watchedOppositeExtractions.map((e: any) => e.extraction_id).sort().join(',')
+    if (prevFormKeyRef.current && key !== prevFormKeyRef.current) {
+      // Form data changed (likely reset with new product) — allow re-initialization
+      userModifiedMainRef.current = false
+      userModifiedOpposingRef.current = false
+    }
+    prevFormKeyRef.current = key
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedExtractions, watchedOppositeExtractions])
 
   const handleStatusChange = (extractionId: number, field: string, value: any) => {
     if (isUpdatingRef.current) return // Prevent infinite loops
-    
+
+    userModifiedMainRef.current = true
     isUpdatingRef.current = true
     const updatedStatuses = extractionStatuses.map((status) => {
       if (status.extraction_id === extractionId) {
@@ -181,7 +197,8 @@ export function ExtractionsSection({
 
   const handleMinTeethChange = (extractionId: number, value: string) => {
     if (isUpdatingRef.current) return // Prevent infinite loops
-    
+
+    userModifiedMainRef.current = true
     let numValue = value === "" ? null : parseInt(value)
     
     // Validate min_teeth: must be between 0 and 16
@@ -315,7 +332,8 @@ export function ExtractionsSection({
 
   const handleOpposingStatusChange = (extractionId: number, field: string, value: any) => {
     if (isOpposingUpdatingRef.current) return
-    
+
+    userModifiedOpposingRef.current = true
     isOpposingUpdatingRef.current = true
     const updatedStatuses = opposingExtractionStatuses.map((status) => {
       if (status.extraction_id === extractionId) {

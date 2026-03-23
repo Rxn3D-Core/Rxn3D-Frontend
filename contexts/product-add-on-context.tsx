@@ -4,6 +4,7 @@ import type { ReactNode, Dispatch, SetStateAction } from "react"
 import type React from "react"
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react"
 import { useAuth } from "@/contexts/auth-context"
+import { ADDONS_LIBRARY_API_MAX_PER_PAGE } from "@/lib/constants"
 import { Loader2, Trash2, Save, CheckCircle, AlertCircle, Package } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useLanguage } from "@/contexts/language-context"
@@ -93,6 +94,12 @@ interface AddOnsContextState {
   fetchAddOns: (
     page?: number,
     limit?: number,
+    search?: string,
+    sortColKey?: keyof AddOn | null | undefined,
+    sortDir?: "asc" | "desc"
+  ) => Promise<void>
+  /** Loads every page (per_page capped by API) and merges into `addOns` — for product modals, etc. */
+  fetchAllAddOns: (
     search?: string,
     sortColKey?: keyof AddOn | null | undefined,
     sortDir?: "asc" | "desc"
@@ -352,6 +359,104 @@ export function AddOnsProvider({ children }: { children: ReactNode }) {
       isLabAdmin,
       customerId,
     ],
+  )
+
+  const fetchAllAddOns = useCallback(
+    async (
+      search = "",
+      sortColKey: keyof AddOn | null | undefined = undefined,
+      sortDir: "asc" | "desc" | undefined = undefined,
+    ) => {
+      if (fetchingRef.current) {
+        return
+      }
+
+      const headers = getAuthHeaders()
+      if (!headers) return
+
+      fetchingRef.current = true
+      setIsLoadingAddOns(true)
+      setAddOnError(null)
+
+      const appendSortParams = (params: URLSearchParams) => {
+        if (sortColKey && sortDir) {
+          const orderByMap: Record<string, string> = {
+            category_name: "add_on_sub_category",
+            subcategory_name: "add_on_sub_category",
+            name: "add_on",
+            add_on_sub_category: "add_on_sub_category",
+            add_on: "add_on",
+          }
+          const orderBy = orderByMap[sortColKey as string] || sortColKey
+          params.append("order_by", orderBy)
+          params.append("sort_by", sortDir)
+        }
+      }
+
+      try {
+        const allProcessed: AddOn[] = []
+        let page = 1
+        let lastPagination: PaginatedResponse<AddOn>["pagination"] | null = null
+
+        while (page <= 500) {
+          const params = new URLSearchParams({
+            page: page.toString(),
+            per_page: String(ADDONS_LIBRARY_API_MAX_PER_PAGE),
+          })
+          if (search) params.append("q", search)
+          appendSortParams(params)
+          if (isLabAdmin && customerId) {
+            params.append("customer_id", customerId.toString())
+          }
+
+          const response = await fetch(`${API_BASE_URL}/library/addons?${params.toString()}&language=${currentLanguage}`, {
+            headers,
+          })
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}))
+            throw { response: { data: errorData, status: response.status } }
+          }
+
+          const result: ApiResponse<PaginatedResponse<AddOn>> = await response.json()
+
+          if (!result.status || !result.data) {
+            throw new Error(result.message || "Failed to fetch add-ons")
+          }
+
+          const pageItems = result.data.data.map((addon) => ({
+            ...addon,
+            subcategory_name: addon.subcategory?.name || "N/A",
+            category_name: addon.subcategory?.category?.name || "N/A",
+          }))
+          allProcessed.push(...pageItems)
+          lastPagination = result.data.pagination
+
+          if (lastPagination.current_page >= lastPagination.last_page) {
+            break
+          }
+          page += 1
+        }
+
+        setAddOns(allProcessed)
+        if (lastPagination) {
+          setAddOnPagination({
+            total: lastPagination.total,
+            per_page: allProcessed.length,
+            current_page: 1,
+            last_page: 1,
+          })
+        }
+        clearSelectedItems()
+      } catch (error: any) {
+        const errorMsg = handleApiError(error, "fetch add-ons")
+        setAddOnError(errorMsg)
+      } finally {
+        setIsLoadingAddOns(false)
+        fetchingRef.current = false
+      }
+    },
+    [getAuthHeaders, clearSelectedItems, currentLanguage, isLabAdmin, customerId],
   )
 
   const createAddOn = async (data: Omit<AddOn, "id" | "subcategory" | "category_name" | "subcategory_name">) => {
@@ -697,6 +802,7 @@ export function AddOnsProvider({ children }: { children: ReactNode }) {
     // Add-ons
     addOns,
     fetchAddOns,
+    fetchAllAddOns,
     createAddOn,
     updateAddOn,
     deleteAddOn,

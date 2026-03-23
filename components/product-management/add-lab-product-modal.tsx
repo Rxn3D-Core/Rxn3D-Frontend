@@ -21,6 +21,8 @@ import { useAddOns } from "@/contexts/product-add-on-context"
 import { useTranslation } from "react-i18next"
 import { useCustomer } from "@/contexts/customer-context"
 import { useAuth } from "@/contexts/auth-context" // <-- add this import
+import { ExtractionsApi } from "@/lib/api-service"
+import type { Extraction } from "@/lib/schemas"
 import { getAuthToken, redirectToLogin } from "@/lib/auth-utils"
 import { DiscardChangesDialog } from "./discard-changes-dialog"
 import { LoadingOverlay } from "@/components/ui/loading-overlay"
@@ -86,9 +88,30 @@ export function AddLabProductModal({
   const { teethShadeBrands, fetchTeethShadeBrands } = useTeethShades()
   const { materials, fetchMaterials } = useMaterials()
   const { retentions, fetchRetentions } = useRetention()
-  const { addOns, fetchAddOns } = useAddOns()
+  const { addOns, fetchAllAddOns } = useAddOns()
   const { officeCustomers, fetchCustomers } = useCustomer()
   const { user } = useAuth() // <-- get user from auth context
+  // Fetch all extraction statuses once at parent level, pass to ExtractionsSection as prop
+  const [allExtractions, setAllExtractions] = useState<Extraction[]>([])
+  const [isExtractionsLoading, setIsExtractionsLoading] = useState(false)
+  const fetchExtractions = useCallback(async () => {
+    setIsExtractionsLoading(true)
+    try {
+      const response = await ExtractionsApi.getExtractions({
+        status: 'Active',
+        per_page: 100,
+        page: 1,
+        sort_by: 'sequence',
+        sort_order: 'asc'
+      })
+      setAllExtractions(response?.data?.data || [])
+    } catch (err) {
+      console.error("Failed to fetch extractions:", err)
+      setAllExtractions([])
+    } finally {
+      setIsExtractionsLoading(false)
+    }
+  }, [])
   // Prefer user.role if present, else fallback to first role in user.roles array
   const userRole =
     typeof user?.role === "string"
@@ -602,10 +625,10 @@ export function AddLabProductModal({
     fetchTeethShadeBrands() // fetch all brands without pagination
     fetchMaterials()
     fetchRetentions()
-    // Fetch all addons without pagination (page 1, high limit)
-    fetchAddOns(1, 100, "", undefined, undefined)
+    fetchAllAddOns()
     fetchCustomers("office")
-  }, [fetchParentDropdownCategories, fetchCategoriesWithSubcategories, fetchGrades, fetchStages, fetchImpressions, fetchGumShadeBrands, fetchTeethShadeBrands, fetchMaterials, fetchRetentions, fetchAddOns, fetchCustomers])
+    fetchExtractions()
+  }, [fetchParentDropdownCategories, fetchCategoriesWithSubcategories, fetchGrades, fetchStages, fetchImpressions, fetchGumShadeBrands, fetchTeethShadeBrands, fetchMaterials, fetchRetentions, fetchAllAddOns, fetchCustomers, fetchExtractions])
 
 
   useEffect(() => {
@@ -2273,7 +2296,7 @@ export function AddLabProductModal({
                     toggleExpanded={toggleExpanded}
                     handleToggleSelection={handleToggleSelection}
                     userRole={userRole}
-                    onAddonCreated={fetchAddOns}
+                    onAddonCreated={fetchAllAddOns}
                   />
                 </TabsContent>
 
@@ -2295,7 +2318,7 @@ export function AddLabProductModal({
                   />
                 </TabsContent>
 
-                <TabsContent value="extractions" className="mt-0 p-6 focus-visible:outline-none">
+                <TabsContent value="extractions" forceMount className="mt-0 p-6 focus-visible:outline-none data-[state=inactive]:hidden">
                   <ExtractionsSection
                     control={control}
                     watch={watch}
@@ -2306,6 +2329,8 @@ export function AddLabProductModal({
                     toggleSection={toggleSection}
                     expandedSections={expandedSections}
                     toggleExpanded={toggleExpanded}
+                    allExtractions={allExtractions}
+                    isExtractionsLoading={isExtractionsLoading}
                   />
                 </TabsContent>
 
