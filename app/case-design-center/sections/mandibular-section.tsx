@@ -156,6 +156,7 @@ export function MandibularSection({ sectionRef, children }: MandibularSectionPro
               setToothStatusPopoverState?.({ arch: null, toothNumber: null })
             }}
             onDeselectTooth={handleMandibularToothDeselect}
+            retentionOptions={productDetails?.retention_options}
             showToothStatusPopover={isOrthodonticsOrRemovable && toothStatusPopoverState.arch === "mandibular"}
             toothStatusPopoverTooth={toothStatusPopoverState.toothNumber}
             availableExtractionTypes={availableExtractionTypes}

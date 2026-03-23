@@ -1,6 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom'
-import { RetentionTypePopover } from './retention-type-popover'
+import { RetentionTypePopover, RetentionOptionItem } from './retention-type-popover'
 
 interface MandibularTeethSVGProps {
   selectedTeeth: number[]
@@ -22,6 +22,8 @@ interface MandibularTeethSVGProps {
   claspTeeth?: number[]
   /** Returns the addon field value string for a tooth (e.g. "1x Acrylic Clasp"). */
   getAddonValue?: (toothNumber: number) => string
+  /** Retention options from the product API response. */
+  retentionOptions?: RetentionOptionItem[]
 }
 
 export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
@@ -39,6 +41,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
   hideSelectionIndicators = false,
   claspTeeth = [],
   getAddonValue,
+  retentionOptions,
 }) => {
   const svgRef = React.useRef<SVGSVGElement>(null)
   const [hoveredTooth, setHoveredTooth] = React.useState<number | null>(null)
@@ -391,6 +394,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
         }}
       >
         <RetentionTypePopover
+          retentionOptions={retentionOptions}
           onSelectRetentionType={(type) => onSelectRetentionType(retentionPopoverTooth, type)}
           selectedType={selectedType || undefined}
           onClose={onClosePopover}

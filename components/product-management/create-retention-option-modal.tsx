@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { X, Info, Link as LinkIcon, Check } from "lucide-react"
 import { DiscardChangesDialog } from "./discard-changes-dialog"
+import { LinkRetentionOptionModal } from "./link-retention-option-modal"
 import { useAuth } from "@/contexts/auth-context"
 import { generateCodeFromName } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
@@ -180,7 +181,7 @@ export function CreateRetentionOptionModal({ isOpen, onClose, option, isCopying 
             } else if (option && option.id && !isCopying) {
                 // Editing: fetch full details from API
                 setIsLoadingDetails(true)
-                getRetentionOption(option.id)
+                getRetentionOption(option.id, customerId ?? undefined)
                     .then((response) => {
                         const data = response.data
                         setOptionName(data.name || "")
@@ -749,6 +750,17 @@ export function CreateRetentionOptionModal({ isOpen, onClose, option, isCopying 
                 type="retention-option"
                 onDiscard={handleDiscard}
                 onKeepEditing={() => setShowDiscardDialog(false)}
+            />
+
+            <LinkRetentionOptionModal
+                isOpen={showLinkRetentionOptionModal}
+                onClose={() => setShowLinkRetentionOptionModal(false)}
+                onApply={(selectedRetentionTypes, selectedRetentionOptions) => {
+                    // Handle the selected retentions/options
+                    console.log("Selected retention types:", selectedRetentionTypes)
+                    console.log("Selected retention options:", selectedRetentionOptions)
+                    setShowLinkRetentionOptionModal(false)
+                }}
             />
         </>
     )

@@ -123,11 +123,17 @@ export async function getRetentionOptions(filters: {
 /**
  * Get a single retention option by ID
  */
-export async function getRetentionOption(id: number): Promise<RetentionOptionResponse> {
+export async function getRetentionOption(id: number, customerId?: number): Promise<RetentionOptionResponse> {
   const token = getAuthToken()
 
+  const params = new URLSearchParams()
+  if (customerId != null) {
+    params.append("customer_id", customerId.toString())
+  }
+  const queryString = params.toString()
+
   const response = await fetch(
-    `${API_BASE_URL}/library/retention-options/${id}`,
+    `${API_BASE_URL}/library/retention-options/${id}${queryString ? `?${queryString}` : ""}`,
     {
       method: "GET",
       headers: {

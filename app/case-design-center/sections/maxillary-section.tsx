@@ -147,6 +147,7 @@ export function MaxillarySection({ sectionRef, children }: MaxillarySectionProps
               setToothStatusPopoverState?.({ arch: null, toothNumber: null })
             }}
             onDeselectTooth={handleMaxillaryToothDeselect}
+            retentionOptions={productDetails?.retention_options}
             showToothStatusPopover={isOrthodonticsOrRemovable && toothStatusPopoverState.arch === "maxillary"}
             toothStatusPopoverTooth={toothStatusPopoverState.toothNumber}
             availableExtractionTypes={availableExtractionTypes}

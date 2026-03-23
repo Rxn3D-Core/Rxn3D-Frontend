@@ -539,7 +539,14 @@ export function AddNewLabModal({ open, onOpenChange, onLabSelect, onInviteLab }:
                           watchedLabName ? "text-[#119933]" : "text-[#7F7F7F]"
                         }`}
                       >
-                        Lab Name
+                        {typeof window !== "undefined" && (
+                          (() => {
+                            const role = localStorage.getItem("role");
+                            if (role === "lab_admin") return "Lab Name";
+                            if (role === "office_admin") return "Office Name";
+                            return "Office name";
+                          })()
+                        )}
                       </label>
                     </div>
                     {errors.labName && (

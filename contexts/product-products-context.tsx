@@ -160,7 +160,7 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
     payload.is_custom = form.is_custom ?? "Yes"
 
     // Set has_multiple_grades based on grades length
-    payload.has_multiple_grades = Array.isArray(form.grades) && form.grades.length > 1 ? "Yes" : "No"
+    payload.has_multiple_grades = Array.isArray(form.grades) && form.grades.length > 1 ? "yes" : "no"
 
     // Set price (from base_price if grades are disabled)
     if (form.has_grade_based_pricing === "Yes" && Array.isArray(form.grades) && form.grades.length > 0) {
@@ -526,6 +526,17 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
 
     // Remove unused fields
     delete payload.base_price
+
+    // Preserve has_* section flags passed from the modal (product_configurations)
+    const sectionFlags = [
+      "has_stage", "has_grade", "has_gum_shade", "has_teeth_shade",
+      "has_impression", "has_extraction", "has_retention", "has_material", "has_addon"
+    ] as const
+    for (const flag of sectionFlags) {
+      if (form[flag] !== undefined) {
+        payload[flag] = form[flag]
+      }
+    }
 
     return payload
   }

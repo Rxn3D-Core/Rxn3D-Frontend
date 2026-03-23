@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react"
-import { X, Maximize2, ChevronLeft, ChevronRight } from "lucide-react"
+import { X, Maximize2, ChevronLeft, ChevronRight, EyeOff } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -46,9 +46,9 @@ import { ExtractionsSection } from "@/components/product-management/add-lab-prod
 import { VisibilityManagementSection } from "@/components/product-management/add-lab-product-modal/VisibilityManagementSection"
 import { OfficePriceManagementSection } from "@/components/product-management/add-lab-product-modal/OfficePriceManagementSection"
 
-/** API slip visibility flags use "Yes" | "No" (product_configurations). */
-function slipFlagToApi(on: boolean): "Yes" | "No" {
-  return on ? "Yes" : "No"
+/** API slip visibility flags use "yes" | "no" (product_configurations). */
+function slipFlagToApi(on: boolean): "yes" | "no" {
+  return on ? "yes" : "no"
 }
 
 /** Normalize API has_* (boolean, "Yes"/"No", "yes"/"no") to UI section boolean. */
@@ -188,20 +188,22 @@ export function AddLabProductModal({
 
   // Track initial section toggles when editing (for detecting toggle-only changes)
   const [initialSections, setInitialSections] = useState<typeof sections | null>(null)
+  // Simple flag: set to true whenever user toggles any section while editing
+  const [sectionWasToggled, setSectionWasToggled] = useState(false)
 
   const tabs = [
-    { id: "details", label: "Product Details" },
-    { id: "grades", label: "Grades" },
-    { id: "stages", label: "Stages" },
-    { id: "impressions", label: "Impressions" },
-    { id: "gumShade", label: "Gum Shade" },
-    { id: "teethShade", label: "Teeth Shade" },
-    { id: "material", label: "Material" },
-    { id: "addOns", label: "Add-Ons" },
-    { id: "retention", label: "Retention" },
-    { id: "extractions", label: "Extractions" },
-    { id: "officePricing", label: "Office Pricing" },
-    { id: "visibility", label: "Visibility" },
+    { id: "details", label: "Product Details", sectionKey: "productDetails" },
+    { id: "grades", label: "Grades", sectionKey: "grades" },
+    { id: "stages", label: "Stages", sectionKey: "stages" },
+    { id: "impressions", label: "Impressions", sectionKey: "impressions" },
+    { id: "gumShade", label: "Gum Shade", sectionKey: "gumShade" },
+    { id: "teethShade", label: "Teeth Shade", sectionKey: "teethShade" },
+    { id: "material", label: "Material", sectionKey: "material" },
+    { id: "addOns", label: "Add-Ons", sectionKey: "addOns" },
+    { id: "retention", label: "Retention", sectionKey: "retention" },
+    { id: "extractions", label: "Extractions", sectionKey: "extractions" },
+    { id: "officePricing", label: "Office Pricing", sectionKey: "officePriceManagement" },
+    { id: "visibility", label: "Visibility", sectionKey: "visibilityManagement" },
   ]
 
   // Set initial tab to "details" when editing a product
@@ -1072,6 +1074,7 @@ export function AddLabProductModal({
         visibilityManagement: true,
       })
       setInitialSections(null)
+      setSectionWasToggled(false)
     }
   }, [isOpen, editingProduct, reset, clearValidationErrors, categoriesWithSubcategories])
 
@@ -1091,16 +1094,16 @@ export function AddLabProductModal({
     return sectionFields.some((field) => validationErrors.some((error) => error.field.startsWith(field)))
   }, [validationErrors])
 
-  const toggleSection = useCallback((section: keyof typeof sections) => {
+  const editingProductId = editingProduct?.id
+  const toggleSection = useCallback((section: string) => {
     setSections((prev) => {
-      const newSections = {
-        ...prev,
-        [section]: !prev[section],
-      }
-
-      return newSections
+      if (!(section in prev)) return prev
+      return { ...prev, [section]: !prev[section as keyof typeof prev] }
     })
-  }, [])
+    if (editingProductId) {
+      setSectionWasToggled(true)
+    }
+  }, [editingProductId])
 
   // Hydrate section toggles + baseline before paint so hasSectionToggleChanges works (e.g. Main Product Fields / extractions)
   // and the per-tab "Update" button appears without relying on useEffect-only initialSections.
@@ -1110,6 +1113,7 @@ export function AddLabProductModal({
     const next = buildSectionsStateFromProduct(editingProduct)
     setSections((prev) => ({ ...prev, ...next }))
     setInitialSections(next)
+    setSectionWasToggled(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only when modal opens or product id changes
   }, [isOpen, editingProduct?.id])
 
@@ -1731,7 +1735,7 @@ export function AddLabProductModal({
       
       // If no changes (including releasing stage changes, image, and section toggles), show message and return
       const hasImageChange = imageBase64 !== null && typeof imageBase64 === 'string' && imageBase64.startsWith('data:image/')
-      if (Object.keys(changes).length === 0 && !hasReleasingStageChanges && !hasImageChange && !hasSectionToggleChanges) {
+      if (Object.keys(changes).length === 0 && !hasReleasingStageChanges && !hasImageChange && !hasSectionToggleChanges && !sectionWasToggled) {
         toast({
           title: "No Changes",
           description: "No changes detected in this section.",
@@ -2026,13 +2030,8 @@ export function AddLabProductModal({
         payload.request_opposing_extraction = payload.request_opposing_extraction ? "Yes" : "No"
       }
 
-      // Product slip field flags: "Yes"/"No" for API (product_configurations)
-      if (shouldIncludeStagePayload) {
-        payload.has_stage = slipFlagToApi(sections.stages)
-        if (!sections.stages) {
-          payload.stages = []
-        }
-      }
+      // Always include all has_* section flags in the update payload
+      payload.has_stage = slipFlagToApi(sections.stages)
       payload.has_grade = slipFlagToApi(sections.grades)
       payload.has_gum_shade = slipFlagToApi(sections.gumShade)
       payload.has_teeth_shade = slipFlagToApi(sections.teethShade)
@@ -2043,6 +2042,7 @@ export function AddLabProductModal({
       payload.has_addon = slipFlagToApi(sections.addOns)
 
       // When section flags are false: send empty arrays so backend deletes relations
+      if (!sections.stages) payload.stages = []
       if (!sections.extractions) {
         payload.extractions = []
         payload.opposite_extractions = []
@@ -2069,6 +2069,7 @@ export function AddLabProductModal({
         setInitialFormValues(updatedInitialValues)
         // Keep section toggle baseline in sync after save (e.g. Main Product Fields / has_extraction)
         setInitialSections({ ...sections })
+        setSectionWasToggled(false)
         
         toast({
           title: "Success",
@@ -2212,6 +2213,7 @@ export function AddLabProductModal({
                     {tabs.map((tab) => {
                       const isActive = activeTab === tab.id
                       const isVisible = visibleTabs.has(tab.id)
+                      const isSectionOff = tab.sectionKey ? sections[tab.sectionKey as keyof typeof sections] === false : false
                       // Only render tabs that are visible
                       if (!isVisible) return null
                       return (
@@ -2222,14 +2224,17 @@ export function AddLabProductModal({
                             setActiveTab(tab.id)
                           }}
                           className={`
-                            px-6 py-4 text-sm font-medium border-b-2 transition-colors relative
+                            px-6 py-4 text-sm font-medium border-b-2 transition-colors relative flex items-center gap-1.5
                             ${isActive
                               ? "border-[#1162a8] text-[#1162a8]"
-                              : "border-transparent text-gray-600 hover:text-gray-800 cursor-pointer"
+                              : isSectionOff
+                                ? "border-transparent text-gray-400 hover:text-gray-500 cursor-pointer"
+                                : "border-transparent text-gray-600 hover:text-gray-800 cursor-pointer"
                             }
                           `}
                         >
                           {tab.label}
+                          {isSectionOff && <EyeOff className="h-3.5 w-3.5 text-gray-400" />}
                         </button>
                       )
                     })}
@@ -2500,7 +2505,7 @@ export function AddLabProductModal({
                   <div className="flex items-center gap-2 order-1 sm:order-2">
                     {isLastTab ? (
                       <>
-                        {hasSectionChanges && editingProduct?.id && (
+                        {(hasSectionChanges || sectionWasToggled) && editingProduct?.id && (
                           <Button
                             type="button"
                             onClick={handleUpdateSection}
@@ -2530,26 +2535,26 @@ export function AddLabProductModal({
                       </>
                     ) : (
                       <>
-                        {hasSectionChanges && (
-                          <>
-                            <Button
-                              type="button"
-                              onClick={handleUpdateSection}
-                              className="bg-blue-600 hover:bg-blue-700 h-10 w-full sm:w-auto sm:px-6 disabled:opacity-50 disabled:cursor-not-allowed"
-                              disabled={isUpdating || isCreating}
-                            >
-                              {isUpdating ? "Updating..." : "Update"}
-                            </Button>
-                            <Button
-                              type="submit"
-                              className="bg-[#1162a8] hover:bg-[#0d4c84] h-10 w-full sm:w-auto sm:px-8 disabled:opacity-50 disabled:cursor-not-allowed"
-                              disabled={isSubmitting || isUpdating || isCreating}
-                            >
-                              {isSubmitting || isUpdating || isCreating
-                                ? t("productModal.updating", "Updating...")
-                                : t("productModal.updateProduct", "Update Product")}
-                            </Button>
-                          </>
+                        {editingProduct?.id && (
+                          <Button
+                            type="button"
+                            onClick={handleUpdateSection}
+                            className="bg-blue-600 hover:bg-blue-700 h-10 w-full sm:w-auto sm:px-6 disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={isUpdating || isCreating}
+                          >
+                            {isUpdating ? "Updating..." : "Update"}
+                          </Button>
+                        )}
+                        {editingProduct?.id && (
+                          <Button
+                            type="submit"
+                            className="bg-[#1162a8] hover:bg-[#0d4c84] h-10 w-full sm:w-auto sm:px-8 disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={isSubmitting || isUpdating || isCreating}
+                          >
+                            {isSubmitting || isUpdating || isCreating
+                              ? t("productModal.updating", "Updating...")
+                              : t("productModal.updateProduct", "Update Product")}
+                          </Button>
                         )}
                         <Button
                           type="button"

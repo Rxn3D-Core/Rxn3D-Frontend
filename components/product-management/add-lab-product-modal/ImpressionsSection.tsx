@@ -333,7 +333,7 @@ export function ImpressionsSection({
               htmlFor="request-opposing-extraction"
               className="cursor-pointer text-sm"
             >
-              Request opposing extraction
+              Request opposing impression
             </Label>
           </div>
           <ValidationError message={getValidationError("impressions")} />

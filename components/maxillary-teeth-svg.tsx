@@ -1,6 +1,6 @@
 import React, { useLayoutEffect, useRef, useState } from 'react'
 import ReactDOM from 'react-dom'
-import { RetentionTypePopover } from './retention-type-popover'
+import { RetentionTypePopover, RetentionOptionItem } from './retention-type-popover'
 
 // Wrapper that positions children above a target point, clamped to container bounds
 const PopoverPositioner: React.FC<{
@@ -72,6 +72,8 @@ interface MaxillaryTeethSVGProps {
   claspTeeth?: number[]
   /** Returns the addon field value string for a tooth (e.g. "1x Acrylic Clasp"). */
   getAddonValue?: (toothNumber: number) => string
+  /** Retention options from the product API response. */
+  retentionOptions?: RetentionOptionItem[]
 }
 
 export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
@@ -93,6 +95,7 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
   hideSelectionIndicators = false,
   claspTeeth = [],
   getAddonValue,
+  retentionOptions,
 }) => {
   const svgRef = React.useRef<SVGSVGElement>(null)
   const [hoveredTooth, setHoveredTooth] = React.useState<number | null>(null)
@@ -345,6 +348,7 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
         return ReactDOM.createPortal(
           <PopoverPositioner key={retentionPopoverTooth} targetX={popoverPosition.left} targetY={popoverPosition.top} containerLeft={popoverPosition.containerLeft} containerRight={popoverPosition.containerRight}>
             <RetentionTypePopover
+              retentionOptions={retentionOptions}
               onSelectRetentionType={(type) => onSelectRetentionType(retentionPopoverTooth, type)}
               selectedType={selectedType || undefined}
               onClose={onClosePopover}

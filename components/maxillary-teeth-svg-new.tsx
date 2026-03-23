@@ -1,5 +1,5 @@
 import React from 'react'
-import { RetentionTypePopover } from './retention-type-popover'
+import { RetentionTypePopover, RetentionOptionItem } from './retention-type-popover'
 
 interface MaxillaryTeethSVGProps {
   selectedTeeth: number[]
@@ -11,6 +11,8 @@ interface MaxillaryTeethSVGProps {
   retentionPopoverTooth?: number | null
   onSelectRetentionType?: (toothNumber: number, type: 'Implant' | 'Prep' | 'Pontic') => void
   onClosePopover?: () => void
+  /** Retention options from the product API response. */
+  retentionOptions?: RetentionOptionItem[]
 }
 
 export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
@@ -22,7 +24,8 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
   showRetentionPopover = false,
   retentionPopoverTooth = null,
   onSelectRetentionType,
-  onClosePopover
+  onClosePopover,
+  retentionOptions,
 }) => {
   const isToothSelected = (toothNumber: number) => selectedTeeth.includes(toothNumber)
 
@@ -170,6 +173,7 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
             }}
           >
             <RetentionTypePopover
+              retentionOptions={retentionOptions}
               onSelectRetentionType={(type) => onSelectRetentionType(retentionPopoverTooth, type)}
               selectedType={selectedType || undefined}
               onClose={onClosePopover}
