@@ -228,14 +228,6 @@ export default function StagesPage() {
 
         <div className="flex gap-3">
           <Button
-            variant="outline"
-            className="text-gray-700 border-gray-300 hover:bg-gray-50 px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
-          >
-            <Upload className="h-4 w-4 mr-2" />
-            {t("Import stages")}
-          </Button>
-
-          <Button
             className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
             onClick={() => setIsLinkProductsModalOpen(true)}
           >

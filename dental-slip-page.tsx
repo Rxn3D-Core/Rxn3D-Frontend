@@ -3567,7 +3567,7 @@ export function DentalSlipPageContent({
                                     const { setProductExtractions } = useTeethSelectionStore.getState();
                                     setProductExtractions(product.id, {
                                       extractions: productDetails?.extractions,
-                                      has_extraction: product.has_extraction || "yes",
+                                      has_extraction: product.has_extraction || "Yes",
                                       extraction_options: product.extraction_options || []
                                     });
                                     console.log('🔍 Stored extraction data from product object for product:', product.id, productDetails?.extractions);
@@ -3587,7 +3587,7 @@ export function DentalSlipPageContent({
                                     const { setProductExtractions } = useTeethSelectionStore.getState();
                                     setProductExtractions(product.id, {
                                       extractions: productDetails.extractions,
-                                      has_extraction: productDetails.has_extraction || "yes",
+                                      has_extraction: productDetails.has_extraction || "Yes",
                                       extraction_options: productDetails.extraction_options || []
                                     });
                                     console.log('🔍 Stored extraction data from productDetails.extractions for product:', product.id, productDetails.extractions);

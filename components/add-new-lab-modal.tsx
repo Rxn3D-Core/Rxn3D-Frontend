@@ -542,8 +542,8 @@ export function AddNewLabModal({ open, onOpenChange, onLabSelect, onInviteLab }:
                         {typeof window !== "undefined" && (
                           (() => {
                             const role = localStorage.getItem("role");
-                            if (role === "lab_admin") return "Lab Name";
-                            if (role === "office_admin") return "Office Name";
+                            if (role === "lab_admin") return "Office Name";
+                            if (role === "office_admin") return "Lab Name";
                             return "Office name";
                           })()
                         )}

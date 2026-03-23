@@ -46,9 +46,9 @@ import { ExtractionsSection } from "@/components/product-management/add-lab-prod
 import { VisibilityManagementSection } from "@/components/product-management/add-lab-product-modal/VisibilityManagementSection"
 import { OfficePriceManagementSection } from "@/components/product-management/add-lab-product-modal/OfficePriceManagementSection"
 
-/** API slip visibility flags use "yes" | "no" (product_configurations). */
-function slipFlagToApi(on: boolean): "yes" | "no" {
-  return on ? "yes" : "no"
+/** API slip visibility flags use "Yes" | "No" (product_configurations). */
+function slipFlagToApi(on: boolean): "Yes" | "No" {
+  return on ? "Yes" : "No"
 }
 
 /** Normalize API has_* (boolean, "Yes"/"No", "yes"/"no") to UI section boolean. */
@@ -2166,9 +2166,9 @@ export function AddLabProductModal({
           <DialogHeader className="px-6 py-4 flex flex-row items-center justify-between border-b bg-white sticky top-0 z-10 flex-shrink-0">
             <DialogTitle className="text-xl font-medium">
               {editingProduct && editingProduct.id
-                ? t("productModal.editProduct", "Edit Product")
+                ? `${t("productModal.editProduct", "Edit Product")} - ${editingProduct.name || ""}`
                 : editingProduct && !editingProduct.id
-                ? t("productModal.copyProduct", "Copy Product")
+                ? `${t("productModal.copyProduct", "Copy Product")} - ${editingProduct.name || ""}`
                 : t("productModal.addProduct", "Add Product")}
             </DialogTitle>
             <div className="flex items-center gap-2">

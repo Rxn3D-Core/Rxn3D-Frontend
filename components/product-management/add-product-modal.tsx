@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { X, Maximize2, ChevronLeft, ChevronRight } from "lucide-react"
+import { X, Maximize2, ChevronLeft, ChevronRight, EyeOff } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
@@ -138,6 +138,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
     extractions: true,
     visibilityManagement: true,
   })
+  const [sectionWasToggled, setSectionWasToggled] = useState(false)
 
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     grades: true,
@@ -153,27 +154,31 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
   })
 
   const tabs = [
-    { id: "details", label: "Product Details" },
-    { id: "grades", label: "Grades" },
-    { id: "stages", label: "Stages" },
-    { id: "impressions", label: "Impressions" },
-    { id: "gumShade", label: "Gum Shade" },
-    { id: "teethShade", label: "Teeth Shade" },
-    { id: "material", label: "Material" },
-    { id: "addOns", label: "Add-Ons" },
-    { id: "retention", label: "Retention" },
-    { id: "extractions", label: "Extractions" },
-    { id: "visibility", label: "Visibility" },
+    { id: "details", label: "Product Details", sectionKey: "productDetails" },
+    { id: "grades", label: "Grades", sectionKey: "grades" },
+    { id: "stages", label: "Stages", sectionKey: "stages" },
+    { id: "impressions", label: "Impressions", sectionKey: "impressions" },
+    { id: "gumShade", label: "Gum Shade", sectionKey: "gumShade" },
+    { id: "teethShade", label: "Teeth Shade", sectionKey: "teethShade" },
+    { id: "material", label: "Material", sectionKey: "material" },
+    { id: "addOns", label: "Add-Ons", sectionKey: "addOns" },
+    { id: "retention", label: "Retention", sectionKey: "retention" },
+    { id: "extractions", label: "Extractions", sectionKey: "extractions" },
+    { id: "visibility", label: "Visibility", sectionKey: "visibilityManagement" },
   ]
 
+  // Show all tabs when editing, progressive reveal when creating
+  // Initialize section toggles from product data arrays
   // Show all tabs when editing, progressive reveal when creating
   useEffect(() => {
     if (isOpen && editingProduct) {
       setActiveTab("details")
       setVisibleTabs(new Set(tabs.map(tab => tab.id)))
+      setSectionWasToggled(false)
     } else if (isOpen && !editingProduct) {
       setVisibleTabs(new Set(["details"]))
       setActiveTab("details")
+      setSectionWasToggled(false)
     }
   }, [isOpen, editingProduct])
 
@@ -489,15 +494,20 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
       // When has_* flag is not in the API response (undefined), derive from whether items exist.
       if (editingProduct) {
         const isSingleStage = editingProduct.is_single_stage === "Yes"
-        const hasGrades = editingProduct.has_grade ?? (Array.isArray(editingProduct.grades) && editingProduct.grades.length > 0)
-        const hasStages = editingProduct.has_stage ?? (Array.isArray(editingProduct.stages) && editingProduct.stages.length > 0)
-        const hasImpressions = editingProduct.has_impression ?? (Array.isArray(editingProduct.impressions) && editingProduct.impressions.length > 0)
-        const hasGumShade = editingProduct.has_gum_shade ?? (Array.isArray(editingProduct.gum_shades) && editingProduct.gum_shades.length > 0)
-        const hasTeethShade = editingProduct.has_teeth_shade ?? (Array.isArray(editingProduct.teeth_shades) && editingProduct.teeth_shades.length > 0)
-        const hasMaterial = editingProduct.has_material ?? (Array.isArray(editingProduct.materials) && editingProduct.materials.length > 0)
-        const hasAddons = editingProduct.has_addon ?? (Array.isArray(editingProduct.addons) && editingProduct.addons.length > 0)
-        const hasRetention = editingProduct.has_retention ?? (Array.isArray(editingProduct.retentions) && editingProduct.retentions.length > 0)
-        const hasExtractions = editingProduct.has_extraction ?? (Array.isArray(editingProduct.extractions) && editingProduct.extractions.length > 0)
+        const isYes = (val: any, fallback: boolean) => {
+          if (val === "Yes" || val === "yes" || val === true) return true
+          if (val === "No" || val === "no" || val === false) return false
+          return fallback // undefined/null → use fallback
+        }
+        const hasGrades = isYes(editingProduct.has_grade, Array.isArray(editingProduct.grades) && editingProduct.grades.length > 0)
+        const hasStages = isYes(editingProduct.has_stage, Array.isArray(editingProduct.stages) && editingProduct.stages.length > 0)
+        const hasImpressions = isYes(editingProduct.has_impression, Array.isArray(editingProduct.impressions) && editingProduct.impressions.length > 0)
+        const hasGumShade = isYes(editingProduct.has_gum_shade, Array.isArray(editingProduct.gum_shades) && editingProduct.gum_shades.length > 0)
+        const hasTeethShade = isYes(editingProduct.has_teeth_shade, Array.isArray(editingProduct.teeth_shades) && editingProduct.teeth_shades.length > 0)
+        const hasMaterial = isYes(editingProduct.has_material, Array.isArray(editingProduct.materials) && editingProduct.materials.length > 0)
+        const hasAddons = isYes(editingProduct.has_addon, Array.isArray(editingProduct.addons) && editingProduct.addons.length > 0)
+        const hasRetention = isYes(editingProduct.has_retention, Array.isArray(editingProduct.retentions) && editingProduct.retentions.length > 0)
+        const hasExtractions = isYes(editingProduct.has_extraction, Array.isArray(editingProduct.extractions) && editingProduct.extractions.length > 0)
         setSections((prev) => ({
           ...prev,
           grades: hasGrades,
@@ -543,6 +553,9 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
       ...prev,
       [section]: !prev[section as keyof typeof prev],
     }))
+    if (editingProduct?.id) {
+      setSectionWasToggled(true)
+    }
   }
 
   const toggleExpanded = (section: string) => {
@@ -666,6 +679,31 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
         payload.image = imageBase64
       }
 
+      // Always include has_* section flags
+      payload.has_stage = sections.stages ? "Yes" : "No"
+      payload.has_grade = sections.grades ? "Yes" : "No"
+      payload.has_gum_shade = sections.gumShade ? "Yes" : "No"
+      payload.has_teeth_shade = sections.teethShade ? "Yes" : "No"
+      payload.has_impression = sections.impressions ? "Yes" : "No"
+      payload.has_extraction = sections.extractions ? "Yes" : "No"
+      payload.has_retention = sections.retention ? "Yes" : "No"
+      payload.has_material = sections.material ? "Yes" : "No"
+      payload.has_addon = sections.addOns ? "Yes" : "No"
+
+      // When section is off: send empty arrays so backend deletes relations
+      if (!sections.stages) payload.stages = []
+      if (!sections.grades) payload.grades = []
+      if (!sections.impressions) payload.impressions = []
+      if (!sections.gumShade) payload.gum_shades = []
+      if (!sections.teethShade) payload.teeth_shades = []
+      if (!sections.material) payload.materials = []
+      if (!sections.addOns) payload.addons = []
+      if (!sections.retention) payload.retentions = []
+      if (!sections.extractions) {
+        payload.extractions = []
+        payload.opposite_extractions = []
+      }
+
       success = await updateProduct(editingProduct.id, payload, releasingStageIds)
     } else {
       // Send full payload for creating new product
@@ -679,6 +717,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
     if (success) {
       reset()
       setImageBase64(null)
+      setSectionWasToggled(false)
       onClose()
     }
   }
@@ -806,8 +845,8 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
   }, [releasingStageIds, initialReleasingStageIds])
 
   const hasFormChanges = useMemo(() => {
-    return isDirty || imageBase64 !== null || hasReleasingStageChanges
-  }, [isDirty, imageBase64, hasReleasingStageChanges])
+    return isDirty || imageBase64 !== null || hasReleasingStageChanges || sectionWasToggled
+  }, [isDirty, imageBase64, hasReleasingStageChanges, sectionWasToggled])
 
   const normalizedGumShadeBrands =
     Array.isArray(gumShadeBrands)
@@ -835,7 +874,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
           <DialogHeader className="px-6 py-4 flex flex-row items-center justify-between border-b">
             <DialogTitle className="text-xl font-medium">
               {editingProduct
-                ? t("productModal.editProduct", "Edit Product")
+                ? `${t("productModal.editProduct", "Edit Product")} - ${editingProduct.name || ""}`
                 : t("productModal.addProduct", "Add Product")}
             </DialogTitle>
             <div className="flex items-center gap-2">
@@ -863,6 +902,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
                     {tabs.map((tab) => {
                       const isActive = activeTab === tab.id
                       const isVisible = visibleTabs.has(tab.id)
+                      const isSectionOff = tab.sectionKey ? sections[tab.sectionKey as keyof typeof sections] === false : false
                       if (!isVisible) return null
                       return (
                         <button
@@ -870,14 +910,17 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
                           type="button"
                           onClick={() => setActiveTab(tab.id)}
                           className={`
-                            px-6 py-4 text-sm font-medium border-b-2 transition-colors relative whitespace-nowrap flex-shrink-0
+                            px-6 py-4 text-sm font-medium border-b-2 transition-colors relative whitespace-nowrap flex-shrink-0 flex items-center gap-1.5
                             ${isActive
                               ? "border-[#1162a8] text-[#1162a8]"
-                              : "border-transparent text-gray-600 hover:text-gray-800 cursor-pointer"
+                              : isSectionOff
+                                ? "border-transparent text-gray-400 hover:text-gray-500 cursor-pointer"
+                                : "border-transparent text-gray-600 hover:text-gray-800 cursor-pointer"
                             }
                           `}
                         >
                           {tab.label}
+                          {isSectionOff && <EyeOff className="h-3.5 w-3.5 text-gray-400" />}
                         </button>
                       )
                     })}
@@ -1112,8 +1155,8 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
                         disabled={isSubmitting || isProductActionLoading}
                       >
                         {isSubmitting || isProductActionLoading
-                          ? t("productModal.saving", "Saving...")
-                          : t("productModal.updateProduct", "Update")}
+                          ? t("productModal.updating", "Updating...")
+                          : t("productModal.updateProduct", "Update Product")}
                       </Button>
                     )}
                     {isLastTab ? (
