@@ -467,10 +467,19 @@ export function StagesSection({
                     )}
                     <span
                         className={`text-xs font-medium px-2 py-0.5 rounded bg-blue-50 text-[#1162a8] ${selectedStages.length === 0 ? "opacity-80" : ""}`}
-                        style={{ marginRight: "1rem" }}
                     >
                         <strong>{selectedStages.length} selected</strong>
                     </span>
+                    {sections.stages && selectedStages.length > 0 && (
+                        <button
+                            type="button"
+                            onClick={() => setShowPriceSuggestion(!showPriceSuggestion)}
+                            className="text-yellow-600 hover:text-yellow-700 transition-colors"
+                            title="Price suggestion"
+                        >
+                            <i className="fas fa-lightbulb text-lg"></i>
+                        </button>
+                    )}
                 </div>
                 <div className="flex items-center gap-4">
                     <ChevronDown
@@ -485,12 +494,9 @@ export function StagesSection({
                     {showPriceSuggestion && (
                         <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 mb-4">
                             <div className="flex items-start justify-between mb-2">
-                                <div className="flex items-center gap-2">
-                                    <i className="fas fa-lightbulb text-yellow-600"></i>
-                                    <span className="text-sm text-gray-700">
-                                        <strong>Not sure how to price this? We've got you.</strong>
-                                    </span>
-                                </div>
+                                <span className="text-sm text-gray-700">
+                                    <strong>Not sure how to price this? We've got you.</strong>
+                                </span>
                                 <button
                                     className="text-xs text-yellow-600 underline hover:text-yellow-700 transition-colors"
                                     onClick={() => setShowPriceSuggestion(false)}
