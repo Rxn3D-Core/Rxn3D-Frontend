@@ -359,7 +359,8 @@ export const ProductCreateFormSchema = z
           .refine(
             (data) => {
               // If min_teeth is 16, max_teeth can only be 0, 16, or null
-              if (data.min_teeth === 16 && data.max_teeth !== null) {
+              // Use != null so undefined (omitted) is not treated as a set value — undefined !== null is true in JS and broke validation.
+              if (data.min_teeth === 16 && data.max_teeth != null) {
                 return data.max_teeth === 0 || data.max_teeth === 16;
               }
               return true;
@@ -372,7 +373,7 @@ export const ProductCreateFormSchema = z
           .refine(
             (data) => {
               // If both min_teeth and max_teeth are provided (and not the special case), max_teeth must be >= min_teeth
-              if (data.min_teeth !== null && data.max_teeth !== null && data.min_teeth !== 16) {
+              if (data.min_teeth != null && data.max_teeth != null && data.min_teeth !== 16) {
                 return data.max_teeth >= data.min_teeth;
               }
               return true;
@@ -408,7 +409,7 @@ export const ProductCreateFormSchema = z
           .refine(
             (data) => {
               // If min_teeth is 16, max_teeth can only be 0, 16, or null
-              if (data.min_teeth === 16 && data.max_teeth !== null) {
+              if (data.min_teeth === 16 && data.max_teeth != null) {
                 return data.max_teeth === 0 || data.max_teeth === 16;
               }
               return true;
@@ -421,7 +422,7 @@ export const ProductCreateFormSchema = z
           .refine(
             (data) => {
               // If both min_teeth and max_teeth are provided (and not the special case), max_teeth must be >= min_teeth
-              if (data.min_teeth !== null && data.max_teeth !== null && data.min_teeth !== 16) {
+              if (data.min_teeth != null && data.max_teeth != null && data.min_teeth !== 16) {
                 return data.max_teeth >= data.min_teeth;
               }
               return true;
