@@ -46,20 +46,33 @@ import { ExtractionsSection } from "@/components/product-management/add-lab-prod
 import { VisibilityManagementSection } from "@/components/product-management/add-lab-product-modal/VisibilityManagementSection"
 import { OfficePriceManagementSection } from "@/components/product-management/add-lab-product-modal/OfficePriceManagementSection"
 
+/** API slip visibility flags use "Yes" | "No" (product_configurations). */
+function slipFlagToApi(on: boolean): "Yes" | "No" {
+  return on ? "Yes" : "No"
+}
+
+/** Normalize API has_* (boolean, "Yes"/"No", "yes"/"no") to UI section boolean. */
+function slipFlagFromApi(value: unknown, defaultWhenMissing = true): boolean {
+  if (value === true || value === "Yes" || value === "yes") return true
+  if (value === false || value === "No" || value === "no") return false
+  if (value === null || value === undefined) return defaultWhenMissing
+  return defaultWhenMissing
+}
+
 /** Slip section toggles from API product (same rules as sectionsFromApi in the edit load effect). */
 function buildSectionsStateFromProduct(editingProduct: any) {
   const isSingleStage = editingProduct.is_single_stage === "Yes"
   return {
     productDetails: true,
-    grades: editingProduct.has_grade ?? true,
-    stages: isSingleStage ? false : (editingProduct.has_stage ?? true),
-    impressions: editingProduct.has_impression ?? true,
-    gumShade: editingProduct.has_gum_shade ?? true,
-    teethShade: editingProduct.has_teeth_shade ?? true,
-    material: editingProduct.has_material ?? true,
-    addOns: editingProduct.has_addon ?? true,
-    retention: editingProduct.has_retention ?? true,
-    extractions: editingProduct.has_extraction ?? true,
+    grades: slipFlagFromApi(editingProduct.has_grade, true),
+    stages: isSingleStage ? false : slipFlagFromApi(editingProduct.has_stage, true),
+    impressions: slipFlagFromApi(editingProduct.has_impression, true),
+    gumShade: slipFlagFromApi(editingProduct.has_gum_shade, true),
+    teethShade: slipFlagFromApi(editingProduct.has_teeth_shade, true),
+    material: slipFlagFromApi(editingProduct.has_material, true),
+    addOns: slipFlagFromApi(editingProduct.has_addon, true),
+    retention: slipFlagFromApi(editingProduct.has_retention, true),
+    extractions: slipFlagFromApi(editingProduct.has_extraction, true),
     officePriceManagement: true,
     visibilityManagement: true,
   }
@@ -1526,16 +1539,16 @@ export function AddLabProductModal({
       payload.request_opposing_extraction = payload.request_opposing_extraction ? "Yes" : "No"
     }
 
-    // Product slip field flags: when false, field is disabled on the slip (product_configurations)
-    payload.has_stage = sections.stages
-    payload.has_grade = sections.grades
-    payload.has_gum_shade = sections.gumShade
-    payload.has_teeth_shade = sections.teethShade
-    payload.has_impression = sections.impressions
-    payload.has_extraction = sections.extractions
-    payload.has_retention = sections.retention
-    payload.has_material = sections.material
-    payload.has_addon = sections.addOns
+    // Product slip field flags: "Yes"/"No" for API (product_configurations)
+    payload.has_stage = slipFlagToApi(sections.stages)
+    payload.has_grade = slipFlagToApi(sections.grades)
+    payload.has_gum_shade = slipFlagToApi(sections.gumShade)
+    payload.has_teeth_shade = slipFlagToApi(sections.teethShade)
+    payload.has_impression = slipFlagToApi(sections.impressions)
+    payload.has_extraction = slipFlagToApi(sections.extractions)
+    payload.has_retention = slipFlagToApi(sections.retention)
+    payload.has_material = slipFlagToApi(sections.material)
+    payload.has_addon = slipFlagToApi(sections.addOns)
 
     // When section flags are false: send empty arrays so backend deletes relations (per Behavior: Skip Sync & Delete When False)
     if (!sections.extractions) {
@@ -2013,21 +2026,21 @@ export function AddLabProductModal({
         payload.request_opposing_extraction = payload.request_opposing_extraction ? "Yes" : "No"
       }
 
-      // Product slip field flags: when false, field is disabled on the slip (product_configurations)
+      // Product slip field flags: "Yes"/"No" for API (product_configurations)
       if (shouldIncludeStagePayload) {
-        payload.has_stage = sections.stages
+        payload.has_stage = slipFlagToApi(sections.stages)
         if (!sections.stages) {
           payload.stages = []
         }
       }
-      payload.has_grade = sections.grades
-      payload.has_gum_shade = sections.gumShade
-      payload.has_teeth_shade = sections.teethShade
-      payload.has_impression = sections.impressions
-      payload.has_extraction = sections.extractions
-      payload.has_retention = sections.retention
-      payload.has_material = sections.material
-      payload.has_addon = sections.addOns
+      payload.has_grade = slipFlagToApi(sections.grades)
+      payload.has_gum_shade = slipFlagToApi(sections.gumShade)
+      payload.has_teeth_shade = slipFlagToApi(sections.teethShade)
+      payload.has_impression = slipFlagToApi(sections.impressions)
+      payload.has_extraction = slipFlagToApi(sections.extractions)
+      payload.has_retention = slipFlagToApi(sections.retention)
+      payload.has_material = slipFlagToApi(sections.material)
+      payload.has_addon = slipFlagToApi(sections.addOns)
 
       // When section flags are false: send empty arrays so backend deletes relations
       if (!sections.extractions) {

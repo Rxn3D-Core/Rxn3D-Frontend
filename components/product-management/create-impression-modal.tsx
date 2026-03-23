@@ -55,7 +55,7 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
       if (!impressionUrl.trim()) {
         setErrors((prev) => ({ ...prev, impressionUrl: "URL is required when 'Show opposing warning scan?' is Yes" }))
       } else {
-        const urlPattern = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/
+        const urlPattern = /^(https?:\/\/)?[\w.-]+\.[a-z]{2,}(\/\S*)?$/i
         if (!urlPattern.test(impressionUrl.trim())) {
           setErrors((prev) => ({ ...prev, impressionUrl: "Please enter a valid URL (e.g., https://example.com)" }))
         } else {
@@ -69,7 +69,7 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
     } else {
       // URL is optional when "Show opposing warning scan?" is "No", only validate format if provided
       if (impressionUrl.trim()) {
-        const urlPattern = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/
+        const urlPattern = /^(https?:\/\/)?[\w.-]+\.[a-z]{2,}(\/\S*)?$/i
         if (!urlPattern.test(impressionUrl.trim())) {
           setErrors((prev) => ({ ...prev, impressionUrl: "Please enter a valid URL (e.g., https://example.com)" }))
         } else {
@@ -289,14 +289,14 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
       if (!impressionUrl.trim()) {
         newErrors.impressionUrl = "URL is required when 'Show opposing warning scan?' is Yes"
       } else {
-        const urlPattern = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/
+        const urlPattern = /^(https?:\/\/)?[\w.-]+\.[a-z]{2,}(\/\S*)?$/i
         if (!urlPattern.test(impressionUrl.trim())) {
           newErrors.impressionUrl = "Please enter a valid URL (e.g., https://example.com)"
         }
       }
     } else if (impressionUrl.trim()) {
       // Only validate format if URL is provided (when showOpposingWarning is "no")
-      const urlPattern = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/
+      const urlPattern = /^(https?:\/\/)?[\w.-]+\.[a-z]{2,}(\/\S*)?$/i
       if (!urlPattern.test(impressionUrl.trim())) {
         newErrors.impressionUrl = "Please enter a valid URL (e.g., https://example.com)"
       }
