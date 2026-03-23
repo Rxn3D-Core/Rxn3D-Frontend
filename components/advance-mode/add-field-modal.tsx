@@ -227,19 +227,16 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
 
   // Reset subcategory when category changes (user interaction, not initial load)
   useEffect(() => {
-    if (selectedCategoryId) {
+    if (selectedCategoryId && subcategories.length > 0) {
       const currentSubCategory = form.getValues("subCategory")
       // Only reset if subcategory doesn't belong to the new category
-      if (currentSubCategory && subcategories.length > 0) {
+      if (currentSubCategory) {
         const subCategoryBelongsToCategory = subcategories.some(
           sub => sub.id.toString() === currentSubCategory
         )
         if (!subCategoryBelongsToCategory) {
-          form.setValue("subCategory", "")
+          form.setValue("subCategory", "", { shouldValidate: true })
         }
-      } else if (currentSubCategory && subcategories.length === 0) {
-        // If no subcategories loaded yet, clear it
-        form.setValue("subCategory", "")
       }
     }
   }, [selectedCategoryId, subcategories])
@@ -405,7 +402,7 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
           if (subCategoryExists) {
             // Only update if subcategory is empty or doesn't match the expected value
             if (currentSubCategory !== subCategoryId) {
-              form.setValue("subCategory", subCategoryId, { shouldDirty: false })
+              form.setValue("subCategory", subCategoryId, { shouldDirty: false, shouldValidate: true })
             }
           }
         }
