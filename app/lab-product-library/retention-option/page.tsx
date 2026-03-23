@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { LoadingDots } from "@/components/ui/loading-dots"
 import { useLanguage } from "@/contexts/language-context"
 import { useTranslation } from "react-i18next"
+import { useAuth } from "@/contexts/auth-context"
 import { CreateRetentionOptionModal } from "@/components/product-management/create-retention-option-modal"
 import { LinkRetentionTypeModal } from "@/components/product-management/link-retention-type-modal"
 import { LinkProductsModal } from "@/components/product-management/link-products-modal"
@@ -19,6 +20,16 @@ import { useToast } from "@/hooks/use-toast"
 
 type SortField = "name" | "code" | "status" | "linked_retention"
 type SortDirection = "asc" | "desc"
+
+const getCustomerId = (user: any): number | null => {
+  if (typeof window === "undefined") return null
+  const storedCustomerId = localStorage.getItem("customerId")
+  if (storedCustomerId) return parseInt(storedCustomerId, 10)
+  if (user?.customers && user.customers.length > 0) return user.customers[0].id
+  if (user?.customer_id) return user.customer_id
+  if (user?.customer?.id) return user.customer.id
+  return null
+}
 
 export default function RetentionOptionPage() {
   const [retentionOptions, setRetentionOptions] = useState<any[]>([])
@@ -39,13 +50,15 @@ export default function RetentionOptionPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const { currentLanguage } = useLanguage()
   const { t } = useTranslation()
+  const { user } = useAuth()
+  const customerId = getCustomerId(user)
 
   // Debounce search input
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       setSearchTerm(searchInput)
       setCurrentPage(1)
-    }, 300)
+    }, 500)
 
     return () => clearTimeout(timeoutId)
   }, [searchInput])
@@ -53,14 +66,13 @@ export default function RetentionOptionPage() {
   const fetchRetentionOptions = async () => {
     setLoading(true)
     try {
-      // Global page - don't pass customer_id (for super admin)
       const response = await getRetentionOptions({
         q: searchTerm || undefined,
         per_page: entriesPerPage,
         page: currentPage,
         order_by: sortField,
         sort_by: sortDirection,
-        // Explicitly don't pass customer_id for global/super admin
+        customer_id: customerId || undefined,
       })
 
       if (response.status && response.data) {
@@ -88,7 +100,7 @@ export default function RetentionOptionPage() {
 
   useEffect(() => {
     fetchRetentionOptions()
-  }, [currentPage, entriesPerPage, searchTerm, sortField, sortDirection, currentLanguage])
+  }, [currentPage, entriesPerPage, searchTerm, sortField, sortDirection, currentLanguage, customerId])
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {

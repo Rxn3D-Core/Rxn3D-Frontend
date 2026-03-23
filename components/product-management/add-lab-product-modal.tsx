@@ -2531,14 +2531,25 @@ export function AddLabProductModal({
                     ) : (
                       <>
                         {hasSectionChanges && (
-                          <Button
-                            type="button"
-                            onClick={handleUpdateSection}
-                            className="bg-blue-600 hover:bg-blue-700 h-10 w-full sm:w-auto sm:px-6 disabled:opacity-50 disabled:cursor-not-allowed"
-                            disabled={isUpdating || isCreating}
-                          >
-                            {isUpdating ? "Updating..." : "Update"}
-                          </Button>
+                          <>
+                            <Button
+                              type="button"
+                              onClick={handleUpdateSection}
+                              className="bg-blue-600 hover:bg-blue-700 h-10 w-full sm:w-auto sm:px-6 disabled:opacity-50 disabled:cursor-not-allowed"
+                              disabled={isUpdating || isCreating}
+                            >
+                              {isUpdating ? "Updating..." : "Update"}
+                            </Button>
+                            <Button
+                              type="submit"
+                              className="bg-[#1162a8] hover:bg-[#0d4c84] h-10 w-full sm:w-auto sm:px-8 disabled:opacity-50 disabled:cursor-not-allowed"
+                              disabled={isSubmitting || isUpdating || isCreating}
+                            >
+                              {isSubmitting || isUpdating || isCreating
+                                ? t("productModal.updating", "Updating...")
+                                : t("productModal.updateProduct", "Update Product")}
+                            </Button>
+                          </>
                         )}
                         <Button
                           type="button"
