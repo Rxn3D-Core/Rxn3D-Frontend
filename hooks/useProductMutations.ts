@@ -46,7 +46,12 @@ export function useProductMutations() {
     mutationFn: async ({ id, payload, releasingStageIds = [] }: ProductUpdatePayload) => {
       const token = getAuthToken()
       let finalPayload = { ...payload }
-      
+
+      // Map request_opposing_extraction boolean → "Yes"/"No" for the API
+      if (finalPayload.request_opposing_extraction !== undefined && finalPayload.request_opposing_extraction !== "Yes" && finalPayload.request_opposing_extraction !== "No") {
+        finalPayload.request_opposing_extraction = finalPayload.request_opposing_extraction ? "Yes" : "No"
+      }
+
       // Handle releasingStageIds - mark stages as releasing if needed
       if (releasingStageIds.length > 0 && Array.isArray(finalPayload.stages)) {
         finalPayload.stages = finalPayload.stages.map((stage: any) => {
@@ -134,6 +139,7 @@ export function useProductMutations() {
       const apiUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL}/library/products/${id}`
 
       console.log('💰 [useProductMutations] Final payload price:', finalPayload.price, 'base_price:', finalPayload.base_price, 'customer_id:', finalPayload.customer_id)
+      console.log('🔍 [useProductMutations] request_opposing_extraction:', finalPayload.request_opposing_extraction, typeof finalPayload.request_opposing_extraction)
 
       let response: Response
       try {
@@ -273,6 +279,11 @@ export function useProductMutations() {
     mutationFn: async ({ payload, releasingStageIds = [] }: ProductCreatePayload) => {
       const token = getAuthToken()
       let finalPayload = { ...payload }
+
+      // Map request_opposing_extraction boolean → "Yes"/"No" for the API
+      if (finalPayload.request_opposing_extraction !== undefined && finalPayload.request_opposing_extraction !== "Yes" && finalPayload.request_opposing_extraction !== "No") {
+        finalPayload.request_opposing_extraction = finalPayload.request_opposing_extraction ? "Yes" : "No"
+      }
 
       // Add customer_id for lab_admin
       if (isLabAdmin && user?.customers?.length) {

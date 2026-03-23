@@ -151,6 +151,11 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
   function buildProductPayload(form: any, releasingStageIds: (string | number)[] = []): any {
     const payload: any = { ...form }
 
+    // Map request_opposing_extraction boolean → "Yes"/"No" for the API
+    if (payload.request_opposing_extraction !== undefined && payload.request_opposing_extraction !== "Yes" && payload.request_opposing_extraction !== "No") {
+      payload.request_opposing_extraction = payload.request_opposing_extraction ? "Yes" : "No"
+    }
+
     // Set is_custom (default to "Yes" if not present)
     payload.is_custom = form.is_custom ?? "Yes"
 

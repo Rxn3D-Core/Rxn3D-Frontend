@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react"
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react"
 import { X, Maximize2, ChevronLeft, ChevronRight } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -45,6 +45,25 @@ import { RetentionSection } from "@/components/product-management/add-lab-produc
 import { ExtractionsSection } from "@/components/product-management/add-lab-product-modal/ExtractionsSection"
 import { VisibilityManagementSection } from "@/components/product-management/add-lab-product-modal/VisibilityManagementSection"
 import { OfficePriceManagementSection } from "@/components/product-management/add-lab-product-modal/OfficePriceManagementSection"
+
+/** Slip section toggles from API product (same rules as sectionsFromApi in the edit load effect). */
+function buildSectionsStateFromProduct(editingProduct: any) {
+  const isSingleStage = editingProduct.is_single_stage === "Yes"
+  return {
+    productDetails: true,
+    grades: editingProduct.has_grade ?? true,
+    stages: isSingleStage ? false : (editingProduct.has_stage ?? true),
+    impressions: editingProduct.has_impression ?? true,
+    gumShade: editingProduct.has_gum_shade ?? true,
+    teethShade: editingProduct.has_teeth_shade ?? true,
+    material: editingProduct.has_material ?? true,
+    addOns: editingProduct.has_addon ?? true,
+    retention: editingProduct.has_retention ?? true,
+    extractions: editingProduct.has_extraction ?? true,
+    officePriceManagement: true,
+    visibilityManagement: true,
+  }
+}
 
 interface AddLabProductModalProps {
   isOpen: boolean;
@@ -1000,22 +1019,7 @@ export function AddLabProductModal({
       setCustomGumShadeNames({}) // Clear custom gum shade names when editing
       setCustomTeethShadeNames({}) // Clear custom teeth shade names when editing
       // Initialize section toggles from product_configurations (has_* flags). Default true when null.
-      // When is_single_stage is "Yes", stages must be off regardless of has_stage.
-      const isSingleStage = editingProduct.is_single_stage === "Yes"
-      const sectionsFromApi = {
-        productDetails: true,
-        grades: editingProduct.has_grade ?? true,
-        stages: isSingleStage ? false : (editingProduct.has_stage ?? true),
-        impressions: editingProduct.has_impression ?? true,
-        gumShade: editingProduct.has_gum_shade ?? true,
-        teethShade: editingProduct.has_teeth_shade ?? true,
-        material: editingProduct.has_material ?? true,
-        addOns: editingProduct.has_addon ?? true,
-        retention: editingProduct.has_retention ?? true,
-        extractions: editingProduct.has_extraction ?? true,
-        officePriceManagement: true,
-        visibilityManagement: true,
-      }
+      const sectionsFromApi = buildSectionsStateFromProduct(editingProduct)
       setSections((prev) => ({ ...prev, ...sectionsFromApi }))
       setInitialSections(sectionsFromApi)
       // Extract releasing stage IDs from fetched stage data (is_releasing_stage === "Yes")
@@ -1085,6 +1089,17 @@ export function AddLabProductModal({
     })
   }, [])
 
+  // Hydrate section toggles + baseline before paint so hasSectionToggleChanges works (e.g. Main Product Fields / extractions)
+  // and the per-tab "Update" button appears without relying on useEffect-only initialSections.
+  // Only when opening the modal or switching products (id) — not on every editingProduct refetch (same id).
+  useLayoutEffect(() => {
+    if (!isOpen || !editingProduct?.id) return
+    const next = buildSectionsStateFromProduct(editingProduct)
+    setSections((prev) => ({ ...prev, ...next }))
+    setInitialSections(next)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only when modal opens or product id changes
+  }, [isOpen, editingProduct?.id])
+
   // When is_single_stage is "Yes": auto toggle off stages, clear stages, use min/max days
   // Runs when user changes to "Yes" or when stages is somehow on (e.g. re-init overwrote)
   useEffect(() => {
@@ -1093,15 +1108,54 @@ export function AddLabProductModal({
       setValue("stages", [], { shouldDirty: true })
       setReleasingStageIds([])
     }
-  }, [watchedIsSingleStage, sections.stages, setValue])
+  }, [watchedIsSingleStage, sections.stages, setValue, setReleasingStageIds])
 
-  // When grades section is toggled off: use base price (set has_grade_based_pricing to No, clear grades)
+  // When a product slip section toggle is off: clear matching form fields so has_* flags and payloads stay aligned.
+  // (Backend can infer has_*=true if relation arrays are sent without explicit flags — empty arrays + explicit has_* avoid that.)
   useEffect(() => {
     if (!sections.grades) {
       setValue("has_grade_based_pricing", "No", { shouldDirty: true })
       setValue("grades", [], { shouldDirty: true })
     }
-  }, [sections.grades, setValue])
+    if (!sections.stages) {
+      setValue("stages", [], { shouldDirty: true })
+      setReleasingStageIds([])
+    }
+    if (!sections.impressions) {
+      setValue("impressions", [], { shouldDirty: true })
+    }
+    if (!sections.gumShade) {
+      setValue("gum_shades", [], { shouldDirty: true })
+    }
+    if (!sections.teethShade) {
+      setValue("teeth_shades", [], { shouldDirty: true })
+    }
+    if (!sections.material) {
+      setValue("materials", [], { shouldDirty: true })
+    }
+    if (!sections.addOns) {
+      setValue("addons", [], { shouldDirty: true })
+    }
+    if (!sections.retention) {
+      setValue("retentions", [], { shouldDirty: true })
+    }
+    if (!sections.extractions) {
+      setValue("extractions", [], { shouldDirty: true })
+      setValue("opposite_extractions", [], { shouldDirty: true })
+    }
+  }, [
+    sections.grades,
+    sections.stages,
+    sections.impressions,
+    sections.gumShade,
+    sections.teethShade,
+    sections.material,
+    sections.addOns,
+    sections.retention,
+    sections.extractions,
+    setValue,
+    setReleasingStageIds,
+  ])
 
   const toggleExpanded = useCallback((section: string) => {
     setExpandedSections((prev) => ({
@@ -1467,10 +1521,9 @@ export function AddLabProductModal({
       payload.image = imageBase64
     }
 
-    // Map request_opposing_extraction (boolean) → opposite_impression ("Yes"/"No") for the API
+    // Map request_opposing_extraction boolean → "Yes"/"No" for the API
     if (payload.request_opposing_extraction !== undefined) {
-      payload.opposite_impression = payload.request_opposing_extraction ? "Yes" : "No"
-      delete payload.request_opposing_extraction
+      payload.request_opposing_extraction = payload.request_opposing_extraction ? "Yes" : "No"
     }
 
     // Product slip field flags: when false, field is disabled on the slip (product_configurations)
@@ -1955,10 +2008,9 @@ export function AddLabProductModal({
         })
       }
 
-      // Map request_opposing_extraction (boolean) → opposite_impression ("Yes"/"No") for the API
+      // Map request_opposing_extraction boolean → "Yes"/"No" for the API
       if (payload.request_opposing_extraction !== undefined) {
-        payload.opposite_impression = payload.request_opposing_extraction ? "Yes" : "No"
-        delete payload.request_opposing_extraction
+        payload.request_opposing_extraction = payload.request_opposing_extraction ? "Yes" : "No"
       }
 
       // Product slip field flags: when false, field is disabled on the slip (product_configurations)
@@ -2002,6 +2054,8 @@ export function AddLabProductModal({
           }
         }
         setInitialFormValues(updatedInitialValues)
+        // Keep section toggle baseline in sync after save (e.g. Main Product Fields / has_extraction)
+        setInitialSections({ ...sections })
         
         toast({
           title: "Success",
@@ -2432,23 +2486,35 @@ export function AddLabProductModal({
 
                   <div className="flex items-center gap-2 order-1 sm:order-2">
                     {isLastTab ? (
-                      <Button
-                        type="submit"
-                        className="bg-[#1162a8] hover:bg-[#0d4c84] h-10 w-full sm:w-auto sm:px-8"
-                        disabled={isSubmitting || isUpdating || isCreating}
-                      >
-                        {isSubmitting || isUpdating || isCreating
-                          ? editingProduct && editingProduct.id
-                            ? t("productModal.updating", "Updating...")
-                            : editingProduct && !editingProduct.id
-                            ? t("productModal.copying", "Copying...")
-                            : t("productModal.saving", "Saving...")
-                          : editingProduct && editingProduct.id
-                            ? t("productModal.updateProduct", "Update Product")
-                            : editingProduct && !editingProduct.id
-                            ? t("productModal.copyProduct", "Copy Product")
-                            : t("productModal.saveProduct", "Save Product")}
-                      </Button>
+                      <>
+                        {hasSectionChanges && editingProduct?.id && (
+                          <Button
+                            type="button"
+                            onClick={handleUpdateSection}
+                            className="bg-blue-600 hover:bg-blue-700 h-10 w-full sm:w-auto sm:px-6 disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={isUpdating || isCreating}
+                          >
+                            {isUpdating ? "Updating..." : "Update"}
+                          </Button>
+                        )}
+                        <Button
+                          type="submit"
+                          className="bg-[#1162a8] hover:bg-[#0d4c84] h-10 w-full sm:w-auto sm:px-8"
+                          disabled={isSubmitting || isUpdating || isCreating}
+                        >
+                          {isSubmitting || isUpdating || isCreating
+                            ? editingProduct && editingProduct.id
+                              ? t("productModal.updating", "Updating...")
+                              : editingProduct && !editingProduct.id
+                              ? t("productModal.copying", "Copying...")
+                              : t("productModal.saving", "Saving...")
+                            : editingProduct && editingProduct.id
+                              ? t("productModal.updateProduct", "Update Product")
+                              : editingProduct && !editingProduct.id
+                              ? t("productModal.copyProduct", "Copy Product")
+                              : t("productModal.saveProduct", "Save Product")}
+                        </Button>
+                      </>
                     ) : (
                       <>
                         {hasSectionChanges && (
