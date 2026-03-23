@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Control, UseFormWatch, UseFormSetValue } from "react-hook-form"
+import { Control, UseFormWatch, UseFormSetValue, useWatch } from "react-hook-form"
 import { ChevronDown, ChevronUp, Info, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -25,6 +25,10 @@ interface ExtractionsSectionProps {
   toggleExpanded?: (section: string) => void
   allExtractions?: Extraction[]
   isExtractionsLoading?: boolean
+  /** Count of opposite extraction rows from the API when editing — if the form is still empty, keep "Apply same" off until hydrate or user toggles. */
+  apiOppositeExtractionCount?: number
+  /** Stable key when switching products (e.g. editingProduct.id) to reset apply-same override. */
+  editingProductKey?: string | number | null
 }
 
 export function ExtractionsSection({
@@ -39,6 +43,8 @@ export function ExtractionsSection({
   toggleExpanded,
   allExtractions = [],
   isExtractionsLoading = false,
+  apiOppositeExtractionCount = 0,
+  editingProductKey = null,
 }: ExtractionsSectionProps) {
   // Fallback internal state when parent doesn't pass sections (e.g. used elsewhere)
   const [internalEnabled, setInternalEnabled] = useState(true)
@@ -47,8 +53,28 @@ export function ExtractionsSection({
   const isEnabled = sections?.extractions ?? internalEnabled
   const isExpanded = expandedSections?.extractions ?? internalExpanded
   const watchedExtractions = watch("extractions") || []
-  const watchedOppositeExtractions = watch("opposite_extractions" as any) || []
-  const watchedApplySameStatus = watch("apply_same_status_to_opposing") ?? true
+  const oppositeRowsRaw = useWatch({
+    control,
+    name: "opposite_extractions" as any,
+    defaultValue: [] as any[],
+  })
+  const oppositeRows = Array.isArray(oppositeRowsRaw) ? oppositeRowsRaw : []
+
+  const [userOverrodeApplySame, setUserOverrodeApplySame] = useState(false)
+  useEffect(() => {
+    setUserOverrodeApplySame(false)
+  }, [editingProductKey])
+
+  // API says there are opposing rows but RHF may still be empty (reset/resolver/zod timing) — still show "apply same" off.
+  const needsOppositeHydration =
+    apiOppositeExtractionCount > 0 && oppositeRows.length === 0 && !userOverrodeApplySame
+
+  const watchedApplySameStatus =
+    oppositeRows.length > 0
+      ? false
+      : needsOppositeHydration
+        ? false
+        : (watch("apply_same_status_to_opposing") ?? true)
 
   // Use extractions passed from parent
   const extractions = allExtractions
@@ -62,12 +88,23 @@ export function ExtractionsSection({
   // Track whether user has manually interacted with main/opposing table (prevents re-init overwriting user changes)
   const userModifiedMainRef = useRef(false)
   const userModifiedOpposingRef = useRef(false)
+  const hasInitializedMainRef = useRef(false)
+  const hasInitializedOpposingRef = useRef(false)
+
+  // Stabilize watched arrays by serializing — prevents infinite re-renders from new array refs
+  const extractionsKey = JSON.stringify(watchedExtractions.map((e: any) => e.extraction_id).sort())
+  const oppositeExtractionsKey = JSON.stringify(
+    oppositeRows
+      .map((e: any) => Number(e?.extraction_id ?? e?.id))
+      .filter((n) => Number.isFinite(n))
+      .sort((a, b) => a - b),
+  )
 
   // Helper to build statuses from API extractions + form data
   const buildStatuses = (apiExtractions: Extraction[], formExtractions: any[]) => {
     return apiExtractions.map((apiExtraction: Extraction) => {
       const productExtraction = formExtractions.find(
-        (ext: any) => ext.extraction_id === apiExtraction.id
+        (ext: any) => Number(ext?.extraction_id) === Number(apiExtraction.id)
       )
 
       if (productExtraction) {
@@ -99,43 +136,48 @@ export function ExtractionsSection({
     })
   }
 
-  // Build extraction statuses whenever API extractions or form data changes.
-  // Skips rebuild if user has manually interacted with the table (prevents overwriting user changes).
+  // Build extraction statuses when API extractions load or form resets with new product data.
+  // Uses serialized keys to avoid infinite loops from new array references.
+  const prevExtractionsKeyRef = useRef<string>("")
   useEffect(() => {
     if (extractions.length === 0) return
-    if (userModifiedMainRef.current) return
-    setExtractionStatuses(buildStatuses(extractions, watchedExtractions))
+
+    const keyChanged = extractionsKey !== prevExtractionsKeyRef.current
+    prevExtractionsKeyRef.current = extractionsKey
+
+    if (!hasInitializedMainRef.current || keyChanged) {
+      hasInitializedMainRef.current = true
+      if (keyChanged) {
+        userModifiedMainRef.current = false
+        userModifiedOpposingRef.current = false
+        hasInitializedOpposingRef.current = false
+      }
+      setExtractionStatuses(buildStatuses(extractions, watchedExtractions))
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [extractions, watchedExtractions])
+  }, [extractions, extractionsKey])
 
   // Build opposing extraction statuses and sync the checkbox.
   // When opposite_extractions exist in form data, uncheck "Apply same status to opposing".
+  const prevOppositeKeyRef = useRef<string>("")
   useEffect(() => {
     if (extractions.length === 0) return
     if (userModifiedOpposingRef.current) return
 
-    if (watchedOppositeExtractions.length > 0) {
-      setValue("apply_same_status_to_opposing", false, { shouldDirty: false })
-      setOpposingExtractionStatuses(buildStatuses(extractions, watchedOppositeExtractions))
-    } else {
-      setOpposingExtractionStatuses(buildStatuses(extractions, []))
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [extractions, watchedOppositeExtractions])
+    const keyChanged = oppositeExtractionsKey !== prevOppositeKeyRef.current
+    prevOppositeKeyRef.current = oppositeExtractionsKey
 
-  // Reset user-modified refs when form is reset (detected by watching form extraction IDs change)
-  const prevFormKeyRef = useRef<string>("")
-  useEffect(() => {
-    const key = watchedExtractions.map((e: any) => e.extraction_id).sort().join(',')
-      + '|' + watchedOppositeExtractions.map((e: any) => e.extraction_id).sort().join(',')
-    if (prevFormKeyRef.current && key !== prevFormKeyRef.current) {
-      // Form data changed (likely reset with new product) — allow re-initialization
-      userModifiedMainRef.current = false
-      userModifiedOpposingRef.current = false
+    if (!hasInitializedOpposingRef.current || keyChanged) {
+      hasInitializedOpposingRef.current = true
+      if (oppositeRows.length > 0) {
+        setValue("apply_same_status_to_opposing", false, { shouldDirty: false })
+        setOpposingExtractionStatuses(buildStatuses(extractions, oppositeRows))
+      } else {
+        setOpposingExtractionStatuses(buildStatuses(extractions, []))
+      }
     }
-    prevFormKeyRef.current = key
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [watchedExtractions, watchedOppositeExtractions])
+  }, [extractions, oppositeExtractionsKey])
 
   const handleStatusChange = (extractionId: number, field: string, value: any) => {
     if (isUpdatingRef.current) return // Prevent infinite loops
@@ -498,15 +540,16 @@ export function ExtractionsSection({
   }
 
   const handleApplySameStatusChange = (checked: boolean) => {
+    setUserOverrodeApplySame(true)
     setValue("apply_same_status_to_opposing", checked, { shouldDirty: true })
 
     if (!checked) {
       // When unchecking, populate opposing extractions from the saved opposite_extractions data
-      const currentOppositeExtractions = watchedOppositeExtractions
+      const currentOppositeExtractions = oppositeRows
       if (extractions.length > 0) {
         const convertedStatuses = extractions.map((apiExtraction: Extraction) => {
           const productExtraction = currentOppositeExtractions.find(
-            (ext: any) => ext.extraction_id === apiExtraction.id
+            (ext: any) => Number(ext?.extraction_id) === Number(apiExtraction.id)
           )
 
           if (productExtraction) {

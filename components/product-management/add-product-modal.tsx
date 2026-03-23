@@ -10,7 +10,8 @@ import { debounce } from "@/lib/performance"
 
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { ProductCreateFormSchema, type ProductCreateForm } from "@/lib/schemas"
+import { ProductCreateFormSchema, type ProductCreateForm, type Extraction } from "@/lib/schemas"
+import { ExtractionsApi } from "@/lib/api-service"
 import { useProducts } from "@/contexts/product-products-context"
 import { useProductCategory } from "@/contexts/product-category-context"
 import { useGrades } from "@/contexts/product-grades-context"
@@ -54,6 +55,29 @@ const placeholderOffices = [
   { id: 8, name: "Dental Lab 8", is_visible: "Yes" },
 ]
 
+/** API may send string ids or nest id under extraction — invalid rows were dropped on reset and the checkbox stayed checked. */
+function pickExtractionIdFromOppositeRow(item: any): number {
+  const raw =
+    item?.extraction_id ??
+    item?.id ??
+    item?.extraction?.id ??
+    item?.pivot?.extraction_id
+  const n = Number(raw)
+  return n
+}
+
+function mapOppositeExtractionsFromApi(arr: any[]) {
+  if (!Array.isArray(arr)) return []
+  return arr
+    .map((item, idx) => ({
+      extraction_id: pickExtractionIdFromOppositeRow(item),
+      sequence: item.sequence && item.sequence >= 1 ? item.sequence : idx + 1,
+      status: (item.status === "Inactive" ? "Inactive" : "Active") as "Active" | "Inactive",
+      is_default: (item.is_default === "Yes" ? "Yes" : "No") as "Yes" | "No",
+    }))
+    .filter((row) => Number.isFinite(row.extraction_id) && row.extraction_id > 0)
+}
+
 export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductModalProps) {
   const { createProduct, updateProduct, isLoading: isProductActionLoading, clearValidationErrors } = useProducts()
   const [validationErrors, setValidationErrors] = useState<{ field: string; message: string }[]>([])
@@ -68,6 +92,26 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
   const { materials, fetchMaterials } = useMaterials()
   const { retentions, fetchRetentions } = useRetention()
   const { addOns, fetchAllAddOns } = useAddOns()
+  const [allExtractions, setAllExtractions] = useState<Extraction[]>([])
+  const [isExtractionsLoading, setIsExtractionsLoading] = useState(false)
+  const fetchExtractions = useCallback(async () => {
+    setIsExtractionsLoading(true)
+    try {
+      const response = await ExtractionsApi.getExtractions({
+        status: "Active",
+        per_page: 100,
+        page: 1,
+        sort_by: "sequence",
+        sort_order: "asc",
+      })
+      setAllExtractions(response?.data?.data || [])
+    } catch (err) {
+      console.error("Failed to fetch extractions:", err)
+      setAllExtractions([])
+    } finally {
+      setIsExtractionsLoading(false)
+    }
+  }, [])
   const { user } = useAuth()
   const userRole =
     typeof user?.role === "string"
@@ -187,6 +231,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
     material_group_id: undefined,
     addon_group_id: undefined,
     base_price: 0,
+    opposite_extractions: [],
     apply_same_status_to_opposing: true,
   }), [])
 
@@ -273,6 +318,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
     fetchMaterials()
     fetchRetentions()
     fetchAllAddOns()
+    fetchExtractions()
   }, [
     fetchParentDropdownCategories,
     fetchCategoriesWithSubcategories,
@@ -284,6 +330,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
     fetchMaterials,
     fetchRetentions,
     fetchAllAddOns,
+    fetchExtractions,
   ])
 
   const getNormalizedFormValues = useCallback((): ProductCreateForm => {
@@ -398,6 +445,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
       retentions: mapWithStatus(editingProduct.retentions || [], "retention_id"),
       addons: mapWithStatus(editingProduct.addons || [], "addon_id"),
       extractions: mapWithStatus(editingProduct.extractions || [], "extraction_id"),
+      opposite_extractions: mapOppositeExtractionsFromApi(editingProduct.opposite_extractions || []),
       has_grade_based_pricing: hasGradeBasedPricing,
       default_grade_id: editingProduct.default_grade_id,
       enable_auto_billing: editingProduct.enable_auto_billing || "No",
@@ -413,13 +461,26 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
       material_group_id: editingProduct.material_group_id,
       addon_group_id: editingProduct.addon_group_id,
       base_price: editingProduct.base_price ?? editingProduct.price ?? 0,
-      apply_same_status_to_opposing: editingProduct.apply_same_status_to_opposing ?? true,
+      apply_same_status_to_opposing:
+        editingProduct.opposite_extractions && editingProduct.opposite_extractions.length > 0
+          ? false
+          : (editingProduct.apply_same_status_to_opposing ?? true),
     }
   }, [editingProduct, initialFormValues])
 
   useEffect(() => {
     if (isOpen) {
       reset(getNormalizedFormValues())
+      // Re-apply after reset: zodResolver / async ordering can leave opposite_extractions empty briefly — sync twice (microtask) so RHF picks it up.
+      if (editingProduct?.opposite_extractions?.length) {
+        const opp = mapOppositeExtractionsFromApi(editingProduct.opposite_extractions)
+        const syncOpposite = () => {
+          setValue("opposite_extractions", opp, { shouldDirty: false, shouldValidate: false })
+          setValue("apply_same_status_to_opposing", false, { shouldDirty: false, shouldValidate: false })
+        }
+        syncOpposite()
+        queueMicrotask(syncOpposite)
+      }
       setImageBase64(null)
       clearValidationErrors()
       fetchData()
@@ -985,11 +1046,20 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
 
                 <TabsContent value="extractions" className="mt-0 p-6 focus-visible:outline-none">
                   <ExtractionsSection
+                    key={editingProduct?.id != null ? `ext-${editingProduct.id}` : "ext-new"}
                     control={control}
                     watch={watch}
                     setValue={setValue}
                     getValidationError={getValidationError}
                     sectionHasErrors={sectionHasErrors}
+                    sections={sections}
+                    toggleSection={toggleSection}
+                    expandedSections={expandedSections}
+                    toggleExpanded={toggleExpanded}
+                    allExtractions={allExtractions}
+                    isExtractionsLoading={isExtractionsLoading}
+                    apiOppositeExtractionCount={editingProduct?.opposite_extractions?.length ?? 0}
+                    editingProductKey={editingProduct?.id ?? null}
                   />
                 </TabsContent>
 

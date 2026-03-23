@@ -347,7 +347,7 @@ export const ProductCreateFormSchema = z
     extractions: z
       .array(
         z.object({
-          extraction_id: z.number(),
+          extraction_id: z.coerce.number(),
           sequence: z.number().optional(),
           status: z.enum(["Active", "Inactive"]).default("Active").optional(),
           is_default: z.enum(["Yes", "No"]).default("No").optional(),
@@ -396,7 +396,7 @@ export const ProductCreateFormSchema = z
     opposite_extractions: z
       .array(
         z.object({
-          extraction_id: z.number(),
+          extraction_id: z.coerce.number(),
           sequence: z.number().optional(),
           status: z.enum(["Active", "Inactive"]).default("Active").optional(),
           is_default: z.enum(["Yes", "No"]).default("No").optional(),

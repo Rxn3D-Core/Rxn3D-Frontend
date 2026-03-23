@@ -774,12 +774,21 @@ export function AddLabProductModal({
       // Special mapping function for opposite extractions (only extraction_id, sequence, status, is_default)
       function mapOppositeExtractions(arr: any[]) {
         if (!Array.isArray(arr)) return []
-        return arr.map((item, idx) => ({
-          extraction_id: item.extraction_id ?? item.id,
-          sequence: item.sequence && item.sequence >= 1 ? item.sequence : idx + 1,
-          status: (item.status === "Inactive" ? "Inactive" : "Active") as "Active" | "Inactive",
-          is_default: (item.is_default === "Yes" ? "Yes" : "No") as "Yes" | "No",
-        }))
+        const pickId = (item: any) =>
+          Number(
+            item?.extraction_id ??
+              item?.id ??
+              item?.extraction?.id ??
+              item?.pivot?.extraction_id,
+          )
+        return arr
+          .map((item, idx) => ({
+            extraction_id: pickId(item),
+            sequence: item.sequence && item.sequence >= 1 ? item.sequence : idx + 1,
+            status: (item.status === "Inactive" ? "Inactive" : "Active") as "Active" | "Inactive",
+            is_default: (item.is_default === "Yes" ? "Yes" : "No") as "Yes" | "No",
+          }))
+          .filter((row) => Number.isFinite(row.extraction_id) && row.extraction_id > 0)
       }
 
       // Special mapping function for addons with quantity and is_default fields
@@ -973,6 +982,15 @@ export function AddLabProductModal({
         max_days_to_process: editingProduct.max_days_to_process ?? null,
       }
       reset(formValues)
+      if (Array.isArray(editingProduct.opposite_extractions) && editingProduct.opposite_extractions.length > 0) {
+        const opp = mapOppositeExtractions(editingProduct.opposite_extractions)
+        const syncOpposite = () => {
+          setValue("opposite_extractions", opp, { shouldDirty: false, shouldValidate: false })
+          setValue("apply_same_status_to_opposing", false, { shouldDirty: false, shouldValidate: false })
+        }
+        syncOpposite()
+        queueMicrotask(syncOpposite)
+      }
       setInitialFormValues(formValues) // Store initial values for comparison
       clearValidationErrors()
       setCustomGradeNames({}) // Clear custom grade names when editing
@@ -2320,6 +2338,7 @@ export function AddLabProductModal({
 
                 <TabsContent value="extractions" forceMount className="mt-0 p-6 focus-visible:outline-none data-[state=inactive]:hidden">
                   <ExtractionsSection
+                    key={editingProduct?.id != null ? `ext-${editingProduct.id}` : "ext-new"}
                     control={control}
                     watch={watch}
                     setValue={setValue}
@@ -2331,6 +2350,8 @@ export function AddLabProductModal({
                     toggleExpanded={toggleExpanded}
                     allExtractions={allExtractions}
                     isExtractionsLoading={isExtractionsLoading}
+                    apiOppositeExtractionCount={editingProduct?.opposite_extractions?.length ?? 0}
+                    editingProductKey={editingProduct?.id ?? null}
                   />
                 </TabsContent>
 
