@@ -538,8 +538,8 @@ export function ProductDetailsSection({
                     </TooltipTrigger>
                     <TooltipContent>
                       <p>
-                        {sections.grades 
-                          ? "Base price is automatically set by the default grade price" 
+                        {sections.grades && defaultGradePrice
+                          ? "Base price is automatically set by the default grade price"
                           : "Enter the base price for this product"}
                       </p>
                     </TooltipContent>
@@ -549,19 +549,22 @@ export function ProductDetailsSection({
                   name="base_price"
                   control={control}
                   render={({ field }) => {
-                    const currentValue = sections.grades ? defaultGradePrice : (field.value || "")
+                    // Only lock base price when grades section is on AND a default grade price exists
+                    // When adding a new product, base price should be editable until a grade is configured
+                    const isLockedByGrades = sections.grades && !!defaultGradePrice
+                    const currentValue = isLockedByGrades ? defaultGradePrice : (field.value || "")
                     const hasError = getValidationError("base_price")
-                    const validationState = sections.grades 
-                      ? "disabled" 
+                    const validationState = isLockedByGrades
+                      ? "disabled"
                       : getValidationState("base_price", currentValue, true)
-                    
+
                     return (
                       <div className="relative">
                         <Input
                           label="Base Price *"
                           placeholder="0.00"
                           className={`pl-8 ${
-                            sections.grades
+                            isLockedByGrades
                               ? "border-gray-200 bg-gray-50 cursor-not-allowed"
                               : ""
                           }`}
@@ -571,18 +574,18 @@ export function ProductDetailsSection({
                           value={currentValue}
                           onChange={(e) => field.onChange(e.target.value)}
                           onFocus={() => {
-                            if (!sections.grades) {
+                            if (!isLockedByGrades) {
                               setFocusedFields(prev => ({ ...prev, base_price: true }))
                             }
                           }}
                           onBlur={(e) => {
-                            if (!sections.grades) {
+                            if (!isLockedByGrades) {
                               setFocusedFields(prev => ({ ...prev, base_price: false }))
                               setTouchedFields(prev => ({ ...prev, base_price: true }))
                             }
                             field.onBlur()
                           }}
-                          disabled={sections.grades}
+                          disabled={isLockedByGrades}
                           validationState={validationState}
                           errorMessage={hasError ? getValidationError("base_price") : undefined}
                           required

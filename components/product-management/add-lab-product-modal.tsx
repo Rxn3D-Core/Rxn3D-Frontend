@@ -5,7 +5,7 @@ import { X, Maximize2, ChevronLeft, ChevronRight, EyeOff } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useForm } from "react-hook-form"
+import { useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { ProductCreateFormSchema, type ProductCreateForm } from "@/lib/schemas"
 import { useToast } from "@/hooks/use-toast"
@@ -342,9 +342,13 @@ export function AddLabProductModal({
   const watchedIsSingleStage = watch("is_single_stage")
   const watchedMinDays = watch("min_days_to_process")
   const watchedMaxDays = watch("max_days_to_process")
-  const watchedStages = watch("stages") || []
-  const watchedGrades = watch("grades") || []
+  const watchedStages = useWatch({ control, name: "stages" }) || []
+  const watchedGrades = useWatch({ control, name: "grades" }) || []
   const watchedHasGradeBasedPricing = watch("has_grade_based_pricing")
+  // Track whether any grade is set as default (used for Next button validation)
+  const hasDefaultGrade = watchedGrades.some((g: any) => g.is_default === "Yes")
+  // Serialized key for stages to ensure useMemo recomputes when price/days change
+  const stagesValidationKey = watchedStages.map((s: any) => `${s.stage_id}:${s.economy_price || s.standard_price || 0}:${s.days || 0}`).join(",")
 
   // Check if current step has errors
   const hasCurrentStepErrors = useMemo(() => {
@@ -358,7 +362,7 @@ export function AddLabProductModal({
     })
   }, [activeTab, errors, watchedIsSingleStage])
 
-  // Check if stages are selected and all have valid prices (> 0)
+  // Check if stages are selected and all have valid prices (> 0) and days (> 0)
   const areStagesPriced = useMemo(() => {
     // Only check when on stages tab
     if (activeTab !== "stages") {
@@ -375,6 +379,11 @@ export function AddLabProductModal({
 
     // Check each stage
     return watchedStages.every((stage: any) => {
+      // Validate days > 0 for every stage
+      const days = stage.days
+      const numDays = typeof days === "string" ? parseInt(days, 10) : (typeof days === "number" ? days : 0)
+      if (isNaN(numDays) || numDays <= 0) return false
+
       if (hasGradeBasedPricing && hasSelectedGrades) {
         // For grade-based pricing, check if all grades have prices > 0
         const gradePrices = stage.grade_prices || {}
@@ -402,7 +411,7 @@ export function AddLabProductModal({
         return !isNaN(numPrice) && numPrice > 0
       }
     })
-  }, [activeTab, watchedStages, watchedGrades, watchedHasGradeBasedPricing])
+  }, [activeTab, watchedStages, watchedGrades, watchedHasGradeBasedPricing, stagesValidationKey])
 
   // Check if current step is valid (no errors and all required fields filled)
   const isCurrentStepValid = useMemo(() => {
@@ -454,6 +463,11 @@ export function AddLabProductModal({
       return areStagesPriced
     }
     
+    // For grades tab: if grades section is on, require at least one grade selected with a default set
+    if (activeTab === "grades" && sections.grades) {
+      if (watchedGrades.length === 0 || !hasDefaultGrade) return false
+    }
+
     // For other tabs, use standard validation
     if (requiredFields.length === 0) {
       return true
@@ -494,13 +508,13 @@ export function AddLabProductModal({
       }
       return value !== null && value !== undefined && value !== ""
     })
-  }, [activeTab, watchedName, watchedCode, watchedSubcategoryId, watchedBasePrice, watchedIsSingleStage, watchedMinDays, watchedMaxDays, hasCurrentStepErrors, areStagesPriced])
+  }, [activeTab, watchedName, watchedCode, watchedSubcategoryId, watchedBasePrice, watchedIsSingleStage, watchedMinDays, watchedMaxDays, hasCurrentStepErrors, areStagesPriced, hasDefaultGrade, watchedGrades.length, sections.grades])
 
   const handleNext = async () => {
     if (isLastTab) return
 
     const requiredFields = getRequiredFieldsForStep(activeTab, watchedIsSingleStage)
-    
+
     // Validate required fields for current step
     if (requiredFields.length > 0) {
       const isValid = await trigger(requiredFields as any)
@@ -508,6 +522,27 @@ export function AddLabProductModal({
         toast({
           title: "Validation Error",
           description: "Please fill in all required fields before proceeding.",
+          variant: "destructive",
+        })
+        return
+      }
+    }
+
+    // Validate grades tab: if grades section is on, require at least one grade with a default set
+    if (activeTab === "grades" && sections.grades) {
+      if (watchedGrades.length === 0) {
+        toast({
+          title: "Validation Error",
+          description: "Please select at least one grade before proceeding.",
+          variant: "destructive",
+        })
+        return
+      }
+      const hasDefault = watchedGrades.some((g) => g.is_default === "Yes")
+      if (!hasDefault) {
+        toast({
+          title: "Validation Error",
+          description: "Please set a default grade before proceeding.",
           variant: "destructive",
         })
         return
@@ -1129,10 +1164,13 @@ export function AddLabProductModal({
 
   // When a product slip section toggle is off: clear matching form fields so has_* flags and payloads stay aligned.
   // (Backend can infer has_*=true if relation arrays are sent without explicit flags — empty arrays + explicit has_* avoid that.)
+  // When grades toggle is ON: sync the grade-based pricing radio to "Yes"
   useEffect(() => {
     if (!sections.grades) {
       setValue("has_grade_based_pricing", "No", { shouldDirty: true })
       setValue("grades", [], { shouldDirty: true })
+    } else {
+      setValue("has_grade_based_pricing", "Yes", { shouldDirty: true })
     }
     if (!sections.stages) {
       setValue("stages", [], { shouldDirty: true })
@@ -2204,7 +2242,16 @@ export function AddLabProductModal({
             zIndex={9999}
           />
 
-          <form onSubmit={handleDirectSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          <form
+            onSubmit={handleDirectSubmit}
+            onKeyDown={(e) => {
+              // Prevent Enter key from submitting the form — only allow explicit submit button clicks
+              if (e.key === "Enter" && (e.target as HTMLElement).tagName !== "TEXTAREA") {
+                e.preventDefault()
+              }
+            }}
+            className="flex flex-col flex-1 min-h-0 overflow-hidden"
+          >
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0 overflow-hidden">
               {/* Tab Navigation - Show tabs progressively as user navigates */}
               {visibleTabs.size > 0 && (

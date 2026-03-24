@@ -231,7 +231,7 @@ export function StagesSection({
             )
         } else {
             // Add stage - assign sequence as next available (max + 1)
-            const maxSequence = watchedStages.length > 0 
+            const maxSequence = watchedStages.length > 0
                 ? Math.max(...watchedStages.map((s) => s.sequence || 0))
                 : 0
             // If this is the first stage, set it as default
@@ -254,6 +254,13 @@ export function StagesSection({
                     sequence: index + 1 // Reassign sequences to ensure continuous order
                 }))
             setValue("stages", updated, { shouldDirty: true, shouldValidate: true })
+
+            // Auto-check releasing stage if the stage has is_releasing_stage === "Yes"
+            if (stage.is_releasing_stage === "Yes") {
+                if (!safeReleasingStageIds.some((id: string | number) => id.toString() === stage.id.toString())) {
+                    safeSetReleasingStageIds([...safeReleasingStageIds, stage.id])
+                }
+            }
         }
     }
 

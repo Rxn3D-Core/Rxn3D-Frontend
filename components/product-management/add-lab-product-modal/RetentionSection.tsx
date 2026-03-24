@@ -85,7 +85,14 @@ export function RetentionSection({
         <div className="flex items-center gap-2">
           <Switch
             checked={sections.retention !== false}
-            onCheckedChange={() => toggleSection("retention")}
+            onCheckedChange={(checked) => {
+              toggleSection("retention")
+              // Sync the retention mechanism radio with the toggle
+              setValue("apply_retention_mechanism", checked ? "Yes" : "No", { shouldDirty: true })
+              if (!checked) {
+                setValue("retentions", [], { shouldDirty: true })
+              }
+            }}
             className="data-[state=checked]:bg-[#1162a8]"
           />
           <span className="font-medium">Retention</span>
@@ -109,7 +116,8 @@ export function RetentionSection({
         </div>
       </div>
       {expandedSections.retention && (
-        <div className={cn("px-6 pb-6", sections.retention === false && "opacity-50 pointer-events-none select-none")}>
+        <div className="px-6 pb-6">
+          {/* Radio is always clickable — it syncs the retention toggle ON/OFF */}
           <div className="flex items-center gap-4 mb-4">
             <Label htmlFor="apply-retention">
               Does retention mechanism apply to this product?
@@ -122,6 +130,11 @@ export function RetentionSection({
                   value={field.value}
                   onValueChange={(value) => {
                     field.onChange(value)
+                    // Sync the retention section toggle with the radio
+                    const shouldBeOn = value === "Yes"
+                    if ((sections.retention !== false) !== shouldBeOn) {
+                      toggleSection("retention")
+                    }
                     if (value === "No") {
                       setValue("retentions", [], { shouldDirty: true })
                     }
@@ -144,6 +157,7 @@ export function RetentionSection({
               )}
             />
           </div>
+          <div className={cn(sections.retention === false && "opacity-50 pointer-events-none select-none")}>
           {watchedApplyRetentionMechanism === "Yes" && (
             <div className="mb-4">
               <Label className="text-sm font-medium mb-2 block">
@@ -222,6 +236,7 @@ export function RetentionSection({
             </div>
           )}
           <ValidationError message={getValidationError("retentions")} />
+          </div>
         </div>
       )}
     </div>

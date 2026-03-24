@@ -19,7 +19,18 @@ export const metadata: Metadata = {
   title: "Rxn3D LMS",
   description: "RxN3D is a digital case management platform for dental labs and offices.",
   icons: {
-    icon: "/images/rxn3d-new.png",
+    icon: [
+      { url: "/images/rxn3d-favicon-16.png", sizes: "16x16", type: "image/png" },
+      { url: "/images/rxn3d-favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/images/rxn3d-icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: "/images/rxn3d-apple-touch-icon.png",
+  },
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Rxn3D",
   },
 }
 

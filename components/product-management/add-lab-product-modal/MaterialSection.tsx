@@ -22,6 +22,7 @@ type Material = {
   id: number
   name: string
   sequence?: number
+  status?: string
 }
 
 type MaterialSectionProps = {
@@ -313,8 +314,9 @@ export function MaterialSection({
     setValue("materials", updated, { shouldDirty: true })
   }
 
-  // Filter materials by search query
+  // Filter materials: hide inactive and filter by search query
   const filteredMaterials = materials.filter((material) =>
+    material.status !== "Inactive" &&
     material.name?.toLowerCase().includes(searchQuery.toLowerCase())
   )
 

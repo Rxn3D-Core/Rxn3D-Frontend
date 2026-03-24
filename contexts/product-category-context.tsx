@@ -182,26 +182,25 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
   const [userRole, setUserRole] = useState<string | null>(null)
   const [isLabAdmin, setIsLabAdmin] = useState(false)
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
-  
-  // Initialize user role on client side
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const role = localStorage.getItem("role")
-      setUserRole(role)
-      setIsLabAdmin(role === "lab_admin")
-      setIsSuperAdmin(role === "superadmin")
-    }
-  }, [])
-  
+
   // Get customerId from localStorage (similar to other pages) - use state to avoid SSR issues
   const [customerId, setCustomerId] = useState<number | null>(null)
-  
+
+  // Flag to track when role and customerId have been initialized from localStorage
+  const [isRoleInitialized, setIsRoleInitialized] = useState(false)
+
+  // Initialize user role and customerId together on client side to avoid race condition
   useEffect(() => {
     if (typeof window === "undefined") return
-    
+
+    const role = localStorage.getItem("role")
+    setUserRole(role)
+    setIsLabAdmin(role === "lab_admin")
+    setIsSuperAdmin(role === "superadmin")
+
     let id: number | null = null
-    
-    if (isLabAdmin || isSuperAdmin) {
+
+    if (role === "lab_admin" || role === "superadmin") {
       // For lab_admin or superadmin roles, use customer_id from localStorage
       const storedCustomerId = localStorage.getItem("customerId")
       if (storedCustomerId) {
@@ -217,9 +216,10 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
         id = parseInt(storedLabId, 10)
       }
     }
-    
+
     setCustomerId(id)
-  }, [isLabAdmin, isSuperAdmin, user?.customers])
+    setIsRoleInitialized(true)
+  }, [user?.customers])
 
   const { toast } = useToast()
   useEffect(() => {
@@ -251,6 +251,9 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
   // Fetch categories only (top-level, no parent_id)
   const fetchCategories = useCallback(
     async (page = 1, perPage = 25, query = searchQuery, sortCol = sortColumn, sortDir = sortDirection) => {
+      // Wait until role and customerId are initialized to avoid calling API without customer_id
+      if (!isRoleInitialized) return
+
       setIsLoading(true)
       setError(null)
       try {
@@ -307,12 +310,15 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
         setIsLoading(false)
       }
     },
-    [searchQuery, sortColumn, sortDirection, toast, currentLanguage, isLabAdmin, customerId],
+    [searchQuery, sortColumn, sortDirection, toast, currentLanguage, isLabAdmin, customerId, isRoleInitialized],
   )
 
   // Fetch subcategories only (with parent_id)
   const fetchSubcategories = useCallback(
     async (page = 1, perPage = 25, query = searchQuery, sortCol = sortColumn, sortDir = sortDirection) => {
+      // Wait until role and customerId are initialized to avoid calling API without customer_id
+      if (!isRoleInitialized) return
+
       setIsLoading(true)
       setError(null)
       try {
@@ -370,7 +376,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
         setIsLoading(false)
       }
     },
-    [searchQuery, sortColumn, sortDirection, toast, currentLanguage, isLabAdmin, customerId],
+    [searchQuery, sortColumn, sortDirection, toast, currentLanguage, isLabAdmin, customerId, isRoleInitialized],
   )
 
   const fetchParentDropdownCategories = useCallback(async () => {

@@ -92,12 +92,63 @@ export function TeethShadeSection({
   // State to track which brands are expanded
   const [expandedBrands, setExpandedBrands] = useState<Record<number, boolean>>({})
 
-  // Toggle brand expansion
+  // Toggle brand expansion and auto-select all shades when expanding
   const toggleBrandExpansion = (brandId: number) => {
-    setExpandedBrands((prev) => ({
-      ...prev,
-      [brandId]: !prev[brandId],
-    }))
+    const isCurrentlyExpanded = expandedBrands[brandId] || false
+    const brand = brands.find((b) => b.id === brandId)
+    const hasSelectedShades = brand && Array.isArray(brand.shades) && brand.shades.some(
+      (shade: TeethShade) => uniqueTeethShades.some((ts: WatchedTeethShade) => ts.teeth_shade_id === shade.id)
+    )
+
+    if (!isCurrentlyExpanded && !hasSelectedShades) {
+      // Expanding with no selections: auto-select all shades in this brand
+      if (brand && Array.isArray(brand.shades) && brand.shades.length > 0) {
+        const currentList = uniqueTeethShades || []
+        let maxSequence = currentList.length === 0
+          ? 0
+          : Math.max(...currentList.map((ts: WatchedTeethShade) => ts.sequence || 0))
+
+        const newTeethShades: WatchedTeethShade[] = [...currentList]
+
+        brand.shades.forEach((shade: TeethShade) => {
+          const existingShade = currentList.find((ts: WatchedTeethShade) => ts.teeth_shade_id === shade.id)
+          if (!existingShade) {
+            maxSequence += 1
+            newTeethShades.push({
+              teeth_shade_id: shade.id,
+              sequence: maxSequence,
+            })
+          }
+        })
+
+        setValue("teeth_shades", newTeethShades, { shouldDirty: true })
+      }
+
+      setExpandedBrands((prev) => ({
+        ...prev,
+        [brandId]: true,
+      }))
+    } else if (hasSelectedShades && !isCurrentlyExpanded) {
+      // Has selections but not expanded: just expand to show shades
+      setExpandedBrands((prev) => ({
+        ...prev,
+        [brandId]: true,
+      }))
+    } else {
+      // Collapsing: deselect all shades in this brand
+      if (brand && Array.isArray(brand.shades)) {
+        const brandShadeIds = brand.shades.map((shade: TeethShade) => shade.id)
+        const updatedTeethShades = uniqueTeethShades.filter(
+          (ts: WatchedTeethShade) => !brandShadeIds.includes(ts.teeth_shade_id)
+        )
+        setValue("teeth_shades", updatedTeethShades, { shouldDirty: true })
+      }
+
+      setExpandedBrands((prev) => ({
+        ...prev,
+        [brandId]: false,
+      }))
+    }
   }
 
   // Generate a temporary ID for custom teeth shade (using negative number to avoid conflicts)
@@ -337,15 +388,6 @@ export function TeethShadeSection({
             >
               {allSelected ? "Deselect All" : "Select All"}
             </Label>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => handleSelectAll(true)}
-              className="text-xs h-7 px-3 border-[#1162a8] text-[#1162a8] hover:bg-[#1162a8] hover:text-white"
-            >
-              Use Default
-            </Button>
           </div>
         </div>
         <div className="flex items-center gap-4">
@@ -367,6 +409,7 @@ export function TeethShadeSection({
                 brands.map((brand) => {
                   const isExpanded = expandedBrands[brand.id] || false
                   const selectedCount = getBrandSelectedCount(brand)
+                  const isActive = isExpanded || selectedCount > 0
 
                   return (
                     <Button
@@ -376,17 +419,17 @@ export function TeethShadeSection({
                       size="sm"
                       onClick={() => toggleBrandExpansion(brand.id)}
                       className={`rounded-full px-4 py-2 h-auto transition-colors ${
-                        isExpanded
+                        isActive
                           ? "bg-[#1162a8] text-white border-[#1162a8] hover:bg-[#1162a8]/90"
                           : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                       }`}
                     >
-                      {!isExpanded && <Plus className="h-4 w-4 mr-1" />}
+                      {!isActive && <Plus className="h-4 w-4 mr-1" />}
                       <span className="flex items-center gap-2">
                         {brand.system_name && (
                           <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                            isExpanded 
-                              ? "bg-white/20 text-white" 
+                            isActive
+                              ? "bg-white/20 text-white"
                               : "bg-[#1162a8]/10 text-[#1162a8]"
                           }`}>
                             {brand.system_name}
@@ -396,7 +439,7 @@ export function TeethShadeSection({
                       </span>
                       {selectedCount > 0 && (
                         <span className={`ml-1.5 text-xs font-semibold ${
-                          isExpanded ? "text-white" : "text-[#1162a8]"
+                          isActive ? "text-white" : "text-[#1162a8]"
                         }`}>
                           ({selectedCount})
                         </span>

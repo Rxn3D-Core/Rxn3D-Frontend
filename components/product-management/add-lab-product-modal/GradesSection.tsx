@@ -215,7 +215,11 @@ export function GradesSection({
         <div className="flex items-center gap-2">
           <Switch
             checked={sections.grades}
-            onCheckedChange={() => toggleSection("grades")}
+            onCheckedChange={(checked) => {
+              toggleSection("grades")
+              // Sync the grade-based pricing radio with the toggle
+              setValue("has_grade_based_pricing", checked ? "Yes" : "No", { shouldDirty: true })
+            }}
             className="data-[state=checked]:bg-[#1162a8]"
           />
           <span className="font-medium">Grades</span>
@@ -239,7 +243,8 @@ export function GradesSection({
         </div>
       </div>
       {expandedSections.grades && (
-        <div className={cn("px-2 sm:px-6 pb-6", !sections.grades && "opacity-50 pointer-events-none select-none")}> {/* Add px-2 for mobile, sm:px-6 for desktop */}
+        <div className="px-2 sm:px-6 pb-6">
+          {/* Radio is always clickable — it syncs the grades toggle ON/OFF */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-4">
             <Label htmlFor="grade-based-pricing" className="whitespace-nowrap">Does this product have grade-based pricing?</Label>
             <Controller
@@ -248,7 +253,14 @@ export function GradesSection({
               render={({ field }) => (
                 <RadioGroup
                   value={field.value}
-                  onValueChange={field.onChange}
+                  onValueChange={(value) => {
+                    field.onChange(value)
+                    // Sync the grades section toggle with the radio
+                    const shouldBeOn = value === "Yes"
+                    if (sections.grades !== shouldBeOn) {
+                      toggleSection("grades")
+                    }
+                  }}
                   className="flex flex-row gap-4"
                 >
                   <div className="flex items-center space-x-2">
@@ -268,6 +280,8 @@ export function GradesSection({
             />
           </div>
           <ValidationError message={getValidationError("has_grade_based_pricing")} />
+          {/* Grade list content — disabled when grades toggle is off */}
+          <div className={cn(!sections.grades && "opacity-50 pointer-events-none select-none")}>
           {/* Hide price input and auto-billing for superadmin */}
           {watchedHasGradeBasedPricing === "Yes" && (
             <>
@@ -551,6 +565,7 @@ export function GradesSection({
             </>
           )}
           <ValidationError message={getValidationError("grades")} />
+          </div>
         </div>
       )}
     </div>

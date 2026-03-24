@@ -8,7 +8,7 @@ import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { DiscardChangesDialog } from "./discard-changes-dialog"
 import { debounce } from "@/lib/performance"
 
-import { useForm } from "react-hook-form"
+import { useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { ProductCreateFormSchema, type ProductCreateForm, type Extraction } from "@/lib/schemas"
 import { ExtractionsApi } from "@/lib/api-service"
@@ -127,7 +127,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
   const { t } = useTranslation()
   const [sections, setSections] = useState({
     productDetails: true,
-    grades: true,
+    grades: false,
     stages: true,
     impressions: true,
     gumShade: true,
@@ -164,7 +164,6 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
     { id: "addOns", label: "Add-Ons", sectionKey: "addOns" },
     { id: "retention", label: "Retention", sectionKey: "retention" },
     { id: "extractions", label: "Extractions", sectionKey: "extractions" },
-    { id: "visibility", label: "Visibility", sectionKey: "visibilityManagement" },
   ]
 
   // Show all tabs when editing, progressive reveal when creating
@@ -817,8 +816,8 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
     [watch, setValue],
   )
 
-  const watchedGrades = watch("grades") || []
-  const watchedStages = watch("stages") || []
+  const watchedGrades = useWatch({ control, name: "grades" }) || []
+  const watchedStages = useWatch({ control, name: "stages" }) || []
   const watchedImpressions = watch("impressions") || []
   const watchedGumShades = watch("gum_shades") || []
   const watchedTeethShades = watch("teeth_shades") || []
@@ -835,6 +834,57 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
   const [initialReleasingStageIds, setInitialReleasingStageIds] = useState<(string | number)[]>([])
   const [draggedStageId, setDraggedStageId] = useState<string | number | null>(null)
   const [customGradeNames, setCustomGradeNames] = useState<Record<number, string>>({})
+
+  // Track whether any grade is set as default
+  const hasDefaultGrade = watchedGrades.some((g: any) => g.is_default === "Yes")
+
+  // Validate stages have prices > 0 and days > 0
+  const areStagesValid = useMemo(() => {
+    if (activeTab !== "stages") return true
+    if (!watchedStages || watchedStages.length === 0) return false
+
+    const hasGradeBasedPricing = String(watchedHasGradeBasedPricing || "") === "Yes"
+    const hasSelectedGrades = watchedGrades.length > 0
+
+    return watchedStages.every((stage: any) => {
+      // Validate days > 0
+      const days = stage.days
+      const numDays = typeof days === "string" ? parseInt(days, 10) : (typeof days === "number" ? days : 0)
+      if (isNaN(numDays) || numDays <= 0) return false
+
+      if (hasGradeBasedPricing && hasSelectedGrades) {
+        const gradePrices = stage.grade_prices || {}
+        return watchedGrades.every((grade: any) => {
+          const gradeId = grade.grade_id || grade.id
+          const normalizedId = gradeId?.toString() || ""
+          let price = gradePrices[gradeId] || gradePrices[normalizedId] || ""
+          if (!price && typeof gradeId === "string" && !isNaN(Number(gradeId))) {
+            price = gradePrices[Number(gradeId)] || ""
+          }
+          if (!price) price = (grade as any)?.price ?? ""
+          const numPrice = typeof price === "string" ? parseFloat(price) : price
+          return !isNaN(numPrice) && numPrice > 0
+        })
+      } else {
+        const price = stage.economy_price || stage.standard_price || ""
+        const numPrice = typeof price === "string" ? parseFloat(price) : price
+        return !isNaN(numPrice) && numPrice > 0
+      }
+    })
+  }, [activeTab, watchedStages, watchedGrades, watchedHasGradeBasedPricing])
+
+  // Check if current step is valid for enabling/disabling Next button
+  const isCurrentStepValid = useMemo(() => {
+    // Grades tab: require at least one grade selected with a default set
+    if (activeTab === "grades" && sections.grades) {
+      if (watchedGrades.length === 0 || !hasDefaultGrade) return false
+    }
+    // Stages tab: require all stages have price > 0 and days > 0
+    if (activeTab === "stages" && sections.stages) {
+      return areStagesValid
+    }
+    return true
+  }, [activeTab, sections.grades, sections.stages, watchedGrades.length, hasDefaultGrade, areStagesValid])
 
   // Consider form changed if fields are dirty OR a new image was uploaded OR releasing stages changed
   const hasReleasingStageChanges = useMemo(() => {
@@ -893,7 +943,16 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
             </div>
           </DialogHeader>
 
-          <form onSubmit={handleSubmit(debouncedSubmit)} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          <form
+            onSubmit={handleSubmit(debouncedSubmit)}
+            onKeyDown={(e) => {
+              // Prevent Enter key from submitting the form — only allow explicit submit button clicks
+              if (e.key === "Enter" && (e.target as HTMLElement).tagName !== "TEXTAREA") {
+                e.preventDefault()
+              }
+            }}
+            className="flex flex-col flex-1 min-h-0 overflow-hidden"
+          >
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0 overflow-hidden">
               {/* Tab Navigation */}
               {visibleTabs.size > 0 && (
@@ -1106,7 +1165,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
                   />
                 </TabsContent>
 
-                <TabsContent value="visibility" className="mt-0 p-6 focus-visible:outline-none">
+                {/* <TabsContent value="visibility" className="mt-0 p-6 focus-visible:outline-none">
                   <VisibilityManagementSection
                     control={control}
                     watch={watch}
@@ -1119,7 +1178,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
                     toggleExpanded={toggleExpanded}
                     handleOfficeVisibilityChange={handleOfficeVisibilityChange}
                   />
-                </TabsContent>
+                </TabsContent> */}
               </div>
 
               <div className="px-4 sm:px-6 py-3 sm:py-4 border-t bg-white flex-shrink-0 mt-auto">
@@ -1175,7 +1234,8 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
                       <Button
                         type="button"
                         onClick={handleNext}
-                        className="bg-[#1162a8] hover:bg-[#0d4c84] h-10 sm:px-8"
+                        className="bg-[#1162a8] hover:bg-[#0d4c84] h-10 sm:px-8 disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={!isCurrentStepValid}
                       >
                         Next
                         <ChevronRight className="h-4 w-4 ml-1" />
