@@ -280,7 +280,7 @@ export function CreateToothStatusModal({
         } bg-white`}
       >
         <DialogHeader className="px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 md:py-4 flex flex-row items-center justify-between border-b bg-white flex-shrink-0">
-          <DialogTitle className="text-sm sm:text-base md:text-lg lg:text-xl font-medium pr-2">
+          <DialogTitle className="text-xl font-bold pr-2">
             {isCopying ? "Copy tooth status" : mode === "edit" ? "Edit tooth status" : "Create tooth status"}
           </DialogTitle>
           <div className="flex items-center gap-1 sm:gap-2">
@@ -311,11 +311,9 @@ export function CreateToothStatusModal({
               <div className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 space-y-3 sm:space-y-4">
               {/* Tooth Status Details Section */}
               <div className="space-y-3 sm:space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-base sm:text-lg font-medium">Tooth Status details</h3>
-                    <Info className="h-4 w-4 text-gray-400" />
-                  </div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base sm:text-lg font-medium">Tooth Status details</h3>
+                  <Info className="h-4 w-4 text-gray-400" />
                   <Switch
                     checked={true}
                     onCheckedChange={() => {}}

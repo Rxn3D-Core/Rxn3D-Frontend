@@ -223,8 +223,8 @@ export default function AddOnsPage() {
             <Package className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold text-gray-900">{t("Global Add-ons Management")}</h1>
-            <p className="text-sm text-gray-500">{t("Manage your global add-on inventory and configurations")}</p>
+            <h1 className="text-xl font-semibold text-gray-900">{t("Add-ons Management")}</h1>
+            <p className="text-sm text-gray-500">{t("Manage your add-on inventory and configurations")}</p>
           </div>
         </div>
       </div>
@@ -341,7 +341,7 @@ export default function AddOnsPage() {
                     </div>
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
-                    {t("Visibility", "Visibility")}
+                    {t("Status", "Status")}
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900 text-center pr-6">
                     {t("Actions", "Actions")}
@@ -370,6 +370,17 @@ export default function AddOnsPage() {
                           <Copy className="h-4 w-4" />
                         </Button>
                       </TableCell>
+                      <TableCell>
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+                            addOn.status === "Active"
+                              ? "bg-green-50 text-green-700 border-green-200"
+                              : "bg-gray-50 text-gray-700 border-gray-200"
+                          }`}
+                        >
+                          {addOn.status || "Active"}
+                        </span>
+                      </TableCell>
                       <TableCell className="text-center pr-6">
                         <div className="flex items-center justify-center gap-1">
                           <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-600 hover:text-[#1162a8] hover:bg-blue-50" onClick={() => handleEdit(addOn)}>
@@ -392,7 +403,7 @@ export default function AddOnsPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-12">
+                    <TableCell colSpan={7} className="text-center py-12">
                       <div className="flex flex-col items-center gap-4">
                         <div className="p-4 bg-gray-100 rounded-full">
                           <Package className="h-8 w-8 text-gray-400" />

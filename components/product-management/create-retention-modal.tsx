@@ -676,20 +676,18 @@ export function CreateRetentionModal({ isOpen, onClose, retention, isCopying = f
           <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
             {/* Retention Type Details */}
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-base font-medium">Retention Type Details</span>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Info className="w-4 h-4 text-gray-400 cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="max-w-[300px]">
-                        <p>Configure the basic information for this retention type, including name, code, status, and price settings.</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
+              <div className="flex items-center gap-2">
+                <span className="text-base font-medium">Retention Type Details</span>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="w-4 h-4 text-gray-400 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="max-w-xs">
+                      <p>Configure the basic information for this retention type, including name, code, status, and price settings.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 <Switch
                   className="data-[state=checked]:bg-[#1162a8]"
                   checked={detailsEnabled}

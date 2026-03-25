@@ -431,24 +431,22 @@ export function AddSubCategoryModal({
                 {errorMessage && !Object.values(validationErrors).includes(errorMessage) && (
                   <div className="mb-4 text-red-600 text-sm">{errorMessage}</div>
                 )}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">
-                      {t("categoryModal.subCategoryDetails", "Sub Category Details")}
-                    </span>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div className="rounded-full bg-gray-200 text-gray-600 w-5 h-5 flex items-center justify-center text-xs cursor-help hover:bg-gray-300 transition-colors">
-                            ?
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent side="right" className="max-w-xs">
-                          <p>{t("categoryModal.subCategoryDetailsTooltip", "Enable or disable subcategory details. When enabled, you can configure the subcategory's name, code, status, parent category, case pan, and applicable arch.")}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">
+                    {t("categoryModal.subCategoryDetails", "Sub Category Details")}
+                  </span>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="rounded-full bg-gray-200 text-gray-600 w-5 h-5 flex items-center justify-center text-xs cursor-help hover:bg-gray-300 transition-colors">
+                          ?
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="max-w-xs">
+                        <p>{t("categoryModal.subCategoryDetailsTooltip", "Enable or disable subcategory details. When enabled, you can configure the subcategory's name, code, status, parent category, case pan, and applicable arch.")}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                   <Switch
                     checked={categoryDetailsEnabled}
                     onCheckedChange={setCategoryDetailsEnabled}

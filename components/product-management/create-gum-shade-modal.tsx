@@ -5,6 +5,7 @@ import { X, ChevronDown, Plus, Trash2, Info } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { FloatingLabelInput } from "@/components/ui/floating-label-input"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -346,11 +347,9 @@ export function CreateGumShadeModal({ isOpen, onClose, onChanges, editingGumShad
 
           <div className="overflow-y-auto flex-1 p-4 sm:p-6 space-y-4 sm:space-y-6 min-h-0">
             {/* Gum Shade Details Section */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="font-medium">Gum Shade Details</span>
-                <Info className="h-4 w-4 text-gray-400" />
-              </div>
+            <div className="flex items-center gap-2">
+              <span className="font-medium">Gum Shade Details</span>
+              <Info className="h-4 w-4 text-gray-400" />
               <Switch
                 checked={gumShadeDetailsEnabled}
                 onCheckedChange={setGumShadeDetailsEnabled}
@@ -361,26 +360,23 @@ export function CreateGumShadeModal({ isOpen, onClose, onChanges, editingGumShad
             {gumShadeDetailsEnabled && (
               <div className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Input
-                    placeholder="Gum Shade Brand Name"
-                    className="h-10 sm:h-12"
+                  <FloatingLabelInput
+                    label="Gum Shade Brand Name"
                     value={formData.name}
                     onChange={(e) => handleInputChange("name", e.target.value)}
                     validationState={formData.name.trim() ? "valid" : "default"}
                   />
-                  <Input
-                    placeholder="Gum Shade System Name"
-                    className="h-10 sm:h-12"
+                  <FloatingLabelInput
+                    label="Gum Shade System Name"
                     value={formData.systemName}
                     onChange={(e) => handleInputChange("systemName", e.target.value)}
                     validationState={formData.systemName.trim() ? "valid" : "default"}
                   />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Input
-                    placeholder="Sequence"
+                  <FloatingLabelInput
+                    label="Sequence"
                     type="number"
-                    className="h-10 sm:h-12"
                     value={formData.sequence}
                     onChange={(e) => handleInputChange("sequence", e.target.value)}
                     validationState={formData.sequence.trim() ? "valid" : "default"}

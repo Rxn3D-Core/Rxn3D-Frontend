@@ -36,6 +36,7 @@ interface StagesSectionProps {
     setDraggedStageId: (id: string | number | null) => void;
     userRole: string;
     customGradeNames?: Record<number, string>; // Map of custom grade IDs (negative) to their names
+    isSingleStage?: boolean; // When true, the entire stages section is disabled
 }
 
 export function StagesSection({
@@ -56,6 +57,7 @@ export function StagesSection({
     setDraggedStageId,
     userRole = "",
     customGradeNames = {}, // Default to empty object
+    isSingleStage = false,
 }: StagesSectionProps) {
     // Fallback state for releasing stages if not provided as props
     const [localReleasingStageIds, setLocalReleasingStageIds] = useState<(string | number)[]>([])
@@ -456,6 +458,30 @@ export function StagesSection({
             return { ...stageData, stageInfo }
         })
         .filter(item => item.stageInfo)
+
+    // When single stage is active, the entire section is disabled
+    if (isSingleStage) {
+        return (
+            <div className="border-t">
+                <div className="px-6 py-4 flex items-center justify-between opacity-50">
+                    <div className="flex items-center gap-2">
+                        <Switch
+                            checked={false}
+                            disabled
+                            className="cursor-not-allowed"
+                        />
+                        <span className="font-medium">Stages</span>
+                        <Info className="h-4 w-4 text-gray-400" />
+                    </div>
+                </div>
+                <div className="px-6 pb-6">
+                    <p className="text-sm text-gray-500 italic">
+                        Stages are disabled because this product is set as single stage. Change "Is Single Stage" to "No" in Product Details to enable stages.
+                    </p>
+                </div>
+            </div>
+        )
+    }
 
     return (
         <div className="border-t">

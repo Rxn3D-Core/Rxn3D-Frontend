@@ -116,11 +116,14 @@ export function AddCasePanTrackingModal({ isOpen, onClose, editData, mode = "add
         set_as_rush_group: formData.setAsRushGroup,
       }
 
+      let success: boolean
       if (mode === "edit" && editData?.id) {
-        await updateCasePan(editData.id, payload)
+        success = await updateCasePan(editData.id, payload)
       } else {
-        await createCasePan(payload)
+        success = await createCasePan(payload)
       }
+
+      if (!success) return
 
       resetForm()
       onClose()

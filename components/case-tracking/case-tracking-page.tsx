@@ -742,11 +742,16 @@ export function CaseTrackingPage() {
                       </td>
                     )}
                     <td className="px-4 py-3">
-                      <Switch
-                        checked={casePan.status === "Active"}
-                        onCheckedChange={() => handleToggleStatus(casePan)}
-                        className="data-[state=checked]:bg-[#1162a8]"
-                      />
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border cursor-pointer transition-colors ${
+                          casePan.status === "Active"
+                            ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
+                            : "bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100"
+                        }`}
+                        onClick={() => handleToggleStatus(casePan)}
+                      >
+                        {casePan.status}
+                      </span>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">

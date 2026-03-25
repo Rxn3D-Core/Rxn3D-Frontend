@@ -378,20 +378,18 @@ export function CreateGradeModal({ isOpen, onClose, editingGrade, editId, onSave
               <div className="text-center py-8 text-gray-500">Loading grade details...</div>
             ) : (
               <>
-                <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="font-medium">Grade Details</span>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Info className="h-4 w-4 text-gray-400 cursor-help" />
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-[250px]">
-                      <p>Configure the basic information and properties for this grade.</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
+            <div className="flex items-center gap-2">
+              <span className="font-medium">Grade Details</span>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-4 w-4 text-gray-400 cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-xs">
+                    <p>Configure the basic information and properties for this grade.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               <Switch
                 checked={gradeDetailsEnabled}
                 onCheckedChange={setGradeDetailsEnabled}

@@ -300,24 +300,22 @@ export function AddAddOnCategoryModal({ isOpen, onClose, onHasChangesChange, add
 
           <div className="overflow-y-auto max-h-[calc(80vh-130px)] p-6 space-y-6">
             {/* Add-on Details Section */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="font-medium">{isSubCategory ? "Add-on Sub Category Details" : "Add-on Category Details"}</span>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Info className="h-4 w-4 text-gray-400 cursor-help" />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>
-                        {isSubCategory 
-                          ? "Enter the basic information for this add-on sub category, including name, code, sequence, and status."
-                          : "Enter the basic information for this add-on category, including name, code, sequence, and status."}
-                      </p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
+            <div className="flex items-center gap-2">
+              <span className="font-medium">{isSubCategory ? "Add-on Sub Category Details" : "Add-on Category Details"}</span>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-4 w-4 text-gray-400 cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-xs">
+                    <p>
+                      {isSubCategory
+                        ? "Enter the basic information for this add-on sub category, including name, code, sequence, and status."
+                        : "Enter the basic information for this add-on category, including name, code, sequence, and status."}
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               <Switch
                 checked={addOnDetailsEnabled}
                 onCheckedChange={setAddOnDetailsEnabled}

@@ -94,19 +94,7 @@ const FloatingLabelInput = React.forwardRef<HTMLInputElement, FloatingLabelInput
     }
 
     return (
-      <div className="relative w-full">
-        {/* Floating Label - appears above input when there's a value */}
-        {hasValue && (
-          <label
-            className={cn(
-              "absolute -top-2 left-3 bg-white px-1 text-xs transition-all z-10",
-              getLabelColor()
-            )}
-          >
-            {label}
-          </label>
-        )}
-
+      <div className="w-full">
         <div className="relative">
           <input
             ref={ref}
@@ -127,7 +115,7 @@ const FloatingLabelInput = React.forwardRef<HTMLInputElement, FloatingLabelInput
               (disabled || validationState === "disabled") && "opacity-40 cursor-not-allowed bg-gray-50",
               className
             )}
-            placeholder={hasValue ? "" : props.placeholder}
+            placeholder=" "
             onFocus={(e) => {
               setIsFocused(true)
               props.onFocus?.(e)
@@ -138,6 +126,16 @@ const FloatingLabelInput = React.forwardRef<HTMLInputElement, FloatingLabelInput
             }}
             {...props}
           />
+
+          {/* Floating Label - always floated above the border */}
+          <label
+            className={cn(
+              "absolute -top-2.5 left-3 bg-white px-1 text-xs pointer-events-none transition-colors duration-200 ease-out",
+              getLabelColor()
+            )}
+          >
+            {label}
+          </label>
 
           {/* Validation Icon */}
           {getValidationIcon() && (

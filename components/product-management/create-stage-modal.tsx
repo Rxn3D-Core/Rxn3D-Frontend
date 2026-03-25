@@ -1025,22 +1025,20 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
           </DialogHeader>
 
           <div className="overflow-y-auto max-h-[calc(80vh-130px)] p-6 space-y-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Label htmlFor="stageDetailsSwitch" className="font-medium">
-                  Stage Details
-                </Label>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Info className="h-4 w-4 text-gray-400 cursor-help" />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Basic information about the stage.</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="stageDetailsSwitch" className="font-medium">
+                Stage Details
+              </Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-4 w-4 text-gray-400 cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-xs">
+                    <p>Basic information about the stage.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               <Switch
                 id="stageDetailsSwitch"
                 checked={stageDetailsEnabled}

@@ -330,12 +330,15 @@ export default function RetentionOptionPage() {
                     <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />
                   </div>
                 </TableHead>
+                <TableHead className="font-semibold text-gray-900 py-2 px-2 text-center">
+                  {t("Actions")}
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {retentionOptions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-8 text-center">
+                  <TableCell colSpan={6} className="py-8 text-center">
                     <p className="text-gray-500 text-sm">
                       {t("No retention options found")}
                     </p>
@@ -389,37 +392,40 @@ export default function RetentionOptionPage() {
                       </div>
                     </TableCell>
                     <TableCell className="py-2 px-2">
-                      <div className="flex items-center gap-2">
-                        <div
-                          className={`w-10 h-5 rounded-full ${option.status === "Active" ? "bg-blue-600" : "bg-gray-300"} relative cursor-pointer`}
-                          onClick={() => handleStatusToggle(option.id, option.status)}
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border cursor-pointer transition-colors ${
+                          option.status === "Active"
+                            ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
+                            : "bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100"
+                        }`}
+                        onClick={() => handleStatusToggle(option.id, option.status)}
+                      >
+                        {option.status}
+                      </span>
+                    </TableCell>
+                    <TableCell className="py-2 px-2 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          className="text-gray-400 hover:text-[#1162a8] transition-colors p-0.5"
+                          onClick={() => handleEdit(option)}
                         >
-                          <div className={`w-4 h-4 rounded-full bg-white absolute top-0.5 transition-all ${option.status === "Active" ? "right-0.5" : "left-0.5"}`}></div>
-                        </div>
-                        <span className="text-xs">{option.status}</span>
-                        <div className="flex items-center gap-1 ml-2">
-                          <button
-                            className="text-gray-400 hover:text-[#1162a8] transition-colors p-0.5"
-                            onClick={() => handleEdit(option)}
-                          >
-                            <Edit className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            className="text-gray-400 hover:text-[#1162a8] transition-colors p-0.5"
-                            onClick={() => handleCopy(option)}
-                          >
-                            <Copy className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            className="text-gray-400 hover:text-red-600 transition-colors p-0.5"
-                            onClick={() => handleDelete(option.id)}
-                          >
-                            <TrashIcon className="h-3.5 w-3.5" />
-                          </button>
-                          <button className="text-gray-400 hover:text-gray-600 transition-colors p-0.5">
-                            <MoreVertical className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
+                          <Edit className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          className="text-gray-400 hover:text-[#1162a8] transition-colors p-0.5"
+                          onClick={() => handleCopy(option)}
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          className="text-gray-400 hover:text-red-600 transition-colors p-0.5"
+                          onClick={() => handleDelete(option.id)}
+                        >
+                          <TrashIcon className="h-3.5 w-3.5" />
+                        </button>
+                        <button className="text-gray-400 hover:text-gray-600 transition-colors p-0.5">
+                          <MoreVertical className="h-3.5 w-3.5" />
+                        </button>
                       </div>
                     </TableCell>
                   </TableRow>

@@ -5,6 +5,7 @@ import { X, ChevronDown, Plus, Info } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { FloatingLabelInput } from "@/components/ui/floating-label-input"
 import { Switch } from "@/components/ui/switch"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -439,20 +440,18 @@ export function CreateTeethShadeModal({
 
           <div className="overflow-y-auto max-h-[calc(80vh-130px)] p-6 space-y-6">
             {/* Teeth Shade Details Section */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="font-medium">Teeth Shade Details</span>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Info className="h-4 w-4 text-gray-400 cursor-help" />
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-[300px]">
-                      <p>Configure the basic information for this teeth shade system, including brand name, system name, sequence, and status.</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
+            <div className="flex items-center gap-2">
+              <span className="font-medium">Teeth Shade Details</span>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-4 w-4 text-gray-400 cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-xs">
+                    <p>Configure the basic information for this teeth shade system, including brand name, system name, sequence, and status.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               <Switch
                 checked={teethShadeDetailsEnabled}
                 onCheckedChange={setTeethShadeDetailsEnabled}
@@ -462,17 +461,15 @@ export function CreateTeethShadeModal({
 
             {teethShadeDetailsEnabled && (
               <div className="space-y-4">
-                <Input
-                  placeholder="Teeth Shade Brand Name *"
-                  className="h-12"
+                <FloatingLabelInput
+                  label="Teeth Shade Brand Name *"
                   value={formData.name}
                   onChange={(e) => handleInputChange("name", e.target.value)}
                   validationState={formData.name.trim() ? "valid" : "default"}
                   required
                 />
-                <Input
-                  placeholder="Teeth Shade System Name"
-                  className="h-12"
+                <FloatingLabelInput
+                  label="Teeth Shade System Name"
                   value={formData.system_name}
                   onChange={(e) => handleInputChange("system_name", e.target.value)}
                   validationState={formData.system_name.trim() ? "valid" : "default"}
@@ -484,14 +481,13 @@ export function CreateTeethShadeModal({
                   <ColorPicker
                     value={formData.brand_color || "#1162a8"}
                     onChange={(color) => handleInputChange("brand_color", color)}
-                    side="top"
+                    side="left"
                     align="start"
                   />
                 </div>
-                <Input
-                  placeholder="Sequence *"
+                <FloatingLabelInput
+                  label="Sequence *"
                   type="number"
-                  className="h-12"
                   value={formData.sequence}
                   onChange={(e) => handleNumberInputChange("sequence", e.target.value)}
                   validationState={formData.sequence ? "valid" : "default"}

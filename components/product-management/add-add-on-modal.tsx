@@ -330,11 +330,9 @@ export function AddAddOnModal({ isOpen, onClose, onHasChangesChange, addOn, isEd
 
           <div className="overflow-y-auto max-h-[calc(80vh-130px)] p-6 space-y-6">
             {/* Add-on Details Section */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="font-medium">Add-on Details</span>
-                <Info className="h-4 w-4 text-gray-400" />
-              </div>
+            <div className="flex items-center gap-2">
+              <span className="font-medium">Add-on Details</span>
+              <Info className="h-4 w-4 text-gray-400" />
               <Switch
                 checked={addOnDetailsEnabled}
                 onCheckedChange={setAddOnDetailsEnabled}

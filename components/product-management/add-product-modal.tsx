@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { X, Maximize2, ChevronLeft, ChevronRight, EyeOff } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -826,6 +826,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
   const watchedAddons = watch("addons") || []
   const watchedExtractions = watch("extractions") || []
   const watchedOfficeVisibilities = watch("office_visibilities") || []
+  const watchedIsSingleStage = useWatch({ control, name: "is_single_stage" })
   const watchedHasGradeBasedPricing = watch("has_grade_based_pricing")
   const watchedApplyRetentionMechanism = watch("apply_retention_mechanism")
   const watchedLinkAllAddons = watch("link_all_addons")
@@ -834,6 +835,27 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
   const [initialReleasingStageIds, setInitialReleasingStageIds] = useState<(string | number)[]>([])
   const [draggedStageId, setDraggedStageId] = useState<string | number | null>(null)
   const [customGradeNames, setCustomGradeNames] = useState<Record<number, string>>({})
+
+  // Track previous is_single_stage to only react to user changes, not initial mount
+  const prevIsSingleStageRef = useRef<string | undefined>(undefined)
+  useEffect(() => {
+    // Skip the very first render — initial sections are already set from editingProduct
+    if (prevIsSingleStageRef.current === undefined) {
+      prevIsSingleStageRef.current = watchedIsSingleStage || "No"
+      return
+    }
+    // Only act when the value actually changed
+    if (prevIsSingleStageRef.current !== watchedIsSingleStage) {
+      prevIsSingleStageRef.current = watchedIsSingleStage || "No"
+      if (watchedIsSingleStage === "Yes") {
+        setSections((prev: any) => ({ ...prev, stages: false }))
+        setValue("stages", [], { shouldDirty: true })
+        setReleasingStageIds([])
+      } else if (watchedIsSingleStage === "No") {
+        setSections((prev: any) => ({ ...prev, stages: true }))
+      }
+    }
+  }, [watchedIsSingleStage, setValue])
 
   // Track whether any grade is set as default
   const hasDefaultGrade = watchedGrades.some((g: any) => g.is_default === "Yes")
@@ -1045,6 +1067,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
                     handleStageToggle={handleToggleSelection}
                     handleStageReorder={(reorderedStages: any) => setValue("stages", reorderedStages, { shouldDirty: true })}
                     userRole={userRole}
+                    isSingleStage={watchedIsSingleStage === "Yes"}
                   />
                 </TabsContent>
 

@@ -339,7 +339,7 @@ export function AddLabProductModal({
   const watchedCode = watch("code")
   const watchedSubcategoryId = watch("subcategory_id")
   const watchedBasePrice = watch("base_price")
-  const watchedIsSingleStage = watch("is_single_stage")
+  const watchedIsSingleStage = useWatch({ control, name: "is_single_stage" })
   const watchedMinDays = watch("min_days_to_process")
   const watchedMaxDays = watch("max_days_to_process")
   const watchedStages = useWatch({ control, name: "stages" }) || []
@@ -1131,6 +1131,8 @@ export function AddLabProductModal({
 
   const editingProductId = editingProduct?.id
   const toggleSection = useCallback((section: string) => {
+    // Prevent enabling stages when product is single stage
+    if (section === "stages" && watchedIsSingleStage === "Yes") return
     setSections((prev) => {
       if (!(section in prev)) return prev
       return { ...prev, [section]: !prev[section as keyof typeof prev] }
@@ -1138,7 +1140,7 @@ export function AddLabProductModal({
     if (editingProductId) {
       setSectionWasToggled(true)
     }
-  }, [editingProductId])
+  }, [editingProductId, watchedIsSingleStage])
 
   // Hydrate section toggles + baseline before paint so hasSectionToggleChanges works (e.g. Main Product Fields / extractions)
   // and the per-tab "Update" button appears without relying on useEffect-only initialSections.
@@ -1152,15 +1154,27 @@ export function AddLabProductModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only when modal opens or product id changes
   }, [isOpen, editingProduct?.id])
 
-  // When is_single_stage is "Yes": auto toggle off stages, clear stages, use min/max days
-  // Runs when user changes to "Yes" or when stages is somehow on (e.g. re-init overwrote)
+  // Track previous is_single_stage to only react to user changes, not initial mount
+  const prevIsSingleStageRef = useRef<string | undefined>(undefined)
   useEffect(() => {
-    if (watchedIsSingleStage === "Yes" && sections.stages) {
-      setSections((prev) => ({ ...prev, stages: false }))
-      setValue("stages", [], { shouldDirty: true })
-      setReleasingStageIds([])
+    // Skip the very first render — initial sections are already set from editingProduct
+    if (prevIsSingleStageRef.current === undefined) {
+      prevIsSingleStageRef.current = watchedIsSingleStage || "No"
+      return
     }
-  }, [watchedIsSingleStage, sections.stages, setValue, setReleasingStageIds])
+    // Only act when the value actually changed
+    if (prevIsSingleStageRef.current !== watchedIsSingleStage) {
+      prevIsSingleStageRef.current = watchedIsSingleStage || "No"
+      if (watchedIsSingleStage === "Yes") {
+        setSections((prev) => ({ ...prev, stages: false }))
+        setValue("stages", [], { shouldDirty: true })
+        setReleasingStageIds([])
+      } else if (watchedIsSingleStage === "No") {
+        setSections((prev) => ({ ...prev, stages: true }))
+      }
+    }
+  }, [watchedIsSingleStage, setValue, setReleasingStageIds])
+
 
   // When a product slip section toggle is off: clear matching form fields so has_* flags and payloads stay aligned.
   // (Backend can infer has_*=true if relation arrays are sent without explicit flags — empty arrays + explicit has_* avoid that.)
@@ -2261,15 +2275,12 @@ export function AddLabProductModal({
                       const isActive = activeTab === tab.id
                       const isVisible = visibleTabs.has(tab.id)
                       const isSectionOff = tab.sectionKey ? sections[tab.sectionKey as keyof typeof sections] === false : false
-                      // Only render tabs that are visible
                       if (!isVisible) return null
                       return (
                         <button
                           key={tab.id}
                           type="button"
-                          onClick={() => {
-                            setActiveTab(tab.id)
-                          }}
+                          onClick={() => setActiveTab(tab.id)}
                           className={`
                             px-6 py-4 text-sm font-medium border-b-2 transition-colors relative flex items-center gap-1.5
                             ${isActive
@@ -2351,6 +2362,7 @@ export function AddLabProductModal({
                     handleStageReorder={handleStageReorder}
                     userRole={userRole}
                     customGradeNames={customGradeNames}
+                    isSingleStage={watchedIsSingleStage === "Yes"}
                   />
                 </TabsContent>
 

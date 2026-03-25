@@ -491,6 +491,9 @@ export default function ProductsPage() {
                 <TableHead className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors" onClick={() => handleSort("price")}>
                   {t("Price")} {renderSortIndicator("price")}
                 </TableHead>
+                <TableHead className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors" onClick={() => handleSort("status")}>
+                  {t("Status")} {renderSortIndicator("status")}
+                </TableHead>
                 <TableHead className="font-semibold text-gray-900 text-center py-2 px-2">{t("Actions")}</TableHead>
               </TableRow>
             </TableHeader>
@@ -560,6 +563,17 @@ export default function ProductsPage() {
                       <TableCell className="py-2 px-2">
                         <span className="font-medium text-gray-900 text-xs">{price}</span>
                       </TableCell>
+                      <TableCell className="py-2 px-2">
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+                            product.status === "Active"
+                              ? "bg-green-50 text-green-700 border-green-200"
+                              : "bg-gray-50 text-gray-700 border-gray-200"
+                          }`}
+                        >
+                          {product.status || "Active"}
+                        </span>
+                      </TableCell>
                       <TableCell className="text-center py-2 px-2">
                         <div className="flex items-center justify-center gap-0.5">
                           <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-600 hover:text-[#1162a8] hover:bg-blue-50" onClick={() => handleEdit(product.id)}>
@@ -589,7 +603,7 @@ export default function ProductsPage() {
                 })
               ) : (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-12">
+                  <TableCell colSpan={9} className="text-center py-12">
                     <div className="flex flex-col items-center gap-4">
                       <div className="p-4 bg-gray-100 rounded-full">
                         <Package2 className="h-8 w-8 text-gray-400" />

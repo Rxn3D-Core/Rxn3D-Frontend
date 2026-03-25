@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { FloatingLabelInput } from "@/components/ui/floating-label-input"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -952,7 +953,7 @@ export function CreateMaterialModal({ isOpen, onClose, material }: CreateMateria
                     <TooltipTrigger asChild>
                       <Info className="ml-1 h-4 w-4 text-gray-400 cursor-pointer" />
                     </TooltipTrigger>
-                    <TooltipContent className="max-w-xs p-4 bg-white border border-gray-200 shadow-lg rounded-md">
+                    <TooltipContent side="bottom" className="max-w-xs p-4 bg-white border border-gray-200 shadow-lg rounded-md">
                       <p className="text-sm text-gray-600">
                       Material help organize material into logical sets for easier management and
                         assignment to products.
@@ -960,6 +961,11 @@ export function CreateMaterialModal({ isOpen, onClose, material }: CreateMateria
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
+                <Switch
+                  checked={true}
+                  onCheckedChange={() => {}}
+                  className="data-[state=checked]:bg-[#1162a8]"
+                />
               </div>
 
               <div className="space-y-4">
@@ -1009,12 +1015,9 @@ export function CreateMaterialModal({ isOpen, onClose, material }: CreateMateria
 
                   <div className="flex-1 space-y-4">
                     <div>
-                      <Label htmlFor="materialName" className="text-sm font-medium text-gray-700">
-                        Material Name *
-                      </Label>
-                      <Input
+                      <FloatingLabelInput
                         id="materialName"
-                        placeholder="Material Name"
+                        label="Material Name *"
                         value={materialName}
                         onChange={(e) => {
                           const newName = e.target.value
@@ -1028,23 +1031,19 @@ export function CreateMaterialModal({ isOpen, onClose, material }: CreateMateria
                             setErrors((prev) => ({ ...prev, materialName: "" }))
                           }
                         }}
-                        className={`mt-1 ${errors.materialName ? "border-red-500" : ""}`}
+                        className={errors.materialName ? "border-red-500" : ""}
                         validationState={errors.materialName ? "error" : (materialName.trim() ? "valid" : "default")}
+                        errorMessage={errors.materialName}
                         required
                       />
-                      {errors.materialName && <p className="text-red-500 text-sm mt-1">{errors.materialName}</p>}
                     </div>
 
                     <div>
-                      <Label htmlFor="materialCode" className="text-sm font-medium text-gray-700">
-                        Material Code
-                      </Label>
-                      <Input
+                      <FloatingLabelInput
                         id="materialCode"
-                        placeholder="Material Code"
+                        label="Material Code"
                         value={materialCode}
                         onChange={(e) => handleInputChange(e.target.value, setMaterialCode)}
-                        className="mt-1"
                         validationState={materialCode.trim() ? "valid" : "default"}
                       />
                     </div>
@@ -1052,27 +1051,21 @@ export function CreateMaterialModal({ isOpen, onClose, material }: CreateMateria
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {isLabAdmin ? (
                         <div>
-                          <Label htmlFor="additionalPrice" className="text-sm font-medium text-gray-700">
-                            Price
-                          </Label>
-                          <Input
+                          <FloatingLabelInput
                             id="additionalPrice"
-                            placeholder="Price"
+                            label="Price"
                             value={additionalPrice}
                             onChange={(e) => {
                               const value = e.target.value
                               setAdditionalPrice(value)
                               setHasChanges(true)
                             }}
-                            className="mt-1"
                             type="number"
                             min="0"
                             step="0.01"
                             validationState={errors.price ? "error" : (additionalPrice.trim() ? "valid" : "default")}
+                            errorMessage={errors.price}
                           />
-                          {errors.price && (
-                            <p className="text-red-500 text-sm mt-1">{errors.price}</p>
-                          )}
                         </div>
                       ) : (
                         <div>
@@ -1112,21 +1105,18 @@ export function CreateMaterialModal({ isOpen, onClose, material }: CreateMateria
                         <Label htmlFor="status" className="text-sm font-medium text-gray-700">
                           Status *
                         </Label>
-                        <Select 
-                          value={status} 
-                          onValueChange={(value) => {
-                            setStatus(value)
-                            setHasChanges(true)
-                          }}
-                        >
-                          <SelectTrigger className="mt-1">
-                            <SelectValue placeholder="Select Status" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Active">Active</SelectItem>
-                            <SelectItem value="Inactive">Inactive</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <div className="flex items-center gap-3 mt-2">
+                          <Switch
+                            id="status"
+                            checked={status === "Active"}
+                            onCheckedChange={(checked) => {
+                              setStatus(checked ? "Active" : "Inactive")
+                              setHasChanges(true)
+                            }}
+                            className="data-[state=checked]:bg-[#1162a8]"
+                          />
+                          <span className="text-sm text-gray-700">{status === "Active" ? "Active" : "Inactive"}</span>
+                        </div>
                       </div>
                     </div>
                   </div>

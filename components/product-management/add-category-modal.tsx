@@ -437,14 +437,12 @@ export function AddCategoryModal({
                 {errorMessage && !Object.values(validationErrors).includes(errorMessage) && (
                   <div className="mb-4 text-red-600 text-sm">{errorMessage}</div>
                 )}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">
-                      {t("categoryModal.details", "Category Details")}
-                    </span>
-                    <div className="rounded-full bg-gray-200 text-gray-600 w-5 h-5 flex items-center justify-center text-xs">
-                      ?
-                    </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">
+                    {t("categoryModal.details", "Category Details")}
+                  </span>
+                  <div className="rounded-full bg-gray-200 text-gray-600 w-5 h-5 flex items-center justify-center text-xs">
+                    ?
                   </div>
                   <Switch
                     checked={categoryDetailsEnabled}

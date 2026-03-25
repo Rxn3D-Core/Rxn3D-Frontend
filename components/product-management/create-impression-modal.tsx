@@ -401,28 +401,24 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
 
         <div className="overflow-y-auto flex-1 p-4 sm:p-6 space-y-4">
           {/* Impression Details Section */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="font-medium">Impression Details</span>
-              <TooltipProvider delayDuration={200}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="rounded-full bg-gray-200 text-gray-600 w-5 h-5 flex items-center justify-center text-xs cursor-help hover:bg-gray-300 transition-colors">
-                      ?
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent 
-                    side="right" 
-                    align="start"
-                    sideOffset={8}
-                    className="max-w-xs z-50"
-                    avoidCollisions={true}
-                  >
-                    <p>Configure the basic information and properties for this impression, including name, code, URL, image, and status settings.</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
+          <div className="flex items-center gap-2">
+            <span className="font-medium">Impression Details</span>
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="rounded-full bg-gray-200 text-gray-600 w-5 h-5 flex items-center justify-center text-xs cursor-help hover:bg-gray-300 transition-colors">
+                    ?
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent
+                  side="bottom"
+                  className="max-w-xs z-50"
+                  avoidCollisions={true}
+                >
+                  <p>Configure the basic information and properties for this impression, including name, code, URL, image, and status settings.</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <Switch
               checked={impressionDetailsEnabled}
               onCheckedChange={setImpressionDetailsEnabled}

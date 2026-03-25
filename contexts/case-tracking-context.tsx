@@ -104,8 +104,8 @@ type CaseTrackingContextType = {
 
   // CRUD operations
   fetchCasePans: (customerId?: number) => Promise<void>
-  createCasePan: (data: Partial<CasePan>) => Promise<void>
-  updateCasePan: (id: number, data: Partial<CasePan>) => Promise<void>
+  createCasePan: (data: Partial<CasePan>) => Promise<boolean>
+  updateCasePan: (id: number, data: Partial<CasePan>) => Promise<boolean>
   deleteCasePan: (id: number) => Promise<void>
   duplicateCasePan: (id: number) => Promise<void>
 
@@ -310,7 +310,7 @@ export const CaseTrackingProvider: React.FC<{ children: React.ReactNode }> = ({ 
           description: errorMsg,
           variant: "destructive",
         })
-        return
+        return false
       }
 
       setAnimationType("success")
@@ -320,6 +320,7 @@ export const CaseTrackingProvider: React.FC<{ children: React.ReactNode }> = ({ 
       })
 
       await fetchCasePans(customerId || undefined)
+      return true
     } catch (err: any) {
       setAnimationType("error")
       setError(err.message)
@@ -328,6 +329,7 @@ export const CaseTrackingProvider: React.FC<{ children: React.ReactNode }> = ({ 
         description: err.message,
         variant: "destructive",
       })
+      return false
     } finally {
       setIsLoading(false)
     }
@@ -388,7 +390,7 @@ export const CaseTrackingProvider: React.FC<{ children: React.ReactNode }> = ({ 
           description: errorMsg,
           variant: "destructive",
         })
-        return
+        return false
       }
 
       setAnimationType("success")
@@ -398,6 +400,7 @@ export const CaseTrackingProvider: React.FC<{ children: React.ReactNode }> = ({ 
       })
 
       await fetchCasePans(customerId || undefined)
+      return true
     } catch (err: any) {
       setAnimationType("error")
       setError(err.message)
@@ -406,6 +409,7 @@ export const CaseTrackingProvider: React.FC<{ children: React.ReactNode }> = ({ 
         description: err.message,
         variant: "destructive",
       })
+      return false
     } finally {
       setIsLoading(false)
     }
@@ -862,7 +866,7 @@ export const CaseTrackingProvider: React.FC<{ children: React.ReactNode }> = ({ 
       {children}
 
       {/* Animation Overlay */}
-      {showAnimation && (
+      {showAnimation && animationType !== "error" && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-[100]">
           <div className="bg-white rounded-lg p-6 shadow-lg flex flex-col items-center max-w-md">
             {animationType === "creating" && (
