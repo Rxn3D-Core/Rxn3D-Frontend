@@ -123,7 +123,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       <div className="w-full">
         <fieldset
           className={cn(
-            "border-2 rounded-lg px-3 py-0 relative h-14 flex items-center min-w-0 transition-colors duration-150 bg-white",
+            "border rounded px-3 py-0 relative h-[42px] flex items-center min-w-0 transition-colors duration-150 bg-white",
             getBorderColor(),
             getRingEffect(),
             !disabled && !isFocused && "hover:shadow-[0_0_8px_rgba(17,98,168,0.2)]",
@@ -145,7 +145,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
               ref={ref}
               value={value}
               disabled={disabled || validationState === "disabled"}
-              className="text-lg font-normal text-[#000000] bg-transparent outline-none leading-tight min-w-0 flex-1 truncate"
+              className="text-[14px] font-normal text-[#000000] bg-transparent outline-none leading-tight min-w-0 flex-1 truncate"
               onFocus={(e) => {
                 setIsFocused(true)
                 props.onFocus?.(e)

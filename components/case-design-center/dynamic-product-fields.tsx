@@ -252,8 +252,8 @@ function StageSelectionModal({ stages, selectedStage, onSelect, onClose }: Stage
 
         {/* Footer with action button */}
         <div className="border-t p-4 flex justify-end gap-2">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={onClose}
             style={{
               border: '2px solid #9BA5B7',

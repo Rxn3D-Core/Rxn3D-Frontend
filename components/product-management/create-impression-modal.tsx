@@ -33,7 +33,9 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
   const [linkToProductsOpen, setLinkToProductsOpen] = useState(false)
   const [linkToGroupOpen, setLinkToGroupOpen] = useState(false)
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
-  
+  // URL is required when opposing warning is "Yes"
+  const urlRequired = showOpposingWarning === "yes"
+
   // Image upload state
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [imageFile, setImageFile] = useState<File | null>(null)
@@ -48,67 +50,44 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
     onChanges(hasChanges)
   }, [impressionName, impressionCode, impressionUrl, selectedImage, onChanges])
 
-  // Validate URL field in real-time - required if showOpposingWarning is "yes"
+  // Validate URL field on blur - required only after user explicitly sets opposing to "Yes"
   const validateUrlField = useCallback(() => {
-    // URL is required when "Show opposing warning scan?" is "Yes"
-    if (showOpposingWarning === "yes") {
-      if (!impressionUrl.trim()) {
-        setErrors((prev) => ({ ...prev, impressionUrl: "URL is required when 'Show opposing warning scan?' is Yes" }))
+    if (urlRequired && !impressionUrl.trim()) {
+      setErrors((prev) => ({ ...prev, impressionUrl: "URL is required when 'Show opposing warning scan?' is Yes" }))
+    } else if (impressionUrl.trim()) {
+      const urlPattern = /^(https?:\/\/)?[\w.-]+\.[a-z]{2,}(\/\S*)?$/i
+      if (!urlPattern.test(impressionUrl.trim())) {
+        setErrors((prev) => ({ ...prev, impressionUrl: "Please enter a valid URL (e.g., https://example.com)" }))
       } else {
-        const urlPattern = /^(https?:\/\/)?[\w.-]+\.[a-z]{2,}(\/\S*)?$/i
-        if (!urlPattern.test(impressionUrl.trim())) {
-          setErrors((prev) => ({ ...prev, impressionUrl: "Please enter a valid URL (e.g., https://example.com)" }))
-        } else {
-          setErrors((prev) => {
-            const newErrors = { ...prev }
-            delete newErrors.impressionUrl
-            return newErrors
-          })
-        }
-      }
-    } else {
-      // URL is optional when "Show opposing warning scan?" is "No", only validate format if provided
-      if (impressionUrl.trim()) {
-        const urlPattern = /^(https?:\/\/)?[\w.-]+\.[a-z]{2,}(\/\S*)?$/i
-        if (!urlPattern.test(impressionUrl.trim())) {
-          setErrors((prev) => ({ ...prev, impressionUrl: "Please enter a valid URL (e.g., https://example.com)" }))
-        } else {
-          setErrors((prev) => {
-            const newErrors = { ...prev }
-            delete newErrors.impressionUrl
-            return newErrors
-          })
-        }
-      } else {
-        // Clear error if URL is empty (since it's optional when showOpposingWarning is "no")
         setErrors((prev) => {
           const newErrors = { ...prev }
           delete newErrors.impressionUrl
           return newErrors
         })
       }
+    } else {
+      setErrors((prev) => {
+        const newErrors = { ...prev }
+        delete newErrors.impressionUrl
+        return newErrors
+      })
     }
-  }, [impressionUrl, showOpposingWarning])
+  }, [impressionUrl, urlRequired])
 
-  // Re-validate URL only when showOpposingWarning toggles (not on initial open)
+  // Track whether user has explicitly interacted with the opposing toggle
   const hasInteractedRef = useRef(false);
   const prevOpposingRef = useRef(showOpposingWarning);
   useEffect(() => {
-    // Only fire when the radio actually changed, not on mount or other re-renders
     if (isOpen && hasInteractedRef.current && prevOpposingRef.current !== showOpposingWarning) {
-      // When switching to "no", clear the required error
-      if (showOpposingWarning === "no") {
-        setErrors((prev) => {
-          const newErrors = { ...prev }
-          delete newErrors.impressionUrl
-          return newErrors
-        })
-      } else {
-        validateUrlField()
-      }
+      // Clear URL error when toggling — it will re-validate on blur or submit
+      setErrors((prev) => {
+        const newErrors = { ...prev }
+        delete newErrors.impressionUrl
+        return newErrors
+      })
     }
     prevOpposingRef.current = showOpposingWarning;
-  }, [showOpposingWarning, isOpen, validateUrlField])
+  }, [showOpposingWarning, isOpen])
 
   // Clear the interaction flag when modal opens/closes
   useEffect(() => {
@@ -284,18 +263,10 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
       }
     }
 
-    // URL validation - required if showOpposingWarning is "yes", optional otherwise
-    if (showOpposingWarning === "yes") {
-      if (!impressionUrl.trim()) {
-        newErrors.impressionUrl = "URL is required when 'Show opposing warning scan?' is Yes"
-      } else {
-        const urlPattern = /^(https?:\/\/)?[\w.-]+\.[a-z]{2,}(\/\S*)?$/i
-        if (!urlPattern.test(impressionUrl.trim())) {
-          newErrors.impressionUrl = "Please enter a valid URL (e.g., https://example.com)"
-        }
-      }
+    // URL validation - required only after user explicitly sets opposing to "Yes"
+    if (urlRequired && !impressionUrl.trim()) {
+      newErrors.impressionUrl = "URL is required when 'Show opposing warning scan?' is Yes"
     } else if (impressionUrl.trim()) {
-      // Only validate format if URL is provided (when showOpposingWarning is "no")
       const urlPattern = /^(https?:\/\/)?[\w.-]+\.[a-z]{2,}(\/\S*)?$/i
       if (!urlPattern.test(impressionUrl.trim())) {
         newErrors.impressionUrl = "Please enter a valid URL (e.g., https://example.com)"
@@ -578,7 +549,7 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
                     />
                     <div className="relative">
                       <Input
-                        label={`URL${showOpposingWarning === "yes" ? " *" : ""}`}
+                        label={`URL${urlRequired ? " *" : ""}`}
                         value={impressionUrl}
                         validationState={
                           errors.impressionUrl
@@ -598,8 +569,8 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
                           }
                         }}
                         onBlur={validateUrlField}
-                        required={showOpposingWarning === "yes"}
-                        aria-invalid={errors.impressionUrl || (showOpposingWarning === "yes" && !impressionUrl.trim()) ? "true" : "false"}
+                        required={urlRequired}
+                        aria-invalid={errors.impressionUrl ? "true" : "false"}
                         aria-describedby={errors.impressionUrl ? "url-error" : undefined}
                       />
                       <div className="absolute top-1 right-12 z-10">
@@ -618,7 +589,7 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
                               avoidCollisions={true}
                             >
                               <p>
-                                {showOpposingWarning === "yes" 
+                                {urlRequired
                                   ? "Enter a URL link for the impression. This field is required when 'Show opposing warning scan?' is set to Yes."
                                   : "Enter a URL link for the impression. This field is optional and can be used to provide additional information or resources related to the impression."}
                               </p>
@@ -694,7 +665,7 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
               isLoading ||
               !impressionName.trim() ||
               !impressionCode.trim() ||
-              (showOpposingWarning === "yes" && !impressionUrl.trim()) ||
+              (urlRequired && !impressionUrl.trim()) ||
               !!errors.impressionUrl ||
               !!errors.impressionCode ||
               !!errors.image

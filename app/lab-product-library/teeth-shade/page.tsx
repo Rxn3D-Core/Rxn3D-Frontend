@@ -16,6 +16,8 @@ import { Badge } from "@/components/ui/badge"
 import { useLanguage } from "@/contexts/language-context"
 import { useTranslation } from "react-i18next"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
+import { WarningActionModal, type WarningActionType } from "@/components/ui/warning-action-modal"
+import { useProductLibraryWarningsStore } from "@/stores/product-library-warnings-store"
 
 export default function TeethShadePage() {
   const {
@@ -64,8 +66,15 @@ export default function TeethShadePage() {
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null)
   const [isBulkDelete, setIsBulkDelete] = useState(false)
 
+  // Warning modal states (for delete/deactivate with dependency check)
+  const [isWarningModalOpen, setIsWarningModalOpen] = useState(false)
+  const [warningActionType, setWarningActionType] = useState<WarningActionType>("delete")
+  const [warningTargetBrand, setWarningTargetBrand] = useState<any>(null)
+  const [isWarningLoading, setIsWarningLoading] = useState(false)
+
   const { currentLanguage } = useLanguage()
   const { t } = useTranslation()
+  const { addWarning } = useProductLibraryWarningsStore()
 
   // Fetch initial data
   useEffect(() => {
@@ -173,11 +182,47 @@ export default function TeethShadePage() {
     }
   }
 
-  // Handle delete (single)
-  const handleDelete = (id: number) => {
-    setDeleteTargetId(id)
-    setIsBulkDelete(false)
-    setIsDeleteModalOpen(true)
+  // Handle delete (single) — show warning modal with dependency info
+  const handleDelete = (brand: any) => {
+    setWarningTargetBrand(brand)
+    setWarningActionType("delete")
+    setIsWarningModalOpen(true)
+  }
+
+  // Handle status toggle — show warning modal if deactivating
+  const handleStatusToggle = (brand: any) => {
+    if (brand.status === "Active") {
+      // Deactivating — show warning
+      setWarningTargetBrand(brand)
+      setWarningActionType("deactivate")
+      setIsWarningModalOpen(true)
+    } else {
+      // Activating — no warning needed, just update
+      updateTeethShadeBrand(brand.id, { status: "Active" })
+    }
+  }
+
+  // Confirm warning modal action (delete or deactivate)
+  const handleWarningConfirm = async () => {
+    if (!warningTargetBrand) return
+    setIsWarningLoading(true)
+    try {
+      if (warningActionType === "delete") {
+        await deleteTeethShadeBrand(warningTargetBrand.id)
+        await fetchTeethShadeBrands(currentPage, Number(entriesPerPage))
+      } else {
+        await updateTeethShadeBrand(warningTargetBrand.id, { status: "Inactive" })
+      }
+      // Add warning to sidebar when deactivating/deleting
+      if (warningActionType === "deactivate" || warningActionType === "delete") {
+        addWarning("teeth-shade")
+        addWarning("products")
+      }
+    } finally {
+      setIsWarningLoading(false)
+      setIsWarningModalOpen(false)
+      setWarningTargetBrand(null)
+    }
   }
 
   // Handle bulk delete
@@ -435,11 +480,12 @@ export default function TeethShadePage() {
                       <TableCell>
                         <Badge
                           variant="outline"
-                          className={
+                          className={`cursor-pointer select-none transition-colors ${
                             brand.status === "Active"
-                              ? "bg-green-50 text-green-700 border-green-200"
-                              : "bg-gray-50 text-gray-700 border-gray-200"
-                          }
+                              ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
+                              : "bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100"
+                          }`}
+                          onClick={() => handleStatusToggle(brand)}
                         >
                           {t(brand.status)}
                         </Badge>
@@ -468,7 +514,7 @@ export default function TeethShadePage() {
                             variant="ghost"
                             size="sm"
                             className="h-8 w-8 p-0 text-gray-600 hover:text-red-600 hover:bg-red-50"
-                            onClick={() => handleDelete(brand.id)}
+                            onClick={() => handleDelete(brand)}
                             title={t("Delete")}
                           >
                             <TrashIcon className="h-4 w-4" />
@@ -597,7 +643,7 @@ export default function TeethShadePage() {
         onChanges={setHasModalChanges}
       />
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete Confirmation Modal (bulk delete) */}
       <DeleteConfirmationModal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
@@ -607,6 +653,18 @@ export default function TeethShadePage() {
         title={isBulkDelete ? t("Delete Selected Teeth Shade Brands?") : t("Delete Teeth Shade Brand?")}
         confirmText={t("Delete")}
         cancelText={t("Cancel")}
+      />
+
+      {/* Warning Modal (single delete / deactivate with dependency check) */}
+      <WarningActionModal
+        isOpen={isWarningModalOpen}
+        onClose={() => { setIsWarningModalOpen(false); setWarningTargetBrand(null) }}
+        onConfirm={handleWarningConfirm}
+        type={warningActionType}
+        itemName={warningTargetBrand ? `${warningTargetBrand.brand_name || warningTargetBrand.name || ""} - ${warningTargetBrand.system_name || warningTargetBrand.system || ""}`.trim() : ""}
+        activeProductCount={warningTargetBrand?.active_product_count ?? 0}
+        productNames={warningTargetBrand?.active_product_names ?? []}
+        isLoading={isWarningLoading}
       />
     </div>
   )

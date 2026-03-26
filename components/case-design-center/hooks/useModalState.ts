@@ -40,6 +40,9 @@ export function useModalState() {
 
   const [currentImpressionToothNumber, setCurrentImpressionToothNumber] = useState<number | null>(null);
 
+  // Tracks product+arch combos where user chose "Submit, no opposing needed"
+  const [noOpposingNeeded, setNoOpposingNeeded] = useState<Record<string, boolean>>({});
+
   const handleOpenImpressionModal = (arch: Arch, productId: string, toothNumber?: number) => {
     setCurrentImpressionArch(arch);
     setCurrentImpressionProductId(productId);
@@ -127,6 +130,8 @@ export function useModalState() {
     setSelectedImpressions,
     handleOpenImpressionModal,
     getImpressionDisplayText,
+    noOpposingNeeded,
+    setNoOpposingNeeded,
     // Add-ons
     showAddOnsModal,
     setShowAddOnsModal,

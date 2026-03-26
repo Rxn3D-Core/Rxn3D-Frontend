@@ -559,6 +559,8 @@ interface MandibularPanelProps {
   handleToothExtractionToggle: (arch: Arch, toothNumber: number, extractionCode: string) => void;
   selectAllMandibularTeeth: (teeth: number[]) => void;
   onToothStatusValidationChange?: (hasValidation: boolean) => void;
+  /** Product+arch combos where user chose "Submit, no opposing needed" */
+  noOpposingNeeded?: Record<string, boolean>;
 }
 
 /** Auto-opens the shade picker when this component mounts (i.e. shade field becomes visible) and the field has no value */
@@ -644,6 +646,7 @@ export function MandibularPanel({
   selectAllMandibularTeeth,
   onToothStatusValidationChange,
   removablesImpressionDone = false,
+  noOpposingNeeded = {},
 }: MandibularPanelProps) {
   const MANDIBULAR_ALL_TEETH = [17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32];
   const [activeExtractionCode, setActiveExtractionCode] = useState<string | null>(null);
@@ -1435,6 +1438,7 @@ export function MandibularPanel({
                             handleOpenImpressionModal={handleOpenImpressionModal}
                             handleOpenAddOnsModal={handleOpenAddOnsModal}
                             setPanelGumShadePicker={setPanelGumShadePicker}
+                            noOpposingNeeded={noOpposingNeeded}
                           />
                         )}
                         <ScrollToBottom />
@@ -1717,6 +1721,13 @@ export function MandibularPanel({
                               <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{fVal("impression") || getImpressionDisplayText(productKey, "mandibular")}</span>
                               {isFComplete("impression") && !caseSubmitted && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                             </fieldset>
+                          )}
+                          {/* Note for removable/orthodontics — only when user clicked "Submit, no opposing needed" */}
+                          {isFComplete("impression") && noOpposingNeeded[`${productKey}_mandibular_${repTn}`] && (
+                            <p className="font-['Verdana'] text-sm text-black">
+                              No impression will be sent on this appointment.{" "}
+                              Please note that opposing scan is <span className="text-[#CF0202] font-bold">required</span> for this impression.
+                            </p>
                           )}
                           {/* Row 4: Add ons (separate fields per add-on, responsive) */}
                           {isF("addons") && (() => {

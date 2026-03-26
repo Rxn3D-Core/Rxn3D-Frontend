@@ -9,6 +9,8 @@ import { useMemo, useState, useEffect } from "react"
 import { useAuth } from "@/contexts/auth-context"
 import { ChevronDown, ChevronRight } from "lucide-react"
 import { useCasePanTrackingLabelStore } from "@/stores/case-pan-tracking-label-store"
+import { useProductLibraryWarningsStore } from "@/stores/product-library-warnings-store"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 type SideTabItem = {
   id: string
@@ -44,6 +46,12 @@ export function ProductSidebar({ activeTab = "products", onTabChange }: ProductS
   // Use Zustand store for real-time label synchronization
   const defaultCaseTrackingLabel = t("productLibrary.sideBar.CaseTracking", "Case Tracking")
   const { label: caseTrackingLabel } = useCasePanTrackingLabelStore()
+
+  // Product library warnings (incomplete products due to disabled/deleted items)
+  const { warnings } = useProductLibraryWarningsStore()
+  const itemHasWarning = (itemId: string) => warnings.has(itemId)
+  // "Products" parent shows warning if any warnable item has one
+  const productsHasWarning = warnings.size > 0
 
   const sidebarGroups: SidebarGroup[] = useMemo(() => [
     {
@@ -143,13 +151,16 @@ export function ProductSidebar({ activeTab = "products", onTabChange }: ProductS
   }
 
   return (
-    <div className="w-72 bg-white border-r border-[#d9d9d9] flex flex-col h-full">
+    <TooltipProvider>
+      <div className="w-72 bg-white border-r border-[#d9d9d9] flex flex-col h-full">
       <div className="px-6 py-4 font-bold text-lg border-b border-[#d9d9d9] flex-shrink-0">{t("productLibrary.productManagementLabel")}</div>
-      <div className="overflow-y-auto flex-1 product-sidebar-scroll">
+      <div className="overflow-y-auto flex-1 [scrollbar-width:thin] [scrollbar-color:#1162a8_#e5e7eb]">
         {sidebarGroups.map((group) => {
           const hasActiveItem = group.items.some(item => isActive(item.href))
           const groupExpanded = isExpanded(group.id)
-          
+          // "products" group shows warning if any warnable item has a warning
+          const groupWarning = group.id === "products" && productsHasWarning
+
           return (
             <SidebarGroupItem
               key={group.id}
@@ -159,24 +170,28 @@ export function ProductSidebar({ activeTab = "products", onTabChange }: ProductS
               isActive={isActive}
               toggleExpand={toggleMenuItem}
               handleTabClick={handleTabClick}
+              hasWarning={groupWarning}
+              itemHasWarning={itemHasWarning}
             />
           )
         })}
         {/* Flat items before Retention */}
         {flatItems.filter(item => item.id !== "material").map((item) => {
           const itemActive = isActive(item.href)
+          const showWarning = itemHasWarning(item.id)
           return (
             <Link
               key={item.id}
               href={item.href}
               prefetch={true}
               className={cn(
-                "block px-6 py-4 text-base transition-colors font-medium",
+                "flex items-center gap-2 px-6 py-4 text-base transition-colors font-medium",
                 itemActive ? "bg-[#dfeefb] text-[#1162a8] border-l-4 border-[#1162a8]" : "text-[#000000] hover:bg-gray-100",
               )}
               onClick={() => handleTabClick(item.id)}
             >
               {item.label}
+              {showWarning && <SidebarWarningIcon itemType={item.label} />}
             </Link>
           )
         })}
@@ -184,7 +199,8 @@ export function ProductSidebar({ activeTab = "products", onTabChange }: ProductS
         {(() => {
           const hasActiveItem = retentionGroup.items.some(item => isActive(item.href))
           const groupExpanded = isExpanded(retentionGroup.id)
-          
+          const retentionWarning = retentionGroup.items.some(item => itemHasWarning(item.id))
+
           return (
             <SidebarGroupItem
               key={retentionGroup.id}
@@ -194,49 +210,34 @@ export function ProductSidebar({ activeTab = "products", onTabChange }: ProductS
               isActive={isActive}
               toggleExpand={toggleMenuItem}
               handleTabClick={handleTabClick}
+              hasWarning={retentionWarning}
+              itemHasWarning={itemHasWarning}
             />
           )
         })()}
         {/* Material (after Retention) */}
         {flatItems.filter(item => item.id === "material").map((item) => {
           const itemActive = isActive(item.href)
+          const showWarning = itemHasWarning(item.id)
           return (
             <Link
               key={item.id}
               href={item.href}
               prefetch={true}
               className={cn(
-                "block px-6 py-4 text-base transition-colors font-medium",
+                "flex items-center gap-2 px-6 py-4 text-base transition-colors font-medium",
                 itemActive ? "bg-[#dfeefb] text-[#1162a8] border-l-4 border-[#1162a8]" : "text-[#000000] hover:bg-gray-100",
               )}
               onClick={() => handleTabClick(item.id)}
             >
               {item.label}
+              {showWarning && <SidebarWarningIcon itemType={item.label} />}
             </Link>
           )
         })}
       </div>
-      <style jsx>{`
-        .product-sidebar-scroll {
-          scrollbar-width: thin;
-          scrollbar-color: #1162a8 #e5e7eb;
-        }
-        .product-sidebar-scroll::-webkit-scrollbar {
-          width: 8px;
-        }
-        .product-sidebar-scroll::-webkit-scrollbar-track {
-          background: #e5e7eb;
-          border-radius: 4px;
-        }
-        .product-sidebar-scroll::-webkit-scrollbar-thumb {
-          background: #1162a8;
-          border-radius: 4px;
-        }
-        .product-sidebar-scroll::-webkit-scrollbar-thumb:hover {
-          background: #0f5490;
-        }
-      `}</style>
-    </div>
+      </div>
+    </TooltipProvider>
   )
 }
 
@@ -247,9 +248,11 @@ interface SidebarGroupItemProps {
   isActive: (href?: string) => boolean
   toggleExpand: (groupId: string) => void
   handleTabClick: (tabId: string) => void
+  hasWarning?: boolean
+  itemHasWarning?: (itemId: string) => boolean
 }
 
-function SidebarGroupItem({ group, isExpanded, hasActiveItem, isActive, toggleExpand, handleTabClick }: SidebarGroupItemProps) {
+function SidebarGroupItem({ group, isExpanded, hasActiveItem, isActive, toggleExpand, handleTabClick, hasWarning, itemHasWarning }: SidebarGroupItemProps) {
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault()
     toggleExpand(group.id)
@@ -264,35 +267,60 @@ function SidebarGroupItem({ group, isExpanded, hasActiveItem, isActive, toggleEx
           hasActiveItem ? "bg-[#dfeefb] text-[#1162a8]" : "text-[#000000] hover:bg-gray-100"
         )}
       >
-        <span>{group.label}</span>
+        <span className="flex items-center gap-2">
+          {group.label}
+          {hasWarning && <SidebarWarningIcon itemType={group.label} />}
+        </span>
         {isExpanded ? (
           <ChevronDown className="h-4 w-4 flex-shrink-0" />
         ) : (
           <ChevronRight className="h-4 w-4 flex-shrink-0" />
         )}
       </button>
-      
+
       {isExpanded && (
         <div className="flex flex-col">
           {group.items.map((item) => {
             const itemActive = isActive(item.href)
+            const showItemWarning = itemHasWarning?.(item.id) ?? false
             return (
               <Link
                 key={item.id}
                 href={item.href}
                 prefetch={true}
                 className={cn(
-                  "block pl-12 pr-6 py-3 text-base transition-colors font-medium",
+                  "flex items-center gap-2 pl-12 pr-6 py-3 text-base transition-colors font-medium",
                   itemActive ? "bg-[#dfeefb] text-[#1162a8] border-l-4 border-[#1162a8]" : "text-[#000000] hover:bg-gray-100",
                 )}
                 onClick={() => handleTabClick(item.id)}
               >
                 {item.label}
+                {showItemWarning && <SidebarWarningIcon itemType={item.label} />}
               </Link>
             )
           })}
         </div>
       )}
     </div>
+  )
+}
+
+/** Warning triangle icon for sidebar items with tooltip */
+function SidebarWarningIcon({ itemType }: { itemType: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="flex-shrink-0 cursor-help">
+          <svg width="18" height="16" viewBox="0 0 18 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M9 0L18 16H0L9 0Z" fill="#EDBA29" />
+            <rect x="8" y="4" width="2" height="7" rx="1" fill="#000" />
+            <circle cx="9" cy="13" r="1.2" fill="#000" />
+          </svg>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="right" className="max-w-[250px] text-sm">
+        One or more products are missing (Disabled {itemType}).
+      </TooltipContent>
+    </Tooltip>
   )
 }

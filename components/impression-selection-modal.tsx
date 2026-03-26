@@ -41,6 +41,8 @@ interface ImpressionSelectionModalProps {
   oppositeImpression?: "Yes" | "No"
   /** Impressions available for the opposite arch (defaults to same as impressions) */
   oppositeImpressions?: ImpressionOption[]
+  /** Called when user clicks "Submit, no opposing needed." */
+  onSubmitNoOpposing?: () => void
 }
 
 function ImpressionGrid({
@@ -365,17 +367,22 @@ export function ImpressionSelectionModal({
   stlFilesByImpression = {},
   oppositeImpression = "No",
   oppositeImpressions,
+  onSubmitNoOpposing,
 }: ImpressionSelectionModalProps) {
   const oppositeArch = arch === "maxillary" ? "mandibular" : "maxillary"
   const oppositeList = oppositeImpressions ?? impressions
 
-  // Show opposing row only when oppositeImpression is "Yes" AND the main arch
-  // already has at least one impression selected (i.e. user is re-opening the modal)
+  // Detect whether the main arch already has at least one impression selected
   const mainPrefix = `${productId}_${arch}_`
   const hasMainSelection = Object.entries(selectedImpressions).some(
     ([key, qty]) => key.startsWith(mainPrefix) && qty > 0
   )
-  const isSplit = oppositeImpression === "Yes" && hasMainSelection
+
+  // When oppositeImpression is "Yes" and main has a selection, show opposing-only view
+  const showOpposingOnly = oppositeImpression === "Yes" && hasMainSelection
+
+  // Legacy split mode: show both panels side-by-side (kept for backward compat if needed)
+  const isSplit = false
 
   const sharedGridProps = {
     selectedImpressions,
@@ -394,7 +401,35 @@ export function ImpressionSelectionModal({
             Select Impressions
           </h2>
 
-          {isSplit ? (
+          {showOpposingOnly ? (
+            <div className="flex flex-col gap-4 w-full">
+              {/* Submit, no opposing needed button */}
+              <div className="flex justify-center w-full">
+                <button
+                  onClick={() => {
+                    onSubmitNoOpposing ? onSubmitNoOpposing() : onClose()
+                  }}
+                  className="flex items-center justify-center px-6 py-2 rounded-[6px] text-white font-['Verdana'] font-bold text-sm sm:text-base"
+                  style={{ background: "radial-gradient(ellipse at center, #3b82f6 0%, #1e40af 100%)" }}
+                >
+                  Submit, no opposing needed.
+                </button>
+              </div>
+
+              {/* Opposite arch grid */}
+              <div>
+                <h3 className="font-['Verdana'] font-bold text-sm sm:text-base text-[#7F7F7F] mb-4 uppercase tracking-wide">
+                  {oppositeArch === "maxillary" ? "Maxillary (Opposing)" : "Mandibular (Opposing)"}
+                </h3>
+                <ImpressionGrid
+                  {...sharedGridProps}
+                  impressions={oppositeList}
+                  productId={productId}
+                  arch={oppositeArch}
+                />
+              </div>
+            </div>
+          ) : isSplit ? (
             <div className="flex flex-col gap-8 w-full">
               {/* Main arch */}
               <div>
@@ -444,7 +479,8 @@ export function ImpressionSelectionModal({
           <div className="flex justify-start w-full">
             <button
               onClick={onClose}
-              className="flex items-center justify-center px-[16px] py-[12px] rounded-[6px] bg-red-600 hover:bg-red-700 transition-colors"
+              className="flex items-center justify-center px-[40px] py-[12px] rounded-[6px] transition-colors min-w-[160px]"
+              style={{ background: "radial-gradient(ellipse at center, #f87171 0%, #dc2626 100%)" }}
             >
               <span className="font-['Verdana'] font-bold text-[12px] leading-[22px] tracking-[-0.02em] text-white">
                 Cancel

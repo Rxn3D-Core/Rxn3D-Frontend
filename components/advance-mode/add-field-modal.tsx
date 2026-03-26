@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { X, Link as LinkIcon, HelpCircle, Edit, Copy, Trash2, Loader2 } from "lucide-react"
+import { X, Link as LinkIcon, HelpCircle, Edit, Copy, Trash2, Loader2, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -217,29 +217,59 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
     ...(selectedCategoryId && !isNaN(parseInt(selectedCategoryId, 10)) && { advance_category_id: parseInt(selectedCategoryId, 10) }),
   })
 
-  const categories = Array.isArray(categoriesData?.data) ? categoriesData.data : []
-  const subcategories = Array.isArray(subcategoriesData?.data) ? subcategoriesData.data : []
+  const categoriesRaw = Array.isArray(categoriesData?.data) ? categoriesData.data : []
+  const subcategoriesRaw = Array.isArray(subcategoriesData?.data) ? subcategoriesData.data : []
+
+  // When editing, inject the field's category/subcategory into the lists
+  // so the Select dropdowns can display them before the list APIs finish loading
+  const categories = useMemo(() => {
+    const cat = fieldData?.category
+    if (isEditing && cat) {
+      const exists = categoriesRaw.some(c => c.id === cat.id)
+      if (!exists) {
+        return [cat, ...categoriesRaw]
+      }
+    }
+    return categoriesRaw
+  }, [categoriesRaw, isEditing, fieldData])
+
+  const subcategories = useMemo(() => {
+    const sub = fieldData?.subcategory
+    if (isEditing && sub) {
+      const exists = subcategoriesRaw.some(s => s.id === sub.id)
+      if (!exists) {
+        return [sub, ...subcategoriesRaw]
+      }
+    }
+    return subcategoriesRaw
+  }, [subcategoriesRaw, isEditing, fieldData])
 
   // Track which field ID we've already populated to prevent infinite loops
   const populatedFieldIdRef = useRef<number | null>(null)
   // Track if form has been initialized for new field mode
   const formInitializedRef = useRef<boolean>(false)
 
-  // Reset subcategory when category changes (user interaction, not initial load)
+  // Track the previous category to detect user-driven category changes
+  const prevCategoryRef = useRef<string>("")
+
+  // Reset subcategory only when the user manually changes the category dropdown
   useEffect(() => {
-    if (selectedCategoryId && subcategories.length > 0) {
-      const currentSubCategory = form.getValues("subCategory")
-      // Only reset if subcategory doesn't belong to the new category
-      if (currentSubCategory) {
-        const subCategoryBelongsToCategory = subcategories.some(
-          sub => sub.id.toString() === currentSubCategory
-        )
-        if (!subCategoryBelongsToCategory) {
-          form.setValue("subCategory", "", { shouldValidate: true })
-        }
-      }
+    if (!selectedCategoryId) {
+      prevCategoryRef.current = ""
+      return
     }
-  }, [selectedCategoryId, subcategories])
+
+    const prev = prevCategoryRef.current
+    prevCategoryRef.current = selectedCategoryId
+
+    // Skip if this is the initial population (prev was empty — form just loaded)
+    if (!prev) return
+
+    // Category actually changed by the user — clear subcategory
+    if (prev !== selectedCategoryId) {
+      form.setValue("subCategory", "", { shouldValidate: true })
+    }
+  }, [selectedCategoryId])
 
   // Ensure chargeScope always has a default value of "per-case"
   useEffect(() => {
@@ -362,6 +392,7 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
       // Reset refs when modal closes
       populatedFieldIdRef.current = null
       formInitializedRef.current = false
+      prevCategoryRef.current = ""
       setInitialFormValues(null)
       setInitialOptions([])
       return
@@ -373,41 +404,12 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
     setIsSaving(false)
 
     // Handle editing mode - wait for React Query to fetch complete data
-    // Only populate once per field ID to prevent infinite loops
-    // Also wait for categories to be loaded before populating
-    if (isEditing && fieldData && !isLoadingField && fetchedFieldData && fieldId > 0 && categories.length > 0) {
-      const categoryId = fieldData.advance_category_id?.toString() || ""
-      const currentCategory = form.getValues("category")
-      
-      // Only populate if we haven't populated this field yet
-      if (populatedFieldIdRef.current === fieldId) {
-        // Already populated this field - preserve user changes, only update if truly missing
-        const subCategoryId = fieldData.advance_subcategory_id?.toString() || ""
-        const currentSubCategory = form.getValues("subCategory")
-        
-        // First, ensure category is set if it's missing
-        if (categoryId && !currentCategory && categories.length > 0) {
-          const categoryExists = categories.find(cat => cat.id.toString() === categoryId)
-          if (categoryExists) {
-            form.setValue("category", categoryId, { shouldDirty: false })
-          }
-        }
-        
-        // Get the current category value (after potentially setting it above)
-        const currentCat = form.getValues("category")
-        
-        // Update subcategory if: it exists in data, subcategories are loaded, category matches, and subcategory is missing or wrong
-        if (subCategoryId && subcategories.length > 0 && currentCat === categoryId) {
-          const subCategoryExists = subcategories.find(sub => sub.id.toString() === subCategoryId)
-          if (subCategoryExists) {
-            // Only update if subcategory is empty or doesn't match the expected value
-            if (currentSubCategory !== subCategoryId) {
-              form.setValue("subCategory", subCategoryId, { shouldDirty: false, shouldValidate: true })
-            }
-          }
-        }
-        return
-      }
+    // The field API already returns category and subcategory objects,
+    // so we don't need to wait for the separate list APIs
+    if (isEditing && fieldData && !isLoadingField && fetchedFieldData && fieldId > 0) {
+      // Already populated this field — skip
+      if (populatedFieldIdRef.current === fieldId) return
+
       // Map API field types to form field types (handles legacy values)
       const fieldTypeMap: Record<string, "dropdown" | "radio" | "checkbox" | "number" | "shade_guide" | "text" | "file_upload" | "multiline_text" | "implant_library"> = {
         'select': 'dropdown',
@@ -423,39 +425,16 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
         'file_upload': 'file_upload',
         'implant_library': 'implant_library',
       }
+
+      // Use the IDs directly from the field response — no need to cross-check list APIs
+      const categoryId = fieldData.advance_category_id?.toString() || ""
       const subCategoryId = fieldData.advance_subcategory_id?.toString() || ""
-      
-      // Find category in loaded list
-      const categoryExists = categoryId ? categories.find(cat => cat.id.toString() === categoryId) : null
-      const finalCategoryValue = categoryExists ? categoryId : ""
-      
-      // Find subcategory in loaded list (only if category is selected)
-      // If subcategories aren't loaded yet, we'll set it to empty and update it later when subcategories load
-      // This ensures the subcategory gets populated even if subcategories load after the form is initially populated
-      const subCategoryExists = finalCategoryValue && subCategoryId && subcategories.length > 0
-        ? subcategories.find(sub => sub.id.toString() === subCategoryId)
-        : null
-      // Set subcategory value if it exists in loaded subcategories, otherwise set to empty
-      // (will be populated later when subcategories load via the update logic above)
-      const finalSubCategoryValue = subCategoryExists ? subCategoryId : ""
-      
-      console.log("Populating form for editing:", {
-        fieldId,
-        categoryId,
-        subCategoryId,
-        categoryExists: !!categoryExists,
-        finalCategoryValue,
-        subCategoryExists: !!subCategoryExists,
-        finalSubCategoryValue,
-        categoriesLength: categories.length,
-        subcategoriesLength: subcategories.length
-      })
       
       // Prepare initial form values
       const initialValues: AddFieldFormValues = {
         fieldName: fieldData.name || "",
-        category: finalCategoryValue,
-        subCategory: finalSubCategoryValue,
+        category: categoryId,
+        subCategory: subCategoryId,
         fieldType: fieldTypeMap[fieldData.field_type] || "text",
         requiredField: fieldData.is_required === 'Yes',
         isSystemDefault: fieldData.is_system_default === 'Yes',
@@ -478,13 +457,31 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
         })() as "per-case" | "per-unit",
       }
       
-      // Reset form with field data
-      form.reset(initialValues)
-      
+      // Reset form with field data — set category/subcategory separately
+      // to avoid race with Select options not being ready
+      form.reset({
+        ...initialValues,
+        category: "",
+        subCategory: "",
+      })
+
       // Store initial values for comparison
       setInitialFormValues(initialValues)
-      
+
       form.clearErrors()
+
+      // Set category and subcategory after a render cycle so the Select
+      // components have the injected options from fieldData available
+      setTimeout(() => {
+        if (categoryId) {
+          form.setValue("category", categoryId, { shouldDirty: false, shouldValidate: true })
+        }
+        setTimeout(() => {
+          if (subCategoryId) {
+            form.setValue("subCategory", subCategoryId, { shouldDirty: false, shouldValidate: true })
+          }
+        }, 50)
+      }, 0)
       
       // Set image
       if (fieldData.image_url) {
@@ -550,7 +547,7 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
         formInitializedRef.current = true // Mark as initialized
       }
     }
-  }, [isOpen, isEditing, fieldData, isLoadingField, fetchedFieldData, fieldId, form, categories, subcategories])
+  }, [isOpen, isEditing, fieldData, isLoadingField, fetchedFieldData, fieldId, form])
 
   if (!isOpen) return null
 
@@ -1426,26 +1423,31 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
                       name="category"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-sm font-medium text-gray-700">
-                            Category
-                          </FormLabel>
                           <FormControl>
-                            <Select
-                              value={field.value || ""}
-                              onValueChange={field.onChange}
-                            >
-                              <SelectTrigger className="mt-1">
-                                <SelectValue placeholder="Select category" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {categories.length > 0 &&
-                                  categories.map((category) => (
-                                    <SelectItem key={category.id} value={category.id.toString()}>
-                                      {category.name}
-                                    </SelectItem>
-                                  ))}
-                              </SelectContent>
-                            </Select>
+                            <fieldset className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${field.value ? "border-[#119933]" : "border-[#BDBDBD]"}`}>
+                              <legend className={`text-sm px-1 leading-none whitespace-nowrap ${field.value ? "text-[#119933]" : "text-[#7f7f7f]"}`}>
+                                Category
+                              </legend>
+                              <div className="flex items-center gap-1 min-w-0 w-full">
+                                <Select
+                                  value={field.value || undefined}
+                                  onValueChange={field.onChange}
+                                >
+                                  <SelectTrigger className="flex-1 text-[14px] text-[#000000] bg-transparent border-0 shadow-none outline-none leading-tight cursor-pointer min-w-0 h-auto py-0 px-0 focus:ring-0 [&>span]:truncate">
+                                    <SelectValue placeholder="Select category" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {categories.length > 0 &&
+                                      categories.map((category) => (
+                                        <SelectItem key={category.id} value={category.id.toString()}>
+                                          {category.name}
+                                        </SelectItem>
+                                      ))}
+                                  </SelectContent>
+                                </Select>
+                                {field.value && <Check size={16} className="text-[#119933] flex-shrink-0" />}
+                              </div>
+                            </fieldset>
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -1457,27 +1459,32 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
                       name="subCategory"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-sm font-medium text-gray-700">
-                            Sub Category
-                          </FormLabel>
                           <FormControl>
-                            <Select
-                              value={field.value || ""}
-                              onValueChange={field.onChange}
-                              disabled={!hasValidCategory}
-                            >
-                              <SelectTrigger className="mt-1">
-                                <SelectValue placeholder={hasValidCategory ? "Select sub category" : "Select category first"} />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {subcategories.length > 0 &&
-                                  subcategories.map((subcategory) => (
-                                    <SelectItem key={subcategory.id} value={subcategory.id.toString()}>
-                                      {subcategory.name}
-                                    </SelectItem>
-                                  ))}
-                              </SelectContent>
-                            </Select>
+                            <fieldset className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${field.value ? "border-[#119933]" : "border-[#BDBDBD]"} ${!hasValidCategory ? "opacity-50" : ""}`}>
+                              <legend className={`text-sm px-1 leading-none whitespace-nowrap ${field.value ? "text-[#119933]" : "text-[#7f7f7f]"}`}>
+                                Sub Category
+                              </legend>
+                              <div className="flex items-center gap-1 min-w-0 w-full">
+                                <Select
+                                  value={field.value || undefined}
+                                  onValueChange={field.onChange}
+                                  disabled={!hasValidCategory}
+                                >
+                                  <SelectTrigger className="flex-1 text-[14px] text-[#000000] bg-transparent border-0 shadow-none outline-none leading-tight cursor-pointer min-w-0 h-auto py-0 px-0 focus:ring-0 [&>span]:truncate">
+                                    <SelectValue placeholder={hasValidCategory ? "Select sub category" : "Select category first"} />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {subcategories.length > 0 &&
+                                      subcategories.map((subcategory) => (
+                                        <SelectItem key={subcategory.id} value={subcategory.id.toString()}>
+                                          {subcategory.name}
+                                        </SelectItem>
+                                      ))}
+                                  </SelectContent>
+                                </Select>
+                                {field.value && <Check size={16} className="text-[#119933] flex-shrink-0" />}
+                              </div>
+                            </fieldset>
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -1491,32 +1498,37 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
                       name="fieldType"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-sm font-medium text-gray-700">
-                            Field Type
-                          </FormLabel>
-                          <Select
-                            value={field.value || "dropdown"}
-                            onValueChange={(value) => {
-                              field.onChange(value || "dropdown")
-                            }}
-                          >
-                            <FormControl>
-                              <SelectTrigger className="mt-1">
-                                <SelectValue placeholder="Select field type" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="dropdown">Dropdown</SelectItem>
-                              <SelectItem value="radio">Radio</SelectItem>
-                              <SelectItem value="checkbox">Checkbox</SelectItem>
-                              <SelectItem value="number">Number</SelectItem>
-                              <SelectItem value="shade_guide">Shade Guide</SelectItem>
-                              <SelectItem value="text">Text</SelectItem>
-                              <SelectItem value="file_upload">File Upload</SelectItem>
-                              <SelectItem value="multiline_text">Multiline Text</SelectItem>
-                              <SelectItem value="implant_library">Implant Library</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          <FormControl>
+                            <fieldset className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${field.value ? "border-[#119933]" : "border-[#BDBDBD]"}`}>
+                              <legend className={`text-sm px-1 leading-none whitespace-nowrap ${field.value ? "text-[#119933]" : "text-[#7f7f7f]"}`}>
+                                Field Type
+                              </legend>
+                              <div className="flex items-center gap-1 min-w-0 w-full">
+                                <Select
+                                  value={field.value || "dropdown"}
+                                  onValueChange={(value) => {
+                                    field.onChange(value || "dropdown")
+                                  }}
+                                >
+                                  <SelectTrigger className="flex-1 text-[14px] text-[#000000] bg-transparent border-0 shadow-none outline-none leading-tight cursor-pointer min-w-0 h-auto py-0 px-0 focus:ring-0 [&>span]:truncate">
+                                    <SelectValue placeholder="Select field type" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="dropdown">Dropdown</SelectItem>
+                                    <SelectItem value="radio">Radio</SelectItem>
+                                    <SelectItem value="checkbox">Checkbox</SelectItem>
+                                    <SelectItem value="number">Number</SelectItem>
+                                    <SelectItem value="shade_guide">Shade Guide</SelectItem>
+                                    <SelectItem value="text">Text</SelectItem>
+                                    <SelectItem value="file_upload">File Upload</SelectItem>
+                                    <SelectItem value="multiline_text">Multiline Text</SelectItem>
+                                    <SelectItem value="implant_library">Implant Library</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                {field.value && <Check size={16} className="text-[#119933] flex-shrink-0" />}
+                              </div>
+                            </fieldset>
+                          </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}

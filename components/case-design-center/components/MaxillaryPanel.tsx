@@ -497,6 +497,8 @@ interface MaxillaryPanelProps {
   handleToothExtractionToggle: (arch: Arch, toothNumber: number, extractionCode: string) => void;
   selectAllMaxillaryTeeth: (teeth: number[]) => void;
   onToothStatusValidationChange?: (hasValidation: boolean) => void;
+  /** Product+arch combos where user chose "Submit, no opposing needed" */
+  noOpposingNeeded?: Record<string, boolean>;
 }
 
 function hasAdvanceField(
@@ -663,6 +665,7 @@ export function MaxillaryPanel({
   selectAllMaxillaryTeeth,
   onToothStatusValidationChange,
   removablesImpressionDone = false,
+  noOpposingNeeded = {},
 }: MaxillaryPanelProps) {
   const MAXILLARY_ALL_TEETH = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16];
   const [activeExtractionCode, setActiveExtractionCode] = useState<string | null>(null);
@@ -1194,6 +1197,13 @@ export function MaxillaryPanel({
                                   {isFComplete("impression") && !caseSubmitted && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                                 </fieldset>
                               )}
+                              {/* Note for removable/orthodontics — only when user clicked "Submit, no opposing needed" */}
+                              {isFComplete("impression") && noOpposingNeeded[`${productKey}_maxillary_${repTn}`] && (
+                                <p className="font-['Verdana'] text-sm text-black">
+                                  No impression will be sent on this appointment.{" "}
+                                  Please note that opposing scan is <span className="text-[#CF0202] font-bold">required</span> for this impression.
+                                </p>
+                              )}
                               {/* Row 5: Add ons (separate fields per add-on, responsive) */}
                               {hasAdvanceField("addons", advFields) && (() => {
                                 const addonsVal = fVal("addons") || "";
@@ -1556,6 +1566,7 @@ export function MaxillaryPanel({
                       handleOpenImpressionModal={handleOpenImpressionModal}
                       handleOpenAddOnsModal={handleOpenAddOnsModal}
                       setPanelGumShadePicker={setPanelGumShadePicker}
+                      noOpposingNeeded={noOpposingNeeded}
                     />
                   )}
                   <ScrollToBottom />
@@ -1838,6 +1849,13 @@ export function MaxillaryPanel({
                               <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{fVal("impression") || getImpressionDisplayText(productKey, "maxillary")}</span>
                               {isFComplete("impression") && !caseSubmitted && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                             </fieldset>
+                          )}
+                          {/* Note for removable/orthodontics — only when user clicked "Submit, no opposing needed" */}
+                          {isFComplete("impression") && noOpposingNeeded[`${productKey}_maxillary_${repTn}`] && (
+                            <p className="font-['Verdana'] text-sm text-black">
+                              No impression will be sent on this appointment.{" "}
+                              Please note that opposing scan is <span className="text-[#CF0202] font-bold">required</span> for this impression.
+                            </p>
                           )}
                           {/* Row 5: Add ons (separate fields per add-on, responsive) */}
                           {isF("addons") && (() => {

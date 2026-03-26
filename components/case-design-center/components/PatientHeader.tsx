@@ -137,7 +137,7 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
         <div className="flex-1 w-full lg:w-auto flex flex-col gap-3 justify-center lg:justify-start">
           {!caseSubmitted ? (
             compactLayout ? (
-              /* Compact: Patient name + Gender in one row (removable/orthodontics with products) */
+              /* Compact: Patient name + Gender + Age in one row (removable/orthodontics with products) */
               <div className="flex gap-3 sm:gap-4 items-start justify-center lg:justify-start">
                 <FieldInput
                   label="Patient name"
@@ -154,17 +154,17 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
                     options={["Male", "Female"]}
                     onChange={onGenderChange}
                     caseSubmitted={false}
-                    className="flex-1"
+                    className="w-[155px]"
                   />
                 ) : (
-                  <FieldInput label="Gender" value={displayGender} submitted={false} className="flex-1" />
+                  <FieldInput label="Gender" value={displayGender} submitted={false} className="w-[155px]" />
                 )}
                 <FieldInput
                   label="Age"
                   value={displayAge}
                   submitted={false}
                   onChange={onAgeChange}
-                  className="flex-1"
+                  className="w-[155px]"
                   type="number"
                 />
               </div>

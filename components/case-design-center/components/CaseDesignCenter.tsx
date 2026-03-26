@@ -591,6 +591,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           selectAllMaxillaryTeeth={state.selectAllMaxillaryTeeth}
           onToothStatusValidationChange={props.onToothStatusValidationChange}
           removablesImpressionDone={maxillaryRemovablesImpressionDone}
+          noOpposingNeeded={state.noOpposingNeeded}
         />
 
         {/* CENTER NAVIGATION */}
@@ -682,6 +683,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           selectAllMandibularTeeth={state.selectAllMandibularTeeth}
           onToothStatusValidationChange={props.onToothStatusValidationChange}
           removablesImpressionDone={mandibularRemovablesImpressionDone}
+          noOpposingNeeded={state.noOpposingNeeded}
         />
       </div>
 
@@ -846,6 +848,15 @@ export function CaseDesignCenter(props: CaseDesignProps) {
                 state.setSelectedImpressions((prev: Record<string, number>) => ({ ...prev, ...mirrored }));
               }
             }
+          }
+        }}
+        onSubmitNoOpposing={() => {
+          const toothNum = state.currentImpressionToothNumber;
+          const arch = state.currentImpressionArch;
+          const productId = state.currentImpressionProductId;
+          if (toothNum !== null) {
+            const key = `${productId}_${arch}_${toothNum}`;
+            state.setNoOpposingNeeded((prev: Record<string, boolean>) => ({ ...prev, [key]: true }));
           }
         }}
         showAddOnsModal={state.showAddOnsModal}

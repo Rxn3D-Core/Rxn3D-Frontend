@@ -265,6 +265,8 @@ interface RemovableRestorationFieldsProps {
   handleOpenImpressionModal: (arch: Arch, productId: string, toothNumber?: number) => void;
   handleOpenAddOnsModal: (arch: Arch, productId: string, toothNumber?: number) => void;
   setPanelGumShadePicker: (state: { toothNumber: number; gumShades: any[]; selectedName?: string | null }) => void;
+  /** Product+arch combos where user chose "Submit, no opposing needed" */
+  noOpposingNeeded?: Record<string, boolean>;
 }
 
 /* ------------------------------------------------------------------ */
@@ -291,6 +293,7 @@ export function RemovableRestorationFields({
   handleOpenImpressionModal,
   handleOpenAddOnsModal,
   setPanelGumShadePicker,
+  noOpposingNeeded = {},
 }: RemovableRestorationFieldsProps) {
   return (
     <>

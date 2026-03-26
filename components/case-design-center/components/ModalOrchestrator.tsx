@@ -32,6 +32,8 @@ interface ModalOrchestratorProps {
     React.SetStateAction<Record<string, number>>
   >;
   onImpressionConfirm: (displayText: string) => void;
+  /** Called when user clicks "Submit, no opposing needed" */
+  onSubmitNoOpposing?: () => void;
   // Add-ons
   showAddOnsModal: boolean;
   setShowAddOnsModal: (v: boolean) => void;
@@ -115,6 +117,7 @@ export function ModalOrchestrator({
   selectedImpressions,
   setSelectedImpressions,
   onImpressionConfirm,
+  onSubmitNoOpposing,
   // Add-ons
   showAddOnsModal,
   setShowAddOnsModal,
@@ -190,6 +193,25 @@ export function ModalOrchestrator({
         }}
         productId={currentImpressionProductId}
         arch={currentImpressionArch}
+        onSubmitNoOpposing={() => {
+          // Build display text from main arch selections, then close
+          const prefix = `${currentImpressionProductId}_${currentImpressionArch}_`;
+          const entries = Object.entries(selectedImpressions).filter(
+            ([key, qty]) => key.startsWith(prefix) && qty > 0
+          );
+          if (entries.length > 0) {
+            const displayText = entries
+              .map(([key, qty]) => {
+                const identifier = key.replace(prefix, "");
+                const impression = impressionOptions.find((i) => i.value === identifier);
+                return `${qty}x ${impression?.name || identifier}`;
+              })
+              .join(", ");
+            onImpressionConfirm(displayText);
+          }
+          onSubmitNoOpposing?.();
+          setShowImpressionModal(false);
+        }}
       />
 
       {/* Add-Ons Modal */}

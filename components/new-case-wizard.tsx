@@ -61,6 +61,7 @@ function ProductImageWithFallback({
   className = "rounded-[4px]",
   bgClassName = "bg-[#eef1f4]",
   textClassName = "text-[#7f7f7f]",
+  fillHeight = false,
 }: {
   src: string | null | undefined;
   alt: string;
@@ -68,14 +69,17 @@ function ProductImageWithFallback({
   className?: string;
   bgClassName?: string;
   textClassName?: string;
+  fillHeight?: boolean;
 }) {
   const [failed, setFailed] = React.useState(!src);
   // Reset failed state when src changes
   React.useEffect(() => { setFailed(!src); }, [src]);
 
+  const sizeClass = fillHeight ? "w-full flex-1 min-h-0" : "w-full aspect-square";
+
   if (failed) {
     return (
-      <div className={`w-full aspect-square ${className} overflow-hidden flex-shrink-0 ${bgClassName} flex items-center justify-center p-3`}>
+      <div className={`${sizeClass} ${className} overflow-hidden flex-shrink-0 ${bgClassName} flex items-center justify-center p-3`}>
         <span
           className={`text-[13px] font-semibold ${textClassName} text-center leading-tight`}
           style={{ fontFamily: "Verdana, sans-serif" }}
@@ -87,7 +91,7 @@ function ProductImageWithFallback({
   }
 
   return (
-    <div className={`w-full aspect-square ${className} overflow-hidden flex-shrink-0 ${bgClassName}`}>
+    <div className={`${sizeClass} ${className} overflow-hidden flex-shrink-0 ${bgClassName}`}>
       <img
         src={src!}
         alt={alt}
@@ -810,7 +814,7 @@ function StepCategory({
       <div className="flex-1 flex flex-col px-6 py-4">
         <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} age={age} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} onAgeChange={onAgeChange} />
         <h2 className="text-center text-[20px] font-bold text-[#1d1d1b] tracking-wide mt-4 mb-2">CASE DESIGN CENTER</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6 max-w-[640px] mx-auto w-full">
+        <div className="flex flex-wrap justify-center gap-4 mb-6">
           {[1, 2, 3].map((i) => (
             <Skeleton key={i} className="w-full aspect-square rounded-[4px]" />
           ))}
@@ -838,12 +842,12 @@ function StepCategory({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6 max-w-[640px] mx-auto w-full">
+      <div className="flex flex-wrap justify-center gap-4 mb-6">
         {categories.map((cat) => (
           <button
             key={cat.id}
             onClick={() => onSelect(cat.id)}
-            className={`group flex flex-col overflow-hidden rounded-[7px] border-[3px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${
+            className={`group flex flex-col overflow-hidden rounded-[7px] border-[3px] w-[200px] sm:w-[250px] md:w-[300px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${
               selected === cat.id
                 ? "border-[#1162A8] bg-[#1162A8]/5"
                 : "border-[#d9d9d9] bg-white"
@@ -933,7 +937,7 @@ function StepSubProduct({
           <button
             key={prod.id}
             onClick={() => onSelect(prod.id)}
-            className={`group flex flex-col overflow-hidden rounded-[7px] border-[3px] w-[155px] sm:w-[180px] md:w-[200px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${
+            className={`group flex flex-col overflow-hidden rounded-[7px] border-[3px] w-[200px] sm:w-[250px] md:w-[300px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${
               selected === prod.id
                 ? "border-[#1162A8] bg-[#1162A8]/5"
                 : "border-[#d9d9d9] bg-white"
@@ -1027,7 +1031,7 @@ function StepMaterial({
         <h2 className="text-center text-[20px] font-bold text-[#1d1d1b] tracking-wide mt-4 mb-2">CASE DESIGN CENTER</h2>
         <div className="flex flex-wrap justify-center gap-4 mb-6">
           {[1, 2, 3, 4, 5, 6].map((i) => (
-            <Skeleton key={i} className="w-[155px] sm:w-[180px] md:w-[200px] aspect-square rounded-[5px]" />
+            <Skeleton key={i} className="w-[200px] aspect-square rounded-[5px]" />
           ))}
         </div>
       </div>
@@ -1087,7 +1091,7 @@ function StepMaterial({
                     onSelect(prodId, forceArch);
                   }
                 }}
-                className={`group relative flex flex-col items-center px-4 py-[5px] gap-2 w-[155px] sm:w-[180px] md:w-[200px] rounded-[7px] border-[3px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${
+                className={`group relative flex flex-col items-center overflow-hidden w-[200px] h-[200px] rounded-[7px] border-[3px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${
                   isSelected
                     ? "border-[#1162A8] bg-[#1162A8]/5"
                     : "border-[#d9d9d9] bg-white"
@@ -1095,11 +1099,11 @@ function StepMaterial({
               >
                 <span
                   style={{ fontFamily: "Verdana, sans-serif", fontSize: 14, lineHeight: "15px", letterSpacing: "-0.02em" }}
-                  className="text-[#000000] text-center self-stretch pt-1"
+                  className="text-[#000000] text-center self-stretch py-2 px-2"
                 >
                   {prod.name}
                 </span>
-                <ProductImageWithFallback src={prod.img} alt={prod.name} name={prod.name} className="rounded-[5px]" bgClassName="bg-[#080808]" textClassName="text-[#b4b0b0]" />
+                <ProductImageWithFallback src={prod.img} alt={prod.name} name={prod.name} className="rounded-none" bgClassName="bg-[#080808]" textClassName="text-[#b4b0b0]" fillHeight />
               </button>
 
               {/* Arch selection popover */}
