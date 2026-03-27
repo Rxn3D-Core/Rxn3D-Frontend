@@ -186,7 +186,7 @@ export const GradesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [error, successMessage])
 
   const fetchGrades = useCallback(
-    async (page = pagination.current_page, perPage = pagination.per_page) => {
+    async (page = 1, perPage = 10) => {
       if (!authToken) {
         setError("Authentication token not found. Please log in.")
         setGrades([])
@@ -276,8 +276,6 @@ export const GradesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       statusFilter,
       groupIdFilter,
       toast,
-      pagination.current_page,
-      pagination.per_page,
       currentLanguage,
       isLabAdmin,
     ],

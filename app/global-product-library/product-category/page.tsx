@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Search, ArrowUp, ArrowDown, Copy, Edit, TrashIcon, Plus, Package } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -49,19 +49,26 @@ export default function ProductCategoryPage() {
   const { currentLanguage } = useLanguage();
   const { t } = useTranslation();
   
-  useEffect(() => {
-    fetchCategories(currentPage, Number(entriesPerPage), searchQuery, sortColumn, sortDirection)
-  }, [currentPage, entriesPerPage, searchQuery, sortColumn, sortDirection, fetchCategories, currentLanguage])
-
+  // Debounce search input before updating context
   useEffect(() => {
     const timer = setTimeout(() => {
       if (searchInput !== searchQuery) {
         setSearchQuery(searchInput)
-        setCurrentPage(1) 
+        setCurrentPage(1)
       }
     }, 500)
     return () => clearTimeout(timer)
   }, [searchInput, searchQuery, setSearchQuery])
+
+  // Single debounced fetch effect
+  const fetchTimerRef = useRef<NodeJS.Timeout | null>(null)
+  useEffect(() => {
+    if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current)
+    fetchTimerRef.current = setTimeout(() => {
+      fetchCategories(currentPage, Number(entriesPerPage), searchQuery, sortColumn, sortDirection)
+    }, 50)
+    return () => { if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current) }
+  }, [currentPage, entriesPerPage, searchQuery, sortColumn, sortDirection, fetchCategories])
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page)

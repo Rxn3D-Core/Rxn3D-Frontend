@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Search, ArrowUp, ArrowDown, Info, ChevronLeft, ChevronRight, Edit, Trash2, Copy, TrashIcon, Plus, Package } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -58,25 +58,10 @@ export default function AddOnsPage() {
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
 
-  // Fetch add-ons and groups when language changes
+  // Fetch add-on groups on mount
   useEffect(() => {
-    fetchAddOns(currentPage, Number(entriesPerPage))
     fetchAddOnGroups()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentLanguage])
-
-  // Keep local pagination state in sync with context pagination
-  useEffect(() => {
-    if (addOnPagination) {
-      if (addOnPagination.per_page.toString() !== entriesPerPage) {
-        setEntriesPerPage(addOnPagination.per_page.toString())
-      }
-      if (addOnPagination.current_page !== currentPage) {
-        setCurrentPage(addOnPagination.current_page)
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [addOnPagination])
+  }, [fetchAddOnGroups])
 
   // Debounced search
   useEffect(() => {
@@ -87,22 +72,24 @@ export default function AddOnsPage() {
       }
     }, 500)
     return () => clearTimeout(timer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchInput])
+  }, [searchInput, searchQuery, setSearchQuery])
 
   // Keep search input in sync with context searchQuery
   useEffect(() => {
     if (searchQuery !== searchInput) {
       setSearchInput(searchQuery)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery])
 
-  // Fetch add-ons when pagination, search, or sort changes
+  // Single debounced fetch effect
+  const fetchTimerRef = useRef<NodeJS.Timeout | null>(null)
   useEffect(() => {
-    fetchAddOns(currentPage, Number(entriesPerPage))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, entriesPerPage, searchQuery, sortColumn, sortDirection, currentLanguage])
+    if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current)
+    fetchTimerRef.current = setTimeout(() => {
+      fetchAddOns(currentPage, Number(entriesPerPage))
+    }, 50)
+    return () => { if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current) }
+  }, [currentPage, entriesPerPage, searchQuery, sortColumn, sortDirection, fetchAddOns])
 
   const handlePageChange = (page: number) => {
     if (addOnPagination && page >= 1 && page <= addOnPagination.last_page) {

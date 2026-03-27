@@ -247,11 +247,15 @@ export const StagesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [])
 
   const fetchStages = useCallback(
-    async (page = pagination.current_page, perPage = pagination.per_page) => {
+    async (page = 1, perPage = 10) => {
       if (!authToken) {
         setError("Authentication required to fetch stages.")
         setStages([])
         setPagination(defaultPagination)
+        return
+      }
+      // Lab admin must have customerId resolved before fetching
+      if (isLabAdmin && !customerId) {
         return
       }
       setIsLoading(true)
@@ -299,8 +303,6 @@ export const StagesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       statusFilter,
       sortColumn,
       sortDirection,
-      pagination.current_page,
-      pagination.per_page,
       toast,
       currentLanguage,
       isLabAdmin,

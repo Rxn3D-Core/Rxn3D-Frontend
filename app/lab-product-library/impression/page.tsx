@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Search, ArrowUp, ArrowDown, Info, Edit, TrashIcon, Copy, Plus, Package } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -55,10 +55,15 @@ export default function ImpressionPage() {
   const [isCopying, setIsCopying] = useState(false)
   const { currentLanguage } = useLanguage()
 
-  // Fetch impressions on component mount and when dependencies change
+  // Single debounced fetch effect
+  const fetchTimerRef = useRef<NodeJS.Timeout | null>(null)
   useEffect(() => {
-    fetchImpressions(currentPage, entriesPerPage)
-  }, [fetchImpressions, currentPage, entriesPerPage, currentLanguage])
+    if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current)
+    fetchTimerRef.current = setTimeout(() => {
+      fetchImpressions(currentPage, entriesPerPage)
+    }, 50)
+    return () => { if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current) }
+  }, [fetchImpressions, currentPage, entriesPerPage])
 
   // Filter and sort impressions based on API data
   const filteredImpressions = impressions.filter(

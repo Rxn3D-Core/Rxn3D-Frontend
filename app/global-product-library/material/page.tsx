@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -59,10 +59,15 @@ export default function MaterialPage() {
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
 
-  // Fetch materials on component mount and when dependencies change
+  // Single debounced fetch effect
+  const fetchTimerRef = useRef<NodeJS.Timeout | null>(null)
   useEffect(() => {
-    fetchMaterials(currentPage, Number.parseInt(entriesPerPage))
-  }, [fetchMaterials, currentPage, entriesPerPage, searchQuery, sortColumn, sortDirection, currentLanguage])
+    if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current)
+    fetchTimerRef.current = setTimeout(() => {
+      fetchMaterials(currentPage, Number.parseInt(entriesPerPage))
+    }, 50)
+    return () => { if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current) }
+  }, [fetchMaterials, currentPage, entriesPerPage, searchQuery, sortColumn, sortDirection])
 
   const handleSort = (column: string) => {
     if (sortColumn === column) {

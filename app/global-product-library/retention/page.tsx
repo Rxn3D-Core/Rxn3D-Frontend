@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -40,16 +40,20 @@ export default function RetentionPage() {
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       setSearchTerm(searchInput)
-      setCurrentPage(1) // Reset to first page when search changes
+      setCurrentPage(1)
     }, 300)
-
     return () => clearTimeout(timeoutId)
   }, [searchInput])
 
-  // Fetch retentions when filters change
+  // Single debounced fetch effect
+  const fetchTimerRef = useRef<NodeJS.Timeout | null>(null)
   useEffect(() => {
-    fetchRetentions(currentPage, entriesPerPage, searchTerm, sortField, sortDirection)
-  }, [fetchRetentions, currentPage, entriesPerPage, searchTerm, sortField, sortDirection, currentLanguage])
+    if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current)
+    fetchTimerRef.current = setTimeout(() => {
+      fetchRetentions(currentPage, entriesPerPage, searchTerm, sortField, sortDirection)
+    }, 50)
+    return () => { if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current) }
+  }, [fetchRetentions, currentPage, entriesPerPage, searchTerm, sortField, sortDirection])
 
   const handleSort = (field: SortField | string) => {
     if (sortField === field) {

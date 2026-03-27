@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Search, ArrowUp, ArrowDown, Info, Edit, TrashIcon, Copy, Package, Plus, Package2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -76,21 +76,19 @@ export default function TeethShadePage() {
   const { t } = useTranslation()
   const { addWarning } = useProductLibraryWarningsStore()
 
-  // Fetch initial data
+  // Fetch groups on mount
   useEffect(() => {
-    fetchTeethShadeBrands()
     fetchTeethShadeGroups()
-  }, [fetchTeethShadeBrands, fetchTeethShadeGroups, currentLanguage])
+  }, [fetchTeethShadeGroups])
 
   // Debounce search input
   useEffect(() => {
     const timer = setTimeout(() => {
       if (searchInput !== searchQuery) {
         setSearchQuery(searchInput)
-        setCurrentPage(1) // Reset to first page on new search
+        setCurrentPage(1)
       }
     }, 500)
-
     return () => clearTimeout(timer)
   }, [searchInput, setSearchQuery, searchQuery])
 
@@ -101,11 +99,15 @@ export default function TeethShadePage() {
     }
   }, [searchQuery])
 
+  // Single debounced fetch effect
+  const fetchTimerRef = useRef<NodeJS.Timeout | null>(null)
   useEffect(() => {
-    if (Number(entriesPerPage) !== pagination.per_page || currentPage !== pagination.current_page) {
+    if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current)
+    fetchTimerRef.current = setTimeout(() => {
       fetchTeethShadeBrands(currentPage, Number(entriesPerPage))
-    }
-  }, [currentPage, entriesPerPage, fetchTeethShadeBrands, pagination.per_page, pagination.current_page])
+    }, 50)
+    return () => { if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current) }
+  }, [currentPage, entriesPerPage, fetchTeethShadeBrands])
 
   // Handle page change
   const handlePageChange = (page: number) => {

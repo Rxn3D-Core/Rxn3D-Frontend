@@ -58,7 +58,6 @@ export default function ProductsPage() {
   const [searchInput, setSearchInput] = useState(searchQuery)
   const { currentLanguage } = useLanguage()
   const { t } = useTranslation();
-  const isInitialMount = useRef(true)
 
   // State for delete modal
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
@@ -114,22 +113,11 @@ export default function ProductsPage() {
     }
   }, [searchQuery, currentPage])
 
-  // Initial load effect
+  // Single debounced fetch effect
+  const fetchTimerRef = useRef<NodeJS.Timeout | null>(null)
   useEffect(() => {
-    fetchProducts(
-      currentPage,
-      Number(entriesPerPage),
-      searchQuery,
-      sortColumn,
-      sortDirection,
-      statusFilter,
-      subcategoryFilter,
-    )
-  }, []) // Only run once on mount
-
-  // Effect for when filters/search change
-  useEffect(() => {
-    if (!isInitialMount.current) {
+    if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current)
+    fetchTimerRef.current = setTimeout(() => {
       fetchProducts(
         currentPage,
         Number(entriesPerPage),
@@ -139,9 +127,8 @@ export default function ProductsPage() {
         statusFilter,
         subcategoryFilter,
       )
-    } else {
-      isInitialMount.current = false
-    }
+    }, 50)
+    return () => { if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current) }
   }, [
     currentPage,
     entriesPerPage,
@@ -150,7 +137,7 @@ export default function ProductsPage() {
     sortDirection,
     statusFilter,
     subcategoryFilter,
-    currentLanguage,
+    fetchProducts,
   ])
 
   // Fetch all categories on mount

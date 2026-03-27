@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -98,9 +98,15 @@ export default function RetentionOptionPage() {
     }
   }
 
+  // Single debounced fetch effect
+  const fetchTimerRef = useRef<NodeJS.Timeout | null>(null)
   useEffect(() => {
-    fetchRetentionOptions()
-  }, [currentPage, entriesPerPage, searchTerm, sortField, sortDirection, currentLanguage, customerId])
+    if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current)
+    fetchTimerRef.current = setTimeout(() => {
+      fetchRetentionOptions()
+    }, 50)
+    return () => { if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current) }
+  }, [currentPage, entriesPerPage, searchTerm, sortField, sortDirection, customerId])
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {

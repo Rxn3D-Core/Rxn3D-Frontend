@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Search, ArrowUp, ArrowDown, Info, ChevronLeft, ChevronRight, Edit, TrashIcon, Copy, Plus, Package } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -42,6 +42,7 @@ export default function GradesPage() {
 
   const [isCreateGradeModalOpen, setIsCreateGradeModalOpen] = useState(false)
   const [isCreateGradeGroupModalOpen, setIsCreateGradeGroupModalOpen] = useState(false)
+  const [editingGrade, setEditingGrade] = useState<Grade | null>(null)
 
   const [isModalDirty, setIsModalDirty] = useState(false)
 
@@ -58,34 +59,32 @@ export default function GradesPage() {
   const [isBulkDelete, setIsBulkDelete] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
 
-  // Refetch when sort, search, or language changes (reset to page 1)
-  useEffect(() => {
-    fetchGrades(1, Number.parseInt(entriesPerPage))
-  }, [fetchGrades, currentLanguage, sortColumn, sortDirection])
-  
+  // Debounce search input
   useEffect(() => {
     const timer = setTimeout(() => {
       if (searchInput !== contextSearchQuery) {
         setSearchQuery(searchInput)
+        setCurrentPage(1)
       }
-    }, 500) 
+    }, 500)
     return () => clearTimeout(timer)
-  }, [searchInput, contextSearchQuery, setSearchQuery, currentLanguage])
+  }, [searchInput, contextSearchQuery, setSearchQuery])
 
   useEffect(() => {
     setSearchInput(contextSearchQuery)
   }, [contextSearchQuery])
 
+  // Debounced fetch — prevents duplicate API calls
+  const fetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
-    if (currentPage !== pagination.current_page || Number.parseInt(entriesPerPage) !== pagination.per_page) {
+    if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current)
+    fetchTimerRef.current = setTimeout(() => {
       fetchGrades(currentPage, Number.parseInt(entriesPerPage))
+    }, 50)
+    return () => {
+      if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current)
     }
-  }, [currentPage, entriesPerPage, fetchGrades, pagination.current_page, pagination.per_page, currentLanguage])
-
-  useEffect(() => {
-    setCurrentPage(pagination.current_page)
-    setEntriesPerPage(pagination.per_page.toString())
-  }, [pagination.current_page, pagination.per_page, currentLanguage])
+  }, [fetchGrades, currentPage, entriesPerPage])
 
   const handleSort = (column: keyof Grade | string) => {
     const newSortDirection =
@@ -149,6 +148,7 @@ export default function GradesPage() {
   const totalPages = pagination.last_page || 1
 
   function handleEdit(grade: Grade): void {
+    setEditingGrade(grade)
     setIsCreateGradeModalOpen(true)
   }
 
@@ -235,7 +235,10 @@ export default function GradesPage() {
         <div className="flex gap-3">
           <Button
             className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
-            onClick={() => setIsCreateGradeModalOpen(true)}
+            onClick={() => {
+              setEditingGrade(null)
+              setIsCreateGradeModalOpen(true)
+            }}
           >
             <Plus className="h-4 w-4 mr-2" />
             Add Grade
@@ -442,7 +445,12 @@ export default function GradesPage() {
 
       <CreateGradeModal
         isOpen={isCreateGradeModalOpen}
-        onClose={() => setIsCreateGradeModalOpen(false)}
+        onClose={() => {
+          setIsCreateGradeModalOpen(false)
+          setEditingGrade(null)
+        }}
+        editingGrade={editingGrade}
+        editId={editingGrade?.id}
       />
 
       <CreateGradeGroupModal

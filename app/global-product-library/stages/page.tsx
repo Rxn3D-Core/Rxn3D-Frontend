@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Search, ArrowUp, ArrowDown, Info, Edit, TrashIcon, Copy, Package, Plus, Package2, Upload, Link } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -63,15 +63,7 @@ export default function StagesPage() {
   const [stageDeleteTargetId, setStageDeleteTargetId] = useState<number | null>(null)
   const [isStageDeleting, setIsStageDeleting] = useState(false)
 
-  useEffect(() => {
-    fetchStages()
-  }, [fetchStages, currentLanguage])
-
-  useEffect(() => {
-    setCurrentPage(pagination.current_page)
-    setEntriesPerPage(pagination.per_page.toString())
-  }, [pagination, currentLanguage])
-
+  // Debounce search input before updating context
   useEffect(() => {
     const timer = setTimeout(() => {
       if (searchInput !== contextSearchQuery) {
@@ -79,19 +71,26 @@ export default function StagesPage() {
       }
     }, 500)
     return () => clearTimeout(timer)
-  }, [searchInput, contextSearchQuery, setContextSearchQuery, currentLanguage])
+  }, [searchInput, contextSearchQuery, setContextSearchQuery])
 
+  // Sync search input from context (e.g. when cleared externally)
   useEffect(() => {
     if (contextSearchQuery !== searchInput) {
       setSearchInput(contextSearchQuery)
     }
   }, [contextSearchQuery])
 
+  // Debounced fetch — prevents duplicate API calls
+  const fetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
-    if (Number(entriesPerPage) !== pagination.per_page || currentPage !== pagination.current_page) {
+    if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current)
+    fetchTimerRef.current = setTimeout(() => {
       fetchStages(currentPage, Number(entriesPerPage))
+    }, 50)
+    return () => {
+      if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current)
     }
-  }, [currentPage, entriesPerPage, fetchStages, pagination.per_page, pagination.current_page, currentLanguage])
+  }, [fetchStages, currentPage, entriesPerPage])
 
   const handleSort = (column: keyof Stage | string) => {
     let newDirection: "asc" | "desc" | null = "asc"
