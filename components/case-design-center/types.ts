@@ -287,6 +287,19 @@ export interface ProductApiData {
   extractions?: ProductExtraction[];
   advance_fields?: ProductAdvanceField[];
   opposite_impression?: "Yes" | "No";
+  retention_options?: Array<{
+    id: number;
+    name: string;
+    image_url: string | null;
+    tooth_chart_type: string | null;
+    status?: string;
+    sequence?: number;
+    lab_retention_option?: {
+      name?: string;
+      image_url?: string | null;
+      tooth_chart_type?: string | null;
+    };
+  }>;
   subcategory?: {
     id: number;
     name: string;

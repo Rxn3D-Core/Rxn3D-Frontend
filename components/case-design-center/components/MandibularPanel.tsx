@@ -11,6 +11,7 @@ import {
   Paperclip,
 } from "lucide-react";
 import { MandibularTeethSVG } from "@/components/mandibular-teeth-svg";
+import type { RetentionOptionItem } from "@/components/retention-type-popover";
 import {
   FieldInput,
   ShadeField,
@@ -494,6 +495,8 @@ interface MandibularPanelProps {
   setRetentionPopoverState: (state: RetentionPopoverState) => void;
   /** When true, active product is Removable restoration — hide retention popover and only toggle teeth */
   activeProductIsRemovables?: boolean;
+  /** Retention options from the product API response, used by retention popover */
+  retentionOptions?: RetentionOptionItem[];
   handleSelectRetentionType: (arch: Arch, tooth: number, type: RetentionType) => void;
 
   // Shade selection
@@ -602,6 +605,7 @@ export function MandibularPanel({
   retentionPopoverState,
   setRetentionPopoverState,
   activeProductIsRemovables = false,
+  retentionOptions,
   handleSelectRetentionType,
   shadeSelectionState,
   setShadeSelectionState,
@@ -768,6 +772,7 @@ export function MandibularPanel({
                 onSelectRetentionType={(tooth, type) => handleSelectRetentionType('mandibular', tooth, type)}
                 onClosePopover={() => setRetentionPopoverState({ arch: null, toothNumber: null })}
                 onDeselectTooth={handleMandibularToothDeselect}
+                retentionOptions={retentionOptions}
                 toothExtractionMap={mandibularToothExtractionMap}
                 hideSelectionIndicators={isRemovablesCategory || activeProductIsRemovables}
                 claspTeeth={mandibularClaspTeeth}

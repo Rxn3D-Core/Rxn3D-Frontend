@@ -537,6 +537,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           retentionPopoverState={state.retentionPopoverState}
           setRetentionPopoverState={state.setRetentionPopoverState}
           activeProductIsRemovables={state.activeProductIsRemovablesMaxillary}
+          retentionOptions={state.initialProductDetails?.retention_options}
           handleSelectRetentionType={state.handleSelectRetentionType}
           handleMaxillaryToothDeselect={state.handleMaxillaryToothDeselect}
           // Shade
@@ -631,6 +632,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           retentionPopoverState={state.retentionPopoverState}
           setRetentionPopoverState={state.setRetentionPopoverState}
           activeProductIsRemovables={state.activeProductIsRemovablesMandibular}
+          retentionOptions={state.initialProductDetails?.retention_options}
           handleSelectRetentionType={state.handleSelectRetentionType}
           handleMandibularToothDeselect={state.handleMandibularToothDeselect}
           // Shade

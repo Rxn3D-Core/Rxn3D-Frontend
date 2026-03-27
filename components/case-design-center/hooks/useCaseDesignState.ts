@@ -245,6 +245,25 @@ export function useCaseDesignState(props: CaseDesignProps) {
   // Cache product data so we only fetch from API once (supports multiple products)
   const cachedProductRef = useRef<Map<number, ProductApiData>>(new Map());
 
+  // Fetch initial product details (for retention_options used by retention popover)
+  const [initialProductDetails, setInitialProductDetails] = useState<ProductApiData | null>(null);
+  useEffect(() => {
+    if (!props.selectedProductId) return;
+    const role = localStorage.getItem("role");
+    const customerId = Number(
+      role === "office_admin" || role === "doctor"
+        ? localStorage.getItem("selectedLabId")
+        : localStorage.getItem("customerId")
+    );
+    if (!customerId) return;
+    fetchProductDetails(props.selectedProductId, customerId).then((data) => {
+      if (data) {
+        setInitialProductDetails(data);
+        cachedProductRef.current.set(props.selectedProductId!, data);
+      }
+    });
+  }, [props.selectedProductId]);
+
   // Teeth shade catalog — fetched once on mount for ID resolution at selection time
   const teethShadeCatalogRef = useRef<TeethShadeEntry[]>([]);
   useEffect(() => {
@@ -570,6 +589,8 @@ export function useCaseDesignState(props: CaseDesignProps) {
     // Hide retention popover when active product is Removables (so panel can pass showRetentionPopover = false)
     activeProductIsRemovablesMaxillary: treatArchAsRemovables.maxillary,
     activeProductIsRemovablesMandibular: treatArchAsRemovables.mandibular,
+    // Initial product details (for retention_options used by retention popover)
+    initialProductDetails,
     // Props pass-through
     ...props,
   };

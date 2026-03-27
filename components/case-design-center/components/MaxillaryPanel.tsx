@@ -11,6 +11,7 @@ import {
   Paperclip,
 } from "lucide-react";
 import { MaxillaryTeethSVG } from "@/components/maxillary-teeth-svg";
+import type { RetentionOptionItem } from "@/components/retention-type-popover";
 import { FieldInput, ShadeField, IconField } from "./fields";
 import { RushIcon } from "./CenterActionIcons";
 import {
@@ -423,6 +424,8 @@ interface MaxillaryPanelProps {
   setRetentionPopoverState: (state: RetentionPopoverState) => void;
   /** When true, active product is Removable restoration — hide retention popover and only toggle teeth */
   activeProductIsRemovables?: boolean;
+  /** Retention options from the product API response, used by retention popover */
+  retentionOptions?: RetentionOptionItem[];
   handleSelectRetentionType: (
     arch: Arch,
     toothNumber: number,
@@ -618,6 +621,7 @@ export function MaxillaryPanel({
   retentionPopoverState,
   setRetentionPopoverState,
   activeProductIsRemovables = false,
+  retentionOptions,
   handleSelectRetentionType,
   handleMaxillaryToothDeselect,
   shadeSelectionState,
@@ -785,6 +789,7 @@ export function MaxillaryPanel({
                 })
               }
               onDeselectTooth={handleMaxillaryToothDeselect}
+              retentionOptions={retentionOptions}
               toothExtractionMap={maxillaryToothExtractionMap}
               hideSelectionIndicators={isRemovablesCategory || activeProductIsRemovables}
               claspTeeth={maxillaryClaspTeeth}

@@ -14,11 +14,20 @@ export interface RetentionOptionItem {
   }
 }
 
-// Fallback static images for known tooth_chart_type values
+// Fallback static images keyed by normalized name
 const FALLBACK_IMAGES: Record<string, string> = {
   Implant: '/images/retention-type/Implant.svg',
   Prep: '/images/retention-type/prepped.svg',
+  Prepped: '/images/retention-type/prepped.svg',
   Pontic: '/images/retention-type/pontic.svg',
+}
+
+// Map API retention option names to the internal RetentionType values used downstream
+const NAME_TO_RETENTION_TYPE: Record<string, string> = {
+  Implant: 'Implant',
+  Prepped: 'Prep',
+  Prep: 'Prep',
+  Pontic: 'Pontic',
 }
 
 interface RetentionTypePopoverProps {
@@ -59,7 +68,6 @@ export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({
   // Build the list of options to render from API data or fallback to hardcoded defaults
   const options = React.useMemo(() => {
     if (retentionOptions && retentionOptions.length > 0) {
-      // Filter active options and deduplicate by tooth_chart_type
       const seen = new Set<string>()
       return retentionOptions
         .filter((opt) => {
@@ -67,14 +75,15 @@ export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({
           return status === 'Active'
         })
         .map((opt) => {
-          const toothChartType = (opt.tooth_chart_type || opt.lab_retention_option?.tooth_chart_type || '') as 'Implant' | 'Prep' | 'Pontic'
-          const name = opt.name || opt.lab_retention_option?.name || toothChartType || 'Unknown'
-          const imageUrl = opt.image_url || opt.lab_retention_option?.image_url || FALLBACK_IMAGES[toothChartType] || null
-          return { toothChartType, name, imageUrl }
+          const name = opt.name || opt.lab_retention_option?.name || 'Unknown'
+          // Map API name to internal retention type (e.g. "Prepped" → "Prep")
+          const retentionType = (NAME_TO_RETENTION_TYPE[name] || name) as 'Implant' | 'Prep' | 'Pontic'
+          const imageUrl = opt.image_url || opt.lab_retention_option?.image_url || FALLBACK_IMAGES[name] || null
+          return { toothChartType: retentionType, name, imageUrl }
         })
         .filter((opt) => {
-          // Only include options with a valid tooth_chart_type and deduplicate
-          if (!opt.toothChartType || seen.has(opt.toothChartType)) return false
+          // Deduplicate by mapped retention type
+          if (seen.has(opt.toothChartType)) return false
           seen.add(opt.toothChartType)
           return true
         })
