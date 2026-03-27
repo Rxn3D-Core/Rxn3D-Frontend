@@ -10,7 +10,7 @@ import { useModalState } from "./useModalState";
 import { useProductManagement } from "./useProductManagement";
 import { useImplantState } from "./useImplantState";
 import { useToothFieldProgress, FIXED_SHADE_FIELD_TO_STEP } from "./useToothFieldProgress";
-import { isRemovableCategory, isFixedCategory, getCategoryName } from "../utils/categoryHelpers";
+import { isRemovableCategory, isFixedCategory, getCategoryName, isSingleStageNoStages } from "../utils/categoryHelpers";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
@@ -253,6 +253,24 @@ export function useCaseDesignState(props: CaseDesignProps) {
     });
   }, []);
 
+  // Auto-complete stage step when product is single-stage with no stage options
+  const autoCompleteSingleStage = useCallback(
+    (arch: Arch, toothNumber: number, product: ProductApiData) => {
+      if (!isSingleStageNoStages(product)) return;
+      const catName = getCategoryName(product);
+      const isFixed = isFixedCategory(catName);
+      const stageStep = isFixed ? "fixed_stage" as const : "stage" as const;
+      // Auto-complete the stage field so the chain advances past it
+      toothFieldProgress.completeFieldStep(arch, toothNumber, stageStep, "Single Stage");
+      // Also set the selectedStages value so the badge/display shows correctly
+      const stageKey = isFixed
+        ? `${arch}_fixed_${toothNumber}`
+        : `${arch}_prep_${toothNumber}`;
+      modals.setSelectedStages((prev: Record<string, string>) => ({ ...prev, [stageKey]: "Single Stage" }));
+    },
+    [toothFieldProgress, modals]
+  );
+
   // Fetch and assign product details when retention type is selected
   const fetchAndAssignProduct = useCallback(
     async (arch: Arch, toothNumber: number, productId: number) => {
@@ -260,6 +278,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
       const cached = cachedProductRef.current.get(productId);
       if (cached) {
         toothFieldProgress.setToothProduct(arch, toothNumber, cached);
+        autoCompleteSingleStage(arch, toothNumber, cached);
         return;
       }
 
@@ -275,10 +294,11 @@ export function useCaseDesignState(props: CaseDesignProps) {
       if (product) {
         cachedProductRef.current.set(productId, product);
         toothFieldProgress.setToothProduct(arch, toothNumber, product);
+        autoCompleteSingleStage(arch, toothNumber, product);
       }
       toothFieldProgress.setProductLoading(arch, toothNumber, false);
     },
-    [toothFieldProgress]
+    [toothFieldProgress, autoCompleteSingleStage]
   );
 
   // Helper: determine the target product ID for the active card

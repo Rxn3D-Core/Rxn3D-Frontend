@@ -121,24 +121,32 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
 
     return (
       <div className="w-full">
-        <fieldset
+        <div
           className={cn(
-            "border rounded px-3 py-0 relative h-[42px] flex items-center min-w-0 transition-colors duration-150 bg-white",
+            "border rounded-lg px-4 relative h-12 flex items-center min-w-0 transition-all duration-200 bg-white cursor-text",
             getBorderColor(),
             getRingEffect(),
             !disabled && !isFocused && "hover:shadow-[0_0_8px_rgba(17,98,168,0.2)]",
             (disabled || validationState === "disabled") && "opacity-40 cursor-not-allowed bg-gray-50",
             className
           )}
+          onClick={() => {
+            const input = document.getElementById(props.id || "")
+            input?.focus()
+          }}
         >
-          <legend
+          <label
+            htmlFor={props.id}
             className={cn(
-              "text-sm px-1 leading-none whitespace-nowrap transition-colors duration-150",
+              "absolute left-4 transition-all duration-200 pointer-events-none",
+              shouldFloatLabel
+                ? "-top-2.5 text-xs bg-white px-1"
+                : "top-1/2 -translate-y-1/2 text-sm",
               getLabelColor()
             )}
           >
             {label}
-          </legend>
+          </label>
           <div className="flex items-center gap-2 min-w-0 w-full">
             <input
               type={type}
@@ -146,6 +154,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
               value={value}
               disabled={disabled || validationState === "disabled"}
               className="text-[14px] font-normal text-[#000000] bg-transparent outline-none leading-tight min-w-0 flex-1 truncate"
+              placeholder=""
               onFocus={(e) => {
                 setIsFocused(true)
                 props.onFocus?.(e)
@@ -158,7 +167,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             />
             {getValidationIcon()}
           </div>
-        </fieldset>
+        </div>
         {validationState === "error" && errorMessage && (
           <p className="text-xs text-[#CF0202] mt-1 px-1">{errorMessage}</p>
         )}

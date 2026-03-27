@@ -21,6 +21,7 @@ import type {
 } from "../types";
 import type { FieldStep } from "../hooks/useToothFieldProgress";
 import { ImplantDetailSection } from "./ImplantDetailSection";
+import { isSingleStageNoStages } from "../utils/categoryHelpers";
 
 /* ------------------------------------------------------------------ */
 /*  Articulator icon (Stage field)                                     */
@@ -314,15 +315,16 @@ export function FixedRestorationFields({
       {!fixedShadeIncomplete && <>
 
       {/* Step 1 & 2: Stage, Stump Shade, and Tooth Shade in one row */}
-      {(isFixed("fixed_stage") || (isFixed("fixed_stump_shade") && hasAdvanceField("fixed_stump_shade", selectedProduct?.advance_fields))) && (() => {
+      {((!isSingleStageNoStages(selectedProduct) && isFixed("fixed_stage")) || (isFixed("fixed_stump_shade") && hasAdvanceField("fixed_stump_shade", selectedProduct?.advance_fields))) && (() => {
+        const showStage = !isSingleStageNoStages(selectedProduct) && isFixed("fixed_stage");
         const showStumpShade = isFixed("fixed_stump_shade") && hasAdvanceField("fixed_stump_shade", selectedProduct?.advance_fields);
         const toothShadeValue = getSelectedShade(`fixed_${firstToothNumber}`, arch, "tooth_shade");
         const showToothShade = showStumpShade && !!toothShadeValue;
-        const colCount = 1 + (showStumpShade ? 1 : 0) + (showToothShade ? 1 : 0);
+        const colCount = (showStage ? 1 : 0) + (showStumpShade ? 1 : 0) + (showToothShade ? 1 : 0);
         const gridCols = colCount === 3 ? "sm:grid-cols-3" : colCount === 2 ? "sm:grid-cols-2" : "";
         return (
         <div className={`grid grid-cols-1 ${gridCols} gap-3`}>
-          {isFixed("fixed_stage") && (() => {
+          {showStage && (() => {
             const fixedStageValue = selectedStages[groupStageProductIdFixed] || getFieldValue(arch, groupStageToothNumber, "fixed_stage");
             const isStageComplete = isFieldCompleted(arch, groupStageToothNumber, "fixed_stage") || !!(fixedStageValue && fixedStageValue.trim());
             const showStageGreen = isStageComplete && !caseSubmitted;

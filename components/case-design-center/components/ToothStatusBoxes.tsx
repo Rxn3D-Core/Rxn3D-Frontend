@@ -12,9 +12,9 @@ interface ToothStatusBoxesProps {
   claspTeeth: number[];
   /** Currently active extraction code (null = none selected) */
   activeExtractionCode: string | null;
-  /** Called when a box is clicked to make it active */
-  onActiveExtractionChange: (code: string | null) => void;
-  onToothExtractionToggle: (toothNumber: number, extractionCode: string) => void;
+  /** Called when a box is clicked to make it active — optionally receives the full extractions list */
+  onActiveExtractionChange: (code: string | null, extractions?: ProductExtraction[]) => void;
+  onToothExtractionToggle: (toothNumber: number, extractionCode: string, extractions?: ProductExtraction[]) => void;
   /** Called when "Teeth in mouth" box is clicked — selects all arch teeth */
   onSelectAllTeeth: (teeth: number[]) => void;
   /** Called whenever the required-validation error state changes */
@@ -194,14 +194,14 @@ export function ToothStatusBoxes({
     if (isDefaultExtraction(extraction)) {
       // is_default: select all arch teeth, deactivate any active box
       onSelectAllTeeth(allArchTeeth);
-      onActiveExtractionChange(null);
+      onActiveExtractionChange(null, extractions);
       return;
     }
     // is_required and is_optional: toggle active — user clicks teeth to assign
     if (activeExtractionCode === extraction.code) {
-      onActiveExtractionChange(null);
+      onActiveExtractionChange(null, extractions);
     } else {
-      onActiveExtractionChange(extraction.code);
+      onActiveExtractionChange(extraction.code, extractions);
     }
   };
 
@@ -240,6 +240,9 @@ export function ToothStatusBoxes({
           isRequired && isEmpty && !anyOptionalHasTeeth;
 
         const minTeeth = extraction.min_teeth ?? 1;
+        const maxTeeth = extraction.max_teeth;
+        const hasMaxLimit = maxTeeth !== null && maxTeeth !== undefined && maxTeeth > 0;
+        const isAtMax = hasMaxLimit && teethForBox.length >= maxTeeth!;
 
         const style = resolveStyle(extraction);
 
@@ -276,6 +279,11 @@ export function ToothStatusBoxes({
             {showRequiredValidation && (
               <p className={`text-[10px] sm:text-xs text-center font-[Verdana] ${style.textClass.includes("text-white") ? "text-white" : "text-[#CF0202]"}`}>
                 Required: select at least {minTeeth} tooth
+              </p>
+            )}
+            {!isDefault && isAtMax && !isEmpty && (
+              <p className={`text-[10px] sm:text-xs text-center font-[Verdana] ${style.textClass.includes("text-white") ? "text-white/70" : "text-gray-500"}`}>
+                Max: {maxTeeth} tooth{maxTeeth! > 1 ? "" : ""}
               </p>
             )}
           </div>

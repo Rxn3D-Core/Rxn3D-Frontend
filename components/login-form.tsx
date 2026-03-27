@@ -170,10 +170,10 @@ export default function LoginForm() {
       <AuthHeader />
 
       {/* Main Content Container - Takes remaining height */}
-      <div className="flex flex-1 flex-col xl:flex-row overflow-hidden">
+      <div className="flex flex-1 flex-col lg:flex-row overflow-hidden">
         {/* Left Side - Login Form */}
-        <div className="w-full xl:w-1/2 flex items-center justify-center p-4 sm:p-6 md:p-8 xl:p-8 overflow-y-auto">
-          <div className="max-w-md mx-auto w-full">
+        <div className="w-full lg:w-1/2 flex items-start lg:items-center justify-center px-5 pt-8 pb-6 sm:px-8 sm:pt-10 sm:pb-8 md:px-12 lg:px-8 lg:py-8 xl:px-16 overflow-y-auto">
+          <div className="w-full max-w-[460px]">
             {/* Welcome Section with better typography */}
             <div className="mb-6 sm:mb-8 md:mb-10">
               <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-800 mb-2 tracking-tight">
@@ -211,7 +211,6 @@ export default function LoginForm() {
                     : identifierError
                 }
                 disabled={loginMutation.isPending}
-                placeholder={t("Enter your username or email")}
               />
 
               {/* Password input with floating label and show/hide toggle */}
@@ -241,13 +240,12 @@ export default function LoginForm() {
                       : passwordError
                   }
                   disabled={loginMutation.isPending}
-                  placeholder={t("Type your password here")}
                   showValidIcon={false}
                   className="pr-12"
                 />
                 <button
                   type="button"
-                  className="absolute right-4 top-[14px] text-slate-400 hover:text-slate-600 transition-colors p-1 hover:bg-slate-100 rounded-full flex items-center justify-center z-10"
+                  className="absolute right-4 top-[17px] text-slate-400 hover:text-slate-600 transition-colors p-1 hover:bg-slate-100 rounded-full flex items-center justify-center z-10"
                   onClick={() => setShowPassword(!showPassword)}
                   tabIndex={-1}
                   aria-label={showPassword ? "Hide password" : "Show password"}
@@ -352,7 +350,7 @@ export default function LoginForm() {
         </div>
 
         {/* Enhanced Right Side - Hero Slides (Desktop Only) */}
-        <div className="hidden xl:flex w-1/2 h-full bg-gradient-to-br from-slate-800 via-slate-900 to-blue-900 relative overflow-hidden">
+        <div className="hidden lg:flex w-1/2 h-full bg-gradient-to-br from-slate-800 via-slate-900 to-blue-900 relative overflow-hidden">
           {heroSlides.map((slide, index) => (
             <div
               key={index}
@@ -371,13 +369,13 @@ export default function LoginForm() {
                 quality={85}
                 sizes="50vw"
               />
-              <div className="absolute bottom-0 left-0 right-0 p-8 xl:p-16 flex flex-col z-20">
+              <div className="absolute bottom-0 left-0 right-0 p-8 lg:p-12 xl:p-16 flex flex-col z-20">
                 <div className="mb-16 animate-in slide-in-from-bottom duration-700">
                   <h2
                     className={`drop-shadow-2xl mb-6 transition-all duration-500 ${
                       currentSlideIndex === 1
-                        ? "text-white text-left text-xl xl:text-2xl font-medium leading-relaxed"
-                        : "text-blue-100 font-bold text-right text-3xl xl:text-4xl 2xl:text-5xl leading-tight"
+                        ? "text-white text-left text-lg lg:text-xl xl:text-2xl font-medium leading-relaxed"
+                        : "text-blue-100 font-bold text-right text-2xl lg:text-3xl xl:text-4xl 2xl:text-5xl leading-tight"
                     }`}
                   >
                     {slide.title}
@@ -385,8 +383,8 @@ export default function LoginForm() {
                   <p
                     className={`drop-shadow-xl transition-all duration-500 ${
                       currentSlideIndex === 1
-                        ? "text-blue-100 font-bold text-3xl xl:text-4xl 2xl:text-5xl text-left leading-tight"
-                        : "text-white/90 text-right text-xl xl:text-2xl leading-relaxed"
+                        ? "text-blue-100 font-bold text-2xl lg:text-3xl xl:text-4xl 2xl:text-5xl text-left leading-tight"
+                        : "text-white/90 text-right text-lg lg:text-xl xl:text-2xl leading-relaxed"
                     }`}
                   >
                     {slide.description}

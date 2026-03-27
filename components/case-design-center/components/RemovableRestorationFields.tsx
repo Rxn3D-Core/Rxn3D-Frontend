@@ -15,6 +15,7 @@ import type {
   RetentionType,
 } from "../types";
 import type { FieldStep } from "../hooks/useToothFieldProgress";
+import { isSingleStageNoStages } from "../utils/categoryHelpers";
 
 /* ------------------------------------------------------------------ */
 /*  Diamond SVG icons (Grade field)                                    */
@@ -330,7 +331,7 @@ export function RemovableRestorationFields({
         const showGradeGreen = isGradeComplete && !caseSubmitted;
         const productGrades = getActiveGrades(selectedProduct?.grades);
         const hasGrades = productGrades.length > 0;
-        const showStage = isFieldVisibleFn(arch, firstToothNumber, "stage");
+        const showStage = isFieldVisibleFn(arch, firstToothNumber, "stage") && !isSingleStageNoStages(selectedProduct);
         const showTwoCols = hasGrades && showStage;
         return (
         <div className={`grid grid-cols-1 ${showTwoCols ? "sm:grid-cols-2" : ""} gap-3`}>

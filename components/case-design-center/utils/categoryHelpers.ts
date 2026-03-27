@@ -31,3 +31,10 @@ export function isOrthodonticsCategory(name: string | null | undefined): boolean
 export function getCategoryName(product: { subcategory?: { category?: { name?: string } } } | null | undefined): string {
   return product?.subcategory?.category?.name ?? "";
 }
+
+/** Returns true if the product is a single-stage product with no stage options to select from.
+ *  When true, the stage field should be auto-completed and hidden from the UI. */
+export function isSingleStageNoStages(product: { is_single_stage?: string; stages?: unknown[] } | null | undefined): boolean {
+  if (!product) return false;
+  return product.is_single_stage === "Yes" && (!product.stages || product.stages.length === 0);
+}

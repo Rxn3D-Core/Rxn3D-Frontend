@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Arch, RetentionType, RetentionPopoverState, AddedProduct } from "../types";
+import type { Arch, RetentionType, RetentionPopoverState, AddedProduct, ProductExtraction } from "../types";
 import { isRemovableCategory } from "../utils/categoryHelpers";
 
 /** Exported for use in useCaseDesignState when computing active product category. */
@@ -153,15 +153,30 @@ export function useToothSelection(
    * - Overlay extractions (CLASP): toggle independently, tooth keeps its other status
    * - Exclusive extractions: if already in that extraction → move back to default; otherwise assign
    */
-  const handleToothExtractionToggle = (arch: Arch, toothNumber: number, extractionCode: string) => {
+  const handleToothExtractionToggle = (arch: Arch, toothNumber: number, extractionCode: string, extractions?: ProductExtraction[]) => {
+    /** Look up max_teeth for the given extraction code (0 or negative = no limit) */
+    const getMaxTeeth = (): number | null => {
+      if (!extractions) return null;
+      const ext = extractions.find((e) => e.code === extractionCode);
+      const max = ext?.max_teeth ?? null;
+      return max !== null && max > 0 ? max : null;
+    };
+
     if (isOverlayExtraction(extractionCode)) {
       // Overlay: toggle tooth in/out of the clasp set without affecting other status
       const setter = arch === "maxillary" ? setMaxillaryClaspTeeth : setMandibularClaspTeeth;
-      setter((prev) =>
-        prev.includes(toothNumber)
-          ? prev.filter((t) => t !== toothNumber)
-          : [...prev, toothNumber]
-      );
+      setter((prev) => {
+        if (prev.includes(toothNumber)) {
+          // Deselecting — always allowed
+          return prev.filter((t) => t !== toothNumber);
+        }
+        // Adding — check max_teeth
+        const maxTeeth = getMaxTeeth();
+        if (maxTeeth !== null && prev.length >= maxTeeth) {
+          return prev; // At limit, block selection
+        }
+        return [...prev, toothNumber];
+      });
       return;
     }
 
@@ -171,6 +186,14 @@ export function useToothSelection(
         // Already in this extraction → move back to default
         const { [toothNumber]: _, ...rest } = prev;
         return rest;
+      }
+      // Adding — check max_teeth before assigning
+      const maxTeeth = getMaxTeeth();
+      if (maxTeeth !== null) {
+        const currentCount = Object.values(prev).filter((c) => c === extractionCode).length;
+        if (currentCount >= maxTeeth) {
+          return prev; // At limit, block selection
+        }
       }
       // Assign to this extraction
       return { ...prev, [toothNumber]: extractionCode };

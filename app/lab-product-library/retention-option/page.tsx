@@ -146,7 +146,7 @@ export default function RetentionOptionPage() {
   const handleStatusToggle = async (id: number, currentStatus: 'Active' | 'Inactive') => {
     try {
       const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active'
-      await updateRetentionOptionStatus(id, newStatus)
+      await updateRetentionOptionStatus(id, newStatus, customerId ?? undefined)
       
       toast({
         title: "Success",
@@ -182,7 +182,7 @@ export default function RetentionOptionPage() {
   const confirmDelete = async () => {
     if (deleteOptionId != null) {
       try {
-        await deleteRetentionOption(deleteOptionId)
+        await deleteRetentionOption(deleteOptionId, customerId ?? undefined)
         toast({
           title: "Success",
           description: "Retention option deleted successfully",
