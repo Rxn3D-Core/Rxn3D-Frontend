@@ -201,6 +201,7 @@ export function GumShadesProvider({ children }: GumShadesProviderProps) {
     const token = localStorage.getItem("token") || localStorage.getItem("authToken")
     return {
       "Content-Type": "application/json",
+      "Accept-Language": currentLanguage || "en",
       ...(token && { Authorization: `Bearer ${token}` }),
     }
   }

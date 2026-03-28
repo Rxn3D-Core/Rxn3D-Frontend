@@ -252,6 +252,7 @@ export const TeethShadesProvider: React.FC<{ children: React.ReactNode }> = ({ c
           headers: {
             Authorization: `Bearer ${authToken}`,
             "Content-Type": "application/json",
+            "Accept-Language": currentLanguage || "en",
           },
          
         })
@@ -313,6 +314,7 @@ export const TeethShadesProvider: React.FC<{ children: React.ReactNode }> = ({ c
         headers: {
           Authorization: `Bearer ${authToken}`,
           "Content-Type": "application/json",
+          "Accept-Language": currentLanguage || "en",
         },
        
       })
@@ -374,6 +376,7 @@ export const TeethShadesProvider: React.FC<{ children: React.ReactNode }> = ({ c
           headers: {
             Authorization: `Bearer ${authToken}`,
             "Content-Type": "application/json",
+            "Accept-Language": currentLanguage || "en",
           },
           body: JSON.stringify(bodyPayload),
         })
@@ -468,6 +471,7 @@ export const TeethShadesProvider: React.FC<{ children: React.ReactNode }> = ({ c
           headers: {
             Authorization: `Bearer ${authToken}`,
             "Content-Type": "application/json",
+            "Accept-Language": currentLanguage || "en",
           },
           body: JSON.stringify(bodyPayload),
         })
@@ -624,6 +628,7 @@ export const TeethShadesProvider: React.FC<{ children: React.ReactNode }> = ({ c
           headers: {
             Authorization: `Bearer ${authToken}`,
             "Content-Type": "application/json",
+            "Accept-Language": currentLanguage || "en",
           },
           body: JSON.stringify(bodyPayload),
         })
@@ -699,6 +704,7 @@ export const TeethShadesProvider: React.FC<{ children: React.ReactNode }> = ({ c
           headers: {
             Authorization: `Bearer ${authToken}`,
             "Content-Type": "application/json",
+            "Accept-Language": currentLanguage || "en",
           },
           body: JSON.stringify(payload),
         })
@@ -795,6 +801,7 @@ export const TeethShadesProvider: React.FC<{ children: React.ReactNode }> = ({ c
           headers: {
             Authorization: `Bearer ${authToken}`,
             "Content-Type": "application/json",
+            "Accept-Language": currentLanguage || "en",
           },
           body: JSON.stringify(payload),
         })
@@ -875,6 +882,7 @@ export const TeethShadesProvider: React.FC<{ children: React.ReactNode }> = ({ c
         headers: {
           Authorization: `Bearer ${authToken}`,
           "Content-Type": "application/json",
+          "Accept-Language": currentLanguage || "en",
         },
        
       })

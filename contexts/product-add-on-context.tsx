@@ -211,8 +211,9 @@ export function AddOnsProvider({ children }: { children: ReactNode }) {
       Authorization: `Bearer ${authToken}`,
       "Content-Type": "application/json",
       Accept: "application/json",
+      "Accept-Language": currentLanguage || "en",
     }
-  }, [authToken])
+  }, [authToken, currentLanguage])
 
   const triggerAnimation = useCallback((type: AnimationType, message = "", duration = 3000) => {
     setAnimationType(type)

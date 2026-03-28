@@ -246,8 +246,9 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
       Authorization: `Bearer ${authToken}`,
       "Content-Type": "application/json",
       Accept: "application/json",
+      "Accept-Language": currentLanguage || "en",
     }
-  }, [authToken])
+  }, [authToken, currentLanguage])
 
 
 
@@ -273,8 +274,11 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
     
     let id: number | null = null
     
-    if (isLabAdmin || isSuperAdmin) {
-      // For lab_admin or superadmin roles, use customer_id from localStorage
+    if (isSuperAdmin) {
+      // Superadmin does not need customer_id
+      id = null
+    } else if (isLabAdmin) {
+      // For lab_admin roles, use customer_id from localStorage
       const storedCustomerId = localStorage.getItem("customerId")
       if (storedCustomerId) {
         id = parseInt(storedCustomerId, 10)
@@ -348,8 +352,10 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
     setSelectedItems(items.map((item) => item.id))
   }, [])
 
-  // Add a ref to track ongoing requests
+  // Add refs to track ongoing requests
   const fetchingRef = useRef(false)
+  const fetchingCategoriesRef = useRef(false)
+  const fetchingCategoriesForSelectRef = useRef(false)
 
   // Memoize the fetchAddOns function and add duplicate call prevention
   const fetchAddOns = useCallback(
@@ -598,8 +604,8 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
       }
 
       triggerAnimation("success", result.message || "Add-on category created successfully!")
-      fetchAddOnCategories(currentPage, itemsPerPage, searchQuery, sortColumn as string, sortDirection)
-      fetchAddOnCategoriesForSelect()
+      await fetchAddOnCategories(currentPage, itemsPerPage, searchQuery, sortColumn as string, sortDirection)
+      await fetchAddOnCategoriesForSelect()
       return result.data
     } catch (error: any) {
       handleApiError(error, "create add-on category")
@@ -640,8 +646,8 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
       }
 
       triggerAnimation("success", result.message || "Add-on category updated successfully!")
-      fetchAddOnCategories(currentPage, itemsPerPage, searchQuery, sortColumn as string, sortDirection)
-      fetchAddOnCategoriesForSelect()
+      await fetchAddOnCategories(currentPage, itemsPerPage, searchQuery, sortColumn as string, sortDirection)
+      await fetchAddOnCategoriesForSelect()
       return result.data
     } catch (error: any) {
       handleApiError(error, "update add-on category")
@@ -744,9 +750,13 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
       sortColKey = sortColumn,
       sortDir = sortDirection,
     ) => {
+      // Prevent duplicate calls
+      if (fetchingCategoriesRef.current) return
+
       const headers = getAuthHeaders()
       if (!headers) return
 
+      fetchingCategoriesRef.current = true
       setIsLoadingAddOnCategories(true)
       setAddOnCategoriesError(null)
 
@@ -790,6 +800,7 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
         setAddOnCategoriesPagination(null)
       } finally {
         setIsLoadingAddOnCategories(false)
+        fetchingCategoriesRef.current = false
       }
     },
     [
@@ -945,13 +956,25 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
 
   // Categories operations
   const fetchAddOnCategoriesForSelect = useCallback(async () => {
+    // Prevent duplicate calls
+    if (fetchingCategoriesForSelectRef.current) return
+
     const headers = getAuthHeaders()
     if (!headers) return
 
+    fetchingCategoriesForSelectRef.current = true
     setIsLoadingCategoriesForSelect(true)
 
     try {
-      const response = await fetch(`${API_BASE_URL}/library/addon-categories?include=subcategories&limit=500`, {
+      const params = new URLSearchParams({
+        include: "subcategories",
+        limit: "500",
+      })
+      if (customerId) {
+        params.append("customer_id", customerId.toString())
+      }
+
+      const response = await fetch(`${API_BASE_URL}/library/addon-categories?${params.toString()}`, {
         headers,
       })
 
@@ -977,8 +1000,9 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
       handleApiError(error, "fetch add-on categories")
     } finally {
       setIsLoadingCategoriesForSelect(false)
+      fetchingCategoriesForSelectRef.current = false
     }
-  }, [authToken, getAuthHeaders, logout, triggerAnimation])
+  }, [authToken, getAuthHeaders, logout, triggerAnimation, customerId])
 
   // Add similar protection for fetchAddOnGroups
   const fetchAddOnGroups = useCallback(async () => {

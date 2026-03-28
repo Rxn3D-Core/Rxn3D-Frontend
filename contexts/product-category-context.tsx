@@ -275,7 +275,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
 
         const response = await fetch(`${API_BASE_URL}/library/categories?${params.toString()}&lang=${currentLanguage}`, {
           method: "GET",
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "Accept-Language": currentLanguage || "en" },
         })
         if (!response.ok) {
           const errData = await response.json().catch(() => ({}))
@@ -340,7 +340,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
 
         const response = await fetch(`${API_BASE_URL}/library/subcategories?${params.toString()}&lang=${currentLanguage}`, {
           method: "GET",
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "Accept-Language": currentLanguage || "en" },
         })
         if (!response.ok) {
           const errData = await response.json().catch(() => ({}))
@@ -398,7 +398,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
         `${API_BASE_URL}/library/categories?${params.toString()}`,
         {
           method: "GET",
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "Accept-Language": currentLanguage || "en" },
         }
       )
       if (!response.ok) throw new Error("Failed to fetch categories for dropdown.")
@@ -444,7 +444,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
       }
       const response = await fetch(endpoint, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "Accept-Language": currentLanguage || "en" },
         body: JSON.stringify(bodyPayload),
       })
       const result = await response.json()
@@ -512,7 +512,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
       }
       const response = await fetch(apiEndpoint, {
         method: "PUT",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "Accept-Language": currentLanguage || "en" },
         body: JSON.stringify(bodyPayload),
       })
       const result = await response.json()
@@ -594,7 +594,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
       }
       const response = await fetch(`${API_BASE_URL}/library/categories/bulk-delete`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "Accept-Language": currentLanguage || "en" },
         body: JSON.stringify(bodyPayload),
       })
       const result = await response.json()
@@ -639,7 +639,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
           url,
           {
             method: "GET",
-            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "Accept-Language": currentLanguage || "en" },
           }
         )
         if (!response.ok) {
@@ -673,7 +673,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
           url,
           {
             method: "GET",
-            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "Accept-Language": currentLanguage || "en" },
           }
         )
         if (!response.ok) {
@@ -784,7 +784,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
           `${API_BASE_URL}/library/categories?${params.toString()}`,
           {
             method: "GET",
-            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "Accept-Language": currentLanguage || "en" },
           }
         )
         if (!response.ok) {
@@ -832,7 +832,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
           `${API_BASE_URL}/library/subcategories?${params.toString()}`,
           {
             method: "GET",
-            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "Accept-Language": currentLanguage || "en" },
           }
         )
         

@@ -229,6 +229,7 @@ export const ProductLibraryProvider: React.FC<{ children: React.ReactNode }> = (
             headers: {
               Authorization: `Bearer ${token}`,
               "Content-Type": "application/json",
+              "Accept-Language": currentLanguage || "en",
             },
           });
         } else {
@@ -244,6 +245,7 @@ export const ProductLibraryProvider: React.FC<{ children: React.ReactNode }> = (
               headers: {
                 Authorization: `Bearer ${token}`,
                 "Content-Type": "application/json",
+                "Accept-Language": currentLanguage || "en",
               },
             }
           );
@@ -305,6 +307,7 @@ export const ProductLibraryProvider: React.FC<{ children: React.ReactNode }> = (
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
+            "Accept-Language": currentLanguage || "en",
           },
           body: JSON.stringify(formattedPayload),
         })
@@ -385,6 +388,7 @@ export const ProductLibraryProvider: React.FC<{ children: React.ReactNode }> = (
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
+            "Accept-Language": currentLanguage || "en",
           },
           body: JSON.stringify(formattedPayload),
         })
@@ -525,6 +529,7 @@ export const ProductLibraryProvider: React.FC<{ children: React.ReactNode }> = (
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
+            "Accept-Language": currentLanguage || "en",
           },
           body: JSON.stringify(payload),
         })
@@ -594,6 +599,7 @@ export const ProductLibraryProvider: React.FC<{ children: React.ReactNode }> = (
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
+            "Accept-Language": currentLanguage || "en",
           },
         })
         if (!response.ok) {

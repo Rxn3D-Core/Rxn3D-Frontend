@@ -188,6 +188,7 @@ export const ImpressionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
+            "Accept-Language": currentLanguage || "en",
           },
         })
 
@@ -237,6 +238,7 @@ export const ImpressionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
+            "Accept-Language": currentLanguage || "en",
           },
           body: JSON.stringify(bodyPayload),
         })
@@ -318,6 +320,7 @@ export const ImpressionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
+            "Accept-Language": currentLanguage || "en",
           },
           body: JSON.stringify(bodyPayload),
         })
@@ -461,6 +464,7 @@ export const ImpressionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
+            "Accept-Language": currentLanguage || "en",
           },
           body: JSON.stringify(bodyPayload),
         })

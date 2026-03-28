@@ -437,7 +437,6 @@ export default function AddOnsCategoryPage() {
           setCopyingCategory(null)
           setIsCopying(false)
           setIsAddCategoryModalOpen(false)
-          fetchAddOnCategories(currentPage, Number(entriesPerPage), searchQuery, sortColumn as string, sortDirection)
         }}
         onHasChangesChange={() => {}}
         addOn={editCategoryId ? addOnCategories.find(c => c.id === editCategoryId) as any : copyingCategory}

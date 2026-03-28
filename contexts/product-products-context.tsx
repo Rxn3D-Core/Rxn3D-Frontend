@@ -629,6 +629,7 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
+            "Accept-Language": currentLanguage || "en",
           },
         })
         if (!response.ok) {
@@ -747,6 +748,7 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
+            "Accept-Language": currentLanguage || "en",
           },
           body: JSON.stringify(finalPayload),
         })
@@ -890,6 +892,7 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
+            "Accept-Language": currentLanguage || "en",
           },
           body: JSON.stringify(finalPayload),
         })
@@ -982,6 +985,7 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
+            "Accept-Language": currentLanguage || "en",
           },
         })
 
@@ -1057,6 +1061,7 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
+            "Accept-Language": currentLanguage || "en",
           },
           body: JSON.stringify(payload),
         })
@@ -1149,6 +1154,7 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
+            "Accept-Language": currentLanguage || "en",
           },
         })
         if (!response.ok) {

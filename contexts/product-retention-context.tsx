@@ -131,6 +131,7 @@ export function RetentionProvider({ children }: { children: React.ReactNode }) {
         const response = await fetch(`${baseUrl}/library/retentions?${params}&lang=${currentLanguage}`, {
           headers: {
             ...(token && { Authorization: `Bearer ${token}` }),
+            "Accept-Language": currentLanguage || "en",
           },
         })
 
@@ -175,7 +176,7 @@ export function RetentionProvider({ children }: { children: React.ReactNode }) {
         }
         const response = await fetch(`${baseUrl}/library/retentions`, {
           method: "POST",
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "Accept-Language": currentLanguage || "en" },
           body: JSON.stringify(bodyPayload),
         })
 
@@ -218,7 +219,7 @@ export function RetentionProvider({ children }: { children: React.ReactNode }) {
       try {
         const response = await fetch(`${baseUrl}/library/retentions/${id}`, {
           method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${token}`, "Accept-Language": currentLanguage || "en" },
         })
         const result = await response.json()
         if (!response.ok) {
@@ -254,7 +255,7 @@ export function RetentionProvider({ children }: { children: React.ReactNode }) {
       try {
         const response = await fetch(`${baseUrl}/library/retentions/${id}`, {
           method: "PUT",
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "Accept-Language": currentLanguage || "en" },
           body: JSON.stringify(payload),
         })
         const result = await response.json()
@@ -301,7 +302,7 @@ export function RetentionProvider({ children }: { children: React.ReactNode }) {
         }
 
         const response = await fetch(url, {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${token}`, "Accept-Language": currentLanguage || "en" },
         })
         if (!response.ok) {
           throw new Error(`Failed to fetch retention detail (status: ${response.status})`)

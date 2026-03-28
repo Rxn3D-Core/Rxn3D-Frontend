@@ -239,6 +239,7 @@ export const GradesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           headers: {
             Authorization: `Bearer ${authToken}`,
             "Content-Type": "application/json",
+            "Accept-Language": currentLanguage || "en",
           },
          
         })
@@ -304,6 +305,7 @@ export const GradesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           headers: {
             Authorization: `Bearer ${authToken}`,
             "Content-Type": "application/json",
+            "Accept-Language": currentLanguage || "en",
           },
         })
 
@@ -357,6 +359,7 @@ export const GradesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           headers: {
             Authorization: `Bearer ${authToken}`,
             "Content-Type": "application/json",
+            "Accept-Language": currentLanguage || "en",
           },
           body: JSON.stringify(bodyPayload),
         })
@@ -435,6 +438,7 @@ export const GradesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           headers: {
             Authorization: `Bearer ${authToken}`,
             "Content-Type": "application/json",
+            "Accept-Language": currentLanguage || "en",
           },
           body: JSON.stringify(bodyPayload),
         })
@@ -566,6 +570,7 @@ export const GradesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           headers: {
             Authorization: `Bearer ${authToken}`,
             "Content-Type": "application/json",
+            "Accept-Language": currentLanguage || "en",
           },
           body: JSON.stringify(bodyPayload),
         })

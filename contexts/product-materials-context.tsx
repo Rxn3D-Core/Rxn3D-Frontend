@@ -214,6 +214,7 @@ export const MaterialsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
+            "Accept-Language": currentLanguage || "en",
           },
         })
 
@@ -278,6 +279,7 @@ export const MaterialsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
+            "Accept-Language": currentLanguage || "en",
           },
           body: JSON.stringify(bodyPayload),
         })
@@ -373,6 +375,7 @@ export const MaterialsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
+            "Accept-Language": currentLanguage || "en",
           },
           body: JSON.stringify(bodyPayload),
         })
@@ -507,6 +510,7 @@ export const MaterialsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
+            "Accept-Language": currentLanguage || "en",
           },
           body: JSON.stringify(bodyPayload),
         })
@@ -573,6 +577,7 @@ export const MaterialsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
+            "Accept-Language": currentLanguage || "en",
           },
         })
         if (!response.ok) {

@@ -278,7 +278,7 @@ export const StagesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       try {
         const response = await fetch(`${API_BASE_URL}/library/stages?${params.toString()}&lang=${currentLanguage}`, {
-          headers: { Authorization: `Bearer ${authToken}`, "Content-Type": "application/json" },
+          headers: { Authorization: `Bearer ${authToken}`, "Content-Type": "application/json", "Accept-Language": currentLanguage || "en" },
         })
         if (!response.ok) {
           const errData = await response.json().catch(() => ({ message: "Failed to fetch stages" }))
@@ -332,7 +332,7 @@ export const StagesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
         const response = await fetch(`${API_BASE_URL}/library/stages`, {
           method: "POST",
-          headers: { Authorization: `Bearer ${authToken}`, "Content-Type": "application/json" },
+          headers: { Authorization: `Bearer ${authToken}`, "Content-Type": "application/json", "Accept-Language": currentLanguage || "en" },
           body: JSON.stringify(bodyPayload),
         })
         const result = await response.json()
@@ -384,7 +384,7 @@ export const StagesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
         const response = await fetch(`${API_BASE_URL}/library/stages/${id}`, {
           method: "PUT",
-          headers: { Authorization: `Bearer ${authToken}`, "Content-Type": "application/json" },
+          headers: { Authorization: `Bearer ${authToken}`, "Content-Type": "application/json", "Accept-Language": currentLanguage || "en" },
           body: JSON.stringify(bodyPayload),
         })
         const result = await response.json()
@@ -436,7 +436,7 @@ export const StagesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
         const response = await fetch(url, {
           method: "DELETE",
-          headers: { Authorization: `Bearer ${authToken}` },
+          headers: { Authorization: `Bearer ${authToken}`, "Accept-Language": currentLanguage || "en" },
         })
         const result = await response.json()
         if (!response.ok) {
@@ -489,7 +489,7 @@ export const StagesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
         const response = await fetch(`${API_BASE_URL}/library/stages/bulk-delete`, {
           method: "DELETE",
-          headers: { Authorization: `Bearer ${authToken}`, "Content-Type": "application/json" },
+          headers: { Authorization: `Bearer ${authToken}`, "Content-Type": "application/json", "Accept-Language": currentLanguage || "en" },
           body: JSON.stringify(bodyPayload),
         })
         const result = await response.json()
