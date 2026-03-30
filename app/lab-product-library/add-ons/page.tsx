@@ -177,6 +177,9 @@ export default function AddOnsPage() {
             <Skeleton className="h-4 w-32" />
           </TableCell>
           <TableCell>
+            <Skeleton className="h-4 w-20" />
+          </TableCell>
+          <TableCell>
             <Skeleton className="h-4 w-24" />
           </TableCell>
           <TableCell>
@@ -341,14 +344,9 @@ export default function AddOnsPage() {
                         />
                       </TableCell>
                       <TableCell className="font-medium text-gray-900">{addOn.category_name}</TableCell>
+                      <TableCell className="text-gray-600">{addOn.subcategory?.category?.code || "N/A"}</TableCell>
                       <TableCell className="text-gray-600">{addOn.subcategory_name}</TableCell>
                       <TableCell className="font-medium text-gray-900">{addOn.name}</TableCell>
-                      <TableCell className="font-medium text-gray-700">
-                        All Labs
-                        <Button variant="ghost" size="sm" className="ml-2 h-6 w-6 p-0 text-gray-400 hover:text-gray-600">
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
                       <TableCell>
                         <span
                           className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
