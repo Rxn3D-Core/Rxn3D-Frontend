@@ -33,8 +33,8 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
   const [linkToProductsOpen, setLinkToProductsOpen] = useState(false)
   const [linkToGroupOpen, setLinkToGroupOpen] = useState(false)
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
-  // URL is required when opposing warning is "Yes"
-  const urlRequired = showOpposingWarning === "yes"
+  // URL is always optional
+  const urlRequired = false
 
   // Image upload state
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
@@ -549,7 +549,7 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
                     />
                     <div className="relative">
                       <Input
-                        label={`URL${urlRequired ? " *" : ""}`}
+                        label="URL"
                         value={impressionUrl}
                         validationState={
                           errors.impressionUrl
@@ -573,7 +573,7 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
                         aria-invalid={errors.impressionUrl ? "true" : "false"}
                         aria-describedby={errors.impressionUrl ? "url-error" : undefined}
                       />
-                      <div className="absolute top-1 right-12 z-10">
+                      <div className="absolute top-1 right-2 z-10">
                         <TooltipProvider delayDuration={200}>
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -588,11 +588,7 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
                               className="max-w-xs z-50"
                               avoidCollisions={true}
                             >
-                              <p>
-                                {urlRequired
-                                  ? "Enter a URL link for the impression. This field is required when 'Show opposing warning scan?' is set to Yes."
-                                  : "Enter a URL link for the impression. This field is optional and can be used to provide additional information or resources related to the impression."}
-                              </p>
+                              <p>Enter a URL link for the impression. This field is optional and can be used to provide additional information or resources related to the impression.</p>
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
@@ -665,7 +661,6 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
               isLoading ||
               !impressionName.trim() ||
               !impressionCode.trim() ||
-              (urlRequired && !impressionUrl.trim()) ||
               !!errors.impressionUrl ||
               !!errors.impressionCode ||
               !!errors.image
