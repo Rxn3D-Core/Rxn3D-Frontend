@@ -36,9 +36,6 @@ export default function TeethShadePage() {
     fetchTeethShadeBrands,
     deleteTeethShadeBrand,
     updateTeethShadeBrand,
-    teethShadeGroups,
-    fetchTeethShadeGroups,
-    isGroupsLoading,
   } = useTeethShades()
 
   // Modal states
@@ -75,11 +72,6 @@ export default function TeethShadePage() {
   const { currentLanguage } = useLanguage()
   const { t } = useTranslation()
   const { addWarning } = useProductLibraryWarningsStore()
-
-  // Fetch groups on mount
-  useEffect(() => {
-    fetchTeethShadeGroups()
-  }, [fetchTeethShadeGroups])
 
   // Debounce search input
   useEffect(() => {

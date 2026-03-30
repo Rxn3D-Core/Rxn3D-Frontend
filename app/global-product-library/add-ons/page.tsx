@@ -31,9 +31,6 @@ export default function AddOnsPage() {
     setSelectedItems,
     fetchAddOns,
     deleteAddOn,
-    addOnGroups,
-    fetchAddOnGroups,
-    isLoadingGroups,
   } = useAddOns()
 
   // Modal states
@@ -58,10 +55,9 @@ export default function AddOnsPage() {
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
 
-  // Fetch add-ons and groups when language changes
+  // Fetch add-ons when language changes
   useEffect(() => {
     fetchAddOns(currentPage, Number(entriesPerPage))
-    fetchAddOnGroups()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentLanguage])
 

@@ -33,6 +33,7 @@ export function AddAddOnModal({ isOpen, onClose, onHasChangesChange, addOn, isEd
     isLoadingCategoriesForSelect,
     createAddOn,
     updateAddOn,
+    getAddOnDetail,
     createAddOnSubCategory,
     showAnimation,
     triggerAnimation,
@@ -77,35 +78,58 @@ export function AddAddOnModal({ isOpen, onClose, onHasChangesChange, addOn, isEd
   // Validation error state
   const [validationErrors, setValidationErrors] = useState<{ [key: string]: string }>({})
 
-  // Reset form when modal opens
+  // Loading state for fetching detail
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false)
+
+  // Helper to populate form from add-on data
+  const populateForm = useCallback((detail: AddOn) => {
+    const editData = {
+      name: detail.name,
+      code: detail.code || "",
+      price: detail.price?.toString() || "",
+      type: detail.type || "Both",
+      status: detail.status,
+      sequence: detail.sequence?.toString() || "",
+      subcategory_id: detail.subcategory_id?.toString() || "",
+      createNewSubCategory: false,
+      parentCategoryId: "",
+    }
+    setFormData(editData)
+    setInitialFormData(editData)
+
+    const imageUrl = (detail as any).image_url || (detail as any).image
+    if (imageUrl) {
+      setImageBase64(imageUrl)
+      setImagePreview(imageUrl)
+      setInitialImage(imageUrl)
+    } else {
+      setImageBase64(null)
+      setImagePreview(null)
+      setInitialImage(null)
+    }
+  }, [])
+
+  // Reset form when modal opens — fetch detail from API for edit/copy
   useEffect(() => {
     if (isOpen) {
+      setHasChanges(false)
+      if (onHasChangesChange) onHasChangesChange(false)
+      setAddOnDetailsEnabled(true)
+      setLinkToProductsOpen(false)
+      setLinkToExistingGroupOpen(false)
+      setVisibilityManagementOpen(false)
+
       if (addOn && (isEditing || isCopying)) {
-        const editData = {
-          name: addOn.name,
-          code: addOn.code || "",
-          price: addOn.price?.toString() || "",
-          type: addOn.type || "Both",
-          status: addOn.status,
-          sequence: addOn.sequence?.toString() || "",
-          subcategory_id: addOn.subcategory_id?.toString() || "",
-          createNewSubCategory: false,
-          parentCategoryId: "",
-        }
-        setFormData(editData)
-        setInitialFormData(editData)
-        
-        // Set image if available
-        const imageUrl = (addOn as any).image_url || (addOn as any).image
-        if (imageUrl) {
-          setImageBase64(imageUrl)
-          setImagePreview(imageUrl)
-          setInitialImage(imageUrl)
-        } else {
-          setImageBase64(null)
-          setImagePreview(null)
-          setInitialImage(null)
-        }
+        setIsLoadingDetail(true)
+        getAddOnDetail(addOn.id).then((detail) => {
+          if (detail) {
+            populateForm(detail)
+          } else {
+            // Fallback to static data if detail fetch fails
+            populateForm(addOn)
+          }
+          setIsLoadingDetail(false)
+        })
       } else {
         setFormData(defaultFormData)
         setInitialFormData(defaultFormData)
@@ -113,21 +137,15 @@ export function AddAddOnModal({ isOpen, onClose, onHasChangesChange, addOn, isEd
         setImagePreview(null)
         setInitialImage(null)
       }
-      setHasChanges(false)
-      if (onHasChangesChange) onHasChangesChange(false)
-      setAddOnDetailsEnabled(true)
-      setLinkToProductsOpen(false)
-      setLinkToExistingGroupOpen(false)
-      setVisibilityManagementOpen(false)
     }
-  }, [isOpen, addOn, isEditing, isCopying, onHasChangesChange])
+  }, [isOpen, addOn, isEditing, isCopying, onHasChangesChange, getAddOnDetail, populateForm])
 
   // Fetch categories when modal opens
   useEffect(() => {
-    if (isOpen && !addOnCategoriesForSelect.length) {
+    if (isOpen) {
       fetchAddOnCategoriesForSelect()
     }
-  }, [isOpen, addOnCategoriesForSelect, fetchAddOnCategoriesForSelect])
+  }, [isOpen, fetchAddOnCategoriesForSelect])
 
   // Track changes for discard dialog
   useEffect(() => {
@@ -329,6 +347,12 @@ export function AddAddOnModal({ isOpen, onClose, onHasChangesChange, addOn, isEd
           </DialogHeader>
 
           <div className="overflow-y-auto max-h-[calc(80vh-130px)] p-6 space-y-6">
+            {isLoadingDetail ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1162a8]" />
+              </div>
+            ) : (
+            <>
             {/* Add-on Details Section */}
             <div className="flex items-center gap-2">
               <span className="font-medium">Add-on Details</span>
@@ -581,7 +605,9 @@ export function AddAddOnModal({ isOpen, onClose, onHasChangesChange, addOn, isEd
                 )}
               </div>
             )}
-          
+
+          </>
+          )}
           </div>
 
           {/* Footer with action buttons */}

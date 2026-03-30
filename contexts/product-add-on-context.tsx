@@ -110,6 +110,7 @@ interface AddOnsContextState {
     data: Partial<Omit<AddOn, "id" | "subcategory" | "category_name" | "subcategory_name">>,
   ) => Promise<AddOn | null>
   deleteAddOn: (id: number) => Promise<boolean>
+  getAddOnDetail: (id: number) => Promise<AddOn | null>
   isLoadingAddOns: boolean
   addOnError: string | null
   addOnPagination: PaginatedResponse<AddOn>["pagination"] | null
@@ -239,7 +240,7 @@ export function AddOnsProvider({ children }: { children: ReactNode }) {
       }
     }, [error, successMessage])
 
-  const handleApiError = (error: any, operation: string): string => {
+  const handleApiError = useCallback((error: any, operation: string): string => {
     console.error(`Error during ${operation}:`, error)
     let errorMessage = `Failed to ${operation}.`
 
@@ -260,7 +261,7 @@ export function AddOnsProvider({ children }: { children: ReactNode }) {
 
     triggerAnimation("error", errorMessage)
     return errorMessage
-  }
+  }, [logout, triggerAnimation])
 
   const clearSelectedItems = useCallback(() => {
     setSelectedItems([])
@@ -586,7 +587,43 @@ export function AddOnsProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // Add this function in the AddOnsProvider component, after the other CRUD operations
+  // Get add-on detail by ID
+  const getAddOnDetail = useCallback(
+    async (id: number): Promise<AddOn | null> => {
+      const headers = getAuthHeaders()
+      if (!headers) return null
+
+      try {
+        let url = `${API_BASE_URL}/library/addons/${id}?language=${currentLanguage}`
+        if (isLabAdmin && customerId) {
+          url += `&customer_id=${customerId}`
+        }
+
+        const response = await fetch(url, { headers })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          throw { response: { data: errorData, status: response.status } }
+        }
+
+        const result: ApiResponse<AddOn> = await response.json()
+        if (result.status && result.data) {
+          const addon = result.data
+          return {
+            ...addon,
+            subcategory_name: addon.subcategory?.name || "N/A",
+            category_name: addon.subcategory?.category?.name || "N/A",
+          }
+        }
+        return null
+      } catch (error: any) {
+        handleApiError(error, "fetch add-on detail")
+        return null
+      }
+    },
+    [getAuthHeaders, currentLanguage, isLabAdmin, customerId],
+  )
+
   const createAddOnSubCategory = async (data: AddOnSubCategoryCreate) => {
     const headers = getAuthHeaders()
     if (!headers) return null
@@ -611,6 +648,7 @@ export function AddOnsProvider({ children }: { children: ReactNode }) {
 
       triggerAnimation("success", result.message || "Add-on Sub-category created successfully!")
       setSuccessMessage(`Successfully created ${data.name}`)
+      categoriesFetchedRef.current = false
       fetchAddOnCategoriesForSelect()
       return result.data
     } catch (error: any) {
@@ -624,10 +662,18 @@ export function AddOnsProvider({ children }: { children: ReactNode }) {
   }
 
   // Categories operations
+  const categoriesFetchedRef = useRef(false)
+  const fetchingCategoriesForSelectRef = useRef(false)
   const fetchAddOnCategoriesForSelect = useCallback(async () => {
     const headers = getAuthHeaders()
     if (!headers) return
 
+    // Prevent duplicate calls if already loaded or in-flight
+    if (categoriesFetchedRef.current || fetchingCategoriesForSelectRef.current) {
+      return
+    }
+
+    fetchingCategoriesForSelectRef.current = true
     setIsLoadingCategoriesForSelect(true)
 
     try {
@@ -650,6 +696,7 @@ export function AddOnsProvider({ children }: { children: ReactNode }) {
           categoriesData = result.data as AddOnCategory[]
         }
         setAddOnCategoriesForSelect(categoriesData)
+        categoriesFetchedRef.current = true
       } else {
         throw new Error(result.message || "Failed to fetch add-on categories")
       }
@@ -657,8 +704,9 @@ export function AddOnsProvider({ children }: { children: ReactNode }) {
       handleApiError(error, "fetch add-on categories")
     } finally {
       setIsLoadingCategoriesForSelect(false)
+      fetchingCategoriesForSelectRef.current = false
     }
-  }, [authToken, getAuthHeaders, logout, triggerAnimation])
+  }, [getAuthHeaders])
 
   // Add similar protection for fetchAddOnGroups
   const groupsFetchedRef = useRef(false)
@@ -816,6 +864,7 @@ export function AddOnsProvider({ children }: { children: ReactNode }) {
     createAddOn,
     updateAddOn,
     deleteAddOn,
+    getAddOnDetail,
     isLoadingAddOns,
     addOnError,
     addOnPagination,

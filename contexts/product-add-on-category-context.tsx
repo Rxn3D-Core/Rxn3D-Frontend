@@ -321,7 +321,7 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
       }
     }, [error, successMessage])
 
-  const handleApiError = (error: any, operation: string): string => {
+  const handleApiError = useCallback((error: any, operation: string): string => {
     console.error(`Error during ${operation}:`, error)
     let errorMessage = `Failed to ${operation}.`
 
@@ -342,7 +342,7 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
 
     triggerAnimation("error", errorMessage)
     return errorMessage
-  }
+  }, [logout, triggerAnimation])
 
   const clearSelectedItems = useCallback(() => {
     setSelectedItems([])
@@ -605,6 +605,7 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
 
       triggerAnimation("success", result.message || "Add-on category created successfully!")
       await fetchAddOnCategories(currentPage, itemsPerPage, searchQuery, sortColumn as string, sortDirection)
+      categoriesFetchedRef.current = false
       await fetchAddOnCategoriesForSelect()
       return result.data
     } catch (error: any) {
@@ -647,6 +648,7 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
 
       triggerAnimation("success", result.message || "Add-on category updated successfully!")
       await fetchAddOnCategories(currentPage, itemsPerPage, searchQuery, sortColumn as string, sortDirection)
+      categoriesFetchedRef.current = false
       await fetchAddOnCategoriesForSelect()
       return result.data
     } catch (error: any) {
@@ -689,6 +691,7 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
 
       triggerAnimation("success", result.message || "Add-on subcategory updated successfully!")
       fetchAddOnSubcategories(currentPage, itemsPerPage, searchQuery, sortColumn as string, sortDirection)
+      categoriesFetchedRef.current = false
       fetchAddOnCategoriesForSelect()
       return result.data
     } catch (error: any) {
@@ -729,6 +732,7 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
       triggerAnimation("success", result.message || "Add-on Sub-category created successfully!")
       setSuccessMessage(`Successfully created ${data.name}`)
       fetchAddOnSubcategories(currentPage, itemsPerPage, searchQuery, sortColumn as string, sortDirection)
+      categoriesFetchedRef.current = false
       fetchAddOnCategoriesForSelect()
       return result.data
     } catch (error: any) {
@@ -896,12 +900,12 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
 
       try {
         let url = `${API_BASE_URL}/library/addon-categories/${id}?language=${currentLanguage}`
-        
+
         // Add customer_id if available
         if (customerId) {
           url += `&customer_id=${customerId}`
         }
-        
+
         const response = await fetch(url, {
           headers,
         })
@@ -914,11 +918,11 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
         const result: ApiResponse<AddOnCategory> = await response.json()
         return result.status && result.data ? result.data : null
       } catch (error: any) {
-        handleApiError(error, "fetch add-on category detail")
+        console.error("Error during fetch add-on category detail:", error)
         return null
       }
     },
-    [getAuthHeaders, currentLanguage, handleApiError, customerId],
+    [getAuthHeaders, currentLanguage, customerId],
   )
 
   // Get addon subcategory detail
@@ -929,12 +933,12 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
 
       try {
         let url = `${API_BASE_URL}/library/addon-subcategories/${id}?language=${currentLanguage}`
-        
+
         // Add customer_id if available
         if (customerId) {
           url += `&customer_id=${customerId}`
         }
-        
+
         const response = await fetch(url, {
           headers,
         })
@@ -947,17 +951,18 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
         const result: ApiResponse<AddOnSubCategory> = await response.json()
         return result.status && result.data ? result.data : null
       } catch (error: any) {
-        handleApiError(error, "fetch add-on subcategory detail")
+        console.error("Error during fetch add-on subcategory detail:", error)
         return null
       }
     },
-    [getAuthHeaders, currentLanguage, handleApiError, customerId],
+    [getAuthHeaders, currentLanguage, customerId],
   )
 
   // Categories operations
+  const categoriesFetchedRef = useRef(false)
   const fetchAddOnCategoriesForSelect = useCallback(async () => {
-    // Prevent duplicate calls
-    if (fetchingCategoriesForSelectRef.current) return
+    // Prevent duplicate calls if already loaded or in-flight
+    if (categoriesFetchedRef.current || fetchingCategoriesForSelectRef.current) return
 
     const headers = getAuthHeaders()
     if (!headers) return
@@ -993,6 +998,7 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
           categoriesData = result.data as AddOnCategory[]
         }
         setAddOnCategoriesForSelect(categoriesData)
+        categoriesFetchedRef.current = true
       } else {
         throw new Error(result.message || "Failed to fetch add-on categories")
       }
@@ -1002,7 +1008,7 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
       setIsLoadingCategoriesForSelect(false)
       fetchingCategoriesForSelectRef.current = false
     }
-  }, [authToken, getAuthHeaders, logout, triggerAnimation, customerId])
+  }, [getAuthHeaders, customerId])
 
   // Add similar protection for fetchAddOnGroups
   const groupsFetchedRef = useRef(false)

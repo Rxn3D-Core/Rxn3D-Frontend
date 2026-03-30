@@ -31,9 +31,6 @@ export default function AddOnsPage() {
     setSelectedItems,
     fetchAddOns,
     deleteAddOn,
-    addOnGroups,
-    fetchAddOnGroups,
-    isLoadingGroups,
   } = useAddOns()
 
   // Modal states
@@ -57,11 +54,6 @@ export default function AddOnsPage() {
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null)
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
-
-  // Fetch add-on groups on mount
-  useEffect(() => {
-    fetchAddOnGroups()
-  }, [fetchAddOnGroups])
 
   // Debounced search
   useEffect(() => {

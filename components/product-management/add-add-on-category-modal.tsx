@@ -147,10 +147,10 @@ export function AddAddOnCategoryModal({ isOpen, onClose, onHasChangesChange, add
 
   // Fetch categories when modal opens
   useEffect(() => {
-    if (isOpen && !addOnCategoriesForSelect.length) {
+    if (isOpen) {
       fetchAddOnCategoriesForSelect()
     }
-  }, [isOpen, addOnCategoriesForSelect, fetchAddOnCategoriesForSelect])
+  }, [isOpen, fetchAddOnCategoriesForSelect])
 
   // Track changes for discard dialog
   useEffect(() => {
