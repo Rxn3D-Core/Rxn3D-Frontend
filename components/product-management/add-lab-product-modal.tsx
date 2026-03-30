@@ -1046,7 +1046,7 @@ export function AddLabProductModal({
         extractions: mapExtractions(editingProduct.extractions || []),
         opposite_extractions: mapOppositeExtractions(editingProduct.opposite_extractions || []),
         apply_same_status_to_opposing: (editingProduct.opposite_extractions && editingProduct.opposite_extractions.length > 0) ? false : (editingProduct.apply_same_status_to_opposing ?? true),
-        request_opposing_extraction: editingProduct.opposite_impression === "Yes" || editingProduct.opposite_impression === true || editingProduct.opposite_impression === 1 || editingProduct.request_opposing_extraction === true || editingProduct.request_opposing_extraction === 1,
+        request_opposing_extraction: editingProduct.opposite_impression === "Yes" || editingProduct.opposite_impression === true || editingProduct.opposite_impression === 1 || editingProduct.request_opposing_extraction === true || editingProduct.request_opposing_extraction === 1 || (Array.isArray(editingProduct.opposite_extractions) && editingProduct.opposite_extractions.length > 0),
         min_days_to_process: editingProduct.min_days_to_process ?? null,
         max_days_to_process: editingProduct.max_days_to_process ?? null,
       }
@@ -1061,6 +1061,16 @@ export function AddLabProductModal({
         }
         syncOpposite()
         queueMicrotask(syncOpposite)
+      }
+      // Re-apply request_opposing_extraction after reset — zodResolver default(false) can override the value
+      {
+        const shouldCheck = editingProduct.opposite_impression === "Yes" || editingProduct.opposite_impression === true || editingProduct.opposite_impression === 1 || editingProduct.request_opposing_extraction === true || editingProduct.request_opposing_extraction === 1 || (Array.isArray(editingProduct.opposite_extractions) && editingProduct.opposite_extractions.length > 0)
+        if (shouldCheck) {
+          setValue("request_opposing_extraction", true, { shouldDirty: false, shouldValidate: false })
+          queueMicrotask(() => {
+            setValue("request_opposing_extraction", true, { shouldDirty: false, shouldValidate: false })
+          })
+        }
       }
       setInitialFormValues(formValues) // Store initial values for comparison
       clearValidationErrors()

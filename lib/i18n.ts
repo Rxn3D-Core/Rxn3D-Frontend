@@ -37,7 +37,7 @@ i18n
       crossDomain: false,
       // Add request options to handle errors and caching
       requestOptions: {
-        cache: "default", // Use browser cache to prevent multiple requests
+        cache: "force-cache", // Always use browser cache after first fetch
       },
     },
 

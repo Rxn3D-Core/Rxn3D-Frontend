@@ -290,8 +290,7 @@ export const GradesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
 
       try {
-        // Use lab-grades endpoint for lab_admin, grades endpoint for others
-        const endpoint = isLabAdmin ? "lab-grades" : "grades"
+        const endpoint = "grades"
         // Build URL with lang parameter
         let url = `${API_BASE_URL}/library/${endpoint}/${id}?lang=${currentLanguage}`
         // Always include customer_id if available (for both lab_admin and other roles)

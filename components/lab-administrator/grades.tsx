@@ -123,7 +123,7 @@ export function Grades() {
       }
 
       const customerId = getCustomerId()
-      let url = `${API_BASE_URL}/library/lab-grades?lang=${currentLanguage}`
+      let url = `${API_BASE_URL}/library/grades?lang=${currentLanguage}`
       if (customerId) {
         url += `&customer_id=${customerId}`
       }
@@ -191,7 +191,7 @@ export function Grades() {
         return
       }
 
-      const response = await fetch(`${API_BASE_URL}/library/lab-grades/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/library/grades/${id}`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -273,7 +273,7 @@ export function Grades() {
       }
 
       const customerId = getCustomerId()
-      let url = `${API_BASE_URL}/library/lab-grades`
+      let url = `${API_BASE_URL}/library/grades`
       const payload: any = {
         name: formData.name,
         code: formData.code,
@@ -331,7 +331,7 @@ export function Grades() {
       }
 
       const customerId = getCustomerId()
-      let url = `${API_BASE_URL}/library/lab-grades/${selectedGrade.id}`
+      let url = `${API_BASE_URL}/library/grades/${selectedGrade.id}`
       const payload: any = {
         name: formData.name,
         code: formData.code,
@@ -386,7 +386,7 @@ export function Grades() {
         return
       }
 
-      const response = await fetch(`${API_BASE_URL}/library/lab-grades/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/library/grades/${id}`, {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
@@ -429,7 +429,7 @@ export function Grades() {
       }
 
       const customerId = getCustomerId()
-      let url = `${API_BASE_URL}/library/lab-grades`
+      let url = `${API_BASE_URL}/library/grades`
       const payload: any = {
         name: `${grade.name} (Copy)`,
         code: `${grade.code}C`,

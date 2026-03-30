@@ -1,6 +1,6 @@
 "use client"
 
-import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react";
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import type { Holiday, HolidayCreatePayload, HolidayUpdatePayload } from "@/types/holidays";
 
@@ -31,9 +31,13 @@ export function HolidaysProvider({ children }: HolidaysProviderProps) {
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const holidaysFetchedRef = useRef(false);
+  const fetchingHolidaysRef = useRef(false);
 
   const fetchHolidays = useCallback(async () => {
     if (!customerId) return;
+    if (holidaysFetchedRef.current || fetchingHolidaysRef.current) return;
+    fetchingHolidaysRef.current = true;
     setLoading(true);
     setError(null);
     try {
@@ -47,6 +51,7 @@ export function HolidaysProvider({ children }: HolidaysProviderProps) {
       const data = await res.json();
       if (data.success) {
         setHolidays(data.data);
+        holidaysFetchedRef.current = true;
       } else {
         setError(data.message || "Failed to fetch holidays");
       }
@@ -54,6 +59,7 @@ export function HolidaysProvider({ children }: HolidaysProviderProps) {
       setError(err.message || "Failed to fetch holidays");
     } finally {
       setLoading(false);
+      fetchingHolidaysRef.current = false;
     }
   }, [customerId]);
 
@@ -78,6 +84,7 @@ export function HolidaysProvider({ children }: HolidaysProviderProps) {
       const data = await res.json();
       if (data.success && data.data) {
         setHolidays((prev) => [...prev, data.data]);
+        holidaysFetchedRef.current = true;
         return data.data;
       } else {
         setError(data.message || "Failed to create holiday");

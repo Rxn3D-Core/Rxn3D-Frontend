@@ -8,9 +8,14 @@ import {
 } from "@/lib/dashboard-widgets"
 import { getDashboardSettings, updateDashboardSettings } from "@/lib/api-dashboard-settings"
 
+// Module-level cache to prevent duplicate API calls across hook instances
+let cachedSettings: DashboardSettings | null = null
+let cacheKey: string | null = null
+let fetchPromise: Promise<DashboardSettings | null> | null = null
+
 export function useDashboardSettings(role: string, userId?: number, customerId?: number | null) {
-  const [settings, setSettings] = useState<DashboardSettings | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [settings, setSettings] = useState<DashboardSettings | null>(cachedSettings)
+  const [isLoading, setIsLoading] = useState(!cachedSettings)
   const [error, setError] = useState<Error | null>(null)
 
   // Initialize settings on mount
@@ -20,15 +25,32 @@ export function useDashboardSettings(role: string, userId?: number, customerId?:
       return
     }
 
+    const currentCacheKey = `${role}-${userId}-${customerId}`
+
+    // Use cached settings if available for the same key
+    if (cachedSettings && cacheKey === currentCacheKey) {
+      setSettings(cachedSettings)
+      setIsLoading(false)
+      return
+    }
+
     // Load settings from API
     const loadSettings = async () => {
       try {
         setIsLoading(true)
         setError(null)
-        
-        const stored = await getDashboardSettings(customerId ?? undefined)
-        
+
+        // Deduplicate in-flight requests
+        if (!fetchPromise || cacheKey !== currentCacheKey) {
+          cacheKey = currentCacheKey
+          fetchPromise = getDashboardSettings(customerId ?? undefined)
+        }
+
+        const stored = await fetchPromise
+        fetchPromise = null
+
         if (stored) {
+          cachedSettings = stored
           setSettings(stored)
         } else {
           // Use defaults if no settings found
@@ -37,12 +59,14 @@ export function useDashboardSettings(role: string, userId?: number, customerId?:
             role,
             widgets: defaultWidgets,
           }
+          cachedSettings = newSettings
           setSettings(newSettings)
         }
       } catch (err) {
         console.error("Error loading dashboard settings:", err)
         setError(err instanceof Error ? err : new Error("Failed to load dashboard settings"))
-        
+        fetchPromise = null
+
         // Fallback to defaults on error
         const defaultWidgets = getDefaultWidgetsForRole(role)
         const newSettings: DashboardSettings = {
@@ -74,7 +98,8 @@ export function useDashboardSettings(role: string, userId?: number, customerId?:
 
       // Optimistically update UI
       setSettings(updatedSettings)
-      
+      cachedSettings = updatedSettings
+
       // Save to backend
       try {
         await updateDashboardSettings(updatedSettings, customerId ?? undefined)
@@ -82,6 +107,7 @@ export function useDashboardSettings(role: string, userId?: number, customerId?:
         console.error("Error saving dashboard settings:", err)
         // Revert on error
         setSettings(settings)
+        cachedSettings = settings
         setError(err instanceof Error ? err : new Error("Failed to save dashboard settings"))
       }
     },
@@ -106,7 +132,8 @@ export function useDashboardSettings(role: string, userId?: number, customerId?:
 
       // Optimistically update UI
       setSettings(updatedSettings)
-      
+      cachedSettings = updatedSettings
+
       // Save to backend
       try {
         await updateDashboardSettings(updatedSettings, customerId ?? undefined)
@@ -114,6 +141,7 @@ export function useDashboardSettings(role: string, userId?: number, customerId?:
         console.error("Error saving dashboard settings:", err)
         // Revert on error
         setSettings(settings)
+        cachedSettings = settings
         setError(err instanceof Error ? err : new Error("Failed to save dashboard settings"))
       }
     },
@@ -125,11 +153,13 @@ export function useDashboardSettings(role: string, userId?: number, customerId?:
     async (newSettings: DashboardSettings) => {
       // Optimistically update UI
       setSettings(newSettings)
-      
+      cachedSettings = newSettings
+
       // Save to backend
       try {
         const saved = await updateDashboardSettings(newSettings, customerId ?? undefined)
         setSettings(saved)
+        cachedSettings = saved
       } catch (err) {
         console.error("Error saving dashboard settings:", err)
         setError(err instanceof Error ? err : new Error("Failed to save dashboard settings"))
@@ -147,10 +177,11 @@ export function useDashboardSettings(role: string, userId?: number, customerId?:
         role,
         widgets: defaultWidgets,
       }
-      
+
       // Optimistically update UI
       setSettings(defaultSettings)
-      
+      cachedSettings = defaultSettings
+
       // Save to backend
       try {
         await updateDashboardSettings(defaultSettings, customerId ?? undefined)
