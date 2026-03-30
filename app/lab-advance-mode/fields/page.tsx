@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useDebounce } from "@/lib/performance-utils"
 import { Search, Plus, Settings2, Link as LinkIcon, Edit, Copy, Trash2, MoreVertical, ArrowUpDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -28,6 +29,7 @@ export default function FieldsPage() {
   const { t } = useTranslation()
   const { toast } = useToast()
   const [searchQuery, setSearchQuery] = useState("")
+  const debouncedSearchQuery = useDebounce(searchQuery, 400)
   const [entriesPerPage, setEntriesPerPage] = useState("10")
   const [currentPage, setCurrentPage] = useState(1)
   const [sortBy, setSortBy] = useState<'asc' | 'desc'>('asc')
@@ -41,7 +43,7 @@ export default function FieldsPage() {
   const { data, isLoading, isError, error, refetch } = useAdvanceFields({
     page: currentPage,
     per_page: parseInt(entriesPerPage),
-    q: searchQuery || undefined,
+    q: debouncedSearchQuery || undefined,
     order_by: orderBy,
     sort_by: sortBy,
   })

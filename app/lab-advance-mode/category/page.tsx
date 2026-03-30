@@ -13,12 +13,14 @@ import { AddCategoryModal } from "@/components/advance-mode"
 import { useAdvanceCategories, useUpdateCategoryStatus, useCreateAdvanceCategory, useDeleteAdvanceCategory, useDuplicateAdvanceCategory, useUpdateAdvanceCategory, useAdvanceCategory } from "@/lib/api/advance-mode-query"
 import { LoadingDots } from "@/components/ui/loading-dots"
 import { useQueryClient } from "@tanstack/react-query"
+import { useDebounce } from "@/lib/performance-utils"
 
 export default function CategoryPage() {
   const { t } = useTranslation()
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const [searchQuery, setSearchQuery] = useState("")
+  const debouncedSearchQuery = useDebounce(searchQuery, 400)
   const [entriesPerPage, setEntriesPerPage] = useState("10")
   const [currentPage, setCurrentPage] = useState(1)
   const [sortBy, setSortBy] = useState<'asc' | 'desc'>('asc')
@@ -43,7 +45,7 @@ export default function CategoryPage() {
   const { data, isLoading, isError, error } = useAdvanceCategories({
     page: currentPage,
     per_page: parseInt(entriesPerPage),
-    q: searchQuery || undefined,
+    q: debouncedSearchQuery || undefined,
     order_by: orderBy,
     sort_by: sortBy,
     customer_id: customerId,

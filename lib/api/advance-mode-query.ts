@@ -210,9 +210,10 @@ export interface ApiResponse<T> {
 
 // ===== CATEGORIES =====
 
-export const useAdvanceCategories = (params?: PaginationParams) => {
+export const useAdvanceCategories = (params?: PaginationParams, options?: { enabled?: boolean }) => {
   return useQuery({
     queryKey: ['advanceCategories', params],
+    enabled: options?.enabled ?? true,
     queryFn: async () => {
       // Get role and customerId from localStorage for lab_admin
       let customerId = params?.customer_id
@@ -260,6 +261,7 @@ export const useAdvanceCategories = (params?: PaginationParams) => {
       // Fallback for unwrapped responses
       return (result.data || result) as PaginatedResponse<AdvanceCategory>
     },
+    staleTime: 5000,
   })
 }
 
@@ -1062,9 +1064,10 @@ export const useDuplicateImplant = () => {
 
 // ===== SUBCATEGORIES =====
 
-export const useAdvanceSubcategories = (params?: PaginationParams & { advance_category_id?: number }) => {
+export const useAdvanceSubcategories = (params?: PaginationParams & { advance_category_id?: number }, options?: { enabled?: boolean }) => {
   return useQuery({
     queryKey: ['advanceSubcategories', params],
+    enabled: options?.enabled ?? true,
     queryFn: async () => {
       const queryParams = new URLSearchParams()
       if (params?.page) queryParams.append('page', params.page.toString())
@@ -1099,6 +1102,7 @@ export const useAdvanceSubcategories = (params?: PaginationParams & { advance_ca
       // Fallback for unwrapped responses
       return (result.data || result) as PaginatedResponse<AdvanceSubcategory>
     },
+    staleTime: 5000,
   })
 }
 
@@ -1407,9 +1411,10 @@ export const useDuplicateAdvanceSubcategory = () => {
 export const useAdvanceFields = (params?: PaginationParams & {
   advance_category_id?: number
   advance_subcategory_id?: number
-}) => {
+}, options?: { enabled?: boolean }) => {
   return useQuery({
     queryKey: ['advanceFields', params],
+    enabled: options?.enabled ?? true,
     queryFn: async () => {
       const queryParams = new URLSearchParams()
       if (params?.page) queryParams.append('page', params.page.toString())
@@ -1462,6 +1467,7 @@ export const useAdvanceFields = (params?: PaginationParams & {
       // Fallback: return result as-is if it matches PaginatedResponse structure
       return result as PaginatedResponse<AdvanceField>
     },
+    staleTime: 5000,
   })
 }
 
@@ -1486,9 +1492,9 @@ export const useAdvanceField = (id: number, customer_id?: number) => {
       return (result.data ? result : { data: result }) as ApiResponse<AdvanceField>
     },
     enabled: !!id && id > 0, // Only enable when we have a valid ID
-    staleTime: 1000, // Consider data fresh for 1 second to prevent duplicate calls
-    gcTime: 2 * 60 * 1000, // Cache for 2 minutes
-    refetchOnMount: true, // Always refetch when component mounts with new ID
+    staleTime: 0, // Always refetch to get latest data after updates
+    gcTime: 30 * 1000, // Cache for 30 seconds
+    refetchOnMount: 'always', // Always refetch when component mounts
     refetchOnWindowFocus: false, // Don't refetch on window focus
     refetchOnReconnect: false, // Don't refetch on reconnect
   })
@@ -1617,8 +1623,10 @@ export const useUpdateAdvanceField = () => {
       return response.json() as Promise<ApiResponse<AdvanceField>>
     },
     onSuccess: (_, variables) => {
+      // Invalidate all field-related queries to ensure fresh data
       queryClient.invalidateQueries({ queryKey: ['advanceFields'] })
-      queryClient.invalidateQueries({ queryKey: ['advanceField', variables.id] })
+      // Use exact: false (default) so it matches ['advanceField', id] and ['advanceField', id, customer_id]
+      queryClient.invalidateQueries({ queryKey: ['advanceField'] })
     },
   })
 }

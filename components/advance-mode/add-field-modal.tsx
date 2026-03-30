@@ -202,20 +202,20 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
     }
   }, [selectedFieldType, canAddAdditionalCharges, form])
 
-  // Fetch categories with customer_id if role is lab_admin
+  // Fetch categories with customer_id if role is lab_admin - only when modal is open
   const { data: categoriesData } = useAdvanceCategories({
     per_page: 100,
     status: "Active",
     ...(customerId && { customer_id: customerId }),
-  })
+  }, { enabled: isOpen })
 
-  // Fetch subcategories with customer_id if role is lab_admin, filtered by selected category
+  // Fetch subcategories with customer_id if role is lab_admin, filtered by selected category - only when modal is open
   const { data: subcategoriesData } = useAdvanceSubcategories({
     per_page: 100,
     status: "Active",
     ...(customerId && { customer_id: customerId }),
     ...(selectedCategoryId && !isNaN(parseInt(selectedCategoryId, 10)) && { advance_category_id: parseInt(selectedCategoryId, 10) }),
-  })
+  }, { enabled: isOpen })
 
   const categoriesRaw = Array.isArray(categoriesData?.data) ? categoriesData.data : []
   const subcategoriesRaw = Array.isArray(subcategoriesData?.data) ? subcategoriesData.data : []
@@ -807,100 +807,80 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
         if (isEditing && initialOptions.length > 0) {
           // For editing, check which options changed
           for (const opt of options) {
-            const initialOpt = opt.originalId 
+            const initialOpt = opt.originalId
               ? initialOptions.find(o => o.originalId === opt.originalId)
               : null
-            
+
             if (!initialOpt) {
               // New option - needs processing
-              optionsToProcess.push({ opt, needsImageConversion: !!opt.image, hasChanged: true })
+              optionsToProcess.push({ opt, needsImageConversion: !!opt.image && isImageUrl(opt.image), hasChanged: true })
             } else {
               // Existing option - check if changed
               const imageChanged = opt.image !== initialOpt.image
-              const hasChanged: boolean = 
+              const hasChanged: boolean =
                 opt.label !== initialOpt.label ||
                 opt.status !== initialOpt.status ||
                 opt.isDefault !== initialOpt.isDefault ||
                 opt.price !== initialOpt.price ||
                 imageChanged
-              
-              // For existing options, convert image to base64 if:
-              // 1. Image changed and is a URL, OR
-              // 2. Image didn't change but is a URL (need to convert existing URL images to base64)
-              const currentImageIsUrl = !!opt.image && isImageUrl(opt.image)
-              const initialImageIsUrl = !!initialOpt.image && isImageUrl(initialOpt.image)
-              const needsImageConversion = (imageChanged && currentImageIsUrl) || (!imageChanged && initialImageIsUrl)
-              
+
+              // Only convert if image actually changed AND is a URL
+              // If image didn't change (still the same URL), skip conversion — backend keeps existing
+              const needsImageConversion = imageChanged && !!opt.image && isImageUrl(opt.image)
+
               optionsToProcess.push({ opt, needsImageConversion, hasChanged })
             }
           }
         } else {
           // For new fields, process all options
-          optionsToProcess.push(...options.map(opt => ({ 
-            opt, 
+          optionsToProcess.push(...options.map(opt => ({
+            opt,
             needsImageConversion: !!opt.image && isImageUrl(opt.image),
-            hasChanged: true 
+            hasChanged: true
           })))
         }
-        
-        // Convert URL images to base64 and validate all images
-        // For editing, we need to convert ALL existing option images (URLs) to base64
+
+        // Process option images: convert URLs to base64 only when needed, validate new images
         const processedOptions = await Promise.all(
           optionsToProcess.map(async ({ opt, needsImageConversion, hasChanged }, idx) => {
-            // Find initial option for existing options
-            const initialOpt = isEditing && opt.originalId 
+            const initialOpt = isEditing && opt.originalId
               ? initialOptions.find(o => o.originalId === opt.originalId)
               : null
-            
-            // Determine which image to use: current form value or initial value
-            let imageToProcess = opt.image || initialOpt?.image || null
-            
-            // Convert URL images to base64
-            let imageBase64: string | null = null
-            if (imageToProcess) {
-              // Check if image is a URL and needs conversion
-              if (isImageUrl(imageToProcess)) {
+
+            const imageChanged = initialOpt ? (opt.image !== initialOpt.image) : true
+
+            // Determine the final image value for the payload
+            let finalImage: string | null = null
+
+            if (!imageChanged) {
+              // Image didn't change — don't include in payload, backend keeps existing
+              finalImage = null
+            } else if (opt.image) {
+              if (isImageUrl(opt.image)) {
+                // New image is a URL — try to convert to base64
                 try {
-                  imageBase64 = await urlToBase64(imageToProcess)
+                  finalImage = await urlToBase64(opt.image)
                 } catch (error) {
-                  // Check if it's a CORS error for an existing unchanged image
-                  const isCorsError = error instanceof Error && (
-                    error.message.includes('CORS') || 
-                    error.message.includes('Failed to fetch') ||
-                    error.message.includes('Access-Control-Allow-Origin')
-                  )
-                  // Check if the image itself hasn't changed (not just if any field changed)
-                  const imageChanged = initialOpt ? (opt.image !== initialOpt.image) : false
-                  const isUnchangedExistingImage = !imageChanged && initialOpt && opt.originalId
-                  
-                  // For unchanged existing images with CORS errors, skip the image (backend will keep existing)
-                  // This applies even if other fields (like isDefault) changed
-                  if (isCorsError && isUnchangedExistingImage) {
-                    console.warn(`Skipping image conversion for option ${idx + 1} due to CORS error (image unchanged):`, imageToProcess)
-                    imageBase64 = null // Don't include image in payload, backend will keep existing
-                  } else {
-                    // For changed/new images or non-CORS errors, show error
-                    const errorMessage = error instanceof Error ? error.message : 'Failed to convert image URL to base64'
-                    form.setError("fieldType", {
-                      type: "manual",
-                      message: `Option ${idx + 1} (${opt.label || 'unnamed'}): ${errorMessage}`,
-                    })
-                    setActiveTab("options")
-                    toast({
-                      title: "Validation Error",
-                      description: `Option ${idx + 1} (${opt.label || 'unnamed'}): ${errorMessage}. Please ensure the image URL is accessible or upload the image directly.`,
-                      variant: "destructive",
-                    })
-                    throw error
-                  }
+                  const errorMessage = error instanceof Error ? error.message : 'Failed to convert image URL to base64'
+                  form.setError("fieldType", {
+                    type: "manual",
+                    message: `Option ${idx + 1} (${opt.label || 'unnamed'}): ${errorMessage}`,
+                  })
+                  setActiveTab("options")
+                  toast({
+                    title: "Validation Error",
+                    description: `Option ${idx + 1} (${opt.label || 'unnamed'}): ${errorMessage}. Please upload the image directly.`,
+                    variant: "destructive",
+                  })
+                  throw error
                 }
               } else {
                 // Already base64 or data URL
-                imageBase64 = imageToProcess
+                finalImage = opt.image
               }
-              
+
               // Validate base64 image format
-              const validation = validateBase64Image(imageBase64)
+              const validation = validateBase64Image(finalImage)
               if (!validation.valid) {
                 form.setError("fieldType", {
                   type: "manual",
@@ -915,11 +895,12 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
                 throw new Error(validation.error || 'Invalid image')
               }
             }
-            
+
             return {
               ...opt,
-              image: imageBase64,
+              image: finalImage,
               _hasChanged: hasChanged,
+              _imageChanged: imageChanged,
             }
           })
         )

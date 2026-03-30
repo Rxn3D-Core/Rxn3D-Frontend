@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useTranslation } from "react-i18next"
 import { CreateSubCategoryModal } from "@/components/advance-mode"
+import { useDebounce } from "@/lib/performance-utils"
 import {
   useAdvanceSubcategories,
   useCreateAdvanceSubcategory,
@@ -38,6 +39,7 @@ export default function SubCategoryPage() {
   const { t } = useTranslation()
   const { toast } = useToast()
   const [searchQuery, setSearchQuery] = useState("")
+  const debouncedSearchQuery = useDebounce(searchQuery, 400)
   const [entriesPerPage, setEntriesPerPage] = useState("10")
   const [currentPage, setCurrentPage] = useState(1)
   const [sortBy, setSortBy] = useState<'asc' | 'desc'>('asc')
@@ -71,7 +73,7 @@ export default function SubCategoryPage() {
   const { data, isLoading, isError, refetch } = useAdvanceSubcategories({
     page: currentPage,
     per_page: parseInt(entriesPerPage),
-    q: searchQuery || undefined,
+    q: debouncedSearchQuery || undefined,
     order_by: orderBy,
     sort_by: sortBy,
     customer_id: customerId,

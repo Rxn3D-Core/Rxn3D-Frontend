@@ -68,11 +68,13 @@ export function LinkProductModal({ isOpen, onClose, context = "global", fieldId,
     // Category selection state
     const [selectedCategories, setSelectedCategories] = useState<string[]>([])
 
-    // Fetch fields list - if fieldId is provided, fetch that specific field, otherwise fetch all
+    // Fetch fields list - only when modal is open
+    // If fieldId is provided, fetch that specific field; otherwise fetch all fields
     const { data: fieldsData, isLoading: isLoadingFields } = useAdvanceFields(
-        fieldId ? undefined : { per_page: 100 }
+        fieldId ? undefined : { per_page: 100 },
+        { enabled: isOpen && !fieldId }
     )
-    const { data: singleFieldData } = useAdvanceField(fieldId || 0)
+    const { data: singleFieldData } = useAdvanceField(isOpen && fieldId ? fieldId : 0)
     const linkProductsMutation = useLinkFieldProducts()
 
     // Get the field to display

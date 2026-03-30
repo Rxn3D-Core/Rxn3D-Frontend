@@ -35,8 +35,8 @@ export function CreateSubCategoryModal({ isOpen, onClose, onSave, editId, editDa
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
-  // Fetch categories for dropdown
-  const { data: categoriesData } = useAdvanceCategories({ per_page: 100, status: "Active" })
+  // Fetch categories for dropdown - only when modal is open
+  const { data: categoriesData } = useAdvanceCategories({ per_page: 100, status: "Active" }, { enabled: isOpen })
   const categories = Array.isArray(categoriesData?.data) ? categoriesData.data : []
 
   // Reset or populate form when modal opens
