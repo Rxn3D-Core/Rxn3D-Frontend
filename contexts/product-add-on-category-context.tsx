@@ -1005,15 +1005,18 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
   }, [authToken, getAuthHeaders, logout, triggerAnimation, customerId])
 
   // Add similar protection for fetchAddOnGroups
+  const groupsFetchedRef = useRef(false)
+  const fetchingGroupsRef = useRef(false)
   const fetchAddOnGroups = useCallback(async () => {
     const headers = getAuthHeaders()
     if (!headers) return
 
-    // Prevent duplicate calls if already loaded
-    if (addOnGroups.length > 0 && !isLoadingGroups) {
+    // Prevent duplicate calls if already loaded or in-flight
+    if (groupsFetchedRef.current || fetchingGroupsRef.current) {
       return
     }
 
+    fetchingGroupsRef.current = true
     setIsLoadingGroups(true)
 
     try {
@@ -1034,6 +1037,7 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
           groupsData = result.data as AddOnGroup[]
         }
         setAddOnGroups(groupsData)
+        groupsFetchedRef.current = true
       } else {
         throw new Error(result.message || "Failed to fetch add-on groups")
       }
@@ -1041,8 +1045,9 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
       handleApiError(error, "fetch add-on groups")
     } finally {
       setIsLoadingGroups(false)
+      fetchingGroupsRef.current = false
     }
-  }, [getAuthHeaders, addOnGroups.length, isLoadingGroups])
+  }, [getAuthHeaders])
 
   const createAddOnGroup = async (data: Omit<AddOnGroup, "id" | "created_at" | "updated_at">) => {
     const headers = getAuthHeaders()
@@ -1067,6 +1072,7 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
       }
 
       triggerAnimation("success", result.message || "Add-on group created successfully!")
+      groupsFetchedRef.current = false
       fetchAddOnGroups()
       return result.data
     } catch (error: any) {
@@ -1098,6 +1104,7 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
       }
 
       triggerAnimation("success", result.message || "Add-on group updated successfully!")
+      groupsFetchedRef.current = false
       fetchAddOnGroups()
       return result.data
     } catch (error: any) {
@@ -1120,6 +1127,7 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
 
       if (response.status === 204) {
         triggerAnimation("success", "Add-on group deleted successfully!")
+        groupsFetchedRef.current = false
         fetchAddOnGroups()
         return true
       }
@@ -1134,6 +1142,7 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
       }
 
       triggerAnimation("success", result.message || "Add-on group deleted successfully!")
+      groupsFetchedRef.current = false
       fetchAddOnGroups()
       return true
     } catch (error: any) {
