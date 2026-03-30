@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Search, ArrowUp, ArrowDown, Info, Edit, TrashIcon, Copy, Plus, Package } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -87,8 +87,13 @@ export default function ToothMappingPage() {
   } = useExtraction(editingExtractionId, filters.lang)
   const detailedExtraction = editingExtractionResponse?.data
 
-  // Update filters when language changes
+  // Update filters when language changes (skip initial mount)
+  const isInitialMount = useRef(true)
   useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false
+      return
+    }
     setFilters(prev => ({
       ...prev,
       lang: currentLanguage || 'en',

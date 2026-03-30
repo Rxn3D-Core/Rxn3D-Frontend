@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { X, ChevronDown, Plus, Trash2, Info } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -48,6 +48,7 @@ export function CreateGumShadeModal({ isOpen, onClose, onChanges, editingGumShad
     availableShades,
     isAvailableShadesLoading,
     fetchAvailableShades,
+    fetchShadesForBrand,
     createGumShadeBrand,
     updateGumShadeBrand,
     createCustomGumShade,
@@ -68,6 +69,7 @@ export function CreateGumShadeModal({ isOpen, onClose, onChanges, editingGumShad
   // Discard dialog state
   const [showDiscardDialog, setShowDiscardDialog] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
+  const hasFetchedShades = useRef(false)
 
   // Track changes
   useEffect(() => {
@@ -121,13 +123,29 @@ export function CreateGumShadeModal({ isOpen, onClose, onChanges, editingGumShad
       setLinkToExistingGroupOpen(false)
       setVisibilityManagementOpen(false)
       setHasChanges(false)
-      fetchAvailableShades()
-      // Fetch gum shade brands to have data for filtering
-      if (gumShadeBrands.length === 0) {
-        // This will be handled by the context, but we ensure data is available
-      }
+    } else {
+      hasFetchedShades.current = false
     }
   }, [isOpen, editingGumShade, isCopying])
+
+  // Fetch shades when modal opens
+  // - Editing: fetch only the specific brand's shades
+  // - Copying/New: fetch all available shades
+  useEffect(() => {
+    if (!isOpen) {
+      hasFetchedShades.current = false
+      return
+    }
+
+    if (hasFetchedShades.current) return
+    hasFetchedShades.current = true
+
+    if (editingGumShade?.id && !isCopying) {
+      fetchShadesForBrand(editingGumShade.id)
+    } else {
+      fetchAvailableShades()
+    }
+  }, [isOpen, editingGumShade?.id, isCopying, fetchShadesForBrand, fetchAvailableShades])
 
   // Handle input changes
   const handleInputChange = (field: keyof FormData, value: string) => {

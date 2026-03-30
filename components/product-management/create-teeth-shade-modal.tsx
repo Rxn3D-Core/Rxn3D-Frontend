@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { X, ChevronDown, Plus, Info } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -41,7 +41,7 @@ export function CreateTeethShadeModal({
   onSave,
   isCopying = false,
 }: CreateTeethShadeModalProps) {
-  const { createTeethShadeBrand, isLoading, fetchAvailableShades, createCustomShade, teethShadeBrands } =
+  const { createTeethShadeBrand, isLoading, fetchAvailableShades, fetchShadesForBrand, createCustomShade, teethShadeBrands } =
     useTeethShades()
   const { toast } = useToast()
   const { t } = useTranslation();
@@ -70,6 +70,8 @@ export function CreateTeethShadeModal({
   const [availableShades, setAvailableShades] = useState<Shade[]>([])
   const [loadingShades, setLoadingShades] = useState(false)
   const [addingCustomShade, setAddingCustomShade] = useState(false)
+  const isSaving = useRef(false)
+  const hasFetchedShades = useRef(false)
 
   // Filter available shades by system_name (case-insensitive)
   const filteredAvailableShades = formData.system_name
@@ -178,9 +180,33 @@ export function CreateTeethShadeModal({
     }
   }, [isOpen, isEditing, teethShadeBrand, isCopying, onHasChangesChange])
 
-  // Fetch available shades when modal opens (only for editing or copying, not for creating new)
+  // Fetch shades when modal opens
+  // - Editing: fetch only the specific brand's shades (not all brands)
+  // - Copying: fetch all available shades for the list
   useEffect(() => {
-    if (isOpen && (isEditing || isCopying)) {
+    if (!isOpen) {
+      hasFetchedShades.current = false
+      return
+    }
+
+    if (hasFetchedShades.current) return
+    hasFetchedShades.current = true
+
+    if (isEditing && teethShadeBrand?.id) {
+      const loadBrandShades = async () => {
+        setLoadingShades(true)
+        try {
+          const shades = await fetchShadesForBrand(teethShadeBrand.id)
+          setAvailableShades(shades)
+        } catch (error) {
+          console.error("Error loading brand shades:", error)
+        } finally {
+          setLoadingShades(false)
+        }
+      }
+
+      loadBrandShades()
+    } else if (isCopying) {
       const loadAvailableShades = async () => {
         setLoadingShades(true)
         try {
@@ -194,12 +220,11 @@ export function CreateTeethShadeModal({
       }
 
       loadAvailableShades()
-    } else if (isOpen && !isEditing && !isCopying) {
-      // When creating new, clear available shades
+    } else {
       setAvailableShades([])
       setLoadingShades(false)
     }
-  }, [isOpen, isEditing, isCopying, fetchAvailableShades])
+  }, [isOpen, isEditing, isCopying, teethShadeBrand?.id, fetchShadesForBrand, fetchAvailableShades])
 
   // Track changes for discard dialog
   useEffect(() => {
@@ -363,6 +388,9 @@ export function CreateTeethShadeModal({
   }
 
   const handleSave = async () => {
+    if (isSaving.current) return
+    isSaving.current = true
+
     const payload: TeethShadeBrandPayload = {
       name: formData.name,
       system_name: formData.system_name,
@@ -407,13 +435,15 @@ export function CreateTeethShadeModal({
       console.error("Error saving teeth shade brand:", error)
       toast({
         title: "Error",
-        description: isCopying 
+        description: isCopying
           ? "Failed to duplicate teeth shade. Please try again."
-          : isEditing 
+          : isEditing
           ? "Failed to update teeth shade. Please try again."
           : "Failed to create teeth shade. Please try again.",
         variant: "destructive",
       })
+    } finally {
+      isSaving.current = false
     }
   }
 

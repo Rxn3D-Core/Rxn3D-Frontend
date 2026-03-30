@@ -112,6 +112,7 @@ type TeethShadesContextType = {
   clearMessages: () => void
   clearSelection: () => void
   fetchAvailableShades: () => Promise<Shade[]>
+  fetchShadesForBrand: (brandId: number) => Promise<Shade[]>
   createCustomShade: (payload: {
     brand_id: number
     name: string
@@ -924,6 +925,49 @@ export const TeethShadesProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   }, [authToken])
 
+  // Fetch shades for a single brand by ID
+  const fetchShadesForBrand = useCallback(async (brandId: number): Promise<Shade[]> => {
+    if (!authToken) {
+      console.warn("No auth token available for fetching shades")
+      return []
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/library/teeth-shade-brands/${brandId}`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+          "Content-Type": "application/json",
+          "Accept-Language": currentLanguage || "en",
+        },
+      })
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          redirectToLogin()
+          return []
+        }
+        console.error("Failed to fetch shades for brand")
+        return []
+      }
+
+      const result = await response.json()
+      const brand = result.data
+
+      if (!brand?.shades) return []
+
+      return brand.shades
+        .map((shade: Shade) => ({
+          ...shade,
+          brand_id: brandId,
+        }))
+        .sort((a: Shade, b: Shade) => a.sequence - b.sequence)
+    } catch (error) {
+      console.error("Error fetching shades for brand:", error)
+      return []
+    }
+  }, [authToken, currentLanguage])
+
   const clearMessages = useCallback(() => {
     setError(null)
     setSuccessMessage(null)
@@ -965,6 +1009,7 @@ export const TeethShadesProvider: React.FC<{ children: React.ReactNode }> = ({ c
         clearMessages,
         clearSelection,
         fetchAvailableShades,
+        fetchShadesForBrand,
         createCustomShade,
       }}
     >

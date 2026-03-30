@@ -229,15 +229,16 @@ export const ExtractionsApi = {
     lang?: string;
   } = {}) => {
     const queryParams = new URLSearchParams();
-    
-    // Get customerId for lab_admin and add to filters if not already present
+
+    // Build params from a copy to avoid mutating the original filters object
+    const params = { ...filters }
     const customerId = getCustomerId()
-    if (customerId && !filters.customer_id) {
-      filters.customer_id = customerId
+    if (customerId && !params.customer_id) {
+      params.customer_id = customerId
     }
-    
+
     // Add filters to query params (map sort_by/sort_order to order_by/sort_by per LIBRARY_API_SORTING_REFERENCE)
-    Object.entries(filters).forEach(([key, value]) => {
+    Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
         if (key === 'sort_by') {
           queryParams.append('order_by', value.toString());

@@ -2,13 +2,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useCallback } from 'react'
 import { ExtractionsApi } from '@/lib/api-service'
 import { useToast } from '@/hooks/use-toast'
-import type { 
-  Extraction, 
-  ExtractionsListResponse, 
-  ExtractionsResponse, 
-  CreateExtractionPayload, 
-  UpdateExtractionPayload, 
-  ExtractionsFilters 
+import type {
+  Extraction,
+  ExtractionsListResponse,
+  ExtractionsResponse,
+  CreateExtractionPayload,
+  UpdateExtractionPayload,
+  ExtractionsFilters
 } from '@/lib/schemas'
 
 // Query keys for React Query
@@ -29,7 +29,7 @@ export function useExtractions(filters: ExtractionsFilters = {}) {
       const response = await ExtractionsApi.getExtractions(filters)
       return response
     },
-    staleTime: 0, // always refetch so we can load the latest localized detail
+    staleTime: 0,
   })
 }
 

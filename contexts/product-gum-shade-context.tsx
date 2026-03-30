@@ -127,6 +127,7 @@ export interface GumShadesContextType {
   deleteGumShadeBrand: (id: number) => Promise<boolean>
   createGumShadeGroup: (name: string) => Promise<boolean>
   createCustomGumShade: (data: CreateCustomGumShadePayload) => Promise<boolean>
+  fetchShadesForBrand: (brandId: number) => Promise<GumShade[]>
 
   // State setters
   setSearchQuery: (query: string) => void
@@ -437,6 +438,27 @@ export function GumShadesProvider({ children }: GumShadesProviderProps) {
     } catch (error) {
       console.error("Failed to fetch gum shade brand detail", error)
       return null
+    }
+  }
+
+  // Fetch shades for a single brand by ID
+  const fetchShadesForBrand = async (brandId: number): Promise<GumShade[]> => {
+    setIsAvailableShadesLoading(true)
+    try {
+      const brand = await getGumShadeBrandDetail(brandId)
+      if (brand?.shades) {
+        const sorted = brand.shades.sort((a, b) => a.sequence - b.sequence)
+        setAvailableShades(sorted)
+        return sorted
+      }
+      setAvailableShades([])
+      return []
+    } catch (error) {
+      console.error("Error fetching shades for brand:", error)
+      setAvailableShades([])
+      return []
+    } finally {
+      setIsAvailableShadesLoading(false)
     }
   }
 
@@ -759,6 +781,7 @@ export function GumShadesProvider({ children }: GumShadesProviderProps) {
     deleteGumShadeBrand,
     createGumShadeGroup,
     createCustomGumShade,
+    fetchShadesForBrand,
 
     // State setters
     setSearchQuery,
