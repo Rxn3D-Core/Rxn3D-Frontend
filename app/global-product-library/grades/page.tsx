@@ -42,6 +42,7 @@ export default function GradesPage() {
 
   const [isCreateGradeModalOpen, setIsCreateGradeModalOpen] = useState(false)
   const [isCreateGradeGroupModalOpen, setIsCreateGradeGroupModalOpen] = useState(false)
+  const [editingGrade, setEditingGrade] = useState<Grade | null>(null)
 
   const [isModalDirty, setIsModalDirty] = useState(false)
 
@@ -147,6 +148,7 @@ export default function GradesPage() {
   const totalPages = pagination.last_page || 1
 
   function handleEdit(grade: Grade): void {
+    setEditingGrade(grade)
     setIsCreateGradeModalOpen(true)
   }
 
@@ -233,7 +235,10 @@ export default function GradesPage() {
         <div className="flex gap-3">
           <Button
             className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
-            onClick={() => setIsCreateGradeModalOpen(true)}
+            onClick={() => {
+              setEditingGrade(null)
+              setIsCreateGradeModalOpen(true)
+            }}
           >
             <Plus className="h-4 w-4 mr-2" />
             Add Grade
@@ -440,7 +445,12 @@ export default function GradesPage() {
 
       <CreateGradeModal
         isOpen={isCreateGradeModalOpen}
-        onClose={() => setIsCreateGradeModalOpen(false)}
+        onClose={() => {
+          setIsCreateGradeModalOpen(false)
+          setEditingGrade(null)
+        }}
+        editingGrade={editingGrade}
+        editId={editingGrade?.id}
       />
 
       <CreateGradeGroupModal
