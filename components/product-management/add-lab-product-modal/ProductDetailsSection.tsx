@@ -362,7 +362,7 @@ export function ProductDetailsSection({
             <div className="flex-1 space-y-4 w-full">
               {/* Product Name and Product Code - First Row */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Product Name */} 
+                {/* Product Name */}  
                 <Controller
                   name="name"
                   control={control}
