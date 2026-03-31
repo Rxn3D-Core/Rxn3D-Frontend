@@ -363,23 +363,37 @@ export function ProductDetailsSection({
               {/* Product Name and Product Code - First Row */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Product Name */}
-                <Input
-                  label="Product Name"
-                  placeholder="Enter product name"
-                  {...register("name")}
-                  validationState={getValidationError("name") ? "error" : (name ? "valid" : "default")}
-                  required
-                  disabled={isCustomDisabled}
+                <Controller
+                  name="name"
+                  control={control}
+                  render={({ field }) => (
+                    <Input
+                      label="Product Name"
+                      value={field.value || ""}
+                      onChange={field.onChange}
+                      onBlur={field.onBlur}
+                      validationState={getValidationError("name") ? "error" : (name ? "valid" : "default")}
+                      required
+                      disabled={isCustomDisabled}
+                    />
+                  )}
                 />
 
                 {/* Product Code */}
-                <Input
-                  label="Product Code"
-                  placeholder="Enter product code"
-                  {...register("code")}
-                  validationState={getValidationError("code") ? "error" : (code ? "valid" : "default")}
-                  required
-                  disabled={isCustomDisabled}
+                <Controller
+                  name="code"
+                  control={control}
+                  render={({ field }) => (
+                    <Input
+                      label="Product Code"
+                      value={field.value || ""}
+                      onChange={field.onChange}
+                      onBlur={field.onBlur}
+                      validationState={getValidationError("code") ? "error" : (code ? "valid" : "default")}
+                      required
+                      disabled={isCustomDisabled}
+                    />
+                  )}
                 />
               </div>
 
@@ -562,7 +576,6 @@ export function ProductDetailsSection({
                       <div className="relative">
                         <Input
                           label="Base Price *"
-                          placeholder="0.00"
                           className={`pl-8 ${
                             isLockedByGrades
                               ? "border-gray-200 bg-gray-50 cursor-not-allowed"
@@ -653,7 +666,6 @@ export function ProductDetailsSection({
                     return (
                       <Input
                         label="Min Days to Process *"
-                        placeholder="Enter minimum days"
                         type="number"
                         min="1"
                         value={field.value !== null && field.value !== undefined ? field.value : ""}
@@ -696,7 +708,6 @@ export function ProductDetailsSection({
                       return (
                         <Input
                           label="Max Days to Process *"
-                          placeholder="Enter maximum days"
                           type="number"
                           min="1"
                           value={field.value !== null && field.value !== undefined ? field.value : ""}

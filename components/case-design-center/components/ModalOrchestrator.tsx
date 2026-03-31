@@ -283,7 +283,7 @@ export function ModalOrchestrator({
 
       {/* File Attachment Modal */}
       <Dialog open={showAttachModal} onOpenChange={setShowAttachModal}>
-        <DialogContent className={`${attachViewerOpen ? "max-w-[1400px]" : "max-w-[1000px]"} w-[95vw] max-h-[min(750px,85vh)] overflow-hidden flex flex-col p-0 transition-all duration-300`}>
+        <DialogContent className={`${attachViewerOpen ? "max-w-[1700px]" : "max-w-[1100px]"} w-[95vw] h-[80vh] max-h-[800px] overflow-hidden flex flex-col p-0 transition-all duration-300`}>
           <FileAttachmentModalContent
             setShowAttachModal={setShowAttachModal}
             isCaseSubmitted={false}

@@ -20,8 +20,8 @@ import {
   Archive,
   Box,
   Maximize2,
+  Minimize2,
   RotateCcw,
-  Play,
   ZoomIn,
   ZoomOut,
   Move,
@@ -97,9 +97,23 @@ export default function FileAttachmentModalContent({
   onViewerToggle,
 }: FileAttachmentModalContentProps) {
   const { uploadSlipAttachment, fetchSlipAttachments } = useSlipCreation()
+
+  // Restore previously attached files from window cache (persists across Dialog open/close)
+  const restoreCachedUploads = () => {
+    if (typeof window === "undefined") return []
+    const cached = (window as any).__caseDesignAttachments as any[] | undefined
+    if (!cached || !Array.isArray(cached) || cached.length === 0) return []
+    // Re-create blob URLs for File objects (old blob URLs are revoked on unmount)
+    return cached.map((item: any) => {
+      const hasFile = item.file instanceof File || item.file instanceof Blob
+      const url = hasFile ? URL.createObjectURL(item.file) : item.url
+      return { ...item, url }
+    })
+  }
+
   const [simulatedUploads, setSimulatedUploads] = useState<
     Array<{ file: any, url: string, type: "stl" | "image" | "3dobject" | "other", archived?: boolean, remoteId?: any, remoteMeta?: any, stage?: string }>
-  >([])
+  >(restoreCachedUploads)
   const [description, setDescription] = useState("")
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [viewing3dUrl, setViewing3dUrl] = useState<string | null>(null)
@@ -140,46 +154,64 @@ export default function FileAttachmentModalContent({
   // Viewer items: STL files and images assigned to layout cells
   const [viewerStlUrls, setViewerStlUrls] = useState<string[]>([])
   const [viewerItems, setViewerItems] = useState<{ url: string; type: "stl" | "image" }[]>([])
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
-  // Doctor / patient names
-  const [doctorName, setDoctorName] = useState<string>(propDoctorName || "")
-  const [patientName, setPatientName] = useState<string>(propPatientName || "")
+  // Doctor / patient names — read from localStorage on every mount/render cycle
+  const readDoctorFromStorage = (): string => {
+    if (typeof window === "undefined") return ""
+    try {
+      // Try caseDesignCache first
+      const cacheStr = localStorage.getItem("caseDesignCache")
+      if (cacheStr) {
+        const cache = JSON.parse(cacheStr)
+        const formData = cache?.slipData?.formData
+        if (formData?.doctor) return formData.doctor
+      }
+      // Fallback: selectedDoctor from localStorage
+      const doctorStr = localStorage.getItem("selectedDoctor")
+      if (doctorStr) {
+        const doc = JSON.parse(doctorStr)
+        const name = [doc.first_name, doc.last_name].filter(Boolean).join(" ")
+        if (name) return name
+      }
+    } catch {}
+    return ""
+  }
 
+  const readPatientFromStorage = (): string => {
+    if (typeof window === "undefined") return ""
+    try {
+      // Try caseDesignCache first
+      const cacheStr = localStorage.getItem("caseDesignCache")
+      if (cacheStr) {
+        const cache = JSON.parse(cacheStr)
+        const formData = cache?.slipData?.formData
+        const name = formData?.patient || formData?.patient_name
+        if (name) return name
+      }
+      // Fallback: patientData from localStorage
+      const patientStr = localStorage.getItem("patientData")
+      if (patientStr) {
+        const patient = JSON.parse(patientStr)
+        if (patient?.name) return patient.name
+      }
+    } catch {}
+    return ""
+  }
+
+  const [doctorName, setDoctorName] = useState<string>(propDoctorName || readDoctorFromStorage)
+  const [patientName, setPatientName] = useState<string>(propPatientName || readPatientFromStorage)
+
+  // Re-read from localStorage when props change or on mount — covers Dialog re-open
   useEffect(() => {
-    if (propDoctorName) {
-      setDoctorName(propDoctorName)
-    } else if (typeof window !== "undefined") {
-      try {
-        const cacheStr = localStorage.getItem("caseDesignCache")
-        if (cacheStr) {
-          const cache = JSON.parse(cacheStr)
-          const formData = cache?.slipData?.formData
-          setDoctorName(formData?.doctor || "")
-        }
-      } catch {}
-    }
-  }, [propDoctorName])
+    setDoctorName(propDoctorName || readDoctorFromStorage())
+    setPatientName(propPatientName || readPatientFromStorage())
+  }, [propDoctorName, propPatientName])
 
+  // Keep window cache in sync so files persist across modal open/close
   useEffect(() => {
-    if (propPatientName) {
-      setPatientName(propPatientName)
-    } else if (typeof window !== "undefined") {
-      try {
-        const cacheStr = localStorage.getItem("caseDesignCache")
-        if (cacheStr) {
-          const cache = JSON.parse(cacheStr)
-          const formData = cache?.slipData?.formData
-          setPatientName(formData?.patient || formData?.patient_name || "")
-        }
-      } catch {}
-    }
-  }, [propPatientName])
-
-  useEffect(() => {
-    return () => {
-      simulatedUploads.forEach(({ url }) => {
-        URL.revokeObjectURL(url)
-      })
+    if (typeof window !== "undefined") {
+      ;(window as any).__caseDesignAttachments = simulatedUploads
     }
   }, [simulatedUploads])
 
@@ -353,10 +385,43 @@ export default function FileAttachmentModalContent({
 
   const [selectedStlUrls, setSelectedStlUrls] = useState<string[]>([])
 
-  const handleToggleStlCheckbox = (url: string) => {
-    setSelectedStlUrls(prev =>
-      prev.includes(url) ? prev.filter(u => u !== url) : [...prev, url]
-    )
+  // Unified checkbox handler: toggle file in/out of the Studio viewer
+  const handleToggleFileInViewer = (url: string) => {
+    const isInViewer = viewerItems.some(v => v.url === url)
+    if (isInViewer) {
+      // Remove from viewer
+      setViewerItems(prev => prev.filter(v => v.url !== url))
+      setViewerStlUrls(prev => prev.filter(u => u !== url))
+      setSelectedStlUrls(prev => prev.filter(u => u !== url))
+      setSelectedImageThumbnailUrls(prev => prev.filter(u => u !== url))
+      // If no items left, close viewer
+      const remaining = viewerItems.filter(v => v.url !== url)
+      if (remaining.length === 0) {
+        setViewing3dUrl(null)
+      } else if (viewing3dUrl === url) {
+        setViewing3dUrl(remaining[0]?.url || null)
+      }
+    } else {
+      // Add to viewer
+      const item = simulatedUploads.find(u => u.url === url)
+      const itemType: "stl" | "image" = item?.type === "image" ? "image" : "stl"
+      setViewerItems(prev => {
+        if (prev.length >= maxCells) {
+          return [...prev.slice(1), { url, type: itemType }]
+        }
+        return [...prev, { url, type: itemType }]
+      })
+      if (itemType === "stl") {
+        setSelectedStlUrls(prev => prev.includes(url) ? prev : [...prev, url])
+        setViewerStlUrls(prev => prev.includes(url) ? prev : [...prev, url])
+      } else {
+        setSelectedImageThumbnailUrls(prev => prev.includes(url) ? prev : [...prev, url])
+      }
+      // Open viewer if not already open
+      if (!viewing3dUrl) {
+        setViewing3dUrl(url)
+      }
+    }
   }
 
   const handleDeleteFile = (url: string) => {
@@ -364,12 +429,18 @@ export default function FileAttachmentModalContent({
     setSelectedStlUrls(prev => prev.filter(u => u !== url))
     setViewerStlUrls(prev => prev.filter(u => u !== url))
     setViewerItems(prev => prev.filter(v => v.url !== url))
+    setSelectedImageThumbnailUrls(prev => prev.filter(u => u !== url))
     if (viewing3dUrl === url) setViewing3dUrl(null)
   }
 
   // Get the active layout definition
   const activeLayout = LAYOUT_OPTIONS.find(l => l.id === selectedLayout) || LAYOUT_OPTIONS[0]
   const maxCells = activeLayout.cells.length
+
+  // When layout changes, keep only items that fit in the new cell count
+  useEffect(() => {
+    setViewerItems(prev => prev.length > maxCells ? prev.slice(0, maxCells) : prev)
+  }, [maxCells])
 
   // Zoom state per viewer cell (keyed by url)
   const [imageZoom, setImageZoom] = useState<Record<string, number>>({})
@@ -448,7 +519,7 @@ export default function FileAttachmentModalContent({
   }, [isViewerOpen, onViewerToggle])
 
   return (
-    <div className="flex h-full max-h-[min(750px,85vh)] bg-white rounded-lg relative">
+    <div className="flex h-[80vh] max-h-[800px] bg-white rounded-lg relative">
       {/* Close (X) button */}
       <button
         type="button"
@@ -542,10 +613,9 @@ export default function FileAttachmentModalContent({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all-stages">All Stages</SelectItem>
-                <SelectItem value="custom-tray">Custom Tray</SelectItem>
-                <SelectItem value="bite-block">Bite Block</SelectItem>
-                <SelectItem value="try-in">Try in with Teeth</SelectItem>
-                <SelectItem value="finish">Finish</SelectItem>
+                {stages.map((stage) => (
+                  <SelectItem key={stage} value={stage.toLowerCase().replace(/\s+/g, "-")}>{stage}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Select defaultValue="all-visibility" disabled={isCaseSubmitted}>
@@ -561,7 +631,7 @@ export default function FileAttachmentModalContent({
             <Button
               variant="outline"
               size="sm"
-              className={`bg-[#1162A8] text-white hover:bg-[#0f5490] ${isViewerOpen ? "h-7 text-[10px] px-2" : "h-8 text-xs px-3"}`}
+              className={`bg-[#1162A8] text-white hover:bg-[#0d4a85] hover:text-white border-[#1162A8] hover:border-[#0d4a85] ${isViewerOpen ? "h-7 text-[10px] px-2" : "h-8 text-xs px-3"}`}
               disabled={isCaseSubmitted}
             >
               <Archive className={`${isViewerOpen ? "w-3 h-3" : "w-3.5 h-3.5"} mr-1`} />
@@ -626,29 +696,14 @@ export default function FileAttachmentModalContent({
                                 </div>
                               )}
 
-                              {/* Checkbox for STL/image selection when viewer is open */}
-                              {isViewerOpen && (isStl || is3dObj) && !archived && (
+                              {/* Checkbox to toggle file in/out of Studio viewer */}
+                              {(isStl || is3dObj || isImage) && !archived && (
                                 <input
                                   type="checkbox"
-                                  checked={selectedStlUrls.includes(url)}
-                                  onChange={() => handleToggleStlCheckbox(url)}
-                                  className="absolute top-1.5 left-1.5 w-3.5 h-3.5 accent-blue-600 z-20"
-                                  title="Select for viewer"
-                                />
-                              )}
-
-                              {/* Image checkbox for thumbnail selection */}
-                              {isViewerOpen && isImage && !archived && (
-                                <input
-                                  type="checkbox"
-                                  checked={selectedImageThumbnailUrls.includes(url)}
-                                  onChange={() => setSelectedImageThumbnailUrls(
-                                    selectedImageThumbnailUrls.includes(url)
-                                      ? selectedImageThumbnailUrls.filter(u => u !== url)
-                                      : [...selectedImageThumbnailUrls, url]
-                                  )}
-                                  className="absolute top-1.5 left-1.5 w-3.5 h-3.5 accent-blue-600 z-20"
-                                  title="Use as STL Viewer Thumbnail"
+                                  checked={viewerItems.some(v => v.url === url)}
+                                  onChange={() => handleToggleFileInViewer(url)}
+                                  className="absolute top-1.5 left-1.5 w-4 h-4 accent-blue-600 z-20 cursor-pointer"
+                                  title="Show in Studio"
                                 />
                               )}
 
@@ -739,17 +794,17 @@ export default function FileAttachmentModalContent({
 
       {/* ===== Right Pane: STL Viewer ===== */}
       {isViewerOpen && (
-        <div className="flex-1 min-w-[380px] border-l h-full flex flex-col">
+        <div className="flex-[1.5] min-w-[520px] border-l h-full flex flex-col">
           {/* Viewer header */}
           <div className="flex items-center justify-between px-3 py-2 border-b">
             <div className="flex items-center gap-1.5">
               <div className="w-4 h-4 bg-blue-600 rounded flex items-center justify-center">
                 <span className="text-white text-[8px]">3D</span>
               </div>
-              <span className="font-semibold text-xs">STL Viewer</span>
+              <span className="font-semibold text-xs">Studio</span>
             </div>
             <div className="flex items-center gap-0.5">
-              <button className="p-1 hover:bg-gray-100 rounded" title="Full screen">
+              <button className="p-1 hover:bg-gray-100 rounded" title="Full screen" onClick={() => setIsFullscreen(true)}>
                 <Maximize2 className="w-3.5 h-3.5 text-gray-500" />
               </button>
               <button className="p-1 hover:bg-gray-100 rounded" title="Close viewer" onClick={() => setViewing3dUrl(null)}>
@@ -758,25 +813,28 @@ export default function FileAttachmentModalContent({
             </div>
           </div>
 
-          {/* Image thumbnail strip */}
-          {selectedImageThumbnailUrls.length > 0 && (
-            <div className="flex gap-1 px-3 py-1.5 border-b overflow-x-auto">
-              {selectedImageThumbnailUrls.map((imgUrl) => (
-                <div key={imgUrl} className="w-[60px] h-[45px] flex-shrink-0 rounded border border-gray-200 overflow-hidden relative group/thumb">
-                  <img src={imgUrl} className="w-full h-full object-cover" alt="" />
+          {/* Viewer items preview strip */}
+          {viewerItems.length > 0 && (
+            <div className="flex gap-2 px-3 py-2.5 border-b overflow-x-auto bg-gray-50">
+              {viewerItems.map((item, idx) => (
+                <div key={item.url} className={`w-[100px] h-[75px] flex-shrink-0 rounded-md border-2 overflow-hidden relative group/thumb cursor-pointer ${idx === 0 ? "border-blue-500" : "border-gray-200"}`}>
+                  {item.type === "image" ? (
+                    <img src={item.url} className="w-full h-full object-cover" alt={`Viewer ${idx + 1}`} />
+                  ) : (
+                    <div className="w-full h-full bg-[#2a3a4a] flex items-center justify-center">
+                      <Box className="w-6 h-6 text-yellow-400" />
+                    </div>
+                  )}
+                  <div className="absolute top-0.5 left-0.5 bg-black/50 text-white text-[8px] font-medium px-1 rounded">
+                    {idx + 1}
+                  </div>
                   <button
                     type="button"
-                    className="absolute top-0 right-0 bg-black/40 text-white p-0.5 rounded-bl opacity-0 group-hover/thumb:opacity-100 transition"
-                    onClick={() => setSelectedImageThumbnailUrls(prev => prev.filter(u => u !== imgUrl))}
+                    className="absolute top-0.5 right-0.5 bg-black/50 text-white p-0.5 rounded opacity-0 group-hover/thumb:opacity-100 transition"
+                    onClick={() => handleToggleFileInViewer(item.url)}
                   >
-                    <X className="w-2 h-2" />
+                    <X className="w-2.5 h-2.5" />
                   </button>
-                  {/* Play icon for video-like thumbnails */}
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="w-4 h-4 bg-black/30 rounded-full flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition">
-                      <Play className="w-2 h-2 text-white ml-0.5" />
-                    </div>
-                  </div>
                 </div>
               ))}
             </div>
@@ -786,7 +844,8 @@ export default function FileAttachmentModalContent({
           <div className="flex-1 flex min-h-0 overflow-hidden">
             {/* Controls sidebar */}
             <div className="w-[120px] flex-shrink-0 border-r overflow-y-auto p-2 space-y-3">
-              {/* Controls section */}
+              {/* Controls section — only for STL files */}
+              {viewerItems.some(v => v.type === "stl") && (
               <div>
                 <h4 className="text-[10px] font-semibold mb-1.5">Controls</h4>
                 {/* Directional pad */}
@@ -809,27 +868,19 @@ export default function FileAttachmentModalContent({
                   Reset
                 </button>
               </div>
+              )}
 
-              {/* Display section */}
+              {/* Display section — only for STL files */}
+              {viewerItems.some(v => v.type === "stl") && (
               <div>
                 <h4 className="text-[10px] font-semibold mb-1.5">Display</h4>
                 <div className="space-y-1">
                   <button
-                    className={`w-full border rounded py-1 text-[9px] font-medium transition ${
-                      viewerStlUrls.length > 0 ? "bg-[#1162A8] text-white border-[#1162A8]" : "text-gray-600 hover:bg-gray-50"
-                    }`}
-                    onClick={handleAddToViewer}
+                    className="w-full border rounded py-1 text-[9px] text-gray-600 hover:bg-gray-50"
+                    onClick={handleClearDisplay}
                   >
-                    Add to Viewer
+                    Clear Display
                   </button>
-                  {viewerStlUrls.length > 0 && (
-                    <button
-                      className="w-full border rounded py-1 text-[9px] text-gray-600 hover:bg-gray-50"
-                      onClick={handleClearDisplay}
-                    >
-                      Clear Display
-                    </button>
-                  )}
                   <button
                     className={`w-full border rounded py-1 text-[9px] font-medium transition ${isWireframe ? "bg-[#1162A8] text-white border-[#1162A8]" : "text-gray-600 hover:bg-gray-50"}`}
                     onClick={() => setIsWireframe(prev => !prev)}
@@ -853,6 +904,7 @@ export default function FileAttachmentModalContent({
                   </div>
                 </div>
               </div>
+              )}
 
               {/* Layout section */}
               <div>
@@ -881,9 +933,9 @@ export default function FileAttachmentModalContent({
             </div>
 
             {/* 3D canvas / image grid driven by selected layout */}
-            <div className="flex-1 min-w-0 min-h-0 relative">
+            <div className="flex-1 min-w-0 min-h-0 relative overflow-hidden">
               <div
-                className={`absolute inset-0 grid ${activeLayout.cols} gap-[2px] bg-gray-300`}
+                className={`absolute inset-0 grid ${activeLayout.cols} gap-[2px] bg-gray-300 overflow-hidden`}
                 style={{ gridTemplateRows: `repeat(${activeLayout.rows}, 1fr)` }}
               >
                 {activeLayout.cells.map((cell, idx) => {
@@ -936,11 +988,13 @@ export default function FileAttachmentModalContent({
                             window.addEventListener("mouseup", onUp)
                           }}
                         >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={item.url}
                             alt={`Preview ${idx + 1}`}
                             className="w-full h-full object-contain select-none"
                             draggable={false}
+                            referrerPolicy="no-referrer"
                             style={{
                               transform: `scale(${imageZoom[item.url] || 1}) translate(${(imagePan[item.url]?.x || 0) / (imageZoom[item.url] || 1)}px, ${(imagePan[item.url]?.y || 0) / (imageZoom[item.url] || 1)}px)`,
                               transformOrigin: "center center",
@@ -1003,6 +1057,115 @@ export default function FileAttachmentModalContent({
         ref={fileInputRef}
         accept=".jpg,.jpeg,.png,.gif,.svg,.pdf,.stl,.3Dobject,.mp4,.avi,.mov,.zip,.rar"
       />
+
+      {/* Fullscreen Studio Viewer */}
+      <Dialog open={isFullscreen} onOpenChange={setIsFullscreen}>
+        <DialogContent className="max-w-[98vw] w-[98vw] h-[95vh] max-h-[95vh] overflow-hidden flex flex-col p-0">
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-2.5 border-b flex-shrink-0">
+            <div className="flex items-center gap-2">
+              <div className="w-5 h-5 bg-blue-600 rounded flex items-center justify-center">
+                <span className="text-white text-[9px]">3D</span>
+              </div>
+              <span className="font-semibold text-sm">Studio</span>
+            </div>
+            <button className="p-1.5 hover:bg-gray-100 rounded" title="Exit full screen" onClick={() => setIsFullscreen(false)}>
+              <Minimize2 className="w-4 h-4 text-gray-500" />
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 flex min-h-0 overflow-hidden">
+            {/* Controls sidebar — only for STL */}
+            {viewerItems.some(v => v.type === "stl") && (
+            <div className="w-[140px] flex-shrink-0 border-r overflow-y-auto p-3 space-y-4">
+              <div>
+                <h4 className="text-xs font-semibold mb-2">Controls</h4>
+                <div className="flex items-center justify-center mb-2">
+                  <div className="relative w-[70px] h-[70px]">
+                    <button className="absolute top-0 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[9px] border-l-transparent border-r-[9px] border-r-transparent border-b-[12px] border-b-gray-400 hover:border-b-blue-600 transition" title="Top view" />
+                    <button className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[9px] border-l-transparent border-r-[9px] border-r-transparent border-t-[12px] border-t-gray-400 hover:border-t-blue-600 transition" title="Bottom view" />
+                    <button className="absolute left-0 top-1/2 -translate-y-1/2 w-0 h-0 border-t-[9px] border-t-transparent border-b-[9px] border-b-transparent border-r-[12px] border-r-gray-400 hover:border-r-blue-600 transition" title="Left view" />
+                    <button className="absolute right-0 top-1/2 -translate-y-1/2 w-0 h-0 border-t-[9px] border-t-transparent border-b-[9px] border-b-transparent border-l-[12px] border-l-blue-600 hover:border-l-blue-700 transition" title="Right view" />
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-blue-600 rounded-full" />
+                  </div>
+                </div>
+                <button className="w-full flex items-center justify-center gap-1 border rounded py-1.5 text-[10px] text-gray-600 hover:bg-gray-50">
+                  <RotateCcw className="w-3 h-3" /> Reset
+                </button>
+              </div>
+              <div>
+                <h4 className="text-xs font-semibold mb-2">Display</h4>
+                <div className="space-y-1.5">
+                  <button className="w-full border rounded py-1.5 text-[10px] text-gray-600 hover:bg-gray-50" onClick={handleClearDisplay}>Clear Display</button>
+                  <button className={`w-full border rounded py-1.5 text-[10px] font-medium transition ${isWireframe ? "bg-[#1162A8] text-white border-[#1162A8]" : "text-gray-600 hover:bg-gray-50"}`} onClick={() => setIsWireframe(prev => !prev)}>Wireframe</button>
+                  <button className={`w-full border rounded py-1.5 text-[10px] font-medium transition ${showGrid ? "bg-[#1162A8] text-white border-[#1162A8]" : "text-gray-600 hover:bg-gray-50"}`} onClick={() => setShowGrid(prev => !prev)}>Grid</button>
+                  <div className="flex items-center gap-1.5">
+                    <input type="color" value={modelColor} onChange={(e) => setModelColor(e.target.value)} className="w-6 h-6 rounded border border-gray-300 cursor-pointer p-0" />
+                    <span className="text-[10px] text-gray-600">Color Picker</span>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <h4 className="text-xs font-semibold mb-2">Layout</h4>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {["1x1","2x2","1-1v","2-1h","1h-2","1-2v","3s-1","1-3s","3x2","2x3"].map((layoutId) => (
+                    <button key={layoutId} className={`w-full aspect-square border rounded p-0.5 transition ${selectedLayout === layoutId ? "border-blue-600 bg-blue-50" : "border-gray-300 hover:border-gray-400"}`} onClick={() => setSelectedLayout(layoutId)}>
+                      <LayoutIcon layoutId={layoutId} isActive={selectedLayout === layoutId} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            )}
+
+            {/* Canvas grid */}
+            <div className="flex-1 min-w-0 min-h-0 relative overflow-hidden">
+              <div className={`absolute inset-0 grid ${activeLayout.cols} gap-[2px] bg-gray-300 overflow-hidden`} style={{ gridTemplateRows: `repeat(${activeLayout.rows}, 1fr)` }}>
+                {activeLayout.cells.map((cell, idx) => {
+                  const item = viewerItems[idx]
+                  return (
+                    <div key={`fs-${selectedLayout}-${idx}`} className="bg-[#e9ecef] overflow-hidden relative" style={{ gridColumn: `span ${cell.colSpan}`, gridRow: `span ${cell.rowSpan}` }}>
+                      {item?.type === "stl" ? (
+                        <div className="absolute inset-0">
+                          <STLCanvasOnly models={[{ src: item.url, color: modelColor }]} isWireframe={isWireframe} showGrid={showGrid} modelColor={modelColor} />
+                        </div>
+                      ) : item?.type === "image" ? (
+                        <div className="absolute inset-0 bg-white overflow-hidden cursor-grab active:cursor-grabbing"
+                          onWheel={(e) => { e.stopPropagation(); if (e.deltaY < 0) handleImageZoomIn(item.url); else handleImageZoomOut(item.url); }}
+                          onMouseDown={(e) => {
+                            if (e.button !== 0) return
+                            const startX = e.clientX, startY = e.clientY
+                            const startPan = imagePan[item.url] || { x: 0, y: 0 }
+                            const onMove = (ev: MouseEvent) => { setImagePan(prev => ({ ...prev, [item.url]: { x: startPan.x + (ev.clientX - startX), y: startPan.y + (ev.clientY - startY) } })) }
+                            const onUp = () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp) }
+                            window.addEventListener("mousemove", onMove); window.addEventListener("mouseup", onUp)
+                          }}
+                        >
+                          <img src={item.url} alt={`Preview ${idx + 1}`} className="w-full h-full object-contain select-none" draggable={false} referrerPolicy="no-referrer"
+                            style={{ transform: `scale(${imageZoom[item.url] || 1}) translate(${(imagePan[item.url]?.x || 0) / (imageZoom[item.url] || 1)}px, ${(imagePan[item.url]?.y || 0) / (imageZoom[item.url] || 1)}px)`, transformOrigin: "center center" }}
+                          />
+                          <div className="absolute bottom-2 right-2 flex items-center gap-1 bg-black/50 rounded-lg px-2 py-1 z-20">
+                            <button className="p-0.5 hover:bg-white/20 rounded text-white transition" onClick={(e) => { e.stopPropagation(); handleImageZoomOut(item.url) }}><ZoomOut className="w-4 h-4" /></button>
+                            <span className="text-white text-xs font-medium min-w-[36px] text-center">{Math.round((imageZoom[item.url] || 1) * 100)}%</span>
+                            <button className="p-0.5 hover:bg-white/20 rounded text-white transition" onClick={(e) => { e.stopPropagation(); handleImageZoomIn(item.url) }}><ZoomIn className="w-4 h-4" /></button>
+                            <button className="p-0.5 hover:bg-white/20 rounded text-white transition" onClick={(e) => { e.stopPropagation(); handleImageZoomReset(item.url) }}><RotateCcw className="w-3.5 h-3.5" /></button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm">{idx === 0 ? "Select a file to preview" : `Cell ${idx + 1}`}</div>
+                      )}
+                      {activeLayout.cells.length > 1 && (
+                        <div className="absolute top-1.5 left-1.5 bg-black/40 text-white text-[9px] font-medium px-2 py-0.5 rounded z-10">{idx + 1}</div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Cancel Confirmation Modal */}
       <Dialog open={showCancelModal} onOpenChange={setShowCancelModal}>

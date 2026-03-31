@@ -32,7 +32,6 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
   ) => {
     const [isFocused, setIsFocused] = React.useState(false)
     const hasValue = value !== undefined && value !== null && value !== ""
-    const shouldFloatLabel = label && (isFocused || hasValue)
 
     // Determine border color based on validation state
     const getBorderColor = () => {
@@ -139,9 +138,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             htmlFor={props.id}
             className={cn(
               "absolute left-4 transition-all duration-200 pointer-events-none",
-              shouldFloatLabel
-                ? "-top-2.5 text-xs bg-white px-1"
-                : "top-1/2 -translate-y-1/2 text-sm",
+              "-top-2.5 text-xs bg-white px-1",
               getLabelColor()
             )}
           >
