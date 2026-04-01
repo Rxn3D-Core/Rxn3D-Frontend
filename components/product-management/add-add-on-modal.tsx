@@ -109,24 +109,36 @@ export function AddAddOnModal({ isOpen, onClose, onHasChangesChange, addOn, isEd
     }
   }, [])
 
+  // Stable refs to avoid re-triggering effect on function identity changes
+  const getAddOnDetailRef = useRef(getAddOnDetail)
+  getAddOnDetailRef.current = getAddOnDetail
+  const populateFormRef = useRef(populateForm)
+  populateFormRef.current = populateForm
+  const onHasChangesChangeRef = useRef(onHasChangesChange)
+  onHasChangesChangeRef.current = onHasChangesChange
+
   // Reset form when modal opens — fetch detail from API for edit/copy
+  const detailFetchedRef = useRef<number | null>(null)
   useEffect(() => {
     if (isOpen) {
       setHasChanges(false)
-      if (onHasChangesChange) onHasChangesChange(false)
+      if (onHasChangesChangeRef.current) onHasChangesChangeRef.current(false)
       setAddOnDetailsEnabled(true)
       setLinkToProductsOpen(false)
       setLinkToExistingGroupOpen(false)
       setVisibilityManagementOpen(false)
 
       if (addOn && (isEditing || isCopying)) {
+        // Prevent duplicate fetch for the same add-on
+        if (detailFetchedRef.current === addOn.id) return
+        detailFetchedRef.current = addOn.id
         setIsLoadingDetail(true)
-        getAddOnDetail(addOn.id).then((detail) => {
+        getAddOnDetailRef.current(addOn.id).then((detail) => {
           if (detail) {
-            populateForm(detail)
+            populateFormRef.current(detail)
           } else {
             // Fallback to static data if detail fetch fails
-            populateForm(addOn)
+            populateFormRef.current(addOn)
           }
           setIsLoadingDetail(false)
         })
@@ -137,8 +149,11 @@ export function AddAddOnModal({ isOpen, onClose, onHasChangesChange, addOn, isEd
         setImagePreview(null)
         setInitialImage(null)
       }
+    } else {
+      // Reset guard when modal closes
+      detailFetchedRef.current = null
     }
-  }, [isOpen, addOn, isEditing, isCopying, onHasChangesChange, getAddOnDetail, populateForm])
+  }, [isOpen, addOn, isEditing, isCopying])
 
   // Fetch categories when modal opens
   useEffect(() => {
@@ -164,8 +179,8 @@ export function AddAddOnModal({ isOpen, onClose, onHasChangesChange, addOn, isEd
         ...prev,
         [field]: value,
       }
-      // Auto-generate code from name when name changes
-      if (field === "name" && typeof value === "string") {
+      // Auto-generate code from name when name changes (only for create/copy, not edit)
+      if (field === "name" && typeof value === "string" && (!isEditing || isCopying)) {
         const generatedCode = generateCodeFromName(value)
         if (generatedCode) {
           updated.code = generatedCode

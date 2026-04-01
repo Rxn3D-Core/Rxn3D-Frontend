@@ -705,10 +705,12 @@ export function CreateRetentionModal({ isOpen, onClose, retention, isCopying = f
                     onChange={(e) => {
                       const newName = e.target.value
                       setRetentionName(newName)
-                      // Auto-generate code from name
-                      const generatedCode = generateCodeFromName(newName)
-                      if (generatedCode) {
-                        setRetentionCode(generatedCode)
+                      // Auto-generate code from name (only for create/copy, not edit)
+                      if (!retention || isCopying) {
+                        const generatedCode = generateCodeFromName(newName)
+                        if (generatedCode) {
+                          setRetentionCode(generatedCode)
+                        }
                       }
                       setHasChanges(true)
                     }}

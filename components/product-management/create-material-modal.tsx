@@ -1022,10 +1022,12 @@ export function CreateMaterialModal({ isOpen, onClose, material }: CreateMateria
                         onChange={(e) => {
                           const newName = e.target.value
                           handleInputChange(newName, setMaterialName)
-                          // Auto-generate code from name
-                          const generatedCode = generateCodeFromName(newName)
-                          if (generatedCode) {
-                            handleInputChange(generatedCode, setMaterialCode)
+                          // Auto-generate code from name (only for create, not edit)
+                          if (!material) {
+                            const generatedCode = generateCodeFromName(newName)
+                            if (generatedCode) {
+                              handleInputChange(generatedCode, setMaterialCode)
+                            }
                           }
                           if (errors.materialName) {
                             setErrors((prev) => ({ ...prev, materialName: "" }))

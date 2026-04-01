@@ -65,6 +65,7 @@ export function ProductDetailsSection({
   const grades = useWatch({ control, name: "grades" }) || []
   const name = useWatch({ control, name: "name" }) || ""
   const code = useWatch({ control, name: "code" }) || ""
+  const basePrice = useWatch({ control, name: "base_price" })
   const selectedCategoryId = useWatch({ control, name: "category_id" }) || null
   const subcategoryId = useWatch({ control, name: "subcategory_id" }) || null
   const isSingleStage = useWatch({ control, name: "is_single_stage" }) || "No"
@@ -206,9 +207,16 @@ export function ProductDetailsSection({
   // Update base_price when default grade price changes
   useEffect(() => {
     if (sections.grades && defaultGradePrice) {
-      setValueWithOptions("base_price", defaultGradePrice, { shouldDirty: true, shouldValidate: true })
+      // Avoid dirtying the form on initial edit hydration if the value already matches.
+      // Only mark dirty when we are actually changing the value (e.g., user changed default grade/price).
+      const current = basePrice !== null && basePrice !== undefined ? String(basePrice) : ""
+      if (current === defaultGradePrice) return
+      setValueWithOptions("base_price", defaultGradePrice, {
+        shouldDirty: true,
+        shouldValidate: true,
+      })
     }
-  }, [defaultGradePrice, sections.grades, setValueWithOptions])
+  }, [defaultGradePrice, sections.grades, setValueWithOptions, basePrice])
 
   // Auto-generate code from name when name changes (only for new products, not editing)
   useEffect(() => {

@@ -34,23 +34,23 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
     const hasValue = value !== undefined && value !== null && value !== ""
 
     // Determine border color based on validation state
-    const getBorderColor = () => {
-      if (disabled || validationState === "disabled") return "border-[#BDBDBD]"
-      if (validationState === "valid") return "border-[#119933]"
-      if (validationState === "warning") return "border-[#FF9900]"
-      if (validationState === "error") return "border-[#CF0202]"
-      if (isFocused) return "border-[#1162A8]"
-      return "border-[#E0E0E0]"
+    const getBorderColorValue = () => {
+      if (disabled || validationState === "disabled") return "#BDBDBD"
+      if (validationState === "valid") return "#119933"
+      if (validationState === "warning") return "#FF9900"
+      if (validationState === "error") return "#CF0202"
+      if (isFocused) return "#1162A8"
+      return "#E0E0E0"
     }
 
     // Determine label color based on validation state
-    const getLabelColor = () => {
-      if (disabled || validationState === "disabled") return "text-[#BDBDBD]"
-      if (validationState === "valid") return "text-[#119933]"
-      if (validationState === "warning") return "text-[#FF9900]"
-      if (validationState === "error") return "text-[#CF0202]"
-      if (isFocused) return "text-[#1162A8]"
-      return "text-gray-500"
+    const getLabelColorValue = () => {
+      if (disabled || validationState === "disabled") return "#BDBDBD"
+      if (validationState === "valid") return "#119933"
+      if (validationState === "warning") return "#FF9900"
+      if (validationState === "error") return "#CF0202"
+      if (isFocused) return "#1162A8"
+      return "#6b7280"
     }
 
     // Determine ring/glow effect
@@ -95,11 +95,11 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           ref={ref}
           value={value}
           disabled={disabled || validationState === "disabled"}
+          style={{ borderColor: getBorderColorValue() }}
           className={cn(
             "flex h-10 w-full rounded-lg border-[1.5px] bg-white px-4 py-2 text-base",
             "transition-all duration-200 ease-out",
             "focus:outline-none",
-            getBorderColor(),
             getRingEffect(),
             !disabled && !isFocused && "hover:shadow-[0_0_8px_rgba(17,98,168,0.2)]",
             (disabled || validationState === "disabled") && "opacity-40 cursor-not-allowed bg-gray-50",
@@ -121,9 +121,9 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className="w-full">
         <div
+          style={{ borderColor: getBorderColorValue() }}
           className={cn(
-            "border rounded-lg px-4 relative h-12 flex items-center min-w-0 transition-all duration-200 bg-white cursor-text",
-            getBorderColor(),
+            "border-2 rounded-lg px-4 relative h-14 flex items-center min-w-0 transition-all duration-200 bg-white cursor-text",
             getRingEffect(),
             !disabled && !isFocused && "hover:shadow-[0_0_8px_rgba(17,98,168,0.2)]",
             (disabled || validationState === "disabled") && "opacity-40 cursor-not-allowed bg-gray-50",
@@ -136,10 +136,10 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         >
           <label
             htmlFor={props.id}
+            style={{ color: getLabelColorValue() }}
             className={cn(
               "absolute left-4 transition-all duration-200 pointer-events-none",
-              "-top-2.5 text-xs bg-white px-1",
-              getLabelColor()
+              "-top-2.5 text-xs bg-white px-1"
             )}
           >
             {label}

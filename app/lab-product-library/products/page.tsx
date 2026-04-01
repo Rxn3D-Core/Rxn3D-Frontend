@@ -16,6 +16,7 @@ import { useProductCategory } from "@/contexts/product-category-context"
 import { useLanguage } from "@/contexts/language-context"
 import { useTranslation } from "react-i18next"
 import { LoadingOverlay } from "@/components/ui/loading-overlay"
+import { useAuth } from "@/contexts/auth-context"
 
 export default function ProductsPage() {
   const {
@@ -52,12 +53,23 @@ export default function ProductsPage() {
     fetchSubcategoriesByCategory,
   } = useProductCategory()
 
+  const { user } = useAuth()
+
   const [entriesPerPage, setEntriesPerPage] = useState(pagination.per_page.toString() || "10")
   const [currentPage, setCurrentPage] = useState(pagination.current_page || 1)
   const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false)
   const [searchInput, setSearchInput] = useState(searchQuery)
   const { currentLanguage } = useLanguage()
   const { t } = useTranslation();
+
+  // Get customer ID for lab admin
+  const customerId = useMemo(() => {
+    if (typeof window === "undefined") return undefined
+    const storedCustomerId = localStorage.getItem("customerId")
+    if (storedCustomerId) return parseInt(storedCustomerId, 10)
+    if (user?.customers?.length) return user.customers[0]?.id
+    return undefined
+  }, [user])
 
   // State for delete modal
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
@@ -113,12 +125,16 @@ export default function ProductsPage() {
     }
   }, [searchQuery, currentPage])
 
+  // Stable ref for fetchProducts to avoid re-triggering effect on identity changes
+  const fetchProductsRef = useRef(fetchProducts)
+  fetchProductsRef.current = fetchProducts
+
   // Single debounced fetch effect
   const fetchTimerRef = useRef<NodeJS.Timeout | null>(null)
   useEffect(() => {
     if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current)
     fetchTimerRef.current = setTimeout(() => {
-      fetchProducts(
+      fetchProductsRef.current(
         currentPage,
         Number(entriesPerPage),
         searchQuery,
@@ -137,13 +153,14 @@ export default function ProductsPage() {
     sortDirection,
     statusFilter,
     subcategoryFilter,
-    fetchProducts,
   ])
 
-  // Fetch all categories on mount
+  // Fetch all categories on mount (lab admin: pass customer_id)
   useEffect(() => {
-    fetchAllCategories(currentLanguage)
-  }, [fetchAllCategories, currentLanguage])
+    if (customerId) {
+      fetchAllCategories(currentLanguage, customerId)
+    }
+  }, [fetchAllCategories, currentLanguage, customerId])
 
   // Update available subcategories when subcategoriesByCategory changes
   useEffect(() => {
@@ -275,7 +292,7 @@ export default function ProductsPage() {
       setSubcategoryFilter(null)
 
       try {
-        await fetchSubcategoriesByCategory(id, currentLanguage)
+        await fetchSubcategoriesByCategory(id, currentLanguage, customerId)
       } catch (error) {
         console.error('Error fetching subcategories:', error)
         setAvailableSubcategories([])

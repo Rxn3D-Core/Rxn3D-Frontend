@@ -44,7 +44,6 @@ import { AddOnsSection } from "@/components/product-management/add-lab-product-m
 import { RetentionSection } from "@/components/product-management/add-lab-product-modal/RetentionSection"
 import { ExtractionsSection } from "@/components/product-management/add-lab-product-modal/ExtractionsSection"
 import { VisibilityManagementSection } from "@/components/product-management/add-lab-product-modal/VisibilityManagementSection"
-import { OfficePriceManagementSection } from "@/components/product-management/add-lab-product-modal/OfficePriceManagementSection"
 
 /** API slip visibility flags use "Yes" | "No" (product_configurations). */
 function slipFlagToApi(on: boolean): "Yes" | "No" {
@@ -71,9 +70,8 @@ function buildSectionsStateFromProduct(editingProduct: any) {
     teethShade: slipFlagFromApi(editingProduct.has_teeth_shade, true),
     material: slipFlagFromApi(editingProduct.has_material, true),
     addOns: slipFlagFromApi(editingProduct.has_addon, true),
-    retention: slipFlagFromApi(editingProduct.has_retention, true),
+    retention: slipFlagFromApi(editingProduct.has_retention, false),
     extractions: slipFlagFromApi(editingProduct.has_extraction, true),
-    officePriceManagement: true,
     visibilityManagement: true,
   }
 }
@@ -168,7 +166,6 @@ export function AddLabProductModal({
     addOns: true,
     retention: true,
     extractions: true,
-    officePriceManagement: true,
     visibilityManagement: true,
   })
 
@@ -182,7 +179,6 @@ export function AddLabProductModal({
     addOns: true,
     retention: true,
     extractions: true,
-    officePriceManagement: true,
     visibilityManagement: true,
   })
 
@@ -202,7 +198,6 @@ export function AddLabProductModal({
     { id: "addOns", label: "Add-Ons", sectionKey: "addOns" },
     { id: "retention", label: "Retention", sectionKey: "retention" },
     { id: "extractions", label: "Extractions", sectionKey: "extractions" },
-    { id: "officePricing", label: "Office Pricing", sectionKey: "officePriceManagement" },
     { id: "visibility", label: "Visibility", sectionKey: "visibilityManagement" },
   ]
 
@@ -261,6 +256,7 @@ export function AddLabProductModal({
 
   const [imageBase64, setImageBase64] = useState<string | null>(null) // <-- add imageBase64 state
   const [initialFormValues, setInitialFormValues] = useState<ProductCreateForm | null>(null) // <-- track initial values
+  const [pendingInitialCapture, setPendingInitialCapture] = useState(false) // <-- flag to capture from useWatch
   // Always holds the latest price from the API response — used as fallback when base_price is not in the payload
   const apiPriceRef = useRef<string | number | null>(null)
 
@@ -1072,7 +1068,9 @@ export function AddLabProductModal({
           })
         }
       }
-      setInitialFormValues(formValues) // Store initial values for comparison
+      // Signal that we need to capture initial values from useWatch on its next emission
+      // This ensures the baseline matches exactly what useWatch returns, avoiding false positives
+      setPendingInitialCapture(true)
       clearValidationErrors()
       setCustomGradeNames({}) // Clear custom grade names when editing
       setCustomImpressionNames({}) // Clear custom impression names when editing
@@ -1115,7 +1113,6 @@ export function AddLabProductModal({
         addOns: true,
         retention: true,
         extractions: true,
-        officePriceManagement: true,
         visibilityManagement: true,
       })
       setInitialSections(null)
@@ -1190,37 +1187,41 @@ export function AddLabProductModal({
   // (Backend can infer has_*=true if relation arrays are sent without explicit flags — empty arrays + explicit has_* avoid that.)
   // When grades toggle is ON: sync the grade-based pricing radio to "Yes"
   useEffect(() => {
+    // In edit mode, `sections` is hydrated from API on open. While we are still capturing the initial
+    // useWatch snapshot (`pendingInitialCapture`), avoid marking the form dirty for these sync writes.
+    const shouldMarkDirty = !(editingProduct?.id && pendingInitialCapture)
+
     if (!sections.grades) {
-      setValue("has_grade_based_pricing", "No", { shouldDirty: true })
-      setValue("grades", [], { shouldDirty: true })
+      setValue("has_grade_based_pricing", "No", { shouldDirty: shouldMarkDirty })
+      setValue("grades", [], { shouldDirty: shouldMarkDirty })
     } else {
-      setValue("has_grade_based_pricing", "Yes", { shouldDirty: true })
+      setValue("has_grade_based_pricing", "Yes", { shouldDirty: shouldMarkDirty })
     }
     if (!sections.stages) {
-      setValue("stages", [], { shouldDirty: true })
+      setValue("stages", [], { shouldDirty: shouldMarkDirty })
       setReleasingStageIds([])
     }
     if (!sections.impressions) {
-      setValue("impressions", [], { shouldDirty: true })
+      setValue("impressions", [], { shouldDirty: shouldMarkDirty })
     }
     if (!sections.gumShade) {
-      setValue("gum_shades", [], { shouldDirty: true })
+      setValue("gum_shades", [], { shouldDirty: shouldMarkDirty })
     }
     if (!sections.teethShade) {
-      setValue("teeth_shades", [], { shouldDirty: true })
+      setValue("teeth_shades", [], { shouldDirty: shouldMarkDirty })
     }
     if (!sections.material) {
-      setValue("materials", [], { shouldDirty: true })
+      setValue("materials", [], { shouldDirty: shouldMarkDirty })
     }
     if (!sections.addOns) {
-      setValue("addons", [], { shouldDirty: true })
+      setValue("addons", [], { shouldDirty: shouldMarkDirty })
     }
     if (!sections.retention) {
-      setValue("retentions", [], { shouldDirty: true })
+      setValue("retentions", [], { shouldDirty: shouldMarkDirty })
     }
     if (!sections.extractions) {
-      setValue("extractions", [], { shouldDirty: true })
-      setValue("opposite_extractions", [], { shouldDirty: true })
+      setValue("extractions", [], { shouldDirty: shouldMarkDirty })
+      setValue("opposite_extractions", [], { shouldDirty: shouldMarkDirty })
     }
   }, [
     sections.grades,
@@ -1234,6 +1235,8 @@ export function AddLabProductModal({
     sections.extractions,
     setValue,
     setReleasingStageIds,
+    editingProduct?.id,
+    pendingInitialCapture,
   ])
 
   const toggleExpanded = useCallback((section: string) => {
@@ -1713,7 +1716,6 @@ export function AddLabProductModal({
       addOns: ["addons", "addon_group_id", "link_all_addons"],
       retention: ["retentions", "apply_retention_mechanism", "retention_type"],
       extractions: ["extractions", "opposite_extractions", "apply_same_status_to_opposing"],
-      officePricing: ["office_grade_pricing", "office_stage_pricing", "office_stage_grade_pricing", "is_teeth_based_price"],
       visibility: ["show_to_all_lab", "office_visibilities"],
     }
     return fieldMap[tabId] || []
@@ -1743,11 +1745,78 @@ export function AddLabProductModal({
     return SECTION_TOGGLE_KEYS.some((key) => sections[key] !== initialSections[key])
   }, [sections, initialSections])
 
-  // Check if any field across all tabs is dirty, or section toggles changed
+  // Watch all form values for manual deep comparison (replaces unreliable isDirty)
+  const allFormValues = useWatch({ control })
+
+  // Capture initial values from useWatch after form reset — ensures baseline matches useWatch output exactly
+  // Wait for allFormValues to stabilize (no changes for 500ms) before capturing snapshot
+  useEffect(() => {
+    if (!pendingInitialCapture) return
+    const timer = setTimeout(() => {
+      setInitialFormValues(JSON.parse(JSON.stringify(allFormValues)))
+      setPendingInitialCapture(false)
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [pendingInitialCapture, allFormValues])
+
+  // Strip react-hook-form internal fields (like `id` on field arrays) for comparison
+  const stripInternalIds = useCallback((obj: any): any => {
+    if (Array.isArray(obj)) return obj.map(stripInternalIds)
+    if (obj && typeof obj === "object" && !(obj instanceof Date)) {
+      const cleaned: Record<string, any> = {}
+      for (const [k, v] of Object.entries(obj)) {
+        if (k === "id" && typeof v === "string" && v.length > 20) continue // RHF generated id
+        cleaned[k] = stripInternalIds(v)
+      }
+      return cleaned
+    }
+    return obj
+  }, [])
+
+  // Per-section comparison: only check if fields for the CURRENT tab changed from initial
+  const hasCurrentSectionFieldChanges = useMemo(() => {
+    if (!editingProduct || !editingProduct.id || !initialFormValues) return false
+    try {
+      const fields = getSectionFields(activeTab)
+      if (fields.length === 0) return false
+      const current = stripInternalIds(allFormValues)
+      const initial = stripInternalIds(initialFormValues)
+      for (const field of fields) {
+        const curStr = JSON.stringify(current[field])
+        const initStr = JSON.stringify(initial[field])
+        if (curStr !== initStr) {
+          return true
+        }
+      }
+      return false
+    } catch {
+      return false
+    }
+  }, [editingProduct, allFormValues, initialFormValues, stripInternalIds, activeTab])
+
+  // Per-section toggle comparison: only check if the current tab's section toggle changed
+  const hasCurrentSectionToggleChange = useMemo(() => {
+    if (!initialSections) return false
+    // Map tab IDs to section toggle keys
+    const tabToSectionKey: Record<string, string> = {
+      grades: "grades", stages: "stages", impressions: "impressions",
+      gumShade: "gumShade", teethShade: "teethShade", material: "material",
+      addOns: "addOns", retention: "retention", extractions: "extractions",
+    }
+    const sectionKey = tabToSectionKey[activeTab]
+    if (!sectionKey) return false
+    return sections[sectionKey as keyof typeof sections] !== initialSections[sectionKey as keyof typeof initialSections]
+  }, [activeTab, sections, initialSections])
+
+  // Check if current section has changes (fields + toggle + tab-specific extras)
   const hasSectionChanges = useMemo(() => {
     if (!editingProduct || !editingProduct.id) return false
-    return isDirty || hasReleasingStageChanges || imageBase64 !== null || hasSectionToggleChanges
-  }, [editingProduct, isDirty, hasReleasingStageChanges, imageBase64, hasSectionToggleChanges])
+    let result = hasCurrentSectionFieldChanges || hasCurrentSectionToggleChange
+    // Tab-specific extras
+    if (activeTab === "details" && imageBase64 !== null) result = true
+    if (activeTab === "stages" && hasReleasingStageChanges) result = true
+    return result
+  }, [editingProduct, hasCurrentSectionFieldChanges, hasCurrentSectionToggleChange, activeTab, imageBase64, hasReleasingStageChanges])
 
   // Generic handler to update any section
   const handleUpdateSection = async () => {
@@ -1773,7 +1842,7 @@ export function AddLabProductModal({
       clearValidationErrors()
       const formData = watch()
       // Collect fields from ALL tabs so no changes are lost
-      const allTabIds = ["details", "grades", "stages", "impressions", "gumShade", "teethShade", "material", "addOns", "retention", "extractions", "officePricing", "visibility"]
+      const allTabIds = ["details", "grades", "stages", "impressions", "gumShade", "teethShade", "material", "addOns", "retention", "extractions", "visibility"]
       const allFields = allTabIds.flatMap(tabId => getSectionFields(tabId))
 
       // Create a subset of formData with all tab fields
@@ -2512,24 +2581,6 @@ export function AddLabProductModal({
                   />
                 </TabsContent>
 
-                <TabsContent value="officePricing" className="mt-0 p-6 focus-visible:outline-none">
-                  <OfficePriceManagementSection
-                    control={control}
-                    watch={watch}
-                    setValue={setValue}
-                    sections={sections}
-                    toggleSection={toggleSection}
-                    getValidationError={getValidationError}
-                    sectionHasErrors={sectionHasErrors}
-                    expandedSections={expandedSections}
-                    toggleExpanded={toggleExpanded}
-                    offices={officeCustomers}
-                    stages={stages}
-                    grades={grades}
-                    customGradeNames={customGradeNames}
-                  />
-                </TabsContent>
-
                 <TabsContent value="visibility" className="mt-0 p-6 focus-visible:outline-none">
                   <VisibilityManagementSection
                     control={control}
@@ -2604,7 +2655,21 @@ export function AddLabProductModal({
                       </>
                     ) : (
                       <>
-                        {editingProduct?.id && (
+                        {(() => {
+                          if (editingProduct?.id) {
+                            console.log("[UpdateButton render] non-last tab:", {
+                              activeTab,
+                              hasSectionChanges,
+                              sectionWasToggled,
+                              showButton: hasSectionChanges || sectionWasToggled,
+                              hasCurrentSectionFieldChanges,
+                              hasCurrentSectionToggleChange,
+                              initialFormValues: !!initialFormValues,
+                            })
+                          }
+                          return null
+                        })()}
+                        {(hasSectionChanges || sectionWasToggled) && editingProduct?.id && (
                           <Button
                             type="button"
                             onClick={handleUpdateSection}
@@ -2614,7 +2679,7 @@ export function AddLabProductModal({
                             {isUpdating ? "Updating..." : "Update"}
                           </Button>
                         )}
-                        {editingProduct?.id && (
+                        {(hasSectionChanges || sectionWasToggled) && editingProduct?.id && (
                           <Button
                             type="submit"
                             className="bg-[#1162a8] hover:bg-[#0d4c84] h-10 w-full sm:w-auto sm:px-8 disabled:opacity-50 disabled:cursor-not-allowed"

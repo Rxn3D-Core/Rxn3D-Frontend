@@ -677,7 +677,11 @@ export function AddOnsProvider({ children }: { children: ReactNode }) {
     setIsLoadingCategoriesForSelect(true)
 
     try {
-      const response = await fetch(`${API_BASE_URL}/library/addon-categories?include=subcategories&limit=500`, {
+      let url = `${API_BASE_URL}/library/addon-categories?include=subcategories&limit=500`
+      if (isLabAdmin && customerId) {
+        url += `&customer_id=${customerId}`
+      }
+      const response = await fetch(url, {
         headers,
       })
 
@@ -706,7 +710,7 @@ export function AddOnsProvider({ children }: { children: ReactNode }) {
       setIsLoadingCategoriesForSelect(false)
       fetchingCategoriesForSelectRef.current = false
     }
-  }, [getAuthHeaders])
+  }, [getAuthHeaders, isLabAdmin, customerId])
 
   // Add similar protection for fetchAddOnGroups
   const groupsFetchedRef = useRef(false)

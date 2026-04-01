@@ -112,7 +112,7 @@ export function SlipCreationStepFooter({
                 gap: "8px",
                 minWidth: "120px",
                 height: "40px",
-                border: "2px solid #EF4444",
+                border: "none",
                 borderRadius: "5px",
                 fontFamily: "Verdana",
                 fontStyle: "normal",
@@ -121,7 +121,7 @@ export function SlipCreationStepFooter({
                 lineHeight: "20px",
                 letterSpacing: "-0.02em",
                 color: "#fff",
-                background: "#EF4444",
+                background: "radial-gradient(ellipse at center, #CF0202 0%, #910202 100%)",
                 whiteSpace: "nowrap",
               }}
               className="hover:opacity-80"

@@ -113,12 +113,16 @@ export default function ProductsPage() {
     }
   }, [searchQuery, currentPage])
 
+  // Stable ref for fetchProducts to avoid re-triggering effect on identity changes
+  const fetchProductsRef = useRef(fetchProducts)
+  fetchProductsRef.current = fetchProducts
+
   // Single debounced fetch effect
   const fetchTimerRef = useRef<NodeJS.Timeout | null>(null)
   useEffect(() => {
     if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current)
     fetchTimerRef.current = setTimeout(() => {
-      fetchProducts(
+      fetchProductsRef.current(
         currentPage,
         Number(entriesPerPage),
         searchQuery,
@@ -137,7 +141,6 @@ export default function ProductsPage() {
     sortDirection,
     statusFilter,
     subcategoryFilter,
-    fetchProducts,
   ])
 
   // Fetch all categories on mount

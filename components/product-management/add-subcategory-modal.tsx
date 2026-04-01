@@ -213,8 +213,8 @@ export function AddSubCategoryModal({
         ...prev,
         [field]: value,
       }
-      // Auto-generate code from name when name changes
-      if (field === "name" && typeof value === "string") {
+      // Auto-generate code from name when name changes (only for create/copy, not edit)
+      if (field === "name" && typeof value === "string" && (!editId || isCopying)) {
         const generatedCode = generateCodeFromName(value)
         if (generatedCode) {
           updated.code = generatedCode

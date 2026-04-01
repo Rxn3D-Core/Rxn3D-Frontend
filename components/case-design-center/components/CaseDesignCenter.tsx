@@ -877,15 +877,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           if (toothNum !== null) {
             // Show qty in front of each name: "1x Name, 2x Other"
             const addonLabels = addOns.map((a) => `${a.qty}x ${a.name}`);
-            const maxShow = 2;
-            let value: string;
-            if (addonLabels.length === 0) {
-              value = "0 selected";
-            } else if (addonLabels.length <= maxShow) {
-              value = addonLabels.join(", ");
-            } else {
-              value = addonLabels.slice(0, maxShow).join(", ") + ` +${addonLabels.length - maxShow} more`;
-            }
+            const value = addonLabels.length === 0 ? "0 selected" : addonLabels.join(", ");
             const product = state.getToothProduct(arch, toothNum);
             const isFixed = isFixedCategory(getCategoryName(product));
             if (isFixed) {

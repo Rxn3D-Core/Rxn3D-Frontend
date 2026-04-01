@@ -49,13 +49,6 @@ export function RetentionSection({
       setValue("apply_retention_mechanism", "Yes", { shouldDirty: false })
     }
   }, [watchedApplyRetentionMechanism, setValue, isCreating])
-
-  // Auto-set apply_retention_mechanism to "Yes" when retentions are selected
-  React.useEffect(() => {
-    if (watchedRetentions.length > 0 && watchedApplyRetentionMechanism !== "Yes") {
-      setValue("apply_retention_mechanism", "Yes", { shouldDirty: true })
-    }
-  }, [watchedRetentions.length, watchedApplyRetentionMechanism, setValue])
   
   // Helper function to check if a retention is selected
   const isRetentionSelected = (retentionId: any) => {

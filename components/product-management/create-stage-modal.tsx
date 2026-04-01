@@ -744,8 +744,8 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
   ) => {
     setFormData((prev) => {
       const updated = { ...prev, [field]: value }
-      // Auto-generate code from name when name changes
-      if (field === "name" && typeof value === "string") {
+      // Auto-generate code from name when name changes (only for create/copy, not edit)
+      if (field === "name" && typeof value === "string" && (mode !== "edit" || isCopying)) {
         const generatedCode = generateCodeFromName(value)
         if (generatedCode) {
           updated.code = generatedCode

@@ -471,10 +471,12 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
                     onChange={(e) => {
                       const newName = e.target.value
                       setImpressionName(newName)
-                      // Auto-generate code from name
-                      const generatedCode = generateCodeFromName(newName)
-                      if (generatedCode) {
-                        setImpressionCode(generatedCode)
+                      // Auto-generate code from name (only for create/copy, not edit)
+                      if (mode !== "edit" || isCopying) {
+                        const generatedCode = generateCodeFromName(newName)
+                        if (generatedCode) {
+                          setImpressionCode(generatedCode)
+                        }
                       }
                       if (errors.impressionName) {
                         setErrors((prev) => ({ ...prev, impressionName: "" }))

@@ -213,8 +213,9 @@ export function CreateGradeModal({ isOpen, onClose, editingGrade, editId, onSave
         ...prev,
         [field]: value,
       }
-      // Auto-generate code from name when name changes
-      if (field === "name") {
+      // Auto-generate code from name when name changes (only for create/copy, not edit)
+      const isEditing = !!(editId || editingGrade || fetchedGrade) && !isCopying
+      if (field === "name" && !isEditing) {
         const generatedCode = generateCodeFromName(value)
         if (generatedCode) {
           updated.code = generatedCode
@@ -249,10 +250,24 @@ export function CreateGradeModal({ isOpen, onClose, editingGrade, editId, onSave
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
+      // Validate file type
+      const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"]
+      if (!allowedTypes.includes(file.type)) {
+        alert("Invalid image type. Please upload a JPG, JPEG, PNG, GIF, or WebP image.")
+        if (fileInputRef.current) fileInputRef.current.value = ""
+        return
+      }
+      // Validate file size (5120KB = 5MB)
+      if (file.size > 5120 * 1024) {
+        alert("Image size exceeds 5MB. Please upload a smaller image.")
+        if (fileInputRef.current) fileInputRef.current.value = ""
+        return
+      }
       const reader = new FileReader()
       reader.onloadend = () => {
-        setImagePreview(reader.result as string)
-        setImageBase64(reader.result as string)
+        const dataUrl = reader.result as string
+        setImagePreview(dataUrl)
+        setImageBase64(dataUrl)
       }
       reader.readAsDataURL(file)
     } else {
@@ -420,7 +435,7 @@ export function CreateGradeModal({ isOpen, onClose, editingGrade, editId, onSave
                       )}
                       <input
                         type="file"
-                        accept="image/*"
+                        accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
                         ref={fileInputRef}
                         style={{ display: "none" }}
                         onChange={handleImageChange}

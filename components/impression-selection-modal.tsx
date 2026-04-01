@@ -480,7 +480,7 @@ export function ImpressionSelectionModal({
             <button
               onClick={onClose}
               className="flex items-center justify-center px-[40px] py-[12px] rounded-[6px] transition-colors min-w-[160px]"
-              style={{ background: "radial-gradient(ellipse at center, #f87171 0%, #dc2626 100%)" }}
+              style={{ background: "radial-gradient(ellipse at center, #CF0202 0%, #910202 100%)" }}
             >
               <span className="font-['Verdana'] font-bold text-[12px] leading-[22px] tracking-[-0.02em] text-white">
                 Cancel

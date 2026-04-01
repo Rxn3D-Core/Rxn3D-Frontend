@@ -472,9 +472,12 @@ export function CreateRetentionOptionModal({ isOpen, onClose, option, isCopying 
                                         onChange={(e) => {
                                             const newName = e.target.value
                                             setOptionName(newName)
-                                            const generatedCode = generateCodeFromName(newName)
-                                            if (generatedCode) {
-                                                setOptionCode(generatedCode)
+                                            // Auto-generate code only for create/copy, not edit
+                                            if (!option || isCopying) {
+                                                const generatedCode = generateCodeFromName(newName)
+                                                if (generatedCode) {
+                                                    setOptionCode(generatedCode)
+                                                }
                                             }
                                             setHasChanges(true)
                                         }}

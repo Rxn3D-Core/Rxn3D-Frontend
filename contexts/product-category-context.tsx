@@ -729,15 +729,16 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
       let customerIdToUse = passedCustomerId
       if (!customerIdToUse) {
         // Get fresh customerId using the same logic
+        // Only auto-resolve for lab_admin; superadmin should pass it explicitly when needed
         if (typeof window !== "undefined") {
-          if (isLabAdmin || isSuperAdmin) {
+          if (isLabAdmin) {
             const storedCustomerId = localStorage.getItem("customerId")
             if (storedCustomerId) {
               customerIdToUse = parseInt(storedCustomerId, 10)
             } else if (user?.customers?.length) {
               customerIdToUse = user.customers[0]?.id
             }
-          } else {
+          } else if (!isSuperAdmin) {
             const storedLabId = localStorage.getItem("selectedLabId")
             if (storedLabId) {
               customerIdToUse = parseInt(storedLabId, 10)
@@ -822,8 +823,8 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
           category_id: categoryId.toString()
         })
         
-        // Add customer_id if provided, otherwise use context customerId for lab admin
-        const customerIdToUse = passedCustomerId || customerId || undefined
+        // Add customer_id if provided, otherwise use context customerId for lab admin only
+        const customerIdToUse = passedCustomerId || (isLabAdmin ? customerId : undefined)
         if (customerIdToUse) {
           params.append("customer_id", customerIdToUse.toString())
         }

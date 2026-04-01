@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { X, ChevronDown, Info } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -68,7 +68,16 @@ export function AddAddOnCategoryModal({ isOpen, onClose, onHasChangesChange, add
   const [hasChanges, setHasChanges] = useState(false)
   const [showDiscardDialog, setShowDiscardDialog] = useState(false)
 
+  // Stable refs to avoid re-triggering effect on function identity changes
+  const getAddOnCategoryDetailRef = useRef(getAddOnCategoryDetail)
+  getAddOnCategoryDetailRef.current = getAddOnCategoryDetail
+  const getAddOnSubcategoryDetailRef = useRef(getAddOnSubcategoryDetail)
+  getAddOnSubcategoryDetailRef.current = getAddOnSubcategoryDetail
+  const onHasChangesChangeRef = useRef(onHasChangesChange)
+  onHasChangesChangeRef.current = onHasChangesChange
+
   // Reset form when modal opens
+  const detailFetchedRef = useRef<number | null>(null)
   useEffect(() => {
     if (isOpen) {
       if (isCopying && addOn) {
@@ -87,11 +96,14 @@ export function AddAddOnCategoryModal({ isOpen, onClose, onHasChangesChange, add
         setFormData(copyData)
         setInitialFormData(copyData)
       } else if (addOn && isEditing && !isCopying) {
+        // Prevent duplicate fetch for the same item
+        if (detailFetchedRef.current === (addOn as any).id) return
+        detailFetchedRef.current = (addOn as any).id
         // Editing: fetch detail from API if needed
         setIsDetailLoading(true)
         if (isSubCategory) {
           // Editing subcategory
-          getAddOnSubcategoryDetail((addOn as AddOnSubCategory).id).then((detail) => {
+          getAddOnSubcategoryDetailRef.current((addOn as AddOnSubCategory).id).then((detail) => {
             if (detail) {
               const editData = {
                 name: detail.name,
@@ -111,7 +123,7 @@ export function AddAddOnCategoryModal({ isOpen, onClose, onHasChangesChange, add
           })
         } else {
           // Editing category
-          getAddOnCategoryDetail((addOn as AddOnCategory).id).then((detail) => {
+          getAddOnCategoryDetailRef.current((addOn as AddOnCategory).id).then((detail) => {
             if (detail) {
               const editData = {
                 name: detail.name,
@@ -137,13 +149,16 @@ export function AddAddOnCategoryModal({ isOpen, onClose, onHasChangesChange, add
         setIsDetailLoading(false)
       }
       setHasChanges(false)
-      if (onHasChangesChange) onHasChangesChange(false)
+      if (onHasChangesChangeRef.current) onHasChangesChangeRef.current(false)
       setAddOnDetailsEnabled(true)
       setLinkToProductsOpen(false)
       setLinkToExistingGroupOpen(false)
       setVisibilityManagementOpen(false)
+    } else {
+      // Reset guard when modal closes
+      detailFetchedRef.current = null
     }
-  }, [isOpen, addOn, isEditing, isCopying, isSubCategory, onHasChangesChange, getAddOnCategoryDetail, getAddOnSubcategoryDetail])
+  }, [isOpen, addOn, isEditing, isCopying, isSubCategory])
 
   // Fetch categories when modal opens
   useEffect(() => {
@@ -167,8 +182,8 @@ export function AddAddOnCategoryModal({ isOpen, onClose, onHasChangesChange, add
         ...prev,
         [field]: value,
       }
-      // Auto-generate code from name when name changes
-      if (field === "name" && typeof value === "string") {
+      // Auto-generate code from name when name changes (only for create/copy, not edit)
+      if (field === "name" && typeof value === "string" && (!isEditing || isCopying)) {
         const generatedCode = generateCodeFromName(value)
         if (generatedCode) {
           updated.code = generatedCode
