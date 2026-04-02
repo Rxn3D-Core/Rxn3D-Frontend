@@ -362,5 +362,10 @@ export function useToothFieldProgress() {
     migrateToothProgress,
     getToothProductCard,
     setToothProductCard,
+    // Raw state — exposed so consumers (e.g. CaseSummaryNotes) can include them
+    // in useMemo deps to trigger re-computation when field values change.
+    fieldValues,
+    toothProducts,
+    toothProductCardMap,
   };
 }

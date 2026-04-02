@@ -112,8 +112,7 @@ function Diamond({ filled }: { filled: boolean }) {
 }
 
 /** Static diamond display (used in non-interactive contexts) */
-function GradeDiamonds({ filledCount }: { filledCount: number }) {
-  const total = 4;
+function GradeDiamonds({ filledCount, total = 4 }: { filledCount: number; total?: number }) {
   const filled = Math.max(0, Math.min(filledCount, total));
   return (
     <div className="flex gap-1">
@@ -141,7 +140,7 @@ function GradeHoverSelector({
   disabled?: boolean;
 }) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
-  const total = 4;
+  const total = grades.length > 0 ? grades.length : 4;
   const currentCount = getGradeDiamondCount(currentGradeName, grades);
   const displayCount = hoverIndex !== null ? hoverIndex + 1 : currentCount;
   const displayName = hoverIndex !== null
@@ -1111,8 +1110,8 @@ export function MaxillaryPanel({
                                   const showGreen = isStageComplete && !caseSubmitted;
                                   return (
                                     <fieldset
-                                      className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${showGreen ? "border-[#34a853]" : isStageComplete ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
-                                      onClick={() => handleOpenStageModal(productKey, "maxillary", repTn)}
+                                      className={`border rounded px-3 py-0 relative h-[42px] flex items-center pointer-events-auto cursor-pointer hover:bg-gray-50 ${showGreen ? "border-[#34a853]" : isStageComplete ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
+                                      onClick={() => !caseSubmitted && handleOpenStageModal(productKey, "maxillary", repTn)}
                                     >
                                       <legend className={`text-sm px-1 leading-none ${showGreen ? "text-[#34a853]" : isStageComplete ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Stage</legend>
                                       <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{stageVal}</span>
@@ -1769,8 +1768,8 @@ export function MaxillaryPanel({
                               const showGreen = isStageComplete && !caseSubmitted;
                               return (
                                 <fieldset
-                                  className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${showGreen ? "border-[#34a853]" : isStageComplete ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
-                                  onClick={() => handleOpenStageModal(productKey, "maxillary", repTn)}
+                                  className={`border rounded px-3 py-0 relative h-[42px] flex items-center pointer-events-auto cursor-pointer hover:bg-gray-50 ${showGreen ? "border-[#34a853]" : isStageComplete ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
+                                  onClick={() => !caseSubmitted && handleOpenStageModal(productKey, "maxillary", repTn)}
                                 >
                                   <legend className={`text-sm px-1 leading-none ${showGreen ? "text-[#34a853]" : isStageComplete ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Stage</legend>
                                   <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{stageVal}</span>

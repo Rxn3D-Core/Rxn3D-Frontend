@@ -316,17 +316,17 @@ export default function RetentionPage() {
                       </code>
                     </TableCell>
                     <TableCell className="py-2 px-2">
-                      <div className="flex items-center gap-2">
-                        {retention.options && retention.options.length > 0 ? (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {retention.retention_options && retention.retention_options.length > 0 ? (
                           <>
-                            {retention.options.slice(0, 2).map((option: any, idx: number) => (
-                              <span key={idx} className="text-xs bg-gray-100 px-2 py-1 rounded">
-                                {option.name || option}
+                            {retention.retention_options.slice(0, 2).map((option: any, idx: number) => (
+                              <span key={option.link_id ?? idx} className="text-xs bg-gray-100 px-2 py-1 rounded">
+                                {option.name}
                               </span>
                             ))}
-                            {retention.options.length > 2 && (
+                            {retention.retention_options.length > 2 && (
                               <Button variant="ghost" className="h-5 px-1.5 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50">
-                                +{retention.options.length - 2}
+                                +{retention.retention_options.length - 2}
                               </Button>
                             )}
                           </>

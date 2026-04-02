@@ -501,7 +501,7 @@ export default function Page() {
             initialLabId={(labEditMode || doctorEditMode || wizardMode === "addProduct" || wizardMode === "backToProducts") && completedLab ? completedLab.id : null}
             initialPatientName={(labEditMode || doctorEditMode || wizardMode === "addProduct" || wizardMode === "backToProducts") ? completedPatientName : ""}
             initialGender={(labEditMode || doctorEditMode || wizardMode === "addProduct" || wizardMode === "backToProducts") ? completedGender : ""}
-            initialAge={(labEditMode || doctorEditMode) ? completedAge : ""}
+            initialAge={(labEditMode || doctorEditMode || wizardMode === "addProduct" || wizardMode === "backToProducts") ? completedAge : ""}
             initialDoctor={(labEditMode || doctorEditMode || wizardMode === "addProduct" || wizardMode === "backToProducts") && completedDoctor ? completedDoctor : undefined}
             initialCategory={wizardMode === "backToProducts" ? lastSelectedCategory : null}
             initialSubProduct={wizardMode === "backToProducts" ? lastSelectedSubProduct : null}

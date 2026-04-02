@@ -109,8 +109,7 @@ function Diamond({ filled }: { filled: boolean }) {
 }
 
 /** Static diamond display (used in non-interactive contexts) */
-function GradeDiamonds({ filledCount }: { filledCount: number }) {
-  const total = 4;
+function GradeDiamonds({ filledCount, total = 4 }: { filledCount: number; total?: number }) {
   const filled = Math.max(0, Math.min(filledCount, total));
   return (
     <div className="flex gap-1">
@@ -137,7 +136,7 @@ function GradeHoverSelector({
   disabled?: boolean;
 }) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
-  const total = 4;
+  const total = grades.length > 0 ? grades.length : 4;
   const currentCount = getGradeDiamondCount(currentGradeName, grades);
   const displayCount = hoverIndex !== null ? hoverIndex + 1 : currentCount;
   const displayName = hoverIndex !== null
@@ -564,6 +563,8 @@ interface MandibularPanelProps {
   onToothStatusValidationChange?: (hasValidation: boolean) => void;
   /** Product+arch combos where user chose "Submit, no opposing needed" */
   noOpposingNeeded?: Record<string, boolean>;
+  /** When set, renders the opposing product accordion for Removable Restoration products with opposite_extractions */
+  opposingProductData?: ProductApiData | null;
 }
 
 /** Auto-opens the shade picker when this component mounts (i.e. shade field becomes visible) and the field has no value */
@@ -651,6 +652,7 @@ export function MandibularPanel({
   onToothStatusValidationChange,
   removablesImpressionDone = false,
   noOpposingNeeded = {},
+  opposingProductData = null,
 }: MandibularPanelProps) {
   const MANDIBULAR_ALL_TEETH = [17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32];
   const [activeExtractionCode, setActiveExtractionCode] = useState<string | null>(null);
@@ -659,6 +661,8 @@ export function MandibularPanel({
   const [implantDetailCompleteByTooth, setImplantDetailCompleteByTooth] = useState<Record<number, boolean>>({});
   /** Expand/collapse for initial (card 0) Removables product accordion */
   const [initialRemovablesExpanded, setInitialRemovablesExpanded] = useState(true);
+  /** Expand/collapse for the opposing product accordion */
+  const [opposingAccordionExpanded, setOpposingAccordionExpanded] = useState(true);
   // Auto-collapse card 0 removables accordion when another product becomes active
   const prevActiveCardRef = useRef(activeProductCardId);
   useEffect(() => {
@@ -1070,8 +1074,8 @@ export function MandibularPanel({
                                 const showGreen = isStageComplete && !caseSubmitted;
                                 return (
                                   <fieldset
-                                    className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${showGreen ? "border-[#34a853]" : isStageComplete ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
-                                    onClick={() => handleOpenStageModal(isFixed ? `mandibular_fixed_${repTn}` : `mandibular_prep_${repTn}`, "mandibular", repTn)}
+                                    className={`border rounded px-3 py-0 relative h-[42px] flex items-center pointer-events-auto cursor-pointer hover:bg-gray-50 ${showGreen ? "border-[#34a853]" : isStageComplete ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
+                                    onClick={() => !caseSubmitted && handleOpenStageModal(isFixed ? `mandibular_fixed_${repTn}` : `mandibular_prep_${repTn}`, "mandibular", repTn)}
                                   >
                                     <legend className={`text-sm px-1 leading-none ${showGreen ? "text-[#34a853]" : isStageComplete ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Stage</legend>
                                     <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{stageVal}</span>
@@ -1641,8 +1645,8 @@ export function MandibularPanel({
                               const showGreen = isStageComplete && !caseSubmitted;
                               return (
                                 <fieldset
-                                  className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${showGreen ? "border-[#34a853]" : isStageComplete ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
-                                  onClick={() => handleOpenStageModal(productKey, "mandibular", repTn)}
+                                  className={`border rounded px-3 py-0 relative h-[42px] flex items-center pointer-events-auto cursor-pointer hover:bg-gray-50 ${showGreen ? "border-[#34a853]" : isStageComplete ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
+                                  onClick={() => !caseSubmitted && handleOpenStageModal(productKey, "mandibular", repTn)}
                                 >
                                   <legend className={`text-sm px-1 leading-none ${showGreen ? "text-[#34a853]" : isStageComplete ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Stage</legend>
                                   <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{stageVal}</span>
@@ -1780,6 +1784,62 @@ export function MandibularPanel({
             );
           })()}
 
+          {/* Opposing product accordion — shown when selected Removable Restoration product has opposite_extractions */}
+          {showDetails && opposingProductData && (opposingProductData.opposite_extractions?.length ?? 0) > 0 && (() => {
+            const defaultExtraction = opposingProductData.opposite_extractions!.find(e => e.is_default === "Yes");
+            return (
+              <div key="opposing-accordion" className="relative mt-3">
+                <div className="rounded-lg bg-white overflow-hidden border border-[#d9d9d9]">
+                  <div
+                    className="w-full flex flex-col transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] relative bg-[#DFEEFB]"
+                    onClick={() => setOpposingAccordionExpanded(e => !e)}
+                    style={{ cursor: "pointer" }}
+                  >
+                    {/* Chevron top-right */}
+                    <div className="absolute top-3 right-2 z-10">
+                      <ChevronDown
+                        size={21.6}
+                        className={`text-black transition-transform ${opposingAccordionExpanded ? "rotate-180" : ""}`}
+                      />
+                    </div>
+                    {/* Image left + product name, extraction badge & category badges right */}
+                    <div className="flex items-stretch gap-[10px] px-[8px] py-[14px]">
+                      <ProductImagePreview
+                        imageUrl={opposingProductData.image_url}
+                        altText={`${opposingProductData.name} opposing`}
+                        containerClassName="w-[64px] rounded-[6px] bg-white flex items-center justify-center flex-shrink-0 overflow-hidden shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]"
+                        imgClassName="w-[61.58px] h-[28.79px] object-contain"
+                        fallback={
+                          <div className="w-[61.58px] h-[28.79px] flex items-center justify-center">
+                            <span className="text-[10px] text-gray-400">No img</span>
+                          </div>
+                        }
+                      />
+                      <div className="flex-1 min-w-0 flex flex-col gap-[9.94px]">
+                        <p className="font-[Inter] text-[20px] font-bold leading-tight text-black pr-6 text-left">
+                          {opposingProductData.name}{" "}
+                          <span className="font-normal text-[16px] text-[#555555]">opposing</span>
+                        </p>
+                        <div className="flex items-center gap-[4.97px] flex-wrap">
+                          {defaultExtraction && (
+                            <AccordionBadge>{defaultExtraction.name}</AccordionBadge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-[4.97px] flex-wrap">
+                          {opposingProductData.subcategory?.category?.name && (
+                            <AccordionBadge>{opposingProductData.subcategory.category.name}</AccordionBadge>
+                          )}
+                          {opposingProductData.subcategory?.name && (
+                            <AccordionBadge>{opposingProductData.subcategory.name}</AccordionBadge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
         </>
       )}

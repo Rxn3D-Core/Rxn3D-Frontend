@@ -7,7 +7,7 @@ import {
   Dialog,
   DialogContent,
 } from "@/components/ui/dialog"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { STLFileSelectionModal } from "./stl-file-selection-modal"
 
 interface ImpressionOption {
@@ -29,6 +29,8 @@ interface STLFile {
 interface ImpressionSelectionModalProps {
   isOpen: boolean
   onClose: () => void
+  /** Called when user explicitly confirms their selection (Done / Next: Select Opposing confirmed) */
+  onConfirm?: () => void
   impressions: ImpressionOption[]
   selectedImpressions: Record<string, number>
   onUpdateQuantity: (impressionKey: string, quantity: number) => void
@@ -37,7 +39,7 @@ interface ImpressionSelectionModalProps {
   productId: string
   arch: "maxillary" | "mandibular"
   stlFilesByImpression?: Record<string, STLFile[]>
-  /** When "Yes", renders a split layout with Main and Opposite columns */
+  /** When "Yes", renders opposing arch selection after main impression is selected */
   oppositeImpression?: "Yes" | "No"
   /** Impressions available for the opposite arch (defaults to same as impressions) */
   oppositeImpressions?: ImpressionOption[]
@@ -55,6 +57,7 @@ function ImpressionGrid({
   arch,
   stlFilesByImpression = {},
   onClose,
+  onDone,
 }: {
   impressions: ImpressionOption[]
   selectedImpressions: Record<string, number>
@@ -65,6 +68,8 @@ function ImpressionGrid({
   arch: string
   stlFilesByImpression?: Record<string, STLFile[]>
   onClose: () => void
+  /** Called when user clicks the inline Done button — triggers confirm + close */
+  onDone?: () => void
 }) {
   const [showSTLModal, setShowSTLModal] = useState(false)
   const [selectedSTLImpression, setSelectedSTLImpression] = useState<ImpressionOption | null>(null)
@@ -230,7 +235,7 @@ function ImpressionGrid({
                   ) : (
                     <button
                       className="flex items-center justify-center px-[8px] py-[6px] bg-[#1162A8] rounded-[4px] hover:bg-[#0e5290] transition-colors h-[26px]"
-                      onClick={onClose}
+                      onClick={onDone ?? onClose}
                     >
                       <span className="font-['Verdana'] font-normal text-[11px] leading-[14px] tracking-[-0.02em] text-white">Done</span>
                     </button>
@@ -324,7 +329,7 @@ function ImpressionGrid({
                   ) : (
                     <button
                       className="flex items-center justify-center px-[10px] py-[8px] bg-[#1162A8] rounded-[4px] hover:bg-[#0e5290] transition-colors h-[31px]"
-                      onClick={onClose}
+                      onClick={onDone ?? onClose}
                     >
                       <span className="font-['Verdana'] font-normal text-xs lg:text-[14px] leading-[14px] tracking-[-0.02em] text-white">Done</span>
                     </button>
@@ -357,6 +362,7 @@ function ImpressionGrid({
 export function ImpressionSelectionModal({
   isOpen,
   onClose,
+  onConfirm,
   impressions,
   selectedImpressions,
   onUpdateQuantity,
@@ -372,17 +378,22 @@ export function ImpressionSelectionModal({
   const oppositeArch = arch === "maxillary" ? "mandibular" : "maxillary"
   const oppositeList = oppositeImpressions ?? impressions
 
-  // Detect whether the main arch already has at least one impression selected
+  // Always start on the main arch view so user can update it.
+  // Only advance to opposing after user explicitly confirms main selection.
+  const [showOpposing, setShowOpposing] = useState(false)
+
+  // Reset to main view whenever the modal opens
+  useEffect(() => {
+    if (isOpen) setShowOpposing(false)
+  }, [isOpen])
+
   const mainPrefix = `${productId}_${arch}_`
   const hasMainSelection = Object.entries(selectedImpressions).some(
     ([key, qty]) => key.startsWith(mainPrefix) && qty > 0
   )
 
-  // When oppositeImpression is "Yes" and main has a selection, show opposing-only view
-  const showOpposingOnly = oppositeImpression === "Yes" && hasMainSelection
-
-  // Legacy split mode: show both panels side-by-side (kept for backward compat if needed)
-  const isSplit = false
+  // Show opposing panel only when oppositeImpression flag is "Yes" AND user has confirmed main
+  const showOpposingOnly = oppositeImpression === "Yes" && showOpposing
 
   const sharedGridProps = {
     selectedImpressions,
@@ -391,6 +402,17 @@ export function ImpressionSelectionModal({
     onSTLFilesAttached,
     stlFilesByImpression,
     onClose,
+  }
+
+  // Confirm main selection and advance to opposing arch view
+  const handleConfirmMain = () => {
+    setShowOpposing(true)
+  }
+
+  // Explicitly confirm selection and close
+  const handleDone = () => {
+    onConfirm?.()
+    onClose()
   }
 
   return (
@@ -407,7 +429,7 @@ export function ImpressionSelectionModal({
               <div className="flex justify-center w-full">
                 <button
                   onClick={() => {
-                    onSubmitNoOpposing ? onSubmitNoOpposing() : onClose()
+                    onSubmitNoOpposing ? onSubmitNoOpposing() : handleDone()
                   }}
                   className="flex items-center justify-center px-6 py-2 rounded-[6px] text-white font-['Verdana'] font-bold text-sm sm:text-base"
                   style={{ background: "radial-gradient(ellipse at center, #3b82f6 0%, #1e40af 100%)" }}
@@ -426,47 +448,33 @@ export function ImpressionSelectionModal({
                   impressions={oppositeList}
                   productId={productId}
                   arch={oppositeArch}
-                />
-              </div>
-            </div>
-          ) : isSplit ? (
-            <div className="flex flex-col gap-8 w-full">
-              {/* Main arch */}
-              <div>
-                <h3 className="font-['Verdana'] font-bold text-sm sm:text-base text-[#1162A8] mb-4 uppercase tracking-wide">
-                  {arch === "maxillary" ? "Maxillary (Main)" : "Mandibular (Main)"}
-                </h3>
-                <ImpressionGrid
-                  {...sharedGridProps}
-                  impressions={impressions}
-                  productId={productId}
-                  arch={arch}
+                  onDone={handleDone}
                 />
               </div>
 
-              {/* Divider */}
-              <div className="hidden sm:block h-px bg-gray-300 w-full" />
-
-              {/* Opposite arch */}
-              <div>
-                <h3 className="font-['Verdana'] font-bold text-sm sm:text-base text-[#7F7F7F] mb-4 uppercase tracking-wide">
-                  {oppositeArch === "maxillary" ? "Maxillary (Opposing)" : "Mandibular (Opposing)"}
-                </h3>
-                <ImpressionGrid
-                  {...sharedGridProps}
-                  impressions={oppositeList}
-                  productId={productId}
-                  arch={oppositeArch}
-                />
-              </div>
             </div>
           ) : (
-            <ImpressionGrid
-              {...sharedGridProps}
-              impressions={impressions}
-              productId={productId}
-              arch={arch}
-            />
+            <>
+              {/* Next: Select Opposing — shown at top when main selection is made */}
+              {oppositeImpression === "Yes" && hasMainSelection && (
+                <div className="flex justify-center w-full">
+                  <button
+                    onClick={handleConfirmMain}
+                    className="flex items-center justify-center px-6 py-2 rounded-[6px] text-white font-['Verdana'] font-bold text-sm sm:text-base"
+                    style={{ background: "radial-gradient(ellipse at center, #3b82f6 0%, #1e40af 100%)" }}
+                  >
+                    Next: Select Opposing
+                  </button>
+                </div>
+              )}
+              <ImpressionGrid
+                {...sharedGridProps}
+                impressions={impressions}
+                productId={productId}
+                arch={arch}
+                onDone={oppositeImpression === "Yes" ? handleConfirmMain : handleDone}
+              />
+            </>
           )}
 
           {impressions.length === 0 && (

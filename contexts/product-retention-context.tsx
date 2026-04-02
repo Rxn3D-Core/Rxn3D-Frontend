@@ -6,6 +6,17 @@ import { toast } from "sonner"
 import { useAuth } from "./auth-context"
 import { AlertCircle, Award, CheckCircle, Save, Trash2 } from "lucide-react"
 import { useLanguage } from "./language-context"
+interface RetentionOptionItem {
+  id: number
+  name: string
+  code: string | null
+  image_url: string | null
+  status: string
+  sequence: number
+  link_id: number
+  is_lab_specific: boolean
+}
+
 interface Retention {
   id: number
   name: string
@@ -13,6 +24,9 @@ interface Retention {
   status: string
   sequence: number
   price?: number
+  is_custom?: string
+  retention_options?: RetentionOptionItem[]
+  retention_options_count?: number
   created_at: string
   updated_at: string
 }

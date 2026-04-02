@@ -67,8 +67,7 @@ export function getActiveGrades(grades?: ProductGrade[]): ProductGrade[] {
 }
 
 /** Static diamond display (used in non-interactive contexts) */
-export function GradeDiamonds({ filledCount }: { filledCount: number }) {
-  const total = 4;
+export function GradeDiamonds({ filledCount, total = 4 }: { filledCount: number; total?: number }) {
   const filled = Math.max(0, Math.min(filledCount, total));
   return (
     <div className="flex gap-1">
@@ -94,7 +93,7 @@ export function GradeHoverSelector({
   disabled?: boolean;
 }) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
-  const total = 4;
+  const total = grades.length > 0 ? grades.length : 4;
   const currentCount = getGradeDiamondCount(currentGradeName, grades);
   const displayCount = hoverIndex !== null ? hoverIndex + 1 : currentCount;
   const displayName = hoverIndex !== null
@@ -324,13 +323,19 @@ export function RemovableRestorationFields({
 
       {/* Step 1: Grade / Stage */}
       {isFieldVisibleFn(arch, firstToothNumber, "grade") && (() => {
+        const stageName = getFieldValueFn(arch, firstToothNumber, "stage");
+        const selectedStageObj = selectedProduct?.stages?.find((s) => s.name === stageName);
+        const stageCfg = selectedStageObj?.stage_configurations;
+
         const gradeRaw = getFieldValueFn(arch, firstToothNumber, "grade") || "";
         let gradeVal = gradeRaw;
         try { const p = JSON.parse(gradeRaw); gradeVal = p.name ?? gradeRaw; } catch {}
         const isGradeComplete = isFieldCompletedFn(arch, firstToothNumber, "grade");
         const showGradeGreen = isGradeComplete && !caseSubmitted;
         const productGrades = getActiveGrades(selectedProduct?.grades);
-        const hasGrades = productGrades.length > 0;
+        // Hide grade if stage_configurations.grade === "No"
+        const gradeAllowedByStage = !stageCfg || stageCfg.grade !== "No";
+        const hasGrades = productGrades.length > 0 && gradeAllowedByStage;
         const showStage = isFieldVisibleFn(arch, firstToothNumber, "stage") && !isSingleStageNoStages(selectedProduct);
         const showTwoCols = hasGrades && showStage;
         return (
@@ -370,7 +375,7 @@ export function RemovableRestorationFields({
 
           {showStage ? (
             <fieldset
-              className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
+              className={`border rounded px-3 py-0 relative h-[42px] flex items-center pointer-events-auto cursor-pointer hover:bg-gray-50 transition-colors ${
                 isFieldCompletedFn(arch, firstToothNumber, "stage") && !caseSubmitted
                   ? "border-[#34a853]"
                   : isFieldCompletedFn(arch, firstToothNumber, "stage")
@@ -378,7 +383,7 @@ export function RemovableRestorationFields({
                     : "border-[#CF0202]"
               }`}
               onClick={() => {
-                handleOpenStageModal(`${arch}_prep_${firstToothNumber}`, arch, firstToothNumber);
+                if (!caseSubmitted) handleOpenStageModal(`${arch}_prep_${firstToothNumber}`, arch, firstToothNumber);
               }}
             >
               <legend

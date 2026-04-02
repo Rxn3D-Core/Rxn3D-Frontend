@@ -330,11 +330,11 @@ export function FixedRestorationFields({
             const showStageGreen = isStageComplete && !caseSubmitted;
             return (
             <fieldset
-              className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
+              className={`border rounded px-3 py-0 relative h-[42px] flex items-center pointer-events-auto cursor-pointer hover:bg-gray-50 transition-colors ${
                 showStageGreen ? "border-[#34a853]" : isStageComplete ? "border-[#b4b0b0]" : "border-[#CF0202]"
               }`}
               onClick={() => {
-                handleOpenStageModal(groupStageProductIdFixed, arch, groupStageToothNumber);
+                if (!caseSubmitted) handleOpenStageModal(groupStageProductIdFixed, arch, groupStageToothNumber);
               }}
             >
               <legend className={`text-sm px-1 leading-none ${showStageGreen ? "text-[#34a853]" : isStageComplete ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>

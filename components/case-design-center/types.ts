@@ -87,6 +87,9 @@ export interface NotesProps {
   /** Selected teeth arrays (for removables) */
   maxillaryTeeth: number[];
   mandibularTeeth: number[];
+  /** Extraction map: toothNumber → extractionCode for non-default boxes (missing, extracting, etc.) */
+  maxillaryToothExtractionMap?: Record<number, string>;
+  mandibularToothExtractionMap?: Record<number, string>;
   /** Get the API product assigned to a tooth */
   getToothProduct: (arch: Arch, toothNumber: number) => ProductApiData | null;
   /** Get the value for a field step on a tooth */
@@ -104,6 +107,17 @@ export interface NotesProps {
   addedProducts: AddedProduct[];
   /** Product card ID that "owns" a tooth */
   getToothProductCard: (arch: Arch, toothNumber: number) => number;
+  // Raw state objects — used as useMemo deps to trigger realtime note updates
+  /** Raw field values map — triggers note rebuild on any field change */
+  fieldValues?: Record<string, Record<string, string>>;
+  /** Raw tooth products map — triggers note rebuild when product assigned */
+  toothProducts?: Record<string, ProductApiData>;
+  /** Raw tooth product card map — triggers note rebuild on card assignment */
+  toothProductCardMap?: Record<string, number>;
+  /** Raw selected shades map — triggers note rebuild when shade changes */
+  selectedShades?: Record<string, string>;
+  /** Raw selected impressions map — triggers note rebuild when impression changes */
+  selectedImpressions?: Record<string, number>;
 }
 
 export type Arch = "maxillary" | "mandibular";
@@ -264,6 +278,17 @@ export interface ProductGrade {
   updated_at?: string;
 }
 
+/** Opposite extraction option from the product API */
+export interface ProductOppositeExtraction {
+  id: number;
+  code: string;
+  name: string;
+  is_default?: string;
+  is_required?: string;
+  is_optional?: string;
+  min_teeth?: number | null;
+}
+
 /** Product from the products API */
 export interface ProductApiData {
   id: number;
@@ -287,6 +312,7 @@ export interface ProductApiData {
   extractions?: ProductExtraction[];
   advance_fields?: ProductAdvanceField[];
   opposite_impression?: "Yes" | "No";
+  opposite_extractions?: ProductOppositeExtraction[];
   retention_options?: Array<{
     id: number;
     name: string;

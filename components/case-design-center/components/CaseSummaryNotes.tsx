@@ -96,6 +96,8 @@ function buildRemovableNote(
   product: ProductApiData | null,
   repTooth: number,
   props: NotesProps,
+  /** All selected teeth for this card (including missing/extracted ones) */
+  allCardTeeth: number[],
 ): string {
   const productName = product?.name || "removable";
   const teethStr = formatTeethNumbers(teeth);
@@ -118,6 +120,32 @@ function buildRemovableNote(
   }
   if (impression) note += ` Impression is ${impression}.`;
   if (addons) note += ` Add-ons include: ${addons}.`;
+
+  // Append extraction status groups (e.g. "Missing teeth: #8,9. Will extract on delivery: #3.")
+  const extractionMap = arch === "maxillary"
+    ? (props.maxillaryToothExtractionMap ?? {})
+    : (props.mandibularToothExtractionMap ?? {});
+
+  // Build code → name lookup from the product's extractions array
+  const codeToName: Record<string, string> = {};
+  for (const ext of product?.extractions ?? []) {
+    if (ext.code && ext.name) codeToName[ext.code] = ext.name;
+  }
+
+  // Group extracted teeth by their status code
+  const byCode: Record<string, number[]> = {};
+  for (const tn of allCardTeeth) {
+    const code = extractionMap[tn];
+    if (!code) continue; // in-mouth teeth — already counted in teethStr
+    if (!byCode[code]) byCode[code] = [];
+    byCode[code].push(tn);
+  }
+
+  for (const [code, extractedTeeth] of Object.entries(byCode)) {
+    const name = codeToName[code] || code;
+    const numbersStr = formatTeethNumbers(extractedTeeth);
+    note += ` ${name}: ${numbersStr}.`;
+  }
 
   return note;
 }
@@ -200,18 +228,34 @@ function buildNoteGroups(props: NotesProps): NoteGroup[] {
       }
     }
 
+    // Only include teeth that are in the default extraction (in mouth), not missing/extracted
+    const extractionMap = arch === "maxillary"
+      ? (props.maxillaryToothExtractionMap ?? {})
+      : (props.mandibularToothExtractionMap ?? {});
+    const inMouthTeeth = selectedTeeth.filter((tn) => !extractionMap[tn]);
+
     const cardToTeeth = new Map<number, number[]>();
-    for (const tn of selectedTeeth) {
+    for (const tn of inMouthTeeth) {
       const card = props.getToothProductCard(arch, tn);
       if (card == null) continue;
       if (!cardToTeeth.has(card)) cardToTeeth.set(card, []);
       cardToTeeth.get(card)!.push(tn);
     }
 
+    // Build a map of ALL selected teeth (including extracted) per card — used for extraction status in notes
+    const allCardToTeeth = new Map<number, number[]>();
+    for (const tn of selectedTeeth) {
+      const card = props.getToothProductCard(arch, tn);
+      if (card == null) continue;
+      if (!allCardToTeeth.has(card)) allCardToTeeth.set(card, []);
+      allCardToTeeth.get(card)!.push(tn);
+    }
+
     for (const [card, repTooth] of cardToRepTooth) {
       const product = props.getToothProduct(arch, repTooth);
       const category = getCategoryName(product);
       const cardTeeth = cardToTeeth.get(card) || [repTooth];
+      const allCardTeeth = allCardToTeeth.get(card) || [repTooth];
 
       if (isOrthodonticsCategory(category)) {
         groups.push({
@@ -223,7 +267,7 @@ function buildNoteGroups(props: NotesProps): NoteGroup[] {
         groups.push({
           arch,
           category: "Removable",
-          note: buildRemovableNote(arch, cardTeeth, product, repTooth, props),
+          note: buildRemovableNote(arch, cardTeeth, product, repTooth, props, allCardTeeth),
         });
       }
     }
@@ -289,7 +333,14 @@ export function CaseSummaryNotes(props: NotesProps) {
     props.right2Platform,
     props.right1Inclusion,
     props.right2Inclusion,
-    // getters are stable refs — include the objects they read from instead
+    // Raw state objects — getters are stable closures; include the underlying data they read
+    props.fieldValues,
+    props.toothProducts,
+    props.toothProductCardMap,
+    props.selectedShades,
+    props.selectedImpressions,
+    props.maxillaryToothExtractionMap,
+    props.mandibularToothExtractionMap,
   ]);
 
   // Reset manual override when dynamic text changes (user edited a field)

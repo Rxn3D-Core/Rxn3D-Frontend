@@ -686,6 +686,11 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           onToothStatusValidationChange={props.onToothStatusValidationChange}
           removablesImpressionDone={mandibularRemovablesImpressionDone}
           noOpposingNeeded={state.noOpposingNeeded}
+          opposingProductData={
+            (state.initialProductDetails?.opposite_extractions?.length ?? 0) > 0
+              ? state.initialProductDetails
+              : null
+          }
         />
       </div>
 
@@ -773,6 +778,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
               mandibularRetentionTypes={state.mandibularRetentionTypes}
               maxillaryTeeth={state.maxillaryTeeth}
               mandibularTeeth={state.mandibularTeeth}
+              maxillaryToothExtractionMap={state.maxillaryToothExtractionMap}
+              mandibularToothExtractionMap={state.mandibularToothExtractionMap}
               getToothProduct={state.getToothProduct}
               getFieldValue={state.getFieldValue}
               getSelectedShade={state.getSelectedShade}
@@ -782,6 +789,11 @@ export function CaseDesignCenter(props: CaseDesignProps) {
               right2Inclusion={state.right2Inclusion}
               addedProducts={state.addedProducts}
               getToothProductCard={state.getToothProductCard}
+              fieldValues={state.fieldValues}
+              toothProducts={state.toothProducts}
+              toothProductCardMap={state.toothProductCardMap}
+              selectedShades={state.selectedShades}
+              selectedImpressions={state.selectedImpressions}
             />
           </div>
         );

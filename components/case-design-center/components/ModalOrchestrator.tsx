@@ -75,21 +75,24 @@ interface ModalOrchestratorProps {
 /** When only 1 stage is available or a default stage exists, auto-selects it and closes — skipping the modal entirely. */
 function AutoSelectSingleStage({
   stages,
+  hasExistingSelection,
   onAutoSelect,
   onClose,
   children,
 }: {
   stages: { name: string; letter: string; is_default?: string }[];
+  hasExistingSelection: boolean;
   onAutoSelect: (stageName: string) => void;
   onClose: () => void;
   children: React.ReactNode;
 }) {
   const didAutoSelect = useRef(false);
   const defaultStage = stages.find((s) => s.is_default === "Yes");
-  const shouldAutoSelect = stages.length === 1 || !!defaultStage;
+  // Only auto-select when the user hasn't already picked a stage (first-time auto-open)
+  const shouldAutoSelect = !hasExistingSelection && (stages.length === 1 || !!defaultStage);
 
   useEffect(() => {
-    if (!didAutoSelect.current) {
+    if (!didAutoSelect.current && shouldAutoSelect) {
       if (stages.length === 1) {
         didAutoSelect.current = true;
         onAutoSelect(stages[0].name);
@@ -98,7 +101,7 @@ function AutoSelectSingleStage({
         onAutoSelect(defaultStage.name);
       }
     }
-  }, [stages, defaultStage, onAutoSelect]);
+  }, [stages, defaultStage, onAutoSelect, shouldAutoSelect]);
 
   // Don't render the modal when auto-selecting
   if (shouldAutoSelect) return null;
@@ -160,7 +163,8 @@ export function ModalOrchestrator({
       {/* Impression Selection Modal */}
       <ImpressionSelectionModal
         isOpen={showImpressionModal}
-        onClose={() => {
+        onClose={() => setShowImpressionModal(false)}
+        onConfirm={() => {
           // Build display text from currently selected impressions for this product/arch
           const prefix = `${currentImpressionProductId}_${currentImpressionArch}_`;
           const entries = Object.entries(selectedImpressions).filter(
@@ -176,7 +180,6 @@ export function ModalOrchestrator({
               .join(", ");
             onImpressionConfirm(displayText);
           }
-          setShowImpressionModal(false);
         }}
         impressions={impressionOptions}
         oppositeImpression={currentImpressionOppositeImpression}
@@ -232,6 +235,7 @@ export function ModalOrchestrator({
       {isStageModalOpen && currentStageOptions && currentStageOptions.length > 0 && (
         <AutoSelectSingleStage
           stages={currentStageOptions}
+          hasExistingSelection={!!(currentStageProductId && selectedStages[currentStageProductId])}
           onAutoSelect={(stageName) => {
             handleStageSelect(stageName);
             onStageConfirm(stageName);
