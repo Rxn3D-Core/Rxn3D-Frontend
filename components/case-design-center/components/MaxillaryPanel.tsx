@@ -1366,13 +1366,13 @@ export function MaxillaryPanel({
                               completeFieldStep={completeFieldStep}
                               storeFieldValue={storeFieldValue}
                               uncompleteFieldStep={uncompleteFieldStep}
-                              isFixed={apIsFixed}
-                              getSelectedShade={getSelectedShade}
+                              isFixed={apIsFixed as (step: string) => boolean}
+                              getSelectedShade={getSelectedShade as (productId: string, arch: string, shadeType: string) => any}
                               handleOpenStageModal={handleOpenStageModal}
                               handleShadeFieldClick={handleShadeFieldClick}
                               handleOpenImpressionModal={handleOpenImpressionModal}
                               handleOpenAddOnsModal={handleOpenAddOnsModal}
-                              getImpressionDisplayText={getImpressionDisplayText}
+                              getImpressionDisplayText={getImpressionDisplayText as (productId: string, arch: string) => string}
                             />
                           </>
                         );
@@ -1386,8 +1386,8 @@ export function MaxillaryPanel({
               );
             })
           }
-          {/* Progressive field cards for Prep/Pontic teeth — grouped by product (card 0 only) — REMOVED: all products now use addedProducts accordions */}
-          {false && (() => {
+          {/* Progressive field cards for Prep/Pontic teeth — grouped by product (card 0 only) */}
+          {showDetails && (() => {
             const prepPonticTeeth = Object.entries(maxillaryRetentionTypes)
               .filter(([toothNum, types]) =>
                 types.some((t) => t === "Prep" || t === "Pontic" || t === "Implant") &&
@@ -1404,7 +1404,7 @@ export function MaxillaryPanel({
             const groupedByProduct: Record<string, typeof prepPonticTeeth> = {};
             for (const tooth of prepPonticTeeth) {
               const product = getToothProduct("maxillary", tooth.toothNumber);
-              const groupKey = product?.id ? String(product.id) : "no_product";
+              const groupKey = product?.id ? String(product!.id) : "no_product";
               if (!groupedByProduct[groupKey]) groupedByProduct[groupKey] = [];
               groupedByProduct[groupKey].push(tooth);
             }
@@ -1601,13 +1601,13 @@ export function MaxillaryPanel({
                       completeFieldStep={completeFieldStep}
                       storeFieldValue={storeFieldValue}
                       uncompleteFieldStep={uncompleteFieldStep}
-                      isFixed={isFixed}
-                      getSelectedShade={getSelectedShade}
+                      isFixed={isFixed as (step: string) => boolean}
+                      getSelectedShade={getSelectedShade as (productId: string, arch: string, shadeType: string) => any}
                       handleOpenStageModal={handleOpenStageModal}
                       handleShadeFieldClick={handleShadeFieldClick}
                       handleOpenImpressionModal={handleOpenImpressionModal}
                       handleOpenAddOnsModal={handleOpenAddOnsModal}
-                      getImpressionDisplayText={getImpressionDisplayText}
+                      getImpressionDisplayText={getImpressionDisplayText as (productId: string, arch: string) => string}
                     />
                   ) : (
                     <RemovableRestorationFields

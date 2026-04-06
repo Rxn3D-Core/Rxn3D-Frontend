@@ -53,6 +53,11 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     return isFixedCategory(name);
   });
 
+  // Show accordion when card 0 initial product is Fixed Restoration AND teeth have been selected
+  const activeProductIsFixed = isFixedCategory(props.selectedProductCategoryName || "");
+  const maxillaryHasFixedCard0 = activeProductIsFixed && Object.keys(state.maxillaryRetentionTypes).length > 0;
+  const mandibularHasFixedCard0 = activeProductIsFixed && Object.keys(state.mandibularRetentionTypes || {}).length > 0;
+
   const maxillaryHasRemovablesTeeth =
     maxillaryHasRemovables && state.maxillaryTeeth.length > 0;
 
@@ -569,6 +574,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             setShowMaxillary={state.setShowMaxillary}
             showDetails={maxillaryHasImpression || mandibularHasImpression || maxillaryHasRemovables || mandibularHasRemovables ||
               maxillaryHasFixedAdded || mandibularHasFixedAdded ||
+              maxillaryHasFixedCard0 || mandibularHasFixedCard0 ||
               ((state.initialProductDetails?.opposite_extractions?.length ?? 0) > 0 && props.initialArch === "mandibular" && mandibularRemovablesImpressionDone)
             }
           caseSubmitted={props.caseSubmitted}
@@ -683,6 +689,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           setShowMandibular={state.setShowMandibular}
           showDetails={maxillaryHasImpression || mandibularHasImpression || maxillaryHasRemovables || mandibularHasRemovables ||
             maxillaryHasFixedAdded || mandibularHasFixedAdded ||
+            maxillaryHasFixedCard0 || mandibularHasFixedCard0 ||
             ((state.initialProductDetails?.opposite_extractions?.length ?? 0) > 0 && props.initialArch === "maxillary" && maxillaryRemovablesImpressionDone)
           }
           caseSubmitted={props.caseSubmitted}
