@@ -1250,13 +1250,13 @@ export function MandibularPanel({
                               completeFieldStep={completeFieldStep}
                               storeFieldValue={storeFieldValue}
                               uncompleteFieldStep={uncompleteFieldStep}
-                              isFixed={apIsFixed}
-                              getSelectedShade={getSelectedShade}
+                              isFixed={apIsFixed as (step: string) => boolean}
+                              getSelectedShade={getSelectedShade as (productId: string, arch: string, shadeType: string) => any}
                               handleOpenStageModal={handleOpenStageModal}
                               handleShadeFieldClick={handleShadeFieldClick}
                               handleOpenImpressionModal={handleOpenImpressionModal}
                               handleOpenAddOnsModal={handleOpenAddOnsModal}
-                              getImpressionDisplayText={getImpressionDisplayText}
+                              getImpressionDisplayText={getImpressionDisplayText as (productId: string, arch: string) => string}
                             />
                           </>
                         );
@@ -1270,8 +1270,8 @@ export function MandibularPanel({
               );
             })
           }
-          {/* ---- Dynamic product accordions based on category ---- REMOVED: all products now use addedProducts accordions */}
-          {false && (() => {
+          {/* Progressive field cards for Prep/Pontic teeth — grouped by product (card 0 only) */}
+          {showDetails && (() => {
                 // Get all mandibular teeth with retention types
                 const allTeeth = Object.entries(mandibularRetentionTypes)
                   .filter(([toothNum, types]) =>
@@ -1486,13 +1486,13 @@ export function MandibularPanel({
                             completeFieldStep={completeFieldStep}
                             storeFieldValue={storeFieldValue}
                             uncompleteFieldStep={uncompleteFieldStep}
-                            isFixed={isFixed}
-                            getSelectedShade={getSelectedShade}
+                            isFixed={isFixed as (step: string) => boolean}
+                            getSelectedShade={getSelectedShade as (productId: string, arch: string, shadeType: string) => any}
                             handleOpenStageModal={handleOpenStageModal}
                             handleShadeFieldClick={handleShadeFieldClick}
                             handleOpenImpressionModal={handleOpenImpressionModal}
                             handleOpenAddOnsModal={handleOpenAddOnsModal}
-                            getImpressionDisplayText={getImpressionDisplayText}
+                            getImpressionDisplayText={getImpressionDisplayText as (productId: string, arch: string) => string}
                           />
                         ) : (
                           <RemovableRestorationFields

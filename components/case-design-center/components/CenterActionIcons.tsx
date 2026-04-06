@@ -33,7 +33,7 @@ function PlusIcon() {
 export function RushIcon({ className }: { className?: string }) {
   return (
     <svg className={className} width="53" height="53" viewBox="0 0 53 53" fill="none" xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink">
-      <g clip-path="url(#clip0_3_3113)">
+      <g clipPath="url(#clip0_3_3113)">
       <mask id="mask0_3_3113" style={{ maskType: 'luminance' }} maskUnits="userSpaceOnUse" x="11" y="1" width="30" height="51">
       <path d="M39.201 1.2695C40.0629 1.10318 40.7693 1.84571 40.3779 2.50634L29.9103 20.1721C29.5324 20.81 30.18 21.5369 31.0231 21.4199L36.946 20.5985C37.8525 20.4727 38.5009 21.3098 37.9896 21.9455L14.8795 50.6842C14.187 51.5454 12.5902 50.8636 13.026 49.8927L20.9337 32.2691C21.2211 31.6288 20.5537 30.9745 19.7484 31.107L13.0885 32.202C12.2928 32.3329 11.6275 31.6938 11.896 31.0564L39.201 1.2695Z" fill="white"/>
       </mask>
