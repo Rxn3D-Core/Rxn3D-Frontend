@@ -565,6 +565,15 @@ interface MandibularPanelProps {
   noOpposingNeeded?: Record<string, boolean>;
   /** When set, renders the opposing product accordion for Removable Restoration products with opposite_extractions */
   opposingProductData?: ProductApiData | null;
+  /**
+   * Opposing tooth extraction map: toothNumber → extractionCode for the opposing arch.
+   * Used to display and collect opposing extraction tooth selections.
+   */
+  opposingToothExtractionMap?: Record<number, string>;
+  /** Called when the user toggles a tooth into/out of an opposing extraction box */
+  onOpposingExtractionToggle?: (toothNumber: number, extractionCode: string) => void;
+  /** Selects all opposing arch teeth for a given opposing extraction */
+  onSelectAllOpposingTeeth?: (teeth: number[]) => void;
 }
 
 /** Auto-opens the shade picker when this component mounts (i.e. shade field becomes visible) and the field has no value */
@@ -653,6 +662,9 @@ export function MandibularPanel({
   removablesImpressionDone = false,
   noOpposingNeeded = {},
   opposingProductData = null,
+  opposingToothExtractionMap = {},
+  onOpposingExtractionToggle,
+  onSelectAllOpposingTeeth,
 }: MandibularPanelProps) {
   const MANDIBULAR_ALL_TEETH = [17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32];
   const [activeExtractionCode, setActiveExtractionCode] = useState<string | null>(null);
@@ -663,6 +675,9 @@ export function MandibularPanel({
   const [initialRemovablesExpanded, setInitialRemovablesExpanded] = useState(true);
   /** Expand/collapse for the opposing product accordion */
   const [opposingAccordionExpanded, setOpposingAccordionExpanded] = useState(true);
+  /** Active extraction code selected in the opposing ToothStatusBoxes */
+  const [opposingActiveExtractionCode, setOpposingActiveExtractionCode] = useState<string | null>(null);
+  const [opposingActiveExtractions, setOpposingActiveExtractions] = useState<import("../types").ProductExtraction[]>([]);
   // Auto-collapse card 0 removables accordion when another product becomes active
   const prevActiveCardRef = useRef(activeProductCardId);
   useEffect(() => {
@@ -698,6 +713,41 @@ export function MandibularPanel({
     }
   }, [getFieldValue, completeFieldStep, getToothProduct]);
 
+  // Auto-fetch product data for Removable added cards that have no teeth assigned yet.
+  // Uses a virtual slot (-ap.id) so each card gets its own isolated product data.
+  const removableFetchedRef = useRef<Set<number>>(new Set());
+  useEffect(() => {
+    for (const ap of addedProducts.filter(ap => ap.arch === "mandibular")) {
+      if (!ap.productId) continue;
+      const apCatName = (ap.product?.subcategory?.category?.name || ap.product?.category_name || "").toLowerCase();
+      if (!isRemovableCategory(apCatName)) continue;
+      const hasTeeth = MANDIBULAR_ALL_TEETH.some(tn => getToothProductCard("mandibular", tn) === ap.id);
+      if (hasTeeth) continue;
+      const virtualSlot = -ap.id;
+      if (removableFetchedRef.current.has(ap.id)) continue;
+      removableFetchedRef.current.add(ap.id);
+      fetchAndAssignProduct("mandibular", virtualSlot, ap.productId);
+    }
+  }, [addedProducts, fetchAndAssignProduct, getToothProductCard]);
+
+  // Auto-fetch product data for Fixed Restoration added cards whose teeth are assigned but product data is missing.
+  const fixedFetchedRef = useRef<Set<number>>(new Set());
+  useEffect(() => {
+    for (const ap of addedProducts.filter(ap => ap.arch === "mandibular")) {
+      if (!ap.productId) continue;
+      const apCatName = (ap.product?.subcategory?.category?.name || ap.product?.category_name || "").toLowerCase();
+      if (!isFixedCategory(apCatName)) continue;
+      const assignedTeeth = MANDIBULAR_ALL_TEETH.filter(tn => getToothProductCard("mandibular", tn) === ap.id);
+      for (const tn of assignedTeeth) {
+        if (getToothProduct("mandibular", tn)) continue;
+        const toothKey = ap.id * 1000 + tn;
+        if (fixedFetchedRef.current.has(toothKey)) continue;
+        fixedFetchedRef.current.add(toothKey);
+        fetchAndAssignProduct("mandibular", tn, ap.productId);
+      }
+    }
+  }, [addedProducts, fetchAndAssignProduct, getToothProductCard, getToothProduct]);
+
   /** Hide retention-type popover when category is Removable(s) Restoration */
   const isRemovablesCategory =
     mandibularTeeth.some((tn) => {
@@ -710,6 +760,15 @@ export function MandibularPanel({
         const name = ap.product?.subcategory?.category?.name || ap.product?.category_name || "";
         return isRemovableCategory(name);
       });
+
+  /** True when the active product card is a Fixed Restoration added product — show retention popover even in mixed panels */
+  const activeCardIsFixed = (() => {
+    if (activeProductCardId === 0) return false;
+    const ap = addedProducts.find((p) => p.id === activeProductCardId && p.arch === "mandibular");
+    if (!ap) return false;
+    const name = (ap.product?.subcategory?.category?.name || ap.product?.category_name || "").toLowerCase();
+    return isFixedCategory(name);
+  })();
 
   return (
     <div className={`flex-1 min-w-0 px-0 md:px-16 order-3 lg:order-none relative${caseSubmitted ? " pointer-events-none select-none" : ""}`}>
@@ -758,7 +817,12 @@ export function MandibularPanel({
                     .map(([tn]) => Number(tn));
                 })()}
                 onToothClick={(toothNumber: number) => {
-                  if (activeExtractionCode) {
+                  if (opposingProductData) {
+                    // Opposing arch: route click to opposing extraction toggle
+                    if (opposingActiveExtractionCode) {
+                      onOpposingExtractionToggle?.(toothNumber, opposingActiveExtractionCode);
+                    }
+                  } else if (activeExtractionCode) {
                     if (!mandibularTeeth.includes(toothNumber)) {
                       handleMandibularToothClick(toothNumber);
                     }
@@ -770,15 +834,15 @@ export function MandibularPanel({
                 className="w-full"
                 retentionTypesByTooth={mandibularRetentionTypes}
                 showRetentionPopover={
-                  retentionPopoverState.arch === "mandibular" && !isRemovablesCategory && !activeProductIsRemovables
+                  !opposingProductData && retentionPopoverState.arch === "mandibular" && (!isRemovablesCategory || activeCardIsFixed) && !activeProductIsRemovables
                 }
                 retentionPopoverTooth={retentionPopoverState.toothNumber}
                 onSelectRetentionType={(tooth, type) => handleSelectRetentionType('mandibular', tooth, type)}
                 onClosePopover={() => setRetentionPopoverState({ arch: null, toothNumber: null })}
                 onDeselectTooth={handleMandibularToothDeselect}
                 retentionOptions={retentionOptions}
-                toothExtractionMap={mandibularToothExtractionMap}
-                hideSelectionIndicators={isRemovablesCategory || activeProductIsRemovables}
+                toothExtractionMap={opposingProductData ? opposingToothExtractionMap : mandibularToothExtractionMap}
+                hideSelectionIndicators={!!opposingProductData || (isRemovablesCategory && !activeCardIsFixed) || activeProductIsRemovables}
                 claspTeeth={mandibularClaspTeeth}
                 getAddonValue={(toothNumber) => getFieldValue("mandibular", toothNumber, "addons")}
               />
@@ -832,15 +896,13 @@ export function MandibularPanel({
                   ? getToothProduct("mandibular", tn) && getToothProductCard("mandibular", tn) === ap.id
                   : getToothProductCard("mandibular", tn) === ap.id
               );
-              // For non-removable (Fixed) products, don't render accordion until teeth are assigned
-              if (!isApRemovables && cardTeeth.length === 0) return null;
               const cardProduct = cardTeeth.length > 0
                 ? getToothProduct("mandibular", cardTeeth[0])
                 : null;
-              const cardProductName = cardProduct?.name || ap.product.name || "Untitled Product";
-              const cardProductImage = cardProduct?.image_url || ap.product.image_url || null;
-              const cardCategoryName = cardProduct?.subcategory?.category?.name || ap.product.category_name || "";
-              const cardSubcategoryName = cardProduct?.subcategory?.name || ap.product.subcategory_name || "";
+              const cardProductName = cardProduct?.name || ap.product?.name || "Untitled Product";
+              const cardProductImage = cardProduct?.image_url || ap.product?.image_url || null;
+              const cardCategoryName = cardProduct?.subcategory?.category?.name || ap.product?.subcategory?.category?.name || ap.product?.category_name || "";
+              const cardSubcategoryName = cardProduct?.subcategory?.name || ap.product?.subcategory?.name || ap.product?.subcategory_name || "";
               // For removable products, show all selected teeth from the chart
               const apDisplayTeeth = isApRemovables
                 ? [...mandibularTeeth].sort((a, b) => a - b)
@@ -855,10 +917,11 @@ export function MandibularPanel({
               const apFinalTeeth = apFilteredTeeth.length > 0 ? apFilteredTeeth : cardTeeth;
               const cardToothDisplay = apFinalTeeth.length > 0 ? `#${apFinalTeeth.join(",")}` : "";
               const isActive = activeProductCardId === ap.id;
-              const apRepTn = cardTeeth.length > 0 ? cardTeeth[0] : 0;
+              // For removable cards with no teeth yet, use a negative virtual slot (-ap.id) where product data was pre-fetched
+              const apRepTn = cardTeeth.length > 0 ? cardTeeth[0] : (isApRemovables ? -ap.id : 0);
               const apProductKey = `mandibular_prep_${apRepTn}`;
               const hasRushedAp = rushedProducts[apProductKey];
-              const apStageVal = apRepTn > 0 ? (selectedStages[apProductKey] || getFieldValue("mandibular", apRepTn, "stage")) : "";
+              const apStageVal = cardTeeth.length > 0 ? (selectedStages[apProductKey] || getFieldValue("mandibular", apRepTn, "stage")) : "";
 
               // For removable products, compute extractions for header display
               const apExtractionsSeen = new Set<number>();
@@ -873,7 +936,7 @@ export function MandibularPanel({
                   })
                 : [];
 
-              const apImpressionDone = apRepTn > 0 && (
+              const apImpressionDone = apRepTn !== 0 && (
                 isFieldCompleted("mandibular", apRepTn, "impression") ||
                 isFieldCompleted("mandibular", apRepTn, "fixed_impression")
               );
@@ -1025,13 +1088,14 @@ export function MandibularPanel({
 
                   {ap.expanded && (
                     <div className={`border-t border-[#d9d9d9] p-2.5 sm:p-4 bg-white space-y-3 max-h-[600px] overflow-y-auto scrollbar-blue`}>
-                      {cardTeeth.length === 0 ? (
+                      {cardTeeth.length === 0 && !isApRemovables ? (
                         <p className="text-xs text-[#b4b0b0] text-center py-4">
                           Select teeth from the chart above to assign them to this product.
                         </p>
                       ) : (() => {
-                        const isCardRemovables = isRemovableCategory(cardCategoryName);
-                        const repTn = cardTeeth[0];
+                        const isCardRemovables = isApRemovables || isRemovableCategory(cardCategoryName);
+                        // For removable cards with no teeth yet, use the virtual slot (-ap.id) where product data was pre-fetched
+                        const repTn = cardTeeth.length > 0 ? cardTeeth[0] : (isCardRemovables ? -ap.id : 0);
                         const toothProduct = getToothProduct("mandibular", repTn);
                         const categoryName = toothProduct?.subcategory?.category?.name?.toLowerCase() || "";
                         const isFixed = isFixedCategory(categoryName);
@@ -1206,8 +1270,8 @@ export function MandibularPanel({
               );
             })
           }
-          {/* ---- Dynamic product accordions based on category ---- */}
-          {(() => {
+          {/* ---- Dynamic product accordions based on category ---- REMOVED: all products now use addedProducts accordions */}
+          {false && (() => {
                 // Get all mandibular teeth with retention types
                 const allTeeth = Object.entries(mandibularRetentionTypes)
                   .filter(([toothNum, types]) =>
@@ -1739,13 +1803,6 @@ export function MandibularPanel({
                               {isFComplete("impression") && !caseSubmitted && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                             </fieldset>
                           )}
-                          {/* Note for removable/orthodontics — only when user clicked "Submit, no opposing needed" */}
-                          {isFComplete("impression") && noOpposingNeeded[`${productKey}_mandibular_${repTn}`] && (
-                            <p className="font-['Verdana'] text-sm text-black">
-                              No impression will be sent on this appointment.{" "}
-                              Please note that opposing scan is <span className="text-[#CF0202] font-bold">required</span> for this impression.
-                            </p>
-                          )}
                           {/* Row 4: Add ons (separate fields per add-on, responsive) */}
                           {isF("addons") && (() => {
                             const addonsVal = fVal("addons") || "";
@@ -1786,23 +1843,43 @@ export function MandibularPanel({
 
           {/* Opposing product accordion — shown when selected Removable Restoration product has opposite_extractions */}
           {showDetails && opposingProductData && (opposingProductData.opposite_extractions?.length ?? 0) > 0 && (() => {
-            const defaultExtraction = opposingProductData.opposite_extractions!.find(e => e.is_default === "Yes");
+            // Map ProductOppositeExtraction to ProductExtraction shape for ToothStatusBoxes
+            const opposingExtractions: import("../types").ProductExtraction[] = opposingProductData.opposite_extractions!.map(e => ({
+              id: e.id,
+              extraction_id: e.id,
+              name: e.name,
+              code: e.code,
+              color: e.color ?? null,
+              url: null,
+              is_default: e.is_default ?? "No",
+              is_required: e.is_required ?? "No",
+              is_optional: e.is_optional ?? "No",
+              min_teeth: e.min_teeth ?? null,
+              max_teeth: null,
+              is_image_extraction: "No",
+              image_url: null,
+              sequence: 0,
+              status: "Active",
+            }));
+
+            // Opposing arch for a mandibular product is maxillary (teeth 1–16)
+            const OPPOSING_ARCH_TEETH = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16];
+
             return (
               <div key="opposing-accordion" className="relative mt-3">
                 <div className="rounded-lg bg-white overflow-hidden border border-[#d9d9d9]">
+                  {/* Header */}
                   <div
-                    className="w-full flex flex-col transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] relative bg-[#DFEEFB]"
+                    className="w-full flex flex-col transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] relative bg-[#DFEEFB] cursor-pointer"
                     onClick={() => setOpposingAccordionExpanded(e => !e)}
-                    style={{ cursor: "pointer" }}
                   >
-                    {/* Chevron top-right */}
                     <div className="absolute top-3 right-2 z-10">
                       <ChevronDown
                         size={21.6}
                         className={`text-black transition-transform ${opposingAccordionExpanded ? "rotate-180" : ""}`}
                       />
                     </div>
-                    {/* Image left + product name, extraction badge & category badges right */}
+                    {/* Image left + product name, tooth status & category badges right */}
                     <div className="flex items-stretch gap-[10px] px-[8px] py-[14px]">
                       <ProductImagePreview
                         imageUrl={opposingProductData.image_url}
@@ -1820,10 +1897,25 @@ export function MandibularPanel({
                           {opposingProductData.name}{" "}
                           <span className="font-normal text-[16px] text-[#555555]">opposing</span>
                         </p>
-                        <div className="flex items-center gap-[4.97px] flex-wrap">
-                          {defaultExtraction && (
-                            <AccordionBadge>{defaultExtraction.name}</AccordionBadge>
-                          )}
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <ToothStatusBoxes
+                            extractions={opposingExtractions}
+                            selectedTeeth={Object.keys(opposingToothExtractionMap).map(Number)}
+                            allArchTeeth={OPPOSING_ARCH_TEETH}
+                            toothExtractionMap={opposingToothExtractionMap}
+                            claspTeeth={[]}
+                            activeExtractionCode={opposingActiveExtractionCode}
+                            onActiveExtractionChange={(code, exts) => {
+                              setOpposingActiveExtractionCode(code);
+                              if (exts) setOpposingActiveExtractions(exts);
+                            }}
+                            onToothExtractionToggle={(tn, code) => onOpposingExtractionToggle?.(tn, code)}
+                            onSelectAllTeeth={(teeth) => onSelectAllOpposingTeeth?.(teeth)}
+                            onRequiredValidationChange={onToothStatusValidationChange}
+                            isRemovable={true}
+                            submitted={caseSubmitted}
+                            hideDefaultBox={true}
+                          />
                         </div>
                         <div className="flex items-center gap-[4.97px] flex-wrap">
                           {opposingProductData.subcategory?.category?.name && (
@@ -1836,6 +1928,19 @@ export function MandibularPanel({
                       </div>
                     </div>
                   </div>
+                  {/* Body */}
+                  {opposingAccordionExpanded && (
+                    <div className="px-[14px] py-[14px] flex flex-col gap-[10px]">
+                      <fieldset className="border border-[#b4b0b0] rounded px-3 py-0 relative h-[42px] flex items-center">
+                        <legend className="text-sm px-1 leading-none text-[#7f7f7f]">Impression</legend>
+                        <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">No Opposing</span>
+                      </fieldset>
+                      <p className="font-['Verdana'] text-sm text-black">
+                        No impression will be sent on this appointment.{" "}
+                        Please note that opposing scan is <span className="text-[#CF0202] font-bold">required</span> for this impression.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             );
