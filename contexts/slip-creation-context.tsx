@@ -54,6 +54,7 @@ export interface SlipCreationProduct {
   impressions?: SlipCreationImpression[]
   addons?: SlipCreationAddon[]
   extractions?: SlipCreationExtraction[]
+  opposite_extractions?: SlipCreationExtraction[]
 }
 
 export interface SlipCreationNote {

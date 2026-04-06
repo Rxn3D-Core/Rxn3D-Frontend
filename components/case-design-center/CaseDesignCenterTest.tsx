@@ -189,6 +189,9 @@ function snapshotToProduct(snap: SlipProductSnapshot): SlipCreationProduct {
       notes: buildProductNote(snap, product, stageName),
       ...(impressions.length > 0 ? { impressions } : {}),
       ...(advance_fields.length > 0 ? { advance_fields } : {}),
+      ...(snap.oppositeExtractions && snap.oppositeExtractions.length > 0
+        ? { opposite_extractions: snap.oppositeExtractions }
+        : {}),
       ...(snap.rush?.is_rush
         ? { rush: { is_rush: true, requested_rush_date: snap.rush.requested_rush_date ?? "" } }
         : {}),
@@ -248,6 +251,9 @@ function snapshotToProduct(snap: SlipProductSnapshot): SlipCreationProduct {
     status: "In Progress",
     notes: buildProductNote(snap, product, stageName),
     ...(impressions.length > 0 ? { impressions } : {}),
+    ...(snap.oppositeExtractions && snap.oppositeExtractions.length > 0
+      ? { opposite_extractions: snap.oppositeExtractions }
+      : {}),
     ...(snap.rush?.is_rush
       ? { rush: { is_rush: true, requested_rush_date: snap.rush.requested_rush_date ?? "" } }
       : {}),

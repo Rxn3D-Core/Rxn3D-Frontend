@@ -27,6 +27,11 @@ export interface SlipProductSnapshot {
   selectedShades: Record<string, string>;
   /** The active shade guide name (e.g. "Vita Classical") */
   shadeGuide: string;
+  /**
+   * Opposing extraction selections: maps opposite extraction id → tooth numbers
+   * selected on the opposing arch. Only present when the product has opposite_extractions configured.
+   */
+  oppositeExtractions?: Array<{ extraction_id: number; teeth_numbers: number[] }>;
 }
 
 export interface CaseDesignProps {
@@ -283,6 +288,7 @@ export interface ProductOppositeExtraction {
   id: number;
   code: string;
   name: string;
+  color?: string | null;
   is_default?: string;
   is_required?: string;
   is_optional?: string;

@@ -34,6 +34,10 @@ export interface FloatingActionsProps {
   caseInProgress?: boolean;
   /** Whether there is a succeeding stage configured in the product (shows Add stage for office_admin) */
   hasNextStage?: boolean;
+  /** Show image attachment indicator icon */
+  hasImageAttachment?: boolean;
+  /** Show STL attachment indicator icon */
+  hasStlAttachment?: boolean;
   onEditSlip?: () => void;
   onPrint?: () => void;
   onPickupDropoff?: () => void;
@@ -54,6 +58,8 @@ export interface FloatingActionsProps {
 export function FloatingActions({
   caseInProgress = false,
   hasNextStage = false,
+  hasImageAttachment = false,
+  hasStlAttachment = false,
   onEditSlip,
   onPrint,
   onPickupDropoff,
@@ -305,6 +311,67 @@ export function FloatingActions({
               {action.icon}
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Attachment indicators — shown when image or STL files are attached */}
+      {(hasImageAttachment || hasStlAttachment) && (
+        <div className="flex items-center gap-[10px] ml-[10px]">
+          {hasImageAttachment && (
+            <div
+              aria-label="Has image attachment"
+              className="w-[46.67px] h-[46.67px] shrink-0 rounded-full bg-white flex items-center justify-center drop-shadow-[2px_4px_6px_rgba(0,0,0,0.25)]"
+            >
+              <svg width="28" height="28" viewBox="0 0 32 38" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M28.7884 13.211V21.1801L26.6554 19.3481C26.1346 18.9228 25.4828 18.6904 24.8103 18.6904C24.1378 18.6904 23.486 18.9228 22.9652 19.3481L17.5216 24.0197C17.0007 24.4451 16.3489 24.6775 15.6765 24.6775C15.004 24.6775 14.3522 24.4451 13.8314 24.0197L13.3865 23.6533C12.9063 23.2567 12.3114 23.0247 11.6894 22.9918C11.0674 22.9588 10.4513 23.1265 9.93184 23.4701L3.49368 27.7884L3.34973 27.8931C2.83851 26.7222 2.58845 25.4541 2.61693 24.1768V13.211C2.61693 8.44775 5.45653 5.60815 10.2197 5.60815H21.1856C25.9488 5.60815 28.7884 8.44775 28.7884 13.211Z" fill="url(#fa_paint0_img)" />
+                <path d="M14.8847 13.4596C14.8847 14.0742 14.7024 14.6751 14.3609 15.1862C14.0194 15.6973 13.534 16.0956 12.9661 16.3309C12.3982 16.5661 11.7734 16.6276 11.1705 16.5077C10.5676 16.3878 10.0139 16.0918 9.57922 15.6572C9.14458 15.2225 8.84858 14.6687 8.72866 14.0659C8.60875 13.463 8.67029 12.8381 8.90552 12.2702C9.14074 11.7024 9.53909 11.217 10.0502 10.8755C10.5613 10.534 11.1621 10.3517 11.7768 10.3517C12.6008 10.3524 13.3909 10.6801 13.9736 11.2628C14.5563 11.8454 14.884 12.6355 14.8847 13.4596Z" fill="url(#fa_paint1_img)" />
+                <path d="M28.7882 21.1802V24.1768C28.7882 28.94 25.9486 31.7796 21.1854 31.7796H10.2196C6.88275 31.7796 4.47498 30.3794 3.34961 27.8931L3.49355 27.7884L9.93172 23.4702C10.4512 23.1265 11.0673 22.9588 11.6893 22.9918C12.3112 23.0248 12.9062 23.2567 13.3863 23.6534L13.8313 24.0198C14.3521 24.4451 15.0039 24.6775 15.6763 24.6775C16.3488 24.6775 17.0006 24.4451 17.5214 24.0198L22.9651 19.3482C23.4859 18.9228 24.1377 18.6904 24.8102 18.6904C25.4826 18.6904 26.1344 18.9228 26.6553 19.3482L28.7882 21.1802Z" fill="url(#fa_paint2_img)" />
+                <defs>
+                  <linearGradient id="fa_paint0_img" x1="2.61693" y1="16.7506" x2="28.7884" y2="16.7506" gradientUnits="userSpaceOnUse">
+                    <stop stopColor="#CAEDF8" />
+                    <stop offset="1" stopColor="#D9D4F5" />
+                  </linearGradient>
+                  <linearGradient id="fa_paint1_img" x1="8.66895" y1="13.4596" x2="14.8847" y2="13.4596" gradientUnits="userSpaceOnUse">
+                    <stop stopColor="#16B0E2" />
+                    <stop offset="1" stopColor="#6E5AF0" />
+                  </linearGradient>
+                  <linearGradient id="fa_paint2_img" x1="3.34961" y1="25.2354" x2="1.30824" y2="25.2354" gradientUnits="userSpaceOnUse">
+                    <stop stopColor="#16B0E2" />
+                    <stop offset="1" stopColor="#6E5AF0" />
+                  </linearGradient>
+                </defs>
+              </svg>
+            </div>
+          )}
+          {hasStlAttachment && (
+            <div
+              aria-label="Has STL attachment"
+              className="w-[46.67px] h-[46.67px] shrink-0 rounded-full bg-white flex items-center justify-center drop-shadow-[2px_4px_6px_rgba(0,0,0,0.25)]"
+            >
+              <svg width="28" height="28" viewBox="0 0 53 63" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M23.7091 52.9624L6.81545 43.3743C6.42551 43.153 6.18457 42.7392 6.18457 42.2909V22.8231C6.18457 21.8678 7.21551 21.2679 8.04601 21.74L24.9397 31.3428C25.3292 31.5643 25.5698 31.9778 25.5698 32.4259V51.8789C25.5698 52.8339 24.5396 53.4337 23.7091 52.9624Z" fill="url(#fa_paint0_stl)" />
+                <path d="M26.8105 51.8654V32.4734C26.8105 32.0277 27.0487 31.6159 27.4351 31.3936L44.2719 21.7073C45.1024 21.2294 46.139 21.8289 46.139 22.7871V42.1873C46.139 42.6332 45.9006 43.0452 45.514 43.2674L28.6772 52.9455C27.8466 53.4229 26.8105 52.8233 26.8105 51.8654Z" fill="url(#fa_paint1_stl)" />
+                <path d="M43.7415 20.6064L26.8127 30.3078C26.4277 30.5285 25.9543 30.5276 25.57 30.3056L8.78021 20.6042C7.95255 20.126 7.9496 18.9323 8.77488 18.45L25.5647 8.63736C25.9517 8.4112 26.4303 8.41034 26.8181 8.63511L43.7469 18.4477C44.5773 18.929 44.5743 20.1292 43.7415 20.6064Z" fill="url(#fa_paint2_stl)" />
+                <defs>
+                  <linearGradient id="fa_paint0_stl" x1="25.3568" y1="53.9118" x2="42.4437" y2="12.7232" gradientUnits="userSpaceOnUse">
+                    <stop stopColor="#2BA5DE" />
+                    <stop offset="0.475962" stopColor="#822A8B" />
+                    <stop offset="1" stopColor="#C8549F" />
+                  </linearGradient>
+                  <linearGradient id="fa_paint1_stl" x1="25.3568" y1="53.9118" x2="42.4437" y2="12.7232" gradientUnits="userSpaceOnUse">
+                    <stop stopColor="#2BA5DE" />
+                    <stop offset="0.475962" stopColor="#822A8B" />
+                    <stop offset="1" stopColor="#C8549F" />
+                  </linearGradient>
+                  <linearGradient id="fa_paint2_stl" x1="25.3568" y1="53.9118" x2="42.4437" y2="12.7232" gradientUnits="userSpaceOnUse">
+                    <stop stopColor="#2BA5DE" />
+                    <stop offset="0.475962" stopColor="#822A8B" />
+                    <stop offset="1" stopColor="#C8549F" />
+                  </linearGradient>
+                </defs>
+              </svg>
+            </div>
+          )}
         </div>
       )}
     </div>

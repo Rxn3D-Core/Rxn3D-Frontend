@@ -112,6 +112,7 @@ export interface SlipCreationProduct {
   rush?: SlipCreationRush;
   impressions?: SlipCreationImpression[];
   extractions?: SlipCreationExtraction[];
+  opposite_extractions?: SlipCreationExtraction[];
   addons?: SlipCreationAddon[];
   advance_fields?: SlipCreationAdvanceField[];
 }

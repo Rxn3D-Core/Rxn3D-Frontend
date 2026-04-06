@@ -135,6 +135,39 @@ export function useCaseDesignState(props: CaseDesignProps) {
   const [showMandibular, setShowMandibular] = useState(props.initialArch !== "maxillary");
   const [showDetails, setShowDetails] = useState(false);
 
+  // Opposing arch extraction map: toothNumber → extractionCode
+  const [opposingToothExtractionMap, setOpposingToothExtractionMap] = useState<Record<number, string>>({});
+
+  const handleOpposingExtractionToggle = useCallback((toothNumber: number, extractionCode: string) => {
+    setOpposingToothExtractionMap((prev) => {
+      if (prev[toothNumber] === extractionCode) {
+        const { [toothNumber]: _, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [toothNumber]: extractionCode };
+    });
+  }, []);
+
+  // Auto-activate newly added product cards; reset to 0 when active card is removed
+  const prevAddedProductsLengthRef = useRef((props.addedProducts ?? []).length);
+  useEffect(() => {
+    const addedProducts = props.addedProducts ?? [];
+    if (addedProducts.length > prevAddedProductsLengthRef.current) {
+      // A new product was added — it is always prepended with expanded: true
+      const newest = addedProducts[0];
+      if (newest) {
+        setActiveProductCardId(newest.id);
+      }
+    } else if (addedProducts.length < prevAddedProductsLengthRef.current) {
+      // A product was removed — if it was active, reset to card 0
+      setActiveProductCardId((prev) => {
+        const stillExists = addedProducts.some((ap) => ap.id === prev);
+        return stillExists ? prev : 0;
+      });
+    }
+    prevAddedProductsLengthRef.current = addedProducts.length;
+  }, [props.addedProducts]);
+
   // When active product is Removables (from addedProducts or initial selected product), treat arch as removables so tooth click only toggles (no retention popover)
   const hasRemovablesInAddedProducts = (arch: Arch) =>
     (props.addedProducts ?? []).some((ap) => {
@@ -500,8 +533,8 @@ export function useCaseDesignState(props: CaseDesignProps) {
         return;
       }
 
-      // Removable / other products: prep_NN
-      const prepMatch = productId.match(/^prep_(\d+)$/);
+      // Removable / other products: prep_NN (also handles negative virtual slots like prep_-5)
+      const prepMatch = productId.match(/^prep_(-?\d+)$/);
       if (prepMatch) {
         const toothNumber = parseInt(prepMatch[1], 10);
         if (fieldType === "tooth_shade") {
@@ -591,6 +624,9 @@ export function useCaseDesignState(props: CaseDesignProps) {
     activeProductIsRemovablesMandibular: treatArchAsRemovables.mandibular,
     // Initial product details (for retention_options used by retention popover)
     initialProductDetails,
+    // Opposing arch extraction state
+    opposingToothExtractionMap,
+    handleOpposingExtractionToggle,
     // Props pass-through
     ...props,
   };
