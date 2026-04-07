@@ -15,11 +15,9 @@ import { ProductCreateForm } from "@/lib/schemas"
 
 const MAX_TOOTH_COUNT = 15
 
-/** Returns an error message if any number in the tooth_count string exceeds MAX_TOOTH_COUNT. */
 function validateToothCount(value: string): string | null {
   const trimmed = value.trim()
   if (!trimmed) return null
-  // Accept "N" or "N - M" formats
   const parts = trimmed.split("-").map((p) => p.trim())
   for (const part of parts) {
     const n = parseInt(part, 10)
@@ -43,14 +41,11 @@ interface VariationSectionProps {
   toggleSection: (section: string) => void
 }
 
-// Parse the preview label from tooth_count and name_template
-// e.g. tooth_count "4 - 15", name_template "Stay plate [x tooth/teeth]" → "Stay plate 4 teeth"
 function buildPreview(tooth_count: string, name_template: string): string {
   const countStr = tooth_count?.trim() ?? ""
   const template = name_template?.trim() ?? ""
   if (!countStr || !template) return ""
 
-  // Determine displayed number: for ranges take the lower bound
   const rangeParts = countStr.split("-")
   const num = parseInt(rangeParts[0].trim(), 10)
   if (isNaN(num)) return template.replace("[x tooth/teeth]", countStr)
@@ -65,11 +60,12 @@ export function VariationSection({
   sections,
   toggleSection,
 }: VariationSectionProps) {
+  const isTeethBased = useWatch({ control, name: "is_teeth_based_price" })
   const enableVariation = useWatch({ control, name: "enable_tooth_count_variation" })
   const variations = (useWatch({ control, name: "tooth_count_variations" }) ?? []) as ToothCountVariation[]
 
   const setVal = React.useCallback(
-    (name: string, value: any) => (setValue as any)(name, value),
+    (name: string, value: unknown) => (setValue as (name: string, value: unknown) => void)(name, value),
     [setValue]
   )
 
@@ -108,6 +104,16 @@ export function VariationSection({
     reader.readAsDataURL(file)
   }
 
+  if (isTeethBased !== "Yes") {
+    return (
+      <div className="px-4 sm:px-6 py-6 bg-white rounded-lg border border-gray-100 flex flex-col items-center justify-center gap-3 min-h-[200px] text-center">
+        <span className="text-gray-400 text-sm">
+          Enable <strong>Charge product per tooth</strong> in Product Details to configure variations.
+        </span>
+      </div>
+    )
+  }
+
   return (
     <div className="px-4 sm:px-6 py-6 bg-white rounded-lg border border-gray-100">
       {/* Section header toggle */}
@@ -117,7 +123,9 @@ export function VariationSection({
           onCheckedChange={() => toggleSection("variation")}
           className="data-[state=checked]:bg-[#1162a8]"
         />
-        <span className="font-semibold text-xl text-gray-900">Variation</span>
+        <span className="font-semibold text-xl text-gray-900" style={{ fontFamily: "Verdana, sans-serif" }}>
+          Variation
+        </span>
       </div>
 
       <div
@@ -140,7 +148,7 @@ export function VariationSection({
               />
             )}
           />
-          <span className="text-sm font-medium text-gray-700">
+          <span className="text-sm font-medium text-gray-700" style={{ fontFamily: "Verdana, sans-serif" }}>
             Enable dynamic variation based on tooth count
           </span>
           <TooltipProvider>
@@ -160,70 +168,131 @@ export function VariationSection({
 
         {/* Variation table — only visible when toggle is ON */}
         {enableVariation === "Yes" && (
-          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-4">
-            <div>
-              <p className="font-semibold text-gray-800">Variation per arch</p>
-              <p className="text-xs text-gray-500 mt-1">
+          <div
+            className="overflow-hidden"
+            style={{ border: "2px solid #E9E9E9", borderRadius: "15px" }}
+          >
+            {/* Table header block */}
+            <div
+              className="flex flex-col justify-center items-start"
+              style={{
+                background: "#E9E9E9",
+                borderRadius: "15px 15px 0px 0px",
+                padding: "15px 82px",
+              }}
+            >
+              <p
+                className="font-bold text-black leading-none"
+                style={{ fontFamily: "Verdana, sans-serif", fontSize: "15px" }}
+              >
+                Variation per arch
+              </p>
+              <p
+                className="text-black mt-1"
+                style={{ fontFamily: "Verdana, sans-serif", fontSize: "11px", fontWeight: 400 }}
+              >
                 Add your custom name before or after the{" "}
-                <span className="text-[#1162a8] font-medium">[x tooth/teeth]</span> text.
+                <span style={{ color: "#1162a8" }}>[x tooth/teeth]</span> text.
               </p>
             </div>
 
-            {/* Table header */}
-            <div className="grid grid-cols-[80px_1fr_1fr_1fr_40px] gap-3 items-center text-xs font-semibold text-gray-600 border-b border-gray-200 pb-2">
-              <span>Image</span>
-              <span>Total # of teeth</span>
-              <span>Name</span>
-              <span>Preview</span>
-              <div className="flex justify-end">
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={handleAddVariation}
-                  className="text-xs px-3 py-1 h-7 rounded-lg"
-                  style={{ background: "linear-gradient(135deg, #3b82f6, #a855f7)", color: "white" }}
-                >
-                  <Plus className="h-3 w-3 mr-1" />
-                  Add variation
-                </Button>
-              </div>
+            {/* Column headers + Add variation row */}
+            <div
+              className="flex items-center bg-white"
+              style={{ padding: "12px 82px", gap: "10px", borderBottom: "1px solid #E9E9E9" }}
+            >
+              {/* Image col */}
+              <span
+                className="shrink-0 font-bold text-black flex items-center"
+                style={{ fontFamily: "Verdana, sans-serif", fontSize: "13px", width: "10%", height: "48px" }}
+              >
+                Image
+              </span>
+              {/* Teeth col */}
+              <span
+                className="shrink-0 font-bold text-black flex items-center"
+                style={{ fontFamily: "Verdana, sans-serif", fontSize: "13px", width: "18%", height: "48px" }}
+              >
+                Total # of teeth
+              </span>
+              {/* Name col */}
+              <span
+                className="shrink-0 font-bold text-black flex items-center"
+                style={{ fontFamily: "Verdana, sans-serif", fontSize: "13px", width: "25%", height: "48px" }}
+              >
+                Name
+              </span>
+              {/* Preview */}
+              <span
+                className="flex-1 font-bold text-black flex items-center"
+                style={{ fontFamily: "Verdana, sans-serif", fontSize: "13px", height: "48px" }}
+              >
+                Preview
+              </span>
+              {/* Add variation button — far right */}
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleAddVariation}
+                className="shrink-0 text-xs px-4 h-9 text-white font-bold"
+                style={{
+                  background: "linear-gradient(256.66deg, #2AA6DE, #82298D, #C9539F)",
+                  borderRadius: "14px",
+                  fontFamily: "Verdana, sans-serif",
+                  border: "none",
+                  minWidth: "130px",
+                }}
+              >
+                <Plus className="h-3 w-3 mr-1" />
+                Add variation
+              </Button>
             </div>
 
-            {/* Variation rows */}
+            {/* Empty state */}
             {variations.length === 0 && (
-              <p className="text-sm text-gray-400 text-center py-4">
-                No variations yet. Click "+ Add variation" to get started.
+              <p
+                className="text-center py-8 text-gray-400"
+                style={{ fontFamily: "Verdana, sans-serif", fontSize: "13px" }}
+              >
+                No variations yet. Click &quot;+ Add variation&quot; to get started.
               </p>
             )}
 
+            {/* Variation rows */}
             {variations.map((variation, index) => {
-              const preview = buildPreview(
-                variation.tooth_count ?? "",
-                variation.name_template ?? ""
-              )
+              const preview = buildPreview(variation.tooth_count ?? "", variation.name_template ?? "")
               const toothCountError = validateToothCount(variation.tooth_count ?? "")
               const fileInputRef = React.createRef<HTMLInputElement>()
 
               return (
                 <div
                   key={index}
-                  className="grid grid-cols-[80px_1fr_1fr_1fr_40px] gap-3 items-center"
+                  className="flex items-center border-b border-[#E9E9E9] last:border-b-0"
+                  style={{ padding: "12px 82px", gap: "16px" }}
                 >
-                  {/* Image upload */}
-                  <div>
+                  {/* Image upload — 10% */}
+                  <div className="shrink-0" style={{ width: "10%" }}>
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="h-14 w-14 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center bg-white hover:border-gray-400 transition-colors overflow-hidden"
+                      className="flex items-center justify-center overflow-hidden hover:opacity-80 transition-opacity"
+                      style={{
+                        width: "100%",
+                        maxWidth: "90px",
+                        height: "44px",
+                        background: "#EEF1F4",
+                        border: "2px solid #545F71",
+                        borderRadius: "8px",
+                      }}
                     >
                       {variation.image ? (
                         <img
                           src={variation.image}
                           alt="variation"
-                          className="h-full w-full object-cover rounded-lg"
+                          className="h-full w-full object-cover"
                         />
                       ) : (
-                        <ImageIcon className="h-5 w-5 text-gray-400" />
+                        <ImageIcon className="h-5 w-5" style={{ color: "#545F71" }} />
                       )}
                     </button>
                     <input
@@ -235,13 +304,21 @@ export function VariationSection({
                     />
                   </div>
 
-                  {/* Total # of teeth — allows ranges like "4 - 15", max 15 */}
-                  <div className="space-y-1">
-                    <Input
-                      label="e.g. 1 or 4 - 15"
+                  {/* Total # of teeth — 18% */}
+                  <div className="shrink-0 space-y-1" style={{ width: "18%" }}>
+                    <input
+                      type="text"
+                      placeholder="e.g. 1 or 4 - 15"
                       value={variation.tooth_count ?? ""}
                       onChange={(e) => handleVariationChange(index, "tooth_count", e.target.value)}
-                      validationState={toothCountError ? "error" : undefined}
+                      className="w-full px-3 bg-white text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-[#1162a8]/30 transition"
+                      style={{
+                        border: toothCountError ? "1px solid #ef4444" : "1px solid #7F7F7F",
+                        borderRadius: "10px",
+                        height: "40px",
+                        fontFamily: "Verdana, sans-serif",
+                        fontSize: "13px",
+                      }}
                     />
                     {toothCountError && (
                       <p className="text-xs text-red-500 flex items-center gap-1">
@@ -251,27 +328,41 @@ export function VariationSection({
                     )}
                   </div>
 
-                  {/* Name template */}
-                  <Input
-                    label="Name with [x tooth/teeth]"
-                    value={variation.name_template ?? ""}
-                    onChange={(e) =>
-                      handleVariationChange(index, "name_template", e.target.value)
-                    }
-                    placeholder="e.g. Flipper [x tooth/teeth]"
-                  />
+                  {/* Name template — 25% */}
+                  <div className="shrink-0" style={{ width: "25%" }}>
+                    <input
+                      type="text"
+                      placeholder="e.g. Flipper [x tooth/teeth]"
+                      value={variation.name_template ?? ""}
+                      onChange={(e) => handleVariationChange(index, "name_template", e.target.value)}
+                      className="w-full px-3 bg-white text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-[#1162a8]/30 transition"
+                      style={{
+                        border: "1px solid #1162A8",
+                        borderRadius: "10px",
+                        height: "40px",
+                        fontFamily: "Verdana, sans-serif",
+                        fontSize: "13px",
+                      }}
+                    />
+                  </div>
 
-                  {/* Preview */}
-                  <span className="text-sm text-gray-700 truncate">{preview}</span>
+                  {/* Preview — flex-1 */}
+                  <span
+                    className="flex-1 truncate text-gray-700"
+                    style={{ fontFamily: "Verdana, sans-serif", fontSize: "13px" }}
+                  >
+                    {preview}
+                  </span>
 
-                  {/* Delete */}
+                  {/* Delete — fixed width matches button col */}
                   <button
                     type="button"
                     onClick={() => handleDeleteVariation(index)}
-                    className="flex items-center justify-end text-gray-400 hover:text-red-500 transition-colors"
+                    className="shrink-0 hover:text-red-500 transition-colors"
                     title="Remove variation"
+                    style={{ color: "#B9B9B9", width: "130px", display: "flex", justifyContent: "center" }}
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-5 w-5" />
                   </button>
                 </div>
               )

@@ -210,9 +210,7 @@ export function AddLabProductModal({
   useEffect(() => {
     if (isOpen && editingProduct) {
       setActiveTab("details")
-      // Show all tabs for existing products except "variation" — that's controlled
-      // separately by the "Charge per tooth" toggle useEffect below.
-      const allTabIds = tabs.map(tab => tab.id).filter(id => id !== "variation")
+      const allTabIds = tabs.map(tab => tab.id)
       setVisibleTabs(new Set(allTabIds))
     } else if (isOpen && !editingProduct) {
       // For new products, only show the first tab initially
@@ -341,7 +339,7 @@ export function AddLabProductModal({
   const watchedSubcategoryId = watch("subcategory_id")
   const watchedBasePrice = watch("base_price")
   const watchedIsSingleStage = useWatch({ control, name: "is_single_stage" })
-  const watchedIsTeethBased = watch("is_teeth_based_price")
+  const watchedIsTeethBased = useWatch({ control, name: "is_teeth_based_price" })
   const watchedMinDays = watch("min_days_to_process")
   const watchedMaxDays = watch("max_days_to_process")
   const watchedStages = useWatch({ control, name: "stages" }) || []
@@ -551,16 +549,8 @@ export function AddLabProductModal({
       }
     }
 
-    // Find the next tab that is either already visible or should be unlocked.
-    // Skip tabs that are intentionally hidden (e.g. "variation" when toggle is off).
+    // Find the next tab to unlock (skip already-visible tabs that don't need unlocking)
     let nextIndex = currentTabIndex + 1
-    while (nextIndex < tabs.length && !visibleTabs.has(tabs[nextIndex].id) && tabs[nextIndex].id !== "variation") {
-      nextIndex++
-    }
-    // Skip "variation" tab if the charge-per-tooth toggle is off
-    if (tabs[nextIndex]?.id === "variation" && watchedIsTeethBased !== "Yes") {
-      nextIndex++
-    }
     if (nextIndex >= tabs.length) return
     const nextTabId = tabs[nextIndex].id
     // Unlock the next tab when user clicks Next
@@ -2364,12 +2354,12 @@ export function AddLabProductModal({
           >
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0 overflow-hidden">
               {/* Tab Navigation - Show tabs progressively as user navigates */}
-              {visibleTabs.size > 0 && (
+{visibleTabs.size > 0 && (
                 <div className="border-b border-gray-200 bg-white flex-shrink-0">
                   <div className="flex">
                     {tabs.map((tab) => {
                       const isActive = activeTab === tab.id
-                      const isVisible = visibleTabs.has(tab.id) || (tab.id === "variation" && watchedIsTeethBased === "Yes")
+                      const isVisible = visibleTabs.has(tab.id)
                       const isSectionOff = tab.sectionKey ? sections[tab.sectionKey as keyof typeof sections] === false : false
                       if (!isVisible) return null
                       return (

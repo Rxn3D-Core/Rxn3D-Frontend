@@ -5998,7 +5998,7 @@ export function useCaseDesignCenter() {
       const seenProducts = new Set<string>()
 
       prevProducts.forEach((product) => {
-        const productKey = `${product.product.id}-${product.categoryId}-${product.subcategoryId}-${[...(product.maxillaryTeeth || [])].sort().join(',')}-${[...(product.mandibularTeeth || [])].sort().join(',')}`
+        const productKey = `${product.product.id}-${product.categoryId}-${product.subcategoryId}-${product.addedFrom}-${[...(product.maxillaryTeeth || [])].sort().join(',')}-${[...(product.mandibularTeeth || [])].sort().join(',')}`
 
         if (!seenProducts.has(productKey)) {
           seenProducts.add(productKey)

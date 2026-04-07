@@ -20,7 +20,7 @@ import type {
   RetentionType,
 } from "../types";
 import type { FieldStep } from "../hooks/useToothFieldProgress";
-import { ImplantDetailSection } from "./ImplantDetailSection";
+import { ImplantDetailSection, ImplantDetailData, defaultImplantDetailData } from "./ImplantDetailSection";
 import { isSingleStageNoStages } from "../utils/categoryHelpers";
 
 /* ------------------------------------------------------------------ */
@@ -246,6 +246,8 @@ interface FixedRestorationFieldsProps {
   retentionTypesMap: Record<number, string[]>;
   implantDetailCompleteByTooth: Record<number, boolean>;
   setImplantDetailCompleteByTooth: React.Dispatch<React.SetStateAction<Record<number, boolean>>>;
+  implantDetailByTooth: Record<number, ImplantDetailData>;
+  setImplantDetailByTooth: React.Dispatch<React.SetStateAction<Record<number, ImplantDetailData>>>;
   isFieldVisible: (arch: Arch, toothNumber: number, step: FieldStep, fixedChain?: readonly string[]) => boolean;
   isFieldCompleted: (arch: Arch, toothNumber: number, step: FieldStep) => boolean;
   getFieldValue: (arch: Arch, toothNumber: number, step: FieldStep) => string;
@@ -279,6 +281,8 @@ export function FixedRestorationFields({
   retentionTypesMap,
   implantDetailCompleteByTooth,
   setImplantDetailCompleteByTooth,
+  implantDetailByTooth,
+  setImplantDetailByTooth,
   isFieldVisible,
   isFieldCompleted,
   getFieldValue,
@@ -412,6 +416,8 @@ export function FixedRestorationFields({
       {toothNumbers.some((n) => (retentionTypesMap[n] || []).includes("Implant")) && (
         <ImplantDetailSection
           toothNumber={firstToothNumber}
+          value={implantDetailByTooth[firstToothNumber] ?? defaultImplantDetailData()}
+          onChange={(data) => setImplantDetailByTooth((prev) => ({ ...prev, [firstToothNumber]: data }))}
           onCompleteChange={(complete) => setImplantDetailCompleteByTooth((prev) => ({ ...prev, [firstToothNumber]: complete }))}
           caseSubmitted={caseSubmitted}
         />
