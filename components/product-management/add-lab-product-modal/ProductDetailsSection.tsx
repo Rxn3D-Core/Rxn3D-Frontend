@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from "react"
 import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
 import { Controller, useWatch } from "react-hook-form"
-import { AlertCircle } from "lucide-react"
+import { AlertCircle, Plus, PlusCircle } from "lucide-react"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { generateCodeFromName, cn } from "@/lib/utils"
@@ -22,12 +22,259 @@ import {
 import { Info } from "lucide-react"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 
+const MAX_TEETH = 15
+const PREVIEW_TEETH_COUNT = 8
+
 type CategoryWithSubcategories = {
   id: number
   name: string
   code: string
   subcategories: Array<{ id: number; name: string; category_id: number }>
 }
+
+// ─── Teeth Pricing Sub-component ─────────────────────────────────────────────
+
+function PricePreviewTable({ prices }: { prices: number[] }) {
+  return (
+    <div
+      className="inline-flex flex-col gap-1 rounded-2xl px-5 py-3 max-w-full"
+      style={{
+        background: "linear-gradient(#F7F7F7, #F7F7F7) padding-box, linear-gradient(to right, #3b82f6, #a855f7) border-box",
+        border: "1.5px solid transparent",
+      }}
+    >
+      <span className="text-black text-sm">Price Preview</span>
+      <div className="overflow-x-auto">
+        <div className="flex flex-row items-center gap-6 px-2">
+          {prices.map((price, i) => (
+            <div key={i} className="flex flex-col items-center shrink-0">
+              <span className="text-black text-xs text-center whitespace-nowrap">{i + 1} tooth</span>
+              <span className="text-black text-base font-medium text-center whitespace-nowrap">${price}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+interface TeethPricingSectionProps {
+  control: any
+  setValue?: (name: string, value: any) => void
+}
+
+function TeethPricingSection({ control, setValue }: TeethPricingSectionProps) {
+  const isTeethBased = useWatch({ control, name: "is_teeth_based_price" })
+  const pricingType = useWatch({ control, name: "teeth_pricing_type" }) ?? "same_price"
+  const pricePerTooth = useWatch({ control, name: "teeth_price_per_tooth" }) ?? ""
+  const firstToothPrice = useWatch({ control, name: "teeth_first_tooth_price" }) ?? ""
+  const additionalToothPrice = useWatch({ control, name: "teeth_additional_tooth_price" }) ?? ""
+  const customPrices = useWatch({ control, name: "teeth_custom_prices" }) ?? []
+
+  const setVal = React.useCallback((name: string, value: any) => {
+    if (setValue) (setValue as any)(name, value)
+  }, [setValue])
+
+  if (isTeethBased !== "Yes") return null
+
+  // Build preview prices
+  const samePricePreviews: number[] = (() => {
+    const p = parseFloat(String(pricePerTooth))
+    if (isNaN(p) || p <= 0) return []
+    return Array.from({ length: PREVIEW_TEETH_COUNT }, (_, i) => p * (i + 1))
+  })()
+
+  const firstMorePreviews: number[] = (() => {
+    const first = parseFloat(String(firstToothPrice))
+    const add = parseFloat(String(additionalToothPrice))
+    if (isNaN(first) || isNaN(add) || first <= 0) return []
+    return Array.from({ length: PREVIEW_TEETH_COUNT }, (_, i) =>
+      i === 0 ? first : first + add * i
+    )
+  })()
+
+  const handleCustomPriceChange = (index: number, value: string) => {
+    const updated = [...customPrices]
+    updated[index] = value
+    setVal("teeth_custom_prices", updated)
+  }
+
+  const handleAddCustomSlot = () => {
+    if (customPrices.length >= MAX_TEETH) return
+    setVal("teeth_custom_prices", [...customPrices, ""])
+  }
+
+  return (
+    <div className="space-y-4 pl-2">
+      <p className="text-sm font-medium text-gray-700">How do you charge for this product?</p>
+
+      <Controller
+        name="teeth_pricing_type"
+        control={control}
+        defaultValue="same_price"
+        render={({ field }) => (
+          <RadioGroup
+            value={field.value ?? "same_price"}
+            onValueChange={(val) => {
+              field.onChange(val)
+              // Seed one empty slot when switching to custom for the first time
+              if (val === "custom" && (!customPrices || customPrices.length === 0)) {
+                setVal("teeth_custom_prices", [""])
+              }
+            }}
+            className="space-y-3"
+          >
+            {/* ── Option 1: Same price per tooth ── */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <RadioGroupItem
+                  value="same_price"
+                  id="teeth_pricing-same"
+                  className="data-[state=checked]:border-[#1162a8] data-[state=checked]:text-[#1162a8]"
+                />
+                <label htmlFor="teeth_pricing-same" className="text-sm font-medium cursor-pointer">
+                  Same price per tooth
+                </label>
+                {field.value === "same_price" && (
+                  <div className="relative ml-2 w-40">
+                    <Input
+                      label="Price per tooth"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className="pl-8"
+                      value={pricePerTooth}
+                      onChange={(e) => setVal("teeth_price_per_tooth", e.target.value)}
+                    />
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium pointer-events-none text-sm">
+                      $
+                    </span>
+                  </div>
+                )}
+              </div>
+              {field.value === "same_price" && samePricePreviews.length > 0 && (
+                <PricePreviewTable prices={samePricePreviews} />
+              )}
+            </div>
+
+            {/* ── Option 2: First tooth costs more ── */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 flex-wrap">
+                <RadioGroupItem
+                  value="first_tooth_more"
+                  id="teeth_pricing-first"
+                  className="data-[state=checked]:border-[#1162a8] data-[state=checked]:text-[#1162a8]"
+                />
+                <label htmlFor="teeth_pricing-first" className="text-sm font-medium cursor-pointer">
+                  First tooth costs more
+                </label>
+                {field.value === "first_tooth_more" && (
+                  <>
+                    <div className="relative ml-2 w-40">
+                      <Input
+                        label="First tooth price"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        className="pl-8"
+                        value={firstToothPrice}
+                        onChange={(e) => setVal("teeth_first_tooth_price", e.target.value)}
+                      />
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium pointer-events-none text-sm">
+                        $
+                      </span>
+                    </div>
+                    <div className="relative w-48">
+                      <Input
+                        label="Each additional tooth"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        className="pl-8"
+                        value={additionalToothPrice}
+                        onChange={(e) => setVal("teeth_additional_tooth_price", e.target.value)}
+                      />
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium pointer-events-none text-sm">
+                        $
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+              {field.value === "first_tooth_more" && firstMorePreviews.length > 0 && (
+                <PricePreviewTable prices={firstMorePreviews} />
+              )}
+            </div>
+
+            {/* ── Option 3: Custom price for each count ── */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <RadioGroupItem
+                  value="custom"
+                  id="teeth_pricing-custom"
+                  className="data-[state=checked]:border-[#1162a8] data-[state=checked]:text-[#1162a8]"
+                />
+                <label htmlFor="teeth_pricing-custom" className="text-sm font-medium cursor-pointer">
+                  Custom price for each count
+                </label>
+              </div>
+              {field.value === "custom" && (
+                <div
+                  className="rounded-2xl p-4"
+                  style={{
+                    background: "linear-gradient(#F7F7F7, #F7F7F7) padding-box, linear-gradient(to right, #3b82f6, #a855f7) border-box",
+                    border: "1.5px solid transparent",
+                  }}
+                >
+                  <div className="flex flex-row items-end gap-3 overflow-x-auto pb-1">
+                    {customPrices.map((price: string | number, index: number) => {
+                      const label = index === 0 ? "1 tooth" : index === customPrices.length - 1 && index >= 6 ? `${index + 1} teeth +` : `${index + 1} teeth`
+                      return (
+                        <div key={index} className="flex flex-col gap-1 shrink-0">
+                          <span className="text-xs text-gray-500 text-center whitespace-nowrap">{label}</span>
+                          <div className="relative w-28">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium pointer-events-none text-sm">$</span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              className="w-full pl-7 pr-2 py-2 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                              value={String(price)}
+                              onChange={(e) => handleCustomPriceChange(index, e.target.value)}
+                            />
+                          </div>
+                        </div>
+                      )
+                    })}
+                    {customPrices.length < MAX_TEETH && (
+                      <button
+                        type="button"
+                        onClick={handleAddCustomSlot}
+                        className="h-10 w-10 rounded-lg flex items-center justify-center text-white flex-shrink-0 mb-0.5"
+                        style={{ background: "linear-gradient(to right, #a855f7, #3b82f6)" }}
+                        title="Add tooth price slot"
+                      >
+                        <PlusCircle className="h-5 w-5" />
+                      </button>
+                    )}
+                  </div>
+                  {customPrices.length >= MAX_TEETH && (
+                    <p className="mt-2 text-xs text-amber-600 flex items-center gap-1">
+                      <Info className="h-3 w-3 flex-shrink-0" />
+                      Maximum {MAX_TEETH} teeth reached. 16 teeth is categorized as Full Denture.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </RadioGroup>
+        )}
+      />
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 type ProductDetailsSectionProps = {
   control: any
@@ -44,6 +291,7 @@ type ProductDetailsSectionProps = {
   setValue?: (name: string, value: any) => void
   onSave?: (e?: React.BaseSyntheticEvent) => Promise<void>
   isSaving?: boolean
+  onTeethBasedChange?: (checked: boolean) => void
 }
 
 export function ProductDetailsSection({
@@ -61,6 +309,7 @@ export function ProductDetailsSection({
   setValue,
   onSave,
   isSaving = false,
+  onTeethBasedChange,
 }: ProductDetailsSectionProps) {
   const grades = useWatch({ control, name: "grades" }) || []
   const name = useWatch({ control, name: "name" }) || ""
@@ -741,31 +990,39 @@ export function ProductDetailsSection({
           )}
 
           {/* Charge per tooth Toggle */}
-          <div className="flex items-center gap-3">
-            <Controller
-              name="is_teeth_based_price"
-              control={control}
-              render={({ field }) => (
-                <Switch
-                  checked={field.value === "Yes"}
-                  onCheckedChange={(checked) => field.onChange(checked ? "Yes" : "No")}
-                  className="data-[state=checked]:bg-[#1162a8]"
-                />
-              )}
-            />
-            <label className="text-sm font-medium text-gray-700">
-              Charge per tooth
-            </label>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Info className="h-4 w-4 text-gray-400 hover:text-gray-600 cursor-help" />
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Enable this option if the product should be charged per tooth</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <Controller
+                name="is_teeth_based_price"
+                control={control}
+                render={({ field }) => (
+                  <Switch
+                    checked={field.value === "Yes"}
+                    onCheckedChange={(checked) => {
+                      field.onChange(checked ? "Yes" : "No")
+                      onTeethBasedChange?.(checked)
+                    }}
+                    className="data-[state=checked]:bg-[#1162a8]"
+                  />
+                )}
+              />
+              <label className="text-sm font-medium text-gray-700">
+                Charge product per tooth
+              </label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-4 w-4 text-gray-400 hover:text-gray-600 cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Enable this option if the product should be charged per tooth</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+
+            {/* Per-tooth pricing options — only visible when toggle is ON */}
+            <TeethPricingSection control={control} setValue={setValue} />
           </div>
       </div>
 

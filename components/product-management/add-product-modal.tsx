@@ -35,6 +35,7 @@ import { AddOnsSection } from "@/components/product-management/add-lab-product-m
 import { RetentionSection } from "@/components/product-management/add-lab-product-modal/RetentionSection"
 import { ExtractionsSection } from "@/components/product-management/add-lab-product-modal/ExtractionsSection"
 import { VisibilityManagementSection } from "@/components/product-management/add-lab-product-modal/VisibilityManagementSection"
+import { VariationSection } from "@/components/product-management/add-lab-product-modal/VariationSection"
 
 interface AddProductModalProps {
   isOpen: boolean
@@ -127,6 +128,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
   const { t } = useTranslation()
   const [sections, setSections] = useState({
     productDetails: true,
+    variation: true,
     grades: false,
     stages: true,
     impressions: true,
@@ -155,6 +157,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
 
   const tabs = [
     { id: "details", label: "Product Details", sectionKey: "productDetails" },
+    { id: "variation", label: "Variation", sectionKey: null },
     { id: "grades", label: "Grades", sectionKey: "grades" },
     { id: "stages", label: "Stages", sectionKey: "stages" },
     { id: "impressions", label: "Impressions", sectionKey: "impressions" },
@@ -1045,6 +1048,15 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
                     setValue={setValue}
                     onImageChange={setImageBase64}
                     currentImageBase64={imageBase64}
+                  />
+                </TabsContent>
+
+                <TabsContent value="variation" className="mt-0 p-6 focus-visible:outline-none">
+                  <VariationSection
+                    control={control}
+                    setValue={setValue}
+                    sections={sections}
+                    toggleSection={toggleSection}
                   />
                 </TabsContent>
 

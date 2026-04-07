@@ -11,22 +11,71 @@ const implantSizes = ["3.5mm", "4mm", "4.5mm", "5mm", "5.5mm", "6mm"];
 const abutmentDetailOptions = ["Office provided", "Lab provided", "Custom"];
 const abutmentTypeOptions = ["Stock Abutment", "Custom Abutment", "Multi-Unit abutment"];
 
+export interface ImplantDetailData {
+  brand: string;
+  platform: string;
+  size: string;
+  inclusions: string;
+  inclusionQty: number;
+  abutmentDetail: string;
+  abutmentType: string;
+}
+
+export const defaultImplantDetailData = (): ImplantDetailData => ({
+  brand: "",
+  platform: "",
+  size: "",
+  inclusions: "No inclusion",
+  inclusionQty: 0,
+  abutmentDetail: "",
+  abutmentType: "",
+});
+
 interface ImplantDetailSectionProps {
   toothNumber: number;
+  /** Controlled implant detail data. If provided, component is fully controlled. */
+  value?: ImplantDetailData;
+  /** Called when any implant detail field changes. Required when value is provided. */
+  onChange?: (data: ImplantDetailData) => void;
   /** Called when the implant detail form becomes complete or incomplete (so parent can e.g. gate impression modal). */
   onCompleteChange?: (complete: boolean) => void;
   /** When true, remove green border/label/checkmark styling (case already submitted). */
   caseSubmitted?: boolean;
 }
 
-export function ImplantDetailSection({ toothNumber, onCompleteChange, caseSubmitted = false }: ImplantDetailSectionProps) {
-  const [brand, setBrand] = useState("");
-  const [platform, setPlatform] = useState("");
-  const [size, setSize] = useState("");
-  const [inclusions, setInclusions] = useState("No inclusion");
-  const [inclusionQty, setInclusionQty] = useState(0);
-  const [abutmentDetail, setAbutmentDetail] = useState("");
-  const [abutmentType, setAbutmentType] = useState("");
+export function ImplantDetailSection({ toothNumber, value, onChange, onCompleteChange, caseSubmitted = false }: ImplantDetailSectionProps) {
+  // Uncontrolled fallback state (only used when value prop is not provided)
+  const [localBrand, setLocalBrand] = useState("");
+  const [localPlatform, setLocalPlatform] = useState("");
+  const [localSize, setLocalSize] = useState("");
+  const [localInclusions, setLocalInclusions] = useState("No inclusion");
+  const [localInclusionQty, setLocalInclusionQty] = useState(0);
+  const [localAbutmentDetail, setLocalAbutmentDetail] = useState("");
+  const [localAbutmentType, setLocalAbutmentType] = useState("");
+
+  const isControlled = value !== undefined && onChange !== undefined;
+
+  const brand = isControlled ? value.brand : localBrand;
+  const platform = isControlled ? value.platform : localPlatform;
+  const size = isControlled ? value.size : localSize;
+  const inclusions = isControlled ? value.inclusions : localInclusions;
+  const inclusionQty = isControlled ? value.inclusionQty : localInclusionQty;
+  const abutmentDetail = isControlled ? value.abutmentDetail : localAbutmentDetail;
+  const abutmentType = isControlled ? value.abutmentType : localAbutmentType;
+
+  const update = (patch: Partial<ImplantDetailData>) => {
+    if (isControlled) {
+      onChange({ ...value, ...patch });
+    } else {
+      if ("brand" in patch) setLocalBrand(patch.brand!);
+      if ("platform" in patch) setLocalPlatform(patch.platform!);
+      if ("size" in patch) setLocalSize(patch.size!);
+      if ("inclusions" in patch) setLocalInclusions(patch.inclusions!);
+      if ("inclusionQty" in patch) setLocalInclusionQty(patch.inclusionQty!);
+      if ("abutmentDetail" in patch) setLocalAbutmentDetail(patch.abutmentDetail!);
+      if ("abutmentType" in patch) setLocalAbutmentType(patch.abutmentType!);
+    }
+  };
 
   const [sizeDropdownOpen, setSizeDropdownOpen] = useState(false);
   const [abutmentDetailDropdownOpen, setAbutmentDetailDropdownOpen] = useState(false);
@@ -100,8 +149,7 @@ export function ImplantDetailSection({ toothNumber, onCompleteChange, caseSubmit
               options={implantBrandList}
               value={brand}
               onChange={(v) => {
-                setBrand(v);
-                setPlatform("");
+                update({ brand: v, platform: "" });
               }}
             />
           )}
@@ -112,7 +160,7 @@ export function ImplantDetailSection({ toothNumber, onCompleteChange, caseSubmit
               options={platforms}
               value={platform}
               onChange={(v) => {
-                setPlatform(v);
+                update({ platform: v });
               }}
             />
           )}
@@ -125,9 +173,7 @@ export function ImplantDetailSection({ toothNumber, onCompleteChange, caseSubmit
                 value={brand}
                 caseSubmitted={caseSubmitted}
                 onClick={() => {
-                  setBrand("");
-                  setPlatform("");
-                  setSize("");
+                  update({ brand: "", platform: "", size: "" });
                 }}
               />
               <CardSelectorField
@@ -135,8 +181,7 @@ export function ImplantDetailSection({ toothNumber, onCompleteChange, caseSubmit
                 value={platform}
                 caseSubmitted={caseSubmitted}
                 onClick={() => {
-                  setPlatform("");
-                  setSize("");
+                  update({ platform: "", size: "" });
                 }}
               />
               <SelectField
@@ -145,7 +190,7 @@ export function ImplantDetailSection({ toothNumber, onCompleteChange, caseSubmit
                 options={implantSizes}
                 caseSubmitted={caseSubmitted}
                 onChange={(v) => {
-                  setSize(v);
+                  update({ size: v });
                   setSizeDropdownOpen(false);
                 }}
                 open={sizeDropdownOpen}
@@ -160,8 +205,8 @@ export function ImplantDetailSection({ toothNumber, onCompleteChange, caseSubmit
               label="Implant inclusions"
               value={inclusions}
               quantity={inclusionQty}
-              onChange={setInclusions}
-              onQuantityChange={setInclusionQty}
+              onChange={(v) => update({ inclusions: v })}
+              onQuantityChange={(q) => update({ inclusionQty: q })}
               autoOpenWhenVisible
               caseSubmitted={caseSubmitted}
             />
@@ -177,7 +222,7 @@ export function ImplantDetailSection({ toothNumber, onCompleteChange, caseSubmit
                 options={abutmentDetailOptions}
                 caseSubmitted={caseSubmitted}
                 onChange={(v) => {
-                  setAbutmentDetail(v);
+                  update({ abutmentDetail: v });
                   setAbutmentDetailDropdownOpen(false);
                 }}
                 open={abutmentDetailDropdownOpen}
@@ -190,7 +235,7 @@ export function ImplantDetailSection({ toothNumber, onCompleteChange, caseSubmit
                 options={abutmentTypeOptions}
                 caseSubmitted={caseSubmitted}
                 onChange={(v) => {
-                  setAbutmentType(v);
+                  update({ abutmentType: v });
                   setAbutmentTypeDropdownOpen(false);
                 }}
                 open={abutmentTypeDropdownOpen}

@@ -55,8 +55,10 @@ export function CaseDesignCenter(props: CaseDesignProps) {
 
   // Show accordion when card 0 initial product is Fixed Restoration AND teeth have been selected
   const activeProductIsFixed = isFixedCategory(props.selectedProductCategoryName || "");
-  const maxillaryHasFixedCard0 = activeProductIsFixed && Object.keys(state.maxillaryRetentionTypes).length > 0;
-  const mandibularHasFixedCard0 = activeProductIsFixed && Object.keys(state.mandibularRetentionTypes || {}).length > 0;
+  const maxillaryHasFixedCard0 = activeProductIsFixed && Object.keys(state.maxillaryRetentionTypes)
+    .some(tn => state.getToothProductCard("maxillary", Number(tn)) === 0);
+  const mandibularHasFixedCard0 = activeProductIsFixed && Object.keys(state.mandibularRetentionTypes || {})
+    .some(tn => state.getToothProductCard("mandibular", Number(tn)) === 0);
 
   const maxillaryHasRemovablesTeeth =
     maxillaryHasRemovables && state.maxillaryTeeth.length > 0;
@@ -639,6 +641,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           handleToothExtractionToggle={state.handleToothExtractionToggle}
           selectAllMaxillaryTeeth={state.selectAllMaxillaryTeeth}
           onToothStatusValidationChange={props.onToothStatusValidationChange}
+          maxillaryHasFixedCard0={maxillaryHasFixedCard0}
           removablesImpressionDone={maxillaryRemovablesImpressionDone}
           noOpposingNeeded={state.noOpposingNeeded}
           opposingProductData={
@@ -753,6 +756,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           handleToothExtractionToggle={state.handleToothExtractionToggle}
           selectAllMandibularTeeth={state.selectAllMandibularTeeth}
           onToothStatusValidationChange={props.onToothStatusValidationChange}
+          mandibularHasFixedCard0={mandibularHasFixedCard0}
           removablesImpressionDone={mandibularRemovablesImpressionDone}
           noOpposingNeeded={state.noOpposingNeeded}
           opposingProductData={

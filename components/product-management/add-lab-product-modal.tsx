@@ -44,6 +44,7 @@ import { AddOnsSection } from "@/components/product-management/add-lab-product-m
 import { RetentionSection } from "@/components/product-management/add-lab-product-modal/RetentionSection"
 import { ExtractionsSection } from "@/components/product-management/add-lab-product-modal/ExtractionsSection"
 import { VisibilityManagementSection } from "@/components/product-management/add-lab-product-modal/VisibilityManagementSection"
+import { VariationSection } from "@/components/product-management/add-lab-product-modal/VariationSection"
 
 /** API slip visibility flags use "Yes" | "No" (product_configurations). */
 function slipFlagToApi(on: boolean): "Yes" | "No" {
@@ -63,6 +64,7 @@ function buildSectionsStateFromProduct(editingProduct: any) {
   const isSingleStage = editingProduct.is_single_stage === "Yes"
   return {
     productDetails: true,
+    variation: true,
     grades: slipFlagFromApi(editingProduct.has_grade, true),
     stages: isSingleStage ? false : slipFlagFromApi(editingProduct.has_stage, true),
     impressions: slipFlagFromApi(editingProduct.has_impression, true),
@@ -157,6 +159,7 @@ export function AddLabProductModal({
 
   const [sections, setSections] = useState({
     productDetails: true,
+    variation: true,
     grades: false,
     stages: true,
     impressions: true,
@@ -189,6 +192,7 @@ export function AddLabProductModal({
 
   const tabs = [
     { id: "details", label: "Product Details", sectionKey: "productDetails" },
+    { id: "variation", label: "Variation", sectionKey: null },
     { id: "grades", label: "Grades", sectionKey: "grades" },
     { id: "stages", label: "Stages", sectionKey: "stages" },
     { id: "impressions", label: "Impressions", sectionKey: "impressions" },
@@ -206,7 +210,6 @@ export function AddLabProductModal({
   useEffect(() => {
     if (isOpen && editingProduct) {
       setActiveTab("details")
-      // Show all tabs for existing products
       const allTabIds = tabs.map(tab => tab.id)
       setVisibleTabs(new Set(allTabIds))
     } else if (isOpen && !editingProduct) {
@@ -336,6 +339,7 @@ export function AddLabProductModal({
   const watchedSubcategoryId = watch("subcategory_id")
   const watchedBasePrice = watch("base_price")
   const watchedIsSingleStage = useWatch({ control, name: "is_single_stage" })
+  const watchedIsTeethBased = useWatch({ control, name: "is_teeth_based_price" })
   const watchedMinDays = watch("min_days_to_process")
   const watchedMaxDays = watch("max_days_to_process")
   const watchedStages = useWatch({ control, name: "stages" }) || []
@@ -545,7 +549,10 @@ export function AddLabProductModal({
       }
     }
 
-    const nextTabId = tabs[currentTabIndex + 1].id
+    // Find the next tab to unlock (skip already-visible tabs that don't need unlocking)
+    let nextIndex = currentTabIndex + 1
+    if (nextIndex >= tabs.length) return
+    const nextTabId = tabs[nextIndex].id
     // Unlock the next tab when user clicks Next
     setVisibleTabs(prev => new Set([...prev, nextTabId]))
     setActiveTab(nextTabId)
@@ -2347,7 +2354,7 @@ export function AddLabProductModal({
           >
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0 overflow-hidden">
               {/* Tab Navigation - Show tabs progressively as user navigates */}
-              {visibleTabs.size > 0 && (
+{visibleTabs.size > 0 && (
                 <div className="border-b border-gray-200 bg-white flex-shrink-0">
                   <div className="flex">
                     {tabs.map((tab) => {
@@ -2397,6 +2404,23 @@ export function AddLabProductModal({
                     setValue={setValue}
                     onSave={editingProduct ? handleFormSubmit : undefined}
                     isSaving={isSubmitting || isUpdating || isCreating}
+                    onTeethBasedChange={(checked) => {
+                      if (!checked) {
+                        setVisibleTabs((prev) => { const next = new Set(prev); next.delete("variation"); return next })
+                        setActiveTab((prev) => prev === "variation" ? "details" : prev)
+                        setValue("enable_tooth_count_variation", "No")
+                        setValue("tooth_count_variations", [])
+                      }
+                    }}
+                  />
+                </TabsContent>
+
+                <TabsContent value="variation" className="mt-0 p-6 focus-visible:outline-none">
+                  <VariationSection
+                    control={control}
+                    setValue={setValue}
+                    sections={sections}
+                    toggleSection={toggleSection}
                   />
                 </TabsContent>
 
