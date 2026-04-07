@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
+import React, { createContext, useContext, useState, ReactNode, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 type Slip = {
@@ -8,6 +8,8 @@ type Slip = {
   createdAt: string;
   caseId?: number;
   caseNumber?: string;
+  /** Display identifier from API (`slip_number`) */
+  slipNumber?: string;
   pan: string;
   panColor: string;
   panColorStyle?: React.CSSProperties;
@@ -23,7 +25,30 @@ type Slip = {
   doctor?: string;
   user?: string;
   productType?: string;
+  /** `location.current.id` from API — use for reliable location UI vs string name */
+  locationId?: number;
   // ...add more fields as needed
+};
+
+export type LabListingQuery = {
+  q?: string;
+  office_code?: string;
+  status?: string;
+  location_id?: number;
+  delivery_date_start?: string;
+  delivery_date_end?: string;
+  has_attachments?: boolean;
+  page?: number;
+  per_page?: number;
+  order_by?: string;
+  sort_by?: "asc" | "desc";
+};
+
+export type LabListingPagination = {
+  total: number;
+  per_page: number;
+  current_page: number;
+  last_page: number;
 };
 
 type CallLog = any; // Replace with your call log type
@@ -70,12 +95,19 @@ type SubmitScannedSlipsResponse = {
   data?: any;
 };
 
+type ReadyToSendResponse = {
+  success: boolean;
+  message?: string;
+  data?: unknown;
+};
+
 type SlipContextType = {
   slips: Slip[];
   callLogs: CallLog[];
   slipNotes: SlipNote[];
   loading: boolean;
-  fetchLabSlips: (customerId: number) => Promise<void>;
+  labListingPagination: LabListingPagination | null;
+  fetchLabSlips: (customerId: number, query?: LabListingQuery) => Promise<void>;
   fetchOfficeSlips: (customerId: number) => Promise<void>;
   fetchCallLogs: () => Promise<void>;
   fetchSlipNotes: () => Promise<void>;
@@ -85,6 +117,7 @@ type SlipContextType = {
   fetchPickupDeliverySlips: (slipId: number) => Promise<any | null>;
   createCustomDeliveryDate: (slipId: number, delivery_date: string, delivery_time: string, notes?: string) => Promise<any | null>;
   fetchCustomDeliveryDates: (slipId: number) => Promise<any | null>;
+  readyToSend: (slipId: number) => Promise<ReadyToSendResponse | null>;
 };
 
 const SlipContext = createContext<SlipContextType | undefined>(undefined);
@@ -94,9 +127,13 @@ export function SlipProvider({ children }: { children: ReactNode }) {
   const [callLogs, setCallLogs] = useState<CallLog[]>([]);
   const [slipNotes, setSlipNotes] = useState<SlipNote[]>([]);
   const [loading, setLoading] = useState(false);
+  const [labListingPagination, setLabListingPagination] = useState<LabListingPagination | null>(null);
   const router = useRouter();
 
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+
+  /** Preserves last lab listing query so refetches (ready-to-send, driver submit, etc.) keep filters */
+  const lastLabListingRef = useRef<{ customerId: number; query: LabListingQuery } | null>(null);
 
   // Helper to get token from localStorage
   const getToken = () => (typeof window !== "undefined" ? localStorage.getItem("token") : null);
@@ -118,6 +155,7 @@ export function SlipProvider({ children }: { children: ReactNode }) {
     createdAt: apiSlip.timestamp,
     caseId: apiSlip.case?.id,
     caseNumber: apiSlip.case?.case_number,
+    slipNumber: apiSlip.slip_number ?? apiSlip.number ?? undefined,
     pan: apiSlip.casepan?.number || "",
     panColor: "", // leave empty, use panColorStyle for inline style
     panColorStyle: apiSlip.casepan?.color_code
@@ -135,32 +173,72 @@ export function SlipProvider({ children }: { children: ReactNode }) {
     doctor: apiSlip.case?.doctor?.name || apiSlip.doctor || undefined,
     user: apiSlip.user?.name || apiSlip.user || undefined,
     productType: apiSlip.products?.[0]?.type || apiSlip.productType || undefined,
+    locationId: typeof apiSlip.location?.current?.id === "number" ? apiSlip.location.current.id : undefined,
     // ...add more fields as needed
   });
 
-  const fetchLabSlips = useCallback(async (customerId: number) => {
+  const fetchLabSlips = useCallback(async (customerId: number, query?: LabListingQuery) => {
+    const effectiveQuery: LabListingQuery =
+      query !== undefined
+        ? query
+        : lastLabListingRef.current?.customerId === customerId
+          ? lastLabListingRef.current.query
+          : {};
+    lastLabListingRef.current = { customerId, query: { ...effectiveQuery } };
+
     setLoading(true);
     try {
       const token = getToken();
-      const res = await fetch(
-        `${API_BASE_URL}/slip/listing/lab?customer_id=${customerId}`,
-        {
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            "Content-Type": "application/json",
-          },
-        }
-      );
-      
+      const params = new URLSearchParams();
+      params.set("customer_id", String(customerId));
+      if (effectiveQuery.q) params.set("q", effectiveQuery.q);
+      if (effectiveQuery.office_code) params.set("office_code", effectiveQuery.office_code);
+      if (effectiveQuery.status) params.set("status", effectiveQuery.status);
+      if (effectiveQuery.location_id != null && !Number.isNaN(effectiveQuery.location_id)) {
+        params.set("location_id", String(effectiveQuery.location_id));
+      }
+      if (effectiveQuery.delivery_date_start) params.set("delivery_date_start", effectiveQuery.delivery_date_start);
+      if (effectiveQuery.delivery_date_end) params.set("delivery_date_end", effectiveQuery.delivery_date_end);
+      if (effectiveQuery.has_attachments === true) params.set("has_attachments", "true");
+      if (effectiveQuery.page != null) params.set("page", String(effectiveQuery.page));
+      if (effectiveQuery.per_page != null) params.set("per_page", String(effectiveQuery.per_page));
+      if (effectiveQuery.order_by) params.set("order_by", effectiveQuery.order_by);
+      if (effectiveQuery.sort_by) params.set("sort_by", effectiveQuery.sort_by);
+
+      const url = new URL("/v1/slip/listing/lab", API_BASE_URL);
+      url.search = params.toString();
+
+      const res = await fetch(url.toString(), {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          Accept: "application/json",
+        },
+      });
+
       if (res.status === 401) {
         handleUnauthorized();
         return;
       }
-      
+
       const api = await res.json();
-      // Defensive: handle missing data
       const arr = api?.data?.data || [];
       setSlips(arr.map(mapApiSlip));
+      const p = api?.data?.pagination;
+      if (p && typeof p.total === "number") {
+        setLabListingPagination({
+          total: p.total,
+          per_page: p.per_page ?? effectiveQuery.per_page ?? arr.length,
+          current_page: p.current_page ?? effectiveQuery.page ?? 1,
+          last_page: Math.max(1, p.last_page ?? 1),
+        });
+      } else {
+        setLabListingPagination({
+          total: arr.length,
+          per_page: effectiveQuery.per_page ?? (arr.length > 0 ? arr.length : 10),
+          current_page: effectiveQuery.page ?? 1,
+          last_page: 1,
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -461,7 +539,71 @@ export function SlipProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, [])
+  }, [API_BASE_URL])
+
+  /**
+   * POST /v1/slip/action/{slipId}/ready-to-send — no body. Success: { success, message }.
+   */
+  const readyToSend = useCallback(async (slipId: number): Promise<ReadyToSendResponse | null> => {
+    setLoading(true);
+    try {
+      const token = getToken();
+      const url = new URL(`/v1/slip/action/${slipId}/ready-to-send`, API_BASE_URL);
+      const res = await fetch(url.toString(), {
+        method: "POST",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+
+      if (res.status === 401) {
+        handleUnauthorized();
+        return null;
+      }
+
+      const response: ReadyToSendResponse = await res.json().catch(() => ({
+        success: false,
+        message: "Invalid response",
+      }));
+
+      if (!res.ok && !response.success) {
+        return {
+          success: false,
+          message: response.message || `Request failed (${res.status})`,
+        };
+      }
+
+      if (response?.success) {
+        try {
+          if (typeof window !== "undefined") {
+            const userStr = localStorage.getItem("user");
+            const user = userStr ? JSON.parse(userStr) : null;
+            const customerId = user?.customers?.[0]?.id;
+            const customerType = localStorage.getItem("customerType");
+            if (customerId) {
+              if (customerType === "lab") {
+                void fetchLabSlips(customerId);
+              } else if (customerType === "office") {
+                void fetchOfficeSlips(customerId);
+              } else {
+                void fetchLabSlips(customerId);
+                void fetchOfficeSlips(customerId);
+              }
+            }
+          }
+        } catch (err) {
+          console.error("Error refetching slips after readyToSend:", err);
+        }
+      }
+
+      return response;
+    } catch (error) {
+      console.error("Error marking slip ready to send:", error);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [API_BASE_URL, fetchLabSlips, fetchOfficeSlips]);
 
   return (
     <SlipContext.Provider value={{
@@ -469,6 +611,7 @@ export function SlipProvider({ children }: { children: ReactNode }) {
       callLogs,
       slipNotes,
       loading,
+      labListingPagination,
       fetchLabSlips,
       fetchOfficeSlips,
       fetchCallLogs,
@@ -479,6 +622,7 @@ export function SlipProvider({ children }: { children: ReactNode }) {
       createCustomDeliveryDate,
       fetchCustomDeliveryDates,
       fetchPickupDeliverySlips,
+      readyToSend,
     }}>
       {children}
     </SlipContext.Provider>
