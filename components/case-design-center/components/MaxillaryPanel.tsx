@@ -499,6 +499,8 @@ interface MaxillaryPanelProps {
   handleToothExtractionToggle: (arch: Arch, toothNumber: number, extractionCode: string, extractions?: import("../types").ProductExtraction[]) => void;
   selectAllMaxillaryTeeth: (teeth: number[]) => void;
   onToothStatusValidationChange?: (hasValidation: boolean) => void;
+  /** When true, the initial card 0 product is Fixed Restoration AND maxillary teeth with Prep/Pontic exist */
+  maxillaryHasFixedCard0?: boolean;
   /** Product+arch combos where user chose "Submit, no opposing needed" */
   noOpposingNeeded?: Record<string, boolean>;
   /** When set, renders the opposing product accordion for products with opposite_extractions */
@@ -673,6 +675,7 @@ export function MaxillaryPanel({
   handleToothExtractionToggle,
   selectAllMaxillaryTeeth,
   onToothStatusValidationChange,
+  maxillaryHasFixedCard0 = false,
   removablesImpressionDone = false,
   noOpposingNeeded = {},
   opposingProductData = null,
@@ -1387,7 +1390,7 @@ export function MaxillaryPanel({
             })
           }
           {/* Progressive field cards for Prep/Pontic teeth — grouped by product (card 0 only) */}
-          {showDetails && (() => {
+          {showDetails && maxillaryHasFixedCard0 && (() => {
             const prepPonticTeeth = Object.entries(maxillaryRetentionTypes)
               .filter(([toothNum, types]) =>
                 types.some((t) => t === "Prep" || t === "Pontic" || t === "Implant") &&

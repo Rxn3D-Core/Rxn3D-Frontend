@@ -639,6 +639,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           handleToothExtractionToggle={state.handleToothExtractionToggle}
           selectAllMaxillaryTeeth={state.selectAllMaxillaryTeeth}
           onToothStatusValidationChange={props.onToothStatusValidationChange}
+          maxillaryHasFixedCard0={maxillaryHasFixedCard0}
           removablesImpressionDone={maxillaryRemovablesImpressionDone}
           noOpposingNeeded={state.noOpposingNeeded}
           opposingProductData={
@@ -753,6 +754,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           handleToothExtractionToggle={state.handleToothExtractionToggle}
           selectAllMandibularTeeth={state.selectAllMandibularTeeth}
           onToothStatusValidationChange={props.onToothStatusValidationChange}
+          mandibularHasFixedCard0={mandibularHasFixedCard0}
           removablesImpressionDone={mandibularRemovablesImpressionDone}
           noOpposingNeeded={state.noOpposingNeeded}
           opposingProductData={

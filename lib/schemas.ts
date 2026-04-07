@@ -193,6 +193,21 @@ export const ProductCreateFormSchema = z
       ),
     image: z.string().nullable().optional(),
     is_teeth_based_price: z.enum(["Yes", "No"]).default("No").optional(),
+    teeth_pricing_type: z.enum(["same_price", "first_tooth_more", "custom"]).optional(),
+    teeth_price_per_tooth: z.union([z.string(), z.number()]).optional(),
+    teeth_first_tooth_price: z.union([z.string(), z.number()]).optional(),
+    teeth_additional_tooth_price: z.union([z.string(), z.number()]).optional(),
+    teeth_custom_prices: z.array(z.union([z.string(), z.number()])).optional(),
+
+    // Variation section
+    enable_tooth_count_variation: z.enum(["Yes", "No"]).default("No").optional(),
+    tooth_count_variations: z.array(
+      z.object({
+        image: z.string().nullable().optional(),
+        tooth_count: z.string().optional(), // e.g. "1", "2", "4 - 15"
+        name_template: z.string().optional(), // e.g. "Flipper [x tooth/teeth]"
+      })
+    ).optional(),
 
     // Related items (all optional, no min)
     grades: z
