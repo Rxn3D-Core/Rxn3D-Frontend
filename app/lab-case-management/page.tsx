@@ -1,19 +1,19 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect, useRef } from "react"
 import { useSearchParams } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Calendar, Filter, Columns, MoreVertical, Paperclip, ChevronDown, Check, Trash2, Eye, Copy, Phone, Printer, Download, Plus, X } from "lucide-react"
 import { format } from "date-fns"
-import { useSlipContext, SlipProvider } from "./SlipContext";
+import { useSlipContext } from "./SlipContext";
 import { useSlipCreation } from "@/contexts/slip-creation-context";
 import FileAttachmentModalContent from "@/components/file-attachment-modal-content"
 import ChangeDateModal from "@/components/change-date-modal"
@@ -25,6 +25,34 @@ import PrintDriverTagsModal from "@/components/print-driver-tags-modal"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast";
 import { HIPAAComplianceBanner } from "@/components/hipaa-compliance-banner"
+import {
+  SLIP_LOCATION_FILTER_OPTIONS,
+  LAB_SLIP_STATUS_OPTIONS,
+  parseLocationFilterFromUrl,
+} from "@/app/lab-case-management/lab-slip-listing-constants"
+
+function formatYmd(d: Date): string {
+  return d.toISOString().slice(0, 10)
+}
+
+function getLabCustomerId(): number | null {
+  if (typeof window === "undefined") return null
+  try {
+    const userStr = localStorage.getItem("user")
+    const user = userStr ? JSON.parse(userStr) : null
+    const id = user?.customers?.[0]?.id
+    return typeof id === "number" && !Number.isNaN(id) ? id : null
+  } catch {
+    return null
+  }
+}
+
+/** Prefer `locationId` from API; fall back to label match for older payloads */
+function rowAtSlipLocation(row: { locationId?: number; location: string }, id: number): boolean {
+  if (typeof row.locationId === "number" && row.locationId === id) return true
+  const expected = SLIP_LOCATION_FILTER_OPTIONS.find((o) => o.id === id)?.label
+  return !!(expected && row.location === expected)
+}
 
 // Utility to decode and print base64 HTML
 function printPaperSlip(base64Html: string) {
@@ -58,6 +86,23 @@ function printPaperSlip(base64Html: string) {
   }
 }
 
+const READY_TO_SEND_BLUE = "#0E66B2"
+
+function InLabPaperPlaneIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 31.85 32"
+      className="h-[19px] w-[19px] flex-shrink-0"
+      aria-hidden
+    >
+      <g fill={READY_TO_SEND_BLUE}>
+        <path d="M11.9,32a13.51,13.51,0,0,1-.69-1.18c-1.08-2.52-2.16-5-3.2-7.56A2,2,0,0,0,6.77,22c-1.74-.7-3.47-1.43-5.2-2.16A2.11,2.11,0,0,1,0,17.52a2.47,2.47,0,0,1,1.37-1.67Q4.85,13.92,8.26,12q10-5.72,20-11.4A3.87,3.87,0,0,1,29.91,0a2,2,0,0,1,1.91,2.45c-.4,2.7-.83,5.4-1.25,8.1q-1.21,8-2.44,15.89c-.07.49-.14,1-.23,1.47a2.11,2.11,0,0,1-3.2,1.7c-2.06-.87-4.13-1.71-6.18-2.63a1.27,1.27,0,0,0-1.67.29c-1.39,1.42-2.84,2.79-4.27,4.17C12.42,31.59,12.25,31.72,11.9,32ZM30.79,1.74l-.25-.09L13,23.47c.26.13.37.21.49.26L25.08,28.6c1.18.5,1.66.2,1.86-1.09q1-6.6,2-13.19.93-6,1.85-12A3.26,3.26,0,0,0,30.79,1.74Zm-1.94,0-.11-.16L27.9,2,8.82,12.89l-7.06,4a1.13,1.13,0,0,0-.71,1,1,1,0,0,0,.71.93c2,.83,4,1.65,6,2.49ZM24.69,7.24l-.12-.11L8.62,22l2.6,6.21.17,0c0-.21,0-.42,0-.63,0-.91.05-1.82,0-2.73a2.71,2.71,0,0,1,.73-2c2-2.46,4-4.95,6-7.43ZM12.54,29.83l.15.08,3.89-3.7-4-1.68Z" />
+      </g>
+    </svg>
+  )
+}
+
 export default function LabSlipPage() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
@@ -70,7 +115,7 @@ export default function LabSlipPage() {
   const [search, setSearch] = useState("")
   const [office, setOffice] = useState("All")
   const [status, setStatus] = useState("All")
-  const [location, setLocation] = useState(() => searchParams.get("location") || "All")
+  const [location, setLocation] = useState(() => parseLocationFilterFromUrl(searchParams.get("location")))
   const [showWithAttachments, setShowWithAttachments] = useState(false)
   const [showLabConnect, setShowLabConnect] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
@@ -80,7 +125,7 @@ export default function LabSlipPage() {
     timestamp: true,
     office: true,
     patient: true,
-    caseNumber: true,
+    slipNumber: true,
     pan: true,
     product: true,
     status: true,
@@ -115,42 +160,82 @@ export default function LabSlipPage() {
   const [selectedSlipForDriverTags, setSelectedSlipForDriverTags] = useState<any>(null)
   const router = useRouter()
   const [selectedSlipForStatement, setSelectedSlipForStatement] = useState<any>(null)
+  const [showReadyToSendModal, setShowReadyToSendModal] = useState(false)
+  const [readyToSendSlip, setReadyToSendSlip] = useState<any>(null)
+  const [readyToSendSubmitting, setReadyToSendSubmitting] = useState(false)
 
-  const { slips, loading, fetchLabSlips, fetchDriverPrintData, createCustomDeliveryDate, fetchOfficeSlips, fetchCustomDeliveryDates } = useSlipContext();
+  const { slips, loading, fetchLabSlips, fetchDriverPrintData, createCustomDeliveryDate, fetchOfficeSlips, fetchCustomDeliveryDates, readyToSend, labListingPagination } = useSlipContext();
   const { fetchProductAddons } = useSlipCreation();
   const { generatePaperSlips } = useSlipCreation();
 
+  const dateRangeKey = useMemo(
+    () => `${dateRange.start?.toISOString() ?? ""}|${dateRange.end?.toISOString() ?? ""}`,
+    [dateRange.start, dateRange.end]
+  )
+
+  const filterSig = useMemo(
+    () => [search, office, status, location, showWithAttachments, dateRangeKey].join("|"),
+    [search, office, status, location, showWithAttachments, dateRangeKey]
+  )
+
+  const prevFilterSigRef = useRef<string | null>(null)
+
   useEffect(() => {
-    fetchLabSlips(1); // Or use customer_id dynamically
-  }, [fetchLabSlips]);
+    const customerId = getLabCustomerId()
+    if (!customerId) return
+
+    const filtersJustChanged =
+      prevFilterSigRef.current !== null && prevFilterSigRef.current !== filterSig
+
+    if (filtersJustChanged) {
+      prevFilterSigRef.current = filterSig
+      if (currentPage !== 1) {
+        setCurrentPage(1)
+      }
+    } else {
+      prevFilterSigRef.current = filterSig
+    }
+
+    // When filters change while already on page 1, we must still fetch (setCurrentPage(1) is a no-op).
+    const pageToFetch = filtersJustChanged ? 1 : currentPage
+
+    void fetchLabSlips(customerId, {
+      q: search.trim() || undefined,
+      office_code: office !== "All" ? office : undefined,
+      status: status !== "All" ? status : undefined,
+      location_id: location !== "All" ? Number(location) : undefined,
+      has_attachments: showWithAttachments ? true : undefined,
+      delivery_date_start: dateRange.start ? formatYmd(dateRange.start) : undefined,
+      delivery_date_end: dateRange.end ? formatYmd(dateRange.end) : undefined,
+      page: pageToFetch,
+      per_page: itemsPerPage,
+      order_by: "created_at",
+      sort_by: "desc",
+    })
+  }, [filterSig, currentPage, itemsPerPage, fetchLabSlips])
 
   const allOffices = useMemo(() => Array.from(new Set(slips.map((s) => s.officeCode))), [slips])
-  const allStatuses = useMemo(() => Array.from(new Set(slips.map((s) => s.status))), [slips])
-  const allLocations = useMemo(() => Array.from(new Set(slips.map((s) => s.location))), [slips])
+  const allStatuses = useMemo(() => {
+    const fromSlips = slips.map((s) => s.status).filter(Boolean) as string[]
+    return Array.from(new Set([...LAB_SLIP_STATUS_OPTIONS, ...fromSlips]))
+  }, [slips])
   const allDoctors = useMemo(() => Array.from(new Set(slips.map((s) => s.doctor || "Unknown"))), [slips])
   const allUsers = useMemo(() => Array.from(new Set(slips.map((s) => s.user || "Unknown"))), [slips])
   const allProductTypes = useMemo(() => Array.from(new Set(slips.map((s) => s.productType || "Unknown"))), [slips])
 
-  // Filtering
-  const filteredSlips = useMemo(() => {
-    let result = slips
-    if (search) result = result.filter((s) =>
-      s.patient.toLowerCase().includes(search.toLowerCase())
-      || s.officeCode.toLowerCase().includes(search.toLowerCase())
-      || s.product.toLowerCase().includes(search.toLowerCase())
-    )
-    if (office !== "All") result = result.filter((s) => s.officeCode === office)
-    if (status !== "All") result = result.filter((s) => s.status === status)
-    if (location !== "All") result = result.filter((s) => s.location === location)
-    if (showWithAttachments) result = result.filter((s) => s.attachment)
-    return result
-  }, [search, office, status, location, showWithAttachments, slips])
-
-  // Paging
-  const maxPage = Math.ceil(filteredSlips.length / itemsPerPage)
-  const slipsPage = filteredSlips.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-  const allOnPageSelected = slipsPage.length && slipsPage.every((s) => selected.includes(s.id))
+  const totalListingCount = labListingPagination?.total ?? slips.length
+  const maxPage = Math.max(1, labListingPagination?.last_page ?? 1)
+  const slipsPage = slips
+  /** Alias for the current page rows (server-filtered). Fixes legacy references to `filteredSlips`. */
+  const filteredSlips = slips
+  const allOnPageSelected =
+    slipsPage.length > 0 && slipsPage.every((s) => selected.includes(s.id))
   const someOnPageSelected = slipsPage.some((s) => selected.includes(s.id))
+  const selectAllHeaderChecked: boolean | "indeterminate" = allOnPageSelected
+    ? true
+    : someOnPageSelected
+      ? "indeterminate"
+      : false
 
   const handleSelectAllPage = () => {
     if (allOnPageSelected) {
@@ -193,6 +278,44 @@ export default function LabSlipPage() {
   const handleLocationIconClick = (slip: any) => {
     setSelectedSlipForDriverHistory(slip)
     setShowDriverHistoryModal(true)
+  }
+
+  const handleOpenReadyToSend = (slip: any) => {
+    setReadyToSendSlip(slip)
+    setShowReadyToSendModal(true)
+  }
+
+  const handleConfirmReadyToSend = async () => {
+    if (!readyToSendSlip) return
+    setReadyToSendSubmitting(true)
+    try {
+      const res = await readyToSend(readyToSendSlip.id)
+      if (res?.success) {
+        toast({
+          title: "Success",
+          description: res.message || "Slip marked as ready to send.",
+          duration: 3000,
+        })
+        setShowReadyToSendModal(false)
+        setReadyToSendSlip(null)
+      } else {
+        toast({
+          title: "Error",
+          description: res?.message ?? "Could not mark slip as ready to send.",
+          variant: "destructive",
+          duration: 5000,
+        })
+      }
+    } catch {
+      toast({
+        title: "Error",
+        description: "Could not mark slip as ready to send.",
+        variant: "destructive",
+        duration: 5000,
+      })
+    } finally {
+      setReadyToSendSubmitting(false)
+    }
   }
 
   const handleDateChange = async (date: string, time: string, reason: string) => {
@@ -1125,7 +1248,11 @@ export default function LabSlipPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="All">All location</SelectItem>
-              {allLocations.filter(l => l).map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+              {SLIP_LOCATION_FILTER_OPTIONS.map((loc) => (
+                <SelectItem key={loc.id} value={String(loc.id)}>
+                  {loc.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Button
@@ -1152,7 +1279,7 @@ export default function LabSlipPage() {
                         timestamp: "Time Stamp",
                         office: "Office Code",
                         patient: "Patient",
-                        caseNumber: "Case Number",
+                        slipNumber: "Slip Number",
                         pan: "Pan",
                         product: "Product",
                         status: "Status",
@@ -1348,13 +1475,17 @@ export default function LabSlipPage() {
 
             {/* Third Row - Toggles */}
             <div className="flex items-center gap-6 mt-3">
-              <Select value="All Location" onValueChange={setLocation}>
+              <Select value={location} onValueChange={setLocation}>
                 <SelectTrigger className="w-40 text-xs">
                   <SelectValue placeholder="All Location" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="All">All Location</SelectItem>
-                  {allLocations.filter(l => l).map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                  {SLIP_LOCATION_FILTER_OPTIONS.map((loc) => (
+                    <SelectItem key={loc.id} value={String(loc.id)}>
+                      {loc.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <label className="flex items-center gap-2 text-xs">
@@ -1392,10 +1523,10 @@ export default function LabSlipPage() {
         {/* Move Pagination to Top */}
         <div className="flex items-center justify-between mb-4">
           <div className="text-sm text-gray-600">
-            Showing {(currentPage - 1) * itemsPerPage + 1}
+            Showing {totalListingCount === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1}
             -
-            {Math.min(currentPage * itemsPerPage, filteredSlips.length)}
-            {" "}of {filteredSlips.length} entries
+            {Math.min(currentPage * itemsPerPage, totalListingCount)}
+            {" "}of {totalListingCount} entries
           </div>
           <div className="flex gap-2 items-center">
             <span className="text-sm text-gray-600 mr-2">Show</span>
@@ -1404,7 +1535,7 @@ export default function LabSlipPage() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {[10, 20, 50].map(n => (
+                {[10, 20, 50, 100].map(n => (
                   <SelectItem key={n} value={String(n)}>{n}</SelectItem>
                 ))}
               </SelectContent>
@@ -1447,8 +1578,7 @@ export default function LabSlipPage() {
               <tr className="bg-gray-50 border-b border-gray-200">
                 <th className="px-3 py-2 w-12 whitespace-nowrap">
                   <Checkbox
-                    checked={allOnPageSelected}
-                    indeterminate={!allOnPageSelected && someOnPageSelected}
+                    checked={selectAllHeaderChecked}
                     onCheckedChange={handleSelectAllPage}
                     aria-label="Select all"
                     className="border-gray-400"
@@ -1462,7 +1592,7 @@ export default function LabSlipPage() {
                 {visibleColumns.timestamp && <th className="px-3 py-2 text-left font-medium text-gray-700 whitespace-nowrap">Timestamp</th>}
                 {visibleColumns.office && <th className="px-3 py-2 text-left font-medium text-gray-700 whitespace-nowrap">Office Code</th>}
                 {visibleColumns.patient && <th className="px-3 py-2 text-left font-medium text-gray-700 whitespace-nowrap">Patient</th>}
-                {visibleColumns.caseNumber && <th className="px-3 py-2 text-left font-medium text-gray-700 whitespace-nowrap">Case Number</th>}
+                {visibleColumns.slipNumber && <th className="px-3 py-2 text-left font-medium text-gray-700 whitespace-nowrap">Slip Number</th>}
                 {visibleColumns.pan && <th className="px-3 py-2 text-left font-medium text-gray-700 whitespace-nowrap">Pan</th>}
                 {visibleColumns.product && <th className="px-3 py-2 text-left font-medium text-gray-700 whitespace-nowrap">Product</th>}
                 {visibleColumns.status && <th className="px-3 py-2 text-left font-medium text-gray-700 whitespace-nowrap">Status</th>}
@@ -1495,7 +1625,7 @@ export default function LabSlipPage() {
                         <Skeleton className="h-4 w-32" />
                       </td>
                     )}
-                    {visibleColumns.caseNumber && (
+                    {visibleColumns.slipNumber && (
                       <td className="px-3 py-2 whitespace-nowrap">
                         <Skeleton className="h-4 w-24" />
                       </td>
@@ -1551,7 +1681,7 @@ export default function LabSlipPage() {
                       (visibleColumns.timestamp ? 1 : 0) +
                       (visibleColumns.office ? 1 : 0) +
                       (visibleColumns.patient ? 1 : 0) +
-                      (visibleColumns.caseNumber ? 1 : 0) +
+                      (visibleColumns.slipNumber ? 1 : 0) +
                       (visibleColumns.pan ? 1 : 0) +
                       (visibleColumns.product ? 1 : 0) +
                       (visibleColumns.status ? 1 : 0) +
@@ -1604,7 +1734,7 @@ export default function LabSlipPage() {
                     </td>}
                     {visibleColumns.office && <td className="px-3 py-2 whitespace-nowrap font-medium text-gray-900 text-xs">{row.officeCode}</td>}
                     {visibleColumns.patient && <td className="px-3 py-2 whitespace-nowrap text-gray-900 text-xs">{row.patient}</td>}
-                    {visibleColumns.caseNumber && <td className="px-3 py-2 whitespace-nowrap text-gray-900 font-mono text-xs">{row.caseNumber || '-'}</td>}
+                    {visibleColumns.slipNumber && <td className="px-3 py-2 whitespace-nowrap text-gray-900 font-mono text-xs">{row.slipNumber || '-'}</td>}
                     {visibleColumns.pan &&
                       <td className="px-3 py-2 whitespace-nowrap">
                         <span
@@ -1642,7 +1772,7 @@ export default function LabSlipPage() {
                       </td>}
                     {visibleColumns.location &&
                       <td className="px-3 py-2 whitespace-nowrap">
-                        {row.location.includes("In office ready to pickup") && (
+                        {rowAtSlipLocation(row, 1) && (
                           <span className="inline-flex items-center gap-1.5 text-green-700">
                             <button
                               onClick={(e) => {
@@ -1672,7 +1802,7 @@ export default function LabSlipPage() {
                             <span className="text-xs">{row.location}</span>
                           </span>
                         )}
-                        {row.location.includes("On route to the lab") && (
+                        {rowAtSlipLocation(row, 2) && (
                           <span className="inline-flex items-center gap-1.5 text-red-600">
                             <button
                               onClick={(e) => {
@@ -1694,7 +1824,55 @@ export default function LabSlipPage() {
                             <span className="text-xs">{row.location}</span>
                           </span>
                         )}
-                        {row.location.includes("In lab") && (
+                        {rowAtSlipLocation(row, 3) && (
+                          <span className="inline-flex items-center gap-1.5 text-[#0E66B2]">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleOpenReadyToSend(row)
+                              }}
+                              className="hover:bg-gray-100 p-0.5 rounded transition-colors flex-shrink-0"
+                              title="Mark ready to send"
+                            >
+                              <InLabPaperPlaneIcon />
+                            </button>
+                            <span className="text-xs">{row.location}</span>
+                          </span>
+                        )}
+
+                        {rowAtSlipLocation(row, 4) && (
+                          <span className="inline-flex items-center gap-1.5 text-green-700">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleLocationIconClick(row)
+                              }}
+                              className="hover:bg-gray-100 p-0.5 rounded transition-colors flex-shrink-0"
+                              title="View driver history"
+                            >
+                              <svg width="18" height="26" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <g clipPath="url(#clip0_4629_90148)">
+                                <path d="M8.30289 6.72046H2.50289C1.5143 6.72046 0.712891 7.52187 0.712891 8.51046V15.4605C0.712891 16.449 1.5143 17.2505 2.50289 17.2505H8.30289C9.29148 17.2505 10.0929 16.449 10.0929 15.4605V8.51046C10.0929 7.52187 9.29148 6.72046 8.30289 6.72046Z" stroke="#119933" strokeMiterlimit="10"/>
+                                <path d="M5.40359 17.7905L1.68359 22.1805H9.13359L5.40359 17.7905Z" stroke="#119933" strokeMiterlimit="10"/>
+                                <path d="M5.40234 22.1804V31.0404" stroke="#119933" strokeMiterlimit="10"/>
+                                <path d="M17.7737 6.31044C19.2539 6.31044 20.4537 5.11056 20.4537 3.63044C20.4537 2.15032 19.2539 0.950439 17.7737 0.950439C16.2936 0.950439 15.0938 2.15032 15.0938 3.63044C15.0938 5.11056 16.2936 6.31044 17.7737 6.31044Z" stroke="#119933" strokeMiterlimit="10"/>
+                                <path d="M12.0523 14.4405L17.2023 8.48047H18.6823C19.0723 8.48047 19.4323 8.67047 19.6923 9.00047L20.3923 9.90047C20.6623 10.2505 20.8123 10.6805 20.8123 11.1205V18.5605L15.3523 24.6505V28.3905C15.3523 29.1605 15.1423 29.9305 14.6923 30.5205C14.6123 30.6205 14.5423 30.7005 14.4823 30.7405C14.2023 30.9205 13.4923 30.8805 13.1923 30.7405C13.1323 30.7105 13.0523 30.6505 12.9623 30.5705C12.4623 30.0905 12.2023 29.3705 12.2023 28.6305V24.8705L17.0523 18.7805L16.8623 13.8405L13.8723 17.4105H5.40234" stroke="#119933" strokeMiterlimit="10"/>
+                                <path d="M21.2234 20.8206V28.0306C21.2234 28.8006 21.0534 29.5706 20.6934 30.1606C20.6334 30.2606 20.5734 30.3406 20.5234 30.3806C20.3034 30.5606 19.7234 30.5206 19.4834 30.3806C19.4334 30.3506 19.3734 30.2906 19.3034 30.2106C18.9034 29.7306 18.6934 29.0106 18.6934 28.2706V24.5106" stroke="#119933" strokeMiterlimit="10"/>
+                                </g>
+                                <defs>
+                                <clipPath id="clip0_4629_90148">
+                                <rect width="21.51" height="30.91" fill="white" transform="translate(0.212891 0.450439)"/>
+                                </clipPath>
+                                </defs>
+                                </svg>
+
+                            </button>
+                            <span className="text-xs">{row.location}</span>
+                          </span>
+                        )}
+
+                        {rowAtSlipLocation(row, 5) && (
                           <span className="inline-flex items-center gap-1.5 text-red-600">
                             <button
                               onClick={(e) => {
@@ -1716,6 +1894,14 @@ export default function LabSlipPage() {
                             <span className="text-xs">{row.location}</span>
                           </span>
                         )}
+
+                        {rowAtSlipLocation(row, 6) && (
+                          <span className="inline-flex items-center gap-1.5 text-green-700">
+                            <span className="text-xs">{row.location}</span>
+                          </span>
+                        )}
+
+
                       </td>}
                     {visibleColumns.attachment &&
                       <td className="px-3 py-2 text-center whitespace-nowrap">
@@ -1893,10 +2079,10 @@ export default function LabSlipPage() {
         {/* Pagination at Bottom */}
         <div className="flex items-center justify-between mt-4 border-t border-gray-200 pt-4">
           <div className="text-sm text-gray-600">
-            Showing {(currentPage - 1) * itemsPerPage + 1}
+            Showing {totalListingCount === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1}
             -
-            {Math.min(currentPage * itemsPerPage, filteredSlips.length)}
-            {" "}of {filteredSlips.length} entries
+            {Math.min(currentPage * itemsPerPage, totalListingCount)}
+            {" "}of {totalListingCount} entries
           </div>
           <div className="flex items-center space-x-1">
             <button
@@ -1988,6 +2174,48 @@ export default function LabSlipPage() {
           />
         )}
 
+        <Dialog
+          open={showReadyToSendModal}
+          onOpenChange={(open) => {
+            if (!open) {
+              setShowReadyToSendModal(false)
+              setReadyToSendSlip(null)
+            }
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Ready to send</DialogTitle>
+              <DialogDescription>
+                {readyToSendSlip
+                  ? `Confirm "${readyToSendSlip.patient}" is ready to send?`
+                  : ""}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button
+                variant="outline"
+                type="button"
+                onClick={() => {
+                  setShowReadyToSendModal(false)
+                  setReadyToSendSlip(null)
+                }}
+                disabled={readyToSendSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                className="bg-[#0E66B2] text-white hover:bg-[#0c5a9f]"
+                onClick={handleConfirmReadyToSend}
+                disabled={readyToSendSubmitting}
+              >
+                {readyToSendSubmitting ? "Confirming…" : "Confirm"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* Driver History Modal */}
         <DriverHistoryModal
           isOpen={showDriverHistoryModal}
@@ -2027,7 +2255,9 @@ export default function LabSlipPage() {
                   pickupDate: selectedSlipForPrint.pickupDate || "",
                   panNumber: selectedSlipForPrint.panNumber || "",
                   caseNumber: selectedSlipForPrint.caseNumber || "",
-                  slipNumber: selectedSlipForPrint.id ? String(selectedSlipForPrint.id) : "",
+                  slipNumber:
+                    selectedSlipForPrint.slipNumber ||
+                    (selectedSlipForPrint.id ? String(selectedSlipForPrint.id) : ""),
                   products: selectedSlipForPrint.products || [],
                   contact: selectedSlipForPrint.labContact || "",
                   email: selectedSlipForPrint.labEmail || "",
