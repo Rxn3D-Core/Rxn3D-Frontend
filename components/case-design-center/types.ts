@@ -32,6 +32,8 @@ export interface SlipProductSnapshot {
    * selected on the opposing arch. Only present when the product has opposite_extractions configured.
    */
   oppositeExtractions?: Array<{ extraction_id: number; teeth_numbers: number[] }>;
+  /** Tooth numbers checked via the extraction checkbox UI (used for teeth_selection on submit). */
+  checkedTeeth?: number[];
 }
 
 export interface CaseDesignProps {

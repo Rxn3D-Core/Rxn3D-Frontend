@@ -24,6 +24,10 @@ interface MandibularTeethSVGProps {
   getAddonValue?: (toothNumber: number) => string
   /** Retention options from the product API response. */
   retentionOptions?: RetentionOptionItem[]
+  /** When true, renders a checkbox below each non-missing tooth. */
+  showCheckboxes?: boolean
+  /** Called whenever the set of checked teeth changes. */
+  onCheckedTeethChange?: (teeth: number[]) => void
 }
 
 export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
@@ -42,9 +46,17 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
   claspTeeth = [],
   getAddonValue,
   retentionOptions,
+  showCheckboxes = false,
+  onCheckedTeethChange,
 }) => {
   const svgRef = React.useRef<SVGSVGElement>(null)
   const [hoveredTooth, setHoveredTooth] = React.useState<number | null>(null)
+  const [checkedTeeth, setCheckedTeeth] = React.useState<Set<number>>(new Set())
+
+  React.useEffect(() => {
+    onCheckedTeethChange?.(Array.from(checkedTeeth).sort((a, b) => a - b))
+  }, [checkedTeeth, onCheckedTeethChange])
+
   const isToothSelected = (toothNumber: number) => selectedTeeth.includes(toothNumber)
   const isToothMissing = (toothNumber: number) => toothExtractionMap[toothNumber] === 'MT'
 
@@ -139,6 +151,79 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
       }
     }
     return existingStyle
+  }
+
+  const renderWillExtractOverlay = (toothNumber: number, x: number, width: number, toothHeight: number = 135) => {
+    if (!willExtractTeeth.includes(toothNumber)) return null
+    const xSize = Math.max(width * 0.8, 18)
+    const ySize = xSize * (32 / 24)
+    const cx = x + width / 2 - xSize / 2
+    const cy = toothHeight / 2 - ySize / 2
+    return (
+      <svg
+        key={`will-extract-${toothNumber}`}
+        x={cx}
+        y={cy}
+        width={xSize}
+        height={ySize}
+        viewBox="0 0 24 32"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        style={{ pointerEvents: 'none' }}
+      >
+        <path d="M0.312293 28.0802C0.0484933 29.0457 -0.341315 29.7125 0.576054 30.6215C1.49342 31.5305 3.08986 29.9351 3.24269 29.7276C3.39553 29.5202 6.21477 24.8224 6.85731 23.7684C7.36025 22.9433 10.3391 18.3335 11.7894 16.1668C13.1298 18.1866 15.9142 22.4023 16.3289 23.1074C16.8472 23.9887 20.3343 30.2499 20.6327 30.7089C20.9312 31.1679 21.7165 32.0493 21.9364 31.884C22.1563 31.7187 21.8579 30.5436 21.5909 29.7174C21.3238 28.8911 19.1562 24.7232 18.4808 23.3461C17.9405 22.2444 14.7957 16.5883 13.2909 13.8979C14.5421 12.2734 17.1618 8.87806 17.6304 8.29299C18.2161 7.56165 22.8737 1.94806 23.1028 1.65146C23.332 1.35485 23.8395 0.493744 23.5448 0.340657C23.2502 0.187571 22.5954 0.608558 22.0388 1.02955C21.4822 1.45053 17.3235 5.75763 16.7049 6.39265C16.2099 6.90066 13.3599 10.1557 11.9968 11.7198C10.8348 9.9029 8.46269 6.19156 8.26954 5.8811C8.0281 5.49304 4.5956 0.710851 3.84817 0.201206C3.28165 -0.185078 2.08585 0.000331625 1.66012 0.624552C1.12798 1.40477 1.50743 2.77366 1.84885 3.30801C2.48781 4.09156 4.61467 6.57854 5.43418 7.5365C6.25368 8.49446 8.97682 12.1766 10.236 13.8979C9.14755 15.3074 6.45856 18.7925 4.4098 21.4568C2.36104 24.1212 0.576093 27.1148 0.312293 28.0802Z" fill="url(#will-extract-gradient-man)"/>
+        <defs>
+          <radialGradient id="will-extract-gradient-man" cx="0" cy="0" r="1" gradientTransform="matrix(11.8521 -12.9807 9.61599 11.9972 13.4853 12.2084)" gradientUnits="userSpaceOnUse">
+            <stop offset="0.226023" stopColor="#CF0202"/>
+            <stop offset="1" stopColor="#910202"/>
+          </radialGradient>
+        </defs>
+      </svg>
+    )
+  }
+
+  const renderCheckbox = (toothNumber: number, x: number, width: number, toothHeight: number = 135) => {
+    if (!showCheckboxes) return null
+    if (!toothExtractionMap[toothNumber]) return null
+    const size = 14
+    const cx = x + width / 2 - size / 2
+    const cy = toothHeight + 3
+    const isChecked = checkedTeeth.has(toothNumber)
+    const handleToggle = (e: React.MouseEvent) => {
+      e.stopPropagation()
+      setCheckedTeeth(prev => {
+        const next = new Set(prev)
+        if (next.has(toothNumber)) {
+          next.delete(toothNumber)
+        } else {
+          next.add(toothNumber)
+        }
+        return next
+      })
+    }
+    return (
+      <svg
+        key={`checkbox-${toothNumber}`}
+        x={cx}
+        y={cy}
+        width={size}
+        height={size}
+        viewBox="0 0 14 14"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        style={{ cursor: 'pointer' }}
+        onClick={handleToggle}
+      >
+        {isChecked ? (
+          <>
+            <rect x="0.5" y="0.5" width="13" height="13" rx="2.5" fill="#1162A8" stroke="#1162A8" />
+            <path d="M2.5 7L5.5 10L11.5 4" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </>
+        ) : (
+          <rect x="0.5" y="0.5" width="13" height="13" rx="2.5" fill="white" stroke="#9CA3AF" />
+        )}
+      </svg>
+    )
   }
 
   const handleToothClick = (toothNumber: number) => {
@@ -428,7 +513,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
 
       <div className={`relative ${className}`}>
 
-        <svg ref={svgRef} width="100%" height="99" viewBox="0 0 700 120" fill="none" xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink">
+        <svg ref={svgRef} width="100%" height={showCheckboxes ? "116" : "99"} viewBox={`0 0 700 ${showCheckboxes ? "153" : "120"}`} fill="none" xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink">
           {renderImplantOverlays()}
           {isImplantTooth(32) ? (
             <g transform={getToothTransform(32, 0, 43)}>
@@ -437,8 +522,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <g>
               <g>
-              <rect width="43" height="135" fill="url(#pattern0_197_3840_flipped)" filter={willExtractTeeth.includes(32) ? "url(#wed-tint)" : undefined} onClick={() => handleToothClick(32)} onMouseEnter={() => setHoveredTooth(32)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(32), transition: 'all 0.2s ease' }} />
+              <rect width="43" height="135" fill="url(#pattern0_197_3840_flipped)" onClick={() => handleToothClick(32)} onMouseEnter={() => setHoveredTooth(32)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(32), transition: 'all 0.2s ease' }} />
               {renderClaspOverlay(32, 0, 43, 42)}
+              {renderWillExtractOverlay(32, 0, 43)}
+              {renderCheckbox(32, 0, 43)}
             </g>
               {isToothSelected(32) && !hideSelectionIndicators && (
                 <>
@@ -458,8 +545,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <g>
               <g>
-              <rect x="256" width="31" height="135" fill="url(#pattern1_197_3840_flipped)" filter={willExtractTeeth.includes(26) ? "url(#wed-tint)" : undefined} onClick={() => handleToothClick(26)} onMouseEnter={() => setHoveredTooth(26)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(26), transition: 'all 0.2s ease' }} />
+              <rect x="256" width="31" height="135" fill="url(#pattern1_197_3840_flipped)" onClick={() => handleToothClick(26)} onMouseEnter={() => setHoveredTooth(26)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(26), transition: 'all 0.2s ease' }} />
               {renderClaspOverlay(26, 256, 31, 42)}
+              {renderWillExtractOverlay(26, 256, 31)}
+              {renderCheckbox(26, 256, 31)}
             </g>
               {isToothSelected(26) && !hideSelectionIndicators && (
                 <>
@@ -479,8 +568,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <g>
               <g>
-              <rect x="148" width="38" height="135" fill="url(#pattern2_197_3840_flipped)" filter={willExtractTeeth.includes(29) ? "url(#wed-tint)" : undefined} onClick={() => handleToothClick(29)} onMouseEnter={() => setHoveredTooth(29)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(29), transition: 'all 0.2s ease' }} />
+              <rect x="148" width="38" height="135" fill="url(#pattern2_197_3840_flipped)" onClick={() => handleToothClick(29)} onMouseEnter={() => setHoveredTooth(29)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(29), transition: 'all 0.2s ease' }} />
               {renderClaspOverlay(29, 148, 38, 42)}
+              {renderWillExtractOverlay(29, 148, 38)}
+              {renderCheckbox(29, 148, 38)}
             </g>
               {isToothSelected(29) && !hideSelectionIndicators && (
                 <>
@@ -500,8 +591,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <g>
               <g>
-              <rect x="339" width="30" height="135" fill="url(#pattern3_197_3840_flipped)" filter={willExtractTeeth.includes(23) ? "url(#wed-tint)" : undefined} onClick={() => handleToothClick(23)} onMouseEnter={() => setHoveredTooth(23)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(23), transition: 'all 0.2s ease' }} />
+              <rect x="339" width="30" height="135" fill="url(#pattern3_197_3840_flipped)" onClick={() => handleToothClick(23)} onMouseEnter={() => setHoveredTooth(23)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(23), transition: 'all 0.2s ease' }} />
               {renderClaspOverlay(23, 339, 30, 42)}
+              {renderWillExtractOverlay(23, 339, 30)}
+              {renderCheckbox(23, 339, 30)}
             </g>
               {isToothSelected(23) && !hideSelectionIndicators && (
                 <>
@@ -521,8 +614,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <g>
               <g>
-              <rect x="43" width="51" height="135" fill="url(#pattern4_197_3840_flipped)" filter={willExtractTeeth.includes(31) ? "url(#wed-tint)" : undefined} onClick={() => handleToothClick(31)} onMouseEnter={() => setHoveredTooth(31)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(31), transition: 'all 0.2s ease' }} />
+              <rect x="43" width="51" height="135" fill="url(#pattern4_197_3840_flipped)" onClick={() => handleToothClick(31)} onMouseEnter={() => setHoveredTooth(31)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(31), transition: 'all 0.2s ease' }} />
               {renderClaspOverlay(31, 43, 51, 42)}
+              {renderWillExtractOverlay(31, 43, 51)}
+              {renderCheckbox(31, 43, 51)}
             </g>
               {isToothSelected(31) && !hideSelectionIndicators && (
                 <>
@@ -542,8 +637,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <g>
               <g>
-              <rect x="287" width="26" height="135" fill="url(#pattern5_197_3840_flipped)" filter={willExtractTeeth.includes(25) ? "url(#wed-tint)" : undefined} onClick={() => handleToothClick(25)} onMouseEnter={() => setHoveredTooth(25)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(25), transition: 'all 0.2s ease' }} />
+              <rect x="287" width="26" height="135" fill="url(#pattern5_197_3840_flipped)" onClick={() => handleToothClick(25)} onMouseEnter={() => setHoveredTooth(25)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(25), transition: 'all 0.2s ease' }} />
               {renderClaspOverlay(25, 287, 26, 42)}
+              {renderWillExtractOverlay(25, 287, 26)}
+              {renderCheckbox(25, 287, 26)}
             </g>
               {isToothSelected(25) && !hideSelectionIndicators && (
                 <>
@@ -563,8 +660,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <g>
               <g>
-              <rect x="186" width="36" height="135" fill="url(#pattern6_197_3840_flipped)" filter={willExtractTeeth.includes(28) ? "url(#wed-tint)" : undefined} onClick={() => handleToothClick(28)} onMouseEnter={() => setHoveredTooth(28)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(28), transition: 'all 0.2s ease' }} />
+              <rect x="186" width="36" height="135" fill="url(#pattern6_197_3840_flipped)" onClick={() => handleToothClick(28)} onMouseEnter={() => setHoveredTooth(28)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(28), transition: 'all 0.2s ease' }} />
               {renderClaspOverlay(28, 186, 36, 42)}
+              {renderWillExtractOverlay(28, 186, 36)}
+              {renderCheckbox(28, 186, 36)}
             </g>
               {isToothSelected(28) && !hideSelectionIndicators && (
                 <>
@@ -582,8 +681,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <>
               <g>
-              <rect x="369" width="34" height="135" fill="url(#pattern7_197_3840_flipped)" filter={willExtractTeeth.includes(22) ? "url(#wed-tint)" : undefined} onClick={() => handleToothClick(22)} onMouseEnter={() => setHoveredTooth(22)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(22), transition: 'all 0.2s ease' }} />
+              <rect x="369" width="34" height="135" fill="url(#pattern7_197_3840_flipped)" onClick={() => handleToothClick(22)} onMouseEnter={() => setHoveredTooth(22)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(22), transition: 'all 0.2s ease' }} />
               {renderClaspOverlay(22, 369, 34, 42)}
+              {renderWillExtractOverlay(22, 369, 34)}
+              {renderCheckbox(22, 369, 34)}
             </g>
               {isToothSelected(22) && !hideSelectionIndicators && (
                 <>
@@ -601,8 +702,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <>
               <g>
-              <rect x="530" width="51" height="135" fill="url(#pattern8_197_3840_flipped)" filter={willExtractTeeth.includes(18) ? "url(#wed-tint)" : undefined} onClick={() => handleToothClick(18)} onMouseEnter={() => setHoveredTooth(18)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(18), transition: 'all 0.2s ease' }} />
+              <rect x="530" width="51" height="135" fill="url(#pattern8_197_3840_flipped)" onClick={() => handleToothClick(18)} onMouseEnter={() => setHoveredTooth(18)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(18), transition: 'all 0.2s ease' }} />
               {renderClaspOverlay(18, 530, 51, 42)}
+              {renderWillExtractOverlay(18, 530, 51)}
+              {renderCheckbox(18, 530, 51)}
             </g>
               {isToothSelected(18) && !hideSelectionIndicators && (
                 <>
@@ -620,8 +723,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <>
               <g>
-              <rect x="439" width="38" height="135" fill="url(#pattern9_197_3840_flipped)" filter={willExtractTeeth.includes(20) ? "url(#wed-tint)" : undefined} onClick={() => handleToothClick(20)} onMouseEnter={() => setHoveredTooth(20)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(20), transition: 'all 0.2s ease' }} />
+              <rect x="439" width="38" height="135" fill="url(#pattern9_197_3840_flipped)" onClick={() => handleToothClick(20)} onMouseEnter={() => setHoveredTooth(20)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(20), transition: 'all 0.2s ease' }} />
               {renderClaspOverlay(20, 439, 38, 42)}
+              {renderWillExtractOverlay(20, 439, 38)}
+              {renderCheckbox(20, 439, 38)}
             </g>
               {isToothSelected(20) && !hideSelectionIndicators && (
                 <>
@@ -641,8 +746,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <g>
               <g>
-              <rect x="94" width="54" height="135" fill="url(#pattern10_197_3840_flipped)" filter={willExtractTeeth.includes(30) ? "url(#wed-tint)" : undefined} onClick={() => handleToothClick(30)} onMouseEnter={() => setHoveredTooth(30)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(30), transition: 'all 0.2s ease' }} />
+              <rect x="94" width="54" height="135" fill="url(#pattern10_197_3840_flipped)" onClick={() => handleToothClick(30)} onMouseEnter={() => setHoveredTooth(30)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(30), transition: 'all 0.2s ease' }} />
               {renderClaspOverlay(30, 94, 54, 42)}
+              {renderWillExtractOverlay(30, 94, 54)}
+              {renderCheckbox(30, 94, 54)}
             </g>
               {isToothSelected(30) && !hideSelectionIndicators && (
                 <>
@@ -660,8 +767,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <>
               <g>
-              <rect x="313" width="26" height="135" fill="url(#pattern11_197_3840_flipped)" filter={willExtractTeeth.includes(24) ? "url(#wed-tint)" : undefined} onClick={() => handleToothClick(24)} onMouseEnter={() => setHoveredTooth(24)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(24), transition: 'all 0.2s ease' }} />
+              <rect x="313" width="26" height="135" fill="url(#pattern11_197_3840_flipped)" onClick={() => handleToothClick(24)} onMouseEnter={() => setHoveredTooth(24)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(24), transition: 'all 0.2s ease' }} />
               {renderClaspOverlay(24, 313, 26, 42)}
+              {renderWillExtractOverlay(24, 313, 26)}
+              {renderCheckbox(24, 313, 26)}
             </g>
               {isToothSelected(24) && !hideSelectionIndicators && (
                 <>
@@ -681,8 +790,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <g>
               <g>
-              <rect x="222" width="34" height="135" fill="url(#pattern12_197_3840_flipped)" filter={willExtractTeeth.includes(27) ? "url(#wed-tint)" : undefined} onClick={() => handleToothClick(27)} onMouseEnter={() => setHoveredTooth(27)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(27), transition: 'all 0.2s ease' }} />
+              <rect x="222" width="34" height="135" fill="url(#pattern12_197_3840_flipped)" onClick={() => handleToothClick(27)} onMouseEnter={() => setHoveredTooth(27)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(27), transition: 'all 0.2s ease' }} />
               {renderClaspOverlay(27, 222, 34, 42)}
+              {renderWillExtractOverlay(27, 222, 34)}
+              {renderCheckbox(27, 222, 34)}
             </g>
               {isToothSelected(27) && !hideSelectionIndicators && (
                 <>
@@ -700,8 +811,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <>
               <g>
-              <rect x="477" width="53" height="135" fill="url(#pattern13_197_3840_flipped)" filter={willExtractTeeth.includes(19) ? "url(#wed-tint)" : undefined} onClick={() => handleToothClick(19)} onMouseEnter={() => setHoveredTooth(19)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(19), transition: 'all 0.2s ease' }} />
+              <rect x="477" width="53" height="135" fill="url(#pattern13_197_3840_flipped)" onClick={() => handleToothClick(19)} onMouseEnter={() => setHoveredTooth(19)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(19), transition: 'all 0.2s ease' }} />
               {renderClaspOverlay(19, 477, 53, 42)}
+              {renderWillExtractOverlay(19, 477, 53)}
+              {renderCheckbox(19, 477, 53)}
             </g>
               {isToothSelected(19) && !hideSelectionIndicators && (
                 <>
@@ -719,8 +832,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <>
               <g>
-              <rect x="403" width="36" height="135" fill="url(#pattern14_197_3840_flipped)" filter={willExtractTeeth.includes(21) ? "url(#wed-tint)" : undefined} onClick={() => handleToothClick(21)} onMouseEnter={() => setHoveredTooth(21)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(21), transition: 'all 0.2s ease' }} />
+              <rect x="403" width="36" height="135" fill="url(#pattern14_197_3840_flipped)" onClick={() => handleToothClick(21)} onMouseEnter={() => setHoveredTooth(21)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(21), transition: 'all 0.2s ease' }} />
               {renderClaspOverlay(21, 403, 36, 42)}
+              {renderWillExtractOverlay(21, 403, 36)}
+              {renderCheckbox(21, 403, 36)}
             </g>
               {isToothSelected(21) && !hideSelectionIndicators && (
                 <>
@@ -738,8 +853,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <>
               <g>
-              <rect x="581" width="43" height="135" fill="url(#pattern15_197_3840_flipped)" filter={willExtractTeeth.includes(17) ? "url(#wed-tint)" : undefined} onClick={() => handleToothClick(17)} onMouseEnter={() => setHoveredTooth(17)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(17), transition: 'all 0.2s ease' }} />
+              <rect x="581" width="43" height="135" fill="url(#pattern15_197_3840_flipped)" onClick={() => handleToothClick(17)} onMouseEnter={() => setHoveredTooth(17)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(17), transition: 'all 0.2s ease' }} />
               {renderClaspOverlay(17, 581, 43, 42)}
+              {renderWillExtractOverlay(17, 581, 43)}
+              {renderCheckbox(17, 581, 43)}
             </g>
               {isToothSelected(17) && !hideSelectionIndicators && (
                 <>
@@ -753,13 +870,6 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             </>
           )}
           <defs>
-            {/* WED salmon-pink: solid color flood clipped to tooth shape */}
-            <filter id="wed-tint" colorInterpolationFilters="sRGB">
-              <feFlood floodColor="#fe9aa0" floodOpacity="1" result="pink" />
-              <feComposite in="pink" in2="SourceGraphic" operator="in" />
-            </filter>
-            {/* Override tooth number fill for WED teeth */}
-            <style>{`.wed-number path { fill: #374151 !important; }`}</style>
             {/* Implant pattern for mandibular teeth */}
             <pattern id="implant-pattern-mandibular" patternContentUnits="objectBoundingBox" width="1" height="1">
               <use xlinkHref="#implant-image-mandibular" transform="scale(0.00990099 0.00262467)" />

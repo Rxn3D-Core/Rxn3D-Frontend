@@ -576,6 +576,8 @@ interface MandibularPanelProps {
   onOpposingExtractionToggle?: (toothNumber: number, extractionCode: string) => void;
   /** Selects all opposing arch teeth for a given opposing extraction */
   onSelectAllOpposingTeeth?: (teeth: number[]) => void;
+  /** Called when the checked teeth (checkbox selection) change */
+  onCheckedTeethChange?: (teeth: number[]) => void;
 }
 
 /** Auto-opens the shade picker when this component mounts (i.e. shade field becomes visible) and the field has no value */
@@ -668,10 +670,16 @@ export function MandibularPanel({
   opposingToothExtractionMap = {},
   onOpposingExtractionToggle,
   onSelectAllOpposingTeeth,
+  onCheckedTeethChange,
 }: MandibularPanelProps) {
   const MANDIBULAR_ALL_TEETH = [17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32];
   const [activeExtractionCode, setActiveExtractionCode] = useState<string | null>(null);
   const [activeExtractions, setActiveExtractions] = useState<import("../types").ProductExtraction[]>([]);
+  const [mandibularCheckedTeeth, setMandibularCheckedTeeth] = useState<number[]>([]);
+  const handleMandibularCheckedTeethChange = useCallback((teeth: number[]) => {
+    setMandibularCheckedTeeth(teeth);
+    onCheckedTeethChange?.(teeth);
+  }, [onCheckedTeethChange]);
   /** Tracks implant detail completion per tooth so we can block impression modal until complete. */
   const [implantDetailCompleteByTooth, setImplantDetailCompleteByTooth] = useState<Record<number, boolean>>({});
   /** Persists implant detail form data per tooth so it survives accordion collapse/expand. */
@@ -824,10 +832,31 @@ export function MandibularPanel({
         </button>
         {showMandibular && (!activeProductIsRemovables || activeProductCardId !== 0 || removablesImpressionDone) && (
           <div className="pr-9">
+            {(() => {
+              const checkedCount = opposingProductData
+                ? Object.keys(opposingToothExtractionMap).length
+                : mandibularCheckedTeeth.length;
+              return checkedCount > 0 ? (
+                <p className="text-center text-[#CF0202] font-bold text-sm mb-1">
+                  {checkedCount} of 16 teeth to replace
+                </p>
+              ) : null;
+            })()}
             <MandibularTeethSVG
                 selectedTeeth={activeCardMandibularTeeth}
                 willExtractTeeth={(() => {
                   const wedCodes = new Set<string>();
+                  if (opposingProductData) {
+                    for (const e of opposingProductData.extractions ?? []) {
+                      const n = (e.name ?? "").toLowerCase().trim();
+                      if (e.code === "WED" || n === "will extract on delivery") {
+                        wedCodes.add(e.code);
+                      }
+                    }
+                    return Object.entries(opposingToothExtractionMap)
+                      .filter(([, code]) => wedCodes.has(code))
+                      .map(([tn]) => Number(tn));
+                  }
                   for (const tn of MANDIBULAR_ALL_TEETH) {
                     const product = getToothProduct("mandibular", tn);
                     for (const e of product?.extractions ?? []) {
@@ -848,6 +877,13 @@ export function MandibularPanel({
                       onOpposingExtractionToggle?.(toothNumber, opposingActiveExtractionCode);
                     }
                   } else if (activeExtractionCode) {
+                    const activeExt = activeExtractions.find((e) => e.code === activeExtractionCode);
+                    const maxTeeth = activeExt?.max_teeth && activeExt.max_teeth > 0 ? activeExt.max_teeth : null;
+                    const currentCount = Object.values(mandibularToothExtractionMap).filter((c) => c === activeExtractionCode).length;
+                    const alreadyAssigned = mandibularToothExtractionMap[toothNumber] === activeExtractionCode;
+                    if (maxTeeth !== null && currentCount >= maxTeeth && !alreadyAssigned) {
+                      return;
+                    }
                     if (!mandibularTeeth.includes(toothNumber)) {
                       handleMandibularToothClick(toothNumber);
                     }
@@ -868,6 +904,12 @@ export function MandibularPanel({
                 retentionOptions={retentionOptions}
                 toothExtractionMap={opposingProductData ? opposingToothExtractionMap : mandibularToothExtractionMap}
                 hideSelectionIndicators={!!opposingProductData || (isRemovablesCategory && !activeCardIsFixed) || activeProductIsRemovables}
+                showCheckboxes={
+                  opposingProductData
+                    ? (!!opposingActiveExtractionCode || Object.keys(opposingToothExtractionMap).length > 0)
+                    : (!!activeExtractionCode || Object.keys(mandibularToothExtractionMap).length > 0)
+                }
+                onCheckedTeethChange={handleMandibularCheckedTeethChange}
                 claspTeeth={mandibularClaspTeeth}
                 getAddonValue={(toothNumber) => getFieldValue("mandibular", toothNumber, "addons")}
               />

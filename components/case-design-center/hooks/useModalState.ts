@@ -19,6 +19,8 @@ export function useModalState() {
 
   // File attachment modal state
   const [showAttachModal, setShowAttachModal] = useState(false);
+  const [attachedPhotoCount, setAttachedPhotoCount] = useState(0);
+  const [attachedStlCount, setAttachedStlCount] = useState(0);
 
   // Rush request modal state
   const [showRushModal, setShowRushModal] = useState(false);
@@ -142,6 +144,10 @@ export function useModalState() {
     // Attachment
     showAttachModal,
     setShowAttachModal,
+    attachedPhotoCount,
+    setAttachedPhotoCount,
+    attachedStlCount,
+    setAttachedStlCount,
     // Rush
     showRushModal,
     setShowRushModal,
