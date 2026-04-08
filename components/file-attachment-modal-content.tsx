@@ -63,6 +63,8 @@ interface FileAttachmentModalContentProps {
   availableStages?: string[]
   /** Called when STL viewer opens/closes so parent dialog can resize */
   onViewerToggle?: (isOpen: boolean) => void
+  /** Called whenever the attached file list changes with counts of photos and STL files */
+  onFileCountsChange?: (photoCount: number, stlCount: number) => void
 }
 
 // Layout icon definitions for the STL viewer layout picker
@@ -95,6 +97,7 @@ export default function FileAttachmentModalContent({
   savedProducts = [],
   availableStages: propAvailableStages,
   onViewerToggle,
+  onFileCountsChange,
 }: FileAttachmentModalContentProps) {
   const { uploadSlipAttachment, fetchSlipAttachments } = useSlipCreation()
 
@@ -213,7 +216,12 @@ export default function FileAttachmentModalContent({
     if (typeof window !== "undefined") {
       ;(window as any).__caseDesignAttachments = simulatedUploads
     }
-  }, [simulatedUploads])
+    if (onFileCountsChange) {
+      const photoCount = simulatedUploads.filter((u) => u.type === "image").length
+      const stlCount = simulatedUploads.filter((u) => u.type === "stl" || u.type === "3dobject").length
+      onFileCountsChange(photoCount, stlCount)
+    }
+  }, [simulatedUploads, onFileCountsChange])
 
   const [selectedImageThumbnailUrls, setSelectedImageThumbnailUrls] = useState<string[]>([])
 

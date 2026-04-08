@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Filter, Plus, Search, ChevronDown, Check } from "lucide-react";
 import { SlipCreationStepFooter } from "@/components/slip-creation-step-footer";
 import { useConnectedOfficesOrLabs } from "@/hooks/use-connected-offices";
@@ -884,6 +884,9 @@ function StepSubProduct({
   onPatientNameChange,
   onGenderChange,
   onAgeChange,
+  archPopoverSubId,
+  setArchPopoverSubId,
+  onArchPickForSingle,
 }: {
   categoryId: number;
   subProducts: { id: number; name: string; img: string }[];
@@ -898,8 +901,23 @@ function StepSubProduct({
   onPatientNameChange?: (value: string) => void;
   onGenderChange?: (value: string) => void;
   onAgeChange?: (value: string) => void;
+  archPopoverSubId: number | null;
+  setArchPopoverSubId: (id: number | null) => void;
+  onArchPickForSingle?: (arch: "maxillary" | "mandibular" | "both") => void;
 }) {
   const [accordionOpen, setAccordionOpen] = useState(false);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!archPopoverSubId) return;
+    const handleMouseDown = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setArchPopoverSubId(null);
+      }
+    };
+    document.addEventListener("mousedown", handleMouseDown);
+    return () => document.removeEventListener("mousedown", handleMouseDown);
+  }, [archPopoverSubId, setArchPopoverSubId]);
 
   return (
     <div className="flex-1 flex flex-col px-6 py-4">
@@ -934,23 +952,52 @@ function StepSubProduct({
       {/* Product grid */}
       <div className="flex flex-wrap justify-center gap-4 mb-6">
         {subProducts.map((prod) => (
-          <button
-            key={prod.id}
-            onClick={() => onSelect(prod.id)}
-            className={`group flex flex-col overflow-hidden rounded-[7px] border-[3px] w-[200px] sm:w-[250px] md:w-[300px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${
-              selected === prod.id
-                ? "border-[#1162A8] bg-[#1162A8]/5"
-                : "border-[#d9d9d9] bg-white"
-            }`}
-          >
-            <span
-              className="text-[14px] font-normal text-black text-center self-stretch tracking-[-0.02em] leading-[15px] py-2 px-2"
-              style={{ fontFamily: "Verdana, sans-serif" }}
+          <div key={prod.id} className="relative">
+            <button
+              onClick={() => {
+                setArchPopoverSubId(null);
+                onSelect(prod.id);
+              }}
+              className={`group flex flex-col overflow-hidden rounded-[7px] border-[3px] w-[200px] sm:w-[250px] md:w-[300px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${
+                selected === prod.id
+                  ? "border-[#1162A8] bg-[#1162A8]/5"
+                  : "border-[#d9d9d9] bg-white"
+              }`}
             >
-              {prod.name}
-            </span>
-            <ProductImageWithFallback src={prod.img} alt={prod.name} name={prod.name} className="rounded-none" bgClassName="" />
-          </button>
+              <span
+                className="text-[14px] font-normal text-black text-center self-stretch tracking-[-0.02em] leading-[15px] py-2 px-2"
+                style={{ fontFamily: "Verdana, sans-serif" }}
+              >
+                {prod.name}
+              </span>
+              <ProductImageWithFallback src={prod.img} alt={prod.name} name={prod.name} className="rounded-none" bgClassName="" />
+            </button>
+
+            {archPopoverSubId === prod.id && onArchPickForSingle && (
+              <div
+                ref={popoverRef}
+                className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50 bg-white rounded-xl shadow-lg border border-[#E5E7EB] overflow-hidden min-w-[200px]"
+              >
+                {([
+                  { label: "Upper arch only", value: "maxillary" as const },
+                  { label: "Both arches", value: "both" as const },
+                  { label: "Lower arch only", value: "mandibular" as const },
+                ]).map((option) => (
+                  <div
+                    key={option.value}
+                    className="px-6 py-3 cursor-pointer hover:bg-[#DFEEFB] transition-colors text-[#1d1d1b]"
+                    style={{ fontFamily: "Verdana, sans-serif", fontSize: 14, lineHeight: "22px" }}
+                    onClick={() => {
+                      setArchPopoverSubId(null);
+                      onArchPickForSingle(option.value);
+                    }}
+                  >
+                    {option.label}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         ))}
       </div>
 
@@ -1016,6 +1063,28 @@ function StepMaterial({
 }) {
   const [archPopoverProductId, setArchPopoverProductId] = useState<string | null>(null);
   const cardRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+  useEffect(() => {
+    if (
+      products.length === 1 &&
+      !selected &&
+      (!isRemovableRestoration || forceArch) &&
+      !isLoading
+    ) {
+      const only = products[0];
+      onSelect(String(only.id), forceArch);
+    }
+  }, [products, selected, isRemovableRestoration, forceArch, isLoading, onSelect]);
+
+  useEffect(() => {
+    if (products.length <= 1 && archPopoverProductId) {
+      setArchPopoverProductId(null);
+    }
+  }, [products.length, archPopoverProductId]);
+
+  const shouldAutoSelectSingle = products.length === 1 && (!isRemovableRestoration || forceArch);
+  const shouldAskArchOnly = products.length === 1 && isRemovableRestoration && !forceArch && !isLoading;
+
   if (error) {
     return (
       <div className="flex-1 flex flex-col px-6 py-6 items-center justify-center">
@@ -1068,7 +1137,7 @@ function StepMaterial({
       </div>
 
       {/* Backdrop to close arch popover on outside click */}
-      {archPopoverProductId && (
+      {archPopoverProductId && !shouldAskArchOnly && (
         <div
           className="fixed inset-0 z-40"
           onClick={() => setArchPopoverProductId(null)}
@@ -1076,62 +1145,91 @@ function StepMaterial({
       )}
 
       {/* Product cards grid (from API) */}
-      <div className="flex flex-wrap justify-center gap-4 mb-6">
-        {products.map((prod) => {
-          const prodId = String(prod.id);
-          const isSelected = selected === prodId || archPopoverProductId === prodId;
-          return (
-            <div key={prod.id} className="relative">
-              <button
-                ref={(el) => { cardRefs.current[prodId] = el; }}
-                onClick={() => {
-                  if (isRemovableRestoration && !forceArch) {
-                    setArchPopoverProductId(archPopoverProductId === prodId ? null : prodId);
-                  } else {
-                    onSelect(prodId, forceArch);
-                  }
-                }}
-                className={`group relative flex flex-col items-center overflow-hidden w-[200px] h-[200px] rounded-[7px] border-[3px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${
-                  isSelected
-                    ? "border-[#1162A8] bg-[#1162A8]/5"
-                    : "border-[#d9d9d9] bg-white"
-                }`}
-              >
-                <span
-                  style={{ fontFamily: "Verdana, sans-serif", fontSize: 14, lineHeight: "15px", letterSpacing: "-0.02em" }}
-                  className="text-[#000000] text-center self-stretch py-2 px-2"
+      {/* Single removable product with no forced arch: show arch picker without product grid */}
+      {shouldAskArchOnly && (
+        <div className="flex justify-center mb-6">
+          <div className="relative">
+            <div className="bg-white rounded-xl shadow-lg border border-[#E5E7EB] overflow-hidden min-w-[220px]">
+              {([
+                { label: "Upper arch only", value: "maxillary" as const },
+                { label: "Both arches", value: "both" as const },
+                { label: "Lower arch only", value: "mandibular" as const },
+              ]).map((option) => (
+                <div
+                  key={option.value}
+                  className="px-6 py-3 cursor-pointer hover:bg-[#DFEEFB] transition-colors text-[#1d1d1b]"
+                  style={{ fontFamily: "Verdana, sans-serif", fontSize: 14, lineHeight: "22px" }}
+                  onClick={() => {
+                    const only = products[0];
+                    onSelect(String(only.id), option.value);
+                  }}
                 >
-                  {prod.name}
-                </span>
-                <ProductImageWithFallback src={prod.img} alt={prod.name} name={prod.name} className="rounded-none" bgClassName="bg-[#080808]" textClassName="text-[#b4b0b0]" fillHeight />
-              </button>
-
-              {/* Arch selection popover */}
-              {archPopoverProductId === prodId && (
-                <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50 bg-white rounded-xl shadow-lg border border-[#E5E7EB] overflow-hidden min-w-[200px]">
-                  {([
-                    { label: "Upper arch only", value: "maxillary" as const },
-                    { label: "Both arches", value: "both" as const },
-                    { label: "Lower arch only", value: "mandibular" as const },
-                  ]).map((option) => (
-                    <div
-                      key={option.value}
-                      className="px-6 py-3 cursor-pointer hover:bg-[#DFEEFB] transition-colors text-[#1d1d1b]"
-                      style={{ fontFamily: "Verdana, sans-serif", fontSize: 14, lineHeight: "22px" }}
-                      onClick={() => {
-                        setArchPopoverProductId(null);
-                        onSelect(prodId, option.value);
-                      }}
-                    >
-                      {option.label}
-                    </div>
-                  ))}
+                  {option.label}
                 </div>
-              )}
+              ))}
             </div>
-          );
-        })}
-      </div>
+          </div>
+        </div>
+      )}
+
+      {!shouldAutoSelectSingle && !shouldAskArchOnly && (
+        <div className="flex flex-wrap justify-center gap-4 mb-6">
+          {products.map((prod) => {
+            const prodId = String(prod.id);
+            const isSelected = selected === prodId || archPopoverProductId === prodId;
+            return (
+              <div key={prod.id} className="relative">
+                <button
+                  ref={(el) => { cardRefs.current[prodId] = el; }}
+                  onClick={() => {
+                    if (isRemovableRestoration && !forceArch && products.length > 1) {
+                      setArchPopoverProductId(archPopoverProductId === prodId ? null : prodId);
+                    } else {
+                      onSelect(prodId, forceArch);
+                    }
+                  }}
+                  className={`group relative flex flex-col items-center overflow-hidden w-[200px] h-[200px] rounded-[7px] border-[3px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${
+                    isSelected
+                      ? "border-[#1162A8] bg-[#1162A8]/5"
+                      : "border-[#d9d9d9] bg-white"
+                  }`}
+                >
+                  <span
+                    style={{ fontFamily: "Verdana, sans-serif", fontSize: 14, lineHeight: "15px", letterSpacing: "-0.02em" }}
+                    className="text-[#000000] text-center self-stretch py-2 px-2"
+                  >
+                    {prod.name}
+                  </span>
+                  <ProductImageWithFallback src={prod.img} alt={prod.name} name={prod.name} className="rounded-none" bgClassName="bg-[#080808]" textClassName="text-[#b4b0b0]" fillHeight />
+                </button>
+
+                {/* Arch selection popover */}
+                {archPopoverProductId === prodId && (
+                  <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50 bg-white rounded-xl shadow-lg border border-[#E5E7EB] overflow-hidden min-w-[200px]">
+                    {([
+                      { label: "Upper arch only", value: "maxillary" as const },
+                      { label: "Both arches", value: "both" as const },
+                      { label: "Lower arch only", value: "mandibular" as const },
+                    ]).map((option) => (
+                      <div
+                        key={option.value}
+                        className="px-6 py-3 cursor-pointer hover:bg-[#DFEEFB] transition-colors text-[#1d1d1b]"
+                        style={{ fontFamily: "Verdana, sans-serif", fontSize: 14, lineHeight: "22px" }}
+                        onClick={() => {
+                          setArchPopoverProductId(null);
+                          onSelect(prodId, option.value);
+                        }}
+                      >
+                        {option.label}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Arch hint when adding product to a specific arch */}
       {forceArch && (
@@ -1322,6 +1420,9 @@ export default function NewCaseWizard({
   const [selectedCategory, setSelectedCategory] = useState<number | null>(initialCategory);
   const [selectedSubProduct, setSelectedSubProduct] = useState<number | null>(initialSubProduct);
   const [selectedMaterial, setSelectedMaterial] = useState<string | null>(null);
+  const [selectedArch, setSelectedArch] = useState<"maxillary" | "mandibular" | "both" | undefined>(forceArch);
+  const [archPopoverSubId, setArchPopoverSubId] = useState<number | null>(null);
+  const [shouldAutoAdvanceProducts, setShouldAutoAdvanceProducts] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showAddLabModal, setShowAddLabModal] = useState(false);
   const [showAddDoctorModal, setShowAddDoctorModal] = useState(false);
@@ -1359,7 +1460,7 @@ export default function NewCaseWizard({
     subcategoryId: selectedSubProduct ?? undefined,
     perPage: 50,
     page: 1,
-    enabled: step === 6 && selectedSubProduct != null,
+    enabled: step >= 5 && selectedSubProduct != null,
   });
 
   // Office ID for doctors: office_admin = logged-in user's customerId; lab_admin = selected lab (office) id
@@ -1390,6 +1491,85 @@ export default function NewCaseWizard({
   );
 
   const doctor = doctorsForWizard.find((d) => d.id === selectedDoctor) ?? initialDoctor;
+
+  const finalizeSelection = useCallback(
+    (materialId: string, arch?: "maxillary" | "mandibular" | "both") => {
+      const selectedCategoryName = categoriesAsWizard.find((c) => c.id === selectedCategory)?.name ?? "";
+      const subProductName =
+        (subcategoriesByCategoryId[selectedCategory ?? -1] ?? []).find((p) => p.id === selectedSubProduct)?.name ?? "";
+      const archToUse = arch ?? selectedArch ?? forceArch;
+
+      setSelectedMaterial(materialId);
+      if (archToUse) setSelectedArch(archToUse);
+
+      const payload = {
+        doctor: doctor ?? { id: 0, name: "", img: "" },
+        lab: lab ?? { id: 0, name: "", location: "", logo: null },
+        patientName,
+        gender,
+        age,
+        category: String(selectedCategory),
+        categoryName: selectedCategoryName,
+        product: String(selectedSubProduct),
+        material: materialId,
+        arch: archToUse,
+      } as WizardResult;
+
+      if (mode === "addProduct") {
+        onComplete(payload);
+      } else if (doctor && lab) {
+        onComplete({ ...payload, doctor, lab });
+      }
+    },
+    [
+      categoriesAsWizard,
+      selectedCategory,
+      subcategoriesByCategoryId,
+      selectedSubProduct,
+      selectedArch,
+      forceArch,
+      doctor,
+      lab,
+      patientName,
+      gender,
+      age,
+      mode,
+      onComplete,
+    ]
+  );
+
+  useEffect(() => {
+    if (step !== 5) return;
+    if (selectedSubProduct == null) return;
+    if (productsLoading || productsError) return;
+    if (!shouldAutoAdvanceProducts) return;
+
+    const selectedCategoryName = categoriesAsWizard.find((c) => c.id === selectedCategory)?.name ?? "";
+    const isRemovable = selectedCategoryName.toLowerCase().includes("removable");
+
+    if (productsAsWizard.length === 1) {
+      const only = productsAsWizard[0];
+      if (isRemovable && !forceArch && !selectedArch) {
+        setArchPopoverSubId(selectedSubProduct);
+      } else {
+        finalizeSelection(String(only.id), forceArch ?? selectedArch);
+      }
+    } else if (productsAsWizard.length > 1) {
+      setStep(6);
+    }
+  }, [
+    step,
+    selectedSubProduct,
+    productsLoading,
+    productsError,
+    productsAsWizard,
+    selectedCategory,
+    categoriesAsWizard,
+    forceArch,
+    selectedArch,
+    finalizeSelection,
+    shouldAutoAdvanceProducts,
+  ]);
 
   // Step order: office_admin = Doctor(1) → Lab(2) → Patient(3)...; else (lab_admin, doctor, etc.) = Lab(1) → Doctor(2) → Patient(3)...
   const isStepDoctor = (s: number) => (s === 1 && role === "office_admin") || (s === 2 && role !== "office_admin");
@@ -1590,6 +1770,7 @@ export default function NewCaseWizard({
             onSelect={(id) => {
               setSelectedCategory(id);
               setSelectedSubProduct(null);
+              setSelectedArch(forceArch);
               setTimeout(() => setStep(5), 300);
             }}
             doctor={doctor}
@@ -1611,9 +1792,15 @@ export default function NewCaseWizard({
             selected={selectedSubProduct}
             onSelect={(id) => {
               setSelectedSubProduct(id);
-              setTimeout(() => setStep(6), 300);
+              setSelectedMaterial(null);
+              setArchPopoverSubId(null);
+              setShouldAutoAdvanceProducts(true);
             }}
             onBack={() => setStep(4)}
+            onPrevious={() => {
+              setShouldAutoAdvanceProducts(false);
+              setStep(5);
+            }}
             doctor={doctor}
             patientName={patientName}
             gender={gender}
@@ -1621,6 +1808,14 @@ export default function NewCaseWizard({
             onPatientNameChange={setPatientName}
             onGenderChange={setGender}
             onAgeChange={setAge}
+            archPopoverSubId={archPopoverSubId}
+            setArchPopoverSubId={setArchPopoverSubId}
+            onArchPickForSingle={(arch) => {
+              const only = productsAsWizard[0];
+              setSelectedArch(arch);
+              setSelectedMaterial(String(only?.id ?? ""));
+              finalizeSelection(String(only?.id ?? ""), arch);
+            }}
           />
         )}
         {step === 6 && selectedCategory != null && selectedSubProduct != null && (() => {
@@ -1637,10 +1832,14 @@ export default function NewCaseWizard({
               isLoading={productsLoading}
               error={productsError}
               isRemovableRestoration={isRemovable}
-              forceArch={forceArch}
-              onBack={() => setStep(5)}
+              forceArch={forceArch ?? selectedArch}
+              onBack={() => {
+                setShouldAutoAdvanceProducts(false);
+                setStep(5);
+              }}
               onSelect={(id, arch) => {
                 setSelectedMaterial(id);
+                if (arch) setSelectedArch(arch);
                 if (mode === "addProduct") {
                   setTimeout(() => {
                     onComplete({

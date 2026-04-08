@@ -102,7 +102,7 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
 
   return (
     <div className={`bg-[#fdfdfd] border-b border-[#d9d9d9] px-4 sm:px-6 ${compactLayout && !caseSubmitted ? "py-1" : "py-2"}`}>
-      <div className={`flex flex-col lg:flex-row items-center ${compactLayout && !caseSubmitted ? "gap-2 lg:gap-4" : "lg:items-start gap-4 lg:gap-8"}`}>
+      <div className={`flex flex-col lg:flex-row items-center min-w-0 overflow-hidden ${compactLayout && !caseSubmitted ? "gap-2 lg:gap-4" : "lg:items-start gap-4 lg:gap-6"}`}>
         {/* Doctor photo + name */}
         <div className="flex flex-col items-center gap-1 flex-shrink-0">
           <div className={`${caseSubmitted ? "w-[90px] h-[90px] sm:w-[130px] sm:h-[130px]" : compactLayout ? "w-[40px] h-[40px] sm:w-[50px] sm:h-[50px] hover:w-[70px] hover:h-[70px] sm:hover:w-[100px] sm:hover:h-[100px] transition-all duration-300 ease-in-out cursor-pointer" : "w-[70px] h-[70px] sm:w-[100px] sm:h-[100px]"} rounded-full overflow-hidden bg-gray-200 flex items-center justify-center relative`}>
@@ -134,7 +134,7 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
         </div>
 
         {/* Form fields */}
-        <div className="flex-1 w-full lg:w-auto flex flex-col gap-3 justify-center lg:justify-start">
+        <div className="flex-1 min-w-0 w-full lg:w-auto flex flex-col gap-3 justify-center lg:justify-start">
           {!caseSubmitted ? (
             compactLayout ? (
               /* Compact: Patient name + Gender + Age in one row (removable/orthodontics with products) */
@@ -208,46 +208,46 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
           ) : (
             <>
               {/* Row 1: Patient name, Slip number, Case number, Pan number, Status */}
-              <div className="flex flex-nowrap gap-3 sm:gap-4 items-start justify-center lg:justify-start">
+              <div className="flex flex-wrap gap-3 sm:gap-4 items-start justify-center lg:justify-start">
                 <FieldInput
                   label="Patient name"
                   value={displayPatientName}
                   submitted
-                  className="flex-1 min-w-0"
+                  className="flex-1 min-w-[140px]"
                 />
                 {slipHeaderLoading ? (
                   <>
-                    <SkeletonField label="Slip number" width="flex-1 min-w-0" />
-                    <SkeletonField label="Case number" width="flex-1 min-w-0" />
-                    <SkeletonField label="Pan number" width="flex-1 min-w-0" />
-                    <SkeletonField label="Status" width="flex-1 min-w-0" />
+                    <SkeletonField label="Slip number" width="flex-1 min-w-[110px]" />
+                    <SkeletonField label="Case number" width="flex-1 min-w-[110px]" />
+                    <SkeletonField label="Pan number" width="flex-1 min-w-[90px]" />
+                    <SkeletonField label="Status" width="flex-1 min-w-[100px]" />
                   </>
                 ) : (
                   <>
-                    <FieldInput label="Slip number" value={slipNumber} submitted className="flex-1 min-w-0" />
-                    <FieldInput label="Case number" value={caseNumber} submitted className="flex-1 min-w-0" />
-                    <FieldInput label="Pan number" value={panNumber} submitted className="flex-1 min-w-0" />
-                    <FieldInput label="Status" value={status} submitted className="flex-1 min-w-0" />
+                    <FieldInput label="Slip number" value={slipNumber} submitted className="flex-1 min-w-[110px]" />
+                    <FieldInput label="Case number" value={caseNumber} submitted className="flex-1 min-w-[110px]" />
+                    <FieldInput label="Pan number" value={panNumber} submitted className="flex-1 min-w-[90px]" />
+                    <FieldInput label="Status" value={status} submitted className="flex-1 min-w-[100px]" />
                   </>
                 )}
               </div>
               {/* Row 2: Gender, Age, Pick up Date, Due Date, Delivery Time, Location */}
-              <div className="flex flex-nowrap gap-3 sm:gap-4 items-start justify-center lg:justify-start">
-                <FieldInput label="Gender" value={displayGender} submitted className="flex-1 min-w-0" />
-                <FieldInput label="Age" value={displayAge} submitted className="flex-1 min-w-0" />
+              <div className="flex flex-wrap gap-3 sm:gap-4 items-start justify-center lg:justify-start">
+                <FieldInput label="Gender" value={displayGender} submitted className="flex-1 min-w-[90px]" />
+                <FieldInput label="Age" value={displayAge} submitted className="flex-1 min-w-[70px]" />
                 {slipHeaderLoading ? (
                   <>
-                    <SkeletonField label="Pick up Date" width="flex-1 min-w-0" />
-                    <SkeletonField label="Due Date" width="flex-1 min-w-0" />
-                    <SkeletonField label="Delivery Time" width="flex-1 min-w-0" />
-                    <SkeletonField label="Location" width="flex-1 min-w-0" />
+                    <SkeletonField label="Pick up Date" width="flex-1 min-w-[110px]" />
+                    <SkeletonField label="Due Date" width="flex-1 min-w-[110px]" />
+                    <SkeletonField label="Delivery Time" width="flex-1 min-w-[100px]" />
+                    <SkeletonField label="Location" width="flex-1 min-w-[120px]" />
                   </>
                 ) : (
                   <>
-                    <FieldInput label="Pick up Date" value={pickupDate} submitted className="flex-1 min-w-0" />
-                    <FieldInput label="Due Date" value={dueDate} submitted className="flex-1 min-w-0" />
-                    <FieldInput label="Delivery Time" value={deliveryTime} submitted className="flex-1 min-w-0" />
-                    <FieldInput label="Location" value={location} submitted className="flex-1 min-w-0" />
+                    <FieldInput label="Pick up Date" value={pickupDate} submitted className="flex-1 min-w-[110px]" />
+                    <FieldInput label="Due Date" value={dueDate} submitted className="flex-1 min-w-[110px]" />
+                    <FieldInput label="Delivery Time" value={deliveryTime} submitted className="flex-1 min-w-[100px]" />
+                    <FieldInput label="Location" value={location} submitted className="flex-1 min-w-[120px]" />
                   </>
                 )}
               </div>
@@ -257,8 +257,8 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
 
         {/* Created By - only show after submission */}
         {caseSubmitted && (
-          <div className="flex flex-col justify-center items-center gap-[15px] w-[170px] flex-shrink-0 lg:ml-2">
-            <div className="w-[60px] h-[60px] sm:w-[72.74px] sm:h-[72.74px] rounded-full overflow-hidden flex-shrink-0 bg-gray-200 flex items-center justify-center">
+          <div className="flex flex-col justify-center items-center gap-[15px] w-[160px] min-w-[160px] flex-shrink-0 ml-2 lg:ml-4 border-l border-[#d9d9d9] pl-4">
+            <div className="w-[60px] h-[60px] sm:w-[72px] sm:h-[72px] rounded-full overflow-hidden flex-shrink-0 bg-gray-200 flex items-center justify-center">
               {createdByImage ? (
                 <img
                   src={createdByImage}
@@ -275,11 +275,11 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
                 </span>
               )}
             </div>
-            <fieldset className="w-[170px] h-[38px] border border-[#7f7f7f] rounded-[7px] bg-white px-[11.2px] py-0 flex items-center">
+            <fieldset className="w-full h-[38px] border border-[#7f7f7f] rounded-[7px] bg-white px-[11.2px] py-0 flex items-center overflow-hidden">
               <legend className="text-sm text-[#7f7f7f] px-1 leading-[15px]">
                 Created By
               </legend>
-              <span className="text-lg leading-[20px] text-[#000000] whitespace-nowrap">
+              <span className="text-base leading-[20px] text-[#000000] truncate">
                 {createdByName || "—"}
               </span>
             </fieldset>

@@ -510,6 +510,8 @@ interface MaxillaryPanelProps {
   opposingToothExtractionMap?: Record<number, string>;
   /** Called when the user toggles a tooth into/out of an opposing extraction box */
   onOpposingExtractionToggle?: (toothNumber: number, extractionCode: string) => void;
+  /** Called when the checked teeth (checkbox selection) change */
+  onCheckedTeethChange?: (teeth: number[]) => void;
 }
 
 function hasAdvanceField(
@@ -682,10 +684,16 @@ export function MaxillaryPanel({
   opposingProductData = null,
   opposingToothExtractionMap = {},
   onOpposingExtractionToggle,
+  onCheckedTeethChange,
 }: MaxillaryPanelProps) {
   const MAXILLARY_ALL_TEETH = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16];
   const [activeExtractionCode, setActiveExtractionCode] = useState<string | null>(null);
   const [activeExtractions, setActiveExtractions] = useState<import("../types").ProductExtraction[]>([]);
+  const [maxillaryCheckedTeeth, setMaxillaryCheckedTeeth] = useState<number[]>([]);
+  const handleMaxillaryCheckedTeethChange = useCallback((teeth: number[]) => {
+    setMaxillaryCheckedTeeth(teeth);
+    onCheckedTeethChange?.(teeth);
+  }, [onCheckedTeethChange]);
   /** Tracks implant detail completion per tooth (firstToothNumber) so we can block impression modal until complete. */
   const [implantDetailCompleteByTooth, setImplantDetailCompleteByTooth] = useState<Record<number, boolean>>({});
   /** Persists implant detail form data per tooth so it survives accordion collapse/expand. */
@@ -831,11 +839,31 @@ export function MaxillaryPanel({
         </button>
         {showMaxillary && (!activeProductIsRemovables || activeProductCardId !== 0 || removablesImpressionDone) && (
           <div className="pl-9">
+            {(() => {
+              const checkedCount = opposingProductData
+                ? Object.keys(opposingToothExtractionMap).length
+                : maxillaryCheckedTeeth.length;
+              return checkedCount > 0 ? (
+                <p className="text-center text-[#CF0202] font-bold text-sm mb-1">
+                  {checkedCount} of 16 teeth to replace
+                </p>
+              ) : null;
+            })()}
             <MaxillaryTeethSVG
               selectedTeeth={activeCardMaxillaryTeeth}
               willExtractTeeth={(() => {
-                // Find WED extraction codes from product extractions
                 const wedCodes = new Set<string>();
+                if (opposingProductData) {
+                  for (const e of opposingProductData.extractions ?? []) {
+                    const n = (e.name ?? "").toLowerCase().trim();
+                    if (e.code === "WED" || n === "will extract on delivery") {
+                      wedCodes.add(e.code);
+                    }
+                  }
+                  return Object.entries(opposingToothExtractionMap)
+                    .filter(([, code]) => wedCodes.has(code))
+                    .map(([tn]) => Number(tn));
+                }
                 for (const tn of MAXILLARY_ALL_TEETH) {
                   const product = getToothProduct("maxillary", tn);
                   for (const e of product?.extractions ?? []) {
@@ -855,6 +883,13 @@ export function MaxillaryPanel({
                     onOpposingExtractionToggle?.(toothNumber, opposingActiveExtractionCode);
                   }
                 } else if (activeExtractionCode) {
+                  const activeExt = activeExtractions.find((e) => e.code === activeExtractionCode);
+                  const maxTeeth = activeExt?.max_teeth && activeExt.max_teeth > 0 ? activeExt.max_teeth : null;
+                  const currentCount = Object.values(maxillaryToothExtractionMap).filter((c) => c === activeExtractionCode).length;
+                  const alreadyAssigned = maxillaryToothExtractionMap[toothNumber] === activeExtractionCode;
+                  if (maxTeeth !== null && currentCount >= maxTeeth && !alreadyAssigned) {
+                    return;
+                  }
                   if (!maxillaryTeeth.includes(toothNumber)) {
                     handleMaxillaryToothClick(toothNumber);
                   }
@@ -882,6 +917,12 @@ export function MaxillaryPanel({
               retentionOptions={retentionOptions}
               toothExtractionMap={opposingProductData ? opposingToothExtractionMap : maxillaryToothExtractionMap}
               hideSelectionIndicators={!!opposingProductData || (isRemovablesCategory && !activeCardIsFixed) || activeProductIsRemovables}
+              showCheckboxes={
+                opposingProductData
+                  ? (!!opposingActiveExtractionCode || Object.keys(opposingToothExtractionMap).length > 0)
+                  : (!!activeExtractionCode || Object.keys(maxillaryToothExtractionMap).length > 0)
+              }
+              onCheckedTeethChange={handleMaxillaryCheckedTeethChange}
               claspTeeth={maxillaryClaspTeeth}
               getAddonValue={(toothNumber) => getFieldValue("maxillary", toothNumber, "addons")}
             />

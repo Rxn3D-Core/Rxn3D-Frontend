@@ -50,6 +50,7 @@ interface ModalOrchestratorProps {
   setShowAttachModal: (v: boolean) => void;
   /** Available stages derived from product API data — shown as accordion sections */
   attachmentStages?: string[];
+  onAttachFileCountsChange?: (photoCount: number, stlCount: number) => void;
   // Rush
   showRushModal: boolean;
   setShowRushModal: (v: boolean) => void;
@@ -134,6 +135,7 @@ export function ModalOrchestrator({
   showAttachModal,
   setShowAttachModal,
   attachmentStages,
+  onAttachFileCountsChange,
   // Rush
   showRushModal,
   setShowRushModal,
@@ -293,6 +295,7 @@ export function ModalOrchestrator({
             isCaseSubmitted={false}
             availableStages={attachmentStages}
             onViewerToggle={handleViewerToggle}
+            onFileCountsChange={onAttachFileCountsChange}
           />
         </DialogContent>
       </Dialog>

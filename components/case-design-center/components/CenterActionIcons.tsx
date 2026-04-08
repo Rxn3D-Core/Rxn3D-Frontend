@@ -136,6 +136,8 @@ interface CenterActionIconsProps {
   onPhoto?: () => void;
   onStlFile?: () => void;
   rushLabel?: string;
+  hasPhotos?: boolean;
+  hasStlFiles?: boolean;
 }
 
 export function CenterActionIcons({
@@ -147,6 +149,8 @@ export function CenterActionIcons({
   onPhoto,
   onStlFile,
   rushLabel = "Request Rush",
+  hasPhotos = false,
+  hasStlFiles = false,
 }: CenterActionIconsProps) {
   if (!visible) return null;
 
@@ -193,7 +197,7 @@ export function CenterActionIcons({
             <TooltipContent side="bottom"><p>Attach Files</p></TooltipContent>
           </Tooltip>
         )}
-        {onPhoto && (
+        {onPhoto && hasPhotos && (
           <Tooltip>
             <TooltipTrigger asChild>
               <button type="button" onClick={onPhoto} className="w-[48px] h-[48px] flex items-center justify-center rounded-[36px] transition-transform duration-200 ease-out hover:scale-[2] cursor-pointer">
@@ -203,7 +207,7 @@ export function CenterActionIcons({
             <TooltipContent side="bottom"><p>Photos</p></TooltipContent>
           </Tooltip>
         )}
-        {onStlFile && (
+        {onStlFile && hasStlFiles && (
           <Tooltip>
             <TooltipTrigger asChild>
               <button type="button" onClick={onStlFile} className="w-[48px] h-[48px] flex items-center justify-center rounded-[36px] transition-transform duration-200 ease-out hover:scale-[2] cursor-pointer">

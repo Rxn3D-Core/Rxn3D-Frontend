@@ -74,6 +74,10 @@ interface MaxillaryTeethSVGProps {
   getAddonValue?: (toothNumber: number) => string
   /** Retention options from the product API response. */
   retentionOptions?: RetentionOptionItem[]
+  /** When true, renders a checkbox below each tooth that has an extraction status. */
+  showCheckboxes?: boolean
+  /** Called whenever the set of checked teeth changes. */
+  onCheckedTeethChange?: (teeth: number[]) => void
 }
 
 export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
@@ -96,9 +100,17 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
   claspTeeth = [],
   getAddonValue,
   retentionOptions,
+  showCheckboxes = false,
+  onCheckedTeethChange,
 }) => {
   const svgRef = React.useRef<SVGSVGElement>(null)
   const [hoveredTooth, setHoveredTooth] = React.useState<number | null>(null)
+  const [checkedTeeth, setCheckedTeeth] = React.useState<Set<number>>(new Set())
+
+  React.useEffect(() => {
+    onCheckedTeethChange?.(Array.from(checkedTeeth).sort((a, b) => a - b))
+  }, [checkedTeeth, onCheckedTeethChange])
+
   const isToothSelected = (toothNumber: number) => selectedTeeth.includes(toothNumber)
   const isToothMissing = (toothNumber: number) => toothExtractionMap[toothNumber] === 'MT'
 
@@ -119,6 +131,66 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
 
   // Wire/Acrylic clasp image (same base SVG, tinted for acrylic)
   const CLASP_IMAGE_B64 = "iVBORw0KGgoAAAANSUhEUgAAACwAAAASCAYAAAAg9DzcAAAACXBIWXMAAAsSAAALEgHS3X78AAAFQUlEQVRIic3WTWycRxnA8f+8876z77vetXfXa7trO3aStrJEUZQzohLljEoBVTlyzKEOStMvJ/FH1rHzQQikKUE99MwJERAcuKEiEOIAVZsYJVZInJRskyZre73efT9nhkNICLSBpgTakeY0o2d+ejTzPCOstXxex+zh+eeF4BBaj4H9o7E8Jz6v4LmF+Z8K4XxDpCEYQ2wF0vW+404fmi07jmw4rquMMW9jzLfnZ+fe/6ygM4fnx4UQv895Xi0vDNZaVtsRG1FKX6nytGOMKWda+9pYR0j5jHXkxen6oec/C+x0vf6W68or5UJPbWLLMDu+MEGpr4/1dpfWZhdruSystUxNz6y7ntsnpMRxHLDWpkmy90i9fvr/AT0wN7dLuu6bSnmlal+Rx7cMU+4tcO3SMu+c/zN/udXCkR5bx8a2C2stL+/f/4vAD76mjUF67h00kMTx2aP1+jf/V9DXZmbGpZQ/85TamfNcRgarPDE2Ss6TXLt0gaWlJS592KKTWQb7q7d+dPr04L1H99LUVJrzA9cag5dTCCEAyNJ0PUmSnScWF68+SuzU7OxZlct93RFCBDmP7SPDbBsbxbGaKxeXuLB0jpXbbVYTi/QU27aMTRxfXFh27gYwxh5L4hghBGmSYIwGwPW8kp8Prrw2PXP2UUBfOTh9dPrw4TTn+8+50hGlQsBT28d5ctsYNotYPvcnLpx/j+vNNq3EYIVgeHDwx8cXF5YB/qmsTe598Td+4D/teYpMa5RSSFfey7bWOgvD6Hsnjyzuf1joywcOvqWU9y1PqZIQ4DmCgVKRJ8bH6O/vp9NqcvG9d7i2ssKHGyHN2BALyfDA0K/PvH7qq3fjfKQO757cc6NYLAx5niJNM6Tn4nouUkrE3/dorbMoin9pMn3y+8eP/vZByH1TB3a5rpxSOfVFKaUrBEgBeddh9LEBto6N4+cUzZsNls+/S+N6g2Y3phlbEhxqA0Nvn3n91Ffuj/mxjWP35J4b+VwwFAR50iTFWIOnFFJKXFeCEAjAAlmWhVrrhjX2r/eCSmfClbJ6F+kIAdagHEupx2fr6CiDg0PEYYf3Ly/TuHaV26trrHZT1hJLJiQjteEfnjpxYs+/2h7Y6XZPTt7M5fzBQrGI0ZokSVAqx8hjQzjSIdOGJE3IdIbWBmPuTGstVoBA4AhwHYuHJfAEld4itdoInudy++Z1bjYarK3eZmMzpNlNWY8NUuXMluHRXd89sviTj3P929Y8+eK+31lrvlQoFJHSIe8H7Nyxg75iEYslTVPSNCOOI6IoZjPs0ul0icIuVico15KTAk9YisUCPT0F4m6X1WaT9kaLjc0urU7EWpTRTQ39/dWVN994Y9sDQf8JDPDqwYMvrK2v/yDv+15PsUitWmWkVqM6MEBOKRzHQQiBtXeym6YpWZqw1rzBrRvXcdBkaYpAkKYJnW5MuxPS6oRshDFhkiFcz47Uhs+cPHbsI1fgocH3sr137/kwjp/K+z69xSLVSoWBapVKuUKQD1BKIQAhBEkS8UGjwdWrl9FZSpplRFFCGEV0o5huHBOnGoRDtVJZqZQrzy7WD537JI6H+q3N1OsTa+trP99otyc8zyPI+fTk8wSBj68UAoExhihJ2Nhs0w0jMp2SJilJlpFpjdEGIR2G+qsrlUrl2YW5uU8E/VTg+8e+V1/5Vau9+eXNzmaPRSDEP9asBWvve4T2TkUp9/ZG5b7ePxQKxRfmZ2eXPs25j+Q/vH9m+ngYhs9kWpe11j1JkpaCIPgALMrzriil3j22sPjSf30Q8DfYcYQVVJu/eAAAAABJRU5ErkJggg=="
+
+  const renderCheckbox = (toothNumber: number, x: number, width: number, toothHeight: number = 141) => {
+    if (!showCheckboxes) return null
+    if (!toothExtractionMap[toothNumber]) return null
+    const size = 14
+    const cx = x + width / 2 - size / 2
+    const cy = toothHeight + 3
+    const isChecked = checkedTeeth.has(toothNumber)
+    const handleToggle = (e: React.MouseEvent) => {
+      e.stopPropagation()
+      setCheckedTeeth(prev => {
+        const next = new Set(prev)
+        if (next.has(toothNumber)) { next.delete(toothNumber) } else { next.add(toothNumber) }
+        return next
+      })
+    }
+    return (
+      <svg key={`checkbox-${toothNumber}`} x={cx} y={cy} width={size} height={size}
+        viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg"
+        style={{ cursor: 'pointer' }} onClick={handleToggle}>
+        {isChecked ? (
+          <>
+            <rect x="0.5" y="0.5" width="13" height="13" rx="2.5" fill="#1162A8" stroke="#1162A8" />
+            <path d="M2.5 7L5.5 10L11.5 4" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </>
+        ) : (
+          <rect x="0.5" y="0.5" width="13" height="13" rx="2.5" fill="white" stroke="#9CA3AF" />
+        )}
+      </svg>
+    )
+  }
+
+  const renderWillExtractOverlay = (toothNumber: number, x: number, width: number, toothHeight: number = 141) => {
+    if (!willExtractTeeth.includes(toothNumber)) return null
+    const xSize = Math.max(width * 0.8, 18)
+    const ySize = xSize * (32 / 24)
+    const cx = x + width / 2 - xSize / 2
+    const cy = toothHeight / 2 - ySize / 2
+    return (
+      <svg
+        key={`will-extract-${toothNumber}`}
+        x={cx}
+        y={cy}
+        width={xSize}
+        height={ySize}
+        viewBox="0 0 24 32"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        style={{ pointerEvents: 'none' }}
+      >
+        <path d="M0.312293 28.0802C0.0484933 29.0457 -0.341315 29.7125 0.576054 30.6215C1.49342 31.5305 3.08986 29.9351 3.24269 29.7276C3.39553 29.5202 6.21477 24.8224 6.85731 23.7684C7.36025 22.9433 10.3391 18.3335 11.7894 16.1668C13.1298 18.1866 15.9142 22.4023 16.3289 23.1074C16.8472 23.9887 20.3343 30.2499 20.6327 30.7089C20.9312 31.1679 21.7165 32.0493 21.9364 31.884C22.1563 31.7187 21.8579 30.5436 21.5909 29.7174C21.3238 28.8911 19.1562 24.7232 18.4808 23.3461C17.9405 22.2444 14.7957 16.5883 13.2909 13.8979C14.5421 12.2734 17.1618 8.87806 17.6304 8.29299C18.2161 7.56165 22.8737 1.94806 23.1028 1.65146C23.332 1.35485 23.8395 0.493744 23.5448 0.340657C23.2502 0.187571 22.5954 0.608558 22.0388 1.02955C21.4822 1.45053 17.3235 5.75763 16.7049 6.39265C16.2099 6.90066 13.3599 10.1557 11.9968 11.7198C10.8348 9.9029 8.46269 6.19156 8.26954 5.8811C8.0281 5.49304 4.5956 0.710851 3.84817 0.201206C3.28165 -0.185078 2.08585 0.000331625 1.66012 0.624552C1.12798 1.40477 1.50743 2.77366 1.84885 3.30801C2.48781 4.09156 4.61467 6.57854 5.43418 7.5365C6.25368 8.49446 8.97682 12.1766 10.236 13.8979C9.14755 15.3074 6.45856 18.7925 4.4098 21.4568C2.36104 24.1212 0.576093 27.1148 0.312293 28.0802Z" fill="url(#will-extract-gradient-max)"/>
+        <defs>
+          <radialGradient id="will-extract-gradient-max" cx="0" cy="0" r="1" gradientTransform="matrix(11.8521 -12.9807 9.61599 11.9972 13.4853 12.2084)" gradientUnits="userSpaceOnUse">
+            <stop offset="0.226023" stopColor="#CF0202"/>
+            <stop offset="1" stopColor="#910202"/>
+          </radialGradient>
+        </defs>
+      </svg>
+    )
+  }
 
   const renderClaspOverlay = (toothNumber: number, x: number, width: number, yOffset: number = 0) => {
     if (!isToothClasp(toothNumber)) return null
@@ -378,7 +450,7 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
 
       <div className={`relative ${className}`}>
 
-        <svg ref={svgRef} width="100%" height="100" viewBox="0 0 700 139" fill="none" xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink">
+        <svg ref={svgRef} width="100%" height={showCheckboxes ? "116" : "100"} viewBox={`0 0 700 ${showCheckboxes ? "158" : "139"}`} fill="none" xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink">
           {toothMapping.map(({ tooth, x, width, pattern }) => {
             const isHovered = hoveredTooth === tooth
             const retentionTypes = retentionTypesByTooth[tooth] || []
@@ -474,7 +546,6 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
               }
             }
 
-            const isWillExtract = willExtractTeeth.includes(tooth)
             return (
               <g key={tooth}>
                 <rect
@@ -483,7 +554,6 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
                   width={width}
                   height="141"
                   fill={`url(#${pattern})`}
-                  filter={isWillExtract ? 'url(#wed-tint)' : undefined}
                   onClick={() => handleToothClick(tooth)}
                   onMouseEnter={() => setHoveredTooth(tooth)}
                   onMouseLeave={() => setHoveredTooth(null)}
@@ -494,6 +564,8 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
                   }}
                 />
                 {renderClaspOverlay(tooth, x, width, 80)}
+                {renderWillExtractOverlay(tooth, x, width)}
+                {renderCheckbox(tooth, x, width)}
               </g>
             )
           })}
@@ -690,13 +762,6 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
             </>
           )}
           <defs>
-            {/* WED salmon-pink: solid color flood clipped to tooth shape */}
-            <filter id="wed-tint" colorInterpolationFilters="sRGB">
-              <feFlood floodColor="#fe9aa0" floodOpacity="1" result="pink" />
-              <feComposite in="pink" in2="SourceGraphic" operator="in" />
-            </filter>
-            {/* Override tooth number fill for WED teeth */}
-            <style>{`.wed-number path { fill: #374151 !important; }`}</style>
             <pattern id="pattern0_0_1" patternContentUnits="objectBoundingBox" width="1" height="1">
               <use xlinkHref="#image0_0_1" transform="scale(0.0227273 0.0070922)" />
             </pattern>
