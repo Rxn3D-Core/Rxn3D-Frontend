@@ -6,6 +6,40 @@ import Image from "next/image";
 import { useSlipCreation } from "@/contexts/slip-creation-context";
 import { PatientHeader } from "@/components/case-design-center/components/PatientHeader";
 import { CaseDesignCenter } from "@/components/case-design-center/components/CaseDesignCenter";
+import type { SlipCreationResponse } from "@/services/slip-creation-service";
+
+/**
+ * Maps the /v1/slip/slip/{id}/details response (single slip object)
+ * into the SlipCreationResponse["data"] shape that PatientHeader expects.
+ *
+ * API response shape (virtualSlipDetails):
+ *   data.id, data.slip_number, data.status
+ *   data.case.case_number, data.case.patient_name, data.case.doctor.name
+ *   data.casepan.number
+ *   data.delivery.pickup_date, delivery_date, delivery_time
+ *   data.location.name
+ */
+function toPatientHeaderData(d: any): SlipCreationResponse["data"] | null {
+  if (!d) return null;
+  return {
+    id: d.id ?? 0,
+    case_number: d.case?.case_number ?? "",
+    patient_name: d.case?.patient_name ?? "",
+    gender: d.case?.gender ?? "",
+    age: d.case?.age ?? undefined,
+    case_status: d.case?.case_status ?? d.status ?? "",
+    slips: [
+      {
+        id: d.id ?? 0,
+        slip_number: d.slip_number ?? "",
+        status: d.status ?? "",
+        location: d.location ?? null,
+        casepan: d.casepan ?? null,
+        delivery: d.delivery ?? null,
+      },
+    ],
+  } as SlipCreationResponse["data"];
+}
 
 export default function VirtualSlipPage() {
   const params = useParams();
@@ -19,19 +53,14 @@ export default function VirtualSlipPage() {
     fetchVirtualSlipDetails(slipId).finally(() => setLoading(false));
   }, [slipId]);
 
-  const slip = virtualSlipDetails?.slips?.[0] ?? null;
-
-  const doctorImageUrl = slip?.doctor?.image ?? null;
-  const doctorName = slip?.doctor
-    ? `${slip.doctor.first_name ?? ""} ${slip.doctor.last_name ?? ""}`.trim()
-    : null;
+  const doctorName = virtualSlipDetails?.case?.doctor?.name ?? null;
+  const slipResponseData = toPatientHeaderData(virtualSlipDetails);
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
       {/* Page header: practice logo + HMCi3 logo */}
       <div className="flex items-center justify-between px-6 py-3 border-b border-[#d9d9d9] bg-white">
         <div className="flex items-center gap-3">
-          {/* Practice logo — falls back gracefully if not available */}
           <div className="w-[140px] h-[50px] relative">
             <Image
               src="/images/practice-logo.png"
@@ -65,14 +94,13 @@ export default function VirtualSlipPage() {
         </div>
       ) : (
         <PatientHeader
-          doctorImageUrl={doctorImageUrl}
           doctorName={doctorName}
-          patientName={virtualSlipDetails?.patient_name ?? null}
-          gender={virtualSlipDetails?.gender ?? null}
-          age={virtualSlipDetails?.age ?? null}
+          patientName={slipResponseData?.patient_name ?? null}
+          gender={slipResponseData?.gender ?? null}
+          age={slipResponseData?.age ?? null}
           caseSubmitted
           slipHeaderLoading={false}
-          slipResponseData={virtualSlipDetails}
+          slipResponseData={slipResponseData}
         />
       )}
 

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { X, Info, Link as LinkIcon, Check } from "lucide-react"
@@ -123,6 +123,9 @@ export function CreateRetentionOptionModal({ isOpen, onClose, option, isCopying 
     const [isLoadingDetails, setIsLoadingDetails] = useState(false)
     const [errors, setErrors] = useState<{ [key: string]: string }>({})
     const [showLinkRetentionOptionModal, setShowLinkRetentionOptionModal] = useState(false)
+    const [imageBase64, setImageBase64] = useState<string | null>(null)
+    const [imagePreview, setImagePreview] = useState<string | null>(null)
+    const imageInputRef = useRef<HTMLInputElement>(null)
     const [isNameFocused, setIsNameFocused] = useState(false)
     const [isCodeFocused, setIsCodeFocused] = useState(false)
     const [isSequenceFocused, setIsSequenceFocused] = useState(false)
@@ -137,14 +140,6 @@ export function CreateRetentionOptionModal({ isOpen, onClose, option, isCopying 
             return user.roles[0] === "lab_admin"
         }
         return user.role === "lab_admin"
-    })()
-
-    const isSuperAdmin = (() => {
-        if (!user) return false
-        if (user.roles && Array.isArray(user.roles)) {
-            return user.roles.includes("superadmin")
-        }
-        return false
     })()
 
     const getCustomerId = () => {
@@ -178,6 +173,8 @@ export function CreateRetentionOptionModal({ isOpen, onClose, option, isCopying 
                 setStatus(option.status === "Inactive" ? "Inactive" : "Active")
                 setDetailsEnabled(option.status === "Active")
                 setSelectedShape(getShapeIdFromApiName(option.selector_shape))
+                setImageBase64(null)
+                setImagePreview(option.image_url || null)
             } else if (option && option.id && !isCopying) {
                 // Editing: fetch full details from API
                 setIsLoadingDetails(true)
@@ -190,6 +187,8 @@ export function CreateRetentionOptionModal({ isOpen, onClose, option, isCopying 
                         setStatus(data.status || "Active")
                         setDetailsEnabled(data.status === "Active")
                         setSelectedShape(getShapeIdFromApiName(data.selector_shape))
+                        setImageBase64(null)
+                        setImagePreview(data.image_url || null)
                         setIsLoadingDetails(false)
                     })
                     .catch((error) => {
@@ -208,6 +207,8 @@ export function CreateRetentionOptionModal({ isOpen, onClose, option, isCopying 
                             setStatus(option.status === "Inactive" ? "Inactive" : "Active")
                             setDetailsEnabled(option.status === "Active")
                             setSelectedShape(getShapeIdFromApiName(option.selector_shape))
+                            setImageBase64(null)
+                            setImagePreview(option.image_url || null)
                         }
                     })
             } else {
@@ -218,6 +219,8 @@ export function CreateRetentionOptionModal({ isOpen, onClose, option, isCopying 
                 setStatus("Active")
                 setDetailsEnabled(true)
                 setSelectedShape("")
+                setImageBase64(null)
+                setImagePreview(null)
             }
             setErrors({})
             setHasChanges(false)
@@ -254,10 +257,35 @@ export function CreateRetentionOptionModal({ isOpen, onClose, option, isCopying 
         setStatus("Active")
         setDetailsEnabled(true)
         setSelectedShape("")
+        setImageBase64(null)
+        setImagePreview(null)
         setShowDiscardDialog(false)
         setHasChanges(false)
         setErrors({})
         onClose()
+    }
+
+    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        const reader = new FileReader()
+        reader.onload = (event) => {
+            const result = event.target?.result as string
+            setImageBase64(result) // full data URL, will strip prefix when sending
+            setImagePreview(result)
+            setHasChanges(true)
+        }
+        reader.readAsDataURL(file)
+    }
+
+    const handleRemoveImage = () => {
+        setImageBase64(null)
+        setImagePreview(null)
+        setHasChanges(true)
+        if (imageInputRef.current) {
+            imageInputRef.current.value = ""
+        }
     }
 
     const handleToggleChange = (checked: boolean) => {
@@ -276,6 +304,9 @@ export function CreateRetentionOptionModal({ isOpen, onClose, option, isCopying 
         try {
             const shapeApiName = getShapeApiName(selectedShape)
             
+            // Send the full data URL — backend Base64Image rule requires the data:image/...;base64, prefix
+            const imagePayload = imageBase64 ?? undefined
+
             if (option && option.id && !isCopying) {
                 // Update existing option
                 const updatePayload: RetentionOptionUpdatePayload = {
@@ -283,6 +314,7 @@ export function CreateRetentionOptionModal({ isOpen, onClose, option, isCopying 
                     status: status,
                     sequence: sequence,
                     selector_shape: shapeApiName || undefined,
+                    image: imagePayload,
                 }
 
                 // Add customer_id for lab admin if needed
@@ -304,6 +336,7 @@ export function CreateRetentionOptionModal({ isOpen, onClose, option, isCopying 
                     sequence: sequence,
                     selector_shape: shapeApiName || undefined,
                     is_custom: isLabAdmin ? "Yes" : "No",
+                    image: imagePayload,
                 }
 
                 // Add customer_id for lab admin
@@ -332,6 +365,8 @@ export function CreateRetentionOptionModal({ isOpen, onClose, option, isCopying 
             setStatus("Active")
             setDetailsEnabled(true)
             setSelectedShape("")
+            setImageBase64(null)
+            setImagePreview(null)
             setHasChanges(false)
         } catch (error: any) {
             toast({
@@ -441,288 +476,293 @@ export function CreateRetentionOptionModal({ isOpen, onClose, option, isCopying 
                         )}
                         {!isLoadingDetails && (
                             <>
-                        {/* Retention Option Details */}
-                        <div className="space-y-4">
-                            <div className="flex items-center gap-2">
-                                <span className="text-base font-medium">Retention Option Details</span>
-                                <TooltipProvider>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <Info className="w-4 h-4 text-gray-400 cursor-help" />
-                                        </TooltipTrigger>
-                                        <TooltipContent side="bottom" className="max-w-xs">
-                                            <p>Configure the basic information for this retention option.</p>
-                                        </TooltipContent>
-                                    </Tooltip>
-                                </TooltipProvider>
-                                <Switch
-                                    className="data-[state=checked]:bg-[#1162a8]"
-                                    checked={detailsEnabled}
-                                    onCheckedChange={handleToggleChange}
-                                />
-                            </div>
-
-                            <div className="space-y-6">
-                                {/* Retention type name field */}
-                                <div className="relative">
-                                    <input
-                                        ref={nameInputRef}
-                                        type="text"
-                                        value={optionName}
-                                        onChange={(e) => {
-                                            const newName = e.target.value
-                                            setOptionName(newName)
-                                            // Auto-generate code only for create/copy, not edit
-                                            if (!option || isCopying) {
-                                                const generatedCode = generateCodeFromName(newName)
-                                                if (generatedCode) {
-                                                    setOptionCode(generatedCode)
-                                                }
-                                            }
-                                            setHasChanges(true)
-                                        }}
-                                        onFocus={() => setIsNameFocused(true)}
-                                        onBlur={() => setIsNameFocused(false)}
-                                        disabled={!detailsEnabled}
-                                        className={cn(
-                                            "w-full box-border flex flex-row items-center bg-white border border-solid rounded-[7.7px] text-[#1F2937] focus:outline-none",
-                                            "transition-all ease-out",
-                                            getNameBorderColor(),
-                                            getNameRingEffect(),
-                                            !isNameFocused && !detailsEnabled && "opacity-50 cursor-not-allowed",
-                                            !isNameFocused && detailsEnabled && "hover:shadow-[0_0_8px_rgba(17,98,168,0.2)] transition-shadow duration-150",
-                                            errors.optionName && "border-red-500"
-                                        )}
-                                        style={{
-                                            padding: "25px 12.8px 9.24px 12.32px",
-                                            borderWidth: "0.740384px",
-                                            fontFamily: "Arial",
-                                            fontStyle: "normal",
-                                            fontWeight: 400,
-                                            fontSize: "17px",
-                                            lineHeight: "18px",
-                                            transitionDuration: isNameFocused ? "250ms" : "150ms",
-                                            transitionTimingFunction: isNameFocused ? "ease-in-out" : "ease-out",
-                                            height: "36.95px",
-                                        }}
-                                    />
-                                    <label
-                                        className={cn(
-                                            "absolute bg-white pointer-events-none transition-all duration-200 ease-out",
-                                            getNameLabelColor(),
-                                            errors.optionName && "text-red-500"
-                                        )}
-                                        style={{
-                                            left: "9.23px",
-                                            top: "-6.15px",
-                                            height: "14px",
-                                            fontFamily: "Arial",
-                                            fontStyle: "normal",
-                                            fontWeight: 400,
-                                            fontSize: "14px",
-                                            lineHeight: "14px",
-                                        }}
-                                    >
-                                        Retention option name <span className="text-red-500">*</span>
-                                    </label>
-                                    {/* Validation Icon */}
-                                    {hasNameValue && !errors.optionName && (
-                                        <div className="absolute right-[12.32px] top-1/2 -translate-y-1/2">
-                                            <Check className="h-5 w-5 text-[#119933]" aria-label="Valid" />
-                                        </div>
-                                    )}
-                                    {errors.optionName && (
-                                        <p className="text-red-500 text-xs mt-1 ml-2">{errors.optionName}</p>
-                                    )}
-                                </div>
-
-                                {/* Code field */}
-                                <div className="relative">
-                                    <div className="flex gap-2">
-                                        <div className="relative flex-1">
-                                            <input
-                                                ref={codeInputRef}
-                                                type="text"
-                                                value={optionCode}
-                                                onChange={(e) => {
-                                                    setOptionCode(e.target.value)
-                                                    setHasChanges(true)
-                                                }}
-                                                onFocus={() => setIsCodeFocused(true)}
-                                                onBlur={() => setIsCodeFocused(false)}
-                                                disabled={!detailsEnabled}
-                                                className={cn(
-                                                    "w-full box-border flex flex-row items-center bg-white border border-solid rounded-[7.7px] text-[#1F2937] focus:outline-none",
-                                                    "transition-all ease-out",
-                                                    getCodeBorderColor(),
-                                                    getCodeRingEffect(),
-                                                    !isCodeFocused && !detailsEnabled && "opacity-50 cursor-not-allowed",
-                                                    !isCodeFocused && detailsEnabled && "hover:shadow-[0_0_8px_rgba(17,98,168,0.2)] transition-shadow duration-150",
-                                                    errors.optionCode && "border-red-500"
-                                                )}
-                                                style={{
-                                                    padding: "25px 12.8px 9.24px 12.32px",
-                                                    borderWidth: "0.740384px",
-                                                    fontFamily: "Arial",
-                                                    fontStyle: "normal",
-                                                    fontWeight: 400,
-                                                    fontSize: "17px",
-                                                    lineHeight: "18px",
-                                                    transitionDuration: isCodeFocused ? "250ms" : "150ms",
-                                                    transitionTimingFunction: isCodeFocused ? "ease-in-out" : "ease-out",
-                                                    height: "36.95px",
-                                                }}
-                                            />
-                                            <label
-                                                className={cn(
-                                                    "absolute bg-white pointer-events-none transition-all duration-200 ease-out",
-                                                    getCodeLabelColor(),
-                                                    errors.optionCode && "text-red-500"
-                                                )}
-                                                style={{
-                                                    left: "9.23px",
-                                                    top: "-6.15px",
-                                                    height: "14px",
-                                                    fontFamily: "Arial",
-                                                    fontStyle: "normal",
-                                                    fontWeight: 400,
-                                                    fontSize: "14px",
-                                                    lineHeight: "14px",
-                                                }}
-                                            >
-                                                Code <span className="text-red-500">*</span>
-                                            </label>
-                                            {/* Validation Icon */}
-                                            {hasCodeValue && !errors.optionCode && (
-                                                <div className="absolute right-[12.32px] top-1/2 -translate-y-1/2">
-                                                    <Check className="h-5 w-5 text-[#119933]" aria-label="Valid" />
+                                {/* Image upload + Retention Option Details row */}
+                                <div className="flex gap-6 items-start">
+                                    {/* Image Upload - top left */}
+                                    <div className="flex flex-col items-center gap-3 flex-shrink-0">
+                                        <div
+                                            className={cn(
+                                                "relative overflow-hidden border-2 border-dashed rounded-xl h-[140px] w-[140px] bg-gradient-to-br from-gray-50 to-gray-100 transition-all duration-200 cursor-pointer group flex items-center justify-center",
+                                                detailsEnabled
+                                                    ? "border-gray-300 hover:border-gray-400 hover:from-gray-100 hover:to-gray-200"
+                                                    : "border-gray-200 opacity-50 cursor-not-allowed"
+                                            )}
+                                            onClick={() => detailsEnabled && imageInputRef.current?.click()}
+                                        >
+                                            {imagePreview ? (
+                                                <img
+                                                    src={imagePreview}
+                                                    alt="Retention option image"
+                                                    className="absolute inset-0 w-full h-full object-cover"
+                                                />
+                                            ) : (
+                                                <div className="flex flex-col items-center text-gray-500 group-hover:text-gray-600">
+                                                    <i className="fas fa-cloud-upload-alt text-3xl mb-2"></i>
+                                                    <span className="text-xs font-medium">Upload Image</span>
                                                 </div>
                                             )}
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                ref={imageInputRef}
+                                                style={{ display: "none" }}
+                                                onChange={handleImageChange}
+                                                disabled={!detailsEnabled}
+                                            />
                                         </div>
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            onClick={() => setShowLinkRetentionOptionModal(true)}
-                                            disabled={!detailsEnabled}
-                                            className="whitespace-nowrap h-[36.95px]"
-                                        >
-                                            <LinkIcon className="h-4 w-4 mr-2" />
-                                            Link retention option
-                                        </Button>
+                                        <span className="text-xs text-gray-500 text-center max-w-[140px]">
+                                            Click to upload image
+                                        </span>
+                                        {imagePreview && detailsEnabled && (
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={handleRemoveImage}
+                                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                            >
+                                                Remove
+                                            </Button>
+                                        )}
                                     </div>
-                                    {errors.optionCode && (
-                                        <p className="text-red-500 text-xs mt-1 ml-2">{errors.optionCode}</p>
-                                    )}
-                                </div>
 
-                                {/* Sequence field */}
-                                <div className="relative">
-                                    <input
-                                        ref={sequenceInputRef}
-                                        type="number"
-                                        min="1"
-                                        value={sequence}
-                                        onChange={(e) => {
-                                            const value = parseInt(e.target.value) || 1
-                                            setSequence(Math.max(1, value))
-                                            setHasChanges(true)
-                                        }}
-                                        onFocus={() => setIsSequenceFocused(true)}
-                                        onBlur={() => setIsSequenceFocused(false)}
-                                        disabled={!detailsEnabled}
-                                        className={cn(
-                                            "w-full box-border flex flex-row items-center bg-white border border-solid rounded-[7.7px] text-[#1F2937] focus:outline-none",
-                                            "transition-all ease-out",
-                                            getSequenceBorderColor(),
-                                            getSequenceRingEffect(),
-                                            !isSequenceFocused && !detailsEnabled && "opacity-50 cursor-not-allowed",
-                                            !isSequenceFocused && detailsEnabled && "hover:shadow-[0_0_8px_rgba(17,98,168,0.2)] transition-shadow duration-150",
-                                            errors.sequence && "border-red-500"
-                                        )}
-                                        style={{
-                                            padding: "25px 12.8px 9.24px 12.32px",
-                                            borderWidth: "0.740384px",
-                                            fontFamily: "Arial",
-                                            fontStyle: "normal",
-                                            fontWeight: 400,
-                                            fontSize: "17px",
-                                            lineHeight: "18px",
-                                            transitionDuration: isSequenceFocused ? "250ms" : "150ms",
-                                            transitionTimingFunction: isSequenceFocused ? "ease-in-out" : "ease-out",
-                                            height: "36.95px",
-                                        }}
-                                    />
-                                    <label
-                                        className={cn(
-                                            "absolute bg-white pointer-events-none transition-all duration-200 ease-out",
-                                            getSequenceLabelColor(),
-                                            errors.sequence && "text-red-500"
-                                        )}
-                                        style={{
-                                            left: "9.23px",
-                                            top: "-6.15px",
-                                            height: "14px",
-                                            fontFamily: "Arial",
-                                            fontStyle: "normal",
-                                            fontWeight: 400,
-                                            fontSize: "14px",
-                                            lineHeight: "14px",
-                                        }}
-                                    >
-                                        Sequence
-                                    </label>
-                                    {/* Validation Icon */}
-                                    {hasSequenceValue && !errors.sequence && (
-                                        <div className="absolute right-[12.32px] top-1/2 -translate-y-1/2">
-                                            <Check className="h-5 w-5 text-[#119933]" aria-label="Valid" />
+                                    {/* Retention Option Details */}
+                                    <div className="flex-1 space-y-4">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-base font-medium">Retention Option Details</span>
+                                            <TooltipProvider>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <Info className="w-4 h-4 text-gray-400 cursor-help" />
+                                                    </TooltipTrigger>
+                                                    <TooltipContent side="bottom" className="max-w-xs">
+                                                        <p>Configure the basic information for this retention option.</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                            <Switch
+                                                className="data-[state=checked]:bg-[#1162a8]"
+                                                checked={detailsEnabled}
+                                                onCheckedChange={handleToggleChange}
+                                            />
                                         </div>
-                                    )}
-                                    {errors.sequence && (
-                                        <p className="text-red-500 text-xs mt-1 ml-2">{errors.sequence}</p>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
 
-                        {/* Assign selector shape */}
-                        <div className="space-y-4">
-                            <div className="flex items-center gap-2">
-                                <span className="text-base font-medium">Assign selector shape</span>
-                                <TooltipProvider>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <Info className="w-4 h-4 text-gray-400 cursor-help" />
-                                        </TooltipTrigger>
-                                        <TooltipContent side="top" className="max-w-[300px]">
-                                            <p>Select a geometric shape to represent this retention option.</p>
-                                        </TooltipContent>
-                                    </Tooltip>
-                                </TooltipProvider>
-                            </div>
-
-                            <div className="flex flex-nowrap gap-1.5 justify-center">
-                                {SHAPES.map((shape) => {
-                                    const isSelected = selectedShape === shape.id
-                                    const fillColor = isSelected ? "#1162A8" : "#D9D9D9"
-                                    return (
-                                        <button
-                                            key={shape.id}
-                                            type="button"
-                                            onClick={() => {
-                                                setSelectedShape(shape.id)
-                                                setHasChanges(true)
-                                            }}
-                                            className="p-1.5 rounded-lg transition-all hover:bg-gray-50"
-                                            disabled={!detailsEnabled}
-                                        >
-                                            <div className="flex items-center justify-center">
-                                                {shape.getIcon(fillColor)}
+                                        <div className="space-y-6">
+                                            {/* Retention type name field */}
+                                            <div className="relative">
+                                                <input
+                                                    ref={nameInputRef}
+                                                    type="text"
+                                                    value={optionName}
+                                                    onChange={(e) => {
+                                                        const newName = e.target.value
+                                                        setOptionName(newName)
+                                                        if (!option || isCopying) {
+                                                            const generatedCode = generateCodeFromName(newName)
+                                                            if (generatedCode) setOptionCode(generatedCode)
+                                                        }
+                                                        setHasChanges(true)
+                                                    }}
+                                                    onFocus={() => setIsNameFocused(true)}
+                                                    onBlur={() => setIsNameFocused(false)}
+                                                    disabled={!detailsEnabled}
+                                                    className={cn(
+                                                        "w-full box-border flex flex-row items-center bg-white border border-solid rounded-[7.7px] text-[#1F2937] focus:outline-none transition-all ease-out",
+                                                        getNameBorderColor(),
+                                                        getNameRingEffect(),
+                                                        !isNameFocused && !detailsEnabled && "opacity-50 cursor-not-allowed",
+                                                        !isNameFocused && detailsEnabled && "hover:shadow-[0_0_8px_rgba(17,98,168,0.2)] transition-shadow duration-150",
+                                                        errors.optionName && "border-red-500"
+                                                    )}
+                                                    style={{
+                                                        padding: "25px 12.8px 9.24px 12.32px",
+                                                        borderWidth: "0.740384px",
+                                                        fontFamily: "Arial",
+                                                        fontStyle: "normal",
+                                                        fontWeight: 400,
+                                                        fontSize: "17px",
+                                                        lineHeight: "18px",
+                                                        transitionDuration: isNameFocused ? "250ms" : "150ms",
+                                                        transitionTimingFunction: isNameFocused ? "ease-in-out" : "ease-out",
+                                                        height: "36.95px",
+                                                    }}
+                                                />
+                                                <label
+                                                    className={cn(
+                                                        "absolute bg-white pointer-events-none transition-all duration-200 ease-out",
+                                                        getNameLabelColor(),
+                                                        errors.optionName && "text-red-500"
+                                                    )}
+                                                    style={{ left: "9.23px", top: "-6.15px", height: "14px", fontFamily: "Arial", fontStyle: "normal", fontWeight: 400, fontSize: "14px", lineHeight: "14px" }}
+                                                >
+                                                    Retention option name <span className="text-red-500">*</span>
+                                                </label>
+                                                {hasNameValue && !errors.optionName && (
+                                                    <div className="absolute right-[12.32px] top-1/2 -translate-y-1/2">
+                                                        <Check className="h-5 w-5 text-[#119933]" aria-label="Valid" />
+                                                    </div>
+                                                )}
+                                                {errors.optionName && (
+                                                    <p className="text-red-500 text-xs mt-1 ml-2">{errors.optionName}</p>
+                                                )}
                                             </div>
-                                        </button>
-                                    )
-                                })}
-                            </div>
-                        </div>
+
+                                            {/* Code field */}
+                                            <div className="relative">
+                                                <div className="flex gap-2">
+                                                    <div className="relative flex-1">
+                                                        <input
+                                                            ref={codeInputRef}
+                                                            type="text"
+                                                            value={optionCode}
+                                                            onChange={(e) => { setOptionCode(e.target.value); setHasChanges(true) }}
+                                                            onFocus={() => setIsCodeFocused(true)}
+                                                            onBlur={() => setIsCodeFocused(false)}
+                                                            disabled={!detailsEnabled}
+                                                            className={cn(
+                                                                "w-full box-border flex flex-row items-center bg-white border border-solid rounded-[7.7px] text-[#1F2937] focus:outline-none transition-all ease-out",
+                                                                getCodeBorderColor(),
+                                                                getCodeRingEffect(),
+                                                                !isCodeFocused && !detailsEnabled && "opacity-50 cursor-not-allowed",
+                                                                !isCodeFocused && detailsEnabled && "hover:shadow-[0_0_8px_rgba(17,98,168,0.2)] transition-shadow duration-150",
+                                                                errors.optionCode && "border-red-500"
+                                                            )}
+                                                            style={{
+                                                                padding: "25px 12.8px 9.24px 12.32px",
+                                                                borderWidth: "0.740384px",
+                                                                fontFamily: "Arial",
+                                                                fontStyle: "normal",
+                                                                fontWeight: 400,
+                                                                fontSize: "17px",
+                                                                lineHeight: "18px",
+                                                                transitionDuration: isCodeFocused ? "250ms" : "150ms",
+                                                                transitionTimingFunction: isCodeFocused ? "ease-in-out" : "ease-out",
+                                                                height: "36.95px",
+                                                            }}
+                                                        />
+                                                        <label
+                                                            className={cn(
+                                                                "absolute bg-white pointer-events-none transition-all duration-200 ease-out",
+                                                                getCodeLabelColor(),
+                                                                errors.optionCode && "text-red-500"
+                                                            )}
+                                                            style={{ left: "9.23px", top: "-6.15px", height: "14px", fontFamily: "Arial", fontStyle: "normal", fontWeight: 400, fontSize: "14px", lineHeight: "14px" }}
+                                                        >
+                                                            Code <span className="text-red-500">*</span>
+                                                        </label>
+                                                        {hasCodeValue && !errors.optionCode && (
+                                                            <div className="absolute right-[12.32px] top-1/2 -translate-y-1/2">
+                                                                <Check className="h-5 w-5 text-[#119933]" aria-label="Valid" />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        onClick={() => setShowLinkRetentionOptionModal(true)}
+                                                        disabled={!detailsEnabled}
+                                                        className="whitespace-nowrap h-[36.95px]"
+                                                    >
+                                                        <LinkIcon className="h-4 w-4 mr-2" />
+                                                        Link retention option
+                                                    </Button>
+                                                </div>
+                                                {errors.optionCode && (
+                                                    <p className="text-red-500 text-xs mt-1 ml-2">{errors.optionCode}</p>
+                                                )}
+                                            </div>
+
+                                            {/* Sequence field */}
+                                            <div className="relative">
+                                                <input
+                                                    ref={sequenceInputRef}
+                                                    type="number"
+                                                    min="1"
+                                                    value={sequence}
+                                                    onChange={(e) => { setSequence(Math.max(1, parseInt(e.target.value) || 1)); setHasChanges(true) }}
+                                                    onFocus={() => setIsSequenceFocused(true)}
+                                                    onBlur={() => setIsSequenceFocused(false)}
+                                                    disabled={!detailsEnabled}
+                                                    className={cn(
+                                                        "w-full box-border flex flex-row items-center bg-white border border-solid rounded-[7.7px] text-[#1F2937] focus:outline-none transition-all ease-out",
+                                                        getSequenceBorderColor(),
+                                                        getSequenceRingEffect(),
+                                                        !isSequenceFocused && !detailsEnabled && "opacity-50 cursor-not-allowed",
+                                                        !isSequenceFocused && detailsEnabled && "hover:shadow-[0_0_8px_rgba(17,98,168,0.2)] transition-shadow duration-150",
+                                                        errors.sequence && "border-red-500"
+                                                    )}
+                                                    style={{
+                                                        padding: "25px 12.8px 9.24px 12.32px",
+                                                        borderWidth: "0.740384px",
+                                                        fontFamily: "Arial",
+                                                        fontStyle: "normal",
+                                                        fontWeight: 400,
+                                                        fontSize: "17px",
+                                                        lineHeight: "18px",
+                                                        transitionDuration: isSequenceFocused ? "250ms" : "150ms",
+                                                        transitionTimingFunction: isSequenceFocused ? "ease-in-out" : "ease-out",
+                                                        height: "36.95px",
+                                                    }}
+                                                />
+                                                <label
+                                                    className={cn(
+                                                        "absolute bg-white pointer-events-none transition-all duration-200 ease-out",
+                                                        getSequenceLabelColor(),
+                                                        errors.sequence && "text-red-500"
+                                                    )}
+                                                    style={{ left: "9.23px", top: "-6.15px", height: "14px", fontFamily: "Arial", fontStyle: "normal", fontWeight: 400, fontSize: "14px", lineHeight: "14px" }}
+                                                >
+                                                    Sequence
+                                                </label>
+                                                {hasSequenceValue && !errors.sequence && (
+                                                    <div className="absolute right-[12.32px] top-1/2 -translate-y-1/2">
+                                                        <Check className="h-5 w-5 text-[#119933]" aria-label="Valid" />
+                                                    </div>
+                                                )}
+                                                {errors.sequence && (
+                                                    <p className="text-red-500 text-xs mt-1 ml-2">{errors.sequence}</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Assign selector shape */}
+                                <div className="space-y-4">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-base font-medium">Assign selector shape</span>
+                                        <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <Info className="w-4 h-4 text-gray-400 cursor-help" />
+                                                </TooltipTrigger>
+                                                <TooltipContent side="top" className="max-w-[300px]">
+                                                    <p>Select a geometric shape to represent this retention option.</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+                                    </div>
+
+                                    <div className="flex flex-nowrap gap-1.5 justify-center">
+                                        {SHAPES.map((shape) => {
+                                            const isSelected = selectedShape === shape.id
+                                            const fillColor = isSelected ? "#1162A8" : "#D9D9D9"
+                                            return (
+                                                <button
+                                                    key={shape.id}
+                                                    type="button"
+                                                    onClick={() => { setSelectedShape(shape.id); setHasChanges(true) }}
+                                                    className="p-1.5 rounded-lg transition-all hover:bg-gray-50"
+                                                    disabled={!detailsEnabled}
+                                                >
+                                                    <div className="flex items-center justify-center">
+                                                        {shape.getIcon(fillColor)}
+                                                    </div>
+                                                </button>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
                             </>
                         )}
                     </div>
@@ -756,10 +796,7 @@ export function CreateRetentionOptionModal({ isOpen, onClose, option, isCopying 
             <LinkRetentionOptionModal
                 isOpen={showLinkRetentionOptionModal}
                 onClose={() => setShowLinkRetentionOptionModal(false)}
-                onApply={(selectedRetentionTypes, selectedRetentionOptions) => {
-                    // Handle the selected retentions/options
-                    console.log("Selected retention types:", selectedRetentionTypes)
-                    console.log("Selected retention options:", selectedRetentionOptions)
+                onApply={(_selectedRetentionTypes, _selectedRetentionOptions) => {
                     setShowLinkRetentionOptionModal(false)
                 }}
             />
