@@ -875,133 +875,133 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
               <use xlinkHref="#implant-image-mandibular" transform="scale(0.00990099 0.00262467)" />
             </pattern>
             <pattern id="pattern0_197_3840" patternContentUnits="objectBoundingBox" width="1" height="1">
-              <use xlinkHref="#image0_197_3840" transform="scale(0.0232558 0.00740741)" />
+              <image href="/images/teeth/mandibular/tooth-32.png?v=1" width="1" height="1" preserveAspectRatio="none" />
             </pattern>
             <pattern id="pattern1_197_3840" patternContentUnits="objectBoundingBox" width="1" height="1">
-              <use xlinkHref="#image1_197_3840" transform="scale(0.0322581 0.00740741)" />
+              <image href="/images/teeth/mandibular/tooth-26.png?v=1" width="1" height="1" preserveAspectRatio="none" />
             </pattern>
             <pattern id="pattern2_197_3840" patternContentUnits="objectBoundingBox" width="1" height="1">
-              <use xlinkHref="#image2_197_3840" transform="scale(0.0263158 0.00740741)" />
+              <image href="/images/teeth/mandibular/tooth-29.png?v=1" width="1" height="1" preserveAspectRatio="none" />
             </pattern>
             <pattern id="pattern3_197_3840" patternContentUnits="objectBoundingBox" width="1" height="1">
-              <use xlinkHref="#image3_197_3840" transform="scale(0.0333333 0.00740741)" />
+              <image href="/images/teeth/mandibular/tooth-23.png?v=1" width="1" height="1" preserveAspectRatio="none" />
             </pattern>
             <pattern id="pattern4_197_3840" patternContentUnits="objectBoundingBox" width="1" height="1">
-              <use xlinkHref="#image4_197_3840" transform="scale(0.0196078 0.00740741)" />
+              <image href="/images/teeth/mandibular/tooth-31.png?v=1" width="1" height="1" preserveAspectRatio="none" />
             </pattern>
             <pattern id="pattern5_197_3840" patternContentUnits="objectBoundingBox" width="1" height="1">
-              <use xlinkHref="#image5_197_3840" transform="scale(0.0384615 0.00740741)" />
+              <image href="/images/teeth/mandibular/tooth-25.png?v=1" width="1" height="1" preserveAspectRatio="none" />
             </pattern>
             <pattern id="pattern6_197_3840" patternContentUnits="objectBoundingBox" width="1" height="1">
-              <use xlinkHref="#image6_197_3840" transform="scale(0.0277778 0.00740741)" />
+              <image href="/images/teeth/mandibular/tooth-28.png?v=1" width="1" height="1" preserveAspectRatio="none" />
             </pattern>
             <pattern id="pattern7_197_3840" patternContentUnits="objectBoundingBox" width="1" height="1">
-              <use xlinkHref="#image7_197_3840" transform="scale(0.0294118 0.00740741)" />
+              <image href="/images/teeth/mandibular/tooth-22.png?v=1" width="1" height="1" preserveAspectRatio="none" />
             </pattern>
             <pattern id="pattern8_197_3840" patternContentUnits="objectBoundingBox" width="1" height="1">
-              <use xlinkHref="#image8_197_3840" transform="scale(0.0196078 0.00740741)" />
+              <image href="/images/teeth/mandibular/tooth-18.png?v=1" width="1" height="1" preserveAspectRatio="none" />
             </pattern>
             <pattern id="pattern9_197_3840" patternContentUnits="objectBoundingBox" width="1" height="1">
-              <use xlinkHref="#image9_197_3840" transform="scale(0.0263158 0.00740741)" />
+              <image href="/images/teeth/mandibular/tooth-20.png?v=1" width="1" height="1" preserveAspectRatio="none" />
             </pattern>
             <pattern id="pattern10_197_3840" patternContentUnits="objectBoundingBox" width="1" height="1">
-              <use xlinkHref="#image10_197_3840" transform="scale(0.0185185 0.00740741)" />
+              <image href="/images/teeth/mandibular/tooth-30.png?v=1" width="1" height="1" preserveAspectRatio="none" />
             </pattern>
             <pattern id="pattern11_197_3840" patternContentUnits="objectBoundingBox" width="1" height="1">
-              <use xlinkHref="#image11_197_3840" transform="scale(0.0384615 0.00740741)" />
+              <image href="/images/teeth/mandibular/tooth-24.png?v=1" width="1" height="1" preserveAspectRatio="none" />
             </pattern>
             <pattern id="pattern12_197_3840" patternContentUnits="objectBoundingBox" width="1" height="1">
-              <use xlinkHref="#image12_197_3840" transform="scale(0.0294118 0.00740741)" />
+              <image href="/images/teeth/mandibular/tooth-27.png?v=1" width="1" height="1" preserveAspectRatio="none" />
             </pattern>
             <pattern id="pattern13_197_3840" patternContentUnits="objectBoundingBox" width="1" height="1">
-              <use xlinkHref="#image13_197_3840" transform="scale(0.0188679 0.00740741)" />
+              <image href="/images/teeth/mandibular/tooth-19.png?v=1" width="1" height="1" preserveAspectRatio="none" />
             </pattern>
             <pattern id="pattern14_197_3840" patternContentUnits="objectBoundingBox" width="1" height="1">
-              <use xlinkHref="#image14_197_3840" transform="scale(0.0277778 0.00740741)" />
+              <image href="/images/teeth/mandibular/tooth-21.png?v=1" width="1" height="1" preserveAspectRatio="none" />
             </pattern>
             <pattern id="pattern15_197_3840" patternContentUnits="objectBoundingBox" width="1" height="1">
-              <use xlinkHref="#image15_197_3840" transform="scale(0.0232558 0.00740741)" />
+              <image href="/images/teeth/mandibular/tooth-17.png?v=1" width="1" height="1" preserveAspectRatio="none" />
             </pattern>
             {/* Flipped patterns for teeth 25-32 (facing left) */}
             <pattern id="pattern0_197_3840_flipped" patternContentUnits="objectBoundingBox" width="1" height="1">
               <g transform="translate(0.5, 0) scale(-1, 1) translate(-0.5, 0)">
-                <use xlinkHref="#image0_197_3840" transform="scale(0.0232558 0.00740741)" />
+                <image href="/images/teeth/mandibular/tooth-32.png?v=1" width="1" height="1" preserveAspectRatio="none" />
               </g>
             </pattern>
             <pattern id="pattern1_197_3840_flipped" patternContentUnits="objectBoundingBox" width="1" height="1">
               <g transform="translate(0.5, 0) scale(-1, 1) translate(-0.5, 0)">
-                <use xlinkHref="#image1_197_3840" transform="scale(0.0322581 0.00740741)" />
+                <image href="/images/teeth/mandibular/tooth-26.png?v=1" width="1" height="1" preserveAspectRatio="none" />
               </g>
             </pattern>
             <pattern id="pattern2_197_3840_flipped" patternContentUnits="objectBoundingBox" width="1" height="1">
               <g transform="translate(0.5, 0) scale(-1, 1) translate(-0.5, 0)">
-                <use xlinkHref="#image2_197_3840" transform="scale(0.0263158 0.00740741)" />
+                <image href="/images/teeth/mandibular/tooth-29.png?v=1" width="1" height="1" preserveAspectRatio="none" />
               </g>
             </pattern>
             <pattern id="pattern4_197_3840_flipped" patternContentUnits="objectBoundingBox" width="1" height="1">
               <g transform="translate(0.5, 0) scale(-1, 1) translate(-0.5, 0)">
-                <use xlinkHref="#image4_197_3840" transform="scale(0.0196078 0.00740741)" />
+                <image href="/images/teeth/mandibular/tooth-31.png?v=1" width="1" height="1" preserveAspectRatio="none" />
               </g>
             </pattern>
             <pattern id="pattern5_197_3840_flipped" patternContentUnits="objectBoundingBox" width="1" height="1">
               <g transform="translate(0.5, 0) scale(-1, 1) translate(-0.5, 0)">
-                <use xlinkHref="#image5_197_3840" transform="scale(0.0384615 0.00740741)" />
+                <image href="/images/teeth/mandibular/tooth-25.png?v=1" width="1" height="1" preserveAspectRatio="none" />
               </g>
             </pattern>
             <pattern id="pattern6_197_3840_flipped" patternContentUnits="objectBoundingBox" width="1" height="1">
               <g transform="translate(0.5, 0) scale(-1, 1) translate(-0.5, 0)">
-                <use xlinkHref="#image6_197_3840" transform="scale(0.0277778 0.00740741)" />
+                <image href="/images/teeth/mandibular/tooth-28.png?v=1" width="1" height="1" preserveAspectRatio="none" />
               </g>
             </pattern>
             <pattern id="pattern10_197_3840_flipped" patternContentUnits="objectBoundingBox" width="1" height="1">
               <g transform="translate(0.5, 0) scale(-1, 1) translate(-0.5, 0)">
-                <use xlinkHref="#image10_197_3840" transform="scale(0.0185185 0.00740741)" />
+                <image href="/images/teeth/mandibular/tooth-30.png?v=1" width="1" height="1" preserveAspectRatio="none" />
               </g>
             </pattern>
             <pattern id="pattern12_197_3840_flipped" patternContentUnits="objectBoundingBox" width="1" height="1">
               <g transform="translate(0.5, 0) scale(-1, 1) translate(-0.5, 0)">
-                <use xlinkHref="#image12_197_3840" transform="scale(0.0294118 0.00740741)" />
+                <image href="/images/teeth/mandibular/tooth-27.png?v=1" width="1" height="1" preserveAspectRatio="none" />
               </g>
             </pattern>
             {/* Flipped patterns for teeth 17-24 (facing right) */}
             <pattern id="pattern3_197_3840_flipped" patternContentUnits="objectBoundingBox" width="1" height="1">
               <g transform="translate(0.5, 0) scale(-1, 1) translate(-0.5, 0)">
-                <use xlinkHref="#image3_197_3840" transform="scale(0.0333333 0.00740741)" />
+                <image href="/images/teeth/mandibular/tooth-23.png?v=1" width="1" height="1" preserveAspectRatio="none" />
               </g>
             </pattern>
             <pattern id="pattern7_197_3840_flipped" patternContentUnits="objectBoundingBox" width="1" height="1">
               <g transform="translate(0.5, 0) scale(-1, 1) translate(-0.5, 0)">
-                <use xlinkHref="#image7_197_3840" transform="scale(0.0294118 0.00740741)" />
+                <image href="/images/teeth/mandibular/tooth-22.png?v=1" width="1" height="1" preserveAspectRatio="none" />
               </g>
             </pattern>
             <pattern id="pattern8_197_3840_flipped" patternContentUnits="objectBoundingBox" width="1" height="1">
               <g transform="translate(0.5, 0) scale(-1, 1) translate(-0.5, 0)">
-                <use xlinkHref="#image8_197_3840" transform="scale(0.0196078 0.00740741)" />
+                <image href="/images/teeth/mandibular/tooth-18.png?v=1" width="1" height="1" preserveAspectRatio="none" />
               </g>
             </pattern>
             <pattern id="pattern9_197_3840_flipped" patternContentUnits="objectBoundingBox" width="1" height="1">
               <g transform="translate(0.5, 0) scale(-1, 1) translate(-0.5, 0)">
-                <use xlinkHref="#image9_197_3840" transform="scale(0.0263158 0.00740741)" />
+                <image href="/images/teeth/mandibular/tooth-20.png?v=1" width="1" height="1" preserveAspectRatio="none" />
               </g>
             </pattern>
             <pattern id="pattern11_197_3840_flipped" patternContentUnits="objectBoundingBox" width="1" height="1">
               <g transform="translate(0.5, 0) scale(-1, 1) translate(-0.5, 0)">
-                <use xlinkHref="#image11_197_3840" transform="scale(0.0384615 0.00740741)" />
+                <image href="/images/teeth/mandibular/tooth-24.png?v=1" width="1" height="1" preserveAspectRatio="none" />
               </g>
             </pattern>
             <pattern id="pattern13_197_3840_flipped" patternContentUnits="objectBoundingBox" width="1" height="1">
               <g transform="translate(0.5, 0) scale(-1, 1) translate(-0.5, 0)">
-                <use xlinkHref="#image13_197_3840" transform="scale(0.0188679 0.00740741)" />
+                <image href="/images/teeth/mandibular/tooth-19.png?v=1" width="1" height="1" preserveAspectRatio="none" />
               </g>
             </pattern>
             <pattern id="pattern14_197_3840_flipped" patternContentUnits="objectBoundingBox" width="1" height="1">
               <g transform="translate(0.5, 0) scale(-1, 1) translate(-0.5, 0)">
-                <use xlinkHref="#image14_197_3840" transform="scale(0.0277778 0.00740741)" />
+                <image href="/images/teeth/mandibular/tooth-21.png?v=1" width="1" height="1" preserveAspectRatio="none" />
               </g>
             </pattern>
             <pattern id="pattern15_197_3840_flipped" patternContentUnits="objectBoundingBox" width="1" height="1">
               <g transform="translate(0.5, 0) scale(-1, 1) translate(-0.5, 0)">
-                <use xlinkHref="#image15_197_3840" transform="scale(0.0232558 0.00740741)" />
+                <image href="/images/teeth/mandibular/tooth-17.png?v=1" width="1" height="1" preserveAspectRatio="none" />
               </g>
             </pattern>
             <clipPath id="clip0_197_3840">
