@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useCallback, useMemo } from "react";
+import { useEffect, useCallback, useMemo, useRef } from "react";
 import type { CaseDesignProps, SlipProductSnapshot } from "../types";
 import { productImpressionsToModalOptions } from "../types";
 import { useCaseDesignState } from "../hooks/useCaseDesignState";
@@ -17,6 +17,8 @@ import { hasAdvanceField } from "./FixedRestorationFields";
 
 export function CaseDesignCenter(props: CaseDesignProps) {
   const state = useCaseDesignState(props);
+  const maxillaryCheckedTeethRef = useRef<number[]>([]);
+  const mandibularCheckedTeethRef = useRef<number[]>([]);
 
   const maxillaryHasImpression = Object.keys(state.maxillaryRetentionTypes).some((toothNum) => {
     const n = Number(toothNum);
@@ -473,6 +475,10 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           }).filter((e) => e.extraction_id !== 0);
         }
 
+        const checkedTeeth = arch === "maxillary"
+          ? maxillaryCheckedTeethRef.current
+          : mandibularCheckedTeethRef.current;
+
         snapshots.push({
           type,
           productId,
@@ -487,6 +493,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           selectedShades: { ...(state.selectedShades ?? {}) },
           shadeGuide: state.selectedShadeGuide ?? "Vita Classical",
           ...(oppositeExtractions ? { oppositeExtractions } : {}),
+          ...(checkedTeeth.length > 0 ? { checkedTeeth } : {}),
         });
       });
     };
@@ -653,6 +660,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           }
           opposingToothExtractionMap={state.opposingToothExtractionMap}
           onOpposingExtractionToggle={state.handleOpposingExtractionToggle}
+          onCheckedTeethChange={(teeth) => { maxillaryCheckedTeethRef.current = teeth; }}
         />
 
         {/* CENTER NAVIGATION */}
@@ -768,6 +776,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           }
           opposingToothExtractionMap={state.opposingToothExtractionMap}
           onOpposingExtractionToggle={state.handleOpposingExtractionToggle}
+          onCheckedTeethChange={(teeth) => { mandibularCheckedTeethRef.current = teeth; }}
         />
       </div>
 
@@ -841,8 +850,10 @@ export function CaseDesignCenter(props: CaseDesignProps) {
                     }
                   }}
                   onAttach={() => state.setShowAttachModal(true)}
-                  onPhoto={() => {}}
-                  onStlFile={() => {}}
+                  onPhoto={() => state.setShowAttachModal(true)}
+                  onStlFile={() => state.setShowAttachModal(true)}
+                  hasPhotos={state.attachedPhotoCount > 0}
+                  hasStlFiles={state.attachedStlCount > 0}
                 />
               </div>
             )}
@@ -979,6 +990,10 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         showAttachModal={state.showAttachModal}
         setShowAttachModal={state.setShowAttachModal}
         attachmentStages={caseStages}
+        onAttachFileCountsChange={(photoCount, stlCount) => {
+          state.setAttachedPhotoCount(photoCount);
+          state.setAttachedStlCount(stlCount);
+        }}
         showRushModal={state.showRushModal}
         setShowRushModal={state.setShowRushModal}
         currentRushArch={state.currentRushArch}

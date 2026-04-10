@@ -187,6 +187,10 @@ export async function createRetentionOption(
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}))
+    if (errorData.data && typeof errorData.data === "object") {
+      const fieldErrors = Object.values(errorData.data).flat().join(" ")
+      throw new Error(fieldErrors || errorData.message || `Failed to create retention option: ${response.statusText}`)
+    }
     throw new Error(errorData.message || `Failed to create retention option: ${response.statusText}`)
   }
 
@@ -223,6 +227,10 @@ export async function updateRetentionOption(
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}))
+    if (errorData.data && typeof errorData.data === "object") {
+      const fieldErrors = Object.values(errorData.data).flat().join(" ")
+      throw new Error(fieldErrors || errorData.message || `Failed to update retention option: ${response.statusText}`)
+    }
     throw new Error(errorData.message || `Failed to update retention option: ${response.statusText}`)
   }
 

@@ -92,7 +92,7 @@ function buildFixedNote(
 
 function buildRemovableNote(
   arch: Arch,
-  teeth: number[],
+  _teeth: number[],
   product: ProductApiData | null,
   repTooth: number,
   props: NotesProps,
@@ -100,21 +100,20 @@ function buildRemovableNote(
   allCardTeeth: number[],
 ): string {
   const productName = product?.name || "removable";
-  const teethStr = formatTeethNumbers(teeth);
   const gradeRaw = props.getFieldValue(arch, repTooth, "grade");
   let grade = gradeRaw;
-  try { const p = JSON.parse(gradeRaw); grade = p.name ?? gradeRaw; } catch {}
+  try { const p = JSON.parse(gradeRaw); grade = p.name ?? ""; } catch {}
   const stage = props.getFieldValue(arch, repTooth, "stage");
   const teethShadeRaw = props.getFieldValue(arch, repTooth, "teeth_shade");
   let teethShade = teethShadeRaw;
-  try { const p = JSON.parse(teethShadeRaw); teethShade = p.name ?? teethShadeRaw; } catch {}
+  try { const p = JSON.parse(teethShadeRaw); teethShade = p.name ?? ""; } catch {}
   const gumShadeRaw = props.getFieldValue(arch, repTooth, "gum_shade");
   let gumShade = gumShadeRaw;
-  try { const p = JSON.parse(gumShadeRaw); gumShade = p.name ?? gumShadeRaw; } catch {}
+  try { const p = JSON.parse(gumShadeRaw); gumShade = p.name ?? ""; } catch {}
   const impression = props.getImpressionDisplayText(`prep_${repTooth}`, arch, repTooth);
   const addons = props.getFieldValue(arch, repTooth, "addons");
 
-  let note = `Please fabricate a${grade ? ` ${grade}` : ""} ${productName} replacing teeth ${teethStr}${stage ? `, in the ${stage} stage` : ""}.`;
+  let note = `Please fabricate a${grade ? ` ${grade}` : ""} ${productName}${stage ? ` in the ${stage} stage` : ""}.`;
   if (teethShade || gumShade) {
     note += ` Use${teethShade ? ` ${teethShade} denture teeth` : ""}${gumShade ? ` with ${gumShade} gingiva` : ""}.`;
   }
@@ -136,7 +135,7 @@ function buildRemovableNote(
   const byCode: Record<string, number[]> = {};
   for (const tn of allCardTeeth) {
     const code = extractionMap[tn];
-    if (!code) continue; // in-mouth teeth — already counted in teethStr
+    if (!code) continue; // in-mouth teeth — skip
     if (!byCode[code]) byCode[code] = [];
     byCode[code].push(tn);
   }
