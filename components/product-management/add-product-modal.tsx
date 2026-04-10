@@ -510,7 +510,11 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
         editingProduct.opposite_extractions && editingProduct.opposite_extractions.length > 0
           ? false
           : (editingProduct.apply_same_status_to_opposing ?? true),
-      request_opposing_extraction: editingProduct.opposite_impression !== "No" && (editingProduct.opposite_impression === "Yes" || editingProduct.opposite_impression === true || editingProduct.opposite_impression === 1 || editingProduct.request_opposing_extraction === true || editingProduct.request_opposing_extraction === 1 || (Array.isArray(editingProduct.opposite_extractions) && editingProduct.opposite_extractions.length > 0)),
+      request_opposing_extraction: editingProduct.opposite_impression === "Yes" || editingProduct.opposite_impression === true || editingProduct.opposite_impression === 1 || editingProduct.request_opposing_extraction === true || editingProduct.request_opposing_extraction === 1 || (Array.isArray(editingProduct.opposite_extractions) && editingProduct.opposite_extractions.length > 0),
+      is_teeth_based_price: editingProduct.is_teeth_based_price || "No",
+      teeth_pricing_type: strategyForm,
+      ...teethHydrate,
+      ...variationForm,
     }
   }, [editingProduct, initialFormValues])
 
