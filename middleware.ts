@@ -1,6 +1,28 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+function cspHttpApiConnectExtra(): string {
+  const raw = process.env.NEXT_PUBLIC_API_BASE_URL;
+  if (!raw) return '';
+  try {
+    const o = new URL(raw);
+    return o.protocol === 'http:' ? ` ${o.origin}` : '';
+  } catch {
+    return '';
+  }
+}
+
+function cspUpgradeInsecureRequests(): string {
+  const raw = process.env.NEXT_PUBLIC_API_BASE_URL;
+  if (!raw) return '; upgrade-insecure-requests';
+  try {
+    if (new URL(raw).protocol === 'http:') return '';
+  } catch {
+    /* ignore */
+  }
+  return '; upgrade-insecure-requests';
+}
+
 export function middleware(request: NextRequest) {
   // Clone the request headers
   const requestHeaders = new Headers(request.headers);
@@ -42,21 +64,22 @@ export function middleware(request: NextRequest) {
   // Content Security Policy
   // Adjusted for Next.js, 3D rendering (Three.js), and Vercel deployment
   // Allows HTTPS sources for styles, images, fonts, and connections to support CDN deployments
+  const httpConnect = cspHttpApiConnectExtra();
+  const upgrade = cspUpgradeInsecureRequests();
   const cspHeader = `
     default-src 'self';
     script-src 'self' 'unsafe-eval' 'unsafe-inline' blob: https://static.cloudflareinsights.com;
     style-src 'self' 'unsafe-inline' https:;
     img-src 'self' blob: data: https:;
     font-src 'self' data: https:;
-    connect-src 'self' blob: https:;
+    connect-src 'self' blob: https:${httpConnect};
     media-src 'self' blob: https:;
     worker-src 'self' blob:;
     object-src 'none';
     frame-src 'none';
     base-uri 'self';
     form-action 'self';
-    frame-ancestors 'none';
-    upgrade-insecure-requests;
+    frame-ancestors 'none'${upgrade};
   `.replace(/\s{2,}/g, ' ').trim();
 
   response.headers.set('Content-Security-Policy', cspHeader);

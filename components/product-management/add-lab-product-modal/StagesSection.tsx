@@ -4,8 +4,33 @@ import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ChevronDown, Info, Plus, Trash2, AlertCircle, GripVertical } from "lucide-react"
 import { ValidationError } from "@/components/ui/validation-error"
-import { useState, useCallback } from "react"
+import { useState, useCallback, useMemo, useEffect } from "react"
 import { cn } from "@/lib/utils"
+
+/** Teeth + grades: each stage row price = (grade full price from Grades) × (allocation % ÷ 100). */
+function mergeStageGradePricesForTeeth(
+    stage: { grade_prices?: Record<string | number, string> },
+    allocationStr: string,
+    grades: any[],
+): Record<string, string> {
+    const base: Record<string, string> = { ...(stage.grade_prices as Record<string, string>) || {} }
+    grades.forEach((g) => {
+        const gid = g.grade_id ?? g.id
+        delete base[gid]
+        delete base[String(gid)]
+    })
+    const pct = parseFloat(String(allocationStr ?? "").trim())
+    if (isNaN(pct) || pct <= 0) {
+        return base
+    }
+    const factor = pct / 100
+    grades.forEach((g) => {
+        const gid = g.grade_id ?? g.id
+        const full = parseFloat(String(g.price ?? "").trim())
+        base[gid] = isNaN(full) || full < 0 ? "" : (full * factor).toFixed(2)
+    })
+    return base
+}
 
 interface Stage {
     stage_id: string | number;
@@ -16,6 +41,7 @@ interface Stage {
     status: string;
     grade_prices?: { [grade_id: string]: string };
     is_default?: "Yes" | "No";
+    allocation_percent?: string | number;
 }
 
 interface StagesSectionProps {
@@ -69,11 +95,15 @@ export function StagesSection({
 
     const allStages = (Array.isArray(stages) ? stages : (stages as any)?.data?.data || (stages as any)?.data || stages || []) as any[]
     const watchedStages = watch("stages") || []
+    const isTeethBased = String(watch("is_teeth_based_price") || "") === "Yes"
 
     // Add watchedGrades for grade-based pricing check
     const watchedGrades = watch("grades") || []
     const hasSelectedGrades = watchedGrades.length > 0
     const hasGradeBasedPricing = String(watch("has_grade_based_pricing") || "") === "Yes"
+    /** Teeth-based: stage $ per grade = grade price (first-tooth total) × alloc% / 100 */
+    const teethAutoStagePricesFromAlloc =
+        isTeethBased && hasGradeBasedPricing && hasSelectedGrades
     const basePrice = watch("base_price") || ""
 
     // Use grades prop if available, otherwise fallback to stages.grades or stages.data.grades
@@ -126,6 +156,12 @@ export function StagesSection({
 
     // Helper to get grade price for a stage, fallback to GradesSection price if not set
     const getGradePrice = (stage: any, gradeId: string | number) => {
+        if (teethAutoStagePricesFromAlloc) {
+            const alloc = stage.allocation_percent
+            if (alloc === undefined || alloc === null || String(alloc).trim() === "") {
+                return ""
+            }
+        }
         // Normalize gradeId for comparison (handle both string and number)
         const normalizedGradeId = typeof gradeId === "string" ? gradeId : gradeId.toString()
         
@@ -201,6 +237,46 @@ export function StagesSection({
         setValue("stages", updated, { shouldDirty: true, shouldValidate: true })
     }
 
+    const setAllocationPercent = useCallback(
+        (stageId: string | number, value: string) => {
+            const updated = watchedStages.map((s) => {
+                if (s.stage_id?.toString() !== stageId.toString()) return s
+                if (!teethAutoStagePricesFromAlloc) {
+                    return { ...s, allocation_percent: value }
+                }
+                const grade_prices = mergeStageGradePricesForTeeth(s, value, watchedGrades)
+                return { ...s, allocation_percent: value, grade_prices }
+            })
+            setValue("stages", updated, { shouldDirty: true, shouldValidate: true })
+        },
+        [watchedStages, setValue, teethAutoStagePricesFromAlloc, watchedGrades],
+    )
+
+    const teethGradesPriceSig = useMemo(
+        () =>
+            teethAutoStagePricesFromAlloc
+                ? watchedGrades.map((g: any) => `${g.grade_id}:${g.price}`).join("|")
+                : "",
+        [teethAutoStagePricesFromAlloc, watchedGrades],
+    )
+
+    useEffect(() => {
+        if (!teethAutoStagePricesFromAlloc || !watchedStages.length) return
+
+        let changed = false
+        const next = watchedStages.map((s) => {
+            const alloc = s.allocation_percent
+            if (alloc === undefined || alloc === null || String(alloc).trim() === "") return s
+            const newGp = mergeStageGradePricesForTeeth(s, String(alloc), watchedGrades)
+            if (JSON.stringify(newGp) === JSON.stringify(s.grade_prices || {})) return s
+            changed = true
+            return { ...s, grade_prices: newGp }
+        })
+        if (changed) {
+            setValue("stages", next, { shouldDirty: true, shouldValidate: true })
+        }
+    }, [teethGradesPriceSig, teethAutoStagePricesFromAlloc, watchedStages, watchedGrades, setValue])
+
     // Handle toggling releasing stage status
     const handleToggleReleasingStage = (stageId: string | number, checked: boolean) => {
         if (checked) {
@@ -268,6 +344,9 @@ export function StagesSection({
 
     // Handle pricing suggestions
     const handleUseStagePricing = () => {
+        if (isTeethBased && hasGradeBasedPricing && hasSelectedGrades) {
+            return
+        }
         // Logic for "Use stage pricing" - populate with default stage prices from stage data
         const updated = watchedStages.map(stage => {
             // Find stage info - match by id (convert to string for comparison to handle both number and string IDs)
@@ -336,6 +415,16 @@ export function StagesSection({
         if (stageCount === 0) return
         
         if (hasGradeBasedPricing && hasSelectedGrades) {
+            if (isTeethBased) {
+                const perNum = Math.round((100 / stageCount) * 100) / 100
+                const perStr = perNum.toFixed(2)
+                const updated = watchedStages.map((s) => {
+                    const grade_prices = mergeStageGradePricesForTeeth(s, perStr, watchedGrades)
+                    return { ...s, allocation_percent: perStr, grade_prices }
+                })
+                setValue("stages", updated, { shouldDirty: true, shouldValidate: true })
+                return
+            }
             // For grade-based pricing: divide each grade's price equally among stages
             const updated = watchedStages.map(stage => {
                 const gradePrices: { [key: string]: string } = {}
@@ -459,6 +548,56 @@ export function StagesSection({
         })
         .filter(item => item.stageInfo)
 
+    const showTeethAllocationColumn = isTeethBased && selectedStages.length > 0
+
+    const stagesTableGridTemplateColumns = useMemo(() => {
+        const alloc = showTeethAllocationColumn ? "minmax(76px,96px) " : ""
+        if (userRole === "superadmin") {
+            return `minmax(120px,1fr) minmax(80px,1fr) ${alloc}minmax(100px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px`
+        }
+        if (hasSelectedGrades) {
+            return `minmax(120px,1fr) minmax(80px,1fr) ${alloc}repeat(${selectedGradesWithNames.length}, minmax(120px,1fr)) minmax(100px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px`
+        }
+        return `minmax(120px,1fr) minmax(80px,1fr) ${alloc}minmax(100px,1fr) minmax(100px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px`
+    }, [userRole, hasSelectedGrades, selectedGradesWithNames.length, showTeethAllocationColumn])
+
+    const stageTableSubtotals = (() => {
+        const allocSum = selectedStages.reduce((acc, row) => {
+            const n = parseFloat(String(row.allocation_percent ?? "").trim())
+            return acc + (isNaN(n) ? 0 : n)
+        }, 0)
+
+        const gradeSums: number[] = []
+        if (hasSelectedGrades && userRole !== "superadmin") {
+            selectedGradesWithNames.forEach((grade: any) => {
+                const gid = grade.grade_id || grade.id
+                let sum = 0
+                selectedStages.forEach((item) => {
+                    const { stageInfo, ...stageData } = item
+                    const p = getGradePrice(stageData, gid)
+                    const n = parseFloat(String(p || "").trim())
+                    sum += isNaN(n) ? 0 : n
+                })
+                gradeSums.push(Math.round(sum * 100) / 100)
+            })
+        }
+
+        let singlePriceSum = 0
+        if (!hasSelectedGrades && userRole !== "superadmin") {
+            singlePriceSum = selectedStages.reduce((acc, row) => {
+                const n = parseFloat(String((row as any).economy_price || "").trim())
+                return acc + (isNaN(n) ? 0 : n)
+            }, 0)
+            singlePriceSum = Math.round(singlePriceSum * 100) / 100
+        }
+
+        return {
+            allocSum: Math.round(allocSum * 100) / 100,
+            gradeSums,
+            singlePriceSum,
+        }
+    })()
+
     // When single stage is active, the entire section is disabled
     if (isSingleStage) {
         return (
@@ -563,6 +702,11 @@ export function StagesSection({
                         </div>
                     )}
 
+                    {showTeethAllocationColumn && (
+                        <p className="mb-2 text-xs text-gray-500">
+                            Teeth-based: enter each stage&apos;s share in <strong>Alloc. %</strong> — when every stage has a value, they must sum to 100.
+                        </p>
+                    )}
                     {/* Stages table */}
                     <div className="space-y-2 mb-4 overflow-x-auto">
                         {selectedStages.length > 0 ? (
@@ -576,15 +720,23 @@ export function StagesSection({
                                 <div
                                     className={`grid gap-2 font-medium text-sm text-gray-700 border-b pb-2 bg-white sticky top-0 z-10`}
                                     style={{
-                                        gridTemplateColumns: userRole === "superadmin"
-                                            ? "minmax(120px,1fr) minmax(80px,1fr) minmax(100px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px"
-                                            : hasSelectedGrades
-                                                ? `minmax(120px,1fr) minmax(80px,1fr) repeat(${selectedGradesWithNames.length}, minmax(120px,1fr)) minmax(100px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px`
-                                                : "minmax(120px,1fr) minmax(80px,1fr) minmax(100px,1fr) minmax(100px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px"
+                                        gridTemplateColumns: stagesTableGridTemplateColumns,
                                     }}
                                 >
                                     <div className="px-1">Case Stage</div>
                                     <div className="px-1">Code</div>
+                                    {showTeethAllocationColumn && (
+                                        <div className="px-1 text-center">
+                                            <div className="flex flex-col items-center gap-0.5 leading-tight">
+                                                <span className="text-xs font-semibold text-gray-800 whitespace-nowrap">
+                                                    Alloc. %
+                                                </span>
+                                                <span className="text-[10px] font-normal text-gray-500 leading-tight">
+                                                    Σ 100%
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
                                     {/* Hide price columns for superadmin */}
                                     {userRole !== "superadmin" && (
                                       hasSelectedGrades
@@ -606,7 +758,7 @@ export function StagesSection({
                                                         overflowWrap: "break-word"
                                                     }}
                                                 >
-                                                    {grade.name}
+                                                    <span>{grade.name}</span>
                                                 </div>
                                             )
                                         })
@@ -632,11 +784,7 @@ export function StagesSection({
                                                 isDragging ? 'opacity-50 border-blue-300' : 'hover:bg-gray-50 hover:border-gray-200'
                                             }`}
                                             style={{
-                                                gridTemplateColumns: userRole === "superadmin"
-                                                    ? "minmax(120px,1fr) minmax(80px,1fr) minmax(100px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px"
-                                                    : hasSelectedGrades
-                                                        ? `minmax(120px,1fr) minmax(80px,1fr) repeat(${selectedGradesWithNames.length}, minmax(120px,1fr)) minmax(100px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px`
-                                                        : "minmax(120px,1fr) minmax(80px,1fr) minmax(100px,1fr) minmax(100px,1fr) minmax(120px,1fr) minmax(100px,1fr) 40px"
+                                                gridTemplateColumns: stagesTableGridTemplateColumns,
                                             }}
                                             draggable={true}
                                             onDragStart={(e) => handleDragStart(e, stageData.stage_id)}
@@ -652,6 +800,23 @@ export function StagesSection({
                                                 <span>{stageInfo.name}</span>
                                             </div>
                                             <span className="text-sm text-gray-600">{stageInfo.code}</span>
+                                            {showTeethAllocationColumn && (
+                                                <div className="flex items-center justify-center px-1">
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        max="100"
+                                                        step="0.01"
+                                                        placeholder="%"
+                                                        className="h-8 w-full max-w-[5.5rem] rounded border border-gray-300 px-2 text-center text-sm tabular-nums focus:border-[#1162a8] focus:ring-1 focus:ring-[#1162a8]"
+                                                        value={stageData.allocation_percent ?? ""}
+                                                        onChange={(e) =>
+                                                            setAllocationPercent(stageData.stage_id, e.target.value)
+                                                        }
+                                                        aria-label={`Stage allocation % for ${stageInfo.name}`}
+                                                    />
+                                                </div>
+                                            )}
                                             {/* Hide price inputs for superadmin */}
                                             {userRole !== "superadmin" && (
                                               hasSelectedGrades
@@ -659,9 +824,18 @@ export function StagesSection({
                                                     <div className="relative" key={grade.grade_id || grade.id}>
                                                         <Input
                                                             type="number"
-                                                            className="pl-7 h-8 w-full"
+                                                            className={cn(
+                                                                "pl-7 h-8 w-full",
+                                                                teethAutoStagePricesFromAlloc && "bg-slate-50 cursor-not-allowed",
+                                                            )}
                                                             value={getGradePrice(stageData, grade.grade_id || grade.id)}
                                                             placeholder="0"
+                                                            readOnly={teethAutoStagePricesFromAlloc}
+                                                            title={
+                                                                teethAutoStagePricesFromAlloc
+                                                                    ? "Derived from grade price × allocation % (teeth-based)"
+                                                                    : undefined
+                                                            }
                                                             onChange={e =>
                                                                 setGradePrice(stageData.stage_id, grade.grade_id || grade.id, e.target.value)
                                                             }
@@ -759,6 +933,63 @@ export function StagesSection({
                                         </div>
                                     )
                                 })}
+                                {selectedStages.length > 0 && (
+                                    <div
+                                        className="grid gap-2 items-center py-2.5 px-2 mt-1 border-t-2 border-slate-200 bg-slate-50 rounded-b-md"
+                                        style={{
+                                            gridTemplateColumns: stagesTableGridTemplateColumns,
+                                        }}
+                                    >
+                                        <div className="px-1 font-semibold text-gray-900 text-sm">Sub Total</div>
+                                        <div className="px-1" />
+                                        {showTeethAllocationColumn && (
+                                            <div className="flex flex-col items-center justify-center px-1">
+                                                <span
+                                                    className={`text-sm font-semibold tabular-nums ${
+                                                        Math.abs(stageTableSubtotals.allocSum - 100) > 0.02
+                                                            ? "text-red-600"
+                                                            : "text-[#1162a8]"
+                                                    }`}
+                                                >
+                                                    {stageTableSubtotals.allocSum.toFixed(2)}%
+                                                </span>
+                                                {Math.abs(stageTableSubtotals.allocSum - 100) > 0.02 && (
+                                                    <span className="text-[10px] text-red-600 leading-tight">
+                                                        ≠ 100%
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )}
+                                        {userRole !== "superadmin" &&
+                                            (hasSelectedGrades
+                                                ? stageTableSubtotals.gradeSums.map((sum, idx) => (
+                                                      <div className="relative px-1" key={`sub-${idx}`}>
+                                                          <div className="flex h-8 w-full items-center rounded border border-slate-200 bg-white pl-7 pr-2 font-semibold text-gray-900">
+                                                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 text-sm">
+                                                                  $
+                                                              </span>
+                                                              <span className="text-sm tabular-nums">{sum.toFixed(2)}</span>
+                                                          </div>
+                                                      </div>
+                                                  ))
+                                                : (
+                                                      <div className="relative px-1">
+                                                          <div className="flex h-8 w-full items-center rounded border border-slate-200 bg-white pl-7 pr-2 font-semibold text-gray-900">
+                                                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 text-sm">
+                                                                  $
+                                                              </span>
+                                                              <span className="text-sm tabular-nums">
+                                                                  {stageTableSubtotals.singlePriceSum.toFixed(2)}
+                                                              </span>
+                                                          </div>
+                                                      </div>
+                                                  ))}
+                                        <div className="px-1" />
+                                        <div className="px-1" />
+                                        <div className="px-1" />
+                                        <div className="px-1" />
+                                    </div>
+                                )}
                             </div>
                         ) : (
                             <div className="text-center py-4 text-gray-500">

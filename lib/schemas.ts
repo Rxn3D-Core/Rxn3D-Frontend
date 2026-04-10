@@ -203,8 +203,10 @@ export const ProductCreateFormSchema = z
     enable_tooth_count_variation: z.enum(["Yes", "No"]).default("No").optional(),
     tooth_count_variations: z.array(
       z.object({
+        id: z.number().optional(),
         image: z.string().nullable().optional(),
-        tooth_count: z.string().optional(), // e.g. "1", "2", "4 - 15"
+        image_url: z.string().optional(),
+        tooth_count: z.string().optional(), // e.g. "1", "2", "4 - 15" → API teeth_spec
         name_template: z.string().optional(), // e.g. "Flipper [x tooth/teeth]"
       })
     ).optional(),
@@ -233,6 +235,19 @@ export const ProductCreateFormSchema = z
                 message: "Price must be greater than 0",
               }
             ),
+          markup_percent: z.union([z.string(), z.number()]).optional(),
+          first_tooth_price: z.union([z.string(), z.number()]).optional(),
+          additional_tooth_price: z.union([z.string(), z.number()]).optional(),
+          teeth_price_tiers: z
+            .array(
+              z.object({
+                min_teeth: z.number(),
+                max_teeth: z.number().nullable().optional(),
+                total_price: z.number(),
+                sort_order: z.number().optional(),
+              })
+            )
+            .optional(),
         }),
       )
       .optional(),
@@ -248,6 +263,7 @@ export const ProductCreateFormSchema = z
           is_default: z.enum(["Yes", "No"]).optional(),
           is_releasing_stage: z.enum(["Yes", "No"]).optional(),
           grade_prices: z.record(z.any()).optional(),
+          allocation_percent: z.union([z.string(), z.number()]).optional(),
         }).passthrough(),
       )
       .optional()

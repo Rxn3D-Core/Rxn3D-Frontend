@@ -352,7 +352,17 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
         // Remove grade_prices from the payload - it should only be in stage_grades
         // The price field above already contains the calculated value
         delete stageData.grade_prices
-        
+
+        if (s.allocation_percent !== undefined && s.allocation_percent !== null && s.allocation_percent !== "") {
+          const ap =
+            typeof s.allocation_percent === "number"
+              ? s.allocation_percent
+              : parseFloat(String(s.allocation_percent))
+          if (!isNaN(ap)) {
+            stageData.allocation_percent = ap
+          }
+        }
+
         return stageData
       })
     } else if (Object.prototype.hasOwnProperty.call(form, "stages")) {
@@ -444,15 +454,33 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
       }
     })
 
-    // Map grades: ensure price is number
+    // Map grades: ensure price is number; preserve teeth-based lab fields when present
     if (Array.isArray(form.grades)) {
-      payload.grades = form.grades.map((g: any, idx: number) => ({
-        grade_id: g.grade_id,
-        sequence: g.sequence ?? idx + 1,
-        is_default: g.is_default ?? "No",
-        status: g.status ?? "Active",
-        price: g.price ? parseFloat(g.price) : 0,
-      }))
+      payload.grades = form.grades.map((g: any, idx: number) => {
+        const row: any = {
+          grade_id: g.grade_id,
+          sequence: g.sequence ?? idx + 1,
+          is_default: g.is_default ?? "No",
+          status: g.status ?? "Active",
+          price: g.price ? parseFloat(g.price) : 0,
+        }
+        if (g.markup_percent !== undefined && g.markup_percent !== null && g.markup_percent !== "") {
+          const m = typeof g.markup_percent === "number" ? g.markup_percent : parseFloat(String(g.markup_percent))
+          if (!isNaN(m)) row.markup_percent = m
+        }
+        if (g.first_tooth_price !== undefined && g.first_tooth_price !== null && g.first_tooth_price !== "") {
+          const f = typeof g.first_tooth_price === "number" ? g.first_tooth_price : parseFloat(String(g.first_tooth_price))
+          if (!isNaN(f)) row.first_tooth_price = f
+        }
+        if (g.additional_tooth_price !== undefined && g.additional_tooth_price !== null && g.additional_tooth_price !== "") {
+          const a = typeof g.additional_tooth_price === "number" ? g.additional_tooth_price : parseFloat(String(g.additional_tooth_price))
+          if (!isNaN(a)) row.additional_tooth_price = a
+        }
+        if (Array.isArray(g.teeth_price_tiers) && g.teeth_price_tiers.length > 0) {
+          row.teeth_price_tiers = g.teeth_price_tiers
+        }
+        return row
+      })
     }
 
     // Map retentions: ensure not empty if selected
@@ -530,12 +558,21 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
     // Preserve has_* section flags passed from the modal (product_configurations)
     const sectionFlags = [
       "has_stage", "has_grade", "has_gum_shade", "has_teeth_shade",
-      "has_impression", "has_extraction", "has_retention", "has_material", "has_addon"
+      "has_impression", "has_extraction", "has_retention", "has_material", "has_addon", "has_variation"
     ] as const
     for (const flag of sectionFlags) {
       if (form[flag] !== undefined) {
         payload[flag] = form[flag]
       }
+    }
+    if (form.variations !== undefined) {
+      payload.variations = form.variations
+    }
+    if (form.teeth_pricing_strategy !== undefined) {
+      payload.teeth_pricing_strategy = form.teeth_pricing_strategy
+    }
+    if (form.is_teeth_based_price !== undefined) {
+      payload.is_teeth_based_price = form.is_teeth_based_price
     }
 
     return payload
@@ -1131,12 +1168,16 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
         let effectiveCustomerId: number | null = null;
         
         if (isLabAdmin || isSuperAdmin) {
-          // For lab_admin or superadmin roles, use customer_id from localStorage
+          // For lab_admin or superadmin roles, use customer_id from localStorage, then first linked customer
           if (typeof window !== "undefined") {
             const storedCustomerId = localStorage.getItem("customerId");
             if (storedCustomerId) {
               effectiveCustomerId = Number(storedCustomerId);
             }
+          }
+          if (!effectiveCustomerId && user?.customers?.length) {
+            const cid = user.customers[0]?.id;
+            if (cid) effectiveCustomerId = Number(cid);
           }
         } else {
           // For other roles, use selectedLabId
