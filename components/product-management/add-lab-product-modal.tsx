@@ -8,6 +8,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { ProductCreateFormSchema, type ProductCreateForm } from "@/lib/schemas"
+import {
+  finalizeLibraryProductApiPayload,
+  validateStageAllocationPercents,
+  teethStrategyApiToForm,
+  hydrateTeethPricingFieldsFromDefaultGrade,
+  mapApiVariationsToForm,
+} from "@/lib/library-product-api-mapping"
 import { useToast } from "@/hooks/use-toast"
 import { useProductCategory } from "@/contexts/product-category-context"
 import { useGrades } from "@/contexts/product-grades-context"
@@ -62,9 +69,13 @@ function slipFlagFromApi(value: unknown, defaultWhenMissing = true): boolean {
 /** Slip section toggles from API product (same rules as sectionsFromApi in the edit load effect). */
 function buildSectionsStateFromProduct(editingProduct: any) {
   const isSingleStage = editingProduct.is_single_stage === "Yes"
+  const isTeethBased =
+    editingProduct.is_teeth_based_price === "Yes" ||
+    editingProduct.is_teeth_based_price === true ||
+    editingProduct.is_teeth_based_price === "yes"
   return {
     productDetails: true,
-    variation: true,
+    variation: isTeethBased && slipFlagFromApi(editingProduct.has_variation, true),
     grades: slipFlagFromApi(editingProduct.has_grade, true),
     stages: isSingleStage ? false : slipFlagFromApi(editingProduct.has_stage, true),
     impressions: slipFlagFromApi(editingProduct.has_impression, true),
@@ -77,6 +88,21 @@ function buildSectionsStateFromProduct(editingProduct: any) {
     visibilityManagement: true,
   }
 }
+
+const LAB_PRODUCT_TABS: { id: string; label: string; sectionKey: string | null }[] = [
+  { id: "details", label: "Product Details", sectionKey: "productDetails" },
+  { id: "variation", label: "Variation", sectionKey: "variation" },
+  { id: "grades", label: "Grades", sectionKey: "grades" },
+  { id: "stages", label: "Stages", sectionKey: "stages" },
+  { id: "impressions", label: "Impressions", sectionKey: "impressions" },
+  { id: "gumShade", label: "Gum Shade", sectionKey: "gumShade" },
+  { id: "teethShade", label: "Teeth Shade", sectionKey: "teethShade" },
+  { id: "material", label: "Material", sectionKey: "material" },
+  { id: "addOns", label: "Add-Ons", sectionKey: "addOns" },
+  { id: "retention", label: "Retention", sectionKey: "retention" },
+  { id: "extractions", label: "Extractions", sectionKey: "extractions" },
+  { id: "visibility", label: "Visibility", sectionKey: "visibilityManagement" },
+]
 
 interface AddLabProductModalProps {
   isOpen: boolean;
@@ -159,7 +185,7 @@ export function AddLabProductModal({
 
   const [sections, setSections] = useState({
     productDetails: true,
-    variation: true,
+    variation: false,
     grades: false,
     stages: true,
     impressions: true,
@@ -190,27 +216,18 @@ export function AddLabProductModal({
   // Simple flag: set to true whenever user toggles any section while editing
   const [sectionWasToggled, setSectionWasToggled] = useState(false)
 
-  const tabs = [
-    { id: "details", label: "Product Details", sectionKey: "productDetails" },
-    { id: "variation", label: "Variation", sectionKey: null },
-    { id: "grades", label: "Grades", sectionKey: "grades" },
-    { id: "stages", label: "Stages", sectionKey: "stages" },
-    { id: "impressions", label: "Impressions", sectionKey: "impressions" },
-    { id: "gumShade", label: "Gum Shade", sectionKey: "gumShade" },
-    { id: "teethShade", label: "Teeth Shade", sectionKey: "teethShade" },
-    { id: "material", label: "Material", sectionKey: "material" },
-    { id: "addOns", label: "Add-Ons", sectionKey: "addOns" },
-    { id: "retention", label: "Retention", sectionKey: "retention" },
-    { id: "extractions", label: "Extractions", sectionKey: "extractions" },
-    { id: "visibility", label: "Visibility", sectionKey: "visibilityManagement" },
-  ]
+  const tabs = LAB_PRODUCT_TABS
 
   // Set initial tab to "details" when editing a product
   // Show all tabs immediately when editing (product already exists)
   useEffect(() => {
     if (isOpen && editingProduct) {
       setActiveTab("details")
-      const allTabIds = tabs.map(tab => tab.id)
+      const teethOn =
+        editingProduct.is_teeth_based_price === "Yes" ||
+        editingProduct.is_teeth_based_price === true ||
+        editingProduct.is_teeth_based_price === "yes"
+      const allTabIds = tabs.map((tab) => tab.id).filter((id) => id !== "variation" || teethOn)
       setVisibleTabs(new Set(allTabIds))
     } else if (isOpen && !editingProduct) {
       // For new products, only show the first tab initially
@@ -218,10 +235,6 @@ export function AddLabProductModal({
       setActiveTab("details")
     }
   }, [isOpen, editingProduct])
-
-  const currentTabIndex = tabs.findIndex((tab) => tab.id === activeTab)
-  const isFirstTab = currentTabIndex === 0
-  const isLastTab = currentTabIndex === tabs.length - 1
 
   // Get required fields for each step
   const getRequiredFieldsForStep = (stepId: string, isSingleStage?: string): (keyof ProductCreateForm)[] => {
@@ -235,12 +248,6 @@ export function AddLabProductModal({
         return baseFields
       default:
         return []
-    }
-  }
-
-  const handlePrevious = () => {
-    if (!isFirstTab) {
-      setActiveTab(tabs[currentTabIndex - 1].id)
     }
   }
 
@@ -314,6 +321,13 @@ export function AddLabProductModal({
     min_days_to_process: null,
     max_days_to_process: null,
     is_teeth_based_price: "No",
+    teeth_pricing_type: "same_price",
+    teeth_price_per_tooth: "",
+    teeth_first_tooth_price: "",
+    teeth_additional_tooth_price: "",
+    teeth_custom_prices: [],
+    enable_tooth_count_variation: "No",
+    tooth_count_variations: [],
   }), [officeCustomers, stages])
 
   const {
@@ -349,6 +363,51 @@ export function AddLabProductModal({
   const hasDefaultGrade = watchedGrades.some((g: any) => g.is_default === "Yes")
   // Serialized key for stages to ensure useMemo recomputes when price/days change
   const stagesValidationKey = watchedStages.map((s: any) => `${s.stage_id}:${s.economy_price || s.standard_price || 0}:${s.days || 0}`).join(",")
+
+  /** Variation tab only applies when charging per tooth; Next/Previous skip it otherwise. */
+  const tabsForNavigation = useMemo(() => {
+    if (watchedIsTeethBased === "Yes") return LAB_PRODUCT_TABS
+    return LAB_PRODUCT_TABS.filter((t) => t.id !== "variation")
+  }, [watchedIsTeethBased])
+
+  const currentTabIndex = tabsForNavigation.findIndex((tab) => tab.id === activeTab)
+  const safeTabIndex = currentTabIndex >= 0 ? currentTabIndex : 0
+  const isFirstTab = safeTabIndex === 0
+  const isLastTab = safeTabIndex === tabsForNavigation.length - 1
+
+  const handlePrevious = useCallback(() => {
+    if (safeTabIndex <= 0) return
+    setActiveTab(tabsForNavigation[safeTabIndex - 1].id)
+  }, [safeTabIndex, tabsForNavigation])
+
+  const prevTeethBasedRef = useRef<string | undefined>(undefined)
+  useEffect(() => {
+    if (!isOpen) {
+      prevTeethBasedRef.current = undefined
+    }
+  }, [isOpen])
+
+  // When teeth-based pricing is off, hide Variation tab and clear variation fields (API: has_variation + variations[])
+  useEffect(() => {
+    if (!isOpen) return
+    if (watchedIsTeethBased === "Yes") {
+      prevTeethBasedRef.current = watchedIsTeethBased
+      return
+    }
+    const turningOffTeeth = prevTeethBasedRef.current === "Yes"
+    prevTeethBasedRef.current = watchedIsTeethBased
+
+    setVisibleTabs((prev) => {
+      if (!prev.has("variation")) return prev
+      const next = new Set(prev)
+      next.delete("variation")
+      return next
+    })
+    setActiveTab((prev) => (prev === "variation" ? "details" : prev))
+    setSections((s) => ({ ...s, variation: false }))
+    setValue("enable_tooth_count_variation", "No", { shouldDirty: turningOffTeeth })
+    setValue("tooth_count_variations", [], { shouldDirty: turningOffTeeth })
+  }, [watchedIsTeethBased, setValue, isOpen])
 
   // Check if current step has errors
   const hasCurrentStepErrors = useMemo(() => {
@@ -550,9 +609,9 @@ export function AddLabProductModal({
     }
 
     // Find the next tab to unlock (skip already-visible tabs that don't need unlocking)
-    let nextIndex = currentTabIndex + 1
-    if (nextIndex >= tabs.length) return
-    const nextTabId = tabs[nextIndex].id
+    let nextIndex = safeTabIndex + 1
+    if (nextIndex >= tabsForNavigation.length) return
+    const nextTabId = tabsForNavigation[nextIndex].id
     // Unlock the next tab when user clicks Next
     setVisibleTabs(prev => new Set([...prev, nextTabId]))
     setActiveTab(nextTabId)
@@ -778,13 +837,32 @@ export function AddLabProductModal({
             }
           }
 
-          return {
+          const base = {
             [idKey]: item[idKey] ?? item.id,
             sequence: item.sequence && item.sequence >= 1 ? item.sequence : idx + 1, // <-- always at least 1
             status: item.status || (item.is_default === "Yes" ? "Active" : "Inactive"),
             is_default: item.is_default === "Yes" ? "Yes" : "No",
             price: price,
           }
+          if (idKey === "grade_id") {
+            return {
+              ...base,
+              markup_percent:
+                item.markup_percent != null && item.markup_percent !== ""
+                  ? String(item.markup_percent)
+                  : undefined,
+              first_tooth_price:
+                item.first_tooth_price != null && item.first_tooth_price !== ""
+                  ? String(item.first_tooth_price)
+                  : undefined,
+              additional_tooth_price:
+                item.additional_tooth_price != null && item.additional_tooth_price !== ""
+                  ? String(item.additional_tooth_price)
+                  : undefined,
+              teeth_price_tiers: Array.isArray(item.teeth_price_tiers) ? item.teeth_price_tiers : undefined,
+            }
+          }
+          return base
         })
       }
 
@@ -824,6 +902,10 @@ export function AddLabProductModal({
             standard_price: priceStr,
             days: daysStr,
             grade_prices: item.grade_prices || {},
+            allocation_percent:
+              item.allocation_percent != null && item.allocation_percent !== ""
+                ? String(item.allocation_percent)
+                : undefined,
           }
         })
       }
@@ -970,6 +1052,10 @@ export function AddLabProductModal({
         }
       }
 
+      const strategyForm = teethStrategyApiToForm(editingProduct.teeth_pricing_strategy)
+      const teethHydrate = hydrateTeethPricingFieldsFromDefaultGrade(mappedGrades, strategyForm)
+      const variationForm = mapApiVariationsToForm(editingProduct)
+
       const formValues: ProductCreateForm = {
         name: editingProduct.name || "",
         code: editingProduct.code || "",
@@ -1052,6 +1138,9 @@ export function AddLabProductModal({
         request_opposing_extraction: editingProduct.opposite_impression === "Yes" || editingProduct.opposite_impression === true || editingProduct.opposite_impression === 1 || editingProduct.request_opposing_extraction === true || editingProduct.request_opposing_extraction === 1 || (Array.isArray(editingProduct.opposite_extractions) && editingProduct.opposite_extractions.length > 0),
         min_days_to_process: editingProduct.min_days_to_process ?? null,
         max_days_to_process: editingProduct.max_days_to_process ?? null,
+        teeth_pricing_type: strategyForm,
+        ...teethHydrate,
+        ...variationForm,
       }
       reset(formValues)
       // Conditionally-rendered fields (min/max_days_to_process, is_teeth_based_price) are
@@ -1111,6 +1200,7 @@ export function AddLabProductModal({
       // Reset sections to defaults for new product
       setSections({
         productDetails: true,
+        variation: false,
         grades: false,
         stages: true,
         impressions: true,
@@ -1230,8 +1320,15 @@ export function AddLabProductModal({
       setValue("extractions", [], { shouldDirty: shouldMarkDirty })
       setValue("opposite_extractions", [], { shouldDirty: shouldMarkDirty })
     }
+    if (!sections.variation) {
+      setValue("enable_tooth_count_variation", "No", { shouldDirty: shouldMarkDirty })
+      setValue("tooth_count_variations", [], { shouldDirty: shouldMarkDirty })
+    } else {
+      setValue("enable_tooth_count_variation", "Yes", { shouldDirty: shouldMarkDirty })
+    }
   }, [
     sections.grades,
+    sections.variation,
     sections.stages,
     sections.impressions,
     sections.gumShade,
@@ -1412,6 +1509,10 @@ export function AddLabProductModal({
             ...baseItem,
             is_default: item.is_default === "Yes" || item.is_default === true ? "Yes" : "No",
             price: item.price !== undefined ? item.price : "",
+            markup_percent: item.markup_percent,
+            first_tooth_price: item.first_tooth_price,
+            additional_tooth_price: item.additional_tooth_price,
+            teeth_price_tiers: item.teeth_price_tiers,
           }
         }
         
@@ -1434,6 +1535,7 @@ export function AddLabProductModal({
             grade_prices: item.grade_prices !== undefined ? item.grade_prices : {},
             days: item.days !== undefined ? item.days : "",
             is_default: item.is_default === "Yes" || item.is_default === true ? "Yes" : "No",
+            allocation_percent: item.allocation_percent,
           }
         }
         
@@ -1640,6 +1742,20 @@ export function AddLabProductModal({
     if (!sections.addOns) payload.addons = []
     if (!sections.retention) payload.retentions = []
 
+    const allocationError = validateStageAllocationPercents(payload.stages)
+    if (allocationError) {
+      toast({
+        title: "Validation Error",
+        description: allocationError,
+        variant: "destructive",
+      })
+      return
+    }
+
+    finalizeLibraryProductApiPayload(payload as Record<string, unknown>, data, {
+      variation: sections.variation,
+    })
+
     let success = false
     try {
       if (editingProduct && editingProduct.id) {
@@ -1670,7 +1786,10 @@ export function AddLabProductModal({
 
     if (success) {
       // Show all tabs after successful creation/update (for next time it's opened)
-      setVisibleTabs(new Set(tabs.map(tab => tab.id)))
+      const teethOnSuccess = data.is_teeth_based_price === "Yes"
+      setVisibleTabs(
+        new Set(tabs.map((tab) => tab.id).filter((id) => id !== "variation" || teethOnSuccess)),
+      )
       clearValidationErrors()
       reset()
       setInitialFormValues(null) // Clear initial values
@@ -1714,6 +1833,7 @@ export function AddLabProductModal({
   const getSectionFields = (tabId: string): string[] => {
     const fieldMap: Record<string, string[]> = {
       details: ["name", "code", "subcategory_id", "base_price", "type", "status", "sequence", "description", "is_single_stage", "min_days_to_process", "max_days_to_process", "enable_auto_billing", "auto_billing_days"],
+      variation: ["enable_tooth_count_variation", "tooth_count_variations"],
       grades: ["grades", "has_grade_based_pricing", "default_grade_id"],
       stages: ["stages"],
       impressions: ["impressions", "impression_group_id", "request_opposing_extraction"],
@@ -1744,7 +1864,7 @@ export function AddLabProductModal({
   }, [releasingStageIds, initialReleasingStageIds])
 
   // Section keys that map to backend has_* flags (product_configurations)
-  const SECTION_TOGGLE_KEYS = ["grades", "stages", "impressions", "gumShade", "teethShade", "material", "addOns", "retention", "extractions"] as const
+  const SECTION_TOGGLE_KEYS = ["variation", "grades", "stages", "impressions", "gumShade", "teethShade", "material", "addOns", "retention", "extractions"] as const
 
   // Check if any section toggle has changed from initial
   const hasSectionToggleChanges = useMemo(() => {
@@ -1806,6 +1926,7 @@ export function AddLabProductModal({
     if (!initialSections) return false
     // Map tab IDs to section toggle keys
     const tabToSectionKey: Record<string, string> = {
+      variation: "variation",
       grades: "grades", stages: "stages", impressions: "impressions",
       gumShade: "gumShade", teethShade: "teethShade", material: "material",
       addOns: "addOns", retention: "retention", extractions: "extractions",
@@ -1849,7 +1970,7 @@ export function AddLabProductModal({
       clearValidationErrors()
       const formData = watch()
       // Collect fields from ALL tabs so no changes are lost
-      const allTabIds = ["details", "grades", "stages", "impressions", "gumShade", "teethShade", "material", "addOns", "retention", "extractions", "visibility"]
+      const allTabIds = ["details", "variation", "grades", "stages", "impressions", "gumShade", "teethShade", "material", "addOns", "retention", "extractions", "visibility"]
       const allFields = allTabIds.flatMap(tabId => getSectionFields(tabId))
 
       // Create a subset of formData with all tab fields
@@ -1922,6 +2043,10 @@ export function AddLabProductModal({
               ...baseItem,
               is_default: item.is_default === "Yes" || item.is_default === true ? "Yes" : "No",
               price: item.price !== undefined ? item.price : "",
+              markup_percent: item.markup_percent,
+              first_tooth_price: item.first_tooth_price,
+              additional_tooth_price: item.additional_tooth_price,
+              teeth_price_tiers: item.teeth_price_tiers,
             }
           }
           
@@ -2004,6 +2129,20 @@ export function AddLabProductModal({
               stageData.economy_price = item.economy_price !== undefined ? item.economy_price : ""
               stageData.standard_price = item.standard_price !== undefined ? item.standard_price : ""
               stageData.grade_prices = item.grade_prices !== undefined ? item.grade_prices : {}
+            }
+
+            if (
+              item.allocation_percent !== undefined &&
+              item.allocation_percent !== null &&
+              item.allocation_percent !== ""
+            ) {
+              const ap =
+                typeof item.allocation_percent === "number"
+                  ? item.allocation_percent
+                  : parseFloat(String(item.allocation_percent))
+              if (!isNaN(ap)) {
+                stageData.allocation_percent = ap
+              }
             }
             
             // Note: is_releasing_stage will be handled by releasingStageIds parameter
@@ -2178,6 +2317,22 @@ export function AddLabProductModal({
       payload.has_retention = slipFlagToApi(sections.retention)
       payload.has_material = slipFlagToApi(sections.material)
       payload.has_addon = slipFlagToApi(sections.addOns)
+
+      const allocationErrorSection = validateStageAllocationPercents(
+        payload.stages ?? formData.stages,
+      )
+      if (allocationErrorSection) {
+        toast({
+          title: "Validation Error",
+          description: allocationErrorSection,
+          variant: "destructive",
+        })
+        return
+      }
+
+      finalizeLibraryProductApiPayload(payload as Record<string, unknown>, formData, {
+        variation: sections.variation,
+      })
 
       // When section flags are false: send empty arrays so backend deletes relations
       if (!sections.stages) payload.stages = []
@@ -2358,9 +2513,12 @@ export function AddLabProductModal({
                 <div className="border-b border-gray-200 bg-white flex-shrink-0">
                   <div className="flex">
                     {tabs.map((tab) => {
+                      if (tab.id === "variation" && watchedIsTeethBased !== "Yes") return null
                       const isActive = activeTab === tab.id
                       const isVisible = visibleTabs.has(tab.id)
-                      const isSectionOff = tab.sectionKey ? sections[tab.sectionKey as keyof typeof sections] === false : false
+                      const isSectionOff = tab.sectionKey
+                        ? sections[tab.sectionKey as keyof typeof sections] === false
+                        : false
                       if (!isVisible) return null
                       return (
                         <button
@@ -2404,14 +2562,6 @@ export function AddLabProductModal({
                     setValue={setValue}
                     onSave={editingProduct ? handleFormSubmit : undefined}
                     isSaving={isSubmitting || isUpdating || isCreating}
-                    onTeethBasedChange={(checked) => {
-                      if (!checked) {
-                        setVisibleTabs((prev) => { const next = new Set(prev); next.delete("variation"); return next })
-                        setActiveTab((prev) => prev === "variation" ? "details" : prev)
-                        setValue("enable_tooth_count_variation", "No")
-                        setValue("tooth_count_variations", [])
-                      }
-                    }}
                   />
                 </TabsContent>
 

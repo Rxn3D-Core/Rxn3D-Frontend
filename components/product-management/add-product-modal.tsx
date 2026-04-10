@@ -11,6 +11,13 @@ import { debounce } from "@/lib/performance"
 import { useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { ProductCreateFormSchema, type ProductCreateForm, type Extraction } from "@/lib/schemas"
+import {
+  finalizeLibraryProductApiPayload,
+  validateStageAllocationPercents,
+  teethStrategyApiToForm,
+  hydrateTeethPricingFieldsFromDefaultGrade,
+  mapApiVariationsToForm,
+} from "@/lib/library-product-api-mapping"
 import { ExtractionsApi } from "@/lib/api-service"
 import { useProducts } from "@/contexts/product-products-context"
 import { useProductCategory } from "@/contexts/product-category-context"
@@ -241,6 +248,14 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
     opposite_extractions: [],
     apply_same_status_to_opposing: true,
     request_opposing_extraction: false,
+    is_teeth_based_price: "No",
+    teeth_pricing_type: "same_price",
+    teeth_price_per_tooth: "",
+    teeth_first_tooth_price: "",
+    teeth_additional_tooth_price: "",
+    teeth_custom_prices: [],
+    enable_tooth_count_variation: "No",
+    tooth_count_variations: [],
   }), [])
 
   const {
@@ -359,6 +374,19 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
             ...baseItem,
             is_default: item.is_default === "Yes" ? "Yes" : "No",
             price: item.price ?? "",
+            markup_percent:
+              item.markup_percent != null && item.markup_percent !== ""
+                ? String(item.markup_percent)
+                : undefined,
+            first_tooth_price:
+              item.first_tooth_price != null && item.first_tooth_price !== ""
+                ? String(item.first_tooth_price)
+                : undefined,
+            additional_tooth_price:
+              item.additional_tooth_price != null && item.additional_tooth_price !== ""
+                ? String(item.additional_tooth_price)
+                : undefined,
+            teeth_price_tiers: Array.isArray(item.teeth_price_tiers) ? item.teeth_price_tiers : undefined,
           }
         } else if (idKey === "extraction_id") {
           return {
@@ -380,6 +408,10 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
             is_default: item.is_default === "Yes" ? "Yes" : "No",
             is_releasing_stage: item.is_releasing_stage ?? "No",
             grade_prices: item.grade_prices ?? {},
+            allocation_percent:
+              item.allocation_percent != null && item.allocation_percent !== ""
+                ? String(item.allocation_percent)
+                : undefined,
           }
         } else if (idKey === "addon_id") {
           const priceValue =
@@ -434,6 +466,11 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
       mappedType = editingProduct.type
     }
 
+    const mappedGrades = mapWithStatus(gradesArr, "grade_id")
+    const strategyForm = teethStrategyApiToForm(editingProduct.teeth_pricing_strategy)
+    const teethHydrate = hydrateTeethPricingFieldsFromDefaultGrade(mappedGrades, strategyForm)
+    const variationForm = mapApiVariationsToForm(editingProduct)
+
     return {
       ...initialFormValues,
       name: editingProduct.name || "",
@@ -444,7 +481,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
       status: editingProduct.status || "Active",
       sequence: editingProduct.sequence || 1,
       description: editingProduct.description || "",
-      grades: mapWithStatus(gradesArr, "grade_id"),
+      grades: mappedGrades,
       stages: mapWithStatus(editingProduct.stages || [], "stage_id"),
       impressions: mapWithStatus(editingProduct.impressions || [], "impression_id"),
       gum_shades: mapWithStatus(editingProduct.gum_shades || [], "gum_shade_id"),
@@ -474,6 +511,10 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
           ? false
           : (editingProduct.apply_same_status_to_opposing ?? true),
       request_opposing_extraction: editingProduct.opposite_impression === "Yes" || editingProduct.opposite_impression === true || editingProduct.opposite_impression === 1 || editingProduct.request_opposing_extraction === true || editingProduct.request_opposing_extraction === 1 || (Array.isArray(editingProduct.opposite_extractions) && editingProduct.opposite_extractions.length > 0),
+      is_teeth_based_price: editingProduct.is_teeth_based_price || "No",
+      teeth_pricing_type: strategyForm,
+      ...teethHydrate,
+      ...variationForm,
     }
   }, [editingProduct, initialFormValues])
 
@@ -522,6 +563,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
         const hasAddons = isYes(editingProduct.has_addon, Array.isArray(editingProduct.addons) && editingProduct.addons.length > 0)
         const hasRetention = isYes(editingProduct.has_retention, Array.isArray(editingProduct.retentions) && editingProduct.retentions.length > 0)
         const hasExtractions = isYes(editingProduct.has_extraction, Array.isArray(editingProduct.extractions) && editingProduct.extractions.length > 0)
+        const hasVariation = isYes(editingProduct.has_variation, true)
         setSections((prev) => ({
           ...prev,
           grades: hasGrades,
@@ -533,6 +575,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
           addOns: hasAddons,
           retention: hasRetention,
           extractions: hasExtractions,
+          variation: hasVariation,
         }))
 
         // Initialize releasing stage IDs from existing stage data
@@ -723,6 +766,15 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
         payload.request_opposing_extraction = payload.request_opposing_extraction ? "Yes" : "No"
       }
 
+      const allocUpdate = validateStageAllocationPercents(payload.stages ?? data.stages)
+      if (allocUpdate) {
+        alert(allocUpdate)
+        return
+      }
+      finalizeLibraryProductApiPayload(payload as Record<string, unknown>, data, {
+        variation: sections.variation,
+      })
+
       success = await updateProduct(editingProduct.id, payload, releasingStageIds)
     } else {
       // Send full payload for creating new product
@@ -735,6 +787,16 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
       if (payload.request_opposing_extraction !== undefined) {
         payload.request_opposing_extraction = payload.request_opposing_extraction ? "Yes" : "No"
       }
+
+      const allocCreate = validateStageAllocationPercents(payload.stages)
+      if (allocCreate) {
+        alert(allocCreate)
+        return
+      }
+      finalizeLibraryProductApiPayload(payload as Record<string, unknown>, data, {
+        variation: sections.variation,
+      })
+
       success = await createProduct(payload)
     }
     if (success) {
