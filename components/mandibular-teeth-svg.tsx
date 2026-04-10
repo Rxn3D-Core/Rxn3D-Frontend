@@ -226,6 +226,23 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
     )
   }
 
+  const renderMissingToothImage = (toothNumber: number, x: number, width: number, toothHeight: number = 135) => {
+    if (!isToothMissing(toothNumber)) return null
+    if (!isToothSelected(toothNumber)) return null
+    return (
+      <image
+        key={`missing-tooth-${toothNumber}`}
+        href={`/images/teeth/mandibular/missing-teeth/tooth-${toothNumber}.png`}
+        x={x}
+        y={0}
+        width={width}
+        height={toothHeight}
+        preserveAspectRatio="xMidYMid meet"
+        style={{ pointerEvents: 'none' }}
+      />
+    )
+  }
+
   const handleToothClick = (toothNumber: number) => {
     if (onToothClick) {
       onToothClick(toothNumber)
@@ -526,6 +543,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
               {renderClaspOverlay(32, 0, 43, 42)}
               {renderWillExtractOverlay(32, 0, 43)}
               {renderCheckbox(32, 0, 43)}
+              {renderMissingToothImage(32, 0, 43)}
             </g>
               {isToothSelected(32) && !hideSelectionIndicators && (
                 <>
@@ -549,6 +567,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
               {renderClaspOverlay(26, 256, 31, 42)}
               {renderWillExtractOverlay(26, 256, 31)}
               {renderCheckbox(26, 256, 31)}
+              {renderMissingToothImage(26, 256, 31)}
             </g>
               {isToothSelected(26) && !hideSelectionIndicators && (
                 <>
@@ -572,6 +591,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
               {renderClaspOverlay(29, 148, 38, 42)}
               {renderWillExtractOverlay(29, 148, 38)}
               {renderCheckbox(29, 148, 38)}
+              {renderMissingToothImage(29, 148, 38)}
             </g>
               {isToothSelected(29) && !hideSelectionIndicators && (
                 <>
@@ -595,6 +615,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
               {renderClaspOverlay(23, 339, 30, 42)}
               {renderWillExtractOverlay(23, 339, 30)}
               {renderCheckbox(23, 339, 30)}
+              {renderMissingToothImage(23, 339, 30)}
             </g>
               {isToothSelected(23) && !hideSelectionIndicators && (
                 <>
@@ -618,6 +639,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
               {renderClaspOverlay(31, 43, 51, 42)}
               {renderWillExtractOverlay(31, 43, 51)}
               {renderCheckbox(31, 43, 51)}
+              {renderMissingToothImage(31, 43, 51)}
             </g>
               {isToothSelected(31) && !hideSelectionIndicators && (
                 <>
@@ -641,6 +663,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
               {renderClaspOverlay(25, 287, 26, 42)}
               {renderWillExtractOverlay(25, 287, 26)}
               {renderCheckbox(25, 287, 26)}
+              {renderMissingToothImage(25, 287, 26)}
             </g>
               {isToothSelected(25) && !hideSelectionIndicators && (
                 <>
@@ -664,6 +687,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
               {renderClaspOverlay(28, 186, 36, 42)}
               {renderWillExtractOverlay(28, 186, 36)}
               {renderCheckbox(28, 186, 36)}
+              {renderMissingToothImage(28, 186, 36)}
             </g>
               {isToothSelected(28) && !hideSelectionIndicators && (
                 <>
@@ -685,6 +709,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
               {renderClaspOverlay(22, 369, 34, 42)}
               {renderWillExtractOverlay(22, 369, 34)}
               {renderCheckbox(22, 369, 34)}
+              {renderMissingToothImage(22, 369, 34)}
             </g>
               {isToothSelected(22) && !hideSelectionIndicators && (
                 <>
@@ -706,6 +731,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
               {renderClaspOverlay(18, 530, 51, 42)}
               {renderWillExtractOverlay(18, 530, 51)}
               {renderCheckbox(18, 530, 51)}
+              {renderMissingToothImage(18, 530, 51)}
             </g>
               {isToothSelected(18) && !hideSelectionIndicators && (
                 <>
@@ -727,6 +753,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
               {renderClaspOverlay(20, 439, 38, 42)}
               {renderWillExtractOverlay(20, 439, 38)}
               {renderCheckbox(20, 439, 38)}
+              {renderMissingToothImage(20, 439, 38)}
             </g>
               {isToothSelected(20) && !hideSelectionIndicators && (
                 <>
@@ -750,6 +777,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
               {renderClaspOverlay(30, 94, 54, 42)}
               {renderWillExtractOverlay(30, 94, 54)}
               {renderCheckbox(30, 94, 54)}
+              {renderMissingToothImage(30, 94, 54)}
             </g>
               {isToothSelected(30) && !hideSelectionIndicators && (
                 <>
@@ -771,6 +799,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
               {renderClaspOverlay(24, 313, 26, 42)}
               {renderWillExtractOverlay(24, 313, 26)}
               {renderCheckbox(24, 313, 26)}
+              {renderMissingToothImage(24, 313, 26)}
             </g>
               {isToothSelected(24) && !hideSelectionIndicators && (
                 <>
@@ -794,6 +823,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
               {renderClaspOverlay(27, 222, 34, 42)}
               {renderWillExtractOverlay(27, 222, 34)}
               {renderCheckbox(27, 222, 34)}
+              {renderMissingToothImage(27, 222, 34)}
             </g>
               {isToothSelected(27) && !hideSelectionIndicators && (
                 <>
@@ -815,6 +845,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
               {renderClaspOverlay(19, 477, 53, 42)}
               {renderWillExtractOverlay(19, 477, 53)}
               {renderCheckbox(19, 477, 53)}
+              {renderMissingToothImage(19, 477, 53)}
             </g>
               {isToothSelected(19) && !hideSelectionIndicators && (
                 <>
@@ -836,6 +867,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
               {renderClaspOverlay(21, 403, 36, 42)}
               {renderWillExtractOverlay(21, 403, 36)}
               {renderCheckbox(21, 403, 36)}
+              {renderMissingToothImage(21, 403, 36)}
             </g>
               {isToothSelected(21) && !hideSelectionIndicators && (
                 <>
@@ -857,6 +889,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
               {renderClaspOverlay(17, 581, 43, 42)}
               {renderWillExtractOverlay(17, 581, 43)}
               {renderCheckbox(17, 581, 43)}
+              {renderMissingToothImage(17, 581, 43)}
             </g>
               {isToothSelected(17) && !hideSelectionIndicators && (
                 <>

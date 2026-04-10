@@ -1135,7 +1135,7 @@ export function AddLabProductModal({
         extractions: mapExtractions(editingProduct.extractions || []),
         opposite_extractions: mapOppositeExtractions(editingProduct.opposite_extractions || []),
         apply_same_status_to_opposing: (editingProduct.opposite_extractions && editingProduct.opposite_extractions.length > 0) ? false : (editingProduct.apply_same_status_to_opposing ?? true),
-        request_opposing_extraction: editingProduct.opposite_impression === "Yes" || editingProduct.opposite_impression === true || editingProduct.opposite_impression === 1 || editingProduct.request_opposing_extraction === true || editingProduct.request_opposing_extraction === 1 || (Array.isArray(editingProduct.opposite_extractions) && editingProduct.opposite_extractions.length > 0),
+        request_opposing_extraction: editingProduct.opposite_impression !== "No" && (editingProduct.opposite_impression === "Yes" || editingProduct.opposite_impression === true || editingProduct.opposite_impression === 1 || editingProduct.request_opposing_extraction === true || editingProduct.request_opposing_extraction === 1 || (Array.isArray(editingProduct.opposite_extractions) && editingProduct.opposite_extractions.length > 0)),
         min_days_to_process: editingProduct.min_days_to_process ?? null,
         max_days_to_process: editingProduct.max_days_to_process ?? null,
         teeth_pricing_type: strategyForm,
@@ -1156,13 +1156,11 @@ export function AddLabProductModal({
       }
       // Re-apply request_opposing_extraction after reset — zodResolver default(false) can override the value
       {
-        const shouldCheck = editingProduct.opposite_impression === "Yes" || editingProduct.opposite_impression === true || editingProduct.opposite_impression === 1 || editingProduct.request_opposing_extraction === true || editingProduct.request_opposing_extraction === 1 || (Array.isArray(editingProduct.opposite_extractions) && editingProduct.opposite_extractions.length > 0)
-        if (shouldCheck) {
-          setValue("request_opposing_extraction", true, { shouldDirty: false, shouldValidate: false })
-          queueMicrotask(() => {
-            setValue("request_opposing_extraction", true, { shouldDirty: false, shouldValidate: false })
-          })
-        }
+        const shouldCheck = editingProduct.opposite_impression !== "No" && (editingProduct.opposite_impression === "Yes" || editingProduct.opposite_impression === true || editingProduct.opposite_impression === 1 || editingProduct.request_opposing_extraction === true || editingProduct.request_opposing_extraction === 1 || (Array.isArray(editingProduct.opposite_extractions) && editingProduct.opposite_extractions.length > 0))
+        setValue("request_opposing_extraction", shouldCheck, { shouldDirty: false, shouldValidate: false })
+        queueMicrotask(() => {
+          setValue("request_opposing_extraction", shouldCheck, { shouldDirty: false, shouldValidate: false })
+        })
       }
       // Signal that we need to capture initial values from useWatch on its next emission
       // This ensures the baseline matches exactly what useWatch returns, avoiding false positives
@@ -1712,10 +1710,8 @@ export function AddLabProductModal({
       payload.image = imageBase64
     }
 
-    // Map request_opposing_extraction boolean → "Yes"/"No" for the API
-    if (payload.request_opposing_extraction !== undefined) {
-      payload.request_opposing_extraction = payload.request_opposing_extraction ? "Yes" : "No"
-    }
+    // Always include opposite_impression (backend field) so toggling is always persisted
+    payload.opposite_impression = data.request_opposing_extraction ? "Yes" : "No"
 
     // Product slip field flags: "Yes"/"No" for API (product_configurations)
     payload.has_stage = slipFlagToApi(sections.stages)

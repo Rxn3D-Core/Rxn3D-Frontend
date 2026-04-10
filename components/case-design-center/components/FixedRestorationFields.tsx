@@ -297,6 +297,25 @@ export function FixedRestorationFields({
   handleOpenAddOnsModal,
   getImpressionDisplayText,
 }: FixedRestorationFieldsProps) {
+  // Auto-complete steps whose advance_fields are empty — must be in useEffect, not inline during render
+  useEffect(() => {
+    if (!isFixed("fixed_contact_icons")) return;
+    if (!hasAdvanceField("fixed_contact_icons", selectedProduct?.advance_fields)) return;
+    const fields = getAdvanceFieldsForStep("fixed_contact_icons", selectedProduct?.advance_fields);
+    if (fields.length === 0 && !isFieldCompleted(arch, firstToothNumber, "fixed_contact_icons")) {
+      completeFieldStep(arch, firstToothNumber, "fixed_contact_icons", "auto");
+    }
+  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep]);
+
+  useEffect(() => {
+    if (!isFixed("fixed_proximal_contact")) return;
+    if (!hasAdvanceField("fixed_proximal_contact", selectedProduct?.advance_fields)) return;
+    const fields = getAdvanceFieldsForStep("fixed_proximal_contact", selectedProduct?.advance_fields);
+    if (fields.length === 0 && !isFieldCompleted(arch, firstToothNumber, "fixed_proximal_contact")) {
+      completeFieldStep(arch, firstToothNumber, "fixed_proximal_contact", "auto");
+    }
+  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep]);
+
   return (
     <>
       {/* ===== FIXED RESTORATION: Progressive step-by-step fields ===== */}
@@ -459,10 +478,7 @@ export function FixedRestorationFields({
       {isFixed("fixed_contact_icons") && hasAdvanceField("fixed_contact_icons", selectedProduct?.advance_fields) && (() => {
         const contactFields = getAdvanceFieldsForStep("fixed_contact_icons", selectedProduct?.advance_fields);
         if (contactFields.length === 0) {
-          // No matching fields — auto-complete so chain progresses
-          if (!isFieldCompleted(arch, firstToothNumber, "fixed_contact_icons")) {
-            completeFieldStep(arch, firstToothNumber, "fixed_contact_icons", "auto");
-          }
+          // No matching fields — auto-complete handled in useEffect above
           return null;
         }
         const fieldVal = getFieldValue(arch, firstToothNumber, "fixed_contact_icons");
@@ -603,9 +619,7 @@ export function FixedRestorationFields({
       {isFixed("fixed_proximal_contact") && hasAdvanceField("fixed_proximal_contact", selectedProduct?.advance_fields) && (() => {
         const proximalFields = getAdvanceFieldsForStep("fixed_proximal_contact", selectedProduct?.advance_fields);
         if (proximalFields.length === 0) {
-          if (!isFieldCompleted(arch, firstToothNumber, "fixed_proximal_contact")) {
-            completeFieldStep(arch, firstToothNumber, "fixed_proximal_contact", "auto");
-          }
+          // No matching fields — auto-complete handled in useEffect above
           return null;
         }
         const fieldVal = getFieldValue(arch, firstToothNumber, "fixed_proximal_contact");

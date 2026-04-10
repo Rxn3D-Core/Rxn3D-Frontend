@@ -335,7 +335,7 @@ export default function RetentionOptionPage() {
                   onClick={() => handleSort("linked_retention")}
                 >
                   <div className="flex items-center gap-1">
-                    {t("Linked Retention option")}
+                    {t("Linked Retention type")}
                     <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />
                   </div>
                 </TableHead>
@@ -390,16 +390,16 @@ export default function RetentionOptionPage() {
                     </TableCell>
                     <TableCell className="py-2 px-2">
                       <div className="flex items-center gap-2">
-                        {option.retention_types && option.retention_types.length > 0 ? (
+                        {option.retentions && option.retentions.length > 0 ? (
                           <>
-                            {option.retention_types.slice(0, 2).map((type: any, idx: number) => (
+                            {option.retentions.slice(0, 2).map((type: any, idx: number) => (
                               <span key={idx} className="text-xs bg-gray-100 px-2 py-1 rounded">
                                 {type.name || type}
                               </span>
                             ))}
-                            {option.retention_types.length > 2 && (
+                            {option.retentions.length > 2 && (
                               <Button variant="ghost" className="h-5 px-1.5 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50">
-                                +{option.retention_types.length - 2}
+                                +{option.retentions.length - 2}
                               </Button>
                             )}
                           </>

@@ -127,6 +127,7 @@ interface WizardResult {
   category: string;
   product: string;
   material: string;
+  materialName?: string;
   arch?: "maxillary" | "mandibular" | "both";
 }
 
@@ -1497,10 +1498,14 @@ export default function NewCaseWizard({
       const selectedCategoryName = categoriesAsWizard.find((c) => c.id === selectedCategory)?.name ?? "";
       const subProductName =
         (subcategoriesByCategoryId[selectedCategory ?? -1] ?? []).find((p) => p.id === selectedSubProduct)?.name ?? "";
+      const materialName = productsAsWizard.find((p) => String(p.id) === String(materialId))?.name ?? "";
       const archToUse = arch ?? selectedArch ?? forceArch;
 
       setSelectedMaterial(materialId);
       if (archToUse) setSelectedArch(archToUse);
+      // Reset auto-advance flag so the shouldAutoAdvanceProducts effect doesn't fire a second time
+      // (e.g. when selectedArch state update re-triggers the effect after arch popover selection)
+      setShouldAutoAdvanceProducts(false);
 
       const payload = {
         doctor: doctor ?? { id: 0, name: "", img: "" },
@@ -1512,6 +1517,7 @@ export default function NewCaseWizard({
         categoryName: selectedCategoryName,
         product: String(selectedSubProduct),
         material: materialId,
+        materialName,
         arch: archToUse,
       } as WizardResult;
 
@@ -1526,6 +1532,7 @@ export default function NewCaseWizard({
       selectedCategory,
       subcategoriesByCategoryId,
       selectedSubProduct,
+      productsAsWizard,
       selectedArch,
       forceArch,
       doctor,
@@ -1840,6 +1847,7 @@ export default function NewCaseWizard({
               onSelect={(id, arch) => {
                 setSelectedMaterial(id);
                 if (arch) setSelectedArch(arch);
+                const materialName = productsAsWizard.find((p) => String(p.id) === String(id))?.name ?? "";
                 if (mode === "addProduct") {
                   setTimeout(() => {
                     onComplete({
@@ -1852,6 +1860,7 @@ export default function NewCaseWizard({
                       categoryName: selectedCategoryName,
                       product: String(selectedSubProduct),
                       material: id,
+                      materialName,
                       arch,
                     });
                   }, 300);
@@ -1867,6 +1876,7 @@ export default function NewCaseWizard({
                       categoryName: selectedCategoryName,
                       product: String(selectedSubProduct),
                       material: id,
+                      materialName,
                       arch,
                     });
                   }, 300);
