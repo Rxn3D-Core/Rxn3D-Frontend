@@ -510,11 +510,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
         editingProduct.opposite_extractions && editingProduct.opposite_extractions.length > 0
           ? false
           : (editingProduct.apply_same_status_to_opposing ?? true),
-      request_opposing_extraction: editingProduct.opposite_impression === "Yes" || editingProduct.opposite_impression === true || editingProduct.opposite_impression === 1 || editingProduct.request_opposing_extraction === true || editingProduct.request_opposing_extraction === 1 || (Array.isArray(editingProduct.opposite_extractions) && editingProduct.opposite_extractions.length > 0),
-      is_teeth_based_price: editingProduct.is_teeth_based_price || "No",
-      teeth_pricing_type: strategyForm,
-      ...teethHydrate,
-      ...variationForm,
+      request_opposing_extraction: editingProduct.opposite_impression !== "No" && (editingProduct.opposite_impression === "Yes" || editingProduct.opposite_impression === true || editingProduct.opposite_impression === 1 || editingProduct.request_opposing_extraction === true || editingProduct.request_opposing_extraction === 1 || (Array.isArray(editingProduct.opposite_extractions) && editingProduct.opposite_extractions.length > 0)),
     }
   }, [editingProduct, initialFormValues])
 
@@ -533,13 +529,11 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
       }
       // Re-apply request_opposing_extraction after reset — zodResolver default(false) can override the value
       if (editingProduct) {
-        const shouldCheck = editingProduct.opposite_impression === "Yes" || editingProduct.opposite_impression === true || editingProduct.opposite_impression === 1 || editingProduct.request_opposing_extraction === true || editingProduct.request_opposing_extraction === 1 || (Array.isArray(editingProduct.opposite_extractions) && editingProduct.opposite_extractions.length > 0)
-        if (shouldCheck) {
-          setValue("request_opposing_extraction", true, { shouldDirty: false, shouldValidate: false })
-          queueMicrotask(() => {
-            setValue("request_opposing_extraction", true, { shouldDirty: false, shouldValidate: false })
-          })
-        }
+        const shouldCheck = editingProduct.opposite_impression !== "No" && (editingProduct.opposite_impression === "Yes" || editingProduct.opposite_impression === true || editingProduct.opposite_impression === 1 || editingProduct.request_opposing_extraction === true || editingProduct.request_opposing_extraction === 1 || (Array.isArray(editingProduct.opposite_extractions) && editingProduct.opposite_extractions.length > 0))
+        setValue("request_opposing_extraction", shouldCheck, { shouldDirty: false, shouldValidate: false })
+        queueMicrotask(() => {
+          setValue("request_opposing_extraction", shouldCheck, { shouldDirty: false, shouldValidate: false })
+        })
       }
       setImageBase64(null)
       clearValidationErrors()
@@ -761,10 +755,8 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
         payload.opposite_extractions = []
       }
 
-      // Map request_opposing_extraction boolean → "Yes"/"No" for the API
-      if (payload.request_opposing_extraction !== undefined) {
-        payload.request_opposing_extraction = payload.request_opposing_extraction ? "Yes" : "No"
-      }
+      // Always include opposite_impression (backend field) so toggling is always persisted
+      payload.opposite_impression = data.request_opposing_extraction ? "Yes" : "No"
 
       const allocUpdate = validateStageAllocationPercents(payload.stages ?? data.stages)
       if (allocUpdate) {

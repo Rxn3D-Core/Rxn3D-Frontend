@@ -162,6 +162,23 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
     )
   }
 
+  const renderMissingToothImage = (toothNumber: number, x: number, width: number, toothHeight: number = 141) => {
+    if (!isToothMissing(toothNumber)) return null
+    if (!isToothSelected(toothNumber)) return null
+    return (
+      <image
+        key={`missing-tooth-${toothNumber}`}
+        href={`/images/teeth/maxillary/missing-teeth/tooth-${toothNumber}.png`}
+        x={x}
+        y={0}
+        width={width}
+        height={toothHeight}
+        preserveAspectRatio="xMidYMid meet"
+        style={{ pointerEvents: 'none' }}
+      />
+    )
+  }
+
   const renderWillExtractOverlay = (toothNumber: number, x: number, width: number, toothHeight: number = 141) => {
     if (!willExtractTeeth.includes(toothNumber)) return null
     const xSize = Math.max(width * 0.8, 18)
@@ -565,6 +582,7 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
                 {renderClaspOverlay(tooth, x, width, 80)}
                 {renderWillExtractOverlay(tooth, x, width)}
                 {renderCheckbox(tooth, x, width)}
+                {renderMissingToothImage(tooth, x, width)}
               </g>
             )
           })}

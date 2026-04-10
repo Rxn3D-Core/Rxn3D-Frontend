@@ -11,7 +11,7 @@ import { CaseSummaryNotes } from "./components/CaseSummaryNotes";
 import { FloatingActions } from "./components/FloatingActions";
 import { useSlipCreation } from "@/contexts/slip-creation-context";
 import type { SlipCreationProduct } from "@/contexts/slip-creation-context";
-import { isFixedCategory, getCategoryName } from "./utils/categoryHelpers";
+import { isFixedCategory, isRemovableCategory, getCategoryName } from "./utils/categoryHelpers";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
@@ -327,18 +327,20 @@ export default function Page() {
       const addedProductId = Number(result.material) || undefined;
       // Fetch real product details so the accordion shows the correct name/image
       const details = addedProductId ? await fetchProductDetails(addedProductId) : null;
+      const categoryName = details?.category_name || result.categoryName || "";
+      const isRemovable = isRemovableCategory(categoryName);
       const newProduct: AddedProduct = {
         id: Date.now(),
         productId: addedProductId,
         product: {
           name: details?.name || result.product || "Untitled Product",
-          category_name: details?.category_name || result.categoryName || "",
+          category_name: categoryName,
           subcategory_name: details?.subcategory_name || "",
           code: "",
           image_url: details?.image_url || "",
         },
         arch: pendingProductArch,
-        expanded: true,
+        expanded: !isRemovable,
       };
       setAddedProducts((prev) => [newProduct, ...prev.map((p) => ({ ...p, expanded: false }))]);
       setWizardMode("initial");
@@ -347,16 +349,13 @@ export default function Page() {
       const productId = Number(result.material);
       if (productId) {
         setSelectedProductId(productId);
-        // Set category name immediately from wizard result so removables detection
-        // works on the very first tooth click (no need to wait for async fetch)
+        // Set category name and product name directly from wizard result (no extra API call needed)
         if (result.categoryName) {
           setSelectedProductCategoryName(result.categoryName);
         }
-        // Fetch product details — also captures the product name for modal tabs
-        fetchProductDetails(productId).then((details) => {
-          if (details?.category_name && !result.categoryName) setSelectedProductCategoryName(details.category_name);
-          if (details?.name) setSelectedProductName(details.name);
-        });
+        if (result.materialName) {
+          setSelectedProductName(result.materialName);
+        }
       } else {
         setSelectedProductCategoryName(undefined);
       }

@@ -563,6 +563,8 @@ interface MandibularPanelProps {
   onToothStatusValidationChange?: (hasValidation: boolean) => void;
   /** When true, the initial card 0 product is Fixed Restoration AND mandibular teeth with Prep/Pontic exist */
   mandibularHasFixedCard0?: boolean;
+  /** When true, the initial card 0 product is a Removable/Ortho AND mandibular teeth have been selected for it */
+  mandibularHasRemovablesCard0?: boolean;
   /** Product+arch combos where user chose "Submit, no opposing needed" */
   noOpposingNeeded?: Record<string, boolean>;
   /** When set, renders the opposing product accordion for Removable Restoration products with opposite_extractions */
@@ -664,6 +666,7 @@ export function MandibularPanel({
   selectAllMandibularTeeth,
   onToothStatusValidationChange,
   mandibularHasFixedCard0 = false,
+  mandibularHasRemovablesCard0 = false,
   removablesImpressionDone = false,
   noOpposingNeeded = {},
   opposingProductData = null,
@@ -763,27 +766,6 @@ export function MandibularPanel({
     }
   }, [addedProducts, fetchAndAssignProduct, getToothProductCard, getToothProduct]);
 
-  /** Hide retention-type popover when category is Removable(s) Restoration */
-  const isRemovablesCategory =
-    mandibularTeeth.some((tn) => {
-      const p = getToothProduct("mandibular", tn);
-      return isRemovableCategory(getCategoryName(p));
-    }) ||
-    addedProducts
-      .filter((ap) => ap.arch === "mandibular")
-      .some((ap) => {
-        const name = ap.product?.subcategory?.category?.name || ap.product?.category_name || "";
-        return isRemovableCategory(name);
-      });
-
-  /** True when the active product card is a Fixed Restoration added product — show retention popover even in mixed panels */
-  const activeCardIsFixed = (() => {
-    if (activeProductCardId === 0) return false;
-    const ap = addedProducts.find((p) => p.id === activeProductCardId && p.arch === "mandibular");
-    if (!ap) return false;
-    const name = (ap.product?.subcategory?.category?.name || ap.product?.category_name || "").toLowerCase();
-    return isFixedCategory(name);
-  })();
 
   /**
    * When multiple products exist and a specific accordion is active,
@@ -792,6 +774,16 @@ export function MandibularPanel({
    */
   const activeCardMandibularTeeth = (() => {
     if (activeProductCardId !== 0) {
+      // Check if the active added card is a removable product
+      const activeAp = addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "mandibular");
+      if (activeAp) {
+        const apCatName = (activeAp.product?.subcategory?.category?.name || activeAp.product?.category_name || "").toLowerCase();
+        if (isRemovableCategory(apCatName)) {
+          // For removable products, always show all selected teeth (don't filter by card ownership)
+          return mandibularTeeth;
+        }
+      }
+      // Non-removable added product card active — show only its teeth
       return mandibularTeeth.filter(tn => getToothProductCard("mandibular", tn) === activeProductCardId);
     }
     if (activeFixedGroupProductId !== null) {
@@ -895,7 +887,7 @@ export function MandibularPanel({
                 className="w-full"
                 retentionTypesByTooth={mandibularRetentionTypes}
                 showRetentionPopover={
-                  !opposingProductData && retentionPopoverState.arch === "mandibular" && (!isRemovablesCategory || activeCardIsFixed) && !activeProductIsRemovables
+                  !opposingProductData && retentionPopoverState.arch === "mandibular" && !activeProductIsRemovables
                 }
                 retentionPopoverTooth={retentionPopoverState.toothNumber}
                 onSelectRetentionType={(tooth, type) => handleSelectRetentionType('mandibular', tooth, type)}
@@ -903,7 +895,7 @@ export function MandibularPanel({
                 onDeselectTooth={handleMandibularToothDeselect}
                 retentionOptions={retentionOptions}
                 toothExtractionMap={opposingProductData ? opposingToothExtractionMap : mandibularToothExtractionMap}
-                hideSelectionIndicators={!!opposingProductData || (isRemovablesCategory && !activeCardIsFixed) || activeProductIsRemovables}
+                hideSelectionIndicators={!!opposingProductData || activeProductIsRemovables}
                 showCheckboxes={
                   opposingProductData
                     ? (!!opposingActiveExtractionCode || Object.keys(opposingToothExtractionMap).length > 0)
@@ -949,6 +941,9 @@ export function MandibularPanel({
             </div>
           )}
 
+
+          {/* Scrollable accordion container — allows multiple product accordions to scroll */}
+          <div className="max-h-[60vh] overflow-y-auto scrollbar-blue space-y-0 pr-1">
 
           {/* Added product accordions — full field workflow, teeth owned by each card */}
           {showDetails && !caseSubmitted && addedProducts
@@ -1151,7 +1146,7 @@ export function MandibularPanel({
 
                   {ap.expanded && (
                     <div className={`border-t border-[#d9d9d9] p-2.5 sm:p-4 bg-white space-y-3 max-h-[600px] overflow-y-auto scrollbar-blue`}>
-                      {cardTeeth.length === 0 && !isApRemovables ? (
+                      {cardTeeth.length === 0 ? (
                         <p className="text-xs text-[#b4b0b0] text-center py-4">
                           Select teeth from the chart above to assign them to this product.
                         </p>
@@ -1691,8 +1686,8 @@ export function MandibularPanel({
                 });
               })()}
 
-          {/* Initial Removables product accordion — show fields when user selected Removable restoration and clicked teeth (assigned to card 0) */}
-          {showDetails && activeProductIsRemovables && (() => {
+          {/* Initial Removables product accordion — show fields when card 0 product is Removable/Ortho AND teeth are assigned to it */}
+          {showDetails && mandibularHasRemovablesCard0 && (() => {
             // Use all arch teeth (not just selected) so the accordion stays visible when all teeth are marked missing
             const cardTeeth = MANDIBULAR_ALL_TEETH.filter(tn => getToothProduct("mandibular", tn) && getToothProductCard("mandibular", tn) === 0);
             if (cardTeeth.length === 0) return null;
@@ -1799,8 +1794,7 @@ export function MandibularPanel({
                   </div>
                 </div>
 
-                {initialRemovablesExpanded && (
-                  <div className={`border-t border-[#d9d9d9] p-2.5 sm:p-4 bg-white space-y-3 max-h-[600px] overflow-y-auto scrollbar-blue`}>
+                <div className={`border-t border-[#d9d9d9] p-2.5 sm:p-4 bg-white space-y-3 max-h-[600px] overflow-y-auto scrollbar-blue${initialRemovablesExpanded ? "" : " hidden"}`}>
                     {(() => {
                       const repTn = cardTeeth[0];
                       const toothProduct = getToothProduct("mandibular", repTn);
@@ -1995,7 +1989,6 @@ export function MandibularPanel({
                       );
                     })()}
                   </div>
-                )}
               </div>
               </div>
             );
@@ -2102,6 +2095,8 @@ export function MandibularPanel({
               </div>
             );
           })()}
+
+          </div>{/* end scrollable accordion container */}
 
         </>
       )}

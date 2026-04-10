@@ -279,6 +279,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
   const cachedProductRef = useRef<Map<number, ProductApiData>>(new Map());
 
   // Fetch initial product details (for retention_options used by retention popover)
+  // Debounced by 300ms to prevent duplicate calls when selectedProductId changes rapidly
   const [initialProductDetails, setInitialProductDetails] = useState<ProductApiData | null>(null);
   useEffect(() => {
     if (!props.selectedProductId) return;
@@ -289,21 +290,19 @@ export function useCaseDesignState(props: CaseDesignProps) {
         : localStorage.getItem("customerId")
     );
     if (!customerId) return;
-    fetchProductDetails(props.selectedProductId, customerId).then((data) => {
-      if (data) {
-        setInitialProductDetails(data);
-        cachedProductRef.current.set(props.selectedProductId!, data);
-      }
-    });
+    const timer = setTimeout(() => {
+      fetchProductDetails(props.selectedProductId!, customerId).then((data) => {
+        if (data) {
+          setInitialProductDetails(data);
+          cachedProductRef.current.set(props.selectedProductId!, data);
+        }
+      });
+    }, 300);
+    return () => clearTimeout(timer);
   }, [props.selectedProductId]);
 
-  // Teeth shade catalog — fetched once on mount for ID resolution at selection time
+  // Teeth shade catalog — fetched lazily on first shade selection (not on mount)
   const teethShadeCatalogRef = useRef<TeethShadeEntry[]>([]);
-  useEffect(() => {
-    fetchTeethShadeCatalog().then((catalog) => {
-      teethShadeCatalogRef.current = catalog;
-    });
-  }, []);
 
   // Auto-complete stage step when product is single-stage with no stage options
   const autoCompleteSingleStage = useCallback(
@@ -508,12 +507,15 @@ export function useCaseDesignState(props: CaseDesignProps) {
   // When user selects a shade, mark the corresponding advance-field step completed so the next field shows
   // Also store JSON { teeth_shade_id, brand_id, name } so IDs are available at submit time without extra API calls
   const handleShadeSelect = useCallback(
-    (shade: string) => {
+    async (shade: string) => {
       const { arch, fieldType, productId } = shades.shadeSelectionState;
       shades.handleShadeSelect(shade);
       if (!arch || !productId || !fieldType) return;
 
-      // Resolve shade ID from catalog
+      // Resolve shade ID from catalog — lazy-fetch on first use
+      if (teethShadeCatalogRef.current.length === 0) {
+        teethShadeCatalogRef.current = await fetchTeethShadeCatalog();
+      }
       const catalog = teethShadeCatalogRef.current;
       const matched = catalog.find((s) => s.name === shade);
       const shadeJson = JSON.stringify({

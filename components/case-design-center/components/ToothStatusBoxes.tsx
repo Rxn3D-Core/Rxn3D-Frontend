@@ -135,14 +135,15 @@ export function ToothStatusBoxes({
     : allActiveExtractions;
 
   // Auto-select all arch teeth when a is_default extraction first appears (check unfiltered list)
+  // Skip if teeth are already selected — prevents re-triggering on accordion collapse/expand remount
   const hasAutoSelected = useRef(false);
   const hasDefault = allActiveExtractions.some((e) => isDefaultExtraction(e));
   useEffect(() => {
-    if (hasDefault && !hasAutoSelected.current) {
+    if (hasDefault && !hasAutoSelected.current && selectedTeeth.length === 0) {
       hasAutoSelected.current = true;
       onSelectAllTeeth(allArchTeeth);
     }
-  }, [hasDefault, allArchTeeth, onSelectAllTeeth]);
+  }, [hasDefault, allArchTeeth, onSelectAllTeeth, selectedTeeth.length]);
 
   if (activeExtractions.length === 0) return null;
 
