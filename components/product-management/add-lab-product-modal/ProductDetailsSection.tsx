@@ -318,6 +318,35 @@ export function ProductDetailsSection({
   const selectedCategoryId = useWatch({ control, name: "category_id" }) || null
   const subcategoryId = useWatch({ control, name: "subcategory_id" }) || null
   const isSingleStage = useWatch({ control, name: "is_single_stage" }) || "No"
+  const isTeethBasedPrice = useWatch({ control, name: "is_teeth_based_price" })
+  const hasGradeBasedPricing = useWatch({ control, name: "has_grade_based_pricing" }) === "Yes"
+
+  /** After user turns off "Charge product per tooth", base price should be editable again (not locked by grades). */
+  const [unlockBasePriceAfterTeethOff, setUnlockBasePriceAfterTeethOff] = React.useState(false)
+  const prevTeethBasedRef = React.useRef<string | undefined>(undefined)
+  const prevEditingProductIdRef = React.useRef<unknown>(editingProduct?.id)
+
+  // Run before the teeth-transition effect so switching products does not look like Yes→No.
+  React.useEffect(() => {
+    const id = editingProduct?.id
+    if (prevEditingProductIdRef.current !== id) {
+      prevEditingProductIdRef.current = id
+      setUnlockBasePriceAfterTeethOff(false)
+      prevTeethBasedRef.current = isTeethBasedPrice
+    }
+  }, [editingProduct?.id, isTeethBasedPrice])
+
+  React.useEffect(() => {
+    const cur = isTeethBasedPrice
+    const prev = prevTeethBasedRef.current
+    if (prev === "Yes" && cur === "No") {
+      setUnlockBasePriceAfterTeethOff(true)
+    }
+    if (cur === "Yes") {
+      setUnlockBasePriceAfterTeethOff(false)
+    }
+    prevTeethBasedRef.current = cur
+  }, [isTeethBasedPrice])
   
   const defaultGrade = grades.find((g: any) => g.is_default === "Yes")
   const defaultGradePrice =
@@ -453,8 +482,9 @@ export function ProductDetailsSection({
     }
   }, [currentImageBase64, editingProduct?.image_url])
 
-  // Update base_price when default grade price changes
+  // Update base_price when default grade price changes (skip while base price was unlocked after teeth-based was turned off)
   useEffect(() => {
+    if (unlockBasePriceAfterTeethOff) return
     if (sections.grades && defaultGradePrice) {
       // Avoid dirtying the form on initial edit hydration if the value already matches.
       // Only mark dirty when we are actually changing the value (e.g., user changed default grade/price).
@@ -465,7 +495,7 @@ export function ProductDetailsSection({
         shouldValidate: true,
       })
     }
-  }, [defaultGradePrice, sections.grades, setValueWithOptions, basePrice])
+  }, [defaultGradePrice, sections.grades, setValueWithOptions, basePrice, unlockBasePriceAfterTeethOff])
 
   // Auto-generate code from name when name changes (only for new products, not editing)
   useEffect(() => {
@@ -809,7 +839,10 @@ export function ProductDetailsSection({
                     </TooltipTrigger>
                     <TooltipContent>
                       <p>
-                        {sections.grades && defaultGradePrice
+                        {sections.grades &&
+                        defaultGradePrice &&
+                        (isTeethBasedPrice === "Yes" ||
+                          (hasGradeBasedPricing && !unlockBasePriceAfterTeethOff))
                           ? "Base price is automatically set by the default grade price"
                           : "Enter the base price for this product"}
                       </p>
@@ -820,9 +853,12 @@ export function ProductDetailsSection({
                   name="base_price"
                   control={control}
                   render={({ field }) => {
-                    // Only lock base price when grades section is on AND a default grade price exists
-                    // When adding a new product, base price should be editable until a grade is configured
-                    const isLockedByGrades = sections.grades && !!defaultGradePrice
+                    // Lock when default grade drives base_price: teeth-based, or grade-based (unless user just turned off teeth-based)
+                    const isLockedByGrades =
+                      sections.grades &&
+                      !!defaultGradePrice &&
+                      (isTeethBasedPrice === "Yes" ||
+                        (hasGradeBasedPricing && !unlockBasePriceAfterTeethOff))
                     const currentValue = isLockedByGrades ? defaultGradePrice : (field.value || "")
                     const hasError = getValidationError("base_price")
                     const validationState = isLockedByGrades

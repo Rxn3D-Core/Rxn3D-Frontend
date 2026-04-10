@@ -5,6 +5,33 @@ import { dirname } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+/** Extra connect-src tokens when the API is plain HTTP (e.g. local backend). CSP allows https: but not all http: by default. */
+function cspHttpApiConnectExtra() {
+  const raw = process.env.NEXT_PUBLIC_API_BASE_URL;
+  if (!raw) return '';
+  try {
+    const o = new URL(raw);
+    return o.protocol === 'http:' ? ` ${o.origin}` : '';
+  } catch {
+    return '';
+  }
+}
+
+/** upgrade-insecure-requests breaks http:// API calls (browser may try https). Omit when API is HTTP. */
+function cspUpgradeInsecureRequests() {
+  const raw = process.env.NEXT_PUBLIC_API_BASE_URL;
+  if (!raw) return '; upgrade-insecure-requests';
+  try {
+    if (new URL(raw).protocol === 'http:') return '';
+  } catch {
+    /* ignore */
+  }
+  return '; upgrade-insecure-requests';
+}
+
+const _cspHttpConnect = cspHttpApiConnectExtra();
+const _cspUpgrade = cspUpgradeInsecureRequests();
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Enable standalone output for Docker deployments
@@ -88,7 +115,7 @@ const nextConfig = {
           },
           {
             key: 'Content-Security-Policy',
-            value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' blob: https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https:; img-src 'self' blob: data: https:; font-src 'self' data: https:; connect-src 'self' blob: https:; media-src 'self' blob: https:; worker-src 'self' blob:; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;",
+            value: `default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' blob: https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https:; img-src 'self' blob: data: https:; font-src 'self' data: https:; connect-src 'self' blob: https:${_cspHttpConnect}; media-src 'self' blob: https:; worker-src 'self' blob:; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'${_cspUpgrade}`,
           },
         ],
       },
