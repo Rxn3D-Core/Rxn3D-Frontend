@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { ChevronDown } from "lucide-react"
+import { ChevronDown, Trash2 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { useSavedProductSection } from "./saved-product-section-context"
@@ -273,7 +273,7 @@ export function SavedProductAccordionItems({ arch }: SavedProductAccordionItemsP
                 }}
                 onClick={() => ctx.handleSavedProductCardClick(savedProduct)}
               >
-                <div style={{ width: "100%", display: "flex", flexDirection: "row", alignItems: "flex-start", gap: "6px", paddingRight: "20px" }}>
+                <div style={{ width: "100%", display: "flex", flexDirection: "row", alignItems: "flex-start", gap: "6px", paddingRight: "68px" }}>
                   <div
                     style={{
                       width: "28px",
@@ -393,6 +393,32 @@ export function SavedProductAccordionItems({ arch }: SavedProductAccordionItemsP
                     </div>
                   </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    ctx.handleDeleteProduct(savedProduct.id)
+                  }}
+                  style={{
+                    position: "absolute",
+                    width: "21.6px",
+                    height: "21.6px",
+                    right: "36px",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    zIndex: 10,
+                    background: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: 0,
+                  }}
+                  aria-label="Delete product"
+                >
+                  <Trash2 className="w-full h-full text-[#CF0202] hover:text-[#a00000] transition-colors" />
+                </button>
                 <div
                   style={{
                     position: "absolute",
