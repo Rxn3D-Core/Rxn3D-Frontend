@@ -392,9 +392,6 @@ export function ImpressionSelectionModal({
     ([key, qty]) => key.startsWith(mainPrefix) && qty > 0
   )
 
-  // Show opposing panel only when oppositeImpression flag is "Yes" AND user has confirmed main
-  const showOpposingOnly = oppositeImpression === "Yes" && showOpposing
-
   const sharedGridProps = {
     selectedImpressions,
     onUpdateQuantity,
@@ -415,58 +412,39 @@ export function ImpressionSelectionModal({
     onClose()
   }
 
+  const oppositePrefix = `${productId}_${oppositeArch}_`
+  const hasOpposingSelection = Object.entries(selectedImpressions).some(
+    ([key, qty]) => key.startsWith(oppositePrefix) && qty > 0
+  )
+
+  const archLabel = arch === "maxillary" ? "Maxillary" : "Mandibular"
+  const oppositeArchLabel = oppositeArch === "maxillary" ? "Maxillary" : "Mandibular"
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="w-screen max-w-[100vw] max-h-[100vh] sm:max-w-[100vw] overflow-hidden flex flex-col p-0 border-0 rounded-none">
         <div className="flex flex-col justify-center items-start px-3 sm:px-6 md:px-12 lg:px-[100px] py-6 sm:py-10 md:py-[71px] gap-4 sm:gap-[25px] bg-white w-full overflow-y-auto max-h-[100vh]">
-          <h2 className="font-['Verdana'] font-bold text-lg sm:text-2xl md:text-[30px] leading-tight sm:leading-[63px] tracking-[-0.02em] text-black">
-            Select Impressions
-          </h2>
 
-          {showOpposingOnly ? (
-            <div className="flex flex-col gap-4 w-full">
-              {/* Submit, no opposing needed button */}
-              <div className="flex justify-center w-full">
-                <button
-                  onClick={() => {
-                    onSubmitNoOpposing ? onSubmitNoOpposing() : handleDone()
-                  }}
-                  className="flex items-center justify-center px-6 py-2 rounded-[6px] text-white font-['Verdana'] font-bold text-sm sm:text-base"
-                  style={{ background: "radial-gradient(ellipse at center, #3b82f6 0%, #1e40af 100%)" }}
-                >
-                  Submit, no opposing needed.
-                </button>
-              </div>
-
-              {/* Opposite arch grid */}
-              <div>
-                <h3 className="font-['Verdana'] font-bold text-sm sm:text-base text-[#7F7F7F] mb-4 uppercase tracking-wide">
-                  {oppositeArch === "maxillary" ? "Maxillary (Opposing)" : "Mandibular (Opposing)"}
-                </h3>
-                <ImpressionGrid
-                  {...sharedGridProps}
-                  impressions={oppositeList}
-                  productId={productId}
-                  arch={oppositeArch}
-                  onDone={handleDone}
-                />
-              </div>
-
-            </div>
-          ) : (
-            <>
-              {/* Next: Select Opposing — shown at top when main selection is made */}
-              {oppositeImpression === "Yes" && hasMainSelection && (
-                <div className="flex justify-center w-full">
-                  <button
-                    onClick={handleConfirmMain}
-                    className="flex items-center justify-center px-6 py-2 rounded-[6px] text-white font-['Verdana'] font-bold text-sm sm:text-base"
-                    style={{ background: "radial-gradient(ellipse at center, #3b82f6 0%, #1e40af 100%)" }}
-                  >
-                    Next: Select Opposing
-                  </button>
-                </div>
+          <div className="flex flex-col gap-6 w-full">
+            {/* Main arch section */}
+            <div
+              className={cn(
+                "relative rounded-[12px] px-4 sm:px-6 pt-6 pb-5 transition-colors",
+                hasMainSelection
+                  ? "border-2 border-[#22c55e]"
+                  : "border-2 border-dashed border-[#CF0202]"
               )}
+            >
+              {/* Floating label */}
+              <span
+                className={cn(
+                  "absolute -top-[20px] left-1/2 -translate-x-1/2 bg-white px-3 py-0.5 font-['Verdana'] font-bold text-sm sm:text-base whitespace-nowrap",
+                  hasMainSelection ? "text-[#22c55e]" : "text-[#CF0202]"
+                )}
+              >
+                {hasMainSelection ? `${archLabel} impressions` : `Select ${archLabel} impressions`}
+              </span>
+
               <ImpressionGrid
                 {...sharedGridProps}
                 impressions={impressions}
@@ -474,8 +452,57 @@ export function ImpressionSelectionModal({
                 arch={arch}
                 onDone={oppositeImpression === "Yes" ? handleConfirmMain : handleDone}
               />
-            </>
-          )}
+            </div>
+
+            {/* Opposing arch section — shown after user clicks Done/Next on main */}
+            {oppositeImpression === "Yes" && showOpposing && (
+              <div
+                className={cn(
+                  "relative rounded-[12px] px-4 sm:px-6 pt-6 pb-5 transition-colors",
+                  hasOpposingSelection
+                    ? "border-2 border-[#22c55e]"
+                    : "border-2 border-dashed border-[#CF0202]"
+                )}
+              >
+                {/* Floating label */}
+                <span
+                  className={cn(
+                    "absolute -top-[20px] left-1/2 -translate-x-1/2 bg-white px-3 py-0.5 font-['Verdana'] font-bold text-sm sm:text-base whitespace-nowrap",
+                    hasOpposingSelection ? "text-[#22c55e]" : "text-[#CF0202]"
+                  )}
+                >
+                  {hasOpposingSelection
+                    ? `${oppositeArchLabel} impression`
+                    : `Select ${oppositeArchLabel} impression for opposing`}
+                </span>
+
+                <ImpressionGrid
+                  {...sharedGridProps}
+                  impressions={oppositeList}
+                  productId={productId}
+                  arch={oppositeArch}
+                  onDone={handleDone}
+                />
+
+                {/* Skip opposing button */}
+                {!hasOpposingSelection && (
+                  <div className="flex justify-center mt-4">
+                    <button
+                      onClick={() => {
+                        onSubmitNoOpposing ? onSubmitNoOpposing() : handleDone()
+                      }}
+                      className="flex items-center justify-center px-6 py-2 rounded-[6px] transition-colors"
+                      style={{ background: "radial-gradient(ellipse at center, #CF0202 0%, #910202 100%)" }}
+                    >
+                      <span className="font-['Verdana'] font-bold text-[12px] leading-[22px] tracking-[-0.02em] text-white">
+                        Skip opposing
+                      </span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           {impressions.length === 0 && (
             <div className="text-center py-8 sm:py-12 text-[#7F7F7F] font-['Verdana'] text-[14px] sm:text-[18px] w-full">
@@ -491,7 +518,7 @@ export function ImpressionSelectionModal({
               style={{ background: "radial-gradient(ellipse at center, #CF0202 0%, #910202 100%)" }}
             >
               <span className="font-['Verdana'] font-bold text-[12px] leading-[22px] tracking-[-0.02em] text-white">
-                Cancel
+                cancel
               </span>
             </button>
           </div>

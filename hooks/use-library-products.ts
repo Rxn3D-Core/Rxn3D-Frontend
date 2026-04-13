@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueries } from "@tanstack/react-query"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
@@ -52,6 +52,10 @@ export interface LibraryProductApi {
   is_custom: string
   price: string
   image_url: string | null
+  /** Per-arch images — populated by API when available, otherwise null */
+  arch_image_maxillary?: string | null
+  arch_image_both?: string | null
+  arch_image_mandibular?: string | null
   min_days_to_process: number | null
   max_days_to_process: number | null
   created_at: string
@@ -77,10 +81,18 @@ export interface LibraryProductsApiResponse {
 /* ------------------------------------------------------------------ */
 /*  UI shape for wizard (material/product step)                        */
 /* ------------------------------------------------------------------ */
+export interface ArchImages {
+  maxillary?: string | null
+  both?: string | null
+  mandibular?: string | null
+}
+
 export interface WizardProductShape {
   id: number
   name: string
   img: string
+  /** Per-arch images for removable restoration hover popover. Populated from API when available. */
+  arch_images: ArchImages
 }
 
 export const libraryProductsQueryKey = (
@@ -202,6 +214,11 @@ export function useLibraryProducts(options: {
       id: p.id,
       name: p.name,
       img: p.image_url || getProductFallbackImg(p),
+      arch_images: {
+        maxillary: p.arch_image_maxillary ?? null,
+        both: p.arch_image_both ?? null,
+        mandibular: p.arch_image_mandibular ?? null,
+      },
     }))
 
   return {
@@ -210,4 +227,46 @@ export function useLibraryProducts(options: {
     productsAsWizard,
     pagination: query.data?.data?.pagination,
   }
+}
+
+/**
+ * For each subcategory ID in the list, fetches product count (per_page=1 to keep it cheap).
+ * Returns a map of subcategoryId → product count (undefined while loading).
+ * Used to determine which subcategory cards should show the arch hover popover.
+ */
+export function useSubcategoryProductCounts(options: {
+  customerId: number | undefined
+  subcategoryIds: number[]
+  enabled?: boolean
+}): { counts: Record<number, number | undefined>; products: Record<number, LibraryProductApi[] | undefined> } {
+  const { customerId, subcategoryIds, enabled = true } = options
+
+  const results = useQueries({
+    queries: subcategoryIds.map((subcategoryId) => ({
+      queryKey: libraryProductsQueryKey(customerId, subcategoryId, 1),
+      queryFn: () => fetchLibraryProducts(customerId!, subcategoryId, 1, 50),
+      enabled: enabled && typeof customerId === "number",
+      staleTime: 1000 * 60 * 5,
+      gcTime: 1000 * 60 * 10,
+      retry: 1,
+      refetchOnWindowFocus: false,
+    })),
+  })
+
+  const counts: Record<number, number | undefined> = {}
+  const products: Record<number, LibraryProductApi[] | undefined> = {}
+  subcategoryIds.forEach((id, i) => {
+    const result = results[i]
+    const pagination = result.data?.data?.pagination
+    const data = result.data?.data?.data
+    if (pagination) {
+      counts[id] = pagination.total
+    } else if (data) {
+      counts[id] = data.length
+    } else {
+      counts[id] = undefined
+    }
+    products[id] = data
+  })
+  return { counts, products }
 }
