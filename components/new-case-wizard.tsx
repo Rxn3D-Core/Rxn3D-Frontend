@@ -451,6 +451,9 @@ function StepPatientInfo({
   const showGenderField = (() => {
     const nameParts = name.trim().split(/\s+/).filter((part) => part.length > 0);
     if (nameParts.length < 2) return false;
+    if (nameParts.length >= 3) {
+      return nameParts[0].length >= 2 && nameParts[1].length >= 2;
+    }
     const lastPart = nameParts[nameParts.length - 1];
     return nameParts[0].length >= 2 && lastPart.length >= 2;
   })();
@@ -490,6 +493,10 @@ function StepPatientInfo({
     if (!hasNameValue) return false;
     const nameParts = name.trim().split(/\s+/).filter((part) => part.length > 0);
     if (nameParts.length < 2) return false;
+    if (nameParts.length >= 3) {
+      // With 3+ words, validate based on first two words only
+      return nameParts[0].length >= 2 && nameParts[1].length >= 2;
+    }
     const lastPart = nameParts[nameParts.length - 1];
     return nameParts[0].length >= 2 && lastPart.length >= 2;
   };
@@ -1101,7 +1108,7 @@ function StepMaterial({
         <h2 className="text-center text-[20px] font-bold text-[#1d1d1b] tracking-wide mt-4 mb-2">CASE DESIGN CENTER</h2>
         <div className="flex flex-wrap justify-center gap-4 mb-6">
           {[1, 2, 3, 4, 5, 6].map((i) => (
-            <Skeleton key={i} className="w-[200px] aspect-square rounded-[5px]" />
+            <Skeleton key={i} className="w-[250px] aspect-square rounded-[5px]" />
           ))}
         </div>
       </div>
@@ -1189,7 +1196,7 @@ function StepMaterial({
                       onSelect(prodId, forceArch);
                     }
                   }}
-                  className={`group relative flex flex-col items-center overflow-hidden w-[200px] h-[200px] rounded-[7px] border-[3px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${
+                  className={`group relative flex flex-col items-center overflow-hidden w-[250px] h-[250px] rounded-[7px] border-[3px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${
                     isSelected
                       ? "border-[#1162A8] bg-[#1162A8]/5"
                       : "border-[#d9d9d9] bg-white"

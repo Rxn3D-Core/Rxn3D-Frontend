@@ -304,8 +304,14 @@ export default function ProductCategoryPage() {
               </TableHead>
               <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("code")}>
                 <div className="flex items-center">
-                  {t("Default Code", { defaultValue: "Default Code" })} 
+                  {t("Default Code", { defaultValue: "Default Code" })}
                   {renderSortIndicator("code")}
+                </div>
+              </TableHead>
+              <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("sequence")}>
+                <div className="flex items-center">
+                  {t("Sequence", { defaultValue: "Sequence" })}
+                  {renderSortIndicator("sequence")}
                 </div>
               </TableHead>
               <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("arch_type")}>
@@ -332,8 +338,8 @@ export default function ProductCategoryPage() {
                   <TableCell><div className="w-4 h-4 bg-gray-200 rounded animate-pulse" /></TableCell>
                   <TableCell><div className="w-32 h-4 bg-gray-200 rounded animate-pulse" /></TableCell>
                   <TableCell><div className="w-16 h-4 bg-gray-200 rounded animate-pulse" /></TableCell>
+                  <TableCell><div className="w-10 h-4 bg-gray-200 rounded animate-pulse" /></TableCell>
                   <TableCell><div className="w-16 h-4 bg-gray-200 rounded animate-pulse" /></TableCell>
-                  <TableCell><div className="w-20 h-4 bg-gray-200 rounded animate-pulse" /></TableCell>
                   <TableCell><div className="w-20 h-4 bg-gray-200 rounded animate-pulse" /></TableCell>
                   <TableCell><div className="w-20 h-4 bg-gray-200 rounded animate-pulse" /></TableCell>
                 </TableRow>
@@ -356,6 +362,9 @@ export default function ProductCategoryPage() {
                     <code className="bg-gray-100 px-2 py-1 rounded text-xs font-mono text-gray-800">
                       {category?.code || "-"}
                     </code>
+                  </TableCell>
+                  <TableCell className="text-gray-600 text-sm">
+                    {(category as any)?.sequence ?? "-"}
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline" className={getTypeBadgeClass(category?.type || "")}>

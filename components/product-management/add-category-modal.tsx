@@ -542,6 +542,21 @@ export function AddCategoryModal({
                             </div>
                             <div className="space-y-2">
                               <label className="text-sm font-medium text-gray-700">
+                                {t("categoryModal.sequenceLabel", "Sequence")}
+                              </label>
+                              <Input
+                                type="number"
+                                placeholder={t("categoryModal.sequencePlaceholder", "Sequence")}
+                                className="h-11"
+                                value={formData.sequence}
+                                onChange={(e) => handleInputChange("sequence", Number(e.target.value))}
+                                min={1}
+                                disabled={effectiveDisableFields}
+                                readOnly={effectiveDisableFields}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-sm font-medium text-gray-700">
                                 {t("categoryModal.statusLabel", "Status")} <span className="text-red-500">*</span>
                               </label>
                               <Select

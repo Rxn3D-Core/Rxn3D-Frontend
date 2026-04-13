@@ -304,8 +304,14 @@ export default function ProductSubCategoryPage() {
               </TableHead>
               <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("code")}>
                 <div className="flex items-center">
-                  {t("Default Code", { defaultValue: "Default Code" })} 
+                  {t("Default Code", { defaultValue: "Default Code" })}
                   {renderSortIndicator("code")}
+                </div>
+              </TableHead>
+              <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("sequence")}>
+                <div className="flex items-center">
+                  {t("Sequence", { defaultValue: "Sequence" })}
+                  {renderSortIndicator("sequence")}
                 </div>
               </TableHead>
               <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("arch_type")}>
@@ -335,6 +341,7 @@ export default function ProductSubCategoryPage() {
                   <TableCell><div className="w-4 h-4 bg-gray-200 rounded animate-pulse" /></TableCell>
                   <TableCell><div className="w-32 h-4 bg-gray-200 rounded animate-pulse" /></TableCell>
                   <TableCell><div className="w-16 h-4 bg-gray-200 rounded animate-pulse" /></TableCell>
+                  <TableCell><div className="w-10 h-4 bg-gray-200 rounded animate-pulse" /></TableCell>
                   <TableCell><div className="w-16 h-4 bg-gray-200 rounded animate-pulse" /></TableCell>
                   <TableCell><div className="w-20 h-4 bg-gray-200 rounded animate-pulse" /></TableCell>
                   <TableCell><div className="w-20 h-4 bg-gray-200 rounded animate-pulse" /></TableCell>
@@ -359,6 +366,9 @@ export default function ProductSubCategoryPage() {
                     <code className="bg-gray-100 px-2 py-1 rounded text-xs font-mono text-gray-800">
                       {subcategory?.code || "-"}
                     </code>
+                  </TableCell>
+                  <TableCell className="text-gray-600 text-sm">
+                    {(subcategory as any)?.sequence ?? "-"}
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline" className={getTypeBadgeClass(subcategory?.type || "")}>
@@ -423,7 +433,7 @@ export default function ProductSubCategoryPage() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-12">
+                <TableCell colSpan={8} className="text-center py-12">
                   <div className="flex flex-col items-center gap-4">
                     <div className="p-4 bg-gray-100 rounded-full">
                       <Package className="h-8 w-8 text-gray-400" />

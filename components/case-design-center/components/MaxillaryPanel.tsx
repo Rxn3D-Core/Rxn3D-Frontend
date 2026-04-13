@@ -834,9 +834,12 @@ export function MaxillaryPanel({
               const checkedCount = opposingProductData
                 ? Object.keys(opposingToothExtractionMap).length
                 : maxillaryCheckedTeeth.length;
+              const activeProductName = activeProductCardId !== 0
+                ? addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "maxillary")?.product?.name || ""
+                : getToothProduct("maxillary", maxillaryTeeth[0])?.name || "";
               return checkedCount > 0 ? (
                 <p className="text-center text-[#CF0202] font-bold text-sm mb-1">
-                  {checkedCount} of 16 teeth to replace
+                  {checkedCount} TOOTH/TEETH to include in {activeProductName}
                 </p>
               ) : null;
             })()}
@@ -1024,7 +1027,7 @@ export function MaxillaryPanel({
                   {isApRemovables ? (
                     // Removable restoration: product name top, image+tooth-status-boxes in same row
                     <div
-                      className={`w-full flex flex-col transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] relative ${hasRushedAp ? "bg-[#FCE4E4]" : isActive ? "bg-[#c8e2f7]" : "bg-[#DFEEFB]"}`}
+                      className={`w-full flex flex-col transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] relative ${hasRushedAp ? "bg-[#FCE4E4]" : "bg-white"}`}
                       onClick={() => {
                         toggleAddedProductExpanded(ap.id);
                         setActiveProductCardId(isActive ? 0 : ap.id);
@@ -1748,7 +1751,7 @@ export function MaxillaryPanel({
               <div key="initial-removables-maxillary" className="relative mt-3">
               <div className={`rounded-lg bg-white overflow-hidden ${hasRushedRemovables ? "border-2 border-[#CF0202]" : "border border-[#d9d9d9]"}`}>
                 <div
-                  className={`w-full flex flex-col transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] relative ${hasRushedRemovables ? "bg-[#FCE4E4]" : isActive ? "bg-[#c8e2f7]" : "bg-[#DFEEFB]"}`}
+                  className={`w-full flex flex-col transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] relative ${hasRushedRemovables ? "bg-[#FCE4E4]" : "bg-white"}`}
                   onClick={() => {
                     setInitialRemovablesExpanded((e) => !e);
                     if (!initialRemovablesExpanded) setActiveProductCardId(0);
