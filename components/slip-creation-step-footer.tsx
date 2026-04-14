@@ -162,6 +162,24 @@ export function SlipCreationStepFooter({
               )}
 
 
+              {mode === "submit" && !isAccordionComplete?.() && incompleteFieldLabel && (
+                <div className="flex items-center gap-2">
+                  <TriangleAlert className="h-4 w-4 flex-shrink-0" style={{ color: "#CF0202" }} />
+                  <span
+                    style={{
+                      fontFamily: "Arial",
+                      fontStyle: "normal",
+                      fontWeight: 400,
+                      fontSize: "13px",
+                      color: "#CF0202",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    Required: {incompleteFieldLabel}
+                  </span>
+                </div>
+              )}
+
               {mode === "submit" && isAccordionComplete?.() && !hasToothStatusValidation && (
                 <>
                   {/* Confirmation checkbox with warning */}

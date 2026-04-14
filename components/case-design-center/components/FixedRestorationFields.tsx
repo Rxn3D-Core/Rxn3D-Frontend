@@ -77,7 +77,11 @@ export function hasAdvanceField(
 ): boolean {
   const alwaysShow = ["fixed_stage", "fixed_impression", "fixed_addons", "stage", "impression", "addons"];
   if (alwaysShow.includes(step)) return true;
-  if (!advanceFields || advanceFields.length === 0) return false;
+  // Shade steps always render (they appear in chain when no advance_fields via getFixedFieldChain).
+  // All other gated steps require a matching advance_field entry.
+  if (!advanceFields || advanceFields.length === 0) {
+    return step === "fixed_stump_shade" || step === "fixed_shade_trio";
+  }
 
   const names = advanceFields.map((f) => (f.name || "").toLowerCase());
 
@@ -384,6 +388,7 @@ export function FixedRestorationFields({
               shade={getSelectedShade(`fixed_${firstToothNumber}`, arch, "stump_shade")}
               onClick={() => handleShadeFieldClick(arch, "stump_shade", `fixed_${firstToothNumber}`)}
               submitted={caseSubmitted}
+              required
             />
           )}
           {showToothShade && (
@@ -393,6 +398,7 @@ export function FixedRestorationFields({
               shade={toothShadeValue}
               onClick={() => handleShadeFieldClick(arch, "tooth_shade", `fixed_${firstToothNumber}`)}
               submitted={caseSubmitted}
+              required
             />
           )}
         </div>
@@ -413,6 +419,7 @@ export function FixedRestorationFields({
               }
             }}
             submitted={caseSubmitted}
+            required
           />
           <ShadeField
             label="Incisal Shade"
@@ -420,6 +427,7 @@ export function FixedRestorationFields({
             shade={getSelectedShade(`fixed_${firstToothNumber}`, arch, "tooth_shade")}
             onClick={() => handleShadeFieldClick(arch, "tooth_shade", `fixed_${firstToothNumber}`)}
             submitted={caseSubmitted}
+            required
           />
           <ShadeField
             label="Body Shade"
@@ -427,6 +435,7 @@ export function FixedRestorationFields({
             shade={getSelectedShade(`fixed_${firstToothNumber}`, arch, "tooth_shade")}
             onClick={() => handleShadeFieldClick(arch, "tooth_shade", `fixed_${firstToothNumber}`)}
             submitted={caseSubmitted}
+            required
           />
         </div>
       )}

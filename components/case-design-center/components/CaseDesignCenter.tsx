@@ -63,9 +63,17 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   const mandibularHasFixedCard0 = activeProductIsFixed && Object.keys(state.mandibularRetentionTypes || {})
     .some(tn => state.getToothProductCard("mandibular", Number(tn)) === 0);
   // Show accordion when card 0 initial product is Removable/Ortho — show immediately once product is selected,
-  // no need to wait for teeth to be assigned (the accordion lets the user select teeth)
-  const maxillaryHasRemovablesCard0 = activeProductIsRemovable && !!props.selectedProductId;
-  const mandibularHasRemovablesCard0 = activeProductIsRemovable && !!props.selectedProductId;
+  // no need to wait for teeth to be assigned (the accordion lets the user select teeth).
+  // Gate each panel to its own arch so the opposite panel doesn't show a duplicate card 0 accordion
+  // when the initial arch is single-sided and the other arch has its own added-product removable.
+  const maxillaryHasRemovablesCard0 =
+    activeProductIsRemovable &&
+    !!props.selectedProductId &&
+    (props.initialArch === "maxillary" || props.initialArch === "both");
+  const mandibularHasRemovablesCard0 =
+    activeProductIsRemovable &&
+    !!props.selectedProductId &&
+    (props.initialArch === "mandibular" || props.initialArch === "both");
 
   const maxillaryHasRemovablesTeeth =
     maxillaryHasRemovables && state.maxillaryTeeth.length > 0;
@@ -249,8 +257,9 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         ).map((t) => t.toothNum);
         const firstToothInGroup = Math.min(...teethInGroup);
         const shadeProductId = `fixed_${firstToothInGroup}`;
-        if (!state.getSelectedShade(shadeProductId, arch, "stump_shade")) return "Stump Shade";
-        if (!state.getSelectedShade(shadeProductId, arch, "tooth_shade")) return "Tooth Shade";
+        const advFields = product?.advance_fields;
+        if (hasAdvanceField("fixed_stump_shade", advFields) && !state.getSelectedShade(shadeProductId, arch, "stump_shade")) return "Stump Shade";
+        if (hasAdvanceField("fixed_shade_trio", advFields) && !state.getSelectedShade(shadeProductId, arch, "tooth_shade")) return "Tooth Shade";
       }
 
       const impressionOwner = getImpressionOwnerTooth(arch, toothNum);
@@ -939,7 +948,10 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             const product = state.getToothProduct(arch, toothNum);
             const isFixed = isFixedCategory(getCategoryName(product));
             if (isFixed) {
-              state.completeFieldStep(arch, toothNum, "fixed_impression", displayText);
+              // Store impression on the group's owner tooth (min tooth in group) so that
+              // getImpressionOwnerTooth resolves to the same tooth when checking completion.
+              const ownerTooth = getImpressionOwnerTooth(arch, toothNum);
+              state.completeFieldStep(arch, ownerTooth, "fixed_impression", displayText);
             } else {
               state.completeFieldStep(arch, toothNum, "impression", displayText);
             }
@@ -967,6 +979,17 @@ export function CaseDesignCenter(props: CaseDesignProps) {
                 state.setSelectedImpressions((prev: Record<string, number>) => ({ ...prev, ...mirrored }));
               }
             }
+          }
+        }}
+        onImpressionClear={() => {
+          const toothNum = state.currentImpressionToothNumber;
+          const arch = state.currentImpressionArch;
+          if (toothNum !== null) {
+            const product = state.getToothProduct(arch, toothNum);
+            const isFixed = isFixedCategory(getCategoryName(product));
+            const ownerTooth = isFixed ? getImpressionOwnerTooth(arch, toothNum) : toothNum;
+            const step = isFixed ? "fixed_impression" : "impression";
+            state.uncompleteFieldStep(arch, ownerTooth, step);
           }
         }}
         onSubmitNoOpposing={() => {

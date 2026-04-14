@@ -833,7 +833,7 @@ export function MandibularPanel({
                 : getToothProduct("mandibular", mandibularTeeth[0])?.name || "";
               return checkedCount > 0 ? (
                 <p className="text-center text-[#CF0202] font-bold text-sm mb-1">
-                  {checkedCount} TOOTH/TEETH to include in {activeProductName}
+                  {checkedCount} {checkedCount === 1 ? "TOOTH" : "TEETH"} to include in {activeProductName}
                 </p>
               ) : null;
             })()}
@@ -949,7 +949,7 @@ export function MandibularPanel({
           <div className="max-h-[60vh] overflow-y-auto scrollbar-blue space-y-0 pr-1">
 
           {/* Added product accordions — full field workflow, teeth owned by each card */}
-          {showDetails && !caseSubmitted && addedProducts
+          {showDetails && addedProducts
             .filter(ap => ap.arch === "mandibular")
             .map((ap, apIndex) => {
               // For removable restoration products, use all arch teeth so accordion stays visible when teeth are marked missing
@@ -1251,7 +1251,7 @@ export function MandibularPanel({
                                       onOpen={() => setPanelGumShadePicker({ toothNumber: repTn, gumShades: toothProduct?.gum_shades || [] })}
                                     />
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                      {isF("teeth_shade") && (
+                                      {isF("teeth_shade") && !!selectedShadeGuide && (
                                       <fieldset
                                         className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${isFComplete("teeth_shade") && !caseSubmitted ? "border-[#34a853]" : isFComplete("teeth_shade") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
                                         onClick={() => handleShadeFieldClick("mandibular", "tooth_shade", shadeProductId)}
@@ -1896,7 +1896,7 @@ export function MandibularPanel({
                                   onOpen={() => setPanelGumShadePicker({ toothNumber: repTn, gumShades: toothProduct?.gum_shades || [] })}
                                 />
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                  {isF("teeth_shade") && (
+                                  {isF("teeth_shade") && !!selectedShadeGuide && (
                                   <fieldset
                                     className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${isFComplete("teeth_shade") && !caseSubmitted ? "border-[#34a853]" : isFComplete("teeth_shade") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
                                     onClick={() => handleShadeFieldClick("mandibular", "tooth_shade", shadeProductId)}

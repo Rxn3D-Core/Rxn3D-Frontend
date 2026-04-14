@@ -11,6 +11,7 @@ import { useProductManagement } from "./useProductManagement";
 import { useImplantState } from "./useImplantState";
 import { useToothFieldProgress, FIXED_SHADE_FIELD_TO_STEP } from "./useToothFieldProgress";
 import { isRemovableCategory, isFixedCategory, getCategoryName, isSingleStageNoStages } from "../utils/categoryHelpers";
+import { ProductApi } from "../../../lib/api-service";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
@@ -157,6 +158,13 @@ export function useCaseDesignState(props: CaseDesignProps) {
       const newest = addedProducts[0];
       if (newest) {
         setActiveProductCardId(newest.id);
+        // Auto-show the panel for the arch of the newly added product so the tooth chart is always visible.
+        // This ensures the eye icon stays on for Fixed Restoration, Removable Restoration, and Orthodontics.
+        if (newest.arch === "maxillary") {
+          setShowMaxillary(true);
+        } else if (newest.arch === "mandibular") {
+          setShowMandibular(true);
+        }
       }
     } else if (addedProducts.length < prevAddedProductsLengthRef.current) {
       // A product was removed — if it was active, reset to card 0
@@ -343,9 +351,17 @@ export function useCaseDesignState(props: CaseDesignProps) {
       toothFieldProgress.setProductLoading(arch, toothNumber, true);
       const product = await fetchProductDetails(productId, customerId);
       if (product) {
-        cachedProductRef.current.set(productId, product);
-        toothFieldProgress.setToothProduct(arch, toothNumber, product);
-        autoCompleteSingleStage(arch, toothNumber, product);
+        // If the product details endpoint didn't include impressions, fetch them separately
+        let enrichedProduct = product;
+        if (!product.impressions?.length) {
+          const impressions = await ProductApi.getImpressions(productId);
+          if (impressions.length > 0) {
+            enrichedProduct = { ...product, impressions: impressions as unknown as ProductApiData["impressions"] };
+          }
+        }
+        cachedProductRef.current.set(productId, enrichedProduct);
+        toothFieldProgress.setToothProduct(arch, toothNumber, enrichedProduct);
+        autoCompleteSingleStage(arch, toothNumber, enrichedProduct);
       }
       toothFieldProgress.setProductLoading(arch, toothNumber, false);
     },

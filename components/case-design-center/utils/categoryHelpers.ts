@@ -32,9 +32,11 @@ export function getCategoryName(product: { subcategory?: { category?: { name?: s
   return product?.subcategory?.category?.name ?? "";
 }
 
-/** Returns true if the product is a single-stage product with no stage options to select from.
- *  When true, the stage field should be auto-completed and hidden from the UI. */
+/** Returns true if the product is a single-stage product where the stage picker should be skipped.
+ *  Covers both cases: is_single_stage=Yes with no stages configured, and is_single_stage=Yes
+ *  with stages present (auto-selected by AutoSelectSingleStage). In either case, no manual
+ *  stage selection is needed and the AutoOpenStageIfEmpty trigger must be suppressed. */
 export function isSingleStageNoStages(product: { is_single_stage?: string; stages?: unknown[] } | null | undefined): boolean {
   if (!product) return false;
-  return product.is_single_stage === "Yes" && (!product.stages || product.stages.length === 0);
+  return product.is_single_stage === "Yes";
 }

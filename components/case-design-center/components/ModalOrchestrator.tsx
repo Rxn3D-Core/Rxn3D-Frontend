@@ -32,6 +32,8 @@ interface ModalOrchestratorProps {
     React.SetStateAction<Record<string, number>>
   >;
   onImpressionConfirm: (displayText: string) => void;
+  /** Called when user confirms with no impressions selected — clears the completed state */
+  onImpressionClear?: () => void;
   /** Called when user clicks "Submit, no opposing needed" */
   onSubmitNoOpposing?: () => void;
   // Add-ons
@@ -121,6 +123,7 @@ export function ModalOrchestrator({
   selectedImpressions,
   setSelectedImpressions,
   onImpressionConfirm,
+  onImpressionClear,
   onSubmitNoOpposing,
   // Add-ons
   showAddOnsModal,
@@ -181,6 +184,9 @@ export function ModalOrchestrator({
               })
               .join(", ");
             onImpressionConfirm(displayText);
+          } else {
+            // User removed all impressions — clear the completed state
+            onImpressionClear?.();
           }
         }}
         impressions={impressionOptions}

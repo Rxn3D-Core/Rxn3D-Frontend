@@ -77,8 +77,13 @@ export function getFixedFieldChain(
   advanceFields: ProductAdvanceField[] | undefined
 ): readonly (typeof FIXED_FIELD_STEPS)[number][] {
   if (!advanceFields || advanceFields.length === 0) {
-    // No advance_fields — skip gated fields, show only: stage → impression → addons
-    return FIXED_FIELD_STEPS.filter((step) => !FIXED_STEP_ADVANCE_FIELD_PATTERNS[step]);
+    // No advance_fields configured — show stage, shade steps, impression, addons.
+    // Exclude gated fields that require specific advance_field entries
+    // (characterization, contact_icons, margin, metal, proximal_contact).
+    const SHADE_STEPS = new Set(["fixed_stump_shade", "fixed_shade_trio"]);
+    return FIXED_FIELD_STEPS.filter(
+      (step) => !FIXED_STEP_ADVANCE_FIELD_PATTERNS[step] || SHADE_STEPS.has(step)
+    );
   }
 
   const normalizedNames = advanceFields.map((f) => (f.name ?? "").toLowerCase().trim());
