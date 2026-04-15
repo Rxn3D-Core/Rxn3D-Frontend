@@ -209,6 +209,7 @@ function AutoOpenStageIfEmpty({
   isStageVisible,
   isStageEmpty,
   onOpenStage,
+  caseSubmitted = false,
 }: {
   productId: string;
   arch: Arch;
@@ -217,9 +218,11 @@ function AutoOpenStageIfEmpty({
   isStageVisible: boolean;
   isStageEmpty: boolean;
   onOpenStage: (productId: string, arch: Arch, toothNumber?: number) => void;
+  caseSubmitted?: boolean;
 }) {
   const hasAutoOpenedRef = useRef(false);
   useEffect(() => {
+    if (caseSubmitted) return; // never auto-open stage modal in read-only mode
     if (!isExpanded) {
       hasAutoOpenedRef.current = false;
       return;
@@ -227,7 +230,7 @@ function AutoOpenStageIfEmpty({
     if (!isStageVisible || !isStageEmpty || hasAutoOpenedRef.current) return;
     hasAutoOpenedRef.current = true;
     onOpenStage(productId, arch, toothNumber);
-  }, [isExpanded, isStageVisible, isStageEmpty, productId, arch, toothNumber, onOpenStage]);
+  }, [caseSubmitted, isExpanded, isStageVisible, isStageEmpty, productId, arch, toothNumber, onOpenStage]);
   return null;
 }
 
@@ -240,6 +243,7 @@ function AutoOpenShadeGuideIfEmpty({
   stumpShadeEmpty,
   toothShadeEmpty,
   setShadeSelectionState,
+  caseSubmitted = false,
 }: {
   arch: Arch;
   productId: string;
@@ -248,9 +252,11 @@ function AutoOpenShadeGuideIfEmpty({
   stumpShadeEmpty: boolean;
   toothShadeEmpty: boolean;
   setShadeSelectionState: (state: ShadeSelectionState | ((prev: ShadeSelectionState) => ShadeSelectionState)) => void;
+  caseSubmitted?: boolean;
 }) {
   const hasAutoOpenedRef = useRef(false);
   useEffect(() => {
+    if (caseSubmitted) return; // never auto-open shade picker in read-only mode
     if (!isExpanded) {
       hasAutoOpenedRef.current = false;
       return;
@@ -262,7 +268,7 @@ function AutoOpenShadeGuideIfEmpty({
       productId,
       fieldType: stumpShadeEmpty ? "stump_shade" : "tooth_shade",
     });
-  }, [isExpanded, isShadeSectionVisible, stumpShadeEmpty, toothShadeEmpty, arch, productId, setShadeSelectionState]);
+  }, [caseSubmitted, isExpanded, isShadeSectionVisible, stumpShadeEmpty, toothShadeEmpty, arch, productId, setShadeSelectionState]);
   return null;
 }
 
@@ -275,6 +281,7 @@ function AutoOpenImpressionIfEmpty({
   arch,
   productId,
   toothNumber,
+  caseSubmitted = false,
 }: {
   isExpanded: boolean;
   isImpressionVisible: boolean;
@@ -283,10 +290,12 @@ function AutoOpenImpressionIfEmpty({
   arch: Arch;
   productId: string;
   toothNumber: number;
+  caseSubmitted?: boolean;
 }) {
   const hasAutoOpenedRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
+    if (caseSubmitted) return; // never auto-open impression modal in read-only mode
     if (!isExpanded) {
       hasAutoOpenedRef.current = false;
       return;
@@ -298,7 +307,7 @@ function AutoOpenImpressionIfEmpty({
       timerRef.current = null;
       onOpenImpressionModal(arch, productId, toothNumber);
     }, 350);
-  }, [isExpanded, isImpressionVisible, isImpressionEmpty, onOpenImpressionModal, arch, productId, toothNumber]);
+  }, [caseSubmitted, isExpanded, isImpressionVisible, isImpressionEmpty, onOpenImpressionModal, arch, productId, toothNumber]);
   useEffect(() => {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
@@ -580,6 +589,8 @@ interface MandibularPanelProps {
   onSelectAllOpposingTeeth?: (teeth: number[]) => void;
   /** Called when the checked teeth (checkbox selection) change */
   onCheckedTeethChange?: (teeth: number[]) => void;
+  /** Called whenever implant detail data changes for any tooth (so CaseDesignCenter can include it in the slip snapshot). */
+  onImplantDetailChange?: (implantDetailByTooth: Record<number, ImplantDetailData>) => void;
 }
 
 /** Auto-opens the shade picker when this component mounts (i.e. shade field becomes visible) and the field has no value */
@@ -674,6 +685,7 @@ export function MandibularPanel({
   onOpposingExtractionToggle,
   onSelectAllOpposingTeeth,
   onCheckedTeethChange,
+  onImplantDetailChange,
 }: MandibularPanelProps) {
   const MANDIBULAR_ALL_TEETH = [17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32];
   const [activeExtractionCode, setActiveExtractionCode] = useState<string | null>(null);
@@ -686,7 +698,14 @@ export function MandibularPanel({
   /** Tracks implant detail completion per tooth so we can block impression modal until complete. */
   const [implantDetailCompleteByTooth, setImplantDetailCompleteByTooth] = useState<Record<number, boolean>>({});
   /** Persists implant detail form data per tooth so it survives accordion collapse/expand. */
-  const [implantDetailByTooth, setImplantDetailByTooth] = useState<Record<number, ImplantDetailData>>({});
+  const [implantDetailByTooth, setImplantDetailByToothRaw] = useState<Record<number, ImplantDetailData>>({});
+  const setImplantDetailByTooth = useCallback((updater: Record<number, ImplantDetailData> | ((prev: Record<number, ImplantDetailData>) => Record<number, ImplantDetailData>)) => {
+    setImplantDetailByToothRaw((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      onImplantDetailChange?.(next);
+      return next;
+    });
+  }, [onImplantDetailChange]);
   /** Expand/collapse for initial (card 0) Removables product accordion */
   const [initialRemovablesExpanded, setInitialRemovablesExpanded] = useState(true);
   /** Expand/collapse for the opposing product accordion */
@@ -796,7 +815,7 @@ export function MandibularPanel({
   })();
 
   return (
-    <div className={`flex-1 min-w-0 px-0 md:px-16 order-3 lg:order-none relative${caseSubmitted ? " pointer-events-none select-none" : ""}`}>
+    <div className={`flex-1 min-w-0 px-0 md:px-16 order-3 lg:order-none relative`}>
       {/* Overlay to block interaction while maxillary is incomplete */}
       {disabled && (
         <div
@@ -1074,6 +1093,7 @@ export function MandibularPanel({
                               <AccordionBadge>{apStageVal}</AccordionBadge>
                             )}
                             <EstDaysLabel rushed={hasRushedAp} text={hasRushedAp ? "5 work days after submission" : "10 work days after submission"} />
+                            {!caseSubmitted && (
                             <button
                               type="button"
                               onClick={(e) => { e.stopPropagation(); handleRemoveAddedProduct(ap.id); }}
@@ -1082,6 +1102,7 @@ export function MandibularPanel({
                             >
                               <Trash2 size={9} className="text-[#999999] hover:text-red-500" />
                             </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1130,6 +1151,7 @@ export function MandibularPanel({
                             : "10 work days after submission";
                           return <EstDaysLabel rushed={hasRushedAp} text={hasRushedAp ? "5 work days after submission" : apEstDays} />;
                         })()}
+                        {!caseSubmitted && (
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); handleRemoveAddedProduct(ap.id); }}
@@ -1138,6 +1160,7 @@ export function MandibularPanel({
                         >
                           <Trash2 size={9} className="text-[#999999] hover:text-red-500" />
                         </button>
+                        )}
                       </div>
                     </div>
                     <ChevronDown
@@ -1148,7 +1171,7 @@ export function MandibularPanel({
                   )}
 
                   {ap.expanded && (
-                    <div className={`border-t border-[#d9d9d9] p-2.5 sm:p-4 bg-white space-y-3 max-h-[600px] overflow-y-auto scrollbar-blue`}>
+                    <div className={`border-t border-[#d9d9d9] p-2.5 sm:p-4 bg-white space-y-3 max-h-[600px] overflow-y-auto scrollbar-blue${caseSubmitted ? " pointer-events-none select-none" : ""}`}>
                       {cardTeeth.length === 0 ? (
                         <p className="text-xs text-[#b4b0b0] text-center py-4">
                           Select teeth from the chart above to assign them to this product.
@@ -1180,6 +1203,7 @@ export function MandibularPanel({
                               isStageVisible={hasAdvanceField("stage", advFields)}
                               isStageEmpty={!isFComplete("stage") && !(selectedStages[productKey])}
                               onOpenStage={handleOpenStageModal}
+                              caseSubmitted={caseSubmitted}
                             />
                             )}
                             <AutoOpenImpressionIfEmpty
@@ -1190,6 +1214,7 @@ export function MandibularPanel({
                               arch="mandibular"
                               productId={productKey}
                               toothNumber={repTn}
+                              caseSubmitted={caseSubmitted}
                             />
                             <div className="border border-[#e5e7eb] rounded-lg p-3 space-y-3">
                               {/* Row 1: Grade / Stage */}
@@ -1368,6 +1393,7 @@ export function MandibularPanel({
                               isStageVisible={!apFixedShadeIncomplete && apIsFixed("fixed_stage")}
                               isStageEmpty={!isFieldCompleted("mandibular", apFirstTn, "fixed_stage") && !(selectedStages[apGroupStageProductIdFixed])}
                               onOpenStage={handleOpenStageModal}
+                              caseSubmitted={caseSubmitted}
                             />
                             )}
                             <AutoOpenShadeGuideIfEmpty
@@ -1378,6 +1404,7 @@ export function MandibularPanel({
                               stumpShadeEmpty={!getSelectedShade(apFixedShadeProductId, "mandibular", "stump_shade")}
                               toothShadeEmpty={!getSelectedShade(apFixedShadeProductId, "mandibular", "tooth_shade")}
                               setShadeSelectionState={setShadeSelectionState}
+                              caseSubmitted={caseSubmitted}
                             />
                             <AutoOpenImpressionIfEmpty
                               isExpanded={ap.expanded}
@@ -1387,6 +1414,7 @@ export function MandibularPanel({
                               arch="mandibular"
                               productId={apToothProduct?.id?.toString() || `fixed_${apFirstTn}`}
                               toothNumber={apFirstTn}
+                              caseSubmitted={caseSubmitted}
                             />
                             <FixedRestorationFields
                               arch="mandibular"
@@ -1575,7 +1603,7 @@ export function MandibularPanel({
                                 </AccordionBadge>
                             )}
                             <EstDaysLabel rushed={hasRushed} text={hasRushed ? "5 work days after submission" : estDays} />
-                            <Trash2 size={9} className="text-[#999999] flex-shrink-0" />
+                            {!caseSubmitted && <Trash2 size={9} className="text-[#999999] flex-shrink-0" />}
                           </div>
                         </div>
                         <ChevronDown
@@ -1588,7 +1616,7 @@ export function MandibularPanel({
 
                       {/* Accordion body - single shared set of fields for the product group */}
                       {isPrepPonticExpanded(firstToothNumber) && (
-                      <div className="border-t border-[#d9d9d9] p-4 bg-white space-y-3 max-h-[600px] overflow-y-auto scrollbar-blue">
+                      <div className={`border-t border-[#d9d9d9] p-4 bg-white space-y-3 max-h-[600px] overflow-y-auto scrollbar-blue${caseSubmitted ? " pointer-events-none select-none" : ""}`}>
                         {!isSingleStageNoStages(selectedProduct) && (
                         <AutoOpenStageIfEmpty
                           productId={isFixedCategory(categoryName) ? groupStageProductIdFixed : `mandibular_prep_${firstToothNumber}`}
@@ -1598,6 +1626,7 @@ export function MandibularPanel({
                           isStageVisible={isFixedCategory(categoryName) ? isFixed("fixed_stage") : isFieldVisible("mandibular", firstToothNumber, "stage")}
                           isStageEmpty={isFixedCategory(categoryName) ? !(selectedStages[groupStageProductIdFixed] || getFieldValue("mandibular", groupStageToothNumber, "fixed_stage")) : !(selectedStages[`mandibular_prep_${firstToothNumber}`] || getFieldValue("mandibular", firstToothNumber, "stage"))}
                           onOpenStage={handleOpenStageModal}
+                          caseSubmitted={caseSubmitted}
                         />
                         )}
                         {isFixedCategory(categoryName) && (
@@ -1610,6 +1639,7 @@ export function MandibularPanel({
                               stumpShadeEmpty={!getSelectedShade(`fixed_${groupStageToothNumber}`, "mandibular", "stump_shade")}
                               toothShadeEmpty={!getSelectedShade(`fixed_${groupStageToothNumber}`, "mandibular", "tooth_shade")}
                               setShadeSelectionState={setShadeSelectionState}
+                              caseSubmitted={caseSubmitted}
                             />
                             <AutoOpenImpressionIfEmpty
                               isExpanded={isPrepPonticExpanded(firstToothNumber)}
@@ -1619,6 +1649,7 @@ export function MandibularPanel({
                               arch="mandibular"
                               productId={selectedProduct?.id?.toString() || `fixed_${groupStageToothNumber}`}
                               toothNumber={groupStageToothNumber}
+                              caseSubmitted={caseSubmitted}
                             />
                           </>
                         )}
@@ -1791,13 +1822,13 @@ export function MandibularPanel({
                           <AccordionBadge>{stageVal}</AccordionBadge>
                         )}
                         <EstDaysLabel rushed={hasRushedRemovables} text={hasRushedRemovables ? "5 work days after submission" : estDays} />
-                        <Trash2 size={9} className="text-[#999999] flex-shrink-0" />
+                        {!caseSubmitted && <Trash2 size={9} className="text-[#999999] flex-shrink-0" />}
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div className={`border-t border-[#d9d9d9] p-2.5 sm:p-4 bg-white space-y-3 max-h-[600px] overflow-y-auto scrollbar-blue${initialRemovablesExpanded ? "" : " hidden"}`}>
+                <div className={`border-t border-[#d9d9d9] p-2.5 sm:p-4 bg-white space-y-3 max-h-[600px] overflow-y-auto scrollbar-blue${initialRemovablesExpanded ? "" : " hidden"}${caseSubmitted ? " pointer-events-none select-none" : ""}`}>
                     {(() => {
                       const repTn = cardTeeth[0];
                       const toothProduct = getToothProduct("mandibular", repTn);
@@ -1819,6 +1850,7 @@ export function MandibularPanel({
                           isStageVisible={isF("stage")}
                           isStageEmpty={!stageVal}
                           onOpenStage={handleOpenStageModal}
+                          caseSubmitted={caseSubmitted}
                         />
                         )}
                         <AutoOpenImpressionIfEmpty
@@ -1829,6 +1861,7 @@ export function MandibularPanel({
                           arch="mandibular"
                           productId={productKey}
                           toothNumber={repTn}
+                          caseSubmitted={caseSubmitted}
                         />
                         <div className="border border-[#e5e7eb] rounded-lg p-3 space-y-3">
                           {/* Row 1: Grade / Stage */}

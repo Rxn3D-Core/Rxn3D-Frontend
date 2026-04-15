@@ -132,8 +132,9 @@ export function useCaseDesignState(props: CaseDesignProps) {
     setExpandedPrepPontic((prev) => ({ ...prev, [toothNumber]: !(prev[toothNumber] !== false) }));
   };
   const isPrepPonticExpanded = (toothNumber: number) => expandedPrepPontic[toothNumber] !== false;
-  const [showMaxillary, setShowMaxillary] = useState(props.initialArch !== "mandibular");
-  const [showMandibular, setShowMandibular] = useState(props.initialArch !== "maxillary");
+  // In read-only (virtual slip) mode, always show both arches regardless of initialArch.
+  const [showMaxillary, setShowMaxillary] = useState(props.caseSubmitted ? true : props.initialArch !== "mandibular");
+  const [showMandibular, setShowMandibular] = useState(props.caseSubmitted ? true : props.initialArch !== "maxillary");
   const [showDetails, setShowDetails] = useState(false);
 
   // Opposing arch extraction map: toothNumber → extractionCode
@@ -596,6 +597,60 @@ export function useCaseDesignState(props: CaseDesignProps) {
     },
     [toothFieldProgress, modals.selectedImpressions]
   );
+
+  // ── Virtual slip read-only hydration ──────────────────────────────────────
+  // When this component mounts in read-only mode (caseSubmitted=true) with pre-built
+  // state from the API response, hydrate all sub-hooks in a single effect.
+  // The empty dep array is intentional: we only want to hydrate once on mount.
+  // Interactive (non-submitted) flows never provide initialSlipState, so this is a no-op for them.
+  useEffect(() => {
+    const s = props.initialSlipState;
+    if (!props.caseSubmitted || !s) return;
+
+    // Teeth selection
+    teeth.setMaxillaryTeeth(s.maxillaryTeeth);
+    teeth.setMandibularTeeth(s.mandibularTeeth);
+
+    // Retention types (drives Prep/Pontic badges on teeth)
+    teeth.setMaxillaryRetentionTypes(s.maxillaryRetentionTypes);
+    teeth.setMandibularRetentionTypes(s.mandibularRetentionTypes);
+
+    // Tooth→product mapping and card ownership
+    if (Object.keys(s.toothProducts).length > 0) {
+      toothFieldProgress.setToothProducts(s.toothProducts);
+    }
+    if (Object.keys(s.toothProductCards).length > 0) {
+      toothFieldProgress.setToothProductCardMap(s.toothProductCards);
+    }
+
+    // Shade selections
+    if (Object.keys(s.selectedShades).length > 0) {
+      shades.setSelectedShades(s.selectedShades);
+    }
+
+    // Stage selections
+    if (Object.keys(s.selectedStages).length > 0) {
+      modals.setSelectedStages((prev: Record<string, string>) => ({ ...prev, ...s.selectedStages }));
+    }
+
+    // Impression quantities
+    if (Object.keys(s.selectedImpressions).length > 0) {
+      modals.setSelectedImpressions(s.selectedImpressions);
+    }
+
+    // Completed fields and field values
+    if (Object.keys(s.completedFields).length > 0) {
+      toothFieldProgress.setCompletedFields(
+        Object.fromEntries(
+          Object.entries(s.completedFields).map(([key, steps]) => [key, new Set(steps)])
+        )
+      );
+    }
+    if (Object.keys(s.fieldValues).length > 0) {
+      toothFieldProgress.setFieldValues(s.fieldValues);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run once on mount only — intentional empty deps
 
   return {
     // Active product card tracking (0 = initial product, other = AddedProduct.id)

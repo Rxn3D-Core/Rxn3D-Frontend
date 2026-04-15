@@ -235,6 +235,11 @@ export function useToothSelection(
     mandibularRetentionTypes,
     retentionPopoverState,
     setRetentionPopoverState,
+    // Exposed for read-only hydration (virtual slip page)
+    setMaxillaryTeeth,
+    setMandibularTeeth,
+    setMaxillaryRetentionTypes,
+    setMandibularRetentionTypes,
     handleMaxillaryToothClick,
     handleMandibularToothClick,
     handleSelectRetentionType,

@@ -5735,6 +5735,31 @@ export function useCaseDesignCenter() {
           ? productDetails.advance_fields
             .map((field: any) => {
               const fieldKey = `advance_${field.id}`
+
+              // Handle implant_library fields specially — data lives in implant state, not advanceFieldValues
+              if (field.field_type === "implant_library") {
+                const brandId = selectedImplantBrand[fieldKey]
+                const platformId = selectedImplantPlatform[fieldKey]
+                const size = selectedImplantSize[fieldKey]
+                if (!brandId && !platformId && !size) return null
+                const inclusions = addedFrom === "maxillary" ? maxillaryImplantInclusions : mandibularImplantInclusions
+                const abutmentType = addedFrom === "maxillary" ? maxillaryAbutmentType : mandibularAbutmentType
+                const abutmentDetail = addedFrom === "maxillary" ? maxillaryAbutmentDetail : mandibularAbutmentDetail
+                const implantValue = JSON.stringify({
+                  brand_id: brandId ?? null,
+                  platform_id: platformId ?? null,
+                  size: size ?? null,
+                  inclusions: inclusions || null,
+                  abutment_type: abutmentType || null,
+                  abutment_detail: abutmentDetail || null,
+                })
+                return {
+                  advance_field_id: field.id,
+                  advance_field_value: implantValue,
+                  teeth_number: null,
+                }
+              }
+
               const value = advanceFieldValues[fieldKey]
               if (value) {
                 const fieldData: any = {
@@ -6092,6 +6117,31 @@ export function useCaseDesignCenter() {
           ? productDetails.advance_fields
             .map((field: any) => {
               const fieldKey = `advance_${field.id}`
+
+              // Handle implant_library fields specially — data lives in implant state, not advanceFieldValues
+              if (field.field_type === "implant_library") {
+                const brandId = selectedImplantBrand[fieldKey]
+                const platformId = selectedImplantPlatform[fieldKey]
+                const size = selectedImplantSize[fieldKey]
+                if (!brandId && !platformId && !size) return null
+                const inclusions = type === "maxillary" ? maxillaryImplantInclusions : mandibularImplantInclusions
+                const abutmentType = type === "maxillary" ? maxillaryAbutmentType : mandibularAbutmentType
+                const abutmentDetail = type === "maxillary" ? maxillaryAbutmentDetail : mandibularAbutmentDetail
+                const implantValue = JSON.stringify({
+                  brand_id: brandId ?? null,
+                  platform_id: platformId ?? null,
+                  size: size ?? null,
+                  inclusions: inclusions || null,
+                  abutment_type: abutmentType || null,
+                  abutment_detail: abutmentDetail || null,
+                })
+                return {
+                  advance_field_id: field.id,
+                  advance_field_value: implantValue,
+                  teeth_number: null,
+                }
+              }
+
               const value = advanceFieldValues[fieldKey]
               if (value) {
                 const fieldData: any = {
@@ -6514,6 +6564,7 @@ export function useCaseDesignCenter() {
       maxillaryMaterial: finalMaxillaryMaterial,
       maxillaryStumpShade,
       maxillaryRetention: finalMaxillaryRetention,
+      maxillaryNotes: "",
       maxillaryImplantDetails,
       mandibularMaterial: finalMandibularMaterial,
       mandibularRetention: finalMandibularRetention,
@@ -6523,27 +6574,52 @@ export function useCaseDesignCenter() {
       maxillaryImpressions: maxillaryImpressions.length > 0 ? maxillaryImpressions : undefined,
       mandibularImpressions: mandibularImpressions.length > 0 ? mandibularImpressions : undefined,
       // Include ID fields and additional fields
-      maxillaryMaterialId: type === "maxillary" ? maxillaryMaterialId : undefined,
-      maxillaryRetentionId: type === "maxillary" ? maxillaryRetentionId : undefined,
-      maxillaryRetentionOptionId: type === "maxillary" ? maxillaryRetentionOptionId : undefined,
-      maxillaryGumShadeId: type === "maxillary" ? maxillaryGumShadeId : undefined,
-      maxillaryShadeId: type === "maxillary" ? maxillaryShadeId : undefined,
-      maxillaryStageId: type === "maxillary" ? finalMaxillaryStageId : undefined,
-      maxillaryToothShade: type === "maxillary" ? maxillaryToothShade : undefined,
-      maxillaryStage: type === "maxillary" ? finalMaxillaryStage : undefined,
-      mandibularMaterialId: type === "mandibular" ? mandibularMaterialId : undefined,
-      mandibularRetentionId: type === "mandibular" ? mandibularRetentionId : undefined,
-      mandibularRetentionOptionId: type === "mandibular" ? mandibularRetentionOptionId : undefined,
-      mandibularGumShadeId: type === "mandibular" ? mandibularGumShadeId : undefined,
-      mandibularShadeId: type === "mandibular" ? mandibularShadeId : undefined,
-      mandibularStageId: type === "mandibular" ? finalMandibularStageId : undefined,
-      mandibularToothShade: type === "mandibular" ? mandibularToothShade : undefined,
-      mandibularStage: type === "mandibular" ? finalMandibularStage : undefined,
+      maxillaryMaterialId: maxillaryMaterialId,
+      maxillaryRetentionId: maxillaryRetentionId,
+      maxillaryRetentionOptionId: maxillaryRetentionOptionId,
+      maxillaryGumShadeId: maxillaryGumShadeId,
+      maxillaryShadeId: maxillaryShadeId,
+      maxillaryStageId: finalMaxillaryStageId,
+      maxillaryToothShade: maxillaryToothShade,
+      maxillaryStage: finalMaxillaryStage,
+      mandibularMaterialId: mandibularMaterialId,
+      mandibularRetentionId: mandibularRetentionId,
+      mandibularRetentionOptionId: mandibularRetentionOptionId,
+      mandibularGumShadeId: mandibularGumShadeId,
+      mandibularShadeId: mandibularShadeId,
+      mandibularStageId: finalMandibularStageId,
+      mandibularToothShade: mandibularToothShade,
+      mandibularStage: finalMandibularStage,
       // Include advance fields if any are set
       advanceFields: productDetails?.advance_fields && Array.isArray(productDetails.advance_fields)
         ? productDetails.advance_fields
           .map((field: any) => {
             const fieldKey = `advance_${field.id}`
+
+            // Handle implant_library fields specially — data lives in implant state, not advanceFieldValues
+            if (field.field_type === "implant_library") {
+              const brandId = selectedImplantBrand[fieldKey]
+              const platformId = selectedImplantPlatform[fieldKey]
+              const size = selectedImplantSize[fieldKey]
+              if (!brandId && !platformId && !size) return null
+              const inclusions = type === "maxillary" ? maxillaryImplantInclusions : mandibularImplantInclusions
+              const abutmentType = type === "maxillary" ? maxillaryAbutmentType : mandibularAbutmentType
+              const abutmentDetail = type === "maxillary" ? maxillaryAbutmentDetail : mandibularAbutmentDetail
+              const implantValue = JSON.stringify({
+                brand_id: brandId ?? null,
+                platform_id: platformId ?? null,
+                size: size ?? null,
+                inclusions: inclusions || null,
+                abutment_type: abutmentType || null,
+                abutment_detail: abutmentDetail || null,
+              })
+              return {
+                advance_field_id: field.id,
+                advance_field_value: implantValue,
+                teeth_number: null,
+              }
+            }
+
             const value = advanceFieldValues[fieldKey]
             if (value) {
               const fieldData: any = {
@@ -6932,6 +7008,7 @@ export function useCaseDesignCenter() {
         maxillaryMaterial: finalMaxillaryMaterial,
         maxillaryStumpShade,
         maxillaryRetention: maxillaryRetention,
+        maxillaryNotes: "",
         maxillaryImplantDetails,
         mandibularMaterial: finalMandibularMaterial,
         mandibularRetention: mandibularRetention,
@@ -6961,6 +7038,31 @@ export function useCaseDesignCenter() {
           ? productDetails.advance_fields
             .map((field: any) => {
               const fieldKey = `advance_${field.id}`
+
+              // Handle implant_library fields specially — data lives in implant state, not advanceFieldValues
+              if (field.field_type === "implant_library") {
+                const brandId = selectedImplantBrand[fieldKey]
+                const platformId = selectedImplantPlatform[fieldKey]
+                const size = selectedImplantSize[fieldKey]
+                if (!brandId && !platformId && !size) return null
+                const inclusions = addedFrom === "maxillary" ? maxillaryImplantInclusions : mandibularImplantInclusions
+                const abutmentType = addedFrom === "maxillary" ? maxillaryAbutmentType : mandibularAbutmentType
+                const abutmentDetail = addedFrom === "maxillary" ? maxillaryAbutmentDetail : mandibularAbutmentDetail
+                const implantValue = JSON.stringify({
+                  brand_id: brandId ?? null,
+                  platform_id: platformId ?? null,
+                  size: size ?? null,
+                  inclusions: inclusions || null,
+                  abutment_type: abutmentType || null,
+                  abutment_detail: abutmentDetail || null,
+                })
+                return {
+                  advance_field_id: field.id,
+                  advance_field_value: implantValue,
+                  teeth_number: null,
+                }
+              }
+
               const value = advanceFieldValues[fieldKey]
               if (value) {
                 const fieldData: any = {

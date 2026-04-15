@@ -178,6 +178,29 @@ function snapshotToProduct(snap: SlipProductSnapshot): SlipCreationProduct {
       advance_fields.push({ teeth_number: null, advance_field_id: advField.id, advance_field_value: value });
     }
 
+    // --- implant_library advance field ---
+    const implantLibraryField = product?.advance_fields?.find(
+      (af: any) => (af.field_type ?? "").toLowerCase() === "implant_library"
+    );
+    if (implantLibraryField && snap.implantDetailByTooth) {
+      const implantDetail = snap.implantDetailByTooth[snap.repToothNumber]
+        ?? Object.values(snap.implantDetailByTooth)[0];
+      if (implantDetail && (implantDetail.brand || implantDetail.platform || implantDetail.size)) {
+        advance_fields.push({
+          teeth_number: null,
+          advance_field_id: implantLibraryField.id,
+          advance_field_value: JSON.stringify({
+            brand: implantDetail.brand || null,
+            platform: implantDetail.platform || null,
+            size: implantDetail.size || null,
+            inclusions: implantDetail.inclusions || null,
+            abutment_type: implantDetail.abutmentType || null,
+            abutment_detail: implantDetail.abutmentDetail || null,
+          }),
+        });
+      }
+    }
+
     return {
       type: snap.type,
       category_id: product?.subcategory?.category_id ?? 0,

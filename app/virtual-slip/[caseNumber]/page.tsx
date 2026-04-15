@@ -1,12 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useParams } from "next/navigation";
 import Image from "next/image";
 import { useSlipCreation } from "@/contexts/slip-creation-context";
 import { PatientHeader } from "@/components/case-design-center/components/PatientHeader";
 import { CaseDesignCenter } from "@/components/case-design-center/components/CaseDesignCenter";
 import type { SlipCreationResponse } from "@/services/slip-creation-service";
+import type { AddedProduct, VirtualSlipInitialState } from "@/components/case-design-center/types";
+import {
+  buildAddedProducts,
+  buildVirtualSlipInitialState,
+  determineInitialArch,
+} from "@/lib/virtual-slip-transformer";
+import { FloatingActions } from "@/components/case-design-center/components/FloatingActions";
+import { useRouter } from "next/navigation";
 
 /**
  * Maps the /v1/slip/slip/{id}/details response (single slip object)
@@ -41,8 +49,19 @@ function toPatientHeaderData(d: any): SlipCreationResponse["data"] | null {
   } as SlipCreationResponse["data"];
 }
 
+/** Extract the products array from the API response — handles both flat and nested shapes. */
+function extractProducts(details: any): unknown[] {
+  if (!details) return [];
+  // Try direct products array first (most likely)
+  if (Array.isArray(details.products)) return details.products;
+  // Try nested under slips[0]
+  if (Array.isArray(details.slips?.[0]?.products)) return details.slips[0].products;
+  return [];
+}
+
 export default function VirtualSlipPage() {
   const params = useParams();
+  const router = useRouter();
   const slipId = Number(params.caseNumber);
 
   const { fetchVirtualSlipDetails, virtualSlipDetails } = useSlipCreation();
@@ -56,21 +75,63 @@ export default function VirtualSlipPage() {
   const doctorName = virtualSlipDetails?.case?.doctor?.name ?? null;
   const slipResponseData = toPatientHeaderData(virtualSlipDetails);
 
+  // ── Case Design Center read-only data ──────────────────────────────────────
+  const apiProducts = useMemo(
+    () => extractProducts(virtualSlipDetails),
+    [virtualSlipDetails]
+  );
+
+  const addedProducts: AddedProduct[] = useMemo(
+    () => buildAddedProducts(apiProducts),
+    [apiProducts]
+  );
+
+  const initialSlipState: VirtualSlipInitialState = useMemo(
+    () => buildVirtualSlipInitialState(apiProducts),
+    [apiProducts]
+  );
+
+  const initialArch = useMemo(
+    () => determineInitialArch(apiProducts),
+    [apiProducts]
+  );
+
+  const labImageUrl: string | null =
+    virtualSlipDetails?.lab?.image ??
+    virtualSlipDetails?.case?.lab?.image ??
+    null;
+  const labName: string =
+    virtualSlipDetails?.lab?.name ??
+    virtualSlipDetails?.case?.lab?.name ??
+    "Lab";
+
   return (
     <div className="min-h-screen bg-white flex flex-col">
-      {/* Page header: practice logo + HMCi3 logo */}
+      {/* Page header: lab logo + HMCi3 logo */}
       <div className="flex items-center justify-between px-6 py-3 border-b border-[#d9d9d9] bg-white">
         <div className="flex items-center gap-3">
           <div className="w-[140px] h-[50px] relative">
-            <Image
-              src="/images/practice-logo.png"
-              alt="Practice logo"
-              fill
-              className="object-contain object-left"
-              onError={(e) => {
-                (e.currentTarget as HTMLImageElement).style.display = "none";
-              }}
-            />
+            {labImageUrl ? (
+              <Image
+                src={labImageUrl}
+                alt={labName}
+                fill
+                className="object-contain object-left"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).style.display = "none";
+                }}
+              />
+            ) : (
+              <Image
+                src="/images/practice-logo.png"
+                alt="Practice logo"
+                fill
+                className="object-contain object-left"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).style.display = "none";
+                }}
+              />
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -101,14 +162,19 @@ export default function VirtualSlipPage() {
           caseSubmitted
           slipHeaderLoading={false}
           slipResponseData={slipResponseData}
+          createdByName={virtualSlipDetails?.created_by?.name ?? null}
+          createdByImageUrl={virtualSlipDetails?.created_by?.image ?? null}
         />
       )}
 
-      {/* Case Design Center — read-only */}
+      {/* Case Design Center — read-only with product data from API */}
       <div className="flex-1 overflow-auto">
         {!loading && (
           <CaseDesignCenter
             caseSubmitted
+            addedProducts={addedProducts}
+            initialSlipState={initialSlipState}
+            initialArch={initialArch}
             right1Brand=""
             setRight1Brand={() => {}}
             right1Platform=""
@@ -120,6 +186,21 @@ export default function VirtualSlipPage() {
           />
         )}
       </div>
+
+      {/* Floating action buttons — bottom right, same as case design center */}
+      <FloatingActions
+        onPrint={() => window.print()}
+        onPickupDropoff={() => {
+          const role = typeof window !== "undefined" ? localStorage.getItem("role") : null;
+          const route = role === "lab_admin" ? "/lab-case-management" : "/office-case-management";
+          router.push(`${route}?location=In+office+ready+to+pickup`);
+        }}
+        onBackToCaseList={() => {
+          const role = typeof window !== "undefined" ? localStorage.getItem("role") : null;
+          const route = role === "lab_admin" ? "/lab-case-management" : "/office-case-management";
+          router.push(route);
+        }}
+      />
     </div>
   );
 }
