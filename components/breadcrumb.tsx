@@ -48,8 +48,8 @@ export function Breadcrumb() {
         "case-list": t("breadcrumb.caseList", { defaultValue: "Case List" }),
         "virtual-slip": t("breadcrumb.virtualSlip", { defaultValue: "Virtual Slip" }),
 
-        // Billing & Subscription paths
-        "billing": t("breadcrumb.billing", { defaultValue: "Billing & Subscription" }),
+        // Billing & Subscription paths (label matches Lab Admin IA: “Billing & Subscriptions”)
+        "billing": t("breadcrumb.billing", { defaultValue: "Billing & Subscriptions" }),
         "subscriptions": t("breadcrumb.subscriptions", { defaultValue: "Subscriptions" }),
         "charge-management": t("breadcrumb.chargeManagement", { defaultValue: "Charge Management" }),
         "generate-statements": t("breadcrumb.generateStatements", { defaultValue: "Generate Statements" }),
@@ -73,6 +73,17 @@ export function Breadcrumb() {
       }
 
       const breadcrumbs = [{ name: t("breadcrumb.home", { defaultValue: "Home" }), path: "/" }]
+
+      // Lab billing area: Home > Lab Admin > Billing & Subscriptions > …
+      if (
+        paths[0] === "billing" &&
+        (userRoles.includes("lab_admin") || userRoles.includes("lab_user"))
+      ) {
+        breadcrumbs.push({
+          name: t("breadcrumb.labAdmin", { defaultValue: "Lab Admin" }),
+          path: "/dashboard",
+        })
+      }
 
       if (paths.includes("lab-administrator")) {
         breadcrumbs.push({ name: t("breadcrumb.labAdmin", { defaultValue: "Lab Admin" }), path: "" })
@@ -136,7 +147,7 @@ export function Breadcrumb() {
         <div key={index} className="flex items-center">
           {index > 0 && <ChevronRight className="h-4 w-4 mx-1" />}
           {index === breadcrumbs.length - 1 ? (
-            <span className="text-[#1162a8] font-medium">{crumb.name}</span>
+            <span className="text-gray-900 font-semibold">{crumb.name}</span>
           ) : (
             <Link href={crumb.path} className="hover:text-gray-700">
               {crumb.name}

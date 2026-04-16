@@ -1,6 +1,7 @@
 import { configureStore } from "@reduxjs/toolkit"
 import { setupListeners } from "@reduxjs/toolkit/query"
 import { apiSlice } from "./api/apiSlice"
+import "./api/billingApi"
 import stageReducer from "./features/stageSlice"
 import casespanReducer from "./features/casespanSlice"
 import technicianBillingReducer from "./features/technicianBillingSlice"
