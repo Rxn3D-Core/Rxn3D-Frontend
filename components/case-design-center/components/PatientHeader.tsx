@@ -30,6 +30,10 @@ export interface PatientHeaderProps {
   onAgeChange?: (value: string) => void;
   /** When true, show Patient name + Gender in one row (for removable restoration / orthodontics with products). */
   compactLayout?: boolean;
+  /** Override the "Created By" name shown after submission (falls back to localStorage). */
+  createdByName?: string | null;
+  /** Override the "Created By" image URL shown after submission (falls back to localStorage). */
+  createdByImageUrl?: string | null;
 }
 
 function SkeletonField({ label, width = "w-[160px]" }: { label: string; width?: string }) {
@@ -48,7 +52,7 @@ const DEFAULT_DOCTOR_NAME = "Cody Mugglestone, DDS";
 const DEFAULT_PATIENT_NAME = "Jose Protacio Rizal Mercado y Alonzo";
 const DEFAULT_GENDER = "Male";
 
-export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender, age, caseSubmitted = false, slipHeaderLoading = false, slipResponseData, onEditDoctorClick, onPatientNameChange, onGenderChange, onAgeChange, compactLayout = false }: PatientHeaderProps = {}) {
+export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender, age, caseSubmitted = false, slipHeaderLoading = false, slipResponseData, onEditDoctorClick, onPatientNameChange, onGenderChange, onAgeChange, compactLayout = false, createdByName: createdByNameProp, createdByImageUrl: createdByImageUrlProp }: PatientHeaderProps = {}) {
   const imgSrc = doctorImageUrl && doctorImageUrl.trim() !== "" ? doctorImageUrl : DEFAULT_DOCTOR_IMAGE;
   const displayName = doctorName && doctorName.trim() !== "" ? doctorName : DEFAULT_DOCTOR_NAME;
   const isEditable = !caseSubmitted;
@@ -86,19 +90,23 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
   const dueDate = formatDate(firstSlip?.delivery?.delivery_date);
   const deliveryTime = formatTime(firstSlip?.delivery?.delivery_time);
 
-  const [createdByName, setCreatedByName] = useState("");
-  const [createdByImage, setCreatedByImage] = useState("");
+  const [createdByNameLocal, setCreatedByNameLocal] = useState("");
+  const [createdByImageLocal, setCreatedByImageLocal] = useState("");
 
   useEffect(() => {
+    if (createdByNameProp != null) return; // prop takes precedence — skip localStorage
     try {
       const userStr = localStorage.getItem("user");
       if (userStr) {
         const user = JSON.parse(userStr);
-        setCreatedByName(`${user.first_name || ""} ${user.last_name || ""}`.trim());
-        if (user.image) setCreatedByImage(user.image);
+        setCreatedByNameLocal(`${user.first_name || ""} ${user.last_name || ""}`.trim());
+        if (user.image) setCreatedByImageLocal(user.image);
       }
     } catch {}
-  }, []);
+  }, [createdByNameProp]);
+
+  const createdByName = createdByNameProp ?? createdByNameLocal;
+  const createdByImage = createdByImageUrlProp ?? createdByImageLocal;
 
   return (
     <div className={`bg-[#fdfdfd] border-b border-[#d9d9d9] px-4 sm:px-6 ${compactLayout && !caseSubmitted ? "py-1" : "py-2"}`}>

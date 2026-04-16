@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import type React from "react";
 import type { Arch, RetentionType, ProductApiData, ProductAdvanceField } from "../types";
 
 /**
@@ -372,5 +373,11 @@ export function useToothFieldProgress() {
     fieldValues,
     toothProducts,
     toothProductCardMap,
+    // Raw setters — exposed for read-only hydration (virtual slip page).
+    // Use with care: direct state mutation bypasses all derived logic.
+    setToothProducts: setToothProducts as React.Dispatch<React.SetStateAction<Record<string, ProductApiData>>>,
+    setToothProductCardMap: setToothProductCardMap as React.Dispatch<React.SetStateAction<Record<string, number>>>,
+    setCompletedFields: setCompletedFields as React.Dispatch<React.SetStateAction<Record<string, Set<FieldStep>>>>,
+    setFieldValues: setFieldValues as React.Dispatch<React.SetStateAction<Record<string, Record<string, string>>>>,
   };
 }

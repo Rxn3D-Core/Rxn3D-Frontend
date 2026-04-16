@@ -73,6 +73,8 @@ interface ModalOrchestratorProps {
   currentStageOptions: { name: string; letter: string; is_default?: string }[] | null;
   handleStageSelect: (stageName: string) => void;
   onStageConfirm: (stageName: string) => void;
+  /** When true (virtual slip / read-only view), all modals are suppressed */
+  caseSubmitted?: boolean;
 }
 
 /** When only 1 stage is available or a default stage exists, auto-selects it and closes — skipping the modal entirely. */
@@ -159,10 +161,15 @@ export function ModalOrchestrator({
   currentStageOptions,
   handleStageSelect,
   onStageConfirm,
+  caseSubmitted = false,
 }: ModalOrchestratorProps) {
   const router = useRouter();
   const [attachViewerOpen, setAttachViewerOpen] = useState(false)
   const handleViewerToggle = useCallback((isOpen: boolean) => setAttachViewerOpen(isOpen), [])
+
+  // In read-only (virtual slip) mode, suppress all modals
+  if (caseSubmitted) return null;
+
   return (
     <>
       {/* Impression Selection Modal */}

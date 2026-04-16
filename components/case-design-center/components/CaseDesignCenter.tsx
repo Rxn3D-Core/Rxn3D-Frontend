@@ -19,6 +19,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   const state = useCaseDesignState(props);
   const maxillaryCheckedTeethRef = useRef<number[]>([]);
   const mandibularCheckedTeethRef = useRef<number[]>([]);
+  const maxillaryImplantDetailRef = useRef<Record<number, import("./ImplantDetailSection").ImplantDetailData>>({});
+  const mandibularImplantDetailRef = useRef<Record<number, import("./ImplantDetailSection").ImplantDetailData>>({});
 
   const maxillaryHasImpression = Object.keys(state.maxillaryRetentionTypes).some((toothNum) => {
     const n = Number(toothNum);
@@ -502,6 +504,19 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           ? maxillaryCheckedTeethRef.current
           : mandibularCheckedTeethRef.current;
 
+        const implantDetailMap = arch === "maxillary"
+          ? maxillaryImplantDetailRef.current
+          : mandibularImplantDetailRef.current;
+        // Only include implant detail entries that have actual data
+        const relevantImplantDetail: Record<number, import("./ImplantDetailSection").ImplantDetailData> = {};
+        for (const tn of teethSelection) {
+          const detail = implantDetailMap[tn];
+          if (detail && (detail.brand || detail.platform || detail.size)) {
+            relevantImplantDetail[tn] = detail;
+          }
+        }
+        const hasImplantDetail = Object.keys(relevantImplantDetail).length > 0;
+
         snapshots.push({
           type,
           productId,
@@ -517,6 +532,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           shadeGuide: state.selectedShadeGuide ?? "Vita Classical",
           ...(oppositeExtractions ? { oppositeExtractions } : {}),
           ...(checkedTeeth.length > 0 ? { checkedTeeth } : {}),
+          ...(hasImplantDetail ? { implantDetailByTooth: relevantImplantDetail } : {}),
         });
       });
     };
@@ -601,10 +617,12 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           <MaxillaryPanel
             showMaxillary={
               state.showMaxillary ||
+              (props.caseSubmitted && (state.maxillaryTeeth.length > 0 || Object.keys(state.maxillaryRetentionTypes).length > 0)) ||
               ((state.initialProductDetails?.opposite_extractions?.length ?? 0) > 0 && props.initialArch === "mandibular" && mandibularRemovablesImpressionDone)
             }
             setShowMaxillary={state.setShowMaxillary}
-            showDetails={maxillaryHasImpression || mandibularHasImpression || maxillaryHasRemovables || mandibularHasRemovables ||
+            showDetails={props.caseSubmitted ||
+              maxillaryHasImpression || mandibularHasImpression || maxillaryHasRemovables || mandibularHasRemovables ||
               maxillaryHasFixedAdded || mandibularHasFixedAdded ||
               maxillaryHasFixedCard0 || mandibularHasFixedCard0 ||
               ((state.initialProductDetails?.opposite_extractions?.length ?? 0) > 0 && props.initialArch === "mandibular" && mandibularRemovablesImpressionDone)
@@ -685,6 +703,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           opposingToothExtractionMap={state.opposingToothExtractionMap}
           onOpposingExtractionToggle={state.handleOpposingExtractionToggle}
           onCheckedTeethChange={(teeth) => { maxillaryCheckedTeethRef.current = teeth; }}
+          onImplantDetailChange={(detail) => { maxillaryImplantDetailRef.current = detail; }}
         />
 
         {/* CENTER NAVIGATION */}
@@ -719,16 +738,18 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         <MandibularPanel
           showMandibular={
             state.showMandibular ||
+            (props.caseSubmitted && (state.mandibularTeeth.length > 0 || Object.keys(state.mandibularRetentionTypes || {}).length > 0)) ||
             ((state.initialProductDetails?.opposite_extractions?.length ?? 0) > 0 && props.initialArch === "maxillary" && maxillaryRemovablesImpressionDone)
           }
           setShowMandibular={state.setShowMandibular}
-          showDetails={maxillaryHasImpression || mandibularHasImpression || maxillaryHasRemovables || mandibularHasRemovables ||
+          showDetails={props.caseSubmitted ||
+            maxillaryHasImpression || mandibularHasImpression || maxillaryHasRemovables || mandibularHasRemovables ||
             maxillaryHasFixedAdded || mandibularHasFixedAdded ||
             maxillaryHasFixedCard0 || mandibularHasFixedCard0 ||
             ((state.initialProductDetails?.opposite_extractions?.length ?? 0) > 0 && props.initialArch === "maxillary" && maxillaryRemovablesImpressionDone)
           }
           caseSubmitted={props.caseSubmitted}
-          disabled={maxillaryIncomplete}
+          disabled={props.caseSubmitted ? false : maxillaryIncomplete}
           // Tooth selection
           mandibularTeeth={state.mandibularTeeth}
           handleMandibularToothClick={state.handleMandibularToothClick}
@@ -802,6 +823,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           opposingToothExtractionMap={state.opposingToothExtractionMap}
           onOpposingExtractionToggle={state.handleOpposingExtractionToggle}
           onCheckedTeethChange={(teeth) => { mandibularCheckedTeethRef.current = teeth; }}
+          onImplantDetailChange={(detail) => { mandibularImplantDetailRef.current = detail; }}
         />
       </div>
 
@@ -810,6 +832,13 @@ export function CaseDesignCenter(props: CaseDesignProps) {
       {/* Case Summary Notes with center action icons floating on top */}
       {(() => {
         const hasImpressionCompleted =
+          // In read-only mode show notes whenever there are any hydrated products/teeth
+          (props.caseSubmitted && (
+            Object.keys(state.maxillaryRetentionTypes).length > 0 ||
+            Object.keys(state.mandibularRetentionTypes || {}).length > 0 ||
+            state.maxillaryTeeth.length > 0 ||
+            state.mandibularTeeth.length > 0
+          )) ||
           Object.entries(state.maxillaryRetentionTypes).some(([toothNum]) => {
             const n = Number(toothNum);
             return IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("maxillary", n, step));
@@ -825,7 +854,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             state.isFieldCompleted("mandibular", tn, "impression")
           ));
         if (!hasImpressionCompleted) return null;
-        const showIcons = maxillaryHasImpression || mandibularHasImpression || maxillaryHasRemovables || mandibularHasRemovables;
+        // Hide interactive icons in read-only mode
+        const showIcons = !props.caseSubmitted && (maxillaryHasImpression || mandibularHasImpression || maxillaryHasRemovables || mandibularHasRemovables);
         return (
           <div className="relative">
             {/* Center action icons — absolutely centered on top of case summary notes */}
@@ -1062,6 +1092,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           }));
         })()}
         handleStageSelect={state.handleStageSelect}
+        caseSubmitted={props.caseSubmitted}
         onStageConfirm={(stageName) => {
           const toothNum = state.currentStageToothNumber;
           const arch = state.currentStageArch;

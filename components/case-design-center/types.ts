@@ -1,4 +1,5 @@
 import type React from "react";
+import type { ImplantDetailData } from "./components/ImplantDetailSection";
 
 /** Snapshot of per-product design data collected at submit time */
 export interface SlipProductSnapshot {
@@ -34,6 +35,11 @@ export interface SlipProductSnapshot {
   oppositeExtractions?: Array<{ extraction_id: number; teeth_numbers: number[] }>;
   /** Tooth numbers checked via the extraction checkbox UI (used for teeth_selection on submit). */
   checkedTeeth?: number[];
+  /**
+   * Implant detail form data per tooth (keyed by tooth number).
+   * Collected from MaxillaryPanel / MandibularPanel at snapshot time.
+   */
+  implantDetailByTooth?: Record<number, ImplantDetailData>;
 }
 
 export interface CaseDesignProps {
@@ -72,6 +78,12 @@ export interface CaseDesignProps {
    * the current product snapshots needed to build the slip payload.
    */
   slipCollectorRef?: React.MutableRefObject<(() => SlipProductSnapshot[]) | null>;
+  /**
+   * Pre-built state from the virtual slip API response.
+   * When provided alongside caseSubmitted=true, hydrates all panels on first mount
+   * without requiring interactive tooth selection. Has no effect in interactive mode.
+   */
+  initialSlipState?: VirtualSlipInitialState;
 }
 
 export interface AddedProduct {
@@ -81,6 +93,59 @@ export interface AddedProduct {
   product: any;
   arch: string;
   expanded: boolean;
+}
+
+/**
+ * Pre-built state from the virtual slip details API response,
+ * used to hydrate CaseDesignCenter in read-only mode on first mount.
+ */
+export interface VirtualSlipInitialState {
+  /** Tooth numbers selected for the maxillary arch */
+  maxillaryTeeth: number[];
+  /** Tooth numbers selected for the mandibular arch */
+  mandibularTeeth: number[];
+  /**
+   * Retention types per tooth per arch.
+   * Key: tooth number, Value: array of RetentionType objects.
+   * Used to show Prep/Pontic badges in read-only panels.
+   */
+  maxillaryRetentionTypes: Record<number, RetentionType[]>;
+  mandibularRetentionTypes: Record<number, RetentionType[]>;
+  /**
+   * Product API data per tooth, keyed as `${arch}_${toothNumber}` (e.g. "maxillary_4").
+   * Drives field rendering inside each tooth accordion.
+   */
+  toothProducts: Record<string, ProductApiData>;
+  /**
+   * Card ID that owns each tooth, keyed as `${arch}_${toothNumber}`.
+   * 0 = initial product card; other values = AddedProduct.id
+   */
+  toothProductCards: Record<string, number>;
+  /**
+   * Shade name selections keyed as `${productId}_${arch}_${fieldType}`
+   * (e.g. "prep_4_maxillary_tooth_shade").
+   */
+  selectedShades: Record<string, string>;
+  /**
+   * Stage name selections keyed as `${arch}_prep_${toothNumber}` for removables
+   * or `${arch}_fixed_${toothNumber}` for fixed restoration.
+   */
+  selectedStages: Record<string, string>;
+  /**
+   * Impression quantities keyed as `${productId}_${arch}_${impressionCode}`
+   * (e.g. "prep_4_maxillary_alginate").
+   */
+  selectedImpressions: Record<string, number>;
+  /**
+   * Completed field steps per tooth keyed as `${arch}_${toothNumber}`.
+   * Value is an array of FieldStep strings (e.g. ["grade", "stage", "teeth_shade"]).
+   */
+  completedFields: Record<string, string[]>;
+  /**
+   * Field values per tooth, keyed as `${arch}_${toothNumber}`.
+   * Each value is a Record<stepName, value>.
+   */
+  fieldValues: Record<string, Record<string, string>>;
 }
 
 export interface NotesProps {
