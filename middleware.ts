@@ -64,6 +64,7 @@ export function middleware(request: NextRequest) {
   // Content Security Policy
   // Adjusted for Next.js, 3D rendering (Three.js), and Vercel deployment
   // Allows HTTPS sources for styles, images, fonts, and connections to support CDN deployments
+  // frame-src blob: — billing invoice PDF in <iframe> (blob URL from base64)
   const httpConnect = cspHttpApiConnectExtra();
   const upgrade = cspUpgradeInsecureRequests();
   const cspHeader = `
@@ -76,7 +77,7 @@ export function middleware(request: NextRequest) {
     media-src 'self' blob: https:;
     worker-src 'self' blob:;
     object-src 'none';
-    frame-src 'none';
+    frame-src 'self' blob:;
     base-uri 'self';
     form-action 'self';
     frame-ancestors 'none'${upgrade};
