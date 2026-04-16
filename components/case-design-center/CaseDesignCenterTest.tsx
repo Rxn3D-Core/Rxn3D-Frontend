@@ -341,57 +341,66 @@ export default function Page() {
 
   const [addedProducts, setAddedProducts] = useState<AddedProduct[]>([]);
 
-  const handleWizardComplete = async (result: any) => {
-    // Always track the last selected category & subcategory so "Back to Products" can return to step 6
-    if (result.category) setLastSelectedCategory(Number(result.category) || null);
-    if (result.product) setLastSelectedSubProduct(Number(result.product) || null);
+  // Guard against double-fire: wizard has two onComplete paths (auto-advance + manual select)
+  const wizardCompletingRef = useRef(false);
 
-    if (wizardMode === "addProduct") {
-      const addedProductId = Number(result.material) || undefined;
-      // Fetch real product details so the accordion shows the correct name/image
-      const details = addedProductId ? await fetchProductDetails(addedProductId) : null;
-      const categoryName = details?.category_name || result.categoryName || "";
-      const isRemovable = isRemovableCategory(categoryName);
-      const newProduct: AddedProduct = {
-        id: Date.now(),
-        productId: addedProductId,
-        product: {
-          name: details?.name || result.product || "Untitled Product",
-          category_name: categoryName,
-          subcategory_name: details?.subcategory_name || "",
-          code: "",
-          image_url: details?.image_url || "",
-        },
-        arch: pendingProductArch,
-        expanded: !isRemovable,
-      };
-      setAddedProducts((prev) => [newProduct, ...prev.map((p) => ({ ...p, expanded: false }))]);
-      setWizardMode("initial");
-      setWizardComplete(true);
-    } else {
-      const productId = Number(result.material);
-      if (productId) {
-        setSelectedProductId(productId);
-        // Set category name and product name directly from wizard result (no extra API call needed)
-        if (result.categoryName) {
-          setSelectedProductCategoryName(result.categoryName);
-        }
-        if (result.materialName) {
-          setSelectedProductName(result.materialName);
-        }
+  const handleWizardComplete = async (result: any) => {
+    if (wizardCompletingRef.current) return;
+    wizardCompletingRef.current = true;
+    try {
+      // Always track the last selected category & subcategory so "Back to Products" can return to step 6
+      if (result.category) setLastSelectedCategory(Number(result.category) || null);
+      if (result.product) setLastSelectedSubProduct(Number(result.product) || null);
+
+      if (wizardMode === "addProduct") {
+        const addedProductId = Number(result.material) || undefined;
+        // Fetch real product details so the accordion shows the correct name/image
+        const details = addedProductId ? await fetchProductDetails(addedProductId) : null;
+        const categoryName = details?.category_name || result.categoryName || "";
+        const isRemovable = isRemovableCategory(categoryName);
+        const newProduct: AddedProduct = {
+          id: Date.now(),
+          productId: addedProductId,
+          product: {
+            name: details?.name || result.product || "Untitled Product",
+            category_name: categoryName,
+            subcategory_name: details?.subcategory_name || "",
+            code: "",
+            image_url: details?.image_url || "",
+          },
+          arch: pendingProductArch,
+          expanded: !isRemovable,
+        };
+        setAddedProducts((prev) => [newProduct, ...prev.map((p) => ({ ...p, expanded: false }))]);
+        setWizardMode("initial");
+        setWizardComplete(true);
       } else {
-        setSelectedProductCategoryName(undefined);
+        const productId = Number(result.material);
+        if (productId) {
+          setSelectedProductId(productId);
+          // Set category name and product name directly from wizard result (no extra API call needed)
+          if (result.categoryName) {
+            setSelectedProductCategoryName(result.categoryName);
+          }
+          if (result.materialName) {
+            setSelectedProductName(result.materialName);
+          }
+        } else {
+          setSelectedProductCategoryName(undefined);
+        }
+        setCompletedDoctor(result?.doctor ?? null);
+        setCompletedLab(result?.lab ?? null);
+        setCompletedPatientName(result?.patientName ?? "");
+        setCompletedGender(result?.gender ?? "");
+        setCompletedAge(result?.age ?? "");
+        if (result?.arch) setInitialArch(result.arch);
+        setLabEditMode(false);
+        setDoctorEditMode(false);
+        setWizardComplete(true);
+        setCaseDesignMounted(true); // Keep CaseDesignCenter mounted from here on
       }
-      setCompletedDoctor(result?.doctor ?? null);
-      setCompletedLab(result?.lab ?? null);
-      setCompletedPatientName(result?.patientName ?? "");
-      setCompletedGender(result?.gender ?? "");
-      setCompletedAge(result?.age ?? "");
-      if (result?.arch) setInitialArch(result.arch);
-      setLabEditMode(false);
-      setDoctorEditMode(false);
-      setWizardComplete(true);
-      setCaseDesignMounted(true); // Keep CaseDesignCenter mounted from here on
+    } finally {
+      wizardCompletingRef.current = false;
     }
   };
 
@@ -525,12 +534,12 @@ export default function Page() {
             onComplete={handleWizardComplete}
             onLabSelect={(lab) => setCompletedLab(lab)}
             startStep={wizardStartStep}
-            mode={wizardMode === "backToProducts" ? "addProduct" : wizardMode}
-            initialLabId={(labEditMode || doctorEditMode || wizardMode === "addProduct" || wizardMode === "backToProducts") && completedLab ? completedLab.id : null}
-            initialPatientName={(labEditMode || doctorEditMode || wizardMode === "addProduct" || wizardMode === "backToProducts") ? completedPatientName : ""}
-            initialGender={(labEditMode || doctorEditMode || wizardMode === "addProduct" || wizardMode === "backToProducts") ? completedGender : ""}
-            initialAge={(labEditMode || doctorEditMode || wizardMode === "addProduct" || wizardMode === "backToProducts") ? completedAge : ""}
-            initialDoctor={(labEditMode || doctorEditMode || wizardMode === "addProduct" || wizardMode === "backToProducts") && completedDoctor ? completedDoctor : undefined}
+            mode={wizardMode === "backToProducts" || wizardMode === "addProduct" ? "addProduct" : wizardMode}
+            initialLabId={(labEditMode || doctorEditMode || wizardMode === "backToProducts" || wizardMode === "addProduct") && completedLab ? completedLab.id : null}
+            initialPatientName={(labEditMode || doctorEditMode || wizardMode === "backToProducts" || wizardMode === "addProduct") ? completedPatientName : ""}
+            initialGender={(labEditMode || doctorEditMode || wizardMode === "backToProducts" || wizardMode === "addProduct") ? completedGender : ""}
+            initialAge={(labEditMode || doctorEditMode || wizardMode === "backToProducts" || wizardMode === "addProduct") ? completedAge : ""}
+            initialDoctor={(labEditMode || doctorEditMode || wizardMode === "backToProducts" || wizardMode === "addProduct") && completedDoctor ? completedDoctor : undefined}
             initialCategory={wizardMode === "backToProducts" ? lastSelectedCategory : null}
             initialSubProduct={wizardMode === "backToProducts" ? lastSelectedSubProduct : null}
             forceArch={wizardMode === "addProduct" ? pendingProductArch : undefined}
@@ -539,7 +548,7 @@ export default function Page() {
           />
         )}
 
-        {/* Case Design Center — kept mounted once initial wizard completes so hook state survives "Add Product" wizard navigation */}
+        {/* Case Design Center — kept mounted once initial wizard completes so hook state survives wizard navigation */}
         {caseDesignMounted && (
           <div style={{ display: wizardComplete ? undefined : "none" }}>
             <PatientHeader
@@ -621,7 +630,7 @@ export default function Page() {
         />
       )}
 
-      {/* Submitting loading overlay — shows ajax-loader while API call is in progress */}
+{/* Submitting loading overlay — shows ajax-loader while API call is in progress */}
       {submitting && (
         <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm">
           <img

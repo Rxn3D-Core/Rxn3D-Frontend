@@ -92,6 +92,10 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
   const { parentDropdownCategories, fetchParentDropdownCategories } = useProductCategory()
   const [categoriesWithSubcategories, setCategoriesWithSubcategories] = useState<any[]>([])
   const [imageBase64, setImageBase64] = useState<string | null>(null)
+  const [jawPhotos, setJawPhotos] = useState<{ upper?: string | null; lower?: string | null; both?: string | null }>({})
+  const handleJawPhotoChange = useCallback((jawType: "upper" | "lower" | "both", base64: string | null) => {
+    setJawPhotos(prev => ({ ...prev, [jawType]: base64 }))
+  }, [])
   const { grades, fetchGrades } = useGrades()
   const { stages, fetchStages } = useStages()
   const { impressions, fetchImpressions } = useImpressions()
@@ -256,6 +260,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
     teeth_custom_prices: [],
     enable_tooth_count_variation: "No",
     tooth_count_variations: [],
+    show_jaw_photo: "No",
   }), [])
 
   const {
@@ -512,6 +517,9 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
           : (editingProduct.apply_same_status_to_opposing ?? true),
       request_opposing_extraction: editingProduct.opposite_impression === "Yes" || editingProduct.opposite_impression === true || editingProduct.opposite_impression === 1 || editingProduct.request_opposing_extraction === true || editingProduct.request_opposing_extraction === 1 || (Array.isArray(editingProduct.opposite_extractions) && editingProduct.opposite_extractions.length > 0),
       is_teeth_based_price: editingProduct.is_teeth_based_price || "No",
+      show_jaw_photo: (editingProduct.jaw_photos && (editingProduct.jaw_photos.upper || editingProduct.jaw_photos.lower || editingProduct.jaw_photos.both))
+        ? "Yes"
+        : (editingProduct.show_jaw_photo || "No"),
       teeth_pricing_type: strategyForm,
       ...teethHydrate,
       ...variationForm,
@@ -734,6 +742,29 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
         payload.image = imageBase64
       }
 
+      // show_jaw_photo
+      payload.show_jaw_photo = (data as any).show_jaw_photo === "Yes" ? "Yes" : "No"
+
+      // jaw_photos: only send new uploads or explicit removals
+      const jawPhotoPayload: Record<string, string | null> = {}
+      let hasJawPhotoChange = false
+      ;(["upper", "lower", "both"] as const).forEach((slot) => {
+        const val = jawPhotos[slot]
+        if (val && val.startsWith("data:image/")) {
+          jawPhotoPayload[slot] = val
+          hasJawPhotoChange = true
+        } else if (val === null) {
+          const existingUrl = editingProduct?.jaw_photos?.[slot]
+          if (existingUrl) {
+            jawPhotoPayload[slot] = null
+            hasJawPhotoChange = true
+          }
+        }
+      })
+      if (hasJawPhotoChange) {
+        payload.jaw_photos = jawPhotoPayload
+      }
+
       // Always include has_* section flags
       payload.has_stage = sections.stages ? "Yes" : "No"
       payload.has_grade = sections.grades ? "Yes" : "No"
@@ -779,6 +810,22 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
       if (imageBase64 && typeof imageBase64 === 'string' && imageBase64.startsWith('data:image/')) {
         payload.image = imageBase64
       }
+
+      // show_jaw_photo + jaw_photos for create
+      payload.show_jaw_photo = (data as any).show_jaw_photo === "Yes" ? "Yes" : "No"
+      const createJawPhotos: Record<string, string | null> = {}
+      let hasCreateJawPhotos = false
+      ;(["upper", "lower", "both"] as const).forEach((slot) => {
+        const val = jawPhotos[slot]
+        if (val && val.startsWith("data:image/")) {
+          createJawPhotos[slot] = val
+          hasCreateJawPhotos = true
+        }
+      })
+      if (hasCreateJawPhotos) {
+        payload.jaw_photos = createJawPhotos
+      }
+
       // Map request_opposing_extraction boolean → "Yes"/"No" for the API
       if (payload.request_opposing_extraction !== undefined) {
         payload.request_opposing_extraction = payload.request_opposing_extraction ? "Yes" : "No"
@@ -1106,6 +1153,8 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
                     setValue={setValue}
                     onImageChange={setImageBase64}
                     currentImageBase64={imageBase64}
+                    jawPhotos={jawPhotos}
+                    onJawPhotoChange={handleJawPhotoChange}
                   />
                 </TabsContent>
 

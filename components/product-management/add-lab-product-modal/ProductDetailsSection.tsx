@@ -274,6 +274,139 @@ function TeethPricingSection({ control, setValue }: TeethPricingSectionProps) {
   )
 }
 
+// ─── Jaw Photos Sub-component ─────────────────────────────────────────────────
+
+type JawType = "upper" | "lower" | "both"
+
+interface JawPhotoUploadProps {
+  label: string
+  jawType: JawType
+  value: string | null | undefined
+  onChange: (jawType: JawType, base64: string | null) => void
+}
+
+function JawPhotoUpload({ label, jawType, value, onChange }: JawPhotoUploadProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleClick = () => fileInputRef.current?.click()
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      const reader = new FileReader()
+      reader.onloadend = () => onChange(jawType, reader.result as string)
+      reader.readAsDataURL(file)
+    }
+    // Reset so same file can be re-selected
+    e.target.value = ""
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <span className="text-sm font-medium text-gray-700">{label}</span>
+      <div
+        className="relative flex items-center justify-center border-2 border-dashed border-gray-300 rounded-xl h-[100px] w-full bg-gradient-to-br from-gray-50 to-gray-100 hover:border-gray-400 hover:from-gray-100 hover:to-gray-200 transition-all duration-200 cursor-pointer group"
+        onClick={handleClick}
+      >
+        {value ? (
+          <img
+            src={value}
+            alt={label}
+            className="object-cover h-full w-full rounded-xl"
+          />
+        ) : (
+          <div className="flex flex-col items-center text-gray-500 group-hover:text-gray-600">
+            <i className="fas fa-cloud-upload-alt text-2xl mb-1"></i>
+            <span className="text-xs font-medium">Upload</span>
+          </div>
+        )}
+        <input
+          type="file"
+          accept="image/*"
+          ref={fileInputRef}
+          style={{ display: "none" }}
+          onChange={handleFileChange}
+        />
+      </div>
+      {value && (
+        <div className="flex gap-2 w-full">
+          <Button
+            variant="outline"
+            size="sm"
+            type="button"
+            onClick={() => onChange(jawType, null)}
+            className="flex-1 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+          >
+            Remove
+          </Button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+interface ShowJawPhotoSectionProps {
+  control: any
+  jawPhotos: { upper?: string | null; lower?: string | null; both?: string | null }
+  onJawPhotoChange: (jawType: JawType, base64: string | null) => void
+}
+
+function ShowJawPhotoSection({ control, jawPhotos, onJawPhotoChange }: ShowJawPhotoSectionProps) {
+  const showJawPhoto = useWatch({ control, name: "show_jaw_photo" })
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <Controller
+          name="show_jaw_photo"
+          control={control}
+          render={({ field }) => (
+            <Switch
+              checked={field.value === "Yes"}
+              onCheckedChange={(checked) => field.onChange(checked ? "Yes" : "No")}
+              className="data-[state=checked]:bg-[#1162a8]"
+            />
+          )}
+        />
+        <label className="text-sm font-medium text-gray-700">Show jaw photo</label>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Info className="h-4 w-4 text-gray-400 hover:text-gray-600 cursor-help" />
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Enable to attach upper, lower, and/or both-jaw reference images for this product</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
+
+      {showJawPhoto === "Yes" && (
+        <div className="grid grid-cols-3 gap-4">
+          <JawPhotoUpload
+            label="Upper Jaw"
+            jawType="upper"
+            value={jawPhotos.upper}
+            onChange={onJawPhotoChange}
+          />
+          <JawPhotoUpload
+            label="Lower Jaw"
+            jawType="lower"
+            value={jawPhotos.lower}
+            onChange={onJawPhotoChange}
+          />
+          <JawPhotoUpload
+            label="Both"
+            jawType="both"
+            value={jawPhotos.both}
+            onChange={onJawPhotoChange}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 type ProductDetailsSectionProps = {
@@ -292,6 +425,8 @@ type ProductDetailsSectionProps = {
   onSave?: (e?: React.BaseSyntheticEvent) => Promise<void>
   isSaving?: boolean
   onTeethBasedChange?: (checked: boolean) => void
+  jawPhotos?: { upper?: string | null; lower?: string | null; both?: string | null }
+  onJawPhotoChange?: (jawType: JawType, base64: string | null) => void
 }
 
 export function ProductDetailsSection({
@@ -310,6 +445,8 @@ export function ProductDetailsSection({
   onSave,
   isSaving = false,
   onTeethBasedChange,
+  jawPhotos = {},
+  onJawPhotoChange,
 }: ProductDetailsSectionProps) {
   const grades = useWatch({ control, name: "grades" }) || []
   const name = useWatch({ control, name: "name" }) || ""
@@ -388,12 +525,18 @@ export function ProductDetailsSection({
 
   // Sync conditionally-rendered fields from editingProduct after Controllers mount.
   // min/max_days_to_process only render when is_single_stage === "Yes", so they miss the reset().
-  // is_teeth_based_price also needs explicit sync since its Controller may not pick up reset values.
+  // is_teeth_based_price and show_jaw_photo also need explicit sync since their Controllers may not pick up reset values.
   useEffect(() => {
     if (editingProduct && setValue) {
       if (editingProduct.is_teeth_based_price) {
         setValueWithOptions("is_teeth_based_price", editingProduct.is_teeth_based_price, { shouldDirty: false })
       }
+      // Auto-toggle show_jaw_photo ON if the product has any jaw photos, regardless of stored flag
+      const hasJawPhotos =
+        editingProduct.jaw_photos &&
+        (editingProduct.jaw_photos.upper || editingProduct.jaw_photos.lower || editingProduct.jaw_photos.both)
+      const effectiveShowJawPhoto = hasJawPhotos ? "Yes" : (editingProduct.show_jaw_photo || "No")
+      setValueWithOptions("show_jaw_photo", effectiveShowJawPhoto, { shouldDirty: false })
       if (isSingleStage === "Yes") {
         if (editingProduct.min_days_to_process != null) {
           setValueWithOptions("min_days_to_process", editingProduct.min_days_to_process, { shouldDirty: false })
@@ -826,6 +969,13 @@ export function ProductDetailsSection({
               </div>
             </div>
           </div>
+
+          {/* Show Jaw Photo Toggle + Uploads */}
+          <ShowJawPhotoSection
+            control={control}
+            jawPhotos={jawPhotos}
+            onJawPhotoChange={onJawPhotoChange ?? (() => {})}
+          />
 
           {/* Base Price - Third Row */}
           <div className="grid gap-4 grid-cols-1">

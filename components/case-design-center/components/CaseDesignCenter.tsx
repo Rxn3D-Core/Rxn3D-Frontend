@@ -41,9 +41,15 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     });
 
   // Show panels/accordion as soon as a removables product exists (no teeth required)
-  // Include both addedProducts and the initial active product (card 0)
-  const maxillaryHasRemovables = isRemovablesCategory("maxillary") || state.activeProductIsRemovablesMaxillary;
-  const mandibularHasRemovables = isRemovablesCategory("mandibular") || state.activeProductIsRemovablesMandibular;
+  // Include both addedProducts and the initial active product (card 0).
+  // Use stable props-derived flags (not activeProductCardId-dependent state) so that
+  // activating a different product card does not flicker maxillaryHasRemovables off/on,
+  // which would cascade into maxillaryRemovablesImpressionDone = false and hide the opposing accordion.
+  const initialProductIsRemovable = isRemovableCategory(props.selectedProductCategoryName || "");
+  const maxillaryHasRemovables = isRemovablesCategory("maxillary") ||
+    (initialProductIsRemovable && (props.initialArch === "maxillary" || props.initialArch === "both") && !!props.selectedProductId);
+  const mandibularHasRemovables = isRemovablesCategory("mandibular") ||
+    (initialProductIsRemovable && (props.initialArch === "mandibular" || props.initialArch === "both") && !!props.selectedProductId);
 
   // Show panels/accordion as soon as a Fixed Restoration added product exists
   const maxillaryHasFixedAdded = (props.addedProducts ?? []).some((ap) => {
@@ -59,7 +65,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
 
   // Show accordion when card 0 initial product is Fixed Restoration AND teeth have been selected
   const activeProductIsFixed = isFixedCategory(props.selectedProductCategoryName || "");
-  const activeProductIsRemovable = isRemovableCategory(props.selectedProductCategoryName || "");
+  const activeProductIsRemovable = initialProductIsRemovable;
   const maxillaryHasFixedCard0 = activeProductIsFixed && Object.keys(state.maxillaryRetentionTypes)
     .some(tn => state.getToothProductCard("maxillary", Number(tn)) === 0);
   const mandibularHasFixedCard0 = activeProductIsFixed && Object.keys(state.mandibularRetentionTypes || {})
@@ -954,7 +960,16 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             const toothNum = state.currentImpressionToothNumber;
             const arch = state.currentImpressionArch;
             if (toothNum === null) return mockImpressions;
-            const product = state.getToothProduct(arch, toothNum);
+            let product = state.getToothProduct(arch, toothNum);
+            if (!product && state.currentImpressionProductId) {
+              const archKeys = arch === "maxillary"
+                ? Object.keys(state.maxillaryRetentionTypes || {})
+                : Object.keys(state.mandibularRetentionTypes || {});
+              for (const k of archKeys) {
+                const p = state.getToothProduct(arch, Number(k));
+                if (p?.id?.toString() === state.currentImpressionProductId) { product = p; break; }
+              }
+            }
             const options = productImpressionsToModalOptions(product?.impressions);
             return options.length > 0 ? options : mockImpressions;
           })()
@@ -964,7 +979,16 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             const toothNum = state.currentImpressionToothNumber;
             const arch = state.currentImpressionArch;
             if (toothNum === null) return undefined;
-            const product = state.getToothProduct(arch, toothNum);
+            let product = state.getToothProduct(arch, toothNum);
+            if (!product && state.currentImpressionProductId) {
+              const archKeys = arch === "maxillary"
+                ? Object.keys(state.maxillaryRetentionTypes || {})
+                : Object.keys(state.mandibularRetentionTypes || {});
+              for (const k of archKeys) {
+                const p = state.getToothProduct(arch, Number(k));
+                if (p?.id?.toString() === state.currentImpressionProductId) { product = p; break; }
+              }
+            }
             const oi = product?.opposite_impression as unknown;
             return (oi === "Yes" || oi === true || oi === 1) ? "Yes" : "No";
           })()
@@ -975,7 +999,16 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           const toothNum = state.currentImpressionToothNumber;
           const arch = state.currentImpressionArch;
           if (toothNum !== null) {
-            const product = state.getToothProduct(arch, toothNum);
+            let product = state.getToothProduct(arch, toothNum);
+            if (!product && state.currentImpressionProductId) {
+              const archKeys = arch === "maxillary"
+                ? Object.keys(state.maxillaryRetentionTypes || {})
+                : Object.keys(state.mandibularRetentionTypes || {});
+              for (const k of archKeys) {
+                const p = state.getToothProduct(arch, Number(k));
+                if (p?.id?.toString() === state.currentImpressionProductId) { product = p; break; }
+              }
+            }
             const isFixed = isFixedCategory(getCategoryName(product));
             if (isFixed) {
               // Store impression on the group's owner tooth (min tooth in group) so that
@@ -1015,7 +1048,16 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           const toothNum = state.currentImpressionToothNumber;
           const arch = state.currentImpressionArch;
           if (toothNum !== null) {
-            const product = state.getToothProduct(arch, toothNum);
+            let product = state.getToothProduct(arch, toothNum);
+            if (!product && state.currentImpressionProductId) {
+              const archKeys = arch === "maxillary"
+                ? Object.keys(state.maxillaryRetentionTypes || {})
+                : Object.keys(state.mandibularRetentionTypes || {});
+              for (const k of archKeys) {
+                const p = state.getToothProduct(arch, Number(k));
+                if (p?.id?.toString() === state.currentImpressionProductId) { product = p; break; }
+              }
+            }
             const isFixed = isFixedCategory(getCategoryName(product));
             const ownerTooth = isFixed ? getImpressionOwnerTooth(arch, toothNum) : toothNum;
             const step = isFixed ? "fixed_impression" : "impression";

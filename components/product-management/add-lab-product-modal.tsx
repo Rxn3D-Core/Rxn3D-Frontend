@@ -265,6 +265,11 @@ export function AddLabProductModal({
   const [customMaterialNames, setCustomMaterialNames] = useState<Record<number, string>>({})
 
   const [imageBase64, setImageBase64] = useState<string | null>(null) // <-- add imageBase64 state
+  const [jawPhotos, setJawPhotos] = useState<{ upper?: string | null; lower?: string | null; both?: string | null }>({})
+
+  const handleJawPhotoChange = useCallback((jawType: "upper" | "lower" | "both", base64: string | null) => {
+    setJawPhotos(prev => ({ ...prev, [jawType]: base64 }))
+  }, [])
   const [initialFormValues, setInitialFormValues] = useState<ProductCreateForm | null>(null) // <-- track initial values
   const [pendingInitialCapture, setPendingInitialCapture] = useState(false) // <-- flag to capture from useWatch
   // Always holds the latest price from the API response — used as fallback when base_price is not in the payload
@@ -274,6 +279,19 @@ export function AddLabProductModal({
   useEffect(() => {
     setImageBase64(null)
   }, [editingProduct?.image_url])
+
+  // Reset jaw photos when editing product changes; seed with existing URLs for display only
+  useEffect(() => {
+    if (editingProduct?.jaw_photos) {
+      setJawPhotos({
+        upper: editingProduct.jaw_photos.upper ?? null,
+        lower: editingProduct.jaw_photos.lower ?? null,
+        both: editingProduct.jaw_photos.both ?? null,
+      })
+    } else {
+      setJawPhotos({})
+    }
+  }, [editingProduct?.id])
 
   const getInitialFormValues = useCallback((): ProductCreateForm => ({
     name: "",
@@ -328,6 +346,7 @@ export function AddLabProductModal({
     teeth_custom_prices: [],
     enable_tooth_count_variation: "No",
     tooth_count_variations: [],
+    show_jaw_photo: "No",
   }), [officeCustomers, stages])
 
   const {
@@ -1131,6 +1150,9 @@ export function AddLabProductModal({
         office_stage_pricing: editingProduct.office_stage_pricing || [],
         office_stage_grade_pricing: editingProduct.office_stage_grade_pricing || [],
         is_teeth_based_price: editingProduct.is_teeth_based_price || "No",
+        show_jaw_photo: (editingProduct.jaw_photos && (editingProduct.jaw_photos.upper || editingProduct.jaw_photos.lower || editingProduct.jaw_photos.both))
+          ? "Yes"
+          : (editingProduct.show_jaw_photo || "No"),
         base_price: basePrice, // <-- use grade price if available, else response price
         extractions: mapExtractions(editingProduct.extractions || []),
         opposite_extractions: mapOppositeExtractions(editingProduct.opposite_extractions || []),
@@ -1590,6 +1612,30 @@ export function AddLabProductModal({
     
     // Ensure is_teeth_based_price is always set to "Yes" or "No"
     payload.is_teeth_based_price = data.is_teeth_based_price === "Yes" ? "Yes" : "No"
+
+    // show_jaw_photo
+    payload.show_jaw_photo = (data as any).show_jaw_photo === "Yes" ? "Yes" : "No"
+
+    // jaw_photos: only include slots that are new base64 uploads (start with data:image/)
+    const jawPhotoPayload: Record<string, string | null> = {}
+    let hasJawPhotoChange = false
+    ;(["upper", "lower", "both"] as const).forEach((slot) => {
+      const val = jawPhotos[slot]
+      if (val && val.startsWith("data:image/")) {
+        jawPhotoPayload[slot] = val
+        hasJawPhotoChange = true
+      } else if (val === null) {
+        // Explicitly removed
+        const existingUrl = editingProduct?.jaw_photos?.[slot]
+        if (existingUrl) {
+          jawPhotoPayload[slot] = null
+          hasJawPhotoChange = true
+        }
+      }
+    })
+    if (hasJawPhotoChange) {
+      payload.jaw_photos = jawPhotoPayload
+    }
 
     // Helper function to check if an array should be included in update payload
     const shouldIncludeArray = (fieldName: string, currentValue: any[]): boolean => {
@@ -2558,6 +2604,8 @@ export function AddLabProductModal({
                     setValue={setValue}
                     onSave={editingProduct ? handleFormSubmit : undefined}
                     isSaving={isSubmitting || isUpdating || isCreating}
+                    jawPhotos={jawPhotos}
+                    onJawPhotoChange={handleJawPhotoChange}
                   />
                 </TabsContent>
 

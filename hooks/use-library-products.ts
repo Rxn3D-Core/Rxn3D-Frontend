@@ -56,6 +56,9 @@ export interface LibraryProductApi {
   arch_image_maxillary?: string | null
   arch_image_both?: string | null
   arch_image_mandibular?: string | null
+  /** Jaw reference photos uploaded via product management */
+  show_jaw_photo?: string | null
+  jaw_photos?: { upper?: string | null; lower?: string | null; both?: string | null } | null
   min_days_to_process: number | null
   max_days_to_process: number | null
   created_at: string
@@ -93,6 +96,10 @@ export interface WizardProductShape {
   img: string
   /** Per-arch images for removable restoration hover popover. Populated from API when available. */
   arch_images: ArchImages
+  /** Whether to use jaw_photos as arch popover images instead of arch_images */
+  show_jaw_photo: boolean
+  /** Jaw reference photos — used in arch popover when show_jaw_photo is true */
+  jaw_photos: { upper?: string | null; lower?: string | null; both?: string | null }
 }
 
 export const libraryProductsQueryKey = (
@@ -218,6 +225,12 @@ export function useLibraryProducts(options: {
         maxillary: p.arch_image_maxillary ?? null,
         both: p.arch_image_both ?? null,
         mandibular: p.arch_image_mandibular ?? null,
+      },
+      show_jaw_photo: p.show_jaw_photo === "Yes" || !!(p.jaw_photos?.upper || p.jaw_photos?.lower || p.jaw_photos?.both),
+      jaw_photos: {
+        upper: p.jaw_photos?.upper ?? null,
+        lower: p.jaw_photos?.lower ?? null,
+        both: p.jaw_photos?.both ?? null,
       },
     }))
 

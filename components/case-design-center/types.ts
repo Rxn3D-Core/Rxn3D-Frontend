@@ -360,6 +360,7 @@ export interface ProductOppositeExtraction {
   is_required?: string;
   is_optional?: string;
   min_teeth?: number | null;
+  max_teeth?: number | null;
 }
 
 /** Product from the products API */

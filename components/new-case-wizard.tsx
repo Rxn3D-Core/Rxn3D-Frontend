@@ -6,7 +6,7 @@ import { SlipCreationStepFooter } from "@/components/slip-creation-step-footer";
 import { useConnectedOfficesOrLabs } from "@/hooks/use-connected-offices";
 import { useOfficeDoctors } from "@/hooks/use-slip-data";
 import { useLibraryCategories } from "@/hooks/use-library-categories";
-import { useLibraryProducts, useSubcategoryProductCounts } from "@/hooks/use-library-products";
+import { useLibraryProducts, useSubcategoryProductCounts, type LibraryProductApi } from "@/hooks/use-library-products";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRouter } from "next/navigation";
 import CancelSlipCreationModal from "@/components/cancel-slip-creation-modal";
@@ -895,6 +895,7 @@ function StepSubProduct({
   archPopoverSubId,
   setArchPopoverSubId,
   subcategoryProductCounts,
+  subcategoryProducts,
   onArchPickForSingle,
 }: {
   categoryId: number;
@@ -913,6 +914,7 @@ function StepSubProduct({
   archPopoverSubId: number | null;
   setArchPopoverSubId: (id: number | null) => void;
   subcategoryProductCounts?: Record<number, number | undefined>;
+  subcategoryProducts?: Record<number, LibraryProductApi[] | undefined>;
   onArchPickForSingle?: (subcatId: number, arch: "maxillary" | "mandibular" | "both") => void;
 }) {
   const [accordionOpen, setAccordionOpen] = useState(false);
@@ -1002,10 +1004,14 @@ function StepSubProduct({
       {/* Arch hover popover for subcategory — fixed, centered over the card */}
       {archPopoverSubId !== null && subPopoverRect && onArchPickForSingle && (() => {
         const hoveredSub = subProducts.find((p) => p.id === archPopoverSubId);
+        const singleProduct = subcategoryProducts?.[archPopoverSubId]?.[0];
+        const useJawPhotos = singleProduct?.show_jaw_photo === "Yes";
+        const jawPhotos = singleProduct?.jaw_photos ?? {};
+        const fallbackImg = hoveredSub?.img ?? null;
         const archOptions = [
-          { label: "Upper only", value: "maxillary" as const, img: hoveredSub?.img ?? null },
-          { label: "Both",       value: "both"       as const, img: hoveredSub?.img ?? null },
-          { label: "Lower only", value: "mandibular" as const, img: hoveredSub?.img ?? null },
+          { label: "Upper only", value: "maxillary" as const, img: useJawPhotos ? (jawPhotos.upper ?? fallbackImg) : fallbackImg },
+          { label: "Both",       value: "both"       as const, img: useJawPhotos ? (jawPhotos.both  ?? fallbackImg) : fallbackImg },
+          { label: "Lower only", value: "mandibular" as const, img: useJawPhotos ? (jawPhotos.lower ?? fallbackImg) : fallbackImg },
         ];
         const border = 3;
         const offsetTop = border + subLabelHeight;
@@ -1111,7 +1117,7 @@ function StepMaterial({
 }: {
   categoryName: string;
   subProductName: string;
-  products: { id: number; name: string; img: string; arch_images?: { maxillary?: string | null; both?: string | null; mandibular?: string | null } }[];
+  products: { id: number; name: string; img: string; arch_images?: { maxillary?: string | null; both?: string | null; mandibular?: string | null }; show_jaw_photo?: boolean; jaw_photos?: { upper?: string | null; lower?: string | null; both?: string | null } }[];
   selected: string | null;
   onSelect: (id: string, arch?: "maxillary" | "mandibular" | "both") => void;
   onBack?: () => void;
@@ -1289,10 +1295,12 @@ function StepMaterial({
       {archPopoverProductId && popoverRect && (() => {
         const hoveredProd = products.find((p) => String(p.id) === archPopoverProductId);
         const archImages = hoveredProd?.arch_images ?? {};
+        const jawPhotos = hoveredProd?.jaw_photos ?? {};
+        const useJawPhotos = hoveredProd?.show_jaw_photo === true;
         const archOptions = [
-          { label: "Upper only", value: "maxillary" as const, img: archImages.maxillary ?? hoveredProd?.img ?? null },
-          { label: "Both",       value: "both"       as const, img: archImages.both      ?? hoveredProd?.img ?? null },
-          { label: "Lower only", value: "mandibular" as const, img: archImages.mandibular ?? hoveredProd?.img ?? null },
+          { label: "Upper only", value: "maxillary" as const, img: useJawPhotos ? (jawPhotos.upper ?? hoveredProd?.img ?? null) : (archImages.maxillary ?? hoveredProd?.img ?? null) },
+          { label: "Both",       value: "both"       as const, img: useJawPhotos ? (jawPhotos.both  ?? hoveredProd?.img ?? null) : (archImages.both      ?? hoveredProd?.img ?? null) },
+          { label: "Lower only", value: "mandibular" as const, img: useJawPhotos ? (jawPhotos.lower ?? hoveredProd?.img ?? null) : (archImages.mandibular ?? hoveredProd?.img ?? null) },
         ];
         const border = 3;
         const offsetTop = border + labelHeight;
@@ -1952,6 +1960,7 @@ export default function NewCaseWizard({
             archPopoverSubId={archPopoverSubId}
             setArchPopoverSubId={setArchPopoverSubId}
             subcategoryProductCounts={subcategoryProductCounts}
+            subcategoryProducts={subcategoryProducts}
             onArchPickForSingle={(subcatId, arch) => {
               const only = subcategoryProducts[subcatId]?.[0];
               if (!only) return;

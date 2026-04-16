@@ -104,27 +104,23 @@ export function GumShadePicker({ selected, onSelect, gumShades }: GumShadePicker
         </div>
 
         {/* Select Gum shade field */}
-        <fieldset
-          className={`border rounded px-3 py-0 relative h-[42px] flex items-center transition-colors ${
-            localSelected ? "border-[#34a853]" : "border-[#CF0202]"
-          }`}
-        >
-          <legend
-            className={`text-sm px-1 leading-none ${
-              localSelected ? "text-[#34a853]" : "text-[#CF0202]"
-            }`}
-          >
-            {localSelected ? "Gum shade" : "Select Gum shade"}
-          </legend>
-          <div className="flex items-center gap-2 w-full">
-            <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">
-              {localSelected || ""}
-            </span>
-            {localSelected && (
+        {localSelected ? (
+          <fieldset className="border border-[#34a853] rounded px-3 py-0 relative h-[42px] flex items-center transition-colors">
+            <legend className="text-sm px-1 leading-none text-[#34a853]">
+              Gum shade selected
+            </legend>
+            <div className="flex items-center gap-2 w-full">
+              <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">
+                {localSelected}
+              </span>
               <Check size={16} className="text-[#34a853] ml-auto flex-shrink-0" />
-            )}
+            </div>
+          </fieldset>
+        ) : (
+          <div className="h-[42px] flex items-center">
+            <span className="text-sm text-[#CF0202]">Select Gum shade</span>
           </div>
-        </fieldset>
+        )}
       </div>
 
       {/* Gum shade circles carousel */}
