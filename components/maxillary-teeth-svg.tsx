@@ -1,6 +1,7 @@
 import React, { useLayoutEffect, useRef, useState } from 'react'
 import ReactDOM from 'react-dom'
 import { RetentionTypePopover, RetentionOptionItem } from './retention-type-popover'
+import { ToothStatusPopover, ToothStatusOption } from './tooth-status-popover'
 
 // Wrapper that positions children above a target point, clamped to container bounds
 const PopoverPositioner: React.FC<{
@@ -62,6 +63,13 @@ interface MaxillaryTeethSVGProps {
   toothStatusPopoverTooth?: number | null
   toothStatusByTooth?: Record<number, string>
   onSelectToothStatus?: (toothNumber: number, status: string) => void
+  toothStatusOptions?: ToothStatusOption[]
+  onCloseToothStatusPopover?: () => void
+  onRemoveToothStatus?: (toothNumber: number) => void
+  /** Product name shown in the tooth status popover header */
+  toothStatusProductName?: string | null
+  /** Product image URL shown in the tooth status popover header */
+  toothStatusProductImageUrl?: string | null
   /** Maps toothNumber → extractionCode. */
   toothExtractionMap?: Record<number, string>
   /** Tooth numbers that should show the red X overlay (Will Extract on Delivery). */
@@ -94,6 +102,11 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
   toothStatusPopoverTooth = null,
   toothStatusByTooth = {},
   onSelectToothStatus,
+  toothStatusOptions = [],
+  onCloseToothStatusPopover,
+  onRemoveToothStatus,
+  toothStatusProductName,
+  toothStatusProductImageUrl,
   toothExtractionMap = {},
   willExtractTeeth = [],
   hideSelectionIndicators = false,
@@ -463,6 +476,27 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
         )
       })()
       }
+
+      {/* Tooth Status Popover for removable products */}
+      {showToothStatusPopover && toothStatusPopoverTooth !== null && onSelectToothStatus && typeof window !== 'undefined' && (() => {
+        const popoverPosition = getToothPopoverPosition(toothStatusPopoverTooth)
+        if (popoverPosition.left === 0 && popoverPosition.top === 0) return null
+        return ReactDOM.createPortal(
+          <PopoverPositioner key={toothStatusPopoverTooth} targetX={popoverPosition.left} targetY={popoverPosition.top} containerLeft={popoverPosition.containerLeft} containerRight={popoverPosition.containerRight}>
+            <ToothStatusPopover
+              toothNumber={toothStatusPopoverTooth}
+              options={toothStatusOptions}
+              currentCode={toothStatusByTooth[toothStatusPopoverTooth] ?? null}
+              onSelect={(code) => onSelectToothStatus(toothStatusPopoverTooth, code)}
+              onRemove={onRemoveToothStatus ? () => onRemoveToothStatus(toothStatusPopoverTooth) : undefined}
+              onClose={onCloseToothStatusPopover}
+              productName={toothStatusProductName}
+              productImageUrl={toothStatusProductImageUrl}
+            />
+          </PopoverPositioner>,
+          document.body
+        )
+      })()}
 
       <div className={`relative ${className}`}>
 

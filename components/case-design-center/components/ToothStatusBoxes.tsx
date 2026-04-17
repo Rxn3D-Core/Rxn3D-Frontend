@@ -255,7 +255,7 @@ export function ToothStatusBoxes({
             key={extraction.id}
             className={`flex flex-col items-center justify-center rounded-[6px] cursor-pointer hover:opacity-90 active:opacity-75 transition-all shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] ${isCompact ? "px-[10px] py-1 min-h-[28px]" : "px-[10px] py-1.5 min-h-[50px]"}`}
             style={{
-              backgroundColor: style.bg,
+              backgroundColor: submitted ? style.bg : "white",
               outline: isActive
                 ? "3px solid #1162A8"
                 : showRequiredValidation
@@ -267,7 +267,7 @@ export function ToothStatusBoxes({
             onClick={() => handleBoxClick(extraction)}
           >
             <p
-              className={`font-[Verdana] font-normal tracking-[0.05em] text-center break-words max-w-full ${style.textClass} text-[16px] leading-tight`}
+              className={`font-[Verdana] font-normal tracking-[0.05em] text-center break-words max-w-full ${submitted ? style.textClass : 'text-black'} text-[16px] leading-tight`}
             >
               {extraction.name}
               {teethDisplay && (

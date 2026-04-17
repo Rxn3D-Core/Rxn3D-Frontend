@@ -7,12 +7,7 @@
 export function isRemovableCategory(name: string | null | undefined): boolean {
   if (!name) return false;
   const n = name.toLowerCase().trim();
-  return (
-    n === "removables" ||
-    n === "removables restoration" ||
-    n === "removable restoration" ||
-    n === "orthodontics"
-  );
+  return n === "orthodontics" || n.includes("removable");
 }
 
 /** Returns true if the category is Fixed Restoration */

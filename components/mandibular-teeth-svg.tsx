@@ -1,6 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom'
 import { RetentionTypePopover, RetentionOptionItem } from './retention-type-popover'
+import { ToothStatusPopover, ToothStatusOption } from './tooth-status-popover'
 
 interface MandibularTeethSVGProps {
   selectedTeeth: number[]
@@ -28,6 +29,18 @@ interface MandibularTeethSVGProps {
   showCheckboxes?: boolean
   /** Called whenever the set of checked teeth changes. */
   onCheckedTeethChange?: (teeth: number[]) => void
+  // Tooth status popover for removable products
+  showToothStatusPopover?: boolean
+  toothStatusPopoverTooth?: number | null
+  toothStatusByTooth?: Record<number, string>
+  onSelectToothStatus?: (toothNumber: number, status: string) => void
+  toothStatusOptions?: ToothStatusOption[]
+  onCloseToothStatusPopover?: () => void
+  onRemoveToothStatus?: (toothNumber: number) => void
+  /** Product name shown in the tooth status popover header */
+  toothStatusProductName?: string | null
+  /** Product image URL shown in the tooth status popover header */
+  toothStatusProductImageUrl?: string | null
 }
 
 export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
@@ -48,6 +61,15 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
   retentionOptions,
   showCheckboxes = false,
   onCheckedTeethChange,
+  showToothStatusPopover = false,
+  toothStatusPopoverTooth = null,
+  toothStatusByTooth = {},
+  onSelectToothStatus,
+  toothStatusOptions = [],
+  onCloseToothStatusPopover,
+  onRemoveToothStatus,
+  toothStatusProductName,
+  toothStatusProductImageUrl,
 }) => {
   const svgRef = React.useRef<SVGSVGElement>(null)
   const [hoveredTooth, setHoveredTooth] = React.useState<number | null>(null)
@@ -475,6 +497,21 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
     })
   }
 
+  // Calculate popover position for any tooth number
+  const getPopoverPositionForTooth = (toothNumber: number) => {
+    if (!svgRef.current) return { left: 0, top: 0 }
+    const svgRect = svgRef.current.getBoundingClientRect()
+    const svgViewBox = svgRef.current.viewBox.baseVal
+    if (!svgViewBox || svgViewBox.width === 0 || svgViewBox.height === 0) return { left: 0, top: 0 }
+    const scaleX = svgRect.width / svgViewBox.width
+    const toothPos = circlePositions[toothNumber]
+    if (!toothPos) return { left: 0, top: 0 }
+    const viewportX = svgRect.left + (toothPos.cx * scaleX)
+    const topOfSvg = svgRect.top
+    const popoverTop = topOfSvg - 60 - 40
+    return { left: viewportX, top: popoverTop }
+  }
+
   // Helper function to render retention popover
   const getRetentionPopover = (): React.ReactPortal | null => {
     if (!showRetentionPopover || retentionPopoverTooth === null || !onSelectRetentionType || typeof window === 'undefined') {
@@ -523,10 +560,40 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
     )
   }
 
+  // Helper function to render tooth status popover
+  const getToothStatusPopover = (): React.ReactPortal | null => {
+    if (!showToothStatusPopover || toothStatusPopoverTooth === null || !onSelectToothStatus || typeof window === 'undefined') {
+      return null
+    }
+    const pos = getPopoverPositionForTooth(toothStatusPopoverTooth)
+    if (pos.left === 0 && pos.top === 0) return null
+    return ReactDOM.createPortal(
+      <div
+        className="fixed z-50"
+        style={{ left: `${pos.left}px`, top: `${pos.top}px`, transform: 'translateX(-50%)' }}
+      >
+        <ToothStatusPopover
+          toothNumber={toothStatusPopoverTooth}
+          options={toothStatusOptions}
+          currentCode={toothStatusByTooth[toothStatusPopoverTooth] ?? null}
+          onSelect={(code) => onSelectToothStatus(toothStatusPopoverTooth, code)}
+          onRemove={onRemoveToothStatus ? () => onRemoveToothStatus(toothStatusPopoverTooth) : undefined}
+          onClose={onCloseToothStatusPopover}
+          productName={toothStatusProductName}
+          productImageUrl={toothStatusProductImageUrl}
+        />
+      </div>,
+      document.body
+    )
+  }
+
   return (
     <>
       {/* Retention Type Popover - using portal to avoid nesting issues */}
       {getRetentionPopover()}
+
+      {/* Tooth Status Popover for removable products */}
+      {getToothStatusPopover()}
 
       <div className={`relative ${className}`}>
 

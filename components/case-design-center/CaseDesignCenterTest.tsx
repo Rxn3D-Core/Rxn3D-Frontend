@@ -365,6 +365,11 @@ export default function Page() {
             name: details?.name || result.product || "Untitled Product",
             category_name: categoryName,
             subcategory_name: details?.subcategory_name || "",
+            // Nested structure so panel apCatName reads subcategory?.category?.name correctly
+            subcategory: {
+              name: details?.subcategory_name || "",
+              category: { name: categoryName },
+            },
             code: "",
             image_url: details?.image_url || "",
           },
