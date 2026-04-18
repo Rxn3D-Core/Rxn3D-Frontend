@@ -824,7 +824,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                   </div>
                 </div>
               ) : (
-                <div className="hidden 2xl:flex [body[data-sidebar-expanded='false']_&]:flex items-center justify-center max-w-full">
+                <div className="hidden 2xl:flex items-center justify-center max-w-full">
                   {(() => {
                     const selectedLocationObj = typeof window !== 'undefined'
                       ? JSON.parse(localStorage.getItem("selectedLocation") || "null")

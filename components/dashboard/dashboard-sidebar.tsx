@@ -32,15 +32,6 @@ export function DashboardSidebar({ onClose, isMobileOverlay = false }: Dashboard
   const [expanded, setExpanded] = useState(false)
   const [expandedItems, setExpandedItems] = useState<string[]>([])
   const [isHovered, setIsHovered] = useState(false)
-
-  useEffect(() => {
-    if (typeof document === "undefined" || isMobileOverlay) return
-    document.body.dataset.sidebarExpanded = expanded ? "true" : "false"
-    return () => {
-      delete document.body.dataset.sidebarExpanded
-    }
-  }, [expanded, isMobileOverlay])
-
   const { user, logout } = useAuth()
   // Wrap the provided logout() in a TanStack mutation so we can disable UI and show errors
   const logoutMutation = useMutation({
