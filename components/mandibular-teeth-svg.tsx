@@ -1,7 +1,50 @@
-import React from 'react'
+import React, { useLayoutEffect, useRef, useState } from 'react'
 import ReactDOM from 'react-dom'
 import { RetentionTypePopover, RetentionOptionItem } from './retention-type-popover'
 import { ToothStatusPopover, ToothStatusOption } from './tooth-status-popover'
+
+// Wrapper that positions a popover near a tooth and computes the arrow offset
+// (x relative to the popover's left edge) so the popover can render a pointer arrow.
+const ToothStatusPopoverPositioner: React.FC<{
+  targetX: number
+  targetY: number
+  /** Vertical gap between the tooth and the popover. Leaves room for the arrow. */
+  gap?: number
+  renderChildren: (arrowOffsetX: number) => React.ReactNode
+}> = ({ targetX, targetY, gap = 12, renderChildren }) => {
+  const ref = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
+  const [arrowOffsetX, setArrowOffsetX] = useState<number>(0)
+
+  useLayoutEffect(() => {
+    if (!ref.current) return
+    const rect = ref.current.getBoundingClientRect()
+    const padding = 4
+    const viewportRight = window.innerWidth
+    let left = targetX - rect.width / 2
+    if (left < padding) left = padding
+    if (left + rect.width > viewportRight - padding) left = viewportRight - padding - rect.width
+    // Position above targetY with a gap so the popover does not cover the teeth
+    const top = Math.max(padding, targetY - rect.height - gap)
+    setPos({ left, top })
+    const arrowPadding = 12
+    const arrowX = Math.max(arrowPadding, Math.min(rect.width - arrowPadding, targetX - left))
+    setArrowOffsetX(arrowX)
+  }, [targetX, targetY, gap])
+
+  return (
+    <div
+      ref={ref}
+      className="fixed z-50"
+      style={pos
+        ? { left: `${pos.left}px`, top: `${pos.top}px` }
+        : { left: `${targetX}px`, top: `${targetY}px`, transform: 'translate(-50%, -100%)', opacity: 0 }
+      }
+    >
+      {renderChildren(arrowOffsetX)}
+    </div>
+  )
+}
 
 interface MandibularTeethSVGProps {
   selectedTeeth: number[]
@@ -324,12 +367,8 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
 
     // Convert SVG coordinates to viewport coordinates
     const viewportX = svgRect.left + (toothPos.cx * scaleX)
-    // Position well above the SVG to avoid covering teeth
-    // Popover height is ~60px, so position it higher above the top of SVG for clear spacing
-    const topOfSvg = svgRect.top
-    const popoverHeight = 60 // Approximate height of the popover
-    const spacing = 40 // Additional spacing above popover (increased for more clearance)
-    const popoverTop = topOfSvg - popoverHeight - spacing
+    // Anchor bottom of popover to SVG top so it never overlaps teeth
+    const popoverTop = svgRect.top
 
     return {
       left: viewportX,
@@ -560,29 +599,49 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
     )
   }
 
+  // Helper: returns the tooth tip's viewport coordinates (x, y) for a given tooth number.
+  const getToothTipPosition = (toothNumber: number): { x: number; y: number } | null => {
+    if (!svgRef.current) return null
+    const svgRect = svgRef.current.getBoundingClientRect()
+    const svgViewBox = svgRef.current.viewBox.baseVal
+    if (!svgViewBox || svgViewBox.width === 0 || svgViewBox.height === 0) return null
+    const scaleX = svgRect.width / svgViewBox.width
+    const toothPos = circlePositions[toothNumber]
+    if (!toothPos) return null
+    return {
+      x: svgRect.left + toothPos.cx * scaleX,
+      y: svgRect.top,
+    }
+  }
+
   // Helper function to render tooth status popover
   const getToothStatusPopover = (): React.ReactPortal | null => {
     if (!showToothStatusPopover || toothStatusPopoverTooth === null || !onSelectToothStatus || typeof window === 'undefined') {
       return null
     }
-    const pos = getPopoverPositionForTooth(toothStatusPopoverTooth)
-    if (pos.left === 0 && pos.top === 0) return null
+    const tip = getToothTipPosition(toothStatusPopoverTooth)
+    if (!tip) return null
     return ReactDOM.createPortal(
-      <div
-        className="fixed z-50"
-        style={{ left: `${pos.left}px`, top: `${pos.top}px`, transform: 'translateX(-50%)' }}
-      >
-        <ToothStatusPopover
-          toothNumber={toothStatusPopoverTooth}
-          options={toothStatusOptions}
-          currentCode={toothStatusByTooth[toothStatusPopoverTooth] ?? null}
-          onSelect={(code) => onSelectToothStatus(toothStatusPopoverTooth, code)}
-          onRemove={onRemoveToothStatus ? () => onRemoveToothStatus(toothStatusPopoverTooth) : undefined}
-          onClose={onCloseToothStatusPopover}
-          productName={toothStatusProductName}
-          productImageUrl={toothStatusProductImageUrl}
-        />
-      </div>,
+      <ToothStatusPopoverPositioner
+        key={toothStatusPopoverTooth}
+        targetX={tip.x}
+        targetY={tip.y}
+        gap={14}
+        renderChildren={(arrowOffsetX) => (
+          <ToothStatusPopover
+            toothNumber={toothStatusPopoverTooth}
+            options={toothStatusOptions}
+            currentCode={toothStatusByTooth[toothStatusPopoverTooth] ?? null}
+            onSelect={(code) => onSelectToothStatus(toothStatusPopoverTooth, code)}
+            onRemove={onRemoveToothStatus ? () => onRemoveToothStatus(toothStatusPopoverTooth) : undefined}
+            onClose={onCloseToothStatusPopover}
+            productName={toothStatusProductName}
+            productImageUrl={toothStatusProductImageUrl}
+            arrowOffsetX={arrowOffsetX}
+            arrowDirection="down"
+          />
+        )}
+      />,
       document.body
     )
   }

@@ -838,6 +838,11 @@ export function CaseDesignCenter(props: CaseDesignProps) {
       {/* Case Summary Notes with center action icons floating on top */}
       {(() => {
         const hasImpressionCompleted =
+          // Show notes whenever any teeth are selected
+          state.maxillaryTeeth.length > 0 ||
+          state.mandibularTeeth.length > 0 ||
+          Object.keys(state.maxillaryRetentionTypes).length > 0 ||
+          Object.keys(state.mandibularRetentionTypes || {}).length > 0 ||
           // In read-only mode show notes whenever there are any hydrated products/teeth
           (props.caseSubmitted && (
             Object.keys(state.maxillaryRetentionTypes).length > 0 ||

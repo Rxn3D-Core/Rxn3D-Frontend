@@ -3,16 +3,22 @@ import ReactDOM from 'react-dom'
 import { RetentionTypePopover, RetentionOptionItem } from './retention-type-popover'
 import { ToothStatusPopover, ToothStatusOption } from './tooth-status-popover'
 
-// Wrapper that positions children above a target point, clamped to container bounds
+// Wrapper that positions children above a target point, clamped to container bounds.
+// When `renderChildren` is provided, it receives the arrow offset (x within the popover
+// that aligns with targetX) so the popover can draw a pointer arrow toward the tooth.
 const PopoverPositioner: React.FC<{
   targetX: number
   targetY: number
   containerLeft: number
   containerRight: number
-  children: React.ReactNode
-}> = ({ targetX, targetY, containerLeft, containerRight, children }) => {
+  /** Vertical gap between the target (tooth) and the popover. Leaves room for the arrow. */
+  gap?: number
+  children?: React.ReactNode
+  renderChildren?: (arrowOffsetX: number) => React.ReactNode
+}> = ({ targetX, targetY, containerLeft, containerRight, gap = 10, children, renderChildren }) => {
   const ref = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
+  const [arrowOffsetX, setArrowOffsetX] = useState<number>(0)
 
   useLayoutEffect(() => {
     if (!ref.current) return
@@ -28,10 +34,14 @@ const PopoverPositioner: React.FC<{
     } else if (left + rect.width > maxRight - padding) {
       left = maxRight - padding - rect.width
     }
-    // Position above targetY, clamped so it doesn't go above the viewport
-    const top = Math.max(padding, targetY - rect.height)
+    // Position above targetY with a gap so the popover does not cover the teeth
+    const top = Math.max(padding, targetY - rect.height - gap)
     setPos({ left, top })
-  }, [targetX, targetY, containerLeft, containerRight])
+    // Arrow x is the tooth's x relative to the popover's left edge, clamped inside the popover
+    const arrowPadding = 12
+    const arrowX = Math.max(arrowPadding, Math.min(rect.width - arrowPadding, targetX - left))
+    setArrowOffsetX(arrowX)
+  }, [targetX, targetY, containerLeft, containerRight, gap])
 
   return (
     <div
@@ -42,7 +52,7 @@ const PopoverPositioner: React.FC<{
         : { left: `${targetX}px`, top: `${targetY}px`, transform: 'translate(-50%, -100%)', opacity: 0 }
       }
     >
-      {children}
+      {renderChildren ? renderChildren(arrowOffsetX) : children}
     </div>
   )
 }
@@ -310,19 +320,17 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
       return { left: 0, top: 0, containerLeft: 0, containerRight: 0 }
     }
     const scaleX = svgRect.width / svgViewBox.width
-    const scaleY = svgRect.height / svgViewBox.height
     const toothPos = circlePositions[toothNumber]
     if (!toothPos) {
       return { left: 0, top: 0, containerLeft: 0, containerRight: 0 }
     }
     let viewportX = svgRect.left + (toothPos.cx * scaleX)
-    const viewportY = svgRect.top + (toothPos.cy * scaleY)
     // Cap left position at 515.651px for right-side teeth to prevent edge overflow
     if (toothNumber >= 12 && toothNumber <= 16) {
       viewportX = Math.min(viewportX, 515.651)
     }
-    const spacing = 170
-    const popoverTop = viewportY - spacing
+    // Anchor bottom of popover to the top of the SVG so it never overlaps teeth
+    const popoverTop = svgRect.top
     return {
       left: viewportX,
       top: popoverTop,
@@ -482,18 +490,27 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
         const popoverPosition = getToothPopoverPosition(toothStatusPopoverTooth)
         if (popoverPosition.left === 0 && popoverPosition.top === 0) return null
         return ReactDOM.createPortal(
-          <PopoverPositioner key={toothStatusPopoverTooth} targetX={popoverPosition.left} targetY={popoverPosition.top} containerLeft={popoverPosition.containerLeft} containerRight={popoverPosition.containerRight}>
-            <ToothStatusPopover
-              toothNumber={toothStatusPopoverTooth}
-              options={toothStatusOptions}
-              currentCode={toothStatusByTooth[toothStatusPopoverTooth] ?? null}
-              onSelect={(code) => onSelectToothStatus(toothStatusPopoverTooth, code)}
-              onRemove={onRemoveToothStatus ? () => onRemoveToothStatus(toothStatusPopoverTooth) : undefined}
-              onClose={onCloseToothStatusPopover}
-              productName={toothStatusProductName}
-              productImageUrl={toothStatusProductImageUrl}
-            />
-          </PopoverPositioner>,
+          <PopoverPositioner
+            key={toothStatusPopoverTooth}
+            targetX={popoverPosition.left}
+            targetY={popoverPosition.top}
+            containerLeft={popoverPosition.containerLeft}
+            containerRight={popoverPosition.containerRight}
+            gap={14}
+            renderChildren={(arrowOffsetX) => (
+              <ToothStatusPopover
+                toothNumber={toothStatusPopoverTooth}
+                options={toothStatusOptions}
+                currentCode={toothStatusByTooth[toothStatusPopoverTooth] ?? null}
+                onSelect={(code) => onSelectToothStatus(toothStatusPopoverTooth, code)}
+                onRemove={onRemoveToothStatus ? () => onRemoveToothStatus(toothStatusPopoverTooth) : undefined}
+                onClose={onCloseToothStatusPopover}
+                productImageUrl={toothStatusProductImageUrl}
+                arrowOffsetX={arrowOffsetX}
+                arrowDirection="down"
+              />
+            )}
+          />,
           document.body
         )
       })()}

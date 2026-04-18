@@ -15,6 +15,10 @@ interface ToothStatusPopoverProps {
   onClose?: () => void
   /** Product image URL to display at the top of the popover */
   productImageUrl?: string | null
+  /** Pixel offset from the popover's left edge where the arrow should point. When provided, a downward arrow is rendered. */
+  arrowOffsetX?: number | null
+  /** Arrow direction. 'down' points from popover bottom toward a tooth below; 'up' points from popover top toward a tooth above. */
+  arrowDirection?: 'down' | 'up'
 }
 
 function isMissingCode(code: string, name: string): boolean {
@@ -104,6 +108,8 @@ export const ToothStatusPopover: React.FC<ToothStatusPopoverProps> = ({
   onSelect,
   onClose,
   productImageUrl,
+  arrowOffsetX = null,
+  arrowDirection = 'down',
 }) => {
   const popoverRef = useRef<HTMLDivElement>(null)
 
@@ -119,11 +125,28 @@ export const ToothStatusPopover: React.FC<ToothStatusPopoverProps> = ({
     }
   }, [onClose])
 
+  const showArrow = typeof arrowOffsetX === 'number'
+  const arrowStyle: React.CSSProperties | null = showArrow
+    ? {
+        position: 'absolute',
+        left: `${arrowOffsetX}px`,
+        transform: 'translateX(-50%)',
+        width: 0,
+        height: 0,
+        borderLeft: '8px solid transparent',
+        borderRight: '8px solid transparent',
+        ...(arrowDirection === 'down'
+          ? { bottom: '-8px', borderTop: '8px solid white', filter: 'drop-shadow(0 2px 1px rgba(0,0,0,0.08))' }
+          : { top: '-8px', borderBottom: '8px solid white', filter: 'drop-shadow(0 -2px 1px rgba(0,0,0,0.08))' }),
+      }
+    : null
+
   return (
     <div
       ref={popoverRef}
-      className="absolute z-50 bg-white border border-gray-200 hover:border-blue-500 shadow-xl p-3 flex flex-col gap-2 transition-colors"
+      className="relative z-50 bg-white border border-gray-200 hover:border-blue-500 shadow-xl p-3 flex flex-col gap-2 transition-colors"
     >
+      {showArrow && arrowStyle && <div style={arrowStyle} aria-hidden="true" />}
       {/* Product image header */}
       {productImageUrl && (
         <div className="flex items-center justify-center pb-2 border-b border-gray-100">
@@ -149,7 +172,7 @@ export const ToothStatusPopover: React.FC<ToothStatusPopoverProps> = ({
                 onSelect(opt.code)
                 onClose?.()
               }}
-              className={`flex flex-col items-center gap-1.5 p-2 rounded-xl border-2 transition-all w-[90px] hover:shadow-sm ${
+              className={`flex flex-col items-center gap-0 p-2 rounded-xl border-2 transition-all w-[90px] hover:shadow-sm ${
                 isSelected
                   ? 'border-blue-500 bg-blue-50'
                   : 'border-gray-200 hover:border-gray-300 bg-white'
@@ -166,11 +189,7 @@ export const ToothStatusPopover: React.FC<ToothStatusPopoverProps> = ({
                 </div>
               )}
               {/* Label */}
-              <span
-                className={`text-[10px] font-semibold text-center leading-tight ${
-                  isSelected ? 'text-blue-700' : 'text-gray-700'
-                }`}
-              >
+              <span className="text-[10px] font-semibold text-center leading-tight text-black">
                 #{toothNumber} {label}
               </span>
             </button>
