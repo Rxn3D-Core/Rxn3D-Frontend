@@ -17,9 +17,6 @@ interface ToothStatusPopoverProps {
   productImageUrl?: string | null
 }
 
-const TOOTH_PNG_BASE64 =
-  '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'
-
 function isMissingCode(code: string, name: string): boolean {
   return code.toUpperCase() === 'MT' || name.toLowerCase().includes('missing')
 }
@@ -30,31 +27,73 @@ function isWillExtractCode(code: string, name: string): boolean {
   return c === 'WED' || c === 'WEOD' || n.includes('will extract')
 }
 
-function MissingToothSVG({ uid }: { uid: string }) {
+function isTeethInMouthCode(_code: string, name: string): boolean {
+  const n = name.toLowerCase()
+  return n.includes('teeth in mouth') || n.includes('in mouth')
+}
+
+function ToothImage({ toothNumber, style, className }: { toothNumber: number; style?: React.CSSProperties; className?: string }) {
+  const arch = toothNumber <= 16 ? 'maxillary' : 'mandibular'
   return (
-    <svg width="38" height="51" viewBox="0 0 38 51" fill="none" xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink">
-      <rect width="37.9594" height="50.8816" fill={`url(#missing_pat_${uid})`} />
-      <defs>
-        <pattern id={`missing_pat_${uid}`} patternContentUnits="objectBoundingBox" width="1" height="1">
-          <use xlinkHref={`#tooth_img_${uid}`} transform="matrix(0.031466 0 0 0.0234747 -0.63642 -1.34351)" />
-        </pattern>
-        <image id={`tooth_img_${uid}`} width="54" height="104" preserveAspectRatio="none" xlinkHref={`data:image/png;base64,${TOOTH_PNG_BASE64}`} />
-      </defs>
-    </svg>
+    <img
+      key={toothNumber}
+      src={`/images/teeth/${arch}/tooth-${toothNumber}.png?v=2`}
+      alt={`Tooth ${toothNumber}`}
+      className={`w-full h-full object-contain ${className ?? ''}`}
+      style={style}
+      onError={(e) => {
+        ;(e.target as HTMLImageElement).style.opacity = '0'
+      }}
+    />
   )
 }
 
-function WillExtractToothSVG({ uid }: { uid: string }) {
+function MissingToothDisplay({ toothNumber }: { toothNumber: number }) {
+  const arch = toothNumber <= 16 ? 'maxillary' : 'mandibular'
   return (
-    <svg width="37" height="52" viewBox="0 0 37 52" fill="none" xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink">
-      <rect width="36.8172" height="51.5207" fill={`url(#extract_pat_${uid})`} />
-      <defs>
-        <pattern id={`extract_pat_${uid}`} patternContentUnits="objectBoundingBox" width="1" height="1">
-          <use xlinkHref={`#tooth_img2_${uid}`} transform="matrix(0.0291481 0 0 0.0208295 -0.573995 -0.189187)" />
-        </pattern>
-        <image id={`tooth_img2_${uid}`} width="54" height="104" preserveAspectRatio="none" xlinkHref={`data:image/png;base64,${TOOTH_PNG_BASE64}`} />
-      </defs>
-    </svg>
+    <div className="w-full h-[90px] flex items-center justify-center">
+      <img
+        key={toothNumber}
+        src={`/images/teeth/${arch}/missing-teeth/tooth-${toothNumber}.png?v=2`}
+        alt={`Tooth ${toothNumber} missing`}
+        className="w-full h-full object-contain"
+        onError={(e) => {
+          ;(e.target as HTMLImageElement).style.opacity = '0'
+        }}
+      />
+    </div>
+  )
+}
+
+function WillExtractToothDisplay({ toothNumber }: { toothNumber: number }) {
+  const arch = toothNumber <= 16 ? 'maxillary' : 'mandibular'
+  return (
+    <div className="relative w-full h-[90px] overflow-hidden">
+      <img
+        key={toothNumber}
+        src={`/images/teeth/${arch}/tooth-${toothNumber}.png?v=2`}
+        alt={`Tooth ${toothNumber}`}
+        className="w-full h-full object-contain"
+        onError={(e) => {
+          ;(e.target as HTMLImageElement).style.opacity = '0'
+        }}
+      />
+      <svg
+        className="absolute"
+        style={{ width: 28, height: 37, top: '50%', left: '50%', transform: 'translate(-50%, -50%)', pointerEvents: 'none' }}
+        viewBox="0 0 24 32"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path d="M0.312293 28.0802C0.0484933 29.0457 -0.341315 29.7125 0.576054 30.6215C1.49342 31.5305 3.08986 29.9351 3.24269 29.7276C3.39553 29.5202 6.21477 24.8224 6.85731 23.7684C7.36025 22.9433 10.3391 18.3335 11.7894 16.1668C13.1298 18.1866 15.9142 22.4023 16.3289 23.1074C16.8472 23.9887 20.3343 30.2499 20.6327 30.7089C20.9312 31.1679 21.7165 32.0493 21.9364 31.884C22.1563 31.7187 21.8579 30.5436 21.5909 29.7174C21.3238 28.8911 19.1562 24.7232 18.4808 23.3461C17.9405 22.2444 14.7957 16.5883 13.2909 13.8979C14.5421 12.2734 17.1618 8.87806 17.6304 8.29299C18.2161 7.56165 22.8737 1.94806 23.1028 1.65146C23.332 1.35485 23.8395 0.493744 23.5448 0.340657C23.2502 0.187571 22.5954 0.608558 22.0388 1.02955C21.4822 1.45053 17.3235 5.75763 16.7049 6.39265C16.2099 6.90066 13.3599 10.1557 11.9968 11.7198C10.8348 9.9029 8.46269 6.19156 8.26954 5.8811C8.0281 5.49304 4.5956 0.710851 3.84817 0.201206C3.28165 -0.185078 2.08585 0.000331625 1.66012 0.624552C1.12798 1.40477 1.50743 2.77366 1.84885 3.30801C2.48781 4.09156 4.61467 6.57854 5.43418 7.5365C6.25368 8.49446 8.97682 12.1766 10.236 13.8979C9.14755 15.3074 6.45856 18.7925 4.4098 21.4568C2.36104 24.1212 0.576093 27.1148 0.312293 28.0802Z" fill="url(#will-extract-gradient-popover)"/>
+        <defs>
+          <radialGradient id="will-extract-gradient-popover" cx="0" cy="0" r="1" gradientTransform="matrix(11.8521 -12.9807 9.61599 11.9972 13.4853 12.2084)" gradientUnits="userSpaceOnUse">
+            <stop offset="0.226023" stopColor="#CF0202"/>
+            <stop offset="1" stopColor="#910202"/>
+          </radialGradient>
+        </defs>
+      </svg>
+    </div>
   )
 }
 
@@ -83,7 +122,7 @@ export const ToothStatusPopover: React.FC<ToothStatusPopoverProps> = ({
   return (
     <div
       ref={popoverRef}
-      className="absolute z-50 bg-white border border-gray-200 hover:border-blue-500 rounded-xl shadow-xl p-3 flex flex-col gap-2 transition-colors"
+      className="absolute z-50 bg-white border border-gray-200 hover:border-blue-500 shadow-xl p-3 flex flex-col gap-2 transition-colors"
     >
       {/* Product image header */}
       {productImageUrl && (
@@ -98,11 +137,11 @@ export const ToothStatusPopover: React.FC<ToothStatusPopoverProps> = ({
         </div>
       )}
       <div className="flex gap-2">
-        {options.map((opt) => {
-          const uid = `${toothNumber}_${opt.code}`
+        {options.filter((opt) => !isTeethInMouthCode(opt.code, opt.name)).map((opt) => {
           const isMissing = isMissingCode(opt.code, opt.name)
           const willExtract = isWillExtractCode(opt.code, opt.name)
           const isSelected = currentCode === opt.code
+          const label = isMissing ? 'Missing' : willExtract ? 'Will extract' : opt.name
           return (
             <button
               key={opt.code}
@@ -110,38 +149,29 @@ export const ToothStatusPopover: React.FC<ToothStatusPopoverProps> = ({
                 onSelect(opt.code)
                 onClose?.()
               }}
-              className={`flex flex-col items-center gap-1.5 p-2 rounded-xl border-2 transition-all w-[80px] hover:shadow-sm ${
+              className={`flex flex-col items-center gap-1.5 p-2 rounded-xl border-2 transition-all w-[90px] hover:shadow-sm ${
                 isSelected
                   ? 'border-blue-500 bg-blue-50'
                   : 'border-gray-200 hover:border-gray-300 bg-white'
               }`}
             >
               {/* Tooth image */}
-              <div className="flex items-center justify-center">
-                {isMissing ? (
-                  <MissingToothSVG uid={uid} />
-                ) : willExtract ? (
-                  <WillExtractToothSVG uid={uid} />
-                ) : (
-                  <div className="w-[38px] h-[51px] flex items-center justify-center">
-                    <img
-                      src={`/images/teeth/${toothNumber <= 16 ? 'maxillary' : 'mandibular'}/tooth-${toothNumber}.png`}
-                      alt={`Tooth ${toothNumber}`}
-                      className="w-full h-full object-contain"
-                      onError={(e) => {
-                        ;(e.target as HTMLImageElement).style.opacity = '0'
-                      }}
-                    />
-                  </div>
-                )}
-              </div>
+              {isMissing ? (
+                <MissingToothDisplay toothNumber={toothNumber} />
+              ) : willExtract ? (
+                <WillExtractToothDisplay toothNumber={toothNumber} />
+              ) : (
+                <div className="w-full h-[90px]">
+                  <ToothImage toothNumber={toothNumber} />
+                </div>
+              )}
               {/* Label */}
               <span
                 className={`text-[10px] font-semibold text-center leading-tight ${
                   isSelected ? 'text-blue-700' : 'text-gray-700'
                 }`}
               >
-                #{toothNumber} {opt.name}
+                #{toothNumber} {label}
               </span>
             </button>
           )
