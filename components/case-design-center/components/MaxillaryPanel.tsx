@@ -944,6 +944,29 @@ export function MaxillaryPanel({
                       return;
                     }
                     onOpposingExtractionToggle?.(toothNumber, opposingActiveExtractionCode);
+                  } else {
+                    // No active opposing extraction — open the tooth status popover
+                    // sourced from the opposing product's opposite_extractions.
+                    const exts: ProductExtraction[] = (opposingProductData.opposite_extractions ?? []).map((e) => ({
+                      id: e.id,
+                      extraction_id: e.id,
+                      name: e.name,
+                      code: e.code,
+                      color: e.color ?? null,
+                      url: null,
+                      is_default: e.is_default ?? "No",
+                      is_required: e.is_required ?? "No",
+                      is_optional: e.is_optional ?? "No",
+                      min_teeth: e.min_teeth ?? null,
+                      max_teeth: e.max_teeth ?? null,
+                      price: null,
+                      is_image_extraction: "No",
+                      image_url: null,
+                      sequence: 0,
+                      status: "Active",
+                    }));
+                    setToothStatusPopoverTooth(toothNumber);
+                    setToothStatusPopoverExtractions(exts);
                   }
                 } else if (activeExtractionCode && !addedFixedActive) {
                   const activeExt = activeExtractions.find((e) => e.code === activeExtractionCode);
@@ -991,14 +1014,15 @@ export function MaxillaryPanel({
               onCheckedTeethChange={handleMaxillaryCheckedTeethChange}
               claspTeeth={maxillaryClaspTeeth}
               getAddonValue={(toothNumber) => getFieldValue("maxillary", toothNumber, "addons")}
-              showToothStatusPopover={activeProductIsRemovables && toothStatusPopoverTooth !== null}
+              showToothStatusPopover={(activeProductIsRemovables || (!!opposingProductData && activeProductCardId === 0)) && toothStatusPopoverTooth !== null}
               toothStatusPopoverTooth={toothStatusPopoverTooth}
-              toothStatusByTooth={maxillaryToothExtractionMap}
+              toothStatusByTooth={opposingProductData ? opposingToothExtractionMap : maxillaryToothExtractionMap}
               toothStatusOptions={toothStatusPopoverExtractions
                 .filter(e => e.status === "Active")
                 .sort((a, b) => a.sequence - b.sequence)
                 .map(e => ({ code: e.code, name: e.name, color: e.color ?? "#aaa" }))}
               toothStatusProductName={(() => {
+                if (opposingProductData) return opposingProductData.name ?? null;
                 if (activeProductCardId !== 0) {
                   const activeCard = addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "maxillary");
                   return activeCard?.product?.name ?? null;
@@ -1010,6 +1034,7 @@ export function MaxillaryPanel({
                 return card0Teeth.length > 0 ? (getToothProduct("maxillary", card0Teeth[0])?.name ?? null) : null;
               })()}
               toothStatusProductImageUrl={(() => {
+                if (opposingProductData) return opposingProductData.image_url ?? null;
                 if (activeProductCardId !== 0) {
                   const activeCard = addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "maxillary");
                   return activeCard?.product?.image_url ?? null;
@@ -1020,12 +1045,23 @@ export function MaxillaryPanel({
                 return card0Teeth.length > 0 ? (getToothProduct("maxillary", card0Teeth[0])?.image_url ?? null) : null;
               })()}
               onSelectToothStatus={(toothNumber, code) => {
+                if (opposingProductData) {
+                  onOpposingExtractionToggle?.(toothNumber, code);
+                  setToothStatusPopoverTooth(null);
+                  return;
+                }
                 handleMaxillaryToothClick(toothNumber);
                 handleToothExtractionToggle("maxillary", toothNumber, code, toothStatusPopoverExtractions);
                 setToothStatusPopoverTooth(null);
               }}
               onCloseToothStatusPopover={() => setToothStatusPopoverTooth(null)}
               onRemoveToothStatus={(toothNumber) => {
+                if (opposingProductData) {
+                  const currentCode = opposingToothExtractionMap[toothNumber];
+                  if (currentCode) onOpposingExtractionToggle?.(toothNumber, currentCode);
+                  setToothStatusPopoverTooth(null);
+                  return;
+                }
                 handleMaxillaryToothClick(toothNumber);
                 setToothStatusPopoverTooth(null);
               }}

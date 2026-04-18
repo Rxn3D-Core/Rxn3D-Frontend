@@ -937,6 +937,29 @@ export function MandibularPanel({
                         return;
                       }
                       onOpposingExtractionToggle?.(toothNumber, opposingActiveExtractionCode);
+                    } else {
+                      // No active opposing extraction — open the tooth status popover
+                      // sourced from the opposing product's opposite_extractions.
+                      const exts: ProductExtraction[] = (opposingProductData.opposite_extractions ?? []).map((e) => ({
+                        id: e.id,
+                        extraction_id: e.id,
+                        name: e.name,
+                        code: e.code,
+                        color: e.color ?? null,
+                        url: null,
+                        is_default: e.is_default ?? "No",
+                        is_required: e.is_required ?? "No",
+                        is_optional: e.is_optional ?? "No",
+                        min_teeth: e.min_teeth ?? null,
+                        max_teeth: e.max_teeth ?? null,
+                        price: null,
+                        is_image_extraction: "No",
+                        image_url: null,
+                        sequence: 0,
+                        status: "Active",
+                      }));
+                      setToothStatusPopoverTooth(toothNumber);
+                      setToothStatusPopoverExtractions(exts);
                     }
                   } else if (activeExtractionCode && !addedFixedActive) {
                     const activeExt = activeExtractions.find((e) => e.code === activeExtractionCode);
@@ -967,24 +990,19 @@ export function MandibularPanel({
                 retentionOptions={retentionOptions}
                 toothExtractionMap={opposingProductData ? opposingToothExtractionMap : mandibularToothExtractionMap}
                 hideSelectionIndicators={(!!opposingProductData && activeProductCardId === 0) || activeProductIsRemovables}
-                showCheckboxes={
-                  !activeProductIsRemovables && (
-                    opposingProductData
-                      ? (!!opposingActiveExtractionCode || Object.keys(opposingToothExtractionMap).length > 0)
-                      : (!!activeExtractionCode || Object.keys(mandibularToothExtractionMap).length > 0)
-                  )
-                }
+                showCheckboxes={false}
                 onCheckedTeethChange={handleMandibularCheckedTeethChange}
                 claspTeeth={mandibularClaspTeeth}
                 getAddonValue={(toothNumber) => getFieldValue("mandibular", toothNumber, "addons")}
-                showToothStatusPopover={activeProductIsRemovables && toothStatusPopoverTooth !== null}
+                showToothStatusPopover={(activeProductIsRemovables || (!!opposingProductData && activeProductCardId === 0)) && toothStatusPopoverTooth !== null}
                 toothStatusPopoverTooth={toothStatusPopoverTooth}
-                toothStatusByTooth={mandibularToothExtractionMap}
+                toothStatusByTooth={opposingProductData ? opposingToothExtractionMap : mandibularToothExtractionMap}
                 toothStatusOptions={toothStatusPopoverExtractions
                   .filter(e => e.status === "Active")
                   .sort((a, b) => a.sequence - b.sequence)
                   .map(e => ({ code: e.code, name: e.name, color: e.color ?? "#aaa" }))}
                 toothStatusProductName={(() => {
+                  if (opposingProductData) return opposingProductData.name ?? null;
                   if (activeProductCardId !== 0) {
                     const activeCard = addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "mandibular");
                     return activeCard?.product?.name ?? null;
@@ -995,6 +1013,7 @@ export function MandibularPanel({
                   return card0Teeth.length > 0 ? (getToothProduct("mandibular", card0Teeth[0])?.name ?? null) : null;
                 })()}
                 toothStatusProductImageUrl={(() => {
+                  if (opposingProductData) return opposingProductData.image_url ?? null;
                   if (activeProductCardId !== 0) {
                     const activeCard = addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "mandibular");
                     return activeCard?.product?.image_url ?? null;
@@ -1005,12 +1024,23 @@ export function MandibularPanel({
                   return card0Teeth.length > 0 ? (getToothProduct("mandibular", card0Teeth[0])?.image_url ?? null) : null;
                 })()}
                 onSelectToothStatus={(toothNumber, code) => {
+                  if (opposingProductData) {
+                    onOpposingExtractionToggle?.(toothNumber, code);
+                    setToothStatusPopoverTooth(null);
+                    return;
+                  }
                   handleMandibularToothClick(toothNumber);
                   handleToothExtractionToggle("mandibular", toothNumber, code, toothStatusPopoverExtractions);
                   setToothStatusPopoverTooth(null);
                 }}
                 onCloseToothStatusPopover={() => setToothStatusPopoverTooth(null)}
                 onRemoveToothStatus={(toothNumber) => {
+                  if (opposingProductData) {
+                    const currentCode = opposingToothExtractionMap[toothNumber];
+                    if (currentCode) onOpposingExtractionToggle?.(toothNumber, currentCode);
+                    setToothStatusPopoverTooth(null);
+                    return;
+                  }
                   handleMandibularToothClick(toothNumber);
                   setToothStatusPopoverTooth(null);
                 }}
@@ -2176,13 +2206,15 @@ export function MandibularPanel({
 
             // Opposing arch for a mandibular product is maxillary (teeth 1–16)
             const OPPOSING_ARCH_TEETH = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16];
+            const opposingAssignedTeeth = Object.keys(opposingToothExtractionMap).map(Number).sort((a, b) => a - b);
+            const hasOpposingStatus = opposingAssignedTeeth.length > 0;
 
             return (
               <div key="opposing-accordion" className="relative mt-3">
                 <div className="rounded-lg bg-white overflow-hidden border border-[#d9d9d9]">
-                  {/* Header */}
+                  {/* Header — matches MaxillaryPanel card-0 removable style: white bg, category pills on top, green-bordered title box */}
                   <div
-                    className="w-full flex flex-col transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] relative bg-[#DFEEFB] cursor-pointer"
+                    className="w-full flex flex-col transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] relative bg-white cursor-pointer"
                     onClick={() => setOpposingAccordionExpanded(e => !e)}
                   >
                     <div className="absolute top-3 right-2 z-10">
@@ -2191,8 +2223,8 @@ export function MandibularPanel({
                         className={`text-black transition-transform ${opposingAccordionExpanded ? "rotate-180" : ""}`}
                       />
                     </div>
-                    {/* Image left + product name, tooth status & category badges right */}
-                    <div className="flex items-stretch gap-[10px] px-[8px] py-[14px]">
+                    {/* Image left + product info right */}
+                    <div className="flex items-stretch gap-[10px] px-[8px] py-[14px]" onClick={(e) => e.stopPropagation()}>
                       <ProductImagePreview
                         imageUrl={opposingProductData.image_url}
                         altText={`${opposingProductData.name} opposing`}
@@ -2205,14 +2237,39 @@ export function MandibularPanel({
                         }
                       />
                       <div className="flex-1 min-w-0 flex flex-col gap-[9.94px]">
-                        <p className="font-[Inter] text-[20px] font-bold leading-tight text-black pr-6 text-left">
-                          {opposingProductData.name}{" "}
-                          <span className="font-normal text-[16px] text-[#555555]">opposing</span>
-                        </p>
+                        {/* Category + subcategory badges at the top */}
+                        <div className="flex items-center gap-[4px] flex-wrap">
+                          {opposingProductData.subcategory?.category?.name && (
+                            <AccordionBadge>{opposingProductData.subcategory.category.name}</AccordionBadge>
+                          )}
+                          {opposingProductData.subcategory?.name && (
+                            <AccordionBadge>{opposingProductData.subcategory.name}</AccordionBadge>
+                          )}
+                        </div>
+                        {/* Title + tooth numbers in green-bordered box (only after user picks a tooth status or case submitted) */}
+                        {(hasOpposingStatus || caseSubmitted) ? (
+                          <div className="flex flex-col gap-[5px] border border-[#34C759] rounded-[7px] p-[10px] mr-8">
+                            <p className="font-[Inter] text-[20px] font-bold leading-[20px] tracking-[-0.02em] text-black">
+                              {opposingProductData.name}{" "}
+                              <span className="font-normal text-[16px] text-[#555555]">opposing</span>
+                            </p>
+                            {opposingAssignedTeeth.length > 0 && (
+                              <p className="font-[Inter] text-[20px] font-normal leading-[20px] tracking-[-0.02em] text-black">
+                                #{opposingAssignedTeeth.join(",")}
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="font-[Inter] text-[20px] font-bold leading-tight text-black pr-6 text-left">
+                            {opposingProductData.name}{" "}
+                            <span className="font-normal text-[16px] text-[#555555]">opposing</span>
+                          </p>
+                        )}
+                        {/* Tooth status boxes */}
                         <div onClick={(e) => e.stopPropagation()}>
                           <ToothStatusBoxes
                             extractions={opposingExtractions}
-                            selectedTeeth={Object.keys(opposingToothExtractionMap).map(Number)}
+                            selectedTeeth={opposingAssignedTeeth}
                             allArchTeeth={OPPOSING_ARCH_TEETH}
                             toothExtractionMap={opposingToothExtractionMap}
                             claspTeeth={[]}
@@ -2228,11 +2285,6 @@ export function MandibularPanel({
                             submitted={caseSubmitted}
                             hideDefaultBox={true}
                           />
-                        </div>
-                        <div className="flex items-center gap-[4.97px] flex-wrap">
-                          {opposingProductData.subcategory?.name && (
-                            <AccordionBadge>{opposingProductData.subcategory.name}</AccordionBadge>
-                          )}
                         </div>
                       </div>
                     </div>
