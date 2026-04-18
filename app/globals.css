@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  height: 100dvh;
+  overscroll-behavior: none;
+}
+
+body {
+  min-height: 100dvh;
+  overscroll-behavior: none;
+}
+
 body {
   font-family: Verdana, Arial, Helvetica, sans-serif;
 }
