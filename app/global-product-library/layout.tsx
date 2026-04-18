@@ -40,7 +40,7 @@ export default function GlobalProductLibraryLayout({
                           <AddOnsCategoryProvider>
                             <ProductsProvider>
                               <CaseTrackingProvider>
-                                <div className="flex h-screen bg-[#f9f9f9] overflow-hidden">
+                                <div className="flex h-[100dvh] bg-[#f9f9f9] overflow-hidden">
                                   <DashboardSidebar />
                                   <div className="flex-1 flex flex-col overflow-hidden">
                                     <Header />

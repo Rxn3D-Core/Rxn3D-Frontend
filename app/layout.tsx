@@ -43,7 +43,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-background font-sans antialiased" suppressHydrationWarning>
+      <body className="min-h-[100dvh] bg-background font-sans antialiased" suppressHydrationWarning>
         <ReactQueryProvider>
           <RouteAwareProviders>
             <AccessibilityProvider>

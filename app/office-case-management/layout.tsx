@@ -14,7 +14,7 @@ export default function LabProfileLayout({
     <ProtectedRoute>
       <DriverSlipProvider>
         <OfficeSlipProvider>
-          <div className="flex h-screen bg-[#F9F9F9] overflow-hidden">
+          <div className="flex h-[100dvh] bg-[#F9F9F9] overflow-hidden">
             <DashboardSidebar />
             <div className="flex-1 flex flex-col overflow-hidden">
               <Header />

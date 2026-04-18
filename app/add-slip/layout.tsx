@@ -10,7 +10,7 @@ export default function AddSlipLayout({
   return (
     <ProtectedRoute>
       <DriverSlipProvider>
-        <div className="w-full h-screen overflow-hidden bg-background">
+        <div className="w-full h-[100dvh] overflow-hidden bg-background">
           {children}
         </div>
       </DriverSlipProvider>

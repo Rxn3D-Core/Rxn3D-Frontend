@@ -777,9 +777,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                     router.replace("/case-design-center");
                   }}
                 >
-                  <span className="hidden lg:inline">{t("header.newSlip", "+ New slip")}</span>
-                  <span className="hidden sm:inline lg:hidden">+ Slip</span>
-                  <span className="sm:hidden">+</span>
+                  <span>{t("header.newSlip", "+ New Slip")}</span>
                 </Button>
               )}
               {!isOfficeAdmin && (
@@ -787,8 +785,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                   size="sm"
                   className="bg-[#1162a8] hover:bg-[#0d4d87] text-white h-8 sm:h-9 md:h-10 px-2.5 sm:px-3 md:px-4 text-xs sm:text-sm font-medium shadow-sm transition-all duration-200 hover:shadow-md"
                 >
-                  <span className="hidden lg:inline">{t("header.newOffice", "+ New Office")}</span>
-                  <span className="lg:hidden">+ Office</span>
+                  <span>{t("header.newOffice", "New Office")}</span>
                 </Button>
               )}
               <Button
@@ -798,7 +795,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                 aria-label={t("header.openScanner", "Open QR code scanner")}
               >
                 <QrCode className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-4.5 md:h-4.5 mr-1 sm:mr-1.5" />
-                <span className="hidden sm:inline">{t("header.scanCode", "Scan")}</span>
+                <span>{t("header.scanCode", "Scan Code")}</span>
                 {scanHistory.length > 0 && (
                   <Badge 
                     variant="secondary" 
@@ -824,7 +821,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                   </div>
                 </div>
               ) : (
-                <div className="hidden 2xl:flex items-center justify-center max-w-full">
+                <div className="hidden 2xl:flex [body[data-sidebar-expanded='false']_&]:flex items-center justify-center max-w-full">
                   {(() => {
                     const selectedLocationObj = typeof window !== 'undefined'
                       ? JSON.parse(localStorage.getItem("selectedLocation") || "null")
