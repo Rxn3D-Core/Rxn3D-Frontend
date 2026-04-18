@@ -785,7 +785,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
               {!isOfficeAdmin && (
                 <Button
                   size="sm"
-                  className="bg-[#1162a8] hover:bg-[#0d4d87] text-white h-8 sm:h-9 md:h-10 px-2.5 sm:px-3 md:px-4 text-xs sm:text-sm font-medium shadow-sm transition-all duration-200 hover:shadow-md hidden sm:inline-flex"
+                  className="bg-[#1162a8] hover:bg-[#0d4d87] text-white h-8 sm:h-9 md:h-10 px-2.5 sm:px-3 md:px-4 text-xs sm:text-sm font-medium shadow-sm transition-all duration-200 hover:shadow-md"
                 >
                   <span className="hidden lg:inline">{t("header.newOffice", "+ New Office")}</span>
                   <span className="lg:hidden">+ Office</span>
@@ -824,7 +824,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center justify-center max-w-full">
+                <div className="hidden 2xl:flex [body[data-sidebar-expanded='false']_&]:flex items-center justify-center max-w-full">
                   {(() => {
                     const selectedLocationObj = typeof window !== 'undefined'
                       ? JSON.parse(localStorage.getItem("selectedLocation") || "null")
