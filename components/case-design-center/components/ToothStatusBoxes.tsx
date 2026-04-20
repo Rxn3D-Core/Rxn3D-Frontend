@@ -25,6 +25,8 @@ interface ToothStatusBoxesProps {
   submitted?: boolean;
   /** When true, hide the default (Teeth in mouth) box — it's shown in the center navigation instead */
   hideDefaultBox?: boolean;
+  /** When true, suppress the "Required: select at least N tooth" validation outline and message */
+  disableRequiredValidation?: boolean;
 }
 
 /** Fallback color map keyed by extraction code — used only when API color is null */
@@ -117,13 +119,14 @@ export function ToothStatusBoxes({
   toothExtractionMap,
   claspTeeth,
   activeExtractionCode,
-  onActiveExtractionChange,
-  onToothExtractionToggle,
+  onActiveExtractionChange: _onActiveExtractionChange,
+  onToothExtractionToggle: _onToothExtractionToggle,
   onSelectAllTeeth,
   onRequiredValidationChange,
   isRemovable = false,
   submitted = false,
   hideDefaultBox = false,
+  disableRequiredValidation = false,
 }: ToothStatusBoxesProps) {
   const allActiveExtractions = extractions
     .filter((e) => e.status === "Active" && e.name != null && e.code != null)
@@ -160,7 +163,7 @@ export function ToothStatusBoxes({
     );
 
   // Compute whether any required box is showing a validation error
-  const hasRequiredValidation = activeExtractions.some((e) => {
+  const hasRequiredValidation = !disableRequiredValidation && activeExtractions.some((e) => {
     if (!isRequiredExtraction(e)) return false;
     const isClasp = isClaspExtraction(e);
     const teethForBox = isClasp
@@ -190,21 +193,6 @@ export function ToothStatusBoxes({
       })
     : activeExtractions;
   const onlyOneBoxWithTeeth = submitted && boxesWithTeeth.length === 1;
-
-  const handleBoxClick = (extraction: ProductExtraction) => {
-    if (isDefaultExtraction(extraction)) {
-      // is_default: select all arch teeth, deactivate any active box
-      onSelectAllTeeth(allArchTeeth);
-      onActiveExtractionChange(null, extractions);
-      return;
-    }
-    // is_required and is_optional: toggle active — user clicks teeth to assign
-    if (activeExtractionCode === extraction.code) {
-      onActiveExtractionChange(null, extractions);
-    } else {
-      onActiveExtractionChange(extraction.code, extractions);
-    }
-  };
 
   return (
     <div className="flex flex-wrap gap-[9.94px]">
@@ -238,7 +226,7 @@ export function ToothStatusBoxes({
 
         // Validation: is_required box needs teeth unless an is_optional box has teeth
         const showRequiredValidation =
-          isRequired && isEmpty && !anyOptionalHasTeeth;
+          !disableRequiredValidation && isRequired && isEmpty && !anyOptionalHasTeeth;
 
         const minTeeth = extraction.min_teeth ?? 1;
         const maxTeeth = extraction.max_teeth;
@@ -253,7 +241,7 @@ export function ToothStatusBoxes({
         return (
           <div
             key={extraction.id}
-            className={`flex flex-col items-center justify-center rounded-[6px] cursor-pointer hover:opacity-90 active:opacity-75 transition-all shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] ${isCompact ? "px-[10px] py-1 min-h-[28px]" : "px-[10px] py-1.5 min-h-[50px]"}`}
+            className={`flex flex-col items-center justify-center rounded-[6px] transition-all shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] ${isCompact ? "px-[10px] py-1 min-h-[28px]" : "px-[10px] py-1.5 min-h-[50px]"}`}
             style={{
               backgroundColor: submitted ? style.bg : "white",
               outline: isActive
@@ -264,7 +252,6 @@ export function ToothStatusBoxes({
               outlineOffset: isActive ? "2px" : showRequiredValidation ? "1px" : "0px",
               ...(onlyOneBoxWithTeeth ? { flex: "1 1 100%" } : {}),
             }}
-            onClick={() => handleBoxClick(extraction)}
           >
             <p
               className={`font-[Verdana] font-normal tracking-[0.05em] text-center break-words max-w-full ${submitted ? style.textClass : 'text-black'} text-[16px] leading-tight`}

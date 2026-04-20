@@ -48,7 +48,7 @@ function PricePreviewTable({ prices }: { prices: number[] }) {
         <div className="flex flex-row items-center gap-6 px-2">
           {prices.map((price, i) => (
             <div key={i} className="flex flex-col items-center shrink-0">
-              <span className="text-black text-xs text-center whitespace-nowrap">{i + 1} tooth</span>
+              <span className="text-black text-xs text-center whitespace-nowrap">{i + 1} {i === 0 ? "tooth" : "teeth"}</span>
               <span className="text-black text-base font-medium text-center whitespace-nowrap">${price}</span>
             </div>
           ))}

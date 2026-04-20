@@ -737,7 +737,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <g>
               <g>
-              <rect x="339" width="30" height="135" fill="url(#pattern3_197_3840_flipped)" onClick={() => handleToothClick(23)} onMouseEnter={() => setHoveredTooth(23)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(23), transition: 'all 0.2s ease' }} />
+              <rect x="339" width="30" height="135" fill="url(#pattern3_197_3840)" onClick={() => handleToothClick(23)} onMouseEnter={() => setHoveredTooth(23)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(23), transition: 'all 0.2s ease' }} />
               {renderClaspOverlay(23, 339, 30, 42)}
               {renderWillExtractOverlay(23, 339, 30)}
               {renderCheckbox(23, 339, 30)}
@@ -831,7 +831,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <>
               <g>
-              <rect x="369" width="34" height="135" fill="url(#pattern7_197_3840_flipped)" onClick={() => handleToothClick(22)} onMouseEnter={() => setHoveredTooth(22)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(22), transition: 'all 0.2s ease' }} />
+              <rect x="369" width="34" height="135" fill="url(#pattern7_197_3840)" onClick={() => handleToothClick(22)} onMouseEnter={() => setHoveredTooth(22)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(22), transition: 'all 0.2s ease' }} />
               {renderClaspOverlay(22, 369, 34, 42)}
               {renderWillExtractOverlay(22, 369, 34)}
               {renderCheckbox(22, 369, 34)}
@@ -853,7 +853,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <>
               <g>
-              <rect x="530" width="51" height="135" fill="url(#pattern8_197_3840_flipped)" onClick={() => handleToothClick(18)} onMouseEnter={() => setHoveredTooth(18)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(18), transition: 'all 0.2s ease' }} />
+              <rect x="530" width="51" height="135" fill="url(#pattern8_197_3840)" onClick={() => handleToothClick(18)} onMouseEnter={() => setHoveredTooth(18)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(18), transition: 'all 0.2s ease' }} />
               {renderClaspOverlay(18, 530, 51, 42)}
               {renderWillExtractOverlay(18, 530, 51)}
               {renderCheckbox(18, 530, 51)}
@@ -875,7 +875,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <>
               <g>
-              <rect x="439" width="38" height="135" fill="url(#pattern9_197_3840_flipped)" onClick={() => handleToothClick(20)} onMouseEnter={() => setHoveredTooth(20)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(20), transition: 'all 0.2s ease' }} />
+              <rect x="439" width="38" height="135" fill="url(#pattern9_197_3840)" onClick={() => handleToothClick(20)} onMouseEnter={() => setHoveredTooth(20)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(20), transition: 'all 0.2s ease' }} />
               {renderClaspOverlay(20, 439, 38, 42)}
               {renderWillExtractOverlay(20, 439, 38)}
               {renderCheckbox(20, 439, 38)}
@@ -921,7 +921,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <>
               <g>
-              <rect x="313" width="26" height="135" fill="url(#pattern11_197_3840_flipped)" onClick={() => handleToothClick(24)} onMouseEnter={() => setHoveredTooth(24)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(24), transition: 'all 0.2s ease' }} />
+              <rect x="313" width="26" height="135" fill="url(#pattern11_197_3840)" onClick={() => handleToothClick(24)} onMouseEnter={() => setHoveredTooth(24)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(24), transition: 'all 0.2s ease' }} />
               {renderClaspOverlay(24, 313, 26, 42)}
               {renderWillExtractOverlay(24, 313, 26)}
               {renderCheckbox(24, 313, 26)}
@@ -967,7 +967,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <>
               <g>
-              <rect x="477" width="53" height="135" fill="url(#pattern13_197_3840_flipped)" onClick={() => handleToothClick(19)} onMouseEnter={() => setHoveredTooth(19)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(19), transition: 'all 0.2s ease' }} />
+              <rect x="477" width="53" height="135" fill="url(#pattern13_197_3840)" onClick={() => handleToothClick(19)} onMouseEnter={() => setHoveredTooth(19)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(19), transition: 'all 0.2s ease' }} />
               {renderClaspOverlay(19, 477, 53, 42)}
               {renderWillExtractOverlay(19, 477, 53)}
               {renderCheckbox(19, 477, 53)}
@@ -989,7 +989,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <>
               <g>
-              <rect x="403" width="36" height="135" fill="url(#pattern14_197_3840_flipped)" onClick={() => handleToothClick(21)} onMouseEnter={() => setHoveredTooth(21)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(21), transition: 'all 0.2s ease' }} />
+              <rect x="403" width="36" height="135" fill="url(#pattern14_197_3840)" onClick={() => handleToothClick(21)} onMouseEnter={() => setHoveredTooth(21)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(21), transition: 'all 0.2s ease' }} />
               {renderClaspOverlay(21, 403, 36, 42)}
               {renderWillExtractOverlay(21, 403, 36)}
               {renderCheckbox(21, 403, 36)}
@@ -1011,7 +1011,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <>
               <g>
-              <rect x="581" width="43" height="135" fill="url(#pattern15_197_3840_flipped)" onClick={() => handleToothClick(17)} onMouseEnter={() => setHoveredTooth(17)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(17), transition: 'all 0.2s ease' }} />
+              <rect x="581" width="43" height="135" fill="url(#pattern15_197_3840)" onClick={() => handleToothClick(17)} onMouseEnter={() => setHoveredTooth(17)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(17), transition: 'all 0.2s ease' }} />
               {renderClaspOverlay(17, 581, 43, 42)}
               {renderWillExtractOverlay(17, 581, 43)}
               {renderCheckbox(17, 581, 43)}
@@ -1081,46 +1081,30 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             <pattern id="pattern15_197_3840" patternContentUnits="objectBoundingBox" width="1" height="1">
               <image href="/images/teeth/mandibular/tooth-17.png?v=1" width="1" height="1" preserveAspectRatio="none" />
             </pattern>
-            {/* Flipped patterns for teeth 25-32 (facing left) */}
+            {/* Flipped patterns for teeth 25-32 — same image, flip applied on the rect instead */}
             <pattern id="pattern0_197_3840_flipped" patternContentUnits="objectBoundingBox" width="1" height="1">
-              <g transform="translate(0.5, 0) scale(-1, 1) translate(-0.5, 0)">
-                <image href="/images/teeth/mandibular/tooth-32.png?v=1" width="1" height="1" preserveAspectRatio="none" />
-              </g>
+              <image href="/images/teeth/mandibular/tooth-32.png?v=1" width="1" height="1" preserveAspectRatio="none" />
             </pattern>
             <pattern id="pattern1_197_3840_flipped" patternContentUnits="objectBoundingBox" width="1" height="1">
-              <g transform="translate(0.5, 0) scale(-1, 1) translate(-0.5, 0)">
-                <image href="/images/teeth/mandibular/tooth-26.png?v=1" width="1" height="1" preserveAspectRatio="none" />
-              </g>
+              <image href="/images/teeth/mandibular/tooth-26.png?v=1" width="1" height="1" preserveAspectRatio="none" />
             </pattern>
             <pattern id="pattern2_197_3840_flipped" patternContentUnits="objectBoundingBox" width="1" height="1">
-              <g transform="translate(0.5, 0) scale(-1, 1) translate(-0.5, 0)">
-                <image href="/images/teeth/mandibular/tooth-29.png?v=1" width="1" height="1" preserveAspectRatio="none" />
-              </g>
+              <image href="/images/teeth/mandibular/tooth-29.png?v=1" width="1" height="1" preserveAspectRatio="none" />
             </pattern>
             <pattern id="pattern4_197_3840_flipped" patternContentUnits="objectBoundingBox" width="1" height="1">
-              <g transform="translate(0.5, 0) scale(-1, 1) translate(-0.5, 0)">
-                <image href="/images/teeth/mandibular/tooth-31.png?v=1" width="1" height="1" preserveAspectRatio="none" />
-              </g>
+              <image href="/images/teeth/mandibular/tooth-31.png?v=1" width="1" height="1" preserveAspectRatio="none" />
             </pattern>
             <pattern id="pattern5_197_3840_flipped" patternContentUnits="objectBoundingBox" width="1" height="1">
-              <g transform="translate(0.5, 0) scale(-1, 1) translate(-0.5, 0)">
-                <image href="/images/teeth/mandibular/tooth-25.png?v=1" width="1" height="1" preserveAspectRatio="none" />
-              </g>
+              <image href="/images/teeth/mandibular/tooth-25.png?v=1" width="1" height="1" preserveAspectRatio="none" />
             </pattern>
             <pattern id="pattern6_197_3840_flipped" patternContentUnits="objectBoundingBox" width="1" height="1">
-              <g transform="translate(0.5, 0) scale(-1, 1) translate(-0.5, 0)">
-                <image href="/images/teeth/mandibular/tooth-28.png?v=1" width="1" height="1" preserveAspectRatio="none" />
-              </g>
+              <image href="/images/teeth/mandibular/tooth-28.png?v=1" width="1" height="1" preserveAspectRatio="none" />
             </pattern>
             <pattern id="pattern10_197_3840_flipped" patternContentUnits="objectBoundingBox" width="1" height="1">
-              <g transform="translate(0.5, 0) scale(-1, 1) translate(-0.5, 0)">
-                <image href="/images/teeth/mandibular/tooth-30.png?v=1" width="1" height="1" preserveAspectRatio="none" />
-              </g>
+              <image href="/images/teeth/mandibular/tooth-30.png?v=1" width="1" height="1" preserveAspectRatio="none" />
             </pattern>
             <pattern id="pattern12_197_3840_flipped" patternContentUnits="objectBoundingBox" width="1" height="1">
-              <g transform="translate(0.5, 0) scale(-1, 1) translate(-0.5, 0)">
-                <image href="/images/teeth/mandibular/tooth-27.png?v=1" width="1" height="1" preserveAspectRatio="none" />
-              </g>
+              <image href="/images/teeth/mandibular/tooth-27.png?v=1" width="1" height="1" preserveAspectRatio="none" />
             </pattern>
             {/* Flipped patterns for teeth 17-24 (facing right) */}
             <pattern id="pattern3_197_3840_flipped" patternContentUnits="objectBoundingBox" width="1" height="1">

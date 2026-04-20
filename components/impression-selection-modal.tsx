@@ -65,7 +65,7 @@ function ImpressionGrid({
   onRemoveImpression: (key: string) => void
   onSTLFilesAttached?: (files: STLFile[], key: string) => void
   productId: string
-  arch: string
+  arch: "maxillary" | "mandibular"
   stlFilesByImpression?: Record<string, STLFile[]>
   onClose: () => void
   /** Called when user clicks the inline Done button — triggers confirm + close */
@@ -205,18 +205,18 @@ function ImpressionGrid({
                 <div className="flex flex-row items-center gap-[5px]">
                   <button
                     className="w-[30px] h-[30px] flex items-center justify-center rounded-[8px] border border-[#B4B0B0] bg-white hover:bg-gray-50 transition-all"
-                    onClick={() => handleDecrement(impression)}
+                    onClick={() => handleImpressionClick(impression)}
                   >
-                    <Minus className="w-[13px] h-[13px] text-[#1E1E1E]" strokeWidth={1.83} />
+                    <Plus className="w-[13px] h-[13px] text-[#1D1B20]" strokeWidth={1.83} />
                   </button>
                   <span className="font-['Verdana'] font-normal text-sm leading-[14px] tracking-[-0.02em] text-black text-center min-w-[30px] flex items-center justify-center h-[26px]">
                     {qty}
                   </span>
                   <button
                     className="w-[30px] h-[30px] flex items-center justify-center rounded-[8px] border border-[#B4B0B0] bg-white hover:bg-gray-50 transition-all"
-                    onClick={() => handleImpressionClick(impression)}
+                    onClick={() => handleDecrement(impression)}
                   >
-                    <Plus className="w-[13px] h-[13px] text-[#1D1B20]" strokeWidth={1.83} />
+                    <Minus className="w-[13px] h-[13px] text-[#1E1E1E]" strokeWidth={1.83} />
                   </button>
                 </div>
               </div>
@@ -299,18 +299,18 @@ function ImpressionGrid({
                 <div className="flex flex-row items-center gap-[5px]">
                   <button
                     className="w-[36px] h-[36px] flex items-center justify-center rounded-[8px] border border-[#B4B0B0] bg-white hover:bg-gray-50 transition-all"
-                    onClick={() => handleDecrement(impression)}
+                    onClick={() => handleImpressionClick(impression)}
                   >
-                    <Minus className="w-[15px] h-[15px] text-[#1E1E1E]" strokeWidth={1.83} />
+                    <Plus className="w-[15px] h-[15px] text-[#1D1B20]" strokeWidth={1.83} />
                   </button>
                   <span className="font-['Verdana'] font-normal text-sm lg:text-[18px] leading-[14px] tracking-[-0.02em] text-black text-center min-w-[30px] lg:min-w-[46px] flex items-center justify-center h-[31px]">
                     {qty}
                   </span>
                   <button
                     className="w-[36px] h-[36px] flex items-center justify-center rounded-[8px] border border-[#B4B0B0] bg-white hover:bg-gray-50 transition-all"
-                    onClick={() => handleImpressionClick(impression)}
+                    onClick={() => handleDecrement(impression)}
                   >
-                    <Plus className="w-[15px] h-[15px] text-[#1D1B20]" strokeWidth={1.83} />
+                    <Minus className="w-[15px] h-[15px] text-[#1E1E1E]" strokeWidth={1.83} />
                   </button>
                 </div>
               </div>
@@ -432,7 +432,7 @@ export function ImpressionSelectionModal({
                 "relative rounded-[12px] px-4 sm:px-6 pt-6 pb-5 transition-colors",
                 hasMainSelection
                   ? "border-2 border-[#22c55e]"
-                  : "border-2 border-dashed border-[#CF0202]"
+                  : "border-2 border-[#CF0202]"
               )}
             >
               {/* Floating label */}
@@ -461,7 +461,7 @@ export function ImpressionSelectionModal({
                   "relative rounded-[12px] px-4 sm:px-6 pt-6 pb-5 transition-colors",
                   hasOpposingSelection
                     ? "border-2 border-[#22c55e]"
-                    : "border-2 border-dashed border-[#CF0202]"
+                    : "border-2 border-[#CF0202]"
                 )}
               >
                 {/* Floating label */}

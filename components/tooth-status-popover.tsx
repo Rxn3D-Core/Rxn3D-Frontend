@@ -106,8 +106,9 @@ export const ToothStatusPopover: React.FC<ToothStatusPopoverProps> = ({
   options,
   currentCode,
   onSelect,
+  onRemove,
   onClose,
-  productImageUrl,
+  productImageUrl: _productImageUrl,
   arrowOffsetX = null,
   arrowDirection = 'down',
 }) => {
@@ -147,18 +148,6 @@ export const ToothStatusPopover: React.FC<ToothStatusPopoverProps> = ({
       className="relative z-50 bg-white border border-gray-200 hover:border-blue-500 shadow-xl p-3 flex flex-col gap-2 transition-colors"
     >
       {showArrow && arrowStyle && <div style={arrowStyle} aria-hidden="true" />}
-      {/* Product image header */}
-      {productImageUrl && (
-        <div className="flex items-center justify-center pb-2 border-b border-gray-100">
-          <img
-            src={productImageUrl}
-            alt="Product"
-            width={32}
-            height={32}
-            className="w-8 h-8 object-contain rounded flex-shrink-0"
-          />
-        </div>
-      )}
       <div className="flex gap-2">
         {options.filter((opt) => !isTeethInMouthCode(opt.code, opt.name)).map((opt) => {
           const isMissing = isMissingCode(opt.code, opt.name)
@@ -168,6 +157,7 @@ export const ToothStatusPopover: React.FC<ToothStatusPopoverProps> = ({
           return (
             <button
               key={opt.code}
+              type="button"
               onClick={() => {
                 onSelect(opt.code)
                 onClose?.()
@@ -195,6 +185,40 @@ export const ToothStatusPopover: React.FC<ToothStatusPopoverProps> = ({
             </button>
           )
         })}
+        {onRemove && currentCode && (
+          <button
+            type="button"
+            onClick={() => {
+              onRemove()
+              onClose?.()
+            }}
+            className="flex flex-col items-center justify-center p-2 border border-transparent hover:border-orange-500 hover:bg-orange-50 rounded-xl transition-all group w-[90px]"
+            title="Remove status"
+          >
+            <div className="w-full h-[90px] flex items-center justify-center">
+              <svg
+                width="40"
+                height="40"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                className="group-hover:scale-110 transition-transform"
+              >
+                <path
+                  d="M18 6L6 18M6 6L18 18"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="text-gray-600 group-hover:text-red-500"
+                />
+              </svg>
+            </div>
+            <span className="text-[10px] font-semibold text-center leading-tight text-gray-600 group-hover:text-orange-500">
+              Remove
+            </span>
+          </button>
+        )}
       </div>
     </div>
   )

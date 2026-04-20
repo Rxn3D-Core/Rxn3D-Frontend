@@ -118,7 +118,7 @@ export function GumShadePicker({ selected, onSelect, gumShades }: GumShadePicker
           </fieldset>
         ) : (
           <div className="h-[42px] flex items-center">
-            <span className="text-sm text-[#CF0202]">Select Gum shade</span>
+            <span className="text-[#cf0202] text-base font-medium flex items-center cursor-pointer">Select Gum shade</span>
           </div>
         )}
       </div>

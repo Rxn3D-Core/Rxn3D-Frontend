@@ -151,7 +151,7 @@ export function ToothShadeSelectionModal({
             </div>
 
             {/* SVG Container */}
-            <div className="w-full max-w-4xl flex items-center justify-center">
+            <div className="w-full max-w-4xl flex items-center justify-center overflow-visible">
               <ToothShadeSelectionSVG
                 selectedShades={selectedShades}
                 onShadeClick={handleShadeClick}

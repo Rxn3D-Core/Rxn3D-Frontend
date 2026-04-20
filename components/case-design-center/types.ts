@@ -414,6 +414,14 @@ export interface ProductApiData {
       image_url: string | null;
     };
   };
+  has_variation?: string | boolean | null;
+  variations?: Array<{
+    id?: number;
+    sort_order?: number;
+    image_url?: string | null;
+    teeth_spec?: string | null;
+    name_template?: string | null;
+  }>;
 }
 
 /** Product selected for a specific tooth in Prep/Pontic flow */

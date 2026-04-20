@@ -17,8 +17,6 @@ import { hasAdvanceField } from "./FixedRestorationFields";
 
 export function CaseDesignCenter(props: CaseDesignProps) {
   const state = useCaseDesignState(props);
-  const maxillaryCheckedTeethRef = useRef<number[]>([]);
-  const mandibularCheckedTeethRef = useRef<number[]>([]);
   const maxillaryImplantDetailRef = useRef<Record<number, import("./ImplantDetailSection").ImplantDetailData>>({});
   const mandibularImplantDetailRef = useRef<Record<number, import("./ImplantDetailSection").ImplantDetailData>>({});
 
@@ -506,10 +504,6 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           }).filter((e) => e.extraction_id !== 0);
         }
 
-        const checkedTeeth = arch === "maxillary"
-          ? maxillaryCheckedTeethRef.current
-          : mandibularCheckedTeethRef.current;
-
         const implantDetailMap = arch === "maxillary"
           ? maxillaryImplantDetailRef.current
           : mandibularImplantDetailRef.current;
@@ -537,7 +531,6 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           selectedShades: { ...(state.selectedShades ?? {}) },
           shadeGuide: state.selectedShadeGuide ?? "Vita Classical",
           ...(oppositeExtractions ? { oppositeExtractions } : {}),
-          ...(checkedTeeth.length > 0 ? { checkedTeeth } : {}),
           ...(hasImplantDetail ? { implantDetailByTooth: relevantImplantDetail } : {}),
         });
       });
@@ -708,7 +701,6 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           }
           opposingToothExtractionMap={state.opposingToothExtractionMap}
           onOpposingExtractionToggle={state.handleOpposingExtractionToggle}
-          onCheckedTeethChange={(teeth) => { maxillaryCheckedTeethRef.current = teeth; }}
           onImplantDetailChange={(detail) => { maxillaryImplantDetailRef.current = detail; }}
         />
 
@@ -828,7 +820,6 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           }
           opposingToothExtractionMap={state.opposingToothExtractionMap}
           onOpposingExtractionToggle={state.handleOpposingExtractionToggle}
-          onCheckedTeethChange={(teeth) => { mandibularCheckedTeethRef.current = teeth; }}
           onImplantDetailChange={(detail) => { mandibularImplantDetailRef.current = detail; }}
         />
       </div>
