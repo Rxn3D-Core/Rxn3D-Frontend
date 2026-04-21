@@ -540,7 +540,7 @@ export default function RetentionOptionPage() {
             fetchRetentionOptions()
           }}
           entityType="retention-option"
-          context="global"
+          context="lab"
         />
         <DeleteConfirmationModal
           isOpen={showDeleteModal}

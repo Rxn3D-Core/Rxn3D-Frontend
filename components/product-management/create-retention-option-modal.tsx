@@ -493,7 +493,7 @@ export function CreateRetentionOptionModal({ isOpen, onClose, option, isCopying 
                                                 <img
                                                     src={imagePreview}
                                                     alt="Retention option image"
-                                                    className="absolute inset-0 w-full h-full object-cover"
+                                                    className="absolute inset-0 w-full h-full object-contain"
                                                 />
                                             ) : (
                                                 <div className="flex flex-col items-center text-gray-500 group-hover:text-gray-600">

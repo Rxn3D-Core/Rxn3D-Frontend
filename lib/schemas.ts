@@ -561,6 +561,10 @@ export const ExtractionSchema = z.object({
   status: z.enum(["Active", "Inactive"]),
   customer_id: z.number().nullable(),
   is_custom: z.enum(["Yes", "No"]),
+  /** When Yes, catalog can show an extraction image (see image_url). */
+  is_image_extraction: z.enum(["Yes", "No"]).optional(),
+  /** Public URL for the extraction image when present. */
+  image_url: z.string().nullable().optional(),
   created_at: z.string(),
   updated_at: z.string(),
   deleted_at: z.string().nullable(),
@@ -600,6 +604,8 @@ export const CreateExtractionSchema = z.object({
     .url("URL must be valid")
     .nullable()
     .optional(),
+  /** When Yes, API expects base64 image in the `image` field (see ExtractionsApi). */
+  is_image_extraction: z.enum(["Yes", "No"]).default("No"),
 })
 
 export const UpdateExtractionSchema = z.object({
@@ -614,6 +620,7 @@ export const UpdateExtractionSchema = z.object({
     .url("URL must be valid")
     .nullable()
     .optional(),
+  is_image_extraction: z.enum(["Yes", "No"]).optional(),
 })
 
 export const ExtractionsFiltersSchema = z.object({
@@ -633,6 +640,11 @@ export type Extraction = z.infer<typeof ExtractionSchema>
 export type ExtractionsPagination = z.infer<typeof ExtractionsPaginationSchema>
 export type ExtractionsListResponse = z.infer<typeof ExtractionsListResponseSchema>
 export type ExtractionsResponse = z.infer<typeof ExtractionsResponseSchema>
-export type CreateExtractionPayload = z.infer<typeof CreateExtractionSchema>
-export type UpdateExtractionPayload = z.infer<typeof UpdateExtractionSchema>
+export type CreateExtractionPayload = z.infer<typeof CreateExtractionSchema> & {
+  /** Base64 data URL or raw base64 — backend Base64Image rule (max 5MB). */
+  image?: string | null
+}
+export type UpdateExtractionPayload = z.infer<typeof UpdateExtractionSchema> & {
+  image?: string | null
+}
 export type ExtractionsFilters = z.infer<typeof ExtractionsFiltersSchema>

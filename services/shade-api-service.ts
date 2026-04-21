@@ -80,11 +80,11 @@ export interface GumShadeSystemsResponse {
 
 // Preferred Gum Shades API Types
 export interface PreferredGumShadeBrand {
-  id: number;
-  name: string;
-  system_name: string;
-  status: string;
-  sequence: number;
+  id: number | null;
+  name: string | null;
+  system_name: string | null;
+  status: string | null;
+  sequence: number | null;
   translations: any[];
 }
 
@@ -132,11 +132,11 @@ export interface UpdatePreferredGumShadeBrandResponse {
 
 // Preferred Teeth Shades API Types
 export interface PreferredTeethShadeBrand {
-  id: number;
-  name: string;
-  system_name: string;
-  status: string;
-  sequence: number;
+  id: number | null;
+  name: string | null;
+  system_name: string | null;
+  status: string | null;
+  sequence: number | null;
   translations: any[];
 }
 
@@ -155,6 +155,8 @@ export interface PreferredTeethShadesResponse {
   data: {
     customer_id: number;
     customer_type: "lab" | "office";
+    /** When false, UI should prompt to set a preferred guide (API may still return a fallback brand). */
+    has_explicit_preference?: boolean;
     preferred_brand: PreferredTeethShadeBrand;
     shades: PreferredTeethShade[];
   };

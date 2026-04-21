@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { shadeApiService, PreferredGumShadesResponse, PreferredGumShadeBrand, PreferredGumShade } from '@/services/shade-api-service'
+import { usePreferredShadeGuideStore } from '@/stores/preferred-shade-guide-store'
 
 interface UsePreferredGumShadesProps {
   customerId: number
@@ -10,6 +11,7 @@ interface UsePreferredGumShadesReturn {
   data: PreferredGumShadesResponse | null
   brand: PreferredGumShadeBrand | null
   shades: PreferredGumShade[]
+  hasExplicitPreference: boolean | undefined
   loading: boolean
   error: string | null
   refetch: () => Promise<void>
@@ -33,16 +35,18 @@ export function usePreferredGumShades({
     dataRef.current = data
   }, [data])
 
-  const fetchPreferredGumShades = useCallback(async () => {
-    // Prevent concurrent fetches
-    if (isFetchingRef.current && customerId === lastCustomerIdRef.current) {
+  const fetchPreferredGumShades = useCallback(async (options?: { force?: boolean }) => {
+    if (isFetchingRef.current && !options?.force) {
       return
     }
-    
+
     if (!enabled || !customerId) return
 
-    // Skip if customerId hasn't changed and we already have data (use ref to avoid dependency cycle)
-    if (customerId === lastCustomerIdRef.current && dataRef.current !== null) {
+    if (
+      !options?.force &&
+      customerId === lastCustomerIdRef.current &&
+      dataRef.current !== null
+    ) {
       return
     }
 
@@ -55,6 +59,10 @@ export function usePreferredGumShades({
       const response = await shadeApiService.getPreferredGumShades({ customer_id: customerId })
       setData(response)
       dataRef.current = response
+      const explicit = response.data?.has_explicit_preference
+      if (typeof explicit === 'boolean') {
+        usePreferredShadeGuideStore.getState().setGumExplicit(explicit)
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch preferred gum shades'
       setError(errorMessage)
@@ -73,13 +81,13 @@ export function usePreferredGumShades({
         customer_id: customerId,
         preferred_gum_shade_brand_id: brandId
       })
-      
-      // Refetch data after updating brand
-      await fetchPreferredGumShades()
+
+      await fetchPreferredGumShades({ force: true })
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to update preferred brand'
       setError(errorMessage)
       console.error('Error updating preferred brand:', err)
+      throw err
     }
   }, [customerId, fetchPreferredGumShades])
 
@@ -87,13 +95,16 @@ export function usePreferredGumShades({
     fetchPreferredGumShades()
   }, [customerId, enabled, fetchPreferredGumShades])
 
+  const explicit = data?.data?.has_explicit_preference
+
   return {
     data,
     brand: data?.data.preferred_brand || null,
     shades: data?.data.shades || [],
+    hasExplicitPreference: typeof explicit === 'boolean' ? explicit : undefined,
     loading,
     error,
-    refetch: fetchPreferredGumShades,
+    refetch: () => fetchPreferredGumShades({ force: true }),
     updateBrand
   }
 }

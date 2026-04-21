@@ -186,7 +186,7 @@ export function AddLabProductModal({
   const [sections, setSections] = useState({
     productDetails: true,
     variation: false,
-    grades: false,
+    grades: true,
     stages: true,
     impressions: true,
     gumShade: true,
@@ -311,7 +311,7 @@ export function AddLabProductModal({
     retentions: [],
     addons: [],
     extractions: [],
-    has_grade_based_pricing: "No",
+    has_grade_based_pricing: "Yes",
     default_grade_id: undefined,
     enable_auto_billing: "Yes",
     auto_billing_days: 31,
@@ -1221,7 +1221,7 @@ export function AddLabProductModal({
       setSections({
         productDetails: true,
         variation: false,
-        grades: false,
+        grades: true,
         stages: true,
         impressions: true,
         gumShade: true,

@@ -10,6 +10,9 @@ import { useAuth } from "@/contexts/auth-context"
 import { ChevronDown, ChevronRight } from "lucide-react"
 import { useCasePanTrackingLabelStore } from "@/stores/case-pan-tracking-label-store"
 import { useProductLibraryWarningsStore } from "@/stores/product-library-warnings-store"
+import { usePreferredShadeGuideStore } from "@/stores/preferred-shade-guide-store"
+import { shadeApiService } from "@/services/shade-api-service"
+import { getCustomerId } from "@/lib/dashboard-widgets"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 type SideTabItem = {
@@ -34,6 +37,9 @@ export function ProductSidebar({ activeTab = "products", onTabChange }: ProductS
   const pathname = usePathname() || "";
   const { t } = useTranslation()
   const { user } = useAuth()
+  const customerId = useMemo(() => getCustomerId(user), [user])
+  const teethExplicit = usePreferredShadeGuideStore((s) => s.teethExplicit)
+  const gumExplicit = usePreferredShadeGuideStore((s) => s.gumExplicit)
   const [expandedItems, setExpandedItems] = useState<string[]>([])
 
   // Get user role from auth context
@@ -52,6 +58,32 @@ export function ProductSidebar({ activeTab = "products", onTabChange }: ProductS
   const itemHasWarning = (itemId: string) => warnings.has(itemId)
   // "Products" parent shows warning if any warnable item has one
   const productsHasWarning = warnings.size > 0
+
+  useEffect(() => {
+    if (!customerId) {
+      usePreferredShadeGuideStore.getState().setTeethExplicit(null)
+      usePreferredShadeGuideStore.getState().setGumExplicit(null)
+      return
+    }
+    let cancelled = false
+    Promise.all([
+      shadeApiService.getPreferredTeethShades({ customer_id: customerId }),
+      shadeApiService.getPreferredGumShades({ customer_id: customerId }),
+    ])
+      .then(([teethRes, gumRes]) => {
+        if (cancelled) return
+        const t = teethRes.data?.has_explicit_preference
+        const g = gumRes.data?.has_explicit_preference
+        usePreferredShadeGuideStore.getState().setTeethExplicit(typeof t === "boolean" ? t : null)
+        usePreferredShadeGuideStore.getState().setGumExplicit(typeof g === "boolean" ? g : null)
+      })
+      .catch(() => {
+        if (cancelled) return
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [customerId])
 
   const sidebarGroups: SidebarGroup[] = useMemo(() => [
     {
@@ -179,6 +211,10 @@ export function ProductSidebar({ activeTab = "products", onTabChange }: ProductS
         {flatItems.filter(item => item.id !== "material").map((item) => {
           const itemActive = isActive(item.href)
           const showWarning = itemHasWarning(item.id)
+          const showPreferredShadeGuideWarning =
+            !!customerId &&
+            ((item.id === "teeth-shade" && teethExplicit === false) ||
+              (item.id === "gum-shade" && gumExplicit === false))
           return (
             <Link
               key={item.id}
@@ -192,6 +228,7 @@ export function ProductSidebar({ activeTab = "products", onTabChange }: ProductS
             >
               {item.label}
               {showWarning && <SidebarWarningIcon itemType={item.label} />}
+              {showPreferredShadeGuideWarning && <SidebarPreferredShadeGuideWarningIcon />}
             </Link>
           )
         })}
@@ -302,6 +339,27 @@ function SidebarGroupItem({ group, isExpanded, hasActiveItem, isActive, toggleEx
         </div>
       )}
     </div>
+  )
+}
+
+/** Warning icon when no default preferred shade guide has been saved for this customer */
+function SidebarPreferredShadeGuideWarningIcon() {
+  const { t } = useTranslation()
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="flex-shrink-0 cursor-help" aria-label={t("Select default shade guide.", "Select default shade guide.")}>
+          <svg width="18" height="16" viewBox="0 0 18 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M9 0L18 16H0L9 0Z" fill="#EDBA29" />
+            <rect x="8" y="4" width="2" height="7" rx="1" fill="#000" />
+            <circle cx="9" cy="13" r="1.2" fill="#000" />
+          </svg>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="right" className="max-w-[250px] text-sm">
+        {t("Select default shade guide.", "Select default shade guide.")}
+      </TooltipContent>
+    </Tooltip>
   )
 }
 

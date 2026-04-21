@@ -897,7 +897,7 @@ export function CreateRetentionModal({ isOpen, onClose, retention, isCopying = f
                     <img
                       src={variationFormData.imagePreview}
                       alt="Preview"
-                      className="object-cover h-full w-full rounded-xl"
+                      className="object-contain h-full w-full rounded-xl"
                     />
                   ) : (
                     <div className="flex flex-col items-center text-gray-500 group-hover:text-gray-600">

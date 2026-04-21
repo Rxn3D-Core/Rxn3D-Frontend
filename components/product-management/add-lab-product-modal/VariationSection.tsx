@@ -347,7 +347,7 @@ export function VariationSection({
                         <img
                           src={imageSrc}
                           alt="variation"
-                          className="h-full w-full object-cover"
+                          className="h-full w-full object-contain"
                         />
                       ) : (
                         <ImageIcon className="h-5 w-5" style={{ color: "#545F71" }} />
@@ -405,29 +405,30 @@ export function VariationSection({
                       }}
                       aria-label="Variation name template"
                     />
-                    <TooltipProvider delayDuration={200}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-8 w-full text-[11px] border-[#1162a8] text-[#1162a8] hover:bg-[#1162a8]/10 px-2"
-                            onClick={() => handleInsertToothCount(index)}
-                            disabled={hasToken}
-                            aria-label="Insert tooth count placeholder at cursor"
-                          >
-                            Insert tooth count
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="max-w-xs">
-                          <p className="text-xs">
-                            Inserts the placeholder where the tooth number will appear in the catalog name. Click in the
-                            name field first to choose the position; otherwise it is added at the end.
-                          </p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                    {!hasToken && (
+                      <TooltipProvider delayDuration={200}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-8 w-full text-[11px] border-[#1162a8] text-[#1162a8] hover:bg-[#1162a8]/10 px-2"
+                              onClick={() => handleInsertToothCount(index)}
+                              aria-label="Insert tooth count placeholder at cursor"
+                            >
+                              Insert tooth count
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-xs">
+                            <p className="text-xs">
+                              Inserts the placeholder where the tooth number will appear in the catalog name. Click in the
+                              name field first to choose the position; otherwise it is added at the end.
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
                     <p className="text-[9px] text-gray-500 leading-snug">
                       <code className="bg-gray-100 px-0.5 rounded">{NAME_PLACEHOLDER_TOKEN}</code> is filled in Preview.
                     </p>

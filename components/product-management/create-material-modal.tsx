@@ -979,7 +979,7 @@ export function CreateMaterialModal({ isOpen, onClose, material }: CreateMateria
                         <img
                           src={materialImagePreview}
                           alt="Material preview"
-                          className="object-cover h-full w-full rounded-xl"
+                          className="object-contain h-full w-full rounded-xl"
                         />
                       ) : (
                         <div className="flex flex-col items-center text-gray-500 group-hover:text-gray-600">
@@ -1195,7 +1195,7 @@ export function CreateMaterialModal({ isOpen, onClose, material }: CreateMateria
                                 <img
                                   src={variation.imagePreview}
                                   alt={variation.name}
-                                  className="w-12 h-12 object-cover rounded-lg"
+                                  className="w-12 h-12 object-contain rounded-lg"
                                 />
                               ) : (
                                 <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center">
@@ -1274,7 +1274,7 @@ export function CreateMaterialModal({ isOpen, onClose, material }: CreateMateria
                                 <img
                                   src={variation.image_url}
                                   alt={variation.name}
-                                  className="w-12 h-12 object-cover rounded-lg"
+                                  className="w-12 h-12 object-contain rounded-lg"
                                 />
                               ) : (
                                 <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center">
@@ -1391,7 +1391,7 @@ export function CreateMaterialModal({ isOpen, onClose, material }: CreateMateria
                     <img
                       src={variationFormData.imagePreview}
                       alt="Preview"
-                      className="object-cover h-full w-full rounded-xl"
+                      className="object-contain h-full w-full rounded-xl"
                     />
                   ) : (
                     <div className="flex flex-col items-center text-gray-500 group-hover:text-gray-600">

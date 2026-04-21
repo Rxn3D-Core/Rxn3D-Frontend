@@ -78,9 +78,13 @@ export function AddSubCategoryModal({
   const [isCustomValue, setIsCustomValue] = useState<string | undefined>(undefined)
   const [disableEditFields, setDisableEditFields] = useState(false)
 
-  // Image state management
-  const [imageBase64, setImageBase64] = useState<string | null>(null)
-  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  // Image: existing URL from API is display-only; only FileReader data URLs are sent as `image` (base64).
+  const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null)
+  const [newImageDataUrl, setNewImageDataUrl] = useState<string | null>(null)
+  /** Snapshot of image_url when detail/copy loads — used to detect removal and to omit `image` when unchanged. */
+  const loadedImageUrlRef = useRef<string | null>(null)
+  const [imageDirty, setImageDirty] = useState(false)
+  const imagePreview = newImageDataUrl ?? existingImageUrl
   const [showPreviewModal, setShowPreviewModal] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -92,16 +96,6 @@ export function AddSubCategoryModal({
 
   // Use disableAllFields to override disableEditFields, but allow superadmin to edit
   const effectiveDisableFields = isSuperAdmin ? false : (disableAllFields || disableEditFields)
-
-  // Initialize image when editing
-  useEffect(() => {
-    if (editId && detailLoadedId) {
-      // Image will be loaded from the detail data in the main useEffect
-    } else {
-      setImageBase64(null)
-      setImagePreview(null)
-    }
-  }, [editId, detailLoadedId])
 
   // Always fetch detail in edit mode
   useEffect(() => {
@@ -120,14 +114,11 @@ export function AddSubCategoryModal({
       setIsCustomValue(undefined)
       setDisableEditFields(false)
       
-      // Set image if available
-      if ((copyingSubCategory as any).image_url) {
-        setImageBase64((copyingSubCategory as any).image_url)
-        setImagePreview((copyingSubCategory as any).image_url)
-      } else {
-        setImageBase64(null)
-        setImagePreview(null)
-      }
+      const copyImg = (copyingSubCategory as any).image_url ?? null
+      loadedImageUrlRef.current = copyImg
+      setExistingImageUrl(copyImg)
+      setNewImageDataUrl(null)
+      setImageDirty(false)
       fetchCasePans()
       fetchParentDropdownCategories()
     } else if (isOpen && editId && !isCopying) {
@@ -147,14 +138,11 @@ export function AddSubCategoryModal({
           setDetailLoadedId(editId)
           setIsCustomValue((detail as any).is_custom)
           
-          // Set image if available
-          if (detail.image_url) {
-            setImageBase64(detail.image_url)
-            setImagePreview(detail.image_url)
-          } else {
-            setImageBase64(null)
-            setImagePreview(null)
-          }
+          const detailImg = detail.image_url ?? null
+          loadedImageUrlRef.current = detailImg
+          setExistingImageUrl(detailImg)
+          setNewImageDataUrl(null)
+          setImageDirty(false)
         }
         setIsDetailLoading(false)
       })
@@ -200,9 +188,9 @@ export function AddSubCategoryModal({
       formData.status !== initialFormData.status ||
       formData.case_pan_id !== initialFormData.case_pan_id ||
       formData.parent_id !== initialFormData.parent_id ||
-      imageBase64 !== null
+      imageDirty
     setHasChanges(hasFormChanges)
-  }, [formData, initialFormData, imageBase64])
+  }, [formData, initialFormData, imageDirty])
 
   const handleInputChange = (field: string, value: string | number | null) => {
     if (value === NO_PARENT_CATEGORIES_VALUE) {
@@ -235,8 +223,10 @@ export function AddSubCategoryModal({
     setFormData(initialFormData)
     setCategoryDetailsEnabled(true)
     setHasChanges(false)
-    setImageBase64(null)
-    setImagePreview(null)
+    loadedImageUrlRef.current = null
+    setExistingImageUrl(null)
+    setNewImageDataUrl(null)
+    setImageDirty(false)
   }
 
   const handleClose = () => {
@@ -268,15 +258,13 @@ export function AddSubCategoryModal({
     if (file) {
       const reader = new FileReader()
       reader.onloadend = () => {
-        setImagePreview(reader.result as string)
-        setImageBase64(reader.result as string)
-        setHasChanges(true)
+        setNewImageDataUrl(reader.result as string)
+        setImageDirty(true)
       }
       reader.readAsDataURL(file)
     } else {
-      setImagePreview(null)
-      setImageBase64(null)
-      setHasChanges(true)
+      setNewImageDataUrl(null)
+      setImageDirty(true)
     }
     // Clear the input value to allow re-selecting the same file
     if (fileInputRef.current) {
@@ -285,9 +273,9 @@ export function AddSubCategoryModal({
   }
 
   const handleRemoveImage = () => {
-    setImagePreview(null)
-    setImageBase64(null)
-    setHasChanges(true)
+    setExistingImageUrl(null)
+    setNewImageDataUrl(null)
+    setImageDirty(true)
     // Clear the file input value
     if (fileInputRef.current) {
       fileInputRef.current.value = ""
@@ -324,7 +312,7 @@ export function AddSubCategoryModal({
       return
     }
 
-    const payload = {
+    const basePayload = {
       name: formData.name,
       code: formData.code,
       type: formData.type,
@@ -333,8 +321,18 @@ export function AddSubCategoryModal({
       parent_id: formData.parent_id,
       case_pan_id: formData.case_pan_id,
       category_id: formData.parent_id,
-      ...(imageBase64 && { image: imageBase64 }),
     }
+
+    // Only send `image` when the user chose a new file (base64 data URL). Never send API image URLs.
+    const imagePayload: { image?: string | null } = {}
+    if (newImageDataUrl) {
+      imagePayload.image = newImageDataUrl
+    } else if (editId && !isCopying && loadedImageUrlRef.current && !existingImageUrl && !newImageDataUrl) {
+      // User removed an image that existed on the server
+      imagePayload.image = null
+    }
+
+    const payload = { ...basePayload, ...imagePayload }
 
     let success = false
     try {
@@ -467,7 +465,7 @@ export function AddSubCategoryModal({
                             <img
                               src={imagePreview}
                               alt="Preview"
-                              className="object-cover h-full w-full rounded-xl"
+                              className="object-contain h-full w-full rounded-xl"
                             />
                           ) : (
                             <div className="flex flex-col items-center text-gray-500 group-hover:text-gray-600">

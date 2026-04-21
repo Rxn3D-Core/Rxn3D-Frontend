@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { X, Maximize2, Info } from "lucide-react"
+import { X, Maximize2, Info, Image as ImageIcon } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,13 +9,21 @@ import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { ColorPicker } from "@/components/ui/color-picker"
 import { DiscardChangesDialog } from "@/components/product-management/discard-changes-dialog"
-import { useForm } from "react-hook-form"
+import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { useTranslation } from "react-i18next"
 import { useExtractionForm } from "@/hooks/use-extractions"
 import { CreateExtractionSchema } from "@/lib/schemas"
 import { generateCodeFromName } from "@/lib/utils"
+import { useToast } from "@/hooks/use-toast"
+import {
+  Tooltip as HelpTooltip,
+  TooltipContent as HelpTooltipContent,
+  TooltipProvider as HelpTooltipProvider,
+  TooltipTrigger as HelpTooltipTrigger,
+} from "@/components/ui/tooltip"
+
+const MAX_EXTRACTION_IMAGE_BYTES = 5120 * 1024
 
 // Use the CreateExtractionSchema from schemas.ts
 type ToothStatusForm = z.infer<typeof CreateExtractionSchema>
@@ -29,6 +37,9 @@ interface ToothStatus {
   initial_loading: boolean
   active: boolean
   description?: string | null
+  is_image_extraction?: "Yes" | "No"
+  /** Resolved URL for display when editing (from API `image_url`). */
+  image_url?: string | null
 }
 
 interface CreateToothStatusModalProps {
@@ -77,7 +88,7 @@ export function CreateToothStatusModal({
 }: CreateToothStatusModalProps) {
   const [isMaximized, setIsMaximized] = useState(false)
   const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false)
-  const { t } = useTranslation()
+  const { toast } = useToast()
   const previousToothStatusIdRef = useRef<number | undefined>(undefined)
   const previousToothStatusLoadingRef = useRef<boolean | undefined>(undefined)
 
@@ -90,6 +101,7 @@ export function CreateToothStatusModal({
     reset,
     watch,
     setValue,
+    control,
     formState: { isDirty, errors },
   } = useForm<ToothStatusForm>({
     resolver: zodResolver(CreateExtractionSchema),
@@ -100,11 +112,21 @@ export function CreateToothStatusModal({
       color: "#F5E6D3",
       sequence: 1,
       status: "Active",
+      is_image_extraction: "No",
     },
   })
 
   const watchedColor = watch("color")
   const watchedName = watch("name")
+  const watchedIsImageExtraction = watch("is_image_extraction")
+
+  /** New upload (base64 data URL). */
+  const [imageBase64, setImageBase64] = useState<string | null>(null)
+  /** Existing image URL from API when editing (not sent back unless replaced). */
+  const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
+
+  const previewSrc = imageBase64 ?? existingImageUrl
   const isDetailLoading = Boolean(toothStatus?.initial_loading)
 
   // Auto-generate code when name changes (only in create mode)
@@ -146,7 +168,10 @@ export function CreateToothStatusModal({
           color: toothStatus.color,
           sequence: toothStatus.sequence || 1,
           status: toothStatus.active ? "Active" : "Inactive",
+          is_image_extraction: toothStatus.is_image_extraction ?? "No",
         })
+        setImageBase64(null)
+        setExistingImageUrl(isCopying ? null : (toothStatus.image_url ?? null))
       } else {
         reset({
           name: "",
@@ -155,7 +180,10 @@ export function CreateToothStatusModal({
           color: "#F5E6D3",
           sequence: 1,
           status: "Active",
+          is_image_extraction: "No",
         })
+        setImageBase64(null)
+        setExistingImageUrl(null)
       }
       previousToothStatusIdRef.current = currentId
     }
@@ -168,6 +196,13 @@ export function CreateToothStatusModal({
       previousToothStatusLoadingRef.current = undefined
     }
   }, [isOpen, toothStatus, reset, isCopying])
+
+  useEffect(() => {
+    if (!isOpen) {
+      setImageBase64(null)
+      setExistingImageUrl(null)
+    }
+  }, [isOpen])
 
   useEffect(() => {
     onChanges(isDirty)
@@ -202,6 +237,43 @@ export function CreateToothStatusModal({
     return trimmed.length > 0 ? trimmed : null
   }
 
+  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const allowed = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"]
+    if (!allowed.includes(file.type)) {
+      toast({
+        title: "Invalid file type",
+        description: "Please upload a JPG, JPEG, PNG, GIF, or WebP image.",
+        variant: "destructive",
+      })
+      e.target.value = ""
+      return
+    }
+    if (file.size > MAX_EXTRACTION_IMAGE_BYTES) {
+      toast({
+        title: "File too large",
+        description: "Image size must be 5MB or less.",
+        variant: "destructive",
+      })
+      e.target.value = ""
+      return
+    }
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      setImageBase64(reader.result as string)
+      setValue("is_image_extraction", "Yes", { shouldDirty: true })
+    }
+    reader.readAsDataURL(file)
+    e.target.value = ""
+  }
+
+  const handleRemoveImage = () => {
+    setImageBase64(null)
+    setExistingImageUrl(null)
+    setValue("is_image_extraction", "No", { shouldDirty: true })
+  }
+
   const onSubmit = async (data: ToothStatusForm) => {
     try {
       // Ensure color is always a hex value
@@ -210,6 +282,27 @@ export function CreateToothStatusModal({
         : getHexColor(data.color || 'blue')
 
       const normalizedDescription = normalizeDescription(data.description)
+
+      if (data.is_image_extraction === "Yes") {
+        const hasNew = Boolean(imageBase64?.trim())
+        const hasExisting = Boolean(existingImageUrl?.trim()) && mode === "edit" && toothStatus?.id && !isCopying
+        if (!hasNew && !hasExisting) {
+          toast({
+            title: "Image required",
+            description: "Upload an image when “Image for extraction” is enabled.",
+            variant: "destructive",
+          })
+          return
+        }
+      }
+
+      const imageFields =
+        data.is_image_extraction === "No"
+          ? { is_image_extraction: "No" as const, image: null as string | null }
+          : {
+              is_image_extraction: "Yes" as const,
+              ...(imageBase64 ? { image: imageBase64 } : {}),
+            }
       
       if (mode === "create" || isCopying) {
         // Create new extraction (including when copying)
@@ -220,6 +313,7 @@ export function CreateToothStatusModal({
           color: hexColor,
           sequence: data.sequence,
           status: data.status,
+          ...imageFields,
         }, {
           onSuccess: () => {
             reset()
@@ -245,6 +339,7 @@ export function CreateToothStatusModal({
             color: hexColor,
             sequence: data.sequence,
             status: data.status,
+            ...imageFields,
           }
         }, {
           onSuccess: () => {
@@ -314,11 +409,6 @@ export function CreateToothStatusModal({
                 <div className="flex items-center gap-2">
                   <h3 className="text-base sm:text-lg font-medium">Tooth Status details</h3>
                   <Info className="h-4 w-4 text-gray-400" />
-                  <Switch
-                    checked={true}
-                    onCheckedChange={() => {}}
-                    className="data-[state=checked]:bg-[#1162a8]"
-                  />
                 </div>
 
                 <div className="space-y-3 sm:space-y-4">
@@ -375,6 +465,89 @@ export function CreateToothStatusModal({
                       placeholder="Enter your description. This description will appear as a tooltip for the tooth status."
                       className="w-full min-h-[80px] sm:min-h-[100px] resize-none"
                     />
+                  </div>
+
+                  <div className="rounded-lg border border-gray-100 bg-gray-50/50 p-3 sm:p-4 space-y-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Controller
+                        name="is_image_extraction"
+                        control={control}
+                        render={({ field }) => (
+                          <Switch
+                            checked={field.value === "Yes"}
+                            onCheckedChange={(checked) => {
+                              field.onChange(checked ? "Yes" : "No")
+                              if (!checked) {
+                                setImageBase64(null)
+                                setExistingImageUrl(null)
+                              }
+                            }}
+                            className="data-[state=checked]:bg-[#1162a8]"
+                          />
+                        )}
+                      />
+                      <label className="text-sm font-medium text-gray-700">Image for extraction</label>
+                      <HelpTooltipProvider>
+                        <HelpTooltip>
+                          <HelpTooltipTrigger asChild>
+                            <button
+                              type="button"
+                              className="inline-flex rounded-full p-0.5 text-gray-400 hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162a8]"
+                              aria-label="Image for extraction help"
+                            >
+                              <Info className="h-4 w-4" />
+                            </button>
+                          </HelpTooltipTrigger>
+                          <HelpTooltipContent side="bottom" className="max-w-xs">
+                            <p className="text-xs">
+                              When enabled, upload a reference image (JPG, PNG, GIF, or WebP, max 5MB). The API stores it as
+                              base64-compatible data.
+                            </p>
+                          </HelpTooltipContent>
+                        </HelpTooltip>
+                      </HelpTooltipProvider>
+                    </div>
+
+                    {watchedIsImageExtraction === "Yes" && (
+                      <div className="flex flex-col items-start gap-2">
+                        <button
+                          type="button"
+                          onClick={() => imageInputRef.current?.click()}
+                          className="relative flex h-28 w-28 sm:h-32 sm:w-32 shrink-0 items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-gray-300 bg-gradient-to-br from-gray-50 to-gray-100 transition hover:border-gray-400"
+                        >
+                          {previewSrc ? (
+                            <img
+                              src={previewSrc}
+                              alt="Extraction"
+                              className="max-h-full max-w-full object-contain p-1"
+                            />
+                          ) : (
+                            <div className="flex flex-col items-center justify-center gap-1 px-2 text-gray-500">
+                              <ImageIcon className="h-8 w-8" />
+                              <span className="text-[10px] font-medium leading-tight text-center">Upload</span>
+                            </div>
+                          )}
+                        </button>
+                        <input
+                          ref={imageInputRef}
+                          type="file"
+                          accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                          className="hidden"
+                          onChange={handleImageFileChange}
+                        />
+                        {previewSrc && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            type="button"
+                            className="text-xs text-red-600 hover:bg-red-50"
+                            onClick={handleRemoveImage}
+                          >
+                            Remove image
+                          </Button>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div>

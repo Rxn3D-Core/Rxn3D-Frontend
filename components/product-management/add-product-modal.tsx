@@ -51,6 +51,20 @@ interface AddProductModalProps {
 
 const NO_SUBCATEGORIES_VALUE = "__NO_SUBCATEGORIES__"
 
+const ADD_PRODUCT_MODAL_TABS: { id: string; label: string; sectionKey: string | null }[] = [
+  { id: "details", label: "Product Details", sectionKey: "productDetails" },
+  { id: "variation", label: "Variation", sectionKey: null },
+  { id: "grades", label: "Grades", sectionKey: "grades" },
+  { id: "stages", label: "Stages", sectionKey: "stages" },
+  { id: "impressions", label: "Impressions", sectionKey: "impressions" },
+  { id: "gumShade", label: "Gum Shade", sectionKey: "gumShade" },
+  { id: "teethShade", label: "Teeth Shade", sectionKey: "teethShade" },
+  { id: "material", label: "Material", sectionKey: "material" },
+  { id: "addOns", label: "Add-Ons", sectionKey: "addOns" },
+  { id: "retention", label: "Retention", sectionKey: "retention" },
+  { id: "extractions", label: "Extractions", sectionKey: "extractions" },
+]
+
 const placeholderOffices = [
   { id: 1, name: "Dental Lab 1", is_visible: "Yes" },
   { id: 2, name: "Dental Lab 2", is_visible: "Yes" },
@@ -139,7 +153,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
   const [sections, setSections] = useState({
     productDetails: true,
     variation: true,
-    grades: false,
+    grades: true,
     stages: true,
     impressions: true,
     gumShade: true,
@@ -165,27 +179,19 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
     visibilityManagement: true,
   })
 
-  const tabs = [
-    { id: "details", label: "Product Details", sectionKey: "productDetails" },
-    { id: "variation", label: "Variation", sectionKey: null },
-    { id: "grades", label: "Grades", sectionKey: "grades" },
-    { id: "stages", label: "Stages", sectionKey: "stages" },
-    { id: "impressions", label: "Impressions", sectionKey: "impressions" },
-    { id: "gumShade", label: "Gum Shade", sectionKey: "gumShade" },
-    { id: "teethShade", label: "Teeth Shade", sectionKey: "teethShade" },
-    { id: "material", label: "Material", sectionKey: "material" },
-    { id: "addOns", label: "Add-Ons", sectionKey: "addOns" },
-    { id: "retention", label: "Retention", sectionKey: "retention" },
-    { id: "extractions", label: "Extractions", sectionKey: "extractions" },
-  ]
+  const tabs = ADD_PRODUCT_MODAL_TABS
 
-  // Show all tabs when editing, progressive reveal when creating
-  // Initialize section toggles from product data arrays
   // Show all tabs when editing, progressive reveal when creating
   useEffect(() => {
     if (isOpen && editingProduct) {
       setActiveTab("details")
-      setVisibleTabs(new Set(tabs.map(tab => tab.id)))
+      const teethOn =
+        editingProduct.is_teeth_based_price === "Yes" ||
+        editingProduct.is_teeth_based_price === true ||
+        editingProduct.is_teeth_based_price === "yes"
+      setVisibleTabs(
+        new Set(ADD_PRODUCT_MODAL_TABS.map((tab) => tab.id).filter((id) => id !== "variation" || teethOn)),
+      )
       setSectionWasToggled(false)
     } else if (isOpen && !editingProduct) {
       setVisibleTabs(new Set(["details"]))
@@ -193,24 +199,6 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
       setSectionWasToggled(false)
     }
   }, [isOpen, editingProduct])
-
-  const currentTabIndex = tabs.findIndex((tab) => tab.id === activeTab)
-  const isFirstTab = currentTabIndex === 0
-  const isLastTab = currentTabIndex === tabs.length - 1
-
-  const handleNext = () => {
-    if (!isLastTab) {
-      const nextTab = tabs[currentTabIndex + 1]
-      setVisibleTabs(prev => new Set([...prev, nextTab.id]))
-      setActiveTab(nextTab.id)
-    }
-  }
-
-  const handlePrevious = () => {
-    if (!isFirstTab) {
-      setActiveTab(tabs[currentTabIndex - 1].id)
-    }
-  }
 
   const initialFormValues: ProductCreateForm = useMemo(() => ({
     name: "",
@@ -230,7 +218,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
     retentions: [],
     addons: [],
     extractions: [],
-    has_grade_based_pricing: "No",
+    has_grade_based_pricing: "Yes",
     default_grade_id: undefined,
     enable_auto_billing: "No",
     is_single_stage: "No",
@@ -277,6 +265,60 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
     reValidateMode: "onBlur",
     shouldFocusError: true,
   })
+
+  const watchedIsTeethBased = useWatch({ control, name: "is_teeth_based_price" })
+
+  /** Skip Variation entirely when not charging per tooth (same as lab product modal). */
+  const tabsForNavigation = useMemo(() => {
+    if (watchedIsTeethBased === "Yes") return ADD_PRODUCT_MODAL_TABS
+    return ADD_PRODUCT_MODAL_TABS.filter((t) => t.id !== "variation")
+  }, [watchedIsTeethBased])
+
+  const currentTabIndex = tabsForNavigation.findIndex((tab) => tab.id === activeTab)
+  const safeTabIndex = currentTabIndex >= 0 ? currentTabIndex : 0
+  const isFirstTab = safeTabIndex === 0
+  const isLastTab = safeTabIndex === tabsForNavigation.length - 1
+
+  const handleNext = () => {
+    if (isLastTab) return
+    const nextTab = tabsForNavigation[safeTabIndex + 1]
+    setVisibleTabs((prev) => new Set([...prev, nextTab.id]))
+    setActiveTab(nextTab.id)
+  }
+
+  const handlePrevious = () => {
+    if (safeTabIndex <= 0) return
+    setActiveTab(tabsForNavigation[safeTabIndex - 1].id)
+  }
+
+  const prevTeethBasedRef = useRef<string | undefined>(undefined)
+  useEffect(() => {
+    if (!isOpen) {
+      prevTeethBasedRef.current = undefined
+    }
+  }, [isOpen])
+
+  // When "Charge product per tooth" is off, hide Variation from the flow and clear variation fields
+  useEffect(() => {
+    if (!isOpen) return
+    if (watchedIsTeethBased === "Yes") {
+      prevTeethBasedRef.current = watchedIsTeethBased
+      return
+    }
+    const turningOffTeeth = prevTeethBasedRef.current === "Yes"
+    prevTeethBasedRef.current = watchedIsTeethBased
+
+    setVisibleTabs((prev) => {
+      if (!prev.has("variation")) return prev
+      const next = new Set(prev)
+      next.delete("variation")
+      return next
+    })
+    setActiveTab((prev) => (prev === "variation" ? "details" : prev))
+    setSections((s) => ({ ...s, variation: false }))
+    setValue("enable_tooth_count_variation", "No", { shouldDirty: turningOffTeeth })
+    setValue("tooth_count_variations", [], { shouldDirty: turningOffTeeth })
+  }, [watchedIsTeethBased, setValue, isOpen])
 
   useEffect(() => {
     if (!isValid && errors) {
@@ -589,6 +631,23 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
           .map((s: any) => s.stage_id ?? s.id)
         setReleasingStageIds(existingReleasingIds)
         setInitialReleasingStageIds(existingReleasingIds)
+      } else {
+        setSections({
+          productDetails: true,
+          variation: true,
+          grades: true,
+          stages: true,
+          impressions: true,
+          gumShade: true,
+          teethShade: true,
+          material: true,
+          addOns: true,
+          retention: true,
+          extractions: true,
+          visibilityManagement: true,
+        })
+        setReleasingStageIds([])
+        setInitialReleasingStageIds([])
       }
     }
     // Only depend on isOpen and editingProduct!
@@ -1112,6 +1171,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
                       const isActive = activeTab === tab.id
                       const isVisible = visibleTabs.has(tab.id)
                       const isSectionOff = tab.sectionKey ? sections[tab.sectionKey as keyof typeof sections] === false : false
+                      if (tab.id === "variation" && watchedIsTeethBased !== "Yes") return null
                       if (!isVisible) return null
                       return (
                         <button

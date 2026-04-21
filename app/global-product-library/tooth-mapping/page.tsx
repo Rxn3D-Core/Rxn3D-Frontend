@@ -264,6 +264,11 @@ export default function ToothMappingPage() {
           (detailedExtraction?.status ?? editingToothStatus.status) === 'Active',
         description:
           detailedExtraction?.description ?? editingToothStatus.description ?? null,
+        is_image_extraction:
+          detailedExtraction?.is_image_extraction ??
+          editingToothStatus.is_image_extraction ??
+          "No",
+        image_url: detailedExtraction?.image_url ?? editingToothStatus.image_url ?? null,
       }
     : null
 
