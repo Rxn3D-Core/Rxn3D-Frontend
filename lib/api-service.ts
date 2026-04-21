@@ -266,6 +266,8 @@ export const ExtractionsApi = {
           status: "Active" | "Inactive";
           customer_id: number | null;
           is_custom: "Yes" | "No";
+          is_image_extraction?: "Yes" | "No";
+          image_url?: string | null;
           created_at: string;
           updated_at: string;
           deleted_at: string | null;
@@ -315,6 +317,8 @@ export const ExtractionsApi = {
         status: "Active" | "Inactive";
         customer_id: number | null;
         is_custom: "Yes" | "No";
+        is_image_extraction?: "Yes" | "No";
+        image_url?: string | null;
         created_at: string;
         updated_at: string;
         deleted_at: string | null;
@@ -332,6 +336,9 @@ export const ExtractionsApi = {
     sequence: number;
     status: "Active" | "Inactive";
     customer_id?: number;
+    is_image_extraction?: "Yes" | "No";
+    /** Base64-encoded image (data URL or raw) when is_image_extraction is Yes */
+    image?: string | null;
   }) => {
     // Get customerId for lab_admin and add to payload if not already present
     const customerId = getCustomerId()
@@ -353,6 +360,8 @@ export const ExtractionsApi = {
         status: "Active" | "Inactive";
         customer_id: number | null;
         is_custom: "Yes" | "No";
+        is_image_extraction?: "Yes" | "No";
+        image_url?: string | null;
         created_at: string;
         updated_at: string;
         deleted_at: string | null;
@@ -369,6 +378,8 @@ export const ExtractionsApi = {
     color?: string;
     sequence?: number;
     status?: "Active" | "Inactive";
+    is_image_extraction?: "Yes" | "No";
+    image?: string | null;
   }) => {
     return ApiService.put<{
       status: boolean;
@@ -384,6 +395,8 @@ export const ExtractionsApi = {
         status: "Active" | "Inactive";
         customer_id: number | null;
         is_custom: "Yes" | "No";
+        is_image_extraction?: "Yes" | "No";
+        image_url?: string | null;
         created_at: string;
         updated_at: string;
         deleted_at: string | null;

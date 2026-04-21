@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { shadeApiService, PreferredTeethShadesResponse, PreferredTeethShadeBrand, PreferredTeethShade } from '@/services/shade-api-service'
+import { usePreferredShadeGuideStore } from '@/stores/preferred-shade-guide-store'
 
 interface UsePreferredTeethShadesProps {
   customerId: number
@@ -10,6 +11,8 @@ interface UsePreferredTeethShadesReturn {
   data: PreferredTeethShadesResponse | null
   brand: PreferredTeethShadeBrand | null
   shades: PreferredTeethShade[]
+  /** True when customer has saved a preferred brand; false when only API fallback applies; undefined before first load */
+  hasExplicitPreference: boolean | undefined
   loading: boolean
   error: string | null
   refetch: () => Promise<void>
@@ -33,35 +36,36 @@ export function usePreferredTeethShades({
     dataRef.current = data
   }, [data])
 
-  const fetchPreferredTeethShades = useCallback(async () => {
-    // Prevent concurrent fetches
-    if (isFetchingRef.current && customerId === lastCustomerIdRef.current) {
-      return
-    }
-    
-    console.log('usePreferredTeethShades: fetchPreferredTeethShades called', { enabled, customerId })
-    
-    if (!enabled || !customerId) {
-      console.log('usePreferredTeethShades: Skipping fetch - not enabled or no customerId')
+  const fetchPreferredTeethShades = useCallback(async (options?: { force?: boolean }) => {
+    if (isFetchingRef.current && !options?.force) {
       return
     }
 
-    // Skip if customerId hasn't changed and we already have data (use ref to avoid dependency cycle)
-    if (customerId === lastCustomerIdRef.current && dataRef.current !== null) {
+    if (!enabled || !customerId) {
+      return
+    }
+
+    if (
+      !options?.force &&
+      customerId === lastCustomerIdRef.current &&
+      dataRef.current !== null
+    ) {
       return
     }
 
     isFetchingRef.current = true
     lastCustomerIdRef.current = customerId
-    console.log('usePreferredTeethShades: Starting API call')
     setLoading(true)
     setError(null)
 
     try {
       const response = await shadeApiService.getPreferredTeethShades({ customer_id: customerId })
-      console.log('usePreferredTeethShades: API response', response)
       setData(response)
       dataRef.current = response
+      const explicit = response.data?.has_explicit_preference
+      if (typeof explicit === 'boolean') {
+        usePreferredShadeGuideStore.getState().setTeethExplicit(explicit)
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch preferred teeth shades'
       setError(errorMessage)
@@ -80,28 +84,30 @@ export function usePreferredTeethShades({
         customer_id: customerId,
         preferred_teeth_shade_brand_id: brandId
       })
-      
-      // Refetch data after updating brand
-      await fetchPreferredTeethShades()
+
+      await fetchPreferredTeethShades({ force: true })
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to update preferred brand'
       setError(errorMessage)
       console.error('Error updating preferred brand:', err)
+      throw err
     }
   }, [customerId, fetchPreferredTeethShades])
 
   useEffect(() => {
-    console.log('usePreferredTeethShades: useEffect triggered', { customerId, enabled })
     fetchPreferredTeethShades()
   }, [customerId, enabled, fetchPreferredTeethShades])
+
+  const explicit = data?.data?.has_explicit_preference
 
   return {
     data,
     brand: data?.data.preferred_brand || null,
     shades: data?.data.shades || [],
+    hasExplicitPreference: typeof explicit === 'boolean' ? explicit : undefined,
     loading,
     error,
-    refetch: fetchPreferredTeethShades,
+    refetch: () => fetchPreferredTeethShades({ force: true }),
     updateBrand
   }
 }

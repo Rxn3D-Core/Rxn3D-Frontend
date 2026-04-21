@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { Search, ArrowUp, ArrowDown, Info, Edit, TrashIcon, Copy, Package, Plus, Package2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,6 +18,11 @@ import { useTranslation } from "react-i18next"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import { WarningActionModal, type WarningActionType } from "@/components/ui/warning-action-modal"
 import { useProductLibraryWarningsStore } from "@/stores/product-library-warnings-store"
+import { useAuth } from "@/contexts/auth-context"
+import { getCustomerId } from "@/lib/dashboard-widgets"
+import { usePreferredTeethShades } from "@/hooks/usePreferredTeethShades"
+import { PreferredShadeGuideCell } from "@/components/product-management/preferred-shade-guide-cell"
+import { useToast } from "@/hooks/use-toast"
 
 export default function TeethShadePage() {
   const {
@@ -72,6 +77,16 @@ export default function TeethShadePage() {
   const { currentLanguage } = useLanguage()
   const { t } = useTranslation()
   const { addWarning } = useProductLibraryWarningsStore()
+  const { user } = useAuth()
+  const { toast } = useToast()
+  const customerId = useMemo(() => getCustomerId(user), [user])
+  const {
+    brand: preferredTeethBrand,
+    hasExplicitPreference,
+    updateBrand: updatePreferredTeethBrand,
+    loading: preferredTeethLoading,
+  } = usePreferredTeethShades({ customerId: customerId ?? 0, enabled: !!customerId })
+  const [settingPreferredBrandId, setSettingPreferredBrandId] = useState<number | null>(null)
 
   // Debounce search input
   useEffect(() => {
@@ -284,6 +299,31 @@ export default function TeethShadePage() {
     setShowDiscardDialog(false)
   }
 
+  const preferredTeethBrandId =
+    hasExplicitPreference ? preferredTeethBrand?.id ?? null : null
+
+  const handleSetPreferredTeethGuide = async (brandId: number) => {
+    setSettingPreferredBrandId(brandId)
+    try {
+      await updatePreferredTeethBrand(brandId)
+      toast({
+        title: t("Preferred shade guide updated", "Preferred shade guide updated"),
+        description: t(
+          "This shade guide will be used as the default for new slips and products.",
+          "This shade guide will be used as the default for new slips and products.",
+        ),
+      })
+    } catch {
+      toast({
+        variant: "destructive",
+        title: t("Could not update preference", "Could not update preference"),
+        description: t("Please try again.", "Please try again."),
+      })
+    } finally {
+      setSettingPreferredBrandId(null)
+    }
+  }
+
   return (
     <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
       {/* Page Title */}
@@ -398,6 +438,9 @@ export default function TeethShadePage() {
                       {renderSortIndicator("system")}
                     </div>
                   </TableHead>
+                  <TableHead className="min-w-[200px] font-semibold text-gray-900">
+                    <span>{t("Preferred guide", "Preferred guide")}</span>
+                  </TableHead>
                   <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("shades")}>
                     <div className="flex items-center">
                       <span>{t("Shades")}</span>
@@ -418,7 +461,7 @@ export default function TeethShadePage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-12">
+                    <TableCell colSpan={7} className="text-center py-12">
                       <div className="flex flex-col items-center gap-3">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1162a8]"></div>
                         <span className="text-gray-500 text-sm">{t("Loading teeth shades...")}</span>
@@ -429,7 +472,7 @@ export default function TeethShadePage() {
                   teethShadeBrands.map((brand, index) => (
                     <TableRow 
                       key={brand.id} 
-                      className={`border-b border-gray-100 hover:bg-gray-50/50 transition-colors ${
+                      className={`group/pref-row border-b border-gray-100 hover:bg-gray-50/50 transition-colors ${
                         selectedItems.includes(brand.id) ? 'bg-blue-50/50' : ''
                       }`}
                     >
@@ -454,6 +497,19 @@ export default function TeethShadePage() {
                         <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
                           {brand.system_name}
                         </Badge>
+                      </TableCell>
+                      <TableCell className="align-middle">
+                        <PreferredShadeGuideCell
+                          hasExplicitPreference={hasExplicitPreference}
+                          brandId={brand.id}
+                          brandStatus={brand.status}
+                          preferredBrandId={preferredTeethBrandId}
+                          onSetPreferred={() => handleSetPreferredTeethGuide(brand.id)}
+                          isUpdating={
+                            preferredTeethLoading || settingPreferredBrandId === brand.id
+                          }
+                          disabledNoCustomer={!customerId}
+                        />
                       </TableCell>
                       <TableCell className="text-gray-600">
                         <div className="flex flex-wrap gap-1">
@@ -519,7 +575,7 @@ export default function TeethShadePage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-12">
+                    <TableCell colSpan={7} className="text-center py-12">
                       <div className="flex flex-col items-center gap-4">
                         <div className="p-4 bg-gray-100 rounded-full">
                           <Package className="h-8 w-8 text-gray-400" />

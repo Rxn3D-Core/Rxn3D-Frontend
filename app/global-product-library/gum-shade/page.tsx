@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Search, ArrowUp, ArrowDown, Info, Edit, TrashIcon, Copy, Package, Plus, Package2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,6 +15,11 @@ import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-mod
 import { GumShadeBrand, useGumShades } from "@/contexts/product-gum-shade-context"
 import { useLanguage } from "@/contexts/language-context"
 import { useTranslation } from "react-i18next"
+import { useAuth } from "@/contexts/auth-context"
+import { getCustomerId } from "@/lib/dashboard-widgets"
+import { usePreferredGumShades } from "@/hooks/usePreferredGumShades"
+import { PreferredShadeGuideCell } from "@/components/product-management/preferred-shade-guide-cell"
+import { useToast } from "@/hooks/use-toast"
 
 // Define sort direction type
 type SortDirection = "asc" | "desc" | null
@@ -57,6 +62,16 @@ export default function GumShadePage() {
 
   const { currentLanguage } = useLanguage()
   const { t } = useTranslation()
+  const { user } = useAuth()
+  const { toast } = useToast()
+  const customerId = useMemo(() => getCustomerId(user), [user])
+  const {
+    brand: preferredGumBrand,
+    hasExplicitPreference,
+    updateBrand: updatePreferredGumBrand,
+    loading: preferredGumLoading,
+  } = usePreferredGumShades({ customerId: customerId ?? 0, enabled: !!customerId })
+  const [settingPreferredBrandId, setSettingPreferredBrandId] = useState<number | null>(null)
 
   // Delete confirmation state
   const [deleteConfirmation, setDeleteConfirmation] = useState<{
@@ -217,6 +232,31 @@ export default function GumShadePage() {
     setCurrentPage(1)
   }
 
+  const preferredGumBrandId =
+    hasExplicitPreference ? preferredGumBrand?.id ?? null : null
+
+  const handleSetPreferredGumGuide = async (brandId: number) => {
+    setSettingPreferredBrandId(brandId)
+    try {
+      await updatePreferredGumBrand(brandId)
+      toast({
+        title: t("Preferred shade guide updated", "Preferred shade guide updated"),
+        description: t(
+          "This shade guide will be used as the default for new slips and products.",
+          "This shade guide will be used as the default for new slips and products.",
+        ),
+      })
+    } catch {
+      toast({
+        variant: "destructive",
+        title: t("Could not update preference", "Could not update preference"),
+        description: t("Please try again.", "Please try again."),
+      })
+    } finally {
+      setSettingPreferredBrandId(null)
+    }
+  }
+
   return (
     <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
       {/* Page Title */}
@@ -325,6 +365,9 @@ export default function GumShadePage() {
                       {renderSortIndicator("system_name")}
                     </div>
                   </TableHead>
+                  <TableHead className="min-w-[200px] font-semibold text-gray-900">
+                    <span>{t("Preferred guide", "Preferred guide")}</span>
+                  </TableHead>
                   <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("shades")}>
                     <div className="flex items-center">
                       <span>{t("Shades")}</span>
@@ -343,7 +386,7 @@ export default function GumShadePage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-12">
+                    <TableCell colSpan={7} className="text-center py-12">
                       <div className="flex flex-col items-center gap-3">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1162a8]"></div>
                         <span className="text-gray-500 text-sm">{t("Loading gum shades...")}</span>
@@ -354,7 +397,7 @@ export default function GumShadePage() {
                   gumShadeBrands.map((shade) => (
                     <TableRow 
                       key={shade.id} 
-                      className={`border-b border-gray-100 hover:bg-gray-50/50 transition-colors ${
+                      className={`group/pref-row border-b border-gray-100 hover:bg-gray-50/50 transition-colors ${
                         selectedItems.includes(shade.id) ? 'bg-blue-50/50' : ''
                       }`}
                     >
@@ -379,6 +422,19 @@ export default function GumShadePage() {
                         <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
                           {shade.system_name || "-"}
                         </Badge>
+                      </TableCell>
+                      <TableCell className="align-middle">
+                        <PreferredShadeGuideCell
+                          hasExplicitPreference={hasExplicitPreference}
+                          brandId={shade.id}
+                          brandStatus={shade.status}
+                          preferredBrandId={preferredGumBrandId}
+                          onSetPreferred={() => handleSetPreferredGumGuide(shade.id)}
+                          isUpdating={
+                            preferredGumLoading || settingPreferredBrandId === shade.id
+                          }
+                          disabledNoCustomer={!customerId}
+                        />
                       </TableCell>
                       <TableCell className="text-gray-600">
                         <div className="flex flex-wrap gap-1">
@@ -442,7 +498,7 @@ export default function GumShadePage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-12">
+                    <TableCell colSpan={7} className="text-center py-12">
                       <div className="flex flex-col items-center gap-4">
                         <div className="p-4 bg-gray-100 rounded-full">
                           <Package className="h-8 w-8 text-gray-400" />

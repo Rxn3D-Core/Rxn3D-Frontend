@@ -1468,7 +1468,7 @@ export function LinkProductsModal({ isOpen, onClose, entityType = "stage", conte
                                               <img
                                                 src={displayImageUrl}
                                                 alt={displayName}
-                                                className="w-full h-full object-cover"
+                                                className="w-full h-full object-contain"
                                               />
                                               <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-opacity flex items-center justify-center">
                                                 <ImageIcon className="h-5 w-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -1675,7 +1675,7 @@ export function LinkProductsModal({ isOpen, onClose, entityType = "stage", conte
                       <img
                         src={variation.image_url}
                         alt={variation.name}
-                        className="w-16 h-16 object-cover rounded"
+                        className="w-16 h-16 object-contain rounded"
                       />
                     ) : (
                       <div className="w-16 h-16 bg-gray-200 rounded flex items-center justify-center">

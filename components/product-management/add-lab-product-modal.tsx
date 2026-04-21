@@ -186,7 +186,7 @@ export function AddLabProductModal({
   const [sections, setSections] = useState({
     productDetails: true,
     variation: false,
-    grades: false,
+    grades: true,
     stages: true,
     impressions: true,
     gumShade: true,
@@ -311,7 +311,7 @@ export function AddLabProductModal({
     retentions: [],
     addons: [],
     extractions: [],
-    has_grade_based_pricing: "No",
+    has_grade_based_pricing: "Yes",
     default_grade_id: undefined,
     enable_auto_billing: "Yes",
     auto_billing_days: 31,
@@ -1221,7 +1221,7 @@ export function AddLabProductModal({
       setSections({
         productDetails: true,
         variation: false,
-        grades: false,
+        grades: true,
         stages: true,
         impressions: true,
         gumShade: true,
@@ -2470,9 +2470,8 @@ export function AddLabProductModal({
     }
   }
 
-  // Alternative submission method that bypasses form validation
-  const handleDirectSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  // Full save — not wired to <form onSubmit> so Enter / implicit submit cannot fire it; only explicit Save/Update buttons call this.
+  const handleDirectSubmit = async () => {
     const formData = watch()
     
     // Pre-process the data to set base_price from default grade
@@ -2540,9 +2539,9 @@ export function AddLabProductModal({
           />
 
           <form
-            onSubmit={handleDirectSubmit}
+            onSubmit={(e) => e.preventDefault()}
             onKeyDown={(e) => {
-              // Prevent Enter key from submitting the form — only allow explicit submit button clicks
+              // Prevent Enter key from submitting the form — only explicit Save/Update buttons
               if (e.key === "Enter" && (e.target as HTMLElement).tagName !== "TEXTAREA") {
                 e.preventDefault()
               }
@@ -2854,9 +2853,10 @@ export function AddLabProductModal({
                           </Button>
                         )}
                         <Button
-                          type="submit"
+                          type="button"
                           className="bg-[#1162a8] hover:bg-[#0d4c84] h-10 w-full sm:w-auto sm:px-8"
                           disabled={isSubmitting || isUpdating || isCreating}
+                          onClick={() => void handleDirectSubmit()}
                         >
                           {isSubmitting || isUpdating || isCreating
                             ? editingProduct && editingProduct.id
@@ -2899,9 +2899,10 @@ export function AddLabProductModal({
                         )}
                         {(hasSectionChanges || sectionWasToggled) && editingProduct?.id && (
                           <Button
-                            type="submit"
+                            type="button"
                             className="bg-[#1162a8] hover:bg-[#0d4c84] h-10 w-full sm:w-auto sm:px-8 disabled:opacity-50 disabled:cursor-not-allowed"
                             disabled={isSubmitting || isUpdating || isCreating}
+                            onClick={() => void handleDirectSubmit()}
                           >
                             {isSubmitting || isUpdating || isCreating
                               ? t("productModal.updating", "Updating...")

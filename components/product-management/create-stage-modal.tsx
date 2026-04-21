@@ -1059,7 +1059,7 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
                         <img
                           src={imagePreview}
                           alt="Preview"
-                          className="object-cover h-full w-full rounded-xl"
+                          className="object-contain h-full w-full rounded-xl"
                         />
                       ) : (
                         <div className="flex flex-col items-center text-gray-500 group-hover:text-gray-600">
@@ -1455,7 +1455,7 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
                                   <img
                                     src={imageUrl}
                                     alt={variation.name}
-                                    className="w-12 h-12 object-cover rounded-lg"
+                                    className="w-12 h-12 object-contain rounded-lg"
                                   />
                                 ) : (
                                   <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center">
@@ -1601,7 +1601,7 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
                     <img
                       src={variationFormData.imagePreview}
                       alt="Preview"
-                      className="object-cover h-full w-full rounded-xl"
+                      className="object-contain h-full w-full rounded-xl"
                     />
                   ) : (
                     <div className="flex flex-col items-center text-gray-500 group-hover:text-gray-600">

@@ -301,23 +301,23 @@ function JawPhotoUpload({ label, jawType, value, onChange }: JawPhotoUploadProps
     e.target.value = ""
   }
 
+  const boxClass =
+    "relative flex items-center justify-center border-2 border-dashed border-gray-300 rounded-xl h-28 w-28 sm:h-32 sm:w-32 shrink-0 bg-gradient-to-br from-gray-50 to-gray-100 hover:border-gray-400 hover:from-gray-100 hover:to-gray-200 transition-all duration-200 cursor-pointer group overflow-hidden"
+
   return (
-    <div className="flex flex-col items-center gap-2">
-      <span className="text-sm font-medium text-gray-700">{label}</span>
-      <div
-        className="relative flex items-center justify-center border-2 border-dashed border-gray-300 rounded-xl h-[100px] w-full bg-gradient-to-br from-gray-50 to-gray-100 hover:border-gray-400 hover:from-gray-100 hover:to-gray-200 transition-all duration-200 cursor-pointer group"
-        onClick={handleClick}
-      >
+    <div className="flex flex-col items-center gap-2 max-w-[8rem] sm:max-w-[8.5rem] mx-auto">
+      <span className="text-sm font-medium text-gray-700 text-center">{label}</span>
+      <div className={boxClass} onClick={handleClick}>
         {value ? (
           <img
             src={value}
             alt={label}
-            className="object-cover h-full w-full rounded-xl"
+            className="max-h-full max-w-full object-contain rounded-lg p-1"
           />
         ) : (
-          <div className="flex flex-col items-center text-gray-500 group-hover:text-gray-600">
-            <i className="fas fa-cloud-upload-alt text-2xl mb-1"></i>
-            <span className="text-xs font-medium">Upload</span>
+          <div className="flex flex-col items-center justify-center text-gray-500 group-hover:text-gray-600 px-1">
+            <i className="fas fa-cloud-upload-alt text-xl mb-0.5"></i>
+            <span className="text-[10px] font-medium leading-tight text-center">Upload</span>
           </div>
         )}
         <input
@@ -335,7 +335,7 @@ function JawPhotoUpload({ label, jawType, value, onChange }: JawPhotoUploadProps
             size="sm"
             type="button"
             onClick={() => onChange(jawType, null)}
-            className="flex-1 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+            className="w-full text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
           >
             Remove
           </Button>
@@ -382,7 +382,7 @@ function ShowJawPhotoSection({ control, jawPhotos, onJawPhotoChange }: ShowJawPh
       </div>
 
       {showJawPhoto === "Yes" && (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-6 gap-2 justify-items-left">
           <JawPhotoUpload
             label="Upper Jaw"
             jawType="upper"
@@ -739,7 +739,7 @@ export function ProductDetailsSection({
                   <img
                     src={imagePreview}
                     alt="Preview"
-                    className="object-cover h-full w-full rounded-xl"
+                    className="object-contain h-full w-full rounded-xl"
                   />
                 ) : (
                   <div className="flex flex-col items-center text-gray-500 group-hover:text-gray-600">

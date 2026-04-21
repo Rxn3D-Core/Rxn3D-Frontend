@@ -550,7 +550,7 @@ export default function StagesPage() {
       <LinkProductsModal
         isOpen={isLinkProductsModalOpen}
         onClose={() => setIsLinkProductsModalOpen(false)}
-        context="global"
+        context="lab"
       />
 
       {/* Delete Confirmation Modal for stage group */}

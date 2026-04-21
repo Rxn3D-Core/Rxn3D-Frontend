@@ -1,16 +1,19 @@
 import React from "react"
 import { Switch } from "@/components/ui/switch"
-import { Button } from "@/components/ui/button"
 import { ChevronDown, Info, AlertCircle } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { ValidationError } from "@/components/ui/validation-error"
-import { Controller } from "react-hook-form"
 import { Input } from "@/components/ui/input"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { cn } from "@/lib/utils"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 export function RetentionSection({
-  control,
+  control: _control,
   watch,
   setValue,
   sections,
@@ -39,16 +42,13 @@ export function RetentionSection({
   editingProduct?: any | null
 }) {
   const watchedRetentions = watch("retentions") || []
-  const watchedApplyRetentionMechanism = watch("apply_retention_mechanism")
   const isLabAdmin = userRole === "lab_admin"
-  const isCreating = !editingProduct
+  const retentionEnabled = sections.retention !== false
 
-  // Auto-set apply_retention_mechanism to "Yes" by default if not set (only when creating)
+  // Single source of truth: section switch drives apply_retention_mechanism for the API (no separate Yes/No radios).
   React.useEffect(() => {
-    if (isCreating && (!watchedApplyRetentionMechanism || watchedApplyRetentionMechanism === "")) {
-      setValue("apply_retention_mechanism", "Yes", { shouldDirty: false })
-    }
-  }, [watchedApplyRetentionMechanism, setValue, isCreating])
+    setValue("apply_retention_mechanism", retentionEnabled ? "Yes" : "No", { shouldDirty: false })
+  }, [retentionEnabled, setValue])
   
   // Helper function to check if a retention is selected
   const isRetentionSelected = (retentionId: any) => {
@@ -89,11 +89,27 @@ export function RetentionSection({
             className="data-[state=checked]:bg-[#1162a8]"
           />
           <span className="font-medium">Retention</span>
-          {sectionHasErrors(["retentions"]) ? (
-            <AlertCircle className="h-4 w-4 text-red-500" />
-          ) : (
-            <Info className="h-4 w-4 text-gray-400" />
-          )}
+          {sectionHasErrors(["retentions"]) && <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />}
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="rounded-sm text-gray-400 outline-none hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-[#1162a8] focus-visible:ring-offset-1"
+                  aria-label="About retention for this product"
+                >
+                  <Info className="h-4 w-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs text-left">
+                <p className="text-sm font-medium">Does retention mechanism apply to this product?</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Use the switch above: on enables retention options for this product; off disables retention for this
+                  product.
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           <span
             className={`text-xs font-medium px-2 py-0.5 rounded bg-blue-50 text-[#1162a8] ${watchedRetentions.length === 0 ? "opacity-80" : ""}`}
             style={{ marginRight: "1rem" }}
@@ -110,48 +126,8 @@ export function RetentionSection({
       </div>
       {expandedSections.retention && (
         <div className="px-6 pb-6">
-          {/* Radio is always clickable — it syncs the retention toggle ON/OFF */}
-          <div className="flex items-center gap-4 mb-4">
-            <Label htmlFor="apply-retention">
-              Does retention mechanism apply to this product?
-            </Label>
-            <Controller
-              name="apply_retention_mechanism"
-              control={control}
-              render={({ field }) => (
-                <RadioGroup
-                  value={field.value}
-                  onValueChange={(value) => {
-                    field.onChange(value)
-                    // Sync the retention section toggle with the radio
-                    const shouldBeOn = value === "Yes"
-                    if ((sections.retention !== false) !== shouldBeOn) {
-                      toggleSection("retention")
-                    }
-                    if (value === "No") {
-                      setValue("retentions", [], { shouldDirty: true })
-                    }
-                  }}
-                  className="flex flex-row gap-4"
-                >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="Yes" id="retention-mechanism-yes" />
-                    <Label htmlFor="retention-mechanism-yes" className="cursor-pointer font-normal">
-                      Yes
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="No" id="retention-mechanism-no" />
-                    <Label htmlFor="retention-mechanism-no" className="cursor-pointer font-normal">
-                      No
-                    </Label>
-                  </div>
-                </RadioGroup>
-              )}
-            />
-          </div>
           <div className={cn(sections.retention === false && "opacity-50 pointer-events-none select-none")}>
-          {watchedApplyRetentionMechanism === "Yes" && (
+          {retentionEnabled && (
             <div className="mb-4">
               <Label className="text-sm font-medium mb-2 block">
                 Select how this restoration will be retained

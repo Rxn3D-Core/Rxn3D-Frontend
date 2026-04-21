@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { Search, ArrowUp, ArrowDown, Copy, Edit, TrashIcon, Plus, Package } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AddSubCategoryModal } from "@/components/product-management/add-subcategory-modal"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import { useProductCategory } from "@/contexts/product-category-context"
+import { useAuth } from "@/contexts/auth-context"
 import { useLanguage } from "@/contexts/language-context"
 import { useTranslation } from "react-i18next"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -26,13 +27,36 @@ export default function ProductSubCategoryPage() {
     sortDirection,
     selectedItems,
     fetchSubcategories,
+    subcategoryParentCategoryFilterId,
+    setSubcategoryParentCategoryFilterId,
     setSearchQuery,
     setSortColumn,
     setSortDirection,
     setSelectedItems,
     deleteCategory,
     getSubCategoryDetail,
+    parentDropdownCategories,
+    isLoadingParentDropdown,
+    fetchParentDropdownCategories,
   } = useProductCategory()
+
+  const { user } = useAuth()
+  const showSubcategoryAdminFilters = useMemo(() => {
+    const parseStoredRole = (): string[] => {
+      if (typeof window === "undefined") return []
+      const raw = localStorage.getItem("role")
+      if (!raw) return []
+      try {
+        const p = JSON.parse(raw)
+        return Array.isArray(p) ? p.map(String) : [String(p)]
+      } catch {
+        return [raw]
+      }
+    }
+    const fromUser = user?.roles?.length ? user.roles.map(String) : user?.role ? [String(user.role)] : []
+    const roles = new Set([...parseStoredRole(), ...fromUser])
+    return roles.has("superadmin") || roles.has("lab_admin") || roles.has("admin")
+  }, [user])
 
   const [entriesPerPage, setEntriesPerPage] = useState(pagination.per_page.toString() || "25")
   const [currentPage, setCurrentPage] = useState(pagination.current_page || 1)
@@ -60,6 +84,12 @@ export default function ProductSubCategoryPage() {
     return () => clearTimeout(timer)
   }, [searchInput, searchQuery, setSearchQuery])
 
+  useEffect(() => {
+    if (showSubcategoryAdminFilters) {
+      void fetchParentDropdownCategories()
+    }
+  }, [showSubcategoryAdminFilters, fetchParentDropdownCategories])
+
   // Single debounced fetch effect
   const fetchTimerRef = useRef<NodeJS.Timeout | null>(null)
   useEffect(() => {
@@ -68,7 +98,15 @@ export default function ProductSubCategoryPage() {
       fetchSubcategories(currentPage, Number(entriesPerPage), searchQuery, sortColumn, sortDirection)
     }, 50)
     return () => { if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current) }
-  }, [currentPage, entriesPerPage, searchQuery, sortColumn, sortDirection, fetchSubcategories])
+  }, [
+    currentPage,
+    entriesPerPage,
+    searchQuery,
+    sortColumn,
+    sortDirection,
+    subcategoryParentCategoryFilterId,
+    fetchSubcategories,
+  ])
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page)
@@ -222,8 +260,8 @@ export default function ProductSubCategoryPage() {
       </div>
 
       {/* Header Section */}
-      <div className="px-6 py-4 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 border-b border-gray-200">
-        <div className="flex items-center gap-3">
+      <div className="px-6 py-4 flex flex-col gap-4 border-b border-gray-200 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between">
+        <div className="flex flex-wrap items-center gap-3">
           <span className="text-sm font-medium text-gray-700">{t("Show", { defaultValue: "Show" })}</span>
           <Select value={entriesPerPage} onValueChange={handleEntriesPerPageChange}>
             <SelectTrigger className="w-20 h-9 text-sm">
@@ -239,7 +277,7 @@ export default function ProductSubCategoryPage() {
           <span className="text-sm text-gray-700">{t("entries", { defaultValue: "entries" })}</span>
           
           {selectedItems.length > 0 && (
-            <div className="ml-6 flex items-center gap-2">
+            <div className="ml-0 sm:ml-6 flex items-center gap-2">
               <span className="text-sm font-medium text-gray-700">
                 {selectedItems.length} {t("selected")}
               </span>
@@ -255,7 +293,39 @@ export default function ProductSubCategoryPage() {
           )}
         </div>
         
-        <div className="flex gap-3">
+        <div className="flex flex-wrap items-center gap-3 sm:justify-end lg:min-w-0 lg:flex-1">
+          {showSubcategoryAdminFilters && (
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-sm text-gray-600 whitespace-nowrap shrink-0">
+                {t("productLibrary.filterByParentCategory", { defaultValue: "Filter by category" })}
+              </span>
+              <Select
+                disabled={isLoadingParentDropdown}
+                value={subcategoryParentCategoryFilterId == null ? "all" : String(subcategoryParentCategoryFilterId)}
+                onValueChange={(v) => {
+                  if (v === "all") setSubcategoryParentCategoryFilterId(null)
+                  else setSubcategoryParentCategoryFilterId(Number.parseInt(v, 10))
+                  setCurrentPage(1)
+                }}
+              >
+                <SelectTrigger className="h-9 w-[min(100vw-10rem,14rem)] max-w-[14rem] text-sm">
+                  <SelectValue
+                    placeholder={t("productLibrary.allParentCategories", { defaultValue: "All categories" })}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">
+                    {t("productLibrary.allParentCategories", { defaultValue: "All categories" })}
+                  </SelectItem>
+                  {parentDropdownCategories.map((c) => (
+                    <SelectItem key={c.id} value={String(c.id)}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <Button
             className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
             onClick={() => setIsAddCategoryModalOpen(true)}
@@ -264,12 +334,12 @@ export default function ProductSubCategoryPage() {
             {t("Add Sub Category", { defaultValue: "Add Sub Category" })}
           </Button>
           
-          <div className="relative">
+          <div className="relative min-w-0">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
               type="search"
               placeholder={t("Search Sub Categories", { defaultValue: "Search Sub Categories" })}
-              className="pl-10 h-10 w-64 text-sm border-gray-300 focus:border-[#1162a8] focus:ring-[#1162a8]"
+              className="pl-10 h-10 w-full min-w-[12rem] max-w-[16rem] text-sm border-gray-300 focus:border-[#1162a8] focus:ring-[#1162a8]"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
             />
