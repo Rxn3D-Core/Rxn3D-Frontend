@@ -41,7 +41,6 @@ import { MaterialSection } from "@/components/product-management/add-lab-product
 import { AddOnsSection } from "@/components/product-management/add-lab-product-modal/AddOnsSection"
 import { RetentionSection } from "@/components/product-management/add-lab-product-modal/RetentionSection"
 import { ExtractionsSection } from "@/components/product-management/add-lab-product-modal/ExtractionsSection"
-import { VisibilityManagementSection } from "@/components/product-management/add-lab-product-modal/VisibilityManagementSection"
 import { VariationSection } from "@/components/product-management/add-lab-product-modal/VariationSection"
 
 interface AddProductModalProps {
@@ -1095,9 +1094,9 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
           </DialogHeader>
 
           <form
-            onSubmit={handleSubmit(debouncedSubmit)}
+            onSubmit={(e) => e.preventDefault()}
             onKeyDown={(e) => {
-              // Prevent Enter key from submitting the form — only allow explicit submit button clicks
+              // Prevent Enter key from submitting the form — only allow explicit Save/Update button clicks
               if (e.key === "Enter" && (e.target as HTMLElement).tagName !== "TEXTAREA") {
                 e.preventDefault()
               }
@@ -1309,7 +1308,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
                   />
                 </TabsContent>
 
-                <TabsContent value="extractions" className="mt-0 p-6 focus-visible:outline-none">
+                <TabsContent value="extractions" forceMount className="mt-0 p-6 focus-visible:outline-none data-[state=inactive]:hidden">
                   <ExtractionsSection
                     key={editingProduct?.id != null ? `ext-${editingProduct.id}` : "ext-new"}
                     control={control}
@@ -1327,21 +1326,6 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
                     editingProductKey={editingProduct?.id ?? null}
                   />
                 </TabsContent>
-
-                {/* <TabsContent value="visibility" className="mt-0 p-6 focus-visible:outline-none">
-                  <VisibilityManagementSection
-                    control={control}
-                    watch={watch}
-                    setValue={setValue}
-                    sections={sections}
-                    toggleSection={toggleSection}
-                    getValidationError={getValidationError}
-                    sectionHasErrors={sectionHasErrors}
-                    expandedSections={expandedSections}
-                    toggleExpanded={toggleExpanded}
-                    handleOfficeVisibilityChange={handleOfficeVisibilityChange}
-                  />
-                </TabsContent> */}
               </div>
 
               <div className="px-4 sm:px-6 py-3 sm:py-4 border-t bg-white flex-shrink-0 mt-auto">
@@ -1372,9 +1356,10 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
                   <div className="flex items-center gap-2 order-1 sm:order-2">
                     {editingProduct && hasFormChanges && (
                       <Button
-                        type="submit"
+                        type="button"
                         className="bg-[#1162a8] hover:bg-[#0d4c84] h-10 sm:px-8"
                         disabled={isSubmitting || isProductActionLoading}
+                        onClick={() => void handleSubmit(debouncedSubmit)()}
                       >
                         {isSubmitting || isProductActionLoading
                           ? t("productModal.updating", "Updating...")
@@ -1384,9 +1369,10 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
                     {isLastTab ? (
                       !editingProduct && (
                         <Button
-                          type="submit"
+                          type="button"
                           className="bg-[#1162a8] hover:bg-[#0d4c84] h-10 sm:px-8"
                           disabled={isSubmitting || isProductActionLoading}
+                          onClick={() => void handleSubmit(debouncedSubmit)()}
                         >
                           {isSubmitting || isProductActionLoading
                             ? t("productModal.saving", "Saving...")
