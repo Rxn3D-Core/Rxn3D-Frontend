@@ -82,6 +82,9 @@ type ProductCategoryContextType = {
     sortCol?: string | null,
     sortDir?: "asc" | "desc" | null,
   ) => Promise<void>
+  /** When set, `GET /library/subcategories` includes `category_id` (parent product category). */
+  subcategoryParentCategoryFilterId: number | null
+  setSubcategoryParentCategoryFilterId: (id: number | null) => void
   setSearchQuery: (query: string) => void
   setSortColumn: (column: string | null) => void
   setSortDirection: (direction: "asc" | "desc" | null) => void
@@ -164,6 +167,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
   const [sortColumn, setSortColumn] = useState<string | null>(null)
   const [sortDirection, setSortDirection] = useState<"asc" | "desc" | null>("asc")
   const [selectedItems, setSelectedItems] = useState<number[]>([])
+  const [subcategoryParentCategoryFilterId, setSubcategoryParentCategoryFilterId] = useState<number | null>(null)
 
   // State for parent dropdown in modal
   const [parentDropdownCategories, setParentDropdownCategories] = useState<ProductCategory[]>([])
@@ -337,6 +341,9 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
         if (customerId) {
           params.append("customer_id", customerId.toString())
         }
+        if (subcategoryParentCategoryFilterId != null) {
+          params.append("category_id", String(subcategoryParentCategoryFilterId))
+        }
 
         const response = await fetch(`${API_BASE_URL}/library/subcategories?${params.toString()}&lang=${currentLanguage}`, {
           method: "GET",
@@ -376,10 +383,24 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
         setIsLoading(false)
       }
     },
-    [searchQuery, sortColumn, sortDirection, toast, currentLanguage, isLabAdmin, customerId, isRoleInitialized],
+    [
+      searchQuery,
+      sortColumn,
+      sortDirection,
+      toast,
+      currentLanguage,
+      isLabAdmin,
+      customerId,
+      isRoleInitialized,
+      subcategoryParentCategoryFilterId,
+    ],
   )
 
   const fetchParentDropdownCategories = useCallback(async () => {
+    // Same as fetchCategories / fetchSubcategories: avoid a first request before role + customerId are hydrated
+    // (otherwise lab_admin briefly looks like a non-lab user and hits /categories without customer_id).
+    if (!isRoleInitialized) return
+
     setIsLoadingParentDropdown(true)
     try {
       const token = getAuthToken()
@@ -389,7 +410,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
         lang: currentLanguage,
       })
       
-      // Pass customer_id if role is lab_admin and customerId is defined
+      // Lab admin: pass customer_id so the dropdown matches lab-scoped categories. Superadmin: omit (global list).
       if (isLabAdmin && customerId) {
         params.append("customer_id", customerId.toString())
       }
@@ -424,7 +445,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
     } finally {
       setIsLoadingParentDropdown(false)
     }
-  }, [toast, currentLanguage, customerId, isLabAdmin])
+  }, [toast, currentLanguage, customerId, isLabAdmin, isRoleInitialized])
 
   const createCategoryInternal = async (
     endpoint: string,
@@ -912,6 +933,8 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
         selectedItems,
         fetchCategories,
         fetchSubcategories,
+        subcategoryParentCategoryFilterId,
+        setSubcategoryParentCategoryFilterId,
         setSearchQuery,
         setSortColumn,
         setSortDirection,
