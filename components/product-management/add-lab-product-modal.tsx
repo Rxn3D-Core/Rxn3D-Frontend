@@ -14,7 +14,10 @@ import {
   teethStrategyApiToForm,
   hydrateTeethPricingFieldsFromDefaultGrade,
   mapApiVariationsToForm,
+  jawPhotosStateFromProduct,
+  productHasAnyJawPhotoUrls,
 } from "@/lib/library-product-api-mapping"
+import { normalizeSinglePreferredShadeRow } from "@/lib/product-shade-preferences"
 import { useToast } from "@/hooks/use-toast"
 import { useProductCategory } from "@/contexts/product-category-context"
 import { useGrades } from "@/contexts/product-grades-context"
@@ -73,9 +76,10 @@ function buildSectionsStateFromProduct(editingProduct: any) {
     editingProduct.is_teeth_based_price === "Yes" ||
     editingProduct.is_teeth_based_price === true ||
     editingProduct.is_teeth_based_price === "yes"
+  const hasVariationRows = Array.isArray(editingProduct.variations) && editingProduct.variations.length > 0
   return {
     productDetails: true,
-    variation: isTeethBased && slipFlagFromApi(editingProduct.has_variation, true),
+    variation: isTeethBased && (hasVariationRows || slipFlagFromApi(editingProduct.has_variation, true)),
     grades: slipFlagFromApi(editingProduct.has_grade, true),
     stages: isSingleStage ? false : slipFlagFromApi(editingProduct.has_stage, true),
     impressions: slipFlagFromApi(editingProduct.has_impression, true),
@@ -280,19 +284,6 @@ export function AddLabProductModal({
     setImageBase64(null)
   }, [editingProduct?.image_url])
 
-  // Reset jaw photos when editing product changes; seed with existing URLs for display only
-  useEffect(() => {
-    if (editingProduct?.jaw_photos) {
-      setJawPhotos({
-        upper: editingProduct.jaw_photos.upper ?? null,
-        lower: editingProduct.jaw_photos.lower ?? null,
-        both: editingProduct.jaw_photos.both ?? null,
-      })
-    } else {
-      setJawPhotos({})
-    }
-  }, [editingProduct?.id])
-
   const getInitialFormValues = useCallback((): ProductCreateForm => ({
     name: "",
     code: "",
@@ -406,15 +397,23 @@ export function AddLabProductModal({
     }
   }, [isOpen])
 
-  // When teeth-based pricing is off, hide Variation tab and clear variation fields (API: has_variation + variations[])
+  // When user turns teeth-based pricing off, hide Variation tab and clear variation fields.
+  // Do not strip the tab when watch is still "No" before reset() applies — only on Yes→No transition.
   useEffect(() => {
     if (!isOpen) return
     if (watchedIsTeethBased === "Yes") {
       prevTeethBasedRef.current = watchedIsTeethBased
+      setVisibleTabs((prev) => {
+        if (prev.has("variation")) return prev
+        const next = new Set(prev)
+        next.add("variation")
+        return next
+      })
       return
     }
     const turningOffTeeth = prevTeethBasedRef.current === "Yes"
     prevTeethBasedRef.current = watchedIsTeethBased
+    if (!turningOffTeeth) return
 
     setVisibleTabs((prev) => {
       if (!prev.has("variation")) return prev
@@ -424,8 +423,8 @@ export function AddLabProductModal({
     })
     setActiveTab((prev) => (prev === "variation" ? "details" : prev))
     setSections((s) => ({ ...s, variation: false }))
-    setValue("enable_tooth_count_variation", "No", { shouldDirty: turningOffTeeth })
-    setValue("tooth_count_variations", [], { shouldDirty: turningOffTeeth })
+    setValue("enable_tooth_count_variation", "No", { shouldDirty: true })
+    setValue("tooth_count_variations", [], { shouldDirty: true })
   }, [watchedIsTeethBased, setValue, isOpen])
 
   // Check if current step has errors
@@ -847,6 +846,19 @@ export function AddLabProductModal({
       function mapWithStatus(arr: any[], idKey: string) {
         if (!Array.isArray(arr)) return []
         return arr.map((item, idx) => {
+          if (idKey === "gum_shade_id" || idKey === "teeth_shade_id") {
+            return {
+              [idKey]: item[idKey] ?? item.id,
+              sequence: item.sequence && item.sequence >= 1 ? item.sequence : idx + 1,
+              status: item.status || "Active",
+              is_preferred:
+                item.is_preferred === "Yes" ||
+                item.is_preferred === true ||
+                item.pivot?.is_preferred === "Yes"
+                  ? "Yes"
+                  : "No",
+            }
+          }
           // Handle price: convert to number, default to 0 if missing/invalid
           let price = 0
           if (item.price !== undefined && item.price !== null && item.price !== "") {
@@ -1110,14 +1122,16 @@ export function AddLabProductModal({
           editingProduct.impression_details && editingProduct.impression_details.length
             ? mapWithStatus(editingProduct.impression_details, "impression_id")
             : mapWithStatus(editingProduct.impressions, "impression_id"),
-        gum_shades:
-          editingProduct.gum_shade_details && editingProduct.gum_shade_details.length
+        gum_shades: normalizeSinglePreferredShadeRow(
+          (editingProduct.gum_shade_details && editingProduct.gum_shade_details.length
             ? mapWithStatus(editingProduct.gum_shade_details, "gum_shade_id")
-            : mapWithStatus(editingProduct.gum_shades, "gum_shade_id"),
-        teeth_shades:
-          editingProduct.teeth_shade_details && editingProduct.teeth_shade_details.length
+            : mapWithStatus(editingProduct.gum_shades, "gum_shade_id")) as any,
+        ),
+        teeth_shades: normalizeSinglePreferredShadeRow(
+          (editingProduct.teeth_shade_details && editingProduct.teeth_shade_details.length
             ? mapWithStatus(editingProduct.teeth_shade_details, "teeth_shade_id")
-            : mapWithStatus(editingProduct.teeth_shades, "teeth_shade_id"),
+            : mapWithStatus(editingProduct.teeth_shades, "teeth_shade_id")) as any,
+        ),
         materials:
           editingProduct.material_details && editingProduct.material_details.length
             ? mapWithStatus(editingProduct.material_details, "material_id")
@@ -1150,7 +1164,7 @@ export function AddLabProductModal({
         office_stage_pricing: editingProduct.office_stage_pricing || [],
         office_stage_grade_pricing: editingProduct.office_stage_grade_pricing || [],
         is_teeth_based_price: editingProduct.is_teeth_based_price || "No",
-        show_jaw_photo: (editingProduct.jaw_photos && (editingProduct.jaw_photos.upper || editingProduct.jaw_photos.lower || editingProduct.jaw_photos.both))
+        show_jaw_photo: productHasAnyJawPhotoUrls(editingProduct)
           ? "Yes"
           : (editingProduct.show_jaw_photo || "No"),
         base_price: basePrice, // <-- use grade price if available, else response price
@@ -1165,6 +1179,7 @@ export function AddLabProductModal({
         ...variationForm,
       }
       reset(formValues)
+      setJawPhotos(jawPhotosStateFromProduct(editingProduct))
       // Conditionally-rendered fields (min/max_days_to_process, is_teeth_based_price) are
       // synced in ProductDetailsSection via useEffect after their Controllers mount.
       if (Array.isArray(editingProduct.opposite_extractions) && editingProduct.opposite_extractions.length > 0) {
@@ -1209,6 +1224,7 @@ export function AddLabProductModal({
       // Reset to initial values (code will be generated from name)
       const initialValues = getInitialFormValues()
       reset(initialValues)
+      setJawPhotos(jawPhotosStateFromProduct(null))
       setInitialFormValues(null) // Clear initial values for new product
       clearValidationErrors()
       setCustomGradeNames({}) // Clear custom grade names for new product
@@ -1558,6 +1574,15 @@ export function AddLabProductModal({
             allocation_percent: item.allocation_percent,
           }
         }
+
+        if (idKey === "gum_shade_id" || idKey === "teeth_shade_id") {
+          return {
+            [idKey]: item[idKey],
+            sequence: (item.sequence && item.sequence >= 1) ? item.sequence : idx + 1,
+            status: item.status || "Active",
+            is_preferred: item.is_preferred === "Yes" || item.is_preferred === true ? "Yes" : "No",
+          }
+        }
         
         return baseItem
       })
@@ -1619,6 +1644,7 @@ export function AddLabProductModal({
     // jaw_photos: only include slots that are new base64 uploads (start with data:image/)
     const jawPhotoPayload: Record<string, string | null> = {}
     let hasJawPhotoChange = false
+    const existingJawFromApi = jawPhotosStateFromProduct(editingProduct ?? null)
     ;(["upper", "lower", "both"] as const).forEach((slot) => {
       const val = jawPhotos[slot]
       if (val && val.startsWith("data:image/")) {
@@ -1626,7 +1652,7 @@ export function AddLabProductModal({
         hasJawPhotoChange = true
       } else if (val === null) {
         // Explicitly removed
-        const existingUrl = editingProduct?.jaw_photos?.[slot]
+        const existingUrl = existingJawFromApi[slot]
         if (existingUrl) {
           jawPhotoPayload[slot] = null
           hasJawPhotoChange = true
@@ -2190,6 +2216,15 @@ export function AddLabProductModal({
             // Note: is_releasing_stage will be handled by releasingStageIds parameter
             // Don't set it here to avoid conflicts - let useProductMutations handle it
             return stageData
+          }
+
+          if (idKey === "gum_shade_id" || idKey === "teeth_shade_id") {
+            return {
+              [idKey]: item[idKey],
+              sequence: (item.sequence && item.sequence >= 1) ? item.sequence : idx + 1,
+              status: item.status || "Active",
+              is_preferred: item.is_preferred === "Yes" || item.is_preferred === true ? "Yes" : "No",
+            }
           }
           
           return baseItem

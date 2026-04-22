@@ -41,21 +41,27 @@ export default function ProductSubCategoryPage() {
   } = useProductCategory()
 
   const { user } = useAuth()
-  const showSubcategoryAdminFilters = useMemo(() => {
-    const parseStoredRole = (): string[] => {
-      if (typeof window === "undefined") return []
-      const raw = localStorage.getItem("role")
-      if (!raw) return []
-      try {
-        const p = JSON.parse(raw)
-        return Array.isArray(p) ? p.map(String) : [String(p)]
-      } catch {
-        return [raw]
-      }
+  const parseStoredRole = (): string[] => {
+    if (typeof window === "undefined") return []
+    const raw = localStorage.getItem("role")
+    if (!raw) return []
+    try {
+      const p = JSON.parse(raw)
+      return Array.isArray(p) ? p.map(String) : [String(p)]
+    } catch {
+      return [raw]
     }
+  }
+
+  const showSubcategoryAdminFilters = useMemo(() => {
     const fromUser = user?.roles?.length ? user.roles.map(String) : user?.role ? [String(user.role)] : []
     const roles = new Set([...parseStoredRole(), ...fromUser])
     return roles.has("superadmin") || roles.has("lab_admin") || roles.has("admin")
+  }, [user])
+
+  const isLabAdmin = useMemo(() => {
+    const fromUser = user?.roles?.length ? user.roles.map(String) : user?.role ? [String(user.role)] : []
+    return new Set([...fromUser, ...parseStoredRole()]).has("lab_admin")
   }, [user])
 
   const [entriesPerPage, setEntriesPerPage] = useState(pagination.per_page.toString() || "25")
@@ -202,7 +208,7 @@ export default function ProductSubCategoryPage() {
     setCopyingCategory(null)
     setIsCopying(false)
     setIsAddCategoryModalOpen(true)
-    setDisableAllFields((subcategory as any)?.is_custom === "No")
+    setDisableAllFields(!isLabAdmin && (subcategory as any)?.is_custom === "No")
   }
 
   function handleCopyCategory(id: number): void {
@@ -225,7 +231,7 @@ export default function ProductSubCategoryPage() {
 
   async function confirmDelete() {
     if (!deleteTarget) return
-    if (isCustomNo) {
+    if (isCustomNo && !isLabAdmin) {
       setDeleteModalOpen(false)
       setDeleteTarget(null)
       return
@@ -460,7 +466,7 @@ export default function ProductSubCategoryPage() {
                       <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-600 hover:text-[#1162a8] hover:bg-blue-50" onClick={() => handleEdit(subcategory.id)}>
                         <Edit className="h-4 w-4" />
                       </Button>
-                      {(subcategory as any)?.is_custom === "No" ? (
+                      {(subcategory as any)?.is_custom === "No" && !isLabAdmin ? (
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <span>
@@ -610,7 +616,7 @@ export default function ProductSubCategoryPage() {
         confirmText={t("Delete", { defaultValue: "Delete" })}
         cancelText={t("Cancel", { defaultValue: "Cancel" })}
         isLoading={isDeleting}
-        isCustomNo={isCustomNo}
+        isCustomNo={isCustomNo && !isLabAdmin}
       />
       </TooltipProvider>
     </div>

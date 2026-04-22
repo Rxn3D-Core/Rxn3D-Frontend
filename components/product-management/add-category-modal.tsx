@@ -14,6 +14,7 @@ import { useProductLibrary, type CasePan } from "@/contexts/product-case-pan-con
 import { useTranslation } from "react-i18next"
 import { z } from "zod"
 import { generateCodeFromName } from "@/lib/utils"
+import { useAuth } from "@/contexts/auth-context"
 
 interface AddCategoryModalProps {
   isOpen: boolean
@@ -45,8 +46,8 @@ export function AddCategoryModal({
     updateCategory,
     isLoading: isCategoryActionLoading,
     getCategoryDetail,
-    user,
   } = useProductCategory()
+  const { user } = useAuth()
 
   const { casePans, fetchCasePans, isLoading: isCasePanLoading } = useProductLibrary()
   const { t } = useTranslation()
@@ -77,16 +78,26 @@ export function AddCategoryModal({
   const [originalImageUrl, setOriginalImageUrl] = useState<string | null>(null)
   const [imageChanged, setImageChanged] = useState(false)
 
-  // Determine user role (same pattern as context)
-  
-  
-  const userRole = localStorage.getItem("role")
+  const userRoles = user?.roles?.length ? user.roles.map(String) : user?.role ? [String(user.role)] : []
+  let storedRoles: string[] = []
+  if (typeof window !== "undefined") {
+    const raw = localStorage.getItem("role")
+    if (raw) {
+      try {
+        const p = JSON.parse(raw)
+        storedRoles = Array.isArray(p) ? p.map(String) : [String(p)]
+      } catch {
+        storedRoles = [raw]
+      }
+    }
+  }
+  const roleSet = new Set([...userRoles, ...storedRoles])
+  const isLabAdmin = roleSet.has("lab_admin")
+  const isSuperAdmin = roleSet.has("superadmin")
 
-  const isLabAdmin = userRole === "lab_admin"
-  const isSuperAdmin = userRole === "superadmin"
-
-  // Use disableAllFields to override disableEditFields, but allow superadmin to edit
-  const effectiveDisableFields = isSuperAdmin ? false : (disableAllFields || disableEditFields)
+  // Lab admins and superadmins can always edit (including global template rows scoped to their lab)
+  const effectiveDisableFields =
+    isSuperAdmin || isLabAdmin ? false : (disableAllFields || disableEditFields)
 
   // Initialize image when editing
   useEffect(() => {
@@ -170,25 +181,6 @@ export function AddCategoryModal({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, editId, isCopying, copyingCategory])
-
-  // Use detailLoadedId to control readonly/disabled state
-  useEffect(() => {
-    // Superadmin can always edit, so never disable fields for superadmin
-    if (isSuperAdmin) {
-      setDisableEditFields(false)
-      return
-    }
-    // For lab_admin, disable editing if it's an original category (is_custom === "No")
-    if (
-      detailLoadedId &&
-      isLabAdmin &&
-      isCustomValue === "No"
-    ) {
-      setDisableEditFields(true)
-    } else {
-      setDisableEditFields(false)
-    }
-  }, [detailLoadedId, isLabAdmin, isSuperAdmin, isCustomValue])
 
   useEffect(() => {
     const hasFormChanges =

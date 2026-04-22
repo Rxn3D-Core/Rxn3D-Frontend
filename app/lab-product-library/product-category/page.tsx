@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { Search, ArrowUp, ArrowDown, Copy, Edit, TrashIcon, Plus, Package } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AddCategoryModal } from "@/components/product-management/add-category-modal"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import { useProductCategory } from "@/contexts/product-category-context"
+import { useAuth } from "@/contexts/auth-context"
 import { useLanguage } from "@/contexts/language-context"
 import { useTranslation } from "react-i18next"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -33,6 +34,24 @@ export default function ProductCategoryPage() {
     deleteCategory,
     getCategoryDetail,
   } = useProductCategory()
+
+  const { user } = useAuth()
+  const isLabAdmin = useMemo(() => {
+    const fromUser = user?.roles?.length ? user.roles.map(String) : user?.role ? [String(user.role)] : []
+    let stored: string[] = []
+    if (typeof window !== "undefined") {
+      const raw = localStorage.getItem("role")
+      if (raw) {
+        try {
+          const p = JSON.parse(raw)
+          stored = Array.isArray(p) ? p.map(String) : [String(p)]
+        } catch {
+          stored = [raw]
+        }
+      }
+    }
+    return new Set([...fromUser, ...stored]).has("lab_admin")
+  }, [user])
 
   const [entriesPerPage, setEntriesPerPage] = useState(pagination.per_page.toString() || "25")
   const [currentPage, setCurrentPage] = useState(pagination.current_page || 1)
@@ -187,7 +206,7 @@ export default function ProductCategoryPage() {
 
   async function confirmDelete() {
     if (!deleteTarget) return
-    if (isCustomNo) {
+    if (isCustomNo && !isLabAdmin) {
       setDeleteModalOpen(false)
       setDeleteTarget(null)
       return
@@ -381,7 +400,7 @@ export default function ProductCategoryPage() {
                       <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-600 hover:text-[#1162a8] hover:bg-blue-50" onClick={() => handleEdit(category.id)}>
                         <Edit className="h-4 w-4" />
                       </Button>
-                      {(category as any)?.is_custom === "No" ? (
+                      {(category as any)?.is_custom === "No" && !isLabAdmin ? (
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <span>
@@ -531,7 +550,7 @@ export default function ProductCategoryPage() {
         confirmText={t("Delete", { defaultValue: "Delete" })}
         cancelText={t("Cancel", { defaultValue: "Cancel" })}
         isLoading={isDeleting}
-        isCustomNo={isCustomNo}
+        isCustomNo={isCustomNo && !isLabAdmin}
       />
       </TooltipProvider>
     </div>

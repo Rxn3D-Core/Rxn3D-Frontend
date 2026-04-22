@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils"
 type WatchedGumShade = {
   gum_shade_id: number
   sequence?: number
+  is_preferred?: "Yes" | "No"
 }
 
 type GumShade = {
@@ -65,6 +66,27 @@ export function GumShadeSection({
   setCustomGumShadeNames,
 }: GumShadeSectionProps) {
   const watchedGumShades = (watch("gum_shades") || []) as WatchedGumShade[]
+  const handleSetPreferredGumShade = (shadeId: number, next: "Yes" | "No") => {
+    const list = watchedGumShades || []
+    if (next === "Yes") {
+      setValue(
+        "gum_shades",
+        list.map((gs) => ({
+          ...gs,
+          is_preferred: gs.gum_shade_id === shadeId ? ("Yes" as const) : ("No" as const),
+        })),
+        { shouldDirty: true },
+      )
+    } else {
+      setValue(
+        "gum_shades",
+        list.map((gs) =>
+          gs.gum_shade_id === shadeId ? { ...gs, is_preferred: "No" as const } : gs,
+        ),
+        { shouldDirty: true },
+      )
+    }
+  }
   const [customGumShadeName, setCustomGumShadeName] = useState("")
   const [showCustomInput, setShowCustomInput] = useState(false)
   // Defensive: handle both array and object with data property
@@ -391,7 +413,8 @@ export function GumShadeSection({
       {expandedSections.gumShade && (
         <div className={cn("px-6 pb-6", !sections.gumShade && "opacity-50 pointer-events-none select-none")}>
           <p className="text-sm text-gray-700 mb-4">
-            Choose the gum shade you accept for this product.
+            Choose the gum shade you accept for this product. Optionally mark one selected shade as the lab default — it
+            will be pre-filled on new cases (users can still change it).
           </p>
           <div className="flex flex-col gap-4">
             {/* Brand Buttons */}
@@ -482,6 +505,8 @@ export function GumShadeSection({
                         brand.shades.map((shade: GumShade, idx: number) => {
                           const checkboxId = `gum-shade-${shade.id}`
                           const isChecked = watchedGumShades.some((gs: WatchedGumShade) => gs.gum_shade_id === shade.id)
+                          const row = watchedGumShades.find((gs: WatchedGumShade) => gs.gum_shade_id === shade.id)
+                          const isPreferred = row?.is_preferred === "Yes"
 
                           const handleLabelClick = (e: React.MouseEvent) => {
                             e.preventDefault()
@@ -514,6 +539,24 @@ export function GumShadeSection({
                                 >
                                   {shade.name}
                                 </Label>
+                                {isChecked && (
+                                  <Button
+                                    type="button"
+                                    variant={isPreferred ? "default" : "outline"}
+                                    size="sm"
+                                    className={
+                                      isPreferred
+                                        ? "bg-green-500 text-white hover:bg-green-600 h-8 text-xs rounded-full shrink-0"
+                                        : "text-[#1162a8] border-[#1162a8] hover:bg-[#1162a8] hover:text-white h-8 text-xs rounded-full shrink-0"
+                                    }
+                                    onClick={(e) => {
+                                      e.preventDefault()
+                                      handleSetPreferredGumShade(shade.id, isPreferred ? "No" : "Yes")
+                                    }}
+                                  >
+                                    {isPreferred ? "Lab default shade" : "Set as lab default"}
+                                  </Button>
+                                )}
                                 {isChecked && (
                                   <ChevronDown className="h-4 w-4 text-gray-400" />
                                 )}
@@ -594,40 +637,59 @@ export function GumShadeSection({
                       const isChecked = watchedGumShades.some(
                         (gs: WatchedGumShade) => gs.gum_shade_id === customShadeId
                       )
+                      const prefRow = watchedGumShades.find((gs) => gs.gum_shade_id === customShadeId)
+                      const isPreferred = prefRow?.is_preferred === "Yes"
 
                       return (
-                        <div key={customShadeId} className="relative inline-block">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              handleToggleSelection(
-                                "gum_shades",
-                                customShadeId,
-                                customShade.sequence ?? 1
-                              )
-                            }
-                            className={`rounded-full px-4 py-2 h-auto pr-8 transition-colors ${
-                              isChecked
-                                ? "bg-[#1162a8] text-white border-[#1162a8] hover:bg-[#1162a8]/90"
-                                : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-                            }`}
-                          >
-                            {!isChecked && <Plus className="h-4 w-4 mr-1" />}
-                            {customShadeName}
-                          </Button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              handleDeleteCustomGumShade(customShadeId)
-                            }}
-                            className="absolute right-1 top-1/2 -translate-y-1/2 h-5 w-5 flex items-center justify-center rounded-full text-red-500 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
+                        <div key={customShadeId} className="flex flex-wrap items-center gap-2">
+                          <div className="relative inline-block">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                handleToggleSelection(
+                                  "gum_shades",
+                                  customShadeId,
+                                  customShade.sequence ?? 1
+                                )
+                              }
+                              className={`rounded-full px-4 py-2 h-auto pr-8 transition-colors ${
+                                isChecked
+                                  ? "bg-[#1162a8] text-white border-[#1162a8] hover:bg-[#1162a8]/90"
+                                  : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                              }`}
+                            >
+                              {!isChecked && <Plus className="h-4 w-4 mr-1" />}
+                              {customShadeName}
+                            </Button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                handleDeleteCustomGumShade(customShadeId)
+                              }}
+                              className="absolute right-1 top-1/2 -translate-y-1/2 h-5 w-5 flex items-center justify-center rounded-full text-red-500 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                          {isChecked && (
+                            <Button
+                              type="button"
+                              variant={isPreferred ? "default" : "outline"}
+                              size="sm"
+                              className={
+                                isPreferred
+                                  ? "bg-green-500 text-white hover:bg-green-600 h-8 text-xs rounded-full"
+                                  : "text-[#1162a8] border-[#1162a8] hover:bg-[#1162a8] hover:text-white h-8 text-xs rounded-full"
+                              }
+                              onClick={() => handleSetPreferredGumShade(customShadeId, isPreferred ? "No" : "Yes")}
+                            >
+                              {isPreferred ? "Lab default shade" : "Set as lab default"}
+                            </Button>
+                          )}
                         </div>
                       )
                     })}

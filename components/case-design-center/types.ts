@@ -293,6 +293,8 @@ export interface ProductGumShade {
   sequence: number;
   status: string;
   price: string | null;
+  /** Lab default for this product when "Yes" (persisted on product–shade pivot). */
+  is_preferred?: string;
   brand: {
     id: number;
     name: string;
@@ -383,6 +385,8 @@ export interface ProductApiData {
   stages?: ProductStage[];
   impressions?: ProductImpression[];
   gum_shades?: ProductGumShade[];
+  /** May be brand groups with nested shades or a flat list, depending on API shape. */
+  teeth_shades?: unknown[];
   extractions?: ProductExtraction[];
   advance_fields?: ProductAdvanceField[];
   opposite_impression?: "Yes" | "No";

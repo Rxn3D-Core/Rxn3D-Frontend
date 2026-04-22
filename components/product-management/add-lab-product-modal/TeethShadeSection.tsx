@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils"
 type WatchedTeethShade = {
   teeth_shade_id: number
   sequence?: number
+  is_preferred?: "Yes" | "No"
 }
 
 type TeethShade = {
@@ -72,6 +73,28 @@ export function TeethShadeSection({
           arr.findIndex((x) => x.teeth_shade_id === item.teeth_shade_id) === idx
       )
     : []
+
+  const handleSetPreferredTeethShade = (shadeId: number, next: "Yes" | "No") => {
+    const list = uniqueTeethShades || []
+    if (next === "Yes") {
+      setValue(
+        "teeth_shades",
+        list.map((ts) => ({
+          ...ts,
+          is_preferred: ts.teeth_shade_id === shadeId ? ("Yes" as const) : ("No" as const),
+        })),
+        { shouldDirty: true },
+      )
+    } else {
+      setValue(
+        "teeth_shades",
+        list.map((ts) =>
+          ts.teeth_shade_id === shadeId ? { ...ts, is_preferred: "No" as const } : ts,
+        ),
+        { shouldDirty: true },
+      )
+    }
+  }
   
   const [customTeethShadeName, setCustomTeethShadeName] = useState("")
   const [showCustomInput, setShowCustomInput] = useState(false)
@@ -400,7 +423,8 @@ export function TeethShadeSection({
       {expandedSections.teethShade && (
         <div className={cn("px-6 pb-6", !sections.teethShade && "opacity-50 pointer-events-none select-none")}>
           <p className="text-sm text-gray-700 mb-4">
-            Choose your preferred teeth shade system for this product.
+            Choose the teeth shade systems and shades you accept for this product. Optionally mark one selected shade as
+            the lab default — it will be pre-filled on new cases (users can still change it).
           </p>
           <div className="flex flex-col gap-4">
             {/* Brand Buttons */}
@@ -491,6 +515,8 @@ export function TeethShadeSection({
                         brand.shades.map((shade: TeethShade, idx: number) => {
                           const checkboxId = `teeth-shade-${shade.id}`
                           const isChecked = uniqueTeethShades.some((ts: WatchedTeethShade) => ts.teeth_shade_id === shade.id)
+                          const row = uniqueTeethShades.find((ts: WatchedTeethShade) => ts.teeth_shade_id === shade.id)
+                          const isPreferred = row?.is_preferred === "Yes"
 
                           const handleLabelClick = (e: React.MouseEvent) => {
                             e.preventDefault()
@@ -523,6 +549,24 @@ export function TeethShadeSection({
                                 >
                                   {shade.name}
                                 </Label>
+                                {isChecked && (
+                                  <Button
+                                    type="button"
+                                    variant={isPreferred ? "default" : "outline"}
+                                    size="sm"
+                                    className={
+                                      isPreferred
+                                        ? "bg-green-500 text-white hover:bg-green-600 h-8 text-xs rounded-full shrink-0"
+                                        : "text-[#1162a8] border-[#1162a8] hover:bg-[#1162a8] hover:text-white h-8 text-xs rounded-full shrink-0"
+                                    }
+                                    onClick={(e) => {
+                                      e.preventDefault()
+                                      handleSetPreferredTeethShade(shade.id, isPreferred ? "No" : "Yes")
+                                    }}
+                                  >
+                                    {isPreferred ? "Lab default shade" : "Set as lab default"}
+                                  </Button>
+                                )}
                                 {isChecked && (
                                   <ChevronDown className="h-4 w-4 text-gray-400" />
                                 )}
@@ -603,40 +647,59 @@ export function TeethShadeSection({
                       const isChecked = uniqueTeethShades.some(
                         (ts: WatchedTeethShade) => ts.teeth_shade_id === customShadeId
                       )
+                      const prefRow = uniqueTeethShades.find((ts) => ts.teeth_shade_id === customShadeId)
+                      const isPreferred = prefRow?.is_preferred === "Yes"
 
                       return (
-                        <div key={customShadeId} className="relative inline-block">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              handleToggleSelection(
-                                "teeth_shades",
-                                customShadeId,
-                                customShade.sequence ?? 1
-                              )
-                            }
-                            className={`rounded-full px-4 py-2 h-auto pr-8 transition-colors ${
-                              isChecked
-                                ? "bg-[#1162a8] text-white border-[#1162a8] hover:bg-[#1162a8]/90"
-                                : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-                            }`}
-                          >
-                            {!isChecked && <Plus className="h-4 w-4 mr-1" />}
-                            {customShadeName}
-                          </Button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              handleDeleteCustomTeethShade(customShadeId)
-                            }}
-                            className="absolute right-1 top-1/2 -translate-y-1/2 h-5 w-5 flex items-center justify-center rounded-full text-red-500 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
+                        <div key={customShadeId} className="flex flex-wrap items-center gap-2">
+                          <div className="relative inline-block">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                handleToggleSelection(
+                                  "teeth_shades",
+                                  customShadeId,
+                                  customShade.sequence ?? 1
+                                )
+                              }
+                              className={`rounded-full px-4 py-2 h-auto pr-8 transition-colors ${
+                                isChecked
+                                  ? "bg-[#1162a8] text-white border-[#1162a8] hover:bg-[#1162a8]/90"
+                                  : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                              }`}
+                            >
+                              {!isChecked && <Plus className="h-4 w-4 mr-1" />}
+                              {customShadeName}
+                            </Button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                handleDeleteCustomTeethShade(customShadeId)
+                              }}
+                              className="absolute right-1 top-1/2 -translate-y-1/2 h-5 w-5 flex items-center justify-center rounded-full text-red-500 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                          {isChecked && (
+                            <Button
+                              type="button"
+                              variant={isPreferred ? "default" : "outline"}
+                              size="sm"
+                              className={
+                                isPreferred
+                                  ? "bg-green-500 text-white hover:bg-green-600 h-8 text-xs rounded-full"
+                                  : "text-[#1162a8] border-[#1162a8] hover:bg-[#1162a8] hover:text-white h-8 text-xs rounded-full"
+                              }
+                              onClick={() => handleSetPreferredTeethShade(customShadeId, isPreferred ? "No" : "Yes")}
+                            >
+                              {isPreferred ? "Lab default shade" : "Set as lab default"}
+                            </Button>
+                          )}
                         </div>
                       )
                     })}

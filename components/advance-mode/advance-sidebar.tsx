@@ -42,8 +42,9 @@ export function AdvanceSidebar({ activeTab = "advance-fields", onTabChange }: Ad
   const routePrefix = isLabAdmin ? "/lab-advance-mode" : "/global-advance-mode"
 
   const sidebarGroups: SidebarGroup[] = useMemo(() => {
+    const showAdvanceTaxonomy = isSuperAdmin || isLabAdmin
     const allItems = [
-      ...(isSuperAdmin ? [
+      ...(showAdvanceTaxonomy ? [
         { id: "category", label: t("advanceMode.sidebar.Category", "Category"), href: `${routePrefix}/category` },
         { id: "sub-category", label: t("advanceMode.sidebar.SubCategory", "Sub Category"), href: `${routePrefix}/sub-category` },
       ] : []),
@@ -57,7 +58,7 @@ export function AdvanceSidebar({ activeTab = "advance-fields", onTabChange }: Ad
         items: allItems
       },
     ]
-  }, [t, routePrefix, isSuperAdmin])
+  }, [t, routePrefix, isSuperAdmin, isLabAdmin])
 
   // Flat items (single tabs, not in accordion)
   const flatItems: SideTabItem[] = useMemo(() => [

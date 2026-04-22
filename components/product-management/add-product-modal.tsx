@@ -17,7 +17,10 @@ import {
   teethStrategyApiToForm,
   hydrateTeethPricingFieldsFromDefaultGrade,
   mapApiVariationsToForm,
+  jawPhotosStateFromProduct,
+  productHasAnyJawPhotoUrls,
 } from "@/lib/library-product-api-mapping"
+import { normalizeSinglePreferredShadeRow } from "@/lib/product-shade-preferences"
 import { ExtractionsApi } from "@/lib/api-service"
 import { useProducts } from "@/contexts/product-products-context"
 import { useProductCategory } from "@/contexts/product-category-context"
@@ -298,15 +301,22 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
     }
   }, [isOpen])
 
-  // When "Charge product per tooth" is off, hide Variation from the flow and clear variation fields
+  // When user turns per-tooth pricing off, hide Variation; do not run on stale "No" before form reset.
   useEffect(() => {
     if (!isOpen) return
     if (watchedIsTeethBased === "Yes") {
       prevTeethBasedRef.current = watchedIsTeethBased
+      setVisibleTabs((prev) => {
+        if (prev.has("variation")) return prev
+        const next = new Set(prev)
+        next.add("variation")
+        return next
+      })
       return
     }
     const turningOffTeeth = prevTeethBasedRef.current === "Yes"
     prevTeethBasedRef.current = watchedIsTeethBased
+    if (!turningOffTeeth) return
 
     setVisibleTabs((prev) => {
       if (!prev.has("variation")) return prev
@@ -316,8 +326,8 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
     })
     setActiveTab((prev) => (prev === "variation" ? "details" : prev))
     setSections((s) => ({ ...s, variation: false }))
-    setValue("enable_tooth_count_variation", "No", { shouldDirty: turningOffTeeth })
-    setValue("tooth_count_variations", [], { shouldDirty: turningOffTeeth })
+    setValue("enable_tooth_count_variation", "No", { shouldDirty: true })
+    setValue("tooth_count_variations", [], { shouldDirty: true })
   }, [watchedIsTeethBased, setValue, isOpen])
 
   useEffect(() => {
@@ -408,6 +418,19 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
     function mapWithStatus(arr: any[], idKey: string) {
       if (!Array.isArray(arr)) return []
       return arr.map((item, idx) => {
+        if (idKey === "gum_shade_id" || idKey === "teeth_shade_id") {
+          return {
+            [idKey]: item[idKey] ?? item.id,
+            sequence: item.sequence && item.sequence >= 1 ? item.sequence : idx + 1,
+            status: item.status || "Active",
+            is_preferred:
+              item.is_preferred === "Yes" ||
+              item.is_preferred === true ||
+              item.pivot?.is_preferred === "Yes"
+                ? "Yes"
+                : "No",
+          }
+        }
         const baseItem = {
           [idKey]: item[idKey] ?? item.id,
           sequence: item.sequence && item.sequence >= 1 ? item.sequence : idx + 1,
@@ -530,8 +553,8 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
       grades: mappedGrades,
       stages: mapWithStatus(editingProduct.stages || [], "stage_id"),
       impressions: mapWithStatus(editingProduct.impressions || [], "impression_id"),
-      gum_shades: mapWithStatus(editingProduct.gum_shades || [], "gum_shade_id"),
-      teeth_shades: mapWithStatus(editingProduct.teeth_shades || [], "teeth_shade_id"),
+      gum_shades: normalizeSinglePreferredShadeRow(mapWithStatus(editingProduct.gum_shades || [], "gum_shade_id") as any),
+      teeth_shades: normalizeSinglePreferredShadeRow(mapWithStatus(editingProduct.teeth_shades || [], "teeth_shade_id") as any),
       materials: mapWithStatus(editingProduct.materials || [], "material_id"),
       retentions: mapWithStatus(editingProduct.retentions || [], "retention_id"),
       addons: mapWithStatus(editingProduct.addons || [], "addon_id"),
@@ -558,7 +581,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
           : (editingProduct.apply_same_status_to_opposing ?? true),
       request_opposing_extraction: editingProduct.opposite_impression === "Yes" || editingProduct.opposite_impression === true || editingProduct.opposite_impression === 1 || editingProduct.request_opposing_extraction === true || editingProduct.request_opposing_extraction === 1 || (Array.isArray(editingProduct.opposite_extractions) && editingProduct.opposite_extractions.length > 0),
       is_teeth_based_price: editingProduct.is_teeth_based_price || "No",
-      show_jaw_photo: (editingProduct.jaw_photos && (editingProduct.jaw_photos.upper || editingProduct.jaw_photos.lower || editingProduct.jaw_photos.both))
+      show_jaw_photo: productHasAnyJawPhotoUrls(editingProduct)
         ? "Yes"
         : (editingProduct.show_jaw_photo || "No"),
       teeth_pricing_type: strategyForm,
@@ -570,6 +593,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
   useEffect(() => {
     if (isOpen) {
       reset(getNormalizedFormValues())
+      setJawPhotos(jawPhotosStateFromProduct(editingProduct ?? null))
       // Re-apply after reset: zodResolver / async ordering can leave opposite_extractions empty briefly — sync twice (microtask) so RHF picks it up.
       if (editingProduct?.opposite_extractions?.length) {
         const opp = mapOppositeExtractionsFromApi(editingProduct.opposite_extractions)
@@ -610,7 +634,13 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
         const hasAddons = isYes(editingProduct.has_addon, Array.isArray(editingProduct.addons) && editingProduct.addons.length > 0)
         const hasRetention = isYes(editingProduct.has_retention, Array.isArray(editingProduct.retentions) && editingProduct.retentions.length > 0)
         const hasExtractions = isYes(editingProduct.has_extraction, Array.isArray(editingProduct.extractions) && editingProduct.extractions.length > 0)
-        const hasVariation = isYes(editingProduct.has_variation, true)
+        const teethOnEdit =
+          editingProduct.is_teeth_based_price === "Yes" ||
+          editingProduct.is_teeth_based_price === true ||
+          editingProduct.is_teeth_based_price === "yes"
+        const hasVariationRows = Array.isArray(editingProduct.variations) && editingProduct.variations.length > 0
+        const hasVariation =
+          teethOnEdit && (hasVariationRows || isYes(editingProduct.has_variation, true))
         setSections((prev) => ({
           ...prev,
           grades: hasGrades,
@@ -806,13 +836,14 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
       // jaw_photos: only send new uploads or explicit removals
       const jawPhotoPayload: Record<string, string | null> = {}
       let hasJawPhotoChange = false
+      const existingJawFromApi = jawPhotosStateFromProduct(editingProduct ?? null)
       ;(["upper", "lower", "both"] as const).forEach((slot) => {
         const val = jawPhotos[slot]
         if (val && val.startsWith("data:image/")) {
           jawPhotoPayload[slot] = val
           hasJawPhotoChange = true
         } else if (val === null) {
-          const existingUrl = editingProduct?.jaw_photos?.[slot]
+          const existingUrl = existingJawFromApi[slot]
           if (existingUrl) {
             jawPhotoPayload[slot] = null
             hasJawPhotoChange = true

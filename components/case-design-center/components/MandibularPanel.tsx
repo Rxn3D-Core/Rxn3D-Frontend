@@ -49,6 +49,11 @@ import { FixedRestorationFields } from "./FixedRestorationFields";
 import { RemovableRestorationFields } from "./RemovableRestorationFields";
 import { AccordionBadge, EstDaysLabel } from "./AccordionBadge";
 import { ProductImagePreview } from "./ProductImagePreview";
+import {
+  getPreferredLabGumShade,
+  getPreferredLabTeethShade,
+  canAutoApplyPreferredGum,
+} from "@/lib/product-shade-preferences";
 
 /* ------------------------------------------------------------------ */
 /*  Articulator icon (Stage field)                                     */
@@ -757,6 +762,56 @@ export function MandibularPanel({
           completeFieldStep("mandibular", tn, "grade", JSON.stringify({ grade_id: def.grade_id, name: def.name }));
         }
       }
+    }
+  }, [getFieldValue, completeFieldStep, getToothProduct]);
+
+  const autoPreferredTeethShadeApplied = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    for (const tn of MANDIBULAR_ALL_TEETH) {
+      const tp = getToothProduct("mandibular", tn);
+      if (!tp) continue;
+      const key = `mandibular_${tn}`;
+      if (autoPreferredTeethShadeApplied.current.has(key)) continue;
+      if (getFieldValue("mandibular", tn, "teeth_shade")) continue;
+      const pref = getPreferredLabTeethShade(tp);
+      if (!pref) continue;
+      const teethShadeId = Number((pref as { teeth_shade_id?: number; id?: number }).teeth_shade_id ?? (pref as { id?: number }).id);
+      const name = String((pref as { name?: string }).name ?? "");
+      if (!teethShadeId || !name) continue;
+      const brandRaw = (pref as { brand?: { id?: number } }).brand;
+      const brandId = brandRaw?.id ?? 0;
+      autoPreferredTeethShadeApplied.current.add(key);
+      completeFieldStep(
+        "mandibular",
+        tn,
+        "teeth_shade",
+        JSON.stringify({ teeth_shade_id: teethShadeId, brand_id: brandId, name }),
+      );
+    }
+  }, [getFieldValue, completeFieldStep, getToothProduct]);
+
+  const autoPreferredGumShadeApplied = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    for (const tn of MANDIBULAR_ALL_TEETH) {
+      const tp = getToothProduct("mandibular", tn);
+      if (!tp) continue;
+      const key = `mandibular_${tn}`;
+      if (autoPreferredGumShadeApplied.current.has(key)) continue;
+      if (getFieldValue("mandibular", tn, "gum_shade")) continue;
+      if (!canAutoApplyPreferredGum(tp, () => getFieldValue("mandibular", tn, "teeth_shade"))) continue;
+      const pref = getPreferredLabGumShade(tp);
+      if (!pref) continue;
+      const gumShadeId = Number((pref as { gum_shade_id?: number; id?: number }).gum_shade_id ?? (pref as { id?: number }).id);
+      const name = String((pref as { name?: string }).name ?? "");
+      const brandId = Number((pref as { brand?: { id?: number } }).brand?.id ?? 0);
+      if (!gumShadeId || !name) continue;
+      autoPreferredGumShadeApplied.current.add(key);
+      completeFieldStep(
+        "mandibular",
+        tn,
+        "gum_shade",
+        JSON.stringify({ gum_shade_id: gumShadeId, brand_id: brandId, name }),
+      );
     }
   }, [getFieldValue, completeFieldStep, getToothProduct]);
 
