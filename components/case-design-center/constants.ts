@@ -8,7 +8,11 @@ export const implantBrandPlatforms: Record<string, string[]> = {
 
 export const implantBrandList = Object.keys(implantBrandPlatforms);
 
-export const shadeGuideOptions = ["Vita Classical", "Chromascop", "Trubyte Bioform IPN"];
+/**
+ * Fallback list used when a product's teeth_shades (brand.system_name) cannot be resolved.
+ * Real options are derived per-product in `useCaseDesignState` from the product detail API.
+ */
+export const shadeGuideOptions: string[] = [];
 
 
 export const mockImpressions = [

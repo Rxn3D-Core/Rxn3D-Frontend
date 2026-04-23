@@ -55,7 +55,8 @@ export const ToothShadeSelectionSVG: React.FC<ToothShadeSelectionSVGProps> = ({
 
   return (
     <div
-      className={`relative overflow-visible z-0 ${className}`}
+      className={`overflow-visible relative z-30 ${className}`}
+      style={{ overflow: 'visible' }}
     >
       <style>{`
         .shade-stick {
@@ -82,7 +83,7 @@ export const ToothShadeSelectionSVG: React.FC<ToothShadeSelectionSVGProps> = ({
           return ''
         }).join('\n')}
       `}</style>
-<svg className="overflow-visible" width="100%" height="100%" viewBox="0 20 600 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg className="overflow-visible" width="100%" height="100%" viewBox="0 20 600 160" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ overflow: 'visible' }}>
 <g clipPath="url(#clip0_58_5765)">
 <rect width="599.985" height="192.192" fill="white"/>
 <g clipPath="url(#clip1_58_5765)">
@@ -1766,7 +1767,7 @@ export const ToothShadeSelectionSVG: React.FC<ToothShadeSelectionSVGProps> = ({
 <stop offset="0.99" stopColor="#A3A8A4"/>
 </linearGradient>
 <clipPath id="clip0_58_5765">
-<rect width="599.985" height="192.192" fill="white"/>
+<rect x="0" y="-200" width="599.985" height="392.192" fill="white"/>
 </clipPath>
 <clipPath id="clip1_58_5765">
 <rect width="598.61" height="141.957" fill="white" transform="translate(0.416504 81.6235)"/>

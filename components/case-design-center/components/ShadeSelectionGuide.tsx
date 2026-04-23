@@ -55,8 +55,9 @@ export function ShadeSelectionGuide({
 
   return (
     <div className="mb-4 border border-[#1162A8] rounded-lg p-4 bg-white">
-      {/* Fields grid */}
-      <div className={`grid ${!selectedShadeGuide ? 'grid-cols-1' : toothShadeOnly ? 'grid-cols-2' : stumpShade ? 'grid-cols-3' : 'grid-cols-2'} gap-3 mb-3 relative z-10`}>
+      <div className="relative">
+        {/* Fields grid */}
+        <div className={`grid ${!selectedShadeGuide ? 'grid-cols-1' : toothShadeOnly ? 'grid-cols-2' : stumpShade ? 'grid-cols-3' : 'grid-cols-2'} gap-3 mb-3`}>
         {/* Shade Guide Selector Dropdown */}
         <div className="relative">
           <fieldset className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${selectedShadeGuide ? 'border-[#34a853]' : 'border-[#cf0202]'}`}>
@@ -182,14 +183,15 @@ export function ShadeSelectionGuide({
         )}
       </div>
 
-      {/* Shade guide image — only shown after user selects a shade guide */}
-      {selectedShadeGuide && (
-        <ToothShadeSelectionSVG
-          selectedShades={activeShade ? [activeShade] : []}
-          onShadeClick={handleShadeSelect}
-          className="w-full"
-        />
-      )}
+        {/* Shade guide image — only shown after user selects a shade guide */}
+        {selectedShadeGuide && (
+          <ToothShadeSelectionSVG
+            selectedShades={activeShade ? [activeShade] : []}
+            onShadeClick={handleShadeSelect}
+            className="w-full"
+          />
+        )}
+      </div>
     </div>
   );
 }

@@ -80,10 +80,18 @@ function resolveStyle(extraction: { code: string; name: string; color: string | 
   return { bg: "#F3EBD7", textClass: "text-black" };
 }
 
-/** Returns true if this extraction is the default box (is_default: "Yes", e.g. "Teeth in mouth") */
+/**
+ * Returns true if this extraction is the "Teeth in mouth" bucket — the box that
+ * holds teeth that have NOT been assigned to any other extraction code.
+ *
+ * Note: this is intentionally NOT keyed on `is_default === "Yes"`. Products may
+ * legitimately mark another extraction (e.g. "Missing teeth" on full dentures)
+ * as the product default; those behave as regular, code-keyed status boxes and
+ * must still contain teeth explicitly mapped to them. Only TIM / "Teeth in
+ * mouth" represents the "unassigned" bucket this predicate cares about.
+ */
 function isDefaultExtraction(extraction: ProductExtraction): boolean {
   return (
-    extraction.is_default === "Yes" ||
     extraction.code === "TIM" ||
     (extraction.name ?? "").toLowerCase().trim() === "teeth in mouth"
   );
@@ -132,7 +140,10 @@ export function ToothStatusBoxes({
     .filter((e) => e.status === "Active" && e.name != null && e.code != null)
     .sort((a, b) => a.sequence - b.sequence);
 
-  // Visible extractions — optionally hide the default (TIM) box
+  // `hideDefaultBox` hides the "Teeth in mouth" (TIM) box because that status
+  // is surfaced in the center navigation instead. `isDefaultExtraction` now
+  // only matches TIM, so product-specific defaults (e.g. "Missing teeth" on
+  // full dentures) still render as regular status boxes.
   const activeExtractions = hideDefaultBox
     ? allActiveExtractions.filter((e) => !isDefaultExtraction(e))
     : allActiveExtractions;

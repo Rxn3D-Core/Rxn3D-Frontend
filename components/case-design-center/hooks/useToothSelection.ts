@@ -247,6 +247,8 @@ export function useToothSelection(
     handleMandibularToothDeselect,
     maxillaryToothExtractionMap,
     mandibularToothExtractionMap,
+    setMaxillaryToothExtractionMap,
+    setMandibularToothExtractionMap,
     maxillaryClaspTeeth,
     mandibularClaspTeeth,
     handleToothExtractionToggle,

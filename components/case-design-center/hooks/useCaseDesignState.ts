@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import type { CaseDesignProps, Arch, RetentionType, ProductApiData } from "../types";
 import { productImpressionsToModalOptions } from "../types";
 import { mockImpressions } from "../constants";
@@ -312,6 +312,159 @@ export function useCaseDesignState(props: CaseDesignProps) {
 
   // Teeth shade catalog — fetched lazily on first shade selection (not on mount)
   const teethShadeCatalogRef = useRef<TeethShadeEntry[]>([]);
+
+  /**
+   * Auto-select all teeth on an arch when a product has an extraction
+   * with `is_default: "Yes"` (e.g., "Missing teeth" / code "MT").
+   *
+   * Uses the stable `setMaxillaryTeeth` / `setMandibularTeeth` useState setters
+   * (not the unmemoized `selectAllMaxillaryTeeth` helper) so the effect reliably
+   * fires after `initialProductDetails` resolves. Guarded per (productId, arch)
+   * so the user can manually deselect without the effect re-overriding them.
+   */
+  const MAXILLARY_ALL = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+  const MANDIBULAR_ALL = [17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
+  const autoSelectedArchKeysRef = useRef<Set<string>>(new Set());
+  const {
+    setMaxillaryToothExtractionMap,
+    setMandibularToothExtractionMap,
+    setMaxillaryTeeth,
+    setMandibularTeeth,
+  } = teeth;
+
+  const runMissingTeethAutoSelect = useCallback(
+    (product: ProductApiData | null | undefined, arch: string | undefined) => {
+      if (!product?.id || !arch) return;
+      const matched = product.extractions?.find(
+        (ext) =>
+          String(ext?.is_default ?? "").trim().toLowerCase() === "yes"
+      );
+      if (!matched || !matched.code) return;
+
+      const extractionCode = matched.code;
+      const isTeethInMouthDefault =
+        extractionCode === "TIM" ||
+        (matched.name ?? "").toLowerCase().trim() === "teeth in mouth";
+
+      const archesToFill = arch === "both" ? ["maxillary", "mandibular"] : [arch];
+      for (const a of archesToFill) {
+        const key = `${product.id}_${a}`;
+        if (autoSelectedArchKeysRef.current.has(key)) continue;
+        autoSelectedArchKeysRef.current.add(key);
+
+        const archTeeth = a === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
+        const mapSetter =
+          a === "maxillary"
+            ? setMaxillaryToothExtractionMap
+            : setMandibularToothExtractionMap;
+        const selectionSetter =
+          a === "maxillary" ? setMaxillaryTeeth : setMandibularTeeth;
+
+        // For non-TIM defaults (e.g. "Missing teeth" / MT on full dentures),
+        // stamp each unassigned tooth with the default code so the code-keyed
+        // status box is populated. For TIM, leave the map empty — TIM is
+        // the "unassigned" bucket by convention.
+        if (!isTeethInMouthDefault) {
+          mapSetter((prev) => {
+            const next = { ...prev };
+            for (const tn of archTeeth) {
+              if (next[tn] === undefined) next[tn] = extractionCode;
+            }
+            return next;
+          });
+        }
+
+        // Always add the teeth to the arch selection so the accordion renders,
+        // status boxes show populated teethForBox, and the required-validation
+        // banner does not fire. User may still manually deselect individuals.
+        selectionSetter((prev) => [...new Set([...prev, ...archTeeth])]);
+      }
+    },
+    [
+      setMaxillaryToothExtractionMap,
+      setMandibularToothExtractionMap,
+      setMaxillaryTeeth,
+      setMandibularTeeth,
+    ]
+  );
+
+  // Initial product
+  useEffect(() => {
+    if (!initialProductDetails || props.caseSubmitted) return;
+    runMissingTeethAutoSelect(initialProductDetails, props.initialArch);
+  }, [initialProductDetails, props.initialArch, props.caseSubmitted, runMissingTeethAutoSelect]);
+
+  // Added products — fetch detail and apply, honoring the (productId, arch) guard
+  useEffect(() => {
+    if (props.caseSubmitted) return;
+    const list = props.addedProducts ?? [];
+    for (const ap of list) {
+      if (!ap.productId || !ap.arch) continue;
+      const key = `${ap.productId}_${ap.arch}`;
+      if (autoSelectedArchKeysRef.current.has(key)) continue;
+
+      const embedded = (ap.product && (ap.product as ProductApiData).extractions)
+        ? (ap.product as ProductApiData)
+        : null;
+      if (embedded) {
+        runMissingTeethAutoSelect(embedded, ap.arch);
+        continue;
+      }
+
+      const cached = cachedProductRef.current.get(ap.productId);
+      if (cached) {
+        runMissingTeethAutoSelect(cached, ap.arch);
+        continue;
+      }
+
+      const role = localStorage.getItem("role");
+      const customerId = Number(
+        role === "office_admin" || role === "doctor"
+          ? localStorage.getItem("selectedLabId")
+          : localStorage.getItem("customerId")
+      ) || 1;
+
+      fetchProductDetails(ap.productId, customerId).then((product) => {
+        if (!product || !ap.productId) return;
+        cachedProductRef.current.set(ap.productId, product);
+        runMissingTeethAutoSelect(product, ap.arch);
+      });
+    }
+  }, [props.addedProducts, props.caseSubmitted, runMissingTeethAutoSelect]);
+
+  /**
+   * Shade-guide dropdown options derived from the active tooth's product detail.
+   * Produces unique `brand.system_name` values from `product.teeth_shades`.
+   * Falls back to an empty array when no product is resolvable (UI then shows no options).
+   */
+  const shadeGuideOptions = useMemo<string[]>(() => {
+    const { arch, productId } = shades.shadeSelectionState;
+    if (!arch || !productId) return [];
+
+    const fixedMatch = productId.match(/^fixed_(\d+)$/);
+    const prepMatch = productId.match(/^prep_(-?\d+)$/);
+    const toothNumber = fixedMatch
+      ? parseInt(fixedMatch[1], 10)
+      : prepMatch
+        ? parseInt(prepMatch[1], 10)
+        : null;
+    if (toothNumber == null) return [];
+
+    const product = toothFieldProgress.getToothProduct(arch, toothNumber);
+    const teethShades = product?.teeth_shades;
+    if (!teethShades || teethShades.length === 0) return [];
+
+    const systemNames: string[] = [];
+    const seen = new Set<string>();
+    for (const shade of teethShades) {
+      const systemName = shade.brand?.system_name;
+      if (systemName && !seen.has(systemName)) {
+        seen.add(systemName);
+        systemNames.push(systemName);
+      }
+    }
+    return systemNames;
+  }, [shades.shadeSelectionState, toothFieldProgress.getToothProduct]);
 
   // Auto-complete stage step when product is single-stage with no stage options
   const autoCompleteSingleStage = useCallback(
@@ -682,6 +835,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
     handleMaxillaryToothDeselect, // Override: migrate Fixed Restoration stage key before deselect
     handleMandibularToothDeselect, // Override: migrate Fixed Restoration stage key before deselect
     ...shades,
+    shadeGuideOptions, // Override: derived from the active tooth's product.teeth_shades brand.system_name
     handleShadeSelect, // Override: mark fixed_stump_shade completed when shade is selected so next fields show
     ...modals,
     getImpressionDisplayText, // Override: use product impressions when toothNumber provided

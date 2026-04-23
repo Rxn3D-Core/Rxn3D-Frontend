@@ -363,6 +363,26 @@ export interface ProductOppositeExtraction {
   max_teeth?: number | null;
 }
 
+/** Teeth shade entry from product details API (includes brand for shade-guide grouping). */
+export interface ProductTeethShadeBrand {
+  id: number;
+  name: string;
+  system_name: string;
+  brand_color?: string | null;
+  status?: string;
+}
+
+export interface ProductTeethShade {
+  id: number;
+  teeth_shade_id?: number;
+  name: string;
+  code?: string | null;
+  sequence?: number;
+  status?: string;
+  price?: string | number | null;
+  brand?: ProductTeethShadeBrand | null;
+}
+
 /** Product from the products API */
 export interface ProductApiData {
   id: number;
@@ -385,6 +405,7 @@ export interface ProductApiData {
   gum_shades?: ProductGumShade[];
   extractions?: ProductExtraction[];
   advance_fields?: ProductAdvanceField[];
+  teeth_shades?: ProductTeethShade[];
   opposite_impression?: "Yes" | "No";
   opposite_extractions?: ProductOppositeExtraction[];
   retention_options?: Array<{
