@@ -278,6 +278,72 @@ export function hydrateTeethPricingFieldsFromDefaultGrade(
   return out
 }
 
+/** True when teeth-based pricing should be read/sent on the product root (no grade-based rows). */
+export function shouldUseProductLevelTeethPricing(form: ProductCreateForm): boolean {
+  if (form.is_teeth_based_price !== "Yes") return false
+  const gradeBased =
+    form.has_grade_based_pricing === "Yes" && Array.isArray(form.grades) && form.grades.length > 0
+  return !gradeBased
+}
+
+/**
+ * Hydrate form teeth fields from product-level API columns / root `teeth_price_tiers`
+ * (see docs: product-level tiers when no stage / no grade).
+ */
+export function hydrateProductLevelTeethPricingFromApi(
+  apiProduct: Record<string, unknown>,
+  strategyForm: TeethPricingTypeForm,
+): Partial<ProductCreateForm> {
+  const out: Partial<ProductCreateForm> = {}
+  if (strategyForm === "same_price") {
+    const v = apiProduct.teeth_per_tooth_price ?? apiProduct.teeth_price_per_tooth
+    if (v != null && String(v).trim() !== "") {
+      out.teeth_price_per_tooth = String(v)
+    }
+  } else if (strategyForm === "first_tooth_more") {
+    const f = apiProduct.teeth_first_tooth_price
+    const a = apiProduct.teeth_additional_tooth_price
+    if (f != null && String(f).trim() !== "") {
+      out.teeth_first_tooth_price = String(f)
+    }
+    if (a != null && String(a).trim() !== "") {
+      out.teeth_additional_tooth_price = String(a)
+    }
+  } else if (strategyForm === "custom") {
+    const tiers = apiProduct.teeth_price_tiers
+    if (Array.isArray(tiers) && tiers.length > 0) {
+      out.teeth_custom_prices = teethCustomPricesFromTiers(tiers as any)
+    }
+  }
+  return out
+}
+
+function parseNullableProductTeethPrice(raw: unknown): number | null {
+  if (raw === undefined || raw === null || String(raw).trim() === "") return null
+  const n = typeof raw === "number" ? raw : parseFloat(String(raw))
+  if (isNaN(n) || n < 0) return null
+  return n
+}
+
+/** Map product-level teeth strategy fields onto API payload (root `library_products` / lab profile). */
+export function applyProductLevelTeethPricingToPayload(
+  payload: Record<string, unknown>,
+  form: ProductCreateForm,
+): void {
+  if (!shouldUseProductLevelTeethPricing(form)) return
+
+  const strat = teethStrategyFormToApi(form.teeth_pricing_type as TeethPricingTypeForm | undefined)
+
+  if (strat === "same_per_tooth") {
+    payload.teeth_per_tooth_price = parseNullableProductTeethPrice(form.teeth_price_per_tooth)
+  } else if (strat === "first_tooth_more") {
+    payload.teeth_first_tooth_price = parseNullableProductTeethPrice(form.teeth_first_tooth_price)
+    payload.teeth_additional_tooth_price = parseNullableProductTeethPrice(form.teeth_additional_tooth_price)
+  } else if (strat === "custom_per_count") {
+    payload.teeth_price_tiers = teethTiersFromCustomPrices(form.teeth_custom_prices)
+  }
+}
+
 const ALLOCATION_EPS = 0.02
 
 export function validateStageAllocationPercents(stages: any[] | undefined): string | null {
@@ -310,6 +376,45 @@ export function stripLibraryProductFormOnlyFields(payload: Record<string, unknow
   delete payload.tooth_count_variations
 }
 
+function coerceOppositeImpressionYesNo(v: unknown): "Yes" | "No" | undefined {
+  if (v === "Yes" || v === "yes") return "Yes"
+  if (v === "No" || v === "no") return "No"
+  if (v === true || v === 1 || v === "1") return "Yes"
+  if (v === false || v === 0 || v === "0") return "No"
+  if (v === undefined || v === null) return undefined
+  if (typeof v === "string" && v.trim() === "") return undefined
+  return v ? "Yes" : "No"
+}
+
+/**
+ * API expects `opposite_impression` ("Yes" | "No"). The form uses `request_opposing_extraction` (boolean).
+ * Merge into `opposite_impression` and remove `request_opposing_extraction` so it is never sent.
+ */
+export function normalizeOppositeImpressionPayload(
+  payload: Record<string, unknown>,
+  form?: ProductCreateForm,
+): void {
+  const current = payload.opposite_impression
+  if (current === "Yes" || current === "No") {
+    delete payload.request_opposing_extraction
+    return
+  }
+
+  const fromReq =
+    payload.request_opposing_extraction !== undefined
+      ? payload.request_opposing_extraction
+      : form?.request_opposing_extraction
+
+  const resolved =
+    coerceOppositeImpressionYesNo(current) ?? coerceOppositeImpressionYesNo(fromReq)
+
+  if (resolved !== undefined) {
+    payload.opposite_impression = resolved
+  }
+
+  delete payload.request_opposing_extraction
+}
+
 type SectionsVariation = { variation: boolean }
 
 export function finalizeLibraryProductApiPayload(
@@ -325,6 +430,8 @@ export function finalizeLibraryProductApiPayload(
     delete payload.teeth_pricing_strategy
   }
 
+  applyProductLevelTeethPricingToPayload(payload, form)
+
   const v = buildVariationsApiPayload(form, sections.variation)
   payload.has_variation = v.has_variation
   payload.variations = v.variations
@@ -332,4 +439,6 @@ export function finalizeLibraryProductApiPayload(
   if (Array.isArray(payload.grades)) {
     payload.grades = applyLabTeethPricingToGrades(payload.grades as any[], form) ?? payload.grades
   }
+
+  normalizeOppositeImpressionPayload(payload, form)
 }

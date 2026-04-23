@@ -16,6 +16,7 @@ import {
   validateStageAllocationPercents,
   teethStrategyApiToForm,
   hydrateTeethPricingFieldsFromDefaultGrade,
+  hydrateProductLevelTeethPricingFromApi,
   mapApiVariationsToForm,
   jawPhotosStateFromProduct,
   productHasAnyJawPhotoUrls,
@@ -34,6 +35,9 @@ import { useRetention } from "@/contexts/product-retention-context"
 import { useAddOns } from "@/contexts/product-add-on-context"
 import { useTranslation } from "react-i18next"
 import { useAuth } from "@/contexts/auth-context"
+import { getCustomerId } from "@/lib/dashboard-widgets"
+import { usePreferredGumShades } from "@/hooks/usePreferredGumShades"
+import { usePreferredTeethShades } from "@/hooks/usePreferredTeethShades"
 import { ProductDetailsSection } from "./add-lab-product-modal/ProductDetailsSection"
 import { GradesSection } from "@/components/product-management/add-lab-product-modal/GradesSection"
 import { StagesSection } from "@/components/product-management/add-lab-product-modal/StagesSection"
@@ -147,6 +151,71 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
       : Array.isArray(user?.roles) && user.roles.length > 0
         ? user.roles[0]
         : ""
+
+  const customerId = useMemo(() => getCustomerId(user), [user])
+  const preferredShadesFetchEnabled = isOpen && !editingProduct && Boolean(customerId)
+  const {
+    brand: preferredGumBrand,
+    shades: preferredGumShadesList,
+    loading: preferredGumLoading,
+    hasExplicitPreference: gumHasExplicitPreference,
+  } = usePreferredGumShades({
+    customerId: customerId ?? 0,
+    enabled: preferredShadesFetchEnabled,
+  })
+  const {
+    brand: preferredTeethBrand,
+    shades: preferredTeethShadesList,
+    loading: preferredTeethLoading,
+    hasExplicitPreference: teethHasExplicitPreference,
+  } = usePreferredTeethShades({
+    customerId: customerId ?? 0,
+    enabled: preferredShadesFetchEnabled,
+  })
+  const gumPreferredAutoFill = useMemo(
+    () => ({
+      isOpen,
+      isCreateMode: !editingProduct,
+      brandId: preferredGumBrand?.id ?? null,
+      shadeIds: preferredGumShadesList.map((s) => s.id),
+      ready:
+        preferredShadesFetchEnabled &&
+        !preferredGumLoading &&
+        gumHasExplicitPreference !== false &&
+        preferredGumBrand?.id != null,
+    }),
+    [
+      isOpen,
+      editingProduct,
+      preferredGumBrand?.id,
+      preferredGumShadesList,
+      preferredShadesFetchEnabled,
+      preferredGumLoading,
+      gumHasExplicitPreference,
+    ],
+  )
+  const teethPreferredAutoFill = useMemo(
+    () => ({
+      isOpen,
+      isCreateMode: !editingProduct,
+      brandId: preferredTeethBrand?.id ?? null,
+      shadeIds: preferredTeethShadesList.map((s) => s.id),
+      ready:
+        preferredShadesFetchEnabled &&
+        !preferredTeethLoading &&
+        teethHasExplicitPreference !== false &&
+        preferredTeethBrand?.id != null,
+    }),
+    [
+      isOpen,
+      editingProduct,
+      preferredTeethBrand?.id,
+      preferredTeethShadesList,
+      preferredShadesFetchEnabled,
+      preferredTeethLoading,
+      teethHasExplicitPreference,
+    ],
+  )
 
   const [isMaximized, setIsMaximized] = useState(true)
   const [showDiscardDialog, setShowDiscardDialog] = useState(false)
@@ -415,6 +484,16 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
   const getNormalizedFormValues = useCallback((): ProductCreateForm => {
     if (!editingProduct) return initialFormValues
 
+    const materialPriceByMid = new Map<number, string | number>()
+    for (const m of editingProduct.materials || []) {
+      const mid = m?.material_id ?? m?.id
+      if (mid == null) continue
+      const p = m?.price ?? m?.pivot?.price ?? m?.lab_material?.price
+      if (p !== undefined && p !== null && p !== "") {
+        materialPriceByMid.set(Number(mid), p)
+      }
+    }
+
     function mapWithStatus(arr: any[], idKey: string) {
       if (!Array.isArray(arr)) return []
       return arr.map((item, idx) => {
@@ -504,6 +583,26 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
             quantity: quantityValue,
             is_default: isDefaultValue === "Yes" ? "Yes" : "No",
           }
+        } else if (idKey === "material_id") {
+          const mid = item[idKey] ?? item.id
+          const priceValue =
+            item.price ??
+            item.pivot?.price ??
+            item.lab_material?.price ??
+            (mid != null ? materialPriceByMid.get(Number(mid)) : undefined) ??
+            ""
+          let price = 0
+          if (priceValue !== undefined && priceValue !== null && priceValue !== "") {
+            const parsedPrice = typeof priceValue === "number" ? priceValue : parseFloat(String(priceValue))
+            if (!Number.isNaN(parsedPrice) && parsedPrice >= 0) {
+              price = Math.min(parsedPrice, 999999.99)
+            }
+          }
+          return {
+            ...baseItem,
+            is_default: item.is_default === "Yes" ? "Yes" : "No",
+            price,
+          }
         }
         
         return baseItem
@@ -537,7 +636,10 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
 
     const mappedGrades = mapWithStatus(gradesArr, "grade_id")
     const strategyForm = teethStrategyApiToForm(editingProduct.teeth_pricing_strategy)
-    const teethHydrate = hydrateTeethPricingFieldsFromDefaultGrade(mappedGrades, strategyForm)
+    const useGradeRowForTeeth = hasGradeBasedPricing === "Yes" && mappedGrades.length > 0
+    const teethHydrate = useGradeRowForTeeth
+      ? hydrateTeethPricingFieldsFromDefaultGrade(mappedGrades, strategyForm)
+      : hydrateProductLevelTeethPricingFromApi(editingProduct as Record<string, unknown>, strategyForm)
     const variationForm = mapApiVariationsToForm(editingProduct)
 
     return {
@@ -555,7 +657,12 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
       impressions: mapWithStatus(editingProduct.impressions || [], "impression_id"),
       gum_shades: normalizeSinglePreferredShadeRow(mapWithStatus(editingProduct.gum_shades || [], "gum_shade_id") as any),
       teeth_shades: normalizeSinglePreferredShadeRow(mapWithStatus(editingProduct.teeth_shades || [], "teeth_shade_id") as any),
-      materials: mapWithStatus(editingProduct.materials || [], "material_id"),
+      materials: mapWithStatus(
+        editingProduct.material_details && editingProduct.material_details.length
+          ? editingProduct.material_details
+          : editingProduct.materials || [],
+        "material_id",
+      ),
       retentions: mapWithStatus(editingProduct.retentions || [], "retention_id"),
       addons: mapWithStatus(editingProduct.addons || [], "addon_id"),
       extractions: mapWithStatus(editingProduct.extractions || [], "extraction_id"),
@@ -915,9 +1022,29 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
         payload.jaw_photos = createJawPhotos
       }
 
-      // Map request_opposing_extraction boolean → "Yes"/"No" for the API
-      if (payload.request_opposing_extraction !== undefined) {
-        payload.request_opposing_extraction = payload.request_opposing_extraction ? "Yes" : "No"
+      // Section switches (same as edit path): API must get explicit has_* + empty arrays when off.
+      // Omitting these lets the backend default has_* to Yes while relation arrays may still be sent from the form.
+      payload.has_stage = sections.stages ? "Yes" : "No"
+      payload.has_grade = sections.grades ? "Yes" : "No"
+      payload.has_gum_shade = sections.gumShade ? "Yes" : "No"
+      payload.has_teeth_shade = sections.teethShade ? "Yes" : "No"
+      payload.has_impression = sections.impressions ? "Yes" : "No"
+      payload.has_extraction = sections.extractions ? "Yes" : "No"
+      payload.has_retention = sections.retention ? "Yes" : "No"
+      payload.has_material = sections.material ? "Yes" : "No"
+      payload.has_addon = sections.addOns ? "Yes" : "No"
+
+      if (!sections.stages) payload.stages = []
+      if (!sections.grades) payload.grades = []
+      if (!sections.impressions) payload.impressions = []
+      if (!sections.gumShade) payload.gum_shades = []
+      if (!sections.teethShade) payload.teeth_shades = []
+      if (!sections.material) payload.materials = []
+      if (!sections.addOns) payload.addons = []
+      if (!sections.retention) payload.retentions = []
+      if (!sections.extractions) {
+        payload.extractions = []
+        payload.opposite_extractions = []
       }
 
       const allocCreate = validateStageAllocationPercents(payload.stages)
@@ -1330,6 +1457,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
                     expandedSections={expandedSections}
                     toggleExpanded={toggleExpanded}
                     handleToggleSelection={handleToggleSelection}
+                    preferredAutoFill={gumPreferredAutoFill}
                   />
                 </TabsContent>
 
@@ -1346,6 +1474,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
                     expandedSections={expandedSections}
                     toggleExpanded={toggleExpanded}
                     handleToggleSelection={handleToggleSelection}
+                    preferredAutoFill={teethPreferredAutoFill}
                   />
                 </TabsContent>
 

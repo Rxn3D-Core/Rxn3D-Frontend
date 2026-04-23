@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from "react"
 import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
 import { Controller, useWatch } from "react-hook-form"
-import { AlertCircle, Plus, PlusCircle } from "lucide-react"
+import { AlertCircle, Info, Plus, PlusCircle, Trash2 } from "lucide-react"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { generateCodeFromName, cn } from "@/lib/utils"
@@ -20,7 +20,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { Info } from "lucide-react"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 
 /** Custom per-count pricing: up to 16 teeth (full arch); `sm+` uses 8 columns (row 1: 1–8, row 2: 9–16). */
@@ -77,6 +76,8 @@ function TeethPricingSection({ control, setValue }: TeethPricingSectionProps) {
     if (setValue) (setValue as any)(name, value)
   }, [setValue])
 
+  const customPriceInputRefs = React.useRef<(HTMLInputElement | null)[]>([])
+
   if (isTeethBased !== "Yes") return null
 
   // Build preview prices
@@ -103,7 +104,20 @@ function TeethPricingSection({ control, setValue }: TeethPricingSectionProps) {
 
   const handleAddCustomSlot = () => {
     if (customPrices.length >= MAX_TEETH) return
+    const newIndex = customPrices.length
     setVal("teeth_custom_prices", [...customPrices, ""])
+    queueMicrotask(() => {
+      requestAnimationFrame(() => {
+        const el = customPriceInputRefs.current[newIndex]
+        el?.focus()
+        if (el && el.value === "") el.select()
+      })
+    })
+  }
+
+  const handleRemoveLastCustomSlot = () => {
+    if (customPrices.length <= 1) return
+    setVal("teeth_custom_prices", customPrices.slice(0, -1))
   }
 
   return (
@@ -234,26 +248,44 @@ function TeethPricingSection({ control, setValue }: TeethPricingSectionProps) {
                         const label =
                           index === 0
                             ? "1 tooth"
-                            : index === MAX_TEETH - 1
+                            : index === MAX_TEETH - 1 && customPrices.length === MAX_TEETH
                               ? `${MAX_TEETH} teeth`
                               : `${index + 1} teeth`
+                        const isLastSlot = index === customPrices.length - 1
+                        const showRemove = isLastSlot && customPrices.length > 1
                         return (
                           <div key={index} className="flex flex-col gap-1 min-w-0">
                             <span className="text-xs text-gray-500 text-center leading-tight px-0.5">
                               {label}
                             </span>
-                            <div className="relative w-full min-w-0">
-                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 font-medium pointer-events-none text-sm">
-                                $
-                              </span>
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                className="w-full min-w-0 pl-6 pr-1.5 py-2 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                                value={String(price)}
-                                onChange={(e) => handleCustomPriceChange(index, e.target.value)}
-                              />
+                            <div className="flex items-stretch gap-1 min-w-0">
+                              <div className="relative flex-1 min-w-0">
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 font-medium pointer-events-none text-sm">
+                                  $
+                                </span>
+                                <input
+                                  ref={(el) => {
+                                    customPriceInputRefs.current[index] = el
+                                  }}
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  className="w-full min-w-0 pl-6 pr-1.5 py-2 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                  value={String(price)}
+                                  onChange={(e) => handleCustomPriceChange(index, e.target.value)}
+                                />
+                              </div>
+                              {showRemove && (
+                                <button
+                                  type="button"
+                                  onClick={handleRemoveLastCustomSlot}
+                                  className="shrink-0 h-[42px] w-9 rounded-lg border border-gray-300 bg-white text-red-600 hover:bg-red-50 hover:border-red-200 flex items-center justify-center"
+                                  title="Remove this tooth count"
+                                  aria-label="Remove last tooth price slot"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              )}
                             </div>
                           </div>
                         )
@@ -279,7 +311,7 @@ function TeethPricingSection({ control, setValue }: TeethPricingSectionProps) {
                   {customPrices.length >= MAX_TEETH && (
                     <p className="mt-2 text-xs text-amber-600 flex items-center gap-1">
                       <Info className="h-3 w-3 flex-shrink-0" />
-                      Maximum {MAX_TEETH} teeth reached. 16 teeth is categorized as Full Denture.
+                      Maximum {MAX_TEETH} teeth reached.
                     </p>
                   )}
                 </div>

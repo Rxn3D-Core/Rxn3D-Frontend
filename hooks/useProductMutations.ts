@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/contexts/auth-context'
 import { getAuthToken, redirectToLogin } from '@/lib/auth-utils'
+import { normalizeOppositeImpressionPayload } from '@/lib/library-product-api-mapping'
 
 type ApiErrorPayload = {
   message: string
@@ -47,10 +48,7 @@ export function useProductMutations() {
       const token = getAuthToken()
       let finalPayload = { ...payload }
 
-      // Map request_opposing_extraction boolean → "Yes"/"No" for the API
-      if (finalPayload.request_opposing_extraction !== undefined && finalPayload.request_opposing_extraction !== "Yes" && finalPayload.request_opposing_extraction !== "No") {
-        finalPayload.request_opposing_extraction = finalPayload.request_opposing_extraction ? "Yes" : "No"
-      }
+      normalizeOppositeImpressionPayload(finalPayload)
 
       // Handle releasingStageIds - mark stages as releasing if needed
       if (releasingStageIds.length > 0 && Array.isArray(finalPayload.stages)) {
@@ -139,7 +137,7 @@ export function useProductMutations() {
       const apiUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL}/library/products/${id}`
 
       console.log('💰 [useProductMutations] Final payload price:', finalPayload.price, 'base_price:', finalPayload.base_price, 'customer_id:', finalPayload.customer_id)
-      console.log('🔍 [useProductMutations] request_opposing_extraction:', finalPayload.request_opposing_extraction, typeof finalPayload.request_opposing_extraction)
+      console.log('🔍 [useProductMutations] opposite_impression:', finalPayload.opposite_impression, typeof finalPayload.opposite_impression)
 
       let response: Response
       try {
@@ -280,10 +278,7 @@ export function useProductMutations() {
       const token = getAuthToken()
       let finalPayload = { ...payload }
 
-      // Map request_opposing_extraction boolean → "Yes"/"No" for the API
-      if (finalPayload.request_opposing_extraction !== undefined && finalPayload.request_opposing_extraction !== "Yes" && finalPayload.request_opposing_extraction !== "No") {
-        finalPayload.request_opposing_extraction = finalPayload.request_opposing_extraction ? "Yes" : "No"
-      }
+      normalizeOppositeImpressionPayload(finalPayload)
 
       // Add customer_id for lab_admin
       if (isLabAdmin && user?.customers?.length) {
