@@ -50,10 +50,10 @@ function getFirstToothAnchorPrice(
 }
 
 /**
- * Sort order: master grades by sequence ascending, then custom (negative id) grades.
- * Used when no default is set — e.g. first grade selected, or after removing the default row.
+ * Selected grades sorted by master sequence (asc), then custom (negative id) grades.
+ * The first row in this order is the “anchor” grade for teeth-based pricing (first-tooth price, 0% markup).
  */
-function enforceFirstGradeDefault(watchedGrades: WatchedGrade[], masterGrades: Grade[]): WatchedGrade[] {
+function sortSelectedGradesByMasterOrder(watchedGrades: WatchedGrade[], masterGrades: Grade[]): WatchedGrade[] {
   if (watchedGrades.length === 0) return watchedGrades
   const masterList = Array.isArray(masterGrades) ? masterGrades : []
   const selected = [...watchedGrades]
@@ -72,21 +72,21 @@ function enforceFirstGradeDefault(watchedGrades: WatchedGrade[], masterGrades: G
     if (sa !== sb) return sa - sb
     return String(aId).localeCompare(String(bId))
   })
-  const firstId = selected[0].grade_id
-  return watchedGrades.map((g) => ({
-    ...g,
-    is_default: g.grade_id === firstId ? "Yes" : "No",
-    ...(g.grade_id === firstId ? { markup_percent: "" } : {}),
-  }))
+  return selected
 }
 
-/** Ensures exactly one default when multiple grades exist; if none, picks first by master sequence (then custom ids). */
-function ensureOneDefaultGrade(watchedGrades: WatchedGrade[], masterGrades: Grade[]): WatchedGrade[] {
+function getAnchorGradeId(watchedGrades: WatchedGrade[], masterGrades: Grade[]): number | string | undefined {
+  const sorted = sortSelectedGradesByMasterOrder(watchedGrades, masterGrades)
+  return sorted[0]?.grade_id
+}
+
+/** If multiple defaults, keep the first in form order; if none, leave as-is (user must set default explicitly). */
+function ensureOneDefaultGrade(watchedGrades: WatchedGrade[]): WatchedGrade[] {
   if (watchedGrades.length === 0) return watchedGrades
   const withDefault = watchedGrades.filter((g) => g.is_default === "Yes")
   if (withDefault.length === 1) return watchedGrades
   if (withDefault.length === 0) {
-    return enforceFirstGradeDefault(watchedGrades, masterGrades)
+    return watchedGrades
   }
   const keepId = withDefault[0].grade_id
   return watchedGrades.map((g) => ({
@@ -96,25 +96,24 @@ function ensureOneDefaultGrade(watchedGrades: WatchedGrade[], masterGrades: Grad
 }
 
 /**
- * Teeth-based: default grade price = first tooth anchor; markup 0% on default.
- * Other grades: price = first_tooth_price × (1 + markup%/100).
+ * Teeth-based: the first selected grade (by master list order) gets the first-tooth anchor price and 0% markup.
+ * This is independent of which grade is marked “default” for the product.
  */
-function applyTeethMarkupToGradePrices(grades: WatchedGrade[], anchorPrice: number | null): WatchedGrade[] {
+function syncTeethAnchorGradePrice(
+  grades: WatchedGrade[],
+  anchorPrice: number | null,
+  masterGrades: Grade[],
+): WatchedGrade[] {
+  const anchorId = getAnchorGradeId(grades, masterGrades)
+  if (anchorId === undefined) return grades
   if (anchorPrice == null || isNaN(anchorPrice) || anchorPrice <= 0) {
-    return grades.map((g) => (g.is_default === "Yes" ? { ...g, markup_percent: "" } : g))
+    return grades.map((g) => (g.grade_id === anchorId ? { ...g, markup_percent: "" } : g))
   }
   return grades.map((g) => {
-    if (g.is_default === "Yes") {
+    if (g.grade_id === anchorId) {
       return { ...g, markup_percent: "", price: anchorPrice.toFixed(2) }
     }
-    const mRaw = g.markup_percent
-    const mNum =
-      mRaw === undefined || mRaw === null || String(mRaw).trim() === ""
-        ? 0
-        : parseFloat(String(mRaw))
-    const m = isNaN(mNum) ? 0 : mNum
-    const price = (anchorPrice * (1 + m / 100)).toFixed(2)
-    return { ...g, price }
+    return g
   })
 }
 
@@ -182,11 +181,16 @@ export function GradesSection({
   const teethGradeLock =
     isTeethBased && watchedHasGradeBasedPricing === "Yes"
 
-  // When first-tooth anchor or teeth strategy changes, re-sync prices/markup (keeps whichever grade is default).
+  const anchorGradeId = useMemo(
+    () => getAnchorGradeId(watchedGrades, masterGradesFlat),
+    [watchedGrades, masterGradesFlat],
+  )
+
+  // When first-tooth anchor or teeth strategy changes, re-sync only the anchor (first-by-order) grade to the anchor price.
   useEffect(() => {
     if (!teethGradeLock || watchedGrades.length === 0) return
-    let next = ensureOneDefaultGrade(watchedGrades, masterGradesFlat)
-    next = applyTeethMarkupToGradePrices(next, firstToothAnchor)
+    let next = ensureOneDefaultGrade(watchedGrades)
+    next = syncTeethAnchorGradePrice(next, firstToothAnchor, masterGradesFlat)
     if (JSON.stringify(next) !== JSON.stringify(watchedGrades)) {
       setValue("grades", next as NonNullable<ProductCreateForm["grades"]>, { shouldDirty: true })
     }
@@ -216,7 +220,7 @@ export function GradesSection({
   }, [watchedMaxDaysToProcess, expandedSections.grades, toggleExpanded])
 
   // Prefill lowest grade with base price when grades are available and base price exists
-  // Skip when teeth-based: default grade anchors pricing; markup sync handles non-default prices.
+  // Skip when teeth-based: anchor grade sync handles first-by-order grade price.
   useEffect(() => {
     if (isTeethBased) return
     if (
@@ -283,7 +287,6 @@ export function GradesSection({
       grade_id: customGradeId,
       is_default: customGradeIsDefault ? ("Yes" as const) : ("No" as const),
       price: customGradePrice || "",
-      ...(customGradeIsDefault ? { markup_percent: "" } : {}),
     }
 
     // Store the custom grade name
@@ -302,8 +305,8 @@ export function GradesSection({
     }
 
     if (teethGradeLock) {
-      updated = ensureOneDefaultGrade(updated, masterGradesFlat)
-      updated = applyTeethMarkupToGradePrices(updated, firstToothAnchor)
+      updated = ensureOneDefaultGrade(updated)
+      updated = syncTeethAnchorGradePrice(updated, firstToothAnchor, masterGradesFlat)
     }
 
     setValue("grades", updated, { shouldDirty: true })
@@ -333,14 +336,13 @@ export function GradesSection({
           ...g,
           is_default: isDefault,
           price: g.price && g.price !== "" ? g.price : "",
-          ...(isDefault === "Yes" ? { markup_percent: "" } : {}),
         }
       }
       return { ...g, is_default: "No" as const }
     }) as NonNullable<ProductCreateForm["grades"]>
     if (teethGradeLock) {
-      updated = ensureOneDefaultGrade(updated, masterGradesFlat)
-      updated = applyTeethMarkupToGradePrices(updated, firstToothAnchor)
+      updated = ensureOneDefaultGrade(updated)
+      updated = syncTeethAnchorGradePrice(updated, firstToothAnchor, masterGradesFlat)
     }
     setValue("grades", updated, { shouldDirty: true, shouldValidate: true })
   }
@@ -371,8 +373,8 @@ export function GradesSection({
       ] as NonNullable<ProductCreateForm["grades"]>
     }
     if (teethGradeLock) {
-      updated = ensureOneDefaultGrade(updated, masterGradesFlat)
-      updated = applyTeethMarkupToGradePrices(updated, firstToothAnchor)
+      updated = ensureOneDefaultGrade(updated)
+      updated = syncTeethAnchorGradePrice(updated, firstToothAnchor, masterGradesFlat)
     }
     setValue("grades", updated, { shouldDirty: true })
   }
@@ -441,6 +443,10 @@ export function GradesSection({
                 {((Array.isArray(grades) ? grades : grades?.data) || []).map((grade: Grade) => {
                   const isSelected = watchedGrades.some((g) => g.grade_id === grade.id)
                   const isDefault = watchedGrades.find((g) => g.grade_id === grade.id)?.is_default === "Yes"
+                  const isAnchorGrade =
+                    isSelected &&
+                    anchorGradeId !== undefined &&
+                    String(grade.id) === String(anchorGradeId)
                   const gradeObj = watchedGrades.find((g) => g.grade_id === grade.id)
                   // Find the index of this grade in the watchedGrades array for validation error lookup
                   const gradeIndexInWatched = watchedGrades.findIndex((g) => g.grade_id === grade.id)
@@ -471,10 +477,10 @@ export function GradesSection({
                       {/* Hide only the price input for superadmin */}
                       {isSelected && userRole !== "superadmin" && (
                         <div className="relative w-full sm:w-32">
-                          {teethGradeLock && isDefault ? (
+                          {teethGradeLock && isAnchorGrade ? (
                             <div
                               className="pl-7 h-9 border rounded w-full border-gray-200 bg-gray-50 text-gray-700 flex items-center text-sm"
-                              title="Matches first tooth price from Product Details (not editable)"
+                              title="First checked grade in list order: matches first tooth price from Product Details (not editable). Independent of default grade."
                             >
                               {firstToothAnchor != null ? firstToothAnchor.toFixed(2) : "—"}
                             </div>
@@ -491,30 +497,9 @@ export function GradesSection({
                               value={gradeObj?.price || ""}
                               onChange={(e) => {
                                 const val = e.target.value
-                                if (!isTeethBased) {
-                                  const updated = watchedGrades.map((g) =>
-                                    g.grade_id === grade.id ? { ...g, price: val } : g
-                                  )
-                                  setValue("grades", updated as NonNullable<ProductCreateForm["grades"]>, {
-                                    shouldDirty: true,
-                                    shouldValidate: true,
-                                  })
-                                  return
-                                }
-                                const anchor = firstToothAnchor
-                                const defP =
-                                  anchor != null && !isNaN(anchor) && anchor > 0 ? anchor : NaN
-                                const updated = watchedGrades.map((g) => {
-                                  if (g.grade_id !== grade.id) return g
-                                  if (isNaN(defP) || defP <= 0 || val === "") {
-                                    return { ...g, price: val }
-                                  }
-                                  const px = parseFloat(val)
-                                  if (isNaN(px)) return { ...g, price: val }
-                                  const markupPct = (px / defP - 1) * 100
-                                  const rounded = Math.round(markupPct * 10000) / 10000
-                                  return { ...g, price: val, markup_percent: String(rounded) }
-                                })
+                                const updated = watchedGrades.map((g) =>
+                                  g.grade_id === grade.id ? { ...g, price: val } : g
+                                )
                                 setValue("grades", updated as NonNullable<ProductCreateForm["grades"]>, {
                                   shouldDirty: true,
                                   shouldValidate: true,
@@ -525,32 +510,29 @@ export function GradesSection({
                           <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400">$</span>
                         </div>
                       )}
-                      {isSelected && isTeethBased && isDefault && (
+                      {isSelected && isTeethBased && isAnchorGrade && (
                         <div
                           className="flex h-9 w-28 items-center justify-center rounded border border-gray-200 bg-gray-50 px-2 text-sm text-gray-700"
-                          title="First tooth price from Product Details (0% markup)"
+                          title="Anchor grade (first in list order): 0% markup. Not tied to which grade is default."
                         >
                           0%
                         </div>
                       )}
-                      {isSelected && isTeethBased && !isDefault && userRole !== "superadmin" && (
+                      {isSelected && isTeethBased && !isAnchorGrade && userRole !== "superadmin" && (
                         <div className="relative w-full sm:w-28">
                           <input
                             type="number"
                             step="0.01"
                             min="0"
                             placeholder="Markup %"
-                            title="Markup over first tooth price (teeth-based)"
+                            title="Markup % for this grade (does not change price automatically)"
                             className="h-9 border rounded w-full px-2 border-gray-300 focus:border-[#1162a8] focus:ring-[#1162a8]"
                             value={gradeObj?.markup_percent ?? ""}
                             onChange={(e) => {
                               const markupStr = e.target.value
-                              let updated = watchedGrades.map((g) =>
+                              const updated = watchedGrades.map((g) =>
                                 g.grade_id === grade.id ? { ...g, markup_percent: markupStr } : g
                               )
-                              if (watchedHasGradeBasedPricing === "Yes") {
-                                updated = applyTeethMarkupToGradePrices(updated, firstToothAnchor)
-                              }
                               setValue("grades", updated as NonNullable<ProductCreateForm["grades"]>, {
                                 shouldDirty: true,
                                 shouldValidate: true,
@@ -591,6 +573,8 @@ export function GradesSection({
                     const customGradeId = customGrade.grade_id as number
                     const customName = customGradeNames[customGradeId] || "Custom Grade"
                     const isDefault = customGrade.is_default === "Yes"
+                    const isAnchorGrade =
+                      anchorGradeId !== undefined && String(customGradeId) === String(anchorGradeId)
                     const gradeIndexInWatched = watchedGrades.findIndex((g) => g.grade_id === customGradeId)
                     const priceError = gradeIndexInWatched >= 0 
                       ? (getValidationError(`grades.${gradeIndexInWatched}.price`) || 
@@ -609,8 +593,8 @@ export function GradesSection({
                               // Remove custom grade
                               let updated = watchedGrades.filter((g) => g.grade_id !== customGradeId) as NonNullable<ProductCreateForm["grades"]>
                               if (teethGradeLock) {
-                                updated = ensureOneDefaultGrade(updated, masterGradesFlat)
-                                updated = applyTeethMarkupToGradePrices(updated, firstToothAnchor)
+                                updated = ensureOneDefaultGrade(updated)
+                                updated = syncTeethAnchorGradePrice(updated, firstToothAnchor, masterGradesFlat)
                               }
                               setValue("grades", updated, { shouldDirty: true })
                               // Remove from custom names
@@ -625,10 +609,10 @@ export function GradesSection({
                         </label>
                         {userRole !== "superadmin" && (
                           <div className="relative w-full sm:w-32">
-                            {teethGradeLock && isDefault ? (
+                            {teethGradeLock && isAnchorGrade ? (
                               <div
                                 className="pl-7 h-9 border rounded w-full border-gray-200 bg-gray-50 text-gray-700 flex items-center text-sm"
-                                title="Matches first tooth price from Product Details (not editable)"
+                                title="First checked grade in list order: matches first tooth price from Product Details (not editable). Independent of default grade."
                               >
                                 {firstToothAnchor != null ? firstToothAnchor.toFixed(2) : "—"}
                               </div>
@@ -645,30 +629,9 @@ export function GradesSection({
                                 value={customGrade.price || ""}
                                 onChange={(e) => {
                                   const val = e.target.value
-                                  if (!isTeethBased) {
-                                    const updated = watchedGrades.map((g) =>
-                                      g.grade_id === customGradeId ? { ...g, price: val } : g
-                                    )
-                                    setValue("grades", updated as NonNullable<ProductCreateForm["grades"]>, {
-                                      shouldDirty: true,
-                                      shouldValidate: true,
-                                    })
-                                    return
-                                  }
-                                  const anchor = firstToothAnchor
-                                  const defP =
-                                    anchor != null && !isNaN(anchor) && anchor > 0 ? anchor : NaN
-                                  const updated = watchedGrades.map((g) => {
-                                    if (g.grade_id !== customGradeId) return g
-                                    if (isNaN(defP) || defP <= 0 || val === "") {
-                                      return { ...g, price: val }
-                                    }
-                                    const px = parseFloat(val)
-                                    if (isNaN(px)) return { ...g, price: val }
-                                    const markupPct = (px / defP - 1) * 100
-                                    const rounded = Math.round(markupPct * 10000) / 10000
-                                    return { ...g, price: val, markup_percent: String(rounded) }
-                                  })
+                                  const updated = watchedGrades.map((g) =>
+                                    g.grade_id === customGradeId ? { ...g, price: val } : g
+                                  )
                                   setValue("grades", updated as NonNullable<ProductCreateForm["grades"]>, {
                                     shouldDirty: true,
                                     shouldValidate: true,
@@ -679,32 +642,29 @@ export function GradesSection({
                             <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400">$</span>
                           </div>
                         )}
-                        {isTeethBased && isDefault && (
+                        {isTeethBased && isAnchorGrade && (
                           <div
                             className="flex h-9 w-28 items-center justify-center rounded border border-gray-200 bg-gray-50 px-2 text-sm text-gray-700"
-                            title="First tooth price from Product Details (0% markup)"
+                            title="Anchor grade (first in list order): 0% markup. Not tied to which grade is default."
                           >
                             0%
                           </div>
                         )}
-                        {isTeethBased && !isDefault && userRole !== "superadmin" && (
+                        {isTeethBased && !isAnchorGrade && userRole !== "superadmin" && (
                           <div className="relative w-full sm:w-28">
                             <input
                               type="number"
                               step="0.01"
                               min="0"
                               placeholder="Markup %"
-                              title="Markup over first tooth price (teeth-based)"
+                              title="Markup % for this grade (does not change price automatically)"
                               className="h-9 border rounded w-full px-2 border-gray-300 focus:border-[#1162a8] focus:ring-[#1162a8]"
                               value={customGrade.markup_percent ?? ""}
                               onChange={(e) => {
                                 const markupStr = e.target.value
-                                let updated = watchedGrades.map((g) =>
+                                const updated = watchedGrades.map((g) =>
                                   g.grade_id === customGradeId ? { ...g, markup_percent: markupStr } : g
                                 )
-                                if (watchedHasGradeBasedPricing === "Yes") {
-                                  updated = applyTeethMarkupToGradePrices(updated, firstToothAnchor)
-                                }
                                 setValue("grades", updated as NonNullable<ProductCreateForm["grades"]>, {
                                   shouldDirty: true,
                                   shouldValidate: true,

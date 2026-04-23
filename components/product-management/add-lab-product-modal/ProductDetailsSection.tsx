@@ -6,6 +6,7 @@ import { AlertCircle, Plus, PlusCircle } from "lucide-react"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { generateCodeFromName, cn } from "@/lib/utils"
+import { productHasAnyJawPhotoUrls } from "@/lib/library-product-api-mapping"
 import {
   Select,
   SelectContent,
@@ -22,7 +23,8 @@ import {
 import { Info } from "lucide-react"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 
-const MAX_TEETH = 15
+/** Custom per-count pricing: up to 16 teeth (full arch); `sm+` uses 8 columns (row 1: 1–8, row 2: 9–16). */
+const MAX_TEETH = 16
 const PREVIEW_TEETH_COUNT = 8
 
 type CategoryWithSubcategories = {
@@ -226,37 +228,53 @@ function TeethPricingSection({ control, setValue }: TeethPricingSectionProps) {
                     border: "1.5px solid transparent",
                   }}
                 >
-                  <div className="flex flex-row items-end gap-3 overflow-x-auto pb-1">
-                    {customPrices.map((price: string | number, index: number) => {
-                      const label = index === 0 ? "1 tooth" : index === customPrices.length - 1 && index >= 6 ? `${index + 1} teeth +` : `${index + 1} teeth`
-                      return (
-                        <div key={index} className="flex flex-col gap-1 shrink-0">
-                          <span className="text-xs text-gray-500 text-center whitespace-nowrap">{label}</span>
-                          <div className="relative w-28">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium pointer-events-none text-sm">$</span>
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              className="w-full pl-7 pr-2 py-2 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                              value={String(price)}
-                              onChange={(e) => handleCustomPriceChange(index, e.target.value)}
-                            />
+                  <div className="max-h-96 overflow-y-auto overflow-x-auto pb-1 [scrollbar-gutter:stable]">
+                    <div className="grid grid-cols-4 sm:grid-cols-8 gap-3 min-w-0 pr-1">
+                      {customPrices.map((price: string | number, index: number) => {
+                        const label =
+                          index === 0
+                            ? "1 tooth"
+                            : index === MAX_TEETH - 1
+                              ? `${MAX_TEETH} teeth`
+                              : `${index + 1} teeth`
+                        return (
+                          <div key={index} className="flex flex-col gap-1 min-w-0">
+                            <span className="text-xs text-gray-500 text-center leading-tight px-0.5">
+                              {label}
+                            </span>
+                            <div className="relative w-full min-w-0">
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 font-medium pointer-events-none text-sm">
+                                $
+                              </span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                className="w-full min-w-0 pl-6 pr-1.5 py-2 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                value={String(price)}
+                                onChange={(e) => handleCustomPriceChange(index, e.target.value)}
+                              />
+                            </div>
                           </div>
+                        )
+                      })}
+                      {customPrices.length < MAX_TEETH && (
+                        <div className="flex flex-col gap-1 min-w-0 justify-end">
+                          <span className="text-xs text-transparent text-center select-none" aria-hidden>
+                            &nbsp;
+                          </span>
+                          <button
+                            type="button"
+                            onClick={handleAddCustomSlot}
+                            className="h-[42px] w-full rounded-lg flex items-center justify-center text-white shrink-0"
+                            style={{ background: "linear-gradient(to right, #a855f7, #3b82f6)" }}
+                            title="Add tooth price slot"
+                          >
+                            <PlusCircle className="h-5 w-5" />
+                          </button>
                         </div>
-                      )
-                    })}
-                    {customPrices.length < MAX_TEETH && (
-                      <button
-                        type="button"
-                        onClick={handleAddCustomSlot}
-                        className="h-10 w-10 rounded-lg flex items-center justify-center text-white flex-shrink-0 mb-0.5"
-                        style={{ background: "linear-gradient(to right, #a855f7, #3b82f6)" }}
-                        title="Add tooth price slot"
-                      >
-                        <PlusCircle className="h-5 w-5" />
-                      </button>
-                    )}
+                      )}
+                    </div>
                   </div>
                   {customPrices.length >= MAX_TEETH && (
                     <p className="mt-2 text-xs text-amber-600 flex items-center gap-1">
@@ -532,10 +550,9 @@ export function ProductDetailsSection({
         setValueWithOptions("is_teeth_based_price", editingProduct.is_teeth_based_price, { shouldDirty: false })
       }
       // Auto-toggle show_jaw_photo ON if the product has any jaw photos, regardless of stored flag
-      const hasJawPhotos =
-        editingProduct.jaw_photos &&
-        (editingProduct.jaw_photos.upper || editingProduct.jaw_photos.lower || editingProduct.jaw_photos.both)
-      const effectiveShowJawPhoto = hasJawPhotos ? "Yes" : (editingProduct.show_jaw_photo || "No")
+      const effectiveShowJawPhoto = productHasAnyJawPhotoUrls(editingProduct)
+        ? "Yes"
+        : (editingProduct.show_jaw_photo || "No")
       setValueWithOptions("show_jaw_photo", effectiveShowJawPhoto, { shouldDirty: false })
       if (isSingleStage === "Yes") {
         if (editingProduct.min_days_to_process != null) {

@@ -1,4 +1,5 @@
 import type { ProductCreateForm } from "@/lib/schemas"
+import { MAX_PRODUCT_VARIATIONS } from "@/lib/product-limits"
 
 /** API `teeth_pricing_strategy` values (library_products). */
 export type TeethPricingStrategyApi = "same_per_tooth" | "first_tooth_more" | "custom_per_count"
@@ -26,6 +27,50 @@ export function teethStrategyApiToForm(api: string | null | undefined): TeethPri
 export function teethStrategyFormToApi(form: TeethPricingTypeForm | undefined): TeethPricingStrategyApi {
   if (!form) return "same_per_tooth"
   return FORM_TO_API[form] ?? "same_per_tooth"
+}
+
+/** Preview state for jaw photo slots (existing https/data URLs or null). */
+export type JawPhotosFormState = {
+  upper: string | null
+  lower: string | null
+  both: string | null
+}
+
+function pickJawPhotoUrl(v: unknown): string | null {
+  if (v == null) return null
+  const s = String(v).trim()
+  return s === "" ? null : s
+}
+
+/**
+ * Normalize `jaw_photos` from library product API/detail payloads for form preview.
+ * Handles a few alternate nestings/keys so edit modals show images after load or refetch.
+ */
+export function jawPhotosStateFromProduct(product: unknown): JawPhotosFormState {
+  if (!product || typeof product !== "object") {
+    return { upper: null, lower: null, both: null }
+  }
+  const p = product as Record<string, unknown>
+  const nested = p.library_product
+  const raw =
+    (p.jaw_photos as Record<string, unknown> | undefined) ??
+    (p.jawPhotos as Record<string, unknown> | undefined) ??
+    (nested && typeof nested === "object"
+      ? ((nested as Record<string, unknown>).jaw_photos as Record<string, unknown> | undefined)
+      : undefined)
+  if (!raw || typeof raw !== "object") {
+    return { upper: null, lower: null, both: null }
+  }
+  return {
+    upper: pickJawPhotoUrl(raw.upper ?? raw.Upper ?? raw.maxillary),
+    lower: pickJawPhotoUrl(raw.lower ?? raw.Lower ?? raw.mandibular),
+    both: pickJawPhotoUrl(raw.both ?? raw.Both),
+  }
+}
+
+export function productHasAnyJawPhotoUrls(product: unknown): boolean {
+  const j = jawPhotosStateFromProduct(product)
+  return !!(j.upper || j.lower || j.both)
 }
 
 export type TeethPriceTierPayload = {
@@ -63,11 +108,11 @@ export function teethCustomPricesFromTiers(
     (a, b) => (a.sort_order ?? a.min_teeth ?? 0) - (b.sort_order ?? b.min_teeth ?? 0),
   )
   const maxMin = Math.max(...sorted.map((t) => t.min_teeth ?? 0), 0)
-  const len = Math.min(15, Math.max(maxMin, 1))
+  const len = Math.min(16, Math.max(maxMin, 1))
   const arr: string[] = Array.from({ length: len }, () => "")
   sorted.forEach((t) => {
     const i = (t.min_teeth ?? 1) - 1
-    if (i >= 0 && i < 15) {
+    if (i >= 0 && i < 16) {
       arr[i] = t.total_price !== undefined && t.total_price !== null ? String(t.total_price) : ""
     }
   })
@@ -125,6 +170,18 @@ export function applyLabTeethPricingToGrades(
 
 export type ToothCountVariationForm = NonNullable<ProductCreateForm["tooth_count_variations"]>[number]
 
+/** Resolve variation image URL from API row (several backends use different keys or put URL in `image`). */
+export function variationImageUrlFromApiRow(v: Record<string, unknown> | undefined): string | undefined {
+  if (!v || typeof v !== "object") return undefined
+  const candidates = [v.image_url, v.image, v.photo_url, v.thumbnail_url, v.variation_image_url]
+  for (const c of candidates) {
+    if (c == null) continue
+    const s = String(c).trim()
+    if (s !== "") return s
+  }
+  return undefined
+}
+
 export function buildVariationsApiPayload(
   form: ProductCreateForm,
   variationSectionEnabled: boolean,
@@ -151,8 +208,11 @@ export function buildVariationsApiPayload(
     const img = row.image
     if (typeof img === "string" && img.startsWith("data:image/")) {
       v.image = img
-    } else if (row.image_url && typeof row.image_url === "string" && row.image_url.startsWith("http")) {
-      v.image_url = row.image_url
+    } else {
+      const existingUrl = (s: unknown) =>
+        typeof s === "string" && s.trim() !== "" && !s.startsWith("data:") ? s.trim() : ""
+      const url = existingUrl(row.image_url) || existingUrl(img)
+      if (url) v.image_url = url
     }
     return v
   })
@@ -172,24 +232,25 @@ export function mapApiVariationsToForm(apiProduct: any): {
     return { enable_tooth_count_variation: "No", tooth_count_variations: [] }
   }
 
-  const has =
-    apiProduct.has_variation === true ||
-    apiProduct.has_variation === "Yes" ||
-    apiProduct.has_variation === "yes"
   const list = Array.isArray(apiProduct.variations) ? apiProduct.variations : []
-  if (!has || list.length === 0) {
+  if (list.length === 0) {
     return { enable_tooth_count_variation: "No", tooth_count_variations: [] }
   }
-  const sorted = [...list].sort(
-    (a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
-  )
-  const tooth_count_variations = sorted.map((v: any) => ({
-    id: v.id,
-    image: null,
-    image_url: v.image_url ?? undefined,
-    tooth_count: v.teeth_spec != null ? String(v.teeth_spec) : "",
-    name_template: v.name_template != null ? String(v.name_template) : "",
-  }))
+
+  const sorted = [...list]
+    .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    .slice(0, MAX_PRODUCT_VARIATIONS)
+  const tooth_count_variations = sorted.map((v: any) => {
+    const row = v as Record<string, unknown>
+    const imageUrl = variationImageUrlFromApiRow(row)
+    return {
+      id: v.id,
+      image: null,
+      image_url: imageUrl,
+      tooth_count: v.teeth_spec != null ? String(v.teeth_spec) : "",
+      name_template: v.name_template != null ? String(v.name_template) : "",
+    }
+  })
   return { enable_tooth_count_variation: "Yes", tooth_count_variations }
 }
 

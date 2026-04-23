@@ -11,9 +11,12 @@ import {
 } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { ProductCreateForm } from "@/lib/schemas"
+import { MAX_PRODUCT_VARIATIONS } from "@/lib/product-limits"
 import { useToast } from "@/hooks/use-toast"
 
-const MAX_TOOTH_COUNT = 15
+const MAX_TOOTH_COUNT = 16
+/** Maximum number of tooth-count variation rows per product */
+const MAX_VARIATION_ROWS = 16
 
 /** Stored in API / form; inserted via button — users are not expected to type it. */
 const NAME_PLACEHOLDER_TOKEN = "[x tooth/teeth]"
@@ -48,7 +51,7 @@ function validateToothCount(value: string): string | null {
   for (const part of parts) {
     const n = parseInt(part, 10)
     if (!isNaN(n) && n > MAX_TOOTH_COUNT) {
-      return `Max is ${MAX_TOOTH_COUNT} (16 teeth = Full Denture)`
+      return `Max is ${MAX_TOOTH_COUNT} (${MAX_TOOTH_COUNT} teeth = Full Denture)`
     }
   }
   return null
@@ -100,6 +103,14 @@ export function VariationSection({
   )
 
   const handleAddVariation = () => {
+    if (variations.length >= MAX_PRODUCT_VARIATIONS) {
+      toast({
+        title: "Maximum variations reached",
+        description: `You can add up to ${MAX_PRODUCT_VARIATIONS} variations per product.`,
+        variant: "destructive",
+      })
+      return
+    }
     setVal("tooth_count_variations", [
       ...variations,
       { image: null, tooth_count: "", name_template: "" },
@@ -286,12 +297,18 @@ export function VariationSection({
               >
                 Preview
               </span>
-              <div className="flex justify-end shrink-0">
+              <div className="flex flex-col items-end gap-1 shrink-0">
                 <Button
                   type="button"
                   size="sm"
                   onClick={handleAddVariation}
-                  className="text-xs px-4 h-9 text-white font-bold"
+                  disabled={variations.length >= MAX_PRODUCT_VARIATIONS}
+                  title={
+                    variations.length >= MAX_PRODUCT_VARIATIONS
+                      ? `Maximum ${MAX_PRODUCT_VARIATIONS} variations per product`
+                      : undefined
+                  }
+                  className="text-xs px-4 h-9 text-white font-bold disabled:opacity-50 disabled:pointer-events-none"
                   style={{
                     background: "linear-gradient(256.66deg, #2AA6DE, #82298D, #C9539F)",
                     borderRadius: "14px",
@@ -303,6 +320,11 @@ export function VariationSection({
                   <Plus className="h-3 w-3 mr-1" />
                   Add variation
                 </Button>
+                {variations.length >= MAX_PRODUCT_VARIATIONS && (
+                  <span className="text-[10px] text-amber-700 text-right max-w-[200px] leading-tight">
+                    Maximum {MAX_PRODUCT_VARIATIONS} variations per product.
+                  </span>
+                )}
               </div>
             </div>
 
@@ -365,7 +387,7 @@ export function VariationSection({
                   <div className="min-w-0 space-y-1 pt-0.5">
                     <input
                       type="text"
-                      placeholder="e.g. 1 or 4 - 15"
+                      placeholder="e.g. 1 or 4 - 16"
                       value={variation.tooth_count ?? ""}
                       onChange={(e) => handleVariationChange(index, "tooth_count", e.target.value)}
                       className="w-full px-3 bg-white text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-[#1162a8]/30 transition"

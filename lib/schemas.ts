@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { MAX_PRODUCT_VARIATIONS } from "@/lib/product-limits"
 
 const BaseEntitySchema = z.object({
   id: z.number(),
@@ -123,6 +124,7 @@ export const ProductSchema = z.object({
       z.object({
         gum_shade_id: z.number(),
         sequence: z.number().nullable(),
+        is_preferred: z.enum(["Yes", "No"]).optional(),
       }),
     )
     .optional(),
@@ -131,6 +133,7 @@ export const ProductSchema = z.object({
       z.object({
         teeth_shade_id: z.number(),
         sequence: z.number().nullable(),
+        is_preferred: z.enum(["Yes", "No"]).optional(),
       }),
     )
     .optional(),
@@ -201,15 +204,21 @@ export const ProductCreateFormSchema = z
 
     // Variation section
     enable_tooth_count_variation: z.enum(["Yes", "No"]).default("No").optional(),
-    tooth_count_variations: z.array(
-      z.object({
-        id: z.number().optional(),
-        image: z.string().nullable().optional(),
-        image_url: z.string().optional(),
-        tooth_count: z.string().optional(), // e.g. "1", "2", "4 - 15" → API teeth_spec
-        name_template: z.string().optional(), // e.g. "Flipper [x tooth/teeth]"
-      })
-    ).optional(),
+    tooth_count_variations: z
+      .array(
+        z.object({
+          id: z.number().optional(),
+          image: z.string().nullable().optional(),
+          image_url: z.string().optional(),
+          tooth_count: z.string().optional(), // e.g. "1", "2", "4 - 16" → API teeth_spec
+          name_template: z.string().optional(), // e.g. "Flipper [x tooth/teeth]"
+        }),
+      )
+      .max(
+        MAX_PRODUCT_VARIATIONS,
+        `A maximum of ${MAX_PRODUCT_VARIATIONS} variations is allowed per product`,
+      )
+      .optional(),
 
     // Related items (all optional, no min)
     grades: z
@@ -290,6 +299,7 @@ export const ProductCreateFormSchema = z
           gum_shade_id: z.number(),
           sequence: z.number().optional(),
           status: z.enum(["Active", "Inactive"]).default("Active").optional(),
+          is_preferred: z.enum(["Yes", "No"]).default("No").optional(),
         }),
       )
       .optional()
@@ -298,6 +308,7 @@ export const ProductCreateFormSchema = z
           ? arr.map((item) => ({
               ...item,
               status: item.status || "Active",
+              is_preferred: item.is_preferred === "Yes" ? "Yes" : "No",
             }))
           : arr
       ),
@@ -307,6 +318,7 @@ export const ProductCreateFormSchema = z
           teeth_shade_id: z.number(),
           sequence: z.number().optional(),
           status: z.enum(["Active", "Inactive"]).default("Active").optional(),
+          is_preferred: z.enum(["Yes", "No"]).default("No").optional(),
         }),
       )
       .optional()
@@ -315,6 +327,7 @@ export const ProductCreateFormSchema = z
           ? arr.map((item) => ({
               ...item,
               status: item.status || "Active",
+              is_preferred: item.is_preferred === "Yes" ? "Yes" : "No",
             }))
           : arr
       ),
