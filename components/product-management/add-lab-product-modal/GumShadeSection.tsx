@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Switch } from "@/components/ui/switch"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
@@ -48,6 +48,16 @@ type GumShadeSectionProps = {
   handleToggleSelection: (section: string, id: number, sequence?: number) => void
   customGumShadeNames?: Record<number, string>
   setCustomGumShadeNames?: React.Dispatch<React.SetStateAction<Record<number, string>>>
+  /**
+   * When creating a product, pre-select shades for the lab’s preferred gum brand (from preferred-shades API).
+   */
+  preferredAutoFill?: {
+    isOpen: boolean
+    isCreateMode: boolean
+    brandId: number | null
+    shadeIds: number[]
+    ready: boolean
+  }
 }
 
 export function GumShadeSection({
@@ -64,8 +74,10 @@ export function GumShadeSection({
   handleToggleSelection,
   customGumShadeNames = {},
   setCustomGumShadeNames,
+  preferredAutoFill,
 }: GumShadeSectionProps) {
   const watchedGumShades = (watch("gum_shades") || []) as WatchedGumShade[]
+  const preferredAppliedRef = useRef(false)
   const handleSetPreferredGumShade = (shadeId: number, next: "Yes" | "No") => {
     const list = watchedGumShades || []
     if (next === "Yes") {
@@ -104,6 +116,37 @@ export function GumShadeSection({
 
   // State to track which brands are expanded
   const [expandedBrands, setExpandedBrands] = useState<Record<number, boolean>>({})
+
+  useEffect(() => {
+    if (!preferredAutoFill?.isOpen || !preferredAutoFill.isCreateMode) {
+      preferredAppliedRef.current = false
+      return
+    }
+    const { brandId, shadeIds, ready } = preferredAutoFill
+    if (!ready || brandId == null || brands.length === 0) return
+    if (preferredAppliedRef.current) return
+    if (watchedGumShades.length > 0) return
+
+    const brand = brands.find((b) => b.id === brandId)
+    if (!brand?.shades?.length) return
+
+    const activeShades = brand.shades.filter((s) => !s.status || s.status === "Active")
+    const idSet = shadeIds.length > 0 ? new Set(shadeIds) : null
+    const picks = idSet
+      ? activeShades.filter((s) => idSet.has(s.id))
+      : activeShades
+
+    if (picks.length === 0) return
+
+    preferredAppliedRef.current = true
+    const rows: WatchedGumShade[] = picks.map((s, i) => ({
+      gum_shade_id: s.id,
+      sequence: i + 1,
+      is_preferred: i === 0 ? "Yes" : "No",
+    }))
+    setValue("gum_shades", rows, { shouldDirty: true })
+    setExpandedBrands((prev) => ({ ...prev, [brandId]: true }))
+  }, [preferredAutoFill, brands, watchedGumShades.length, setValue])
 
   // Toggle brand expansion and auto-select all shades when expanding
   const toggleBrandExpansion = (brandId: number) => {
