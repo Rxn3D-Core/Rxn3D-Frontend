@@ -85,7 +85,7 @@ export const ToothShadeSelectionSVG: React.FC<ToothShadeSelectionSVGProps> = ({
       `}</style>
 <svg className="overflow-visible" width="100%" height="100%" viewBox="0 20 600 160" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ overflow: 'visible' }}>
 <g clipPath="url(#clip0_58_5765)">
-<rect width="599.985" height="192.192" fill="white"/>
+<rect fill="white"/>
 <g clipPath="url(#clip1_58_5765)">
 <path d="M11.4851 81.6206H588.612C594.361 81.6206 599.025 84.3772 599.025 87.775V175.655C599.025 184.819 586.435 192.26 570.93 192.26H28.5256C13.0128 192.26 0.415039 184.815 0.415039 175.646V88.1676C0.415039 84.556 5.37443 81.6206 11.4851 81.6206Z" fill="#616263"/>
 <path d="M599.025 88.653V122.676H569.859V93.2475C569.859 89.3656 564.9 86.2151 558.789 86.2151H40.6511C34.5404 86.2151 29.581 89.3656 29.581 93.2475V122.676H0.415039V88.653C0.415039 84.7711 5.37443 81.6206 11.4851 81.6206H587.955C594.066 81.6206 599.025 84.7711 599.025 88.653Z" fill="url(#paint0_linear_58_5765)"/>
