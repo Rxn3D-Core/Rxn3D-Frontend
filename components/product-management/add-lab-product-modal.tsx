@@ -13,6 +13,7 @@ import {
   validateStageAllocationPercents,
   teethStrategyApiToForm,
   hydrateTeethPricingFieldsFromDefaultGrade,
+  hydrateProductLevelTeethPricingFromApi,
   mapApiVariationsToForm,
   jawPhotosStateFromProduct,
   productHasAnyJawPhotoUrls,
@@ -31,6 +32,9 @@ import { useAddOns } from "@/contexts/product-add-on-context"
 import { useTranslation } from "react-i18next"
 import { useCustomer } from "@/contexts/customer-context"
 import { useAuth } from "@/contexts/auth-context" // <-- add this import
+import { getCustomerId } from "@/lib/dashboard-widgets"
+import { usePreferredGumShades } from "@/hooks/usePreferredGumShades"
+import { usePreferredTeethShades } from "@/hooks/usePreferredTeethShades"
 import { ExtractionsApi } from "@/lib/api-service"
 import type { Extraction } from "@/lib/schemas"
 import { getAuthToken, redirectToLogin } from "@/lib/auth-utils"
@@ -186,6 +190,71 @@ export function AddLabProductModal({
   const [activeTab, setActiveTab] = useState("details")
   const [visibleTabs, setVisibleTabs] = useState<Set<string>>(new Set(["details"])) // Track which tabs are visible
   const { t } = useTranslation()
+
+  const customerId = useMemo(() => getCustomerId(user), [user])
+  const preferredShadesFetchEnabled = isOpen && !editingProduct && Boolean(customerId)
+  const {
+    brand: preferredGumBrand,
+    shades: preferredGumShadesList,
+    loading: preferredGumLoading,
+    hasExplicitPreference: gumHasExplicitPreference,
+  } = usePreferredGumShades({
+    customerId: customerId ?? 0,
+    enabled: preferredShadesFetchEnabled,
+  })
+  const {
+    brand: preferredTeethBrand,
+    shades: preferredTeethShadesList,
+    loading: preferredTeethLoading,
+    hasExplicitPreference: teethHasExplicitPreference,
+  } = usePreferredTeethShades({
+    customerId: customerId ?? 0,
+    enabled: preferredShadesFetchEnabled,
+  })
+  const gumPreferredAutoFill = useMemo(
+    () => ({
+      isOpen,
+      isCreateMode: !editingProduct,
+      brandId: preferredGumBrand?.id ?? null,
+      shadeIds: preferredGumShadesList.map((s) => s.id),
+      ready:
+        preferredShadesFetchEnabled &&
+        !preferredGumLoading &&
+        gumHasExplicitPreference !== false &&
+        preferredGumBrand?.id != null,
+    }),
+    [
+      isOpen,
+      editingProduct,
+      preferredGumBrand?.id,
+      preferredGumShadesList,
+      preferredShadesFetchEnabled,
+      preferredGumLoading,
+      gumHasExplicitPreference,
+    ],
+  )
+  const teethPreferredAutoFill = useMemo(
+    () => ({
+      isOpen,
+      isCreateMode: !editingProduct,
+      brandId: preferredTeethBrand?.id ?? null,
+      shadeIds: preferredTeethShadesList.map((s) => s.id),
+      ready:
+        preferredShadesFetchEnabled &&
+        !preferredTeethLoading &&
+        teethHasExplicitPreference !== false &&
+        preferredTeethBrand?.id != null,
+    }),
+    [
+      isOpen,
+      editingProduct,
+      preferredTeethBrand?.id,
+      preferredTeethShadesList,
+      preferredShadesFetchEnabled,
+      preferredTeethLoading,
+      teethHasExplicitPreference,
+    ],
+  )
 
   const [sections, setSections] = useState({
     productDetails: true,
@@ -843,6 +912,17 @@ export function AddLabProductModal({
 
   useEffect(() => {
     if (isOpen && editingProduct) {
+      // Product GET often returns prices on `materials` while `material_details` is pivot-lightweight.
+      const materialPriceByMid = new Map<number, string | number>()
+      for (const m of editingProduct.materials || []) {
+        const mid = m?.material_id ?? m?.id
+        if (mid == null) continue
+        const p = m?.price ?? m?.pivot?.price ?? m?.lab_material?.price
+        if (p !== undefined && p !== null && p !== "") {
+          materialPriceByMid.set(Number(mid), p)
+        }
+      }
+
       function mapWithStatus(arr: any[], idKey: string) {
         if (!Array.isArray(arr)) return []
         return arr.map((item, idx) => {
@@ -859,10 +939,20 @@ export function AddLabProductModal({
                   : "No",
             }
           }
+          const entityId = item[idKey] ?? item.id
+          let rawPrice: unknown =
+            item.price ?? item.pivot?.price ?? (item as { lab_material?: { price?: unknown } }).lab_material?.price
+          if (
+            (rawPrice === undefined || rawPrice === null || rawPrice === "") &&
+            idKey === "material_id" &&
+            entityId != null
+          ) {
+            rawPrice = materialPriceByMid.get(Number(entityId))
+          }
           // Handle price: convert to number, default to 0 if missing/invalid
           let price = 0
-          if (item.price !== undefined && item.price !== null && item.price !== "") {
-            const parsedPrice = typeof item.price === "number" ? item.price : parseFloat(item.price)
+          if (rawPrice !== undefined && rawPrice !== null && rawPrice !== "") {
+            const parsedPrice = typeof rawPrice === "number" ? rawPrice : parseFloat(String(rawPrice))
             if (!Number.isNaN(parsedPrice) && parsedPrice >= 0) {
               price = Math.min(parsedPrice, 999999.99)
             }
@@ -1084,7 +1174,10 @@ export function AddLabProductModal({
       }
 
       const strategyForm = teethStrategyApiToForm(editingProduct.teeth_pricing_strategy)
-      const teethHydrate = hydrateTeethPricingFieldsFromDefaultGrade(mappedGrades, strategyForm)
+      const useGradeRowForTeeth = hasGradeBasedPricing === "Yes" && mappedGrades.length > 0
+      const teethHydrate = useGradeRowForTeeth
+        ? hydrateTeethPricingFieldsFromDefaultGrade(mappedGrades, strategyForm)
+        : hydrateProductLevelTeethPricingFromApi(editingProduct as Record<string, unknown>, strategyForm)
       const variationForm = mapApiVariationsToForm(editingProduct)
 
       const formValues: ProductCreateForm = {
@@ -2379,11 +2472,6 @@ export function AddLabProductModal({
         })
       }
 
-      // Map request_opposing_extraction boolean → "Yes"/"No" for the API
-      if (payload.request_opposing_extraction !== undefined) {
-        payload.request_opposing_extraction = payload.request_opposing_extraction ? "Yes" : "No"
-      }
-
       // Always include all has_* section flags in the update payload
       payload.has_stage = slipFlagToApi(sections.stages)
       payload.has_grade = slipFlagToApi(sections.grades)
@@ -2734,6 +2822,7 @@ export function AddLabProductModal({
                     handleToggleSelection={handleToggleSelection}
                     customGumShadeNames={customGumShadeNames}
                     setCustomGumShadeNames={setCustomGumShadeNames}
+                    preferredAutoFill={gumPreferredAutoFill}
                   />
                 </TabsContent>
 
@@ -2756,6 +2845,7 @@ export function AddLabProductModal({
                     handleToggleSelection={handleToggleSelection}
                     customTeethShadeNames={customTeethShadeNames}
                     setCustomTeethShadeNames={setCustomTeethShadeNames}
+                    preferredAutoFill={teethPreferredAutoFill}
                   />
                 </TabsContent>
 

@@ -5,6 +5,7 @@ import type React from "react"
 import { createContext, useContext, useState, useCallback, useMemo } from "react"
 import type { Product, ProductCreateForm, ProductPagination } from "@/lib/schemas"
 import { ProductCreateFormSchema } from "@/lib/schemas"
+import { normalizeOppositeImpressionPayload } from "@/lib/library-product-api-mapping"
 import { AlertCircle, CheckCircle, Package, Save, Trash2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { useLanguage } from "@/contexts/language-context"
@@ -151,10 +152,7 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
   function buildProductPayload(form: any, releasingStageIds: (string | number)[] = []): any {
     const payload: any = { ...form }
 
-    // Map request_opposing_extraction boolean → "Yes"/"No" for the API
-    if (payload.request_opposing_extraction !== undefined && payload.request_opposing_extraction !== "Yes" && payload.request_opposing_extraction !== "No") {
-      payload.request_opposing_extraction = payload.request_opposing_extraction ? "Yes" : "No"
-    }
+    normalizeOppositeImpressionPayload(payload)
 
     // Set is_custom (default to "Yes" if not present)
     payload.is_custom = form.is_custom ?? "Yes"

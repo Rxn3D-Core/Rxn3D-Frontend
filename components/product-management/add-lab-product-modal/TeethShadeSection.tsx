@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Switch } from "@/components/ui/switch"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
@@ -48,6 +48,16 @@ type TeethShadeSectionProps = {
   handleToggleSelection: (section: string, id: number, sequence?: number) => void
   customTeethShadeNames?: Record<number, string>
   setCustomTeethShadeNames?: React.Dispatch<React.SetStateAction<Record<number, string>>>
+  /**
+   * When creating a product, pre-select shades for the lab’s preferred teeth brand (from preferred-shades API).
+   */
+  preferredAutoFill?: {
+    isOpen: boolean
+    isCreateMode: boolean
+    brandId: number | null
+    shadeIds: number[]
+    ready: boolean
+  }
 }
 
 export function TeethShadeSection({
@@ -64,8 +74,10 @@ export function TeethShadeSection({
   handleToggleSelection,
   customTeethShadeNames = {},
   setCustomTeethShadeNames,
+  preferredAutoFill,
 }: TeethShadeSectionProps) {
   const watchedTeethShades = (watch("teeth_shades") || []) as WatchedTeethShade[]
+  const preferredAppliedRef = useRef(false)
   // Deduplicate by teeth_shade_id
   const uniqueTeethShades = Array.isArray(watchedTeethShades)
     ? watchedTeethShades.filter(
@@ -114,6 +126,37 @@ export function TeethShadeSection({
 
   // State to track which brands are expanded
   const [expandedBrands, setExpandedBrands] = useState<Record<number, boolean>>({})
+
+  useEffect(() => {
+    if (!preferredAutoFill?.isOpen || !preferredAutoFill.isCreateMode) {
+      preferredAppliedRef.current = false
+      return
+    }
+    const { brandId, shadeIds, ready } = preferredAutoFill
+    if (!ready || brandId == null || brands.length === 0) return
+    if (preferredAppliedRef.current) return
+    if (uniqueTeethShades.length > 0) return
+
+    const brand = brands.find((b) => b.id === brandId)
+    if (!brand?.shades?.length) return
+
+    const activeShades = brand.shades.filter((s) => !s.status || s.status === "Active")
+    const idSet = shadeIds.length > 0 ? new Set(shadeIds) : null
+    const picks = idSet
+      ? activeShades.filter((s) => idSet.has(s.id))
+      : activeShades
+
+    if (picks.length === 0) return
+
+    preferredAppliedRef.current = true
+    const rows: WatchedTeethShade[] = picks.map((s, i) => ({
+      teeth_shade_id: s.id,
+      sequence: i + 1,
+      is_preferred: i === 0 ? "Yes" : "No",
+    }))
+    setValue("teeth_shades", rows, { shouldDirty: true })
+    setExpandedBrands((prev) => ({ ...prev, [brandId]: true }))
+  }, [preferredAutoFill, brands, uniqueTeethShades.length, setValue])
 
   // Toggle brand expansion and auto-select all shades when expanding
   const toggleBrandExpansion = (brandId: number) => {

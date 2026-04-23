@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react"
+import React, { useState, useEffect, useMemo, useRef } from "react"
 import { Switch } from "@/components/ui/switch"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
@@ -78,6 +78,18 @@ function sortSelectedGradesByMasterOrder(watchedGrades: WatchedGrade[], masterGr
 function getAnchorGradeId(watchedGrades: WatchedGrade[], masterGrades: Grade[]): number | string | undefined {
   const sorted = sortSelectedGradesByMasterOrder(watchedGrades, masterGrades)
   return sorted[0]?.grade_id
+}
+
+/** Teeth-based: non-anchor tier price = anchor × (1 + markup%/100). */
+function priceFromAnchorAndMarkupPercent(anchorPrice: number, markupPercentRaw: unknown): string {
+  if (!(anchorPrice > 0) || !isFinite(anchorPrice)) return ""
+  const s = markupPercentRaw != null ? String(markupPercentRaw).trim() : ""
+  if (s === "") return ""
+  const m = parseFloat(s)
+  if (isNaN(m)) return ""
+  const total = anchorPrice * (1 + m / 100)
+  if (!isFinite(total) || total <= 0) return ""
+  return total.toFixed(2)
 }
 
 /** If multiple defaults, keep the first in form order; if none, leave as-is (user must set default explicitly). */
@@ -186,6 +198,9 @@ export function GradesSection({
     [watchedGrades, masterGradesFlat],
   )
 
+  const gradesRef = useRef<WatchedGrade[]>(watchedGrades)
+  gradesRef.current = watchedGrades
+
   // When first-tooth anchor or teeth strategy changes, re-sync only the anchor (first-by-order) grade to the anchor price.
   useEffect(() => {
     if (!teethGradeLock || watchedGrades.length === 0) return
@@ -205,6 +220,27 @@ export function GradesSection({
     watchedGrades,
     setValue,
   ])
+
+  // Teeth-based: when anchor price or which grade is anchor changes, refresh derived tier prices from markup (does not run on every grade edit — avoids fighting manual price input).
+  useEffect(() => {
+    if (!teethGradeLock || firstToothAnchor == null || firstToothAnchor <= 0) return
+    const watched = gradesRef.current
+    if (watched.length === 0) return
+    const aid = getAnchorGradeId(watched, masterGradesFlat)
+    if (aid === undefined) return
+    let changed = false
+    const next = watched.map((g) => {
+      if (String(g.grade_id) === String(aid)) return g
+      const derived = priceFromAnchorAndMarkupPercent(firstToothAnchor, g.markup_percent)
+      if (derived === "") return g
+      if (g.price === derived) return g
+      changed = true
+      return { ...g, price: derived }
+    })
+    if (changed) {
+      setValue("grades", next as NonNullable<ProductCreateForm["grades"]>, { shouldDirty: true })
+    }
+  }, [teethGradeLock, firstToothAnchor, anchorGradeId, masterGradesFlat, setValue])
 
   // State for custom grade form
   const [showCustomGradeForm, setShowCustomGradeForm] = useState(false)
@@ -525,13 +561,26 @@ export function GradesSection({
                             step="0.01"
                             min="0"
                             placeholder="Markup %"
-                            title="Markup % for this grade (does not change price automatically)"
+                            title="Markup % over anchor (first-in-list) price — price updates automatically"
                             className="h-9 border rounded w-full px-2 border-gray-300 focus:border-[#1162a8] focus:ring-[#1162a8]"
                             value={gradeObj?.markup_percent ?? ""}
                             onChange={(e) => {
                               const markupStr = e.target.value
+                              let nextPrice: string | undefined
+                              if (firstToothAnchor != null && firstToothAnchor > 0) {
+                                nextPrice =
+                                  markupStr.trim() === ""
+                                    ? ""
+                                    : priceFromAnchorAndMarkupPercent(firstToothAnchor, markupStr)
+                              }
                               const updated = watchedGrades.map((g) =>
-                                g.grade_id === grade.id ? { ...g, markup_percent: markupStr } : g
+                                g.grade_id === grade.id
+                                  ? {
+                                      ...g,
+                                      markup_percent: markupStr,
+                                      ...(nextPrice !== undefined ? { price: nextPrice } : {}),
+                                    }
+                                  : g,
                               )
                               setValue("grades", updated as NonNullable<ProductCreateForm["grades"]>, {
                                 shouldDirty: true,
@@ -657,13 +706,26 @@ export function GradesSection({
                               step="0.01"
                               min="0"
                               placeholder="Markup %"
-                              title="Markup % for this grade (does not change price automatically)"
+                              title="Markup % over anchor (first-in-list) price — price updates automatically"
                               className="h-9 border rounded w-full px-2 border-gray-300 focus:border-[#1162a8] focus:ring-[#1162a8]"
                               value={customGrade.markup_percent ?? ""}
                               onChange={(e) => {
                                 const markupStr = e.target.value
+                                let nextPrice: string | undefined
+                                if (firstToothAnchor != null && firstToothAnchor > 0) {
+                                  nextPrice =
+                                    markupStr.trim() === ""
+                                      ? ""
+                                      : priceFromAnchorAndMarkupPercent(firstToothAnchor, markupStr)
+                                }
                                 const updated = watchedGrades.map((g) =>
-                                  g.grade_id === customGradeId ? { ...g, markup_percent: markupStr } : g
+                                  g.grade_id === customGradeId
+                                    ? {
+                                        ...g,
+                                        markup_percent: markupStr,
+                                        ...(nextPrice !== undefined ? { price: nextPrice } : {}),
+                                      }
+                                    : g,
                                 )
                                 setValue("grades", updated as NonNullable<ProductCreateForm["grades"]>, {
                                   shouldDirty: true,
