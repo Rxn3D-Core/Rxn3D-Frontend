@@ -420,6 +420,20 @@ export default function Page() {
     setWizardComplete(false);
   };
 
+  /**
+   * Navigate back to the category-selection step of the wizard. Triggered when
+   * a Fixed Restoration accordion is deleted. We reuse the `addProduct` mode
+   * because it is already wired to start at step 4 (categories), and forward
+   * the arch hint so the wizard preselects the correct side.
+   */
+  const handleBackToCategories = (arch?: "maxillary" | "mandibular") => {
+    if (arch) setPendingProductArch(arch);
+    setLastSelectedCategory(null);
+    setLastSelectedSubProduct(null);
+    setWizardMode("addProduct");
+    setWizardComplete(false);
+  };
+
   const handleTopBarEditLab = () => {
     console.log("[CaseDesignCenter] handleTopBarEditLab called, wizardComplete:", wizardComplete);
     setWizardMode("initial");
@@ -582,6 +596,7 @@ export default function Page() {
               setRight2Platform={setRight2Platform}
               onAddProduct={handleAddProduct}
               onBackToProducts={handleBackToProducts}
+              onBackToCategories={handleBackToCategories}
               selectedProductId={selectedProductId}
               selectedProductName={selectedProductName}
               selectedProductCategoryName={selectedProductCategoryName}

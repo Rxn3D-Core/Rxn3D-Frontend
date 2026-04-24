@@ -175,7 +175,29 @@ export function ModalOrchestrator({
       {/* Impression Selection Modal */}
       <ImpressionSelectionModal
         isOpen={showImpressionModal}
-        onClose={() => setShowImpressionModal(false)}
+        onClose={() => {
+          // Sync completion state with what's actually selected so closing via
+          // the X / backdrop still commits the user's picks (otherwise the
+          // display text shows the value but the field border stays red
+          // because completeFieldStep only runs on explicit Submit).
+          const prefix = `${currentImpressionProductId}_${currentImpressionArch}_`;
+          const entries = Object.entries(selectedImpressions).filter(
+            ([key, qty]) => key.startsWith(prefix) && qty > 0
+          );
+          if (entries.length > 0) {
+            const displayText = entries
+              .map(([key, qty]) => {
+                const identifier = key.replace(prefix, "");
+                const impression = impressionOptions.find((i) => i.value === identifier);
+                return `${qty}x ${impression?.name || identifier}`;
+              })
+              .join(", ");
+            onImpressionConfirm(displayText);
+          } else {
+            onImpressionClear?.();
+          }
+          setShowImpressionModal(false);
+        }}
         onConfirm={() => {
           // Build display text from currently selected impressions for this product/arch
           const prefix = `${currentImpressionProductId}_${currentImpressionArch}_`;

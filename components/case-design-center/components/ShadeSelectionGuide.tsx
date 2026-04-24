@@ -78,7 +78,7 @@ export function ShadeSelectionGuide({
 
           {/* Dropdown Menu */}
           {showShadeGuideDropdown && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#d9d9d9] rounded-lg shadow-lg z-10 overflow-hidden">
+            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#d9d9d9] rounded-lg shadow-lg z-50 overflow-hidden">
               {shadeGuideOptions.map((option) => (
                 <button
                   key={option}

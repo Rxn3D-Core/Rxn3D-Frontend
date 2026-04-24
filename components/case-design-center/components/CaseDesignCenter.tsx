@@ -151,19 +151,24 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     return IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("mandibular", card0Rep, step));
   })();
 
-  // For Fixed Restoration, impression is stored under the first tooth of the product group.
-  // This helper resolves the effective tooth number to check for impression completion.
+  // For Fixed Restoration, impression is stored under the first tooth of the
+  // product group. This helper resolves the effective tooth number to check
+  // for impression completion. It scopes the group to the same product-card
+  // (AP.id or 0 for initial) so impressions on one card don't leak into
+  // another AP that happens to share the same product.id.
   const getImpressionOwnerTooth = (arch: "maxillary" | "mandibular", toothNum: number): number => {
     const product = state.getToothProduct(arch, toothNum);
     const isFixed = isFixedCategory(getCategoryName(product));
     if (!isFixed) return toothNum;
+    const currentCard = state.getToothProductCard(arch, toothNum);
     const allTeeth = arch === "maxillary"
       ? Object.keys(state.maxillaryRetentionTypes).map(Number)
       : Object.keys(state.mandibularRetentionTypes || {}).map(Number);
     const productKey = product?.id ?? toothNum;
-    const groupTeeth = allTeeth.filter(
-      (t) => (state.getToothProduct(arch, t)?.id ?? t) === productKey
-    );
+    const groupTeeth = allTeeth.filter((t) => {
+      if (state.getToothProductCard(arch, t) !== currentCard) return false;
+      return (state.getToothProduct(arch, t)?.id ?? t) === productKey;
+    });
     return groupTeeth.length > 0 ? Math.min(...groupTeeth) : toothNum;
   };
 
@@ -702,6 +707,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           opposingToothExtractionMap={state.opposingToothExtractionMap}
           onOpposingExtractionToggle={state.handleOpposingExtractionToggle}
           onImplantDetailChange={(detail) => { maxillaryImplantDetailRef.current = detail; }}
+          onBackToCategories={props.onBackToCategories}
         />
 
         {/* CENTER NAVIGATION */}
@@ -821,6 +827,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           opposingToothExtractionMap={state.opposingToothExtractionMap}
           onOpposingExtractionToggle={state.handleOpposingExtractionToggle}
           onImplantDetailChange={(detail) => { mandibularImplantDetailRef.current = detail; }}
+          onBackToCategories={props.onBackToCategories}
         />
       </div>
 

@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Plus, Minus } from "lucide-react"
+import { Plus, Minus, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   Dialog,
@@ -212,12 +212,18 @@ function ImpressionGrid({
                   <span className="font-['Verdana'] font-normal text-sm leading-[14px] tracking-[-0.02em] text-black text-center min-w-[30px] flex items-center justify-center h-[26px]">
                     {qty}
                   </span>
-                  <button
-                    className="w-[30px] h-[30px] flex items-center justify-center rounded-[8px] border border-[#B4B0B0] bg-white hover:bg-gray-50 transition-all"
-                    onClick={() => handleDecrement(impression)}
-                  >
-                    <Minus className="w-[13px] h-[13px] text-[#1E1E1E]" strokeWidth={1.83} />
-                  </button>
+                  {qty > 0 && (
+                    <button
+                      className="w-[30px] h-[30px] flex items-center justify-center rounded-[8px] border border-[#B4B0B0] bg-white hover:bg-gray-50 transition-all"
+                      onClick={() => handleDecrement(impression)}
+                    >
+                      {qty === 1 ? (
+                        <Trash2 className="w-[13px] h-[13px] text-[#CF0202]" strokeWidth={1.83} />
+                      ) : (
+                        <Minus className="w-[13px] h-[13px] text-[#1E1E1E]" strokeWidth={1.83} />
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
               {isSelected && isLastSelected && (
@@ -306,12 +312,18 @@ function ImpressionGrid({
                   <span className="font-['Verdana'] font-normal text-sm lg:text-[18px] leading-[14px] tracking-[-0.02em] text-black text-center min-w-[30px] lg:min-w-[46px] flex items-center justify-center h-[31px]">
                     {qty}
                   </span>
-                  <button
-                    className="w-[36px] h-[36px] flex items-center justify-center rounded-[8px] border border-[#B4B0B0] bg-white hover:bg-gray-50 transition-all"
-                    onClick={() => handleDecrement(impression)}
-                  >
-                    <Minus className="w-[15px] h-[15px] text-[#1E1E1E]" strokeWidth={1.83} />
-                  </button>
+                  {qty > 0 && (
+                    <button
+                      className="w-[36px] h-[36px] flex items-center justify-center rounded-[8px] border border-[#B4B0B0] bg-white hover:bg-gray-50 transition-all"
+                      onClick={() => handleDecrement(impression)}
+                    >
+                      {qty === 1 ? (
+                        <Trash2 className="w-[15px] h-[15px] text-[#CF0202]" strokeWidth={1.83} />
+                      ) : (
+                        <Minus className="w-[15px] h-[15px] text-[#1E1E1E]" strokeWidth={1.83} />
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
               {isSelected && isLastSelected && (

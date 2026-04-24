@@ -53,6 +53,13 @@ export interface CaseDesignProps {
   setRight2Platform: (v: string) => void;
   onAddProduct?: (arch: "maxillary" | "mandibular") => void;
   onBackToProducts?: () => void;
+  /**
+   * Navigate back to the category-selection step of the new-case wizard.
+   * Invoked when a Fixed Restoration accordion is deleted so the user can pick
+   * a replacement category/product. Optional arch hint is forwarded to the
+   * wizard (when provided) so the correct arch stays preselected.
+   */
+  onBackToCategories?: (arch?: "maxillary" | "mandibular") => void;
   selectedProductId?: number;
   /** Display name of the selected/initial product (e.g. "Full contour Zirconia"). Used in modal tabs. */
   selectedProductName?: string;

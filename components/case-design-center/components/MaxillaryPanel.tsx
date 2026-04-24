@@ -532,6 +532,8 @@ interface MaxillaryPanelProps {
   onCheckedTeethChange?: (teeth: number[]) => void;
   /** Called whenever implant detail data changes for any tooth (so CaseDesignCenter can include it in the slip snapshot). */
   onImplantDetailChange?: (implantDetailByTooth: Record<number, ImplantDetailData>) => void;
+  /** Navigate back to category selection in the new-case wizard. Invoked after deleting a Fixed Restoration accordion. */
+  onBackToCategories?: (arch?: "maxillary" | "mandibular") => void;
 }
 
 function hasAdvanceField(
@@ -707,6 +709,7 @@ export function MaxillaryPanel({
   onOpposingExtractionToggle,
   onCheckedTeethChange,
   onImplantDetailChange,
+  onBackToCategories,
 }: MaxillaryPanelProps) {
   const MAXILLARY_ALL_TEETH = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16];
   const [activeExtractionCode, setActiveExtractionCode] = useState<string | null>(null);
@@ -912,7 +915,7 @@ export function MaxillaryPanel({
             <EyeOff size={13.5} className="text-[#b4b0b0]" />
           )}
         </button>
-        {showMaxillary && (!activeProductIsRemovables || activeProductCardId !== 0 || removablesImpressionDone) && (
+        {showMaxillary && (
           <div className="pl-9">
             {activeProductIsRemovables && activeProductCardId !== 0 ? (
               <p className="text-center text-orange-500 font-bold text-sm mb-1">
@@ -1303,7 +1306,11 @@ export function MaxillaryPanel({
                             {!caseSubmitted && (
                               <button
                                 type="button"
-                                onClick={(e) => { e.stopPropagation(); handleRemoveAddedProduct(ap.id); }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRemoveAddedProduct(ap.id);
+                                  onBackToCategories?.("maxillary");
+                                }}
                                 className="hover:text-red-500 transition-colors"
                                 title="Remove product"
                               >
@@ -1362,7 +1369,12 @@ export function MaxillaryPanel({
                         {!caseSubmitted && (
                         <button
                           type="button"
-                          onClick={(e) => { e.stopPropagation(); handleRemoveAddedProduct(ap.id); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const wasFixed = isFixedCategory(cardCategoryName);
+                            handleRemoveAddedProduct(ap.id);
+                            if (wasFixed) onBackToCategories?.("maxillary");
+                          }}
                           className="ml-1 hover:text-red-500 transition-colors"
                           title="Remove product"
                         >
@@ -1821,6 +1833,7 @@ export function MaxillaryPanel({
                           tabIndex={0}
                           onClick={(e) => {
                             e.stopPropagation();
+                            const wasFixed = isFixedCategory(categoryName);
                             const teethToClear = MAXILLARY_ALL_TEETH.filter(
                               (tn) => getToothProduct("maxillary", tn) && getToothProductCard("maxillary", tn) === 0
                             );
@@ -1828,11 +1841,13 @@ export function MaxillaryPanel({
                               clearToothProgress("maxillary", tn);
                               handleMaxillaryToothDeselect(tn);
                             });
+                            if (wasFixed) onBackToCategories?.("maxillary");
                           }}
                           onKeyDown={(e) => {
                             if (e.key === "Enter" || e.key === " ") {
                               e.preventDefault();
                               e.stopPropagation();
+                              const wasFixed = isFixedCategory(categoryName);
                               const teethToClear = MAXILLARY_ALL_TEETH.filter(
                                 (tn) => getToothProduct("maxillary", tn) && getToothProductCard("maxillary", tn) === 0
                               );
@@ -1840,6 +1855,7 @@ export function MaxillaryPanel({
                                 clearToothProgress("maxillary", tn);
                                 handleMaxillaryToothDeselect(tn);
                               });
+                              if (wasFixed) onBackToCategories?.("maxillary");
                             }
                           }}
                           className="inline-flex items-center justify-center flex-shrink-0 cursor-pointer hover:text-red-500 transition-colors"
@@ -2099,6 +2115,7 @@ export function MaxillaryPanel({
                                   });
                                   setInitialRemovablesExpanded(false);
                                   setActiveProductCardId(0);
+                                  onBackToCategories?.("maxillary");
                                 }}
                                 className="hover:text-red-500 transition-colors flex-shrink-0"
                                 title="Remove product"
