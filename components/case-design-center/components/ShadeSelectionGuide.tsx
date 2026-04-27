@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { Check, ChevronDown } from "lucide-react";
 import { ToothShadeSelectionSVG } from "@/components/tooth-shade-selection-svg";
 import type { Arch, ShadeFieldType, ShadeSelectionState } from "../types";
@@ -29,6 +30,12 @@ export function ShadeSelectionGuide({
   getSelectedShade,
   handleShadeSelect,
 }: ShadeSelectionGuideProps) {
+  useEffect(() => {
+    if (shadeGuideOptions.length === 1 && !selectedShadeGuide) {
+      setSelectedShadeGuide(shadeGuideOptions[0]);
+    }
+  }, [shadeGuideOptions, selectedShadeGuide, setSelectedShadeGuide]);
+
   const stumpShade = getSelectedShade(
     shadeSelectionState.productId || '',
     arch,

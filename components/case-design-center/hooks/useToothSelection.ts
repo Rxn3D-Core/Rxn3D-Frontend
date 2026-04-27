@@ -144,9 +144,18 @@ export function useToothSelection(
   /** Codes that act as overlays — tooth stays in its current status AND appears in this box */
   const OVERLAY_CODES = new Set(["CLASP"]);
 
-  /** Check if a code is an overlay by code or by name */
-  const isOverlayExtraction = (code: string) =>
-    OVERLAY_CODES.has(code.toUpperCase());
+  /**
+   * Check if a code is a clasp/overlay extraction.
+   * First checks exact code match, then falls back to name-based check
+   * (mirrors ToothStatusBoxes.isClaspExtraction for robustness against API code variants like "CLASP_L1_G2").
+   */
+  const isOverlayExtraction = (code: string, exts?: ProductExtraction[]): boolean => {
+    if (OVERLAY_CODES.has(code.toUpperCase())) return true;
+    if (!exts) return false;
+    const match = exts.find((e) => e.code === code);
+    const name = (match?.name ?? "").toLowerCase().trim();
+    return name === "clasp" || name === "clasps";
+  };
 
   /**
    * Toggle a tooth into a non-default extraction box.
@@ -162,7 +171,7 @@ export function useToothSelection(
       return max !== null && max > 0 ? max : null;
     };
 
-    if (isOverlayExtraction(extractionCode)) {
+    if (isOverlayExtraction(extractionCode, extractions)) {
       // Overlay: toggle tooth in/out of the clasp set without affecting other status
       const setter = arch === "maxillary" ? setMaxillaryClaspTeeth : setMandibularClaspTeeth;
       setter((prev) => {

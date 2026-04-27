@@ -492,6 +492,7 @@ interface MaxillaryPanelProps {
   // Added products
   addedProducts: AddedProduct[];
   toggleAddedProductExpanded: (productId: number) => void;
+  collapseAllAddedProducts: () => void;
   handleRemoveAddedProduct: (productId: number) => void;
 
   // Active product card tracking
@@ -520,6 +521,8 @@ interface MaxillaryPanelProps {
   maxillaryHasFixedCard0?: boolean;
   /** When true, the initial card 0 product is a Removable/Ortho AND maxillary teeth have been selected for it */
   maxillaryHasRemovablesCard0?: boolean;
+  /** Extractions from the initial card 0 product — used as fallback when no teeth are selected yet */
+  card0Extractions?: ProductExtraction[];
   /** Product+arch combos where user chose "Submit, no opposing needed" */
   noOpposingNeeded?: Record<string, boolean>;
   /** When set, renders the opposing product accordion for products with opposite_extractions */
@@ -534,13 +537,15 @@ interface MaxillaryPanelProps {
   onImplantDetailChange?: (implantDetailByTooth: Record<number, ImplantDetailData>) => void;
   /** Navigate back to category selection in the new-case wizard. Invoked after deleting a Fixed Restoration accordion. */
   onBackToCategories?: (arch?: "maxillary" | "mandibular") => void;
+  /** When true the footer acknowledgement checkbox is checked — accordion header borders turn green; orange when false. */
+  confirmDetailsChecked?: boolean;
 }
 
 function hasAdvanceField(
   step: string,
   advanceFields: Array<{ name: string; field_type: string }> | undefined
 ): boolean {
-  const alwaysShow = ["fixed_stage", "fixed_impression", "stage", "impression"];
+  const alwaysShow = ["fixed_stage", "fixed_impression", "fixed_addons", "stage", "impression", "addons"];
   if (alwaysShow.includes(step)) return true;
   if (!advanceFields || advanceFields.length === 0) return true;
 
@@ -680,6 +685,7 @@ export function MaxillaryPanel({
   selectedStages,
   addedProducts,
   toggleAddedProductExpanded,
+  collapseAllAddedProducts,
   handleRemoveAddedProduct,
   activeProductCardId,
   setActiveProductCardId,
@@ -702,6 +708,7 @@ export function MaxillaryPanel({
   onToothStatusValidationChange,
   maxillaryHasFixedCard0 = false,
   maxillaryHasRemovablesCard0 = false,
+  card0Extractions = [],
   removablesImpressionDone = false,
   noOpposingNeeded = {},
   opposingProductData = null,
@@ -710,6 +717,7 @@ export function MaxillaryPanel({
   onCheckedTeethChange,
   onImplantDetailChange,
   onBackToCategories,
+  confirmDetailsChecked = false,
 }: MaxillaryPanelProps) {
   const MAXILLARY_ALL_TEETH = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16];
   const [activeExtractionCode, setActiveExtractionCode] = useState<string | null>(null);
@@ -969,6 +977,38 @@ export function MaxillaryPanel({
                   : [];
                 return Array.from(new Set([...wedFromMain, ...wedFromOpposing]));
               })()}
+              missingTeeth={(() => {
+                const isMissingCode = (code: string) => {
+                  const sources: Array<{ code: string; name?: string | null }[]> = [];
+                  for (const tn of MAXILLARY_ALL_TEETH) {
+                    const p = getToothProduct("maxillary", tn);
+                    if (p?.extractions) sources.push(p.extractions);
+                  }
+                  for (const ap of addedProducts) {
+                    if (ap.arch === "maxillary" && (ap.product as any)?.extractions) {
+                      sources.push((ap.product as any).extractions);
+                    }
+                  }
+                  if (opposingProductData?.extractions) sources.push(opposingProductData.extractions);
+                  for (const exts of sources) {
+                    const match = exts.find((e) => e.code === code);
+                    if (match) {
+                      const n = (match.name ?? "").toLowerCase().trim();
+                      if (n.includes("missing")) return true;
+                    }
+                  }
+                  return false;
+                };
+                const missingFromMain = Object.entries(maxillaryToothExtractionMap)
+                  .filter(([, code]) => isMissingCode(code))
+                  .map(([tn]) => Number(tn));
+                const missingFromOpposing = opposingProductData
+                  ? Object.entries(opposingToothExtractionMap)
+                      .filter(([, code]) => isMissingCode(code))
+                      .map(([tn]) => Number(tn))
+                  : [];
+                return Array.from(new Set([...missingFromMain, ...missingFromOpposing]));
+              })()}
               onToothClick={(toothNumber: number) => {
                 // When a Removable/Ortho card is active (card 0 or added), show tooth status popover.
                 if (activeProductIsRemovables) {
@@ -990,8 +1030,8 @@ export function MaxillaryPanel({
                       getToothProduct("maxillary", tn) && getToothProductCard("maxillary", tn) === 0
                     );
                     const exts: ProductExtraction[] = card0Teeth.length > 0
-                      ? (getToothProduct("maxillary", card0Teeth[0])?.extractions ?? [])
-                      : [];
+                      ? (getToothProduct("maxillary", card0Teeth[0])?.extractions ?? card0Extractions)
+                      : card0Extractions;
                     setToothStatusPopoverTooth(toothNumber);
                     setToothStatusPopoverExtractions(exts);
                   }
@@ -1112,7 +1152,10 @@ export function MaxillaryPanel({
                   setToothStatusPopoverTooth(null);
                   return;
                 }
-                handleMaxillaryToothClick(toothNumber);
+                // Only add the tooth if not already selected — avoid toggling it off
+                if (!maxillaryTeeth.includes(toothNumber)) {
+                  handleMaxillaryToothClick(toothNumber);
+                }
                 handleToothExtractionToggle("maxillary", toothNumber, code, toothStatusPopoverExtractions);
                 setToothStatusPopoverTooth(null);
               }}
@@ -1215,6 +1258,11 @@ export function MaxillaryPanel({
               const apProductKey = `maxillary_prep_${apRepTn}`;
               const hasRushedAp = rushedProducts[apProductKey];
               const apStageVal = cardTeeth.length > 0 ? (selectedStages[apProductKey] || getFieldValue("maxillary", apRepTn, "stage")) : "";
+              const apRemStageObj = cardProduct?.stages?.find(s => s.name === apStageVal);
+              const apRemDays = apRemStageObj?.days_to_process;
+              const apRemEstDaysText = apRemDays != null
+                ? `${apRemDays} work day${apRemDays === 1 ? "" : "s"} after submission`
+                : "10 work days after submission";
 
               // For removable products, compute extractions for header display
               // Use apRepTn (the representative slot where product data was loaded) to get extractions
@@ -1271,7 +1319,7 @@ export function MaxillaryPanel({
                             {cardSubcategoryName && <AccordionBadge>{cardSubcategoryName}</AccordionBadge>}
                           </div>
                           {/* Title + tooth numbers in green-bordered box */}
-                          <div className="flex flex-col gap-[5px] border border-[#34C759] rounded-[7px] p-[10px] mr-8">
+                          <div className={`flex flex-col items-center text-center gap-[5px] border rounded-[7px] p-[10px] mr-8 ${confirmDetailsChecked ? "border-[#34C759]" : "border-[#F97316]"}`}>
                             <p className="font-[Inter] text-[20px] font-bold leading-[20px] tracking-[-0.02em] text-black">
                               {cardProductName} {assignedTeeth.length} {assignedTeeth.length === 1 ? "tooth" : "teeth"} to replace
                               {hasRushedAp && <RushIcon className="inline w-[14px] h-[14px] ml-1" />}
@@ -1302,7 +1350,7 @@ export function MaxillaryPanel({
                           )}
                           {/* Est days + delete button on same line */}
                           <div className="flex items-center gap-[6px]">
-                            <EstDaysLabel rushed={hasRushedAp} text={hasRushedAp ? "5 work days after submission" : "10 work days after submission"} />
+                            <EstDaysLabel rushed={hasRushedAp} text={hasRushedAp ? "5 work days after submission" : apRemEstDaysText} />
                             {!caseSubmitted && (
                               <button
                                 type="button"
@@ -1357,12 +1405,14 @@ export function MaxillaryPanel({
                           return apStageVal ? <AccordionBadge>{apStageVal}</AccordionBadge> : null;
                         })()}
                         {(() => {
-                          const apEstDays = cardProduct
-                            ? cardProduct.min_days_to_process && cardProduct.max_days_to_process
-                              ? `${cardProduct.min_days_to_process}-${cardProduct.max_days_to_process} work days after submission`
-                              : cardProduct.min_days_to_process
-                                ? `${cardProduct.min_days_to_process} work days after submission`
-                                : "10 work days after submission"
+                          const apStageKey = isFixedCategory(cardCategoryName)
+                            ? `maxillary_fixed_${apRepTn}`
+                            : `maxillary_prep_${apRepTn}`;
+                          const apStageValForDays = apRepTn > 0 ? (selectedStages[apStageKey] || getFieldValue("maxillary", apRepTn, isFixedCategory(cardCategoryName) ? "fixed_stage" : "stage")) : "";
+                          const apStageObj = cardProduct?.stages?.find(s => s.name === apStageValForDays);
+                          const apDays = apStageObj?.days_to_process;
+                          const apEstDays = apDays != null
+                            ? `${apDays} work day${apDays === 1 ? "" : "s"} after submission`
                             : "10 work days after submission";
                           return <EstDaysLabel rushed={hasRushedAp} text={hasRushedAp ? "5 work days after submission" : apEstDays} />;
                         })()}
@@ -1593,7 +1643,7 @@ export function MaxillaryPanel({
                         }
 
                         // Fixed restoration added product — use same FixedRestorationFields as Card 0
-                        const apFirstTn = cardTeeth[0];
+                        const apFirstTn = cardTeeth.length > 0 ? Math.min(...cardTeeth) : 0;
                         const apToothProduct = getToothProduct("maxillary", apFirstTn);
                         const apFixedChain = getFixedFieldChain(apToothProduct?.advance_fields);
                         const apRetentionTypes = cardTeeth.flatMap(tn => maxillaryRetentionTypes[tn] || []);
@@ -1722,12 +1772,11 @@ export function MaxillaryPanel({
               // Skip removables products — they have their own dedicated accordion section
               const catLower = categoryName.toLowerCase();
               if (isRemovableCategory(catLower)) return null;
-              const estDays = selectedProduct
-                ? selectedProduct.min_days_to_process && selectedProduct.max_days_to_process
-                  ? `${selectedProduct.min_days_to_process}-${selectedProduct.max_days_to_process} work days after submission`
-                  : selectedProduct.min_days_to_process
-                    ? `${selectedProduct.min_days_to_process} work days after submission`
-                    : "10 work days after submission"
+              const fixedStageName = selectedStages[`maxillary_prep_${firstToothNumber}`] || selectedStages[`maxillary_fixed_${firstToothNumber}`] || "";
+              const fixedStageObj = selectedProduct?.stages?.find(s => s.name === fixedStageName);
+              const fixedDays = fixedStageObj?.days_to_process;
+              const estDays = fixedDays != null
+                ? `${fixedDays} work day${fixedDays === 1 ? "" : "s"} after submission`
                 : "10 work days after submission";
               const toothNumbers = teeth.map((t) => t.toothNumber);
               // Stable key for stage so value is not lost when group order or implant section changes
@@ -1986,28 +2035,25 @@ export function MaxillaryPanel({
             const cardTeeth = MAXILLARY_ALL_TEETH.filter(tn => getToothProduct("maxillary", tn) && getToothProductCard("maxillary", tn) === 0);
             if (cardTeeth.length === 0) return null;
             const cardProduct = getToothProduct("maxillary", cardTeeth[0]);
-            // For removable products, show only teeth with extraction statuses (MT, WED, WEOD, FR, CTS)
-            const HEADER_EXTRACTION_CODES_REM = new Set(["MT", "WED", "WEOD", "FR", "CTS"]);
-            const displayTeeth = [...maxillaryTeeth].sort((a, b) => a - b).filter(tn => {
+            // maxillaryTeeth is auto-populated with all arch teeth by runMissingTeethAutoSelect, so use
+            // the extraction map directly — only teeth with explicit non-TIM codes were user-assigned.
+            const displayTeeth = MAXILLARY_ALL_TEETH.filter(tn => {
               const code = maxillaryToothExtractionMap[tn];
-              return code && HEADER_EXTRACTION_CODES_REM.has(code);
-            });
-            // Resolve label + image from product variations based on teeth_space (count of teeth)
+              return code && code !== "TIM";
+            }).sort((a, b) => a - b);
             const variationDisplay = resolveVariationDisplay(cardProduct, displayTeeth.length);
             const cardProductName = variationDisplay.name;
             const cardProductImage = variationDisplay.imageUrl;
             const hasVariationMatch = variationDisplay.matched;
             const cardToothDisplay = displayTeeth.length > 0 ? `#${displayTeeth.join(",")}` : "";
             const isActive = activeProductCardId === 0;
-            const estDays = cardProduct
-              ? cardProduct.min_days_to_process && cardProduct.max_days_to_process
-                ? `${cardProduct.min_days_to_process}-${cardProduct.max_days_to_process} work days after submission`
-                : cardProduct.min_days_to_process
-                  ? `${cardProduct.min_days_to_process} work days after submission`
-                  : "10 work days after submission"
-              : "10 work days after submission";
             const repTnStage = cardTeeth[0];
             const stageVal = selectedStages[`maxillary_prep_${repTnStage}`] || getFieldValue("maxillary", repTnStage, "stage");
+            const remCard0StageObj = cardProduct?.stages?.find(s => s.name === stageVal);
+            const remCard0Days = remCard0StageObj?.days_to_process;
+            const estDays = remCard0Days != null
+              ? `${remCard0Days} work day${remCard0Days === 1 ? "" : "s"} after submission`
+              : "10 work days after submission";
             const removablesProductKey = `maxillary_prep_${cardTeeth[0]}`;
             const hasRushedRemovables = rushedProducts[removablesProductKey];
 
@@ -2028,8 +2074,12 @@ export function MaxillaryPanel({
                 <div
                   className={`w-full flex flex-col transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] relative ${hasRushedRemovables ? "bg-[#FCE4E4]" : "bg-white"}`}
                   onClick={() => {
+                    const willExpand = !initialRemovablesExpanded;
                     setInitialRemovablesExpanded((e) => !e);
-                    if (!initialRemovablesExpanded) setActiveProductCardId(0);
+                    if (willExpand) {
+                      setActiveProductCardId(0);
+                      collapseAllAddedProducts();
+                    }
                   }}
                   style={{ cursor: "pointer" }}
                 >
@@ -2054,8 +2104,8 @@ export function MaxillaryPanel({
                       }
                     />
                     <div className="flex-1 min-w-0 flex flex-col gap-[9.94px]">
-                      {/* Show all header content only after user picks a tooth status from the popover, or case submitted — initially blank */}
-                      {(cardTeeth.some(tn => maxillaryToothExtractionMap[tn]) || caseSubmitted) && (
+                      {/* Show header content whenever teeth are assigned to this card, or case submitted */}
+                      {(cardTeeth.length > 0 || caseSubmitted) && (
                         <>
                           {/* Category badges above green box */}
                           <div className="flex items-center gap-[4px] flex-wrap">
@@ -2067,7 +2117,7 @@ export function MaxillaryPanel({
                             )}
                           </div>
                           {/* Title + tooth numbers in green-bordered box */}
-                          <div className="flex flex-col gap-[5px] border border-[#34C759] rounded-[7px] p-[10px] mr-8">
+                          <div className={`flex flex-col items-center text-center gap-[5px] border rounded-[7px] p-[10px] mr-8 ${confirmDetailsChecked ? "border-[#34C759]" : "border-[#F97316]"}`}>
                             <p className="font-[Inter] text-[20px] font-bold leading-[20px] tracking-[-0.02em] text-black">
                               {hasVariationMatch
                                 ? `${cardProductName} to replace`
@@ -2333,10 +2383,10 @@ export function MaxillaryPanel({
           })()}
 
 
-          {/* Opposing product accordion — shown when selected product has opposite_extractions */}
-          {showDetails && opposingProductData && (opposingProductData.opposite_extractions?.length ?? 0) > 0 && (() => {
+          {/* Opposing product accordion — shown when selected product has opposite section */}
+          {showDetails && opposingProductData && (opposingProductData.opposite_impression === "Yes" || (opposingProductData.opposite_extractions?.length ?? 0) > 0) && (() => {
             // Map ProductOppositeExtraction to ProductExtraction shape for ToothStatusBoxes
-            const opposingExtractions: import("../types").ProductExtraction[] = opposingProductData.opposite_extractions!.map(e => ({
+            const opposingExtractions: import("../types").ProductExtraction[] = (opposingProductData.opposite_extractions ?? []).map(e => ({
               id: e.id,
               extraction_id: e.id,
               name: e.name,

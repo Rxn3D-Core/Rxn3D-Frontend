@@ -608,6 +608,7 @@ export default function Page() {
               onProductsChange={setAddedProducts}
               initialArch={initialArch}
               slipCollectorRef={slipCollectorRef}
+              confirmDetailsChecked={confirmDetailsChecked}
             />
             {showDetails && (
               <CaseSummaryNotes

@@ -129,7 +129,17 @@ export function useCaseDesignState(props: CaseDesignProps) {
   const [expandedPrepPontic, setExpandedPrepPontic] = useState<Record<number, boolean>>({});
 
   const togglePrepPonticExpanded = (toothNumber: number) => {
-    setExpandedPrepPontic((prev) => ({ ...prev, [toothNumber]: !(prev[toothNumber] !== false) }));
+    setExpandedPrepPontic((prev) => {
+      const currentlyExpanded = prev[toothNumber] !== false;
+      if (currentlyExpanded) {
+        return { ...prev, [toothNumber]: false };
+      }
+      const allCollapsed: Record<number, boolean> = {};
+      for (const key of Object.keys(prev)) {
+        allCollapsed[Number(key)] = false;
+      }
+      return { ...allCollapsed, [toothNumber]: true };
+    });
   };
   const isPrepPonticExpanded = (toothNumber: number) => expandedPrepPontic[toothNumber] !== false;
   // In read-only (virtual slip) mode, always show both arches regardless of initialArch.
@@ -484,6 +494,24 @@ export function useCaseDesignState(props: CaseDesignProps) {
     [toothFieldProgress, modals]
   );
 
+  // Auto-populate addon field with product's is_default addons when field not yet set
+  const autoPopulateDefaultAddons = useCallback(
+    (arch: Arch, toothNumber: number, product: ProductApiData) => {
+      const defaultAddons = (product.addons ?? []).filter(
+        (a) => String(a.is_default ?? "").trim().toLowerCase() === "yes" &&
+               String(a.status ?? "Active").trim().toLowerCase() === "active"
+      );
+      if (defaultAddons.length === 0) return;
+      const catName = getCategoryName(product);
+      const isFixed = isFixedCategory(catName);
+      const addonStep = isFixed ? "fixed_addons" as const : "addons" as const;
+      if (toothFieldProgress.isFieldCompleted(arch, toothNumber, addonStep)) return;
+      const value = defaultAddons.map((a) => `1x ${a.name}`).join(", ");
+      toothFieldProgress.completeFieldStep(arch, toothNumber, addonStep, value);
+    },
+    [toothFieldProgress]
+  );
+
   // Fetch and assign product details when retention type is selected
   const fetchAndAssignProduct = useCallback(
     async (arch: Arch, toothNumber: number, productId: number) => {
@@ -492,6 +520,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
       if (cached) {
         toothFieldProgress.setToothProduct(arch, toothNumber, cached);
         autoCompleteSingleStage(arch, toothNumber, cached);
+        autoPopulateDefaultAddons(arch, toothNumber, cached);
         return;
       }
 
@@ -516,10 +545,11 @@ export function useCaseDesignState(props: CaseDesignProps) {
         cachedProductRef.current.set(productId, enrichedProduct);
         toothFieldProgress.setToothProduct(arch, toothNumber, enrichedProduct);
         autoCompleteSingleStage(arch, toothNumber, enrichedProduct);
+        autoPopulateDefaultAddons(arch, toothNumber, enrichedProduct);
       }
       toothFieldProgress.setProductLoading(arch, toothNumber, false);
     },
-    [toothFieldProgress, autoCompleteSingleStage]
+    [toothFieldProgress, autoCompleteSingleStage, autoPopulateDefaultAddons]
   );
 
   // Helper: determine the target product ID for the active card

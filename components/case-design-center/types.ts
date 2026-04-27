@@ -91,6 +91,8 @@ export interface CaseDesignProps {
    * without requiring interactive tooth selection. Has no effect in interactive mode.
    */
   initialSlipState?: VirtualSlipInitialState;
+  /** When true the footer acknowledgement checkbox is checked — accordion header borders turn green; orange when false. */
+  confirmDetailsChecked?: boolean;
 }
 
 export interface AddedProduct {
@@ -392,6 +394,16 @@ export interface ProductTeethShade {
   brand?: ProductTeethShadeBrand | null;
 }
 
+export interface ProductAddon {
+  id: number;
+  name: string;
+  code: string;
+  sequence?: number;
+  status?: string;
+  is_default?: string;
+  price?: string | number | null;
+}
+
 /** Product from the products API */
 export interface ProductApiData {
   id: number;
@@ -415,6 +427,7 @@ export interface ProductApiData {
   /** May be brand groups with nested shades or a flat list, depending on API shape. */
   teeth_shades?: unknown[];
   extractions?: ProductExtraction[];
+  addons?: ProductAddon[];
   advance_fields?: ProductAdvanceField[];
   teeth_shades?: ProductTeethShade[];
   opposite_impression?: "Yes" | "No";

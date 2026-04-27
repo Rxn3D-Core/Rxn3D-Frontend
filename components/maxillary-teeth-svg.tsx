@@ -84,6 +84,8 @@ interface MaxillaryTeethSVGProps {
   toothExtractionMap?: Record<number, string>
   /** Tooth numbers that should show the red X overlay (Will Extract on Delivery). */
   willExtractTeeth?: number[]
+  /** Tooth numbers that should render the missing-tooth image overlay. */
+  missingTeeth?: number[]
   /** When true, hide orange circle and gear icon indicators (used when tooth status boxes are active). */
   hideSelectionIndicators?: boolean
   /** Tooth numbers that have clasp status (overlay). */
@@ -119,6 +121,7 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
   toothStatusProductImageUrl,
   toothExtractionMap = {},
   willExtractTeeth = [],
+  missingTeeth = [],
   hideSelectionIndicators = false,
   claspTeeth = [],
   getAddonValue,
@@ -134,7 +137,7 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
   }, [checkedTeeth, onCheckedTeethChange])
 
   const isToothSelected = (toothNumber: number) => selectedTeeth.includes(toothNumber)
-  const isToothMissing = (toothNumber: number) => toothExtractionMap[toothNumber] === 'MT'
+  const isToothMissing = (toothNumber: number) => toothExtractionMap[toothNumber] === 'MT' || missingTeeth.includes(toothNumber)
 
   const getToothOpacity = (toothNumber: number) => {
     if (isToothMissing(toothNumber)) return 0.2
@@ -187,7 +190,6 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
 
   const renderMissingToothImage = (toothNumber: number, x: number, width: number, toothHeight: number = 141) => {
     if (!isToothMissing(toothNumber)) return null
-    if (!isToothSelected(toothNumber)) return null
     return (
       <image
         key={`missing-tooth-${toothNumber}`}

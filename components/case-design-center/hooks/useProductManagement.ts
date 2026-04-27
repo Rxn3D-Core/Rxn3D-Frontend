@@ -25,11 +25,19 @@ export function useProductManagement(
   };
 
   const toggleAddedProductExpanded = (productId: number) => {
+    const target = addedProducts.find(p => p.id === productId);
+    const willExpand = !target?.expanded;
     persistAddedProducts(
       addedProducts.map((p) =>
-        p.id === productId ? { ...p, expanded: !p.expanded } : p
+        p.id === productId
+          ? { ...p, expanded: !p.expanded }
+          : willExpand ? { ...p, expanded: false } : p
       )
     );
+  };
+
+  const collapseAllAddedProducts = () => {
+    persistAddedProducts(addedProducts.map(p => ({ ...p, expanded: false })));
   };
 
   return {
@@ -37,5 +45,6 @@ export function useProductManagement(
     persistAddedProducts,
     handleRemoveAddedProduct,
     toggleAddedProductExpanded,
+    collapseAllAddedProducts,
   };
 }
