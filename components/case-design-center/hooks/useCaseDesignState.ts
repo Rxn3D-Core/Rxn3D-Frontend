@@ -37,14 +37,16 @@ async function fetchTeethShadeCatalog(): Promise<TeethShadeEntry[]> {
       if (!token) return [];
       const url = new URL("/v1/library/teeth-shade-brands", API_BASE_URL);
       url.searchParams.set("lang", "en");
+      url.searchParams.set("per_page", "100");
       const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) return [];
       const json = await res.json();
-      // Flatten brands → individual shade entries so lookups by name work
-      const brands: any[] = json.data ?? [];
+      // API returns { data: { data: TeethShadeBrand[], pagination: ... } }
+      // Each brand has brand.shades[] (not brand.teeth_shades[])
+      const brands: any[] = json.data?.data ?? json.data ?? [];
       const entries: TeethShadeEntry[] = [];
       for (const brand of brands) {
-        const shades: any[] = brand.teeth_shades ?? brand.teethShades ?? [];
+        const shades: any[] = brand.shades ?? brand.teeth_shades ?? brand.teethShades ?? [];
         for (const shade of shades) {
           entries.push({
             id: shade.id,
@@ -149,6 +151,9 @@ export function useCaseDesignState(props: CaseDesignProps) {
 
   // Opposing arch extraction map: toothNumber → extractionCode
   const [opposingToothExtractionMap, setOpposingToothExtractionMap] = useState<Record<number, string>>({});
+
+  // Structured addon selections: keyed as `${arch}_${toothNumber}` → [{addon_id, qty}]
+  const [selectedAddonsByTooth, setSelectedAddonsByTooth] = useState<Record<string, Array<{ addon_id: number; qty: number }>>>({});
 
   const handleOpposingExtractionToggle = useCallback((toothNumber: number, extractionCode: string) => {
     setOpposingToothExtractionMap((prev) => {
@@ -508,8 +513,13 @@ export function useCaseDesignState(props: CaseDesignProps) {
       if (toothFieldProgress.isFieldCompleted(arch, toothNumber, addonStep)) return;
       const value = defaultAddons.map((a) => `1x ${a.name}`).join(", ");
       toothFieldProgress.completeFieldStep(arch, toothNumber, addonStep, value);
+      const key = `${arch}_${toothNumber}`;
+      setSelectedAddonsByTooth((prev) => ({
+        ...prev,
+        [key]: defaultAddons.map((a) => ({ addon_id: a.id, qty: 1 })),
+      }));
     },
-    [toothFieldProgress]
+    [toothFieldProgress, setSelectedAddonsByTooth]
   );
 
   // Fetch and assign product details when retention type is selected
@@ -884,6 +894,9 @@ export function useCaseDesignState(props: CaseDesignProps) {
     // Opposing arch extraction state
     opposingToothExtractionMap,
     handleOpposingExtractionToggle,
+    // Structured addon selections per tooth
+    selectedAddonsByTooth,
+    setSelectedAddonsByTooth,
     // Props pass-through
     ...props,
   };

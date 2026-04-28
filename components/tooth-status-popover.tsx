@@ -127,27 +127,28 @@ export const ToothStatusPopover: React.FC<ToothStatusPopoverProps> = ({
   }, [onClose])
 
   const showArrow = typeof arrowOffsetX === 'number'
-  const arrowStyle: React.CSSProperties | null = showArrow
-    ? {
-        position: 'absolute',
-        left: `${arrowOffsetX}px`,
-        transform: 'translateX(-50%)',
-        width: 0,
-        height: 0,
-        borderLeft: '8px solid transparent',
-        borderRight: '8px solid transparent',
-        ...(arrowDirection === 'down'
-          ? { bottom: '-8px', borderTop: '8px solid white', filter: 'drop-shadow(0 2px 1px rgba(0,0,0,0.08))' }
-          : { top: '-8px', borderBottom: '8px solid white', filter: 'drop-shadow(0 -2px 1px rgba(0,0,0,0.08))' }),
-      }
-    : null
 
   return (
-    <div
-      ref={popoverRef}
-      className="relative z-50 bg-white border border-gray-200 hover:border-blue-500 shadow-xl p-3 flex flex-col gap-2 transition-colors"
-    >
-      {showArrow && arrowStyle && <div style={arrowStyle} aria-hidden="true" />}
+    <div ref={popoverRef} className="relative" style={{ overflow: 'visible' }}>
+      {showArrow && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            left: `${arrowOffsetX}px`,
+            transform: 'translateX(-50%)',
+            width: 0,
+            height: 0,
+            borderLeft: '8px solid transparent',
+            borderRight: '8px solid transparent',
+            zIndex: 51,
+            ...(arrowDirection === 'down'
+              ? { bottom: '-8px', borderTop: '8px solid white', filter: 'drop-shadow(0 2px 2px rgba(0,0,0,0.15))' }
+              : { top: '-8px', borderBottom: '8px solid white', filter: 'drop-shadow(0 -2px 2px rgba(0,0,0,0.15))' }),
+          }}
+        />
+      )}
+      <div className="z-50 bg-white border border-gray-200 hover:border-blue-500 shadow-xl p-3 flex flex-col gap-2 transition-colors">
       <div className="flex gap-2">
         {options.filter((opt) => !isTeethInMouthCode(opt.code, opt.name)).map((opt) => {
           const isMissing = isMissingCode(opt.code, opt.name)
@@ -219,6 +220,7 @@ export const ToothStatusPopover: React.FC<ToothStatusPopoverProps> = ({
             </span>
           </button>
         )}
+      </div>
       </div>
     </div>
   )

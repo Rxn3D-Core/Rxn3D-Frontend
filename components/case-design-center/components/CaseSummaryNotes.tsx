@@ -340,9 +340,14 @@ export function CaseSummaryNotes(props: NotesProps) {
     props.selectedImpressions,
     props.maxillaryToothExtractionMap,
     props.mandibularToothExtractionMap,
+    props.addedProducts,
   ]);
 
-  // Reset manual override when dynamic text changes (user edited a field)
+  // Clear manual override when a product is added or removed so the notes regenerate
+  useEffect(() => {
+    setManualOverride(null);
+  }, [props.addedProducts?.length]);
+
   const noteText = manualOverride ?? dynamicNoteText;
 
   const getDisplayValue = () => {
