@@ -23,7 +23,7 @@ interface CreateImpressionModalProps {
 }
 
 export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, mode = "create", isCopying = false }: CreateImpressionModalProps) {
-  const { createImpression, updateImpression, isLoading, impressions } = useImpressions()
+  const { createImpression, updateImpression, getImpressionDetail, isLoading, impressions } = useImpressions()
   const [impressionDetailsEnabled, setImpressionDetailsEnabled] = useState(true)
   const [impressionName, setImpressionName] = useState("")
   const [impressionCode, setImpressionCode] = useState("")
@@ -43,12 +43,105 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
   const [showPreviewModal, setShowPreviewModal] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  /** After GET detail (edit mode); fallback to row from list — used for duplicate-code check & save target id */
+  const [detailFromApi, setDetailFromApi] = useState<Impression | null>(null)
+  const [isDetailLoading, setIsDetailLoading] = useState(false)
 
-  // Track changes
+  /** Apply impression row onto local form fields */
+  const applyImpressionToForm = useCallback((imp: Impression) => {
+    setImpressionName(imp.name || "")
+    setImpressionCode(imp.code || "")
+    setImpressionUrl(imp.url || "")
+    setSelectedImage(imp.image_url || null)
+    setImpressionDetailsEnabled(true)
+    setShowOpposingWarning(imp.is_digital_impression?.toLowerCase() === "yes" ? "yes" : "no")
+    setStatus(imp.status || "Active")
+  }, [])
+
+  /** Stable id for edit: detail GET result, else list row */
+  const editTargetId = detailFromApi?.id ?? impression?.id
+
   useEffect(() => {
-    const hasChanges = impressionName.trim() !== "" || impressionCode.trim() !== "" || impressionUrl.trim() !== "" || selectedImage !== null
+    if (!isOpen) return
+    if (mode === "edit" && isDetailLoading) {
+      onChanges(false)
+      return
+    }
+    const hasChanges =
+      impressionName.trim() !== "" ||
+      impressionCode.trim() !== "" ||
+      impressionUrl.trim() !== "" ||
+      selectedImage !== null
     onChanges(hasChanges)
-  }, [impressionName, impressionCode, impressionUrl, selectedImage, onChanges])
+  }, [
+    impressionName,
+    impressionCode,
+    impressionUrl,
+    selectedImage,
+    onChanges,
+    mode,
+    isDetailLoading,
+    isOpen,
+  ])
+
+  // Reset form when modal opens or mode/impression/id changes — edit path loads full row via GET
+  useEffect(() => {
+    if (!isOpen) {
+      setDetailFromApi(null)
+      setIsDetailLoading(false)
+      return
+    }
+    if (isCopying && impression) {
+      setDetailFromApi(null)
+      setIsDetailLoading(false)
+      const originalName = impression.name || ""
+      const copiedName = originalName.includes("Copy") ? originalName : `${originalName} Copy`
+      setImpressionName(copiedName)
+      setImpressionCode(impression.code || "")
+      setImpressionUrl(impression.url || "")
+      setSelectedImage(impression.image_url || null)
+      setImpressionDetailsEnabled(true)
+      setShowOpposingWarning(impression.is_digital_impression?.toLowerCase() === "yes" ? "yes" : "no")
+      setStatus(impression.status || "Active")
+      setImageFile(null)
+      setLinkToProductsOpen(false)
+      setLinkToGroupOpen(false)
+      setErrors({})
+      return
+    }
+    if (mode === "edit" && impression && !isCopying) {
+      setDetailFromApi(null)
+      setIsDetailLoading(true)
+      let cancelled = false
+      getImpressionDetail(impression.id).then((detail) => {
+        if (cancelled) return
+        const row = detail ?? impression
+        setDetailFromApi(row)
+        applyImpressionToForm(row)
+        setImageFile(null)
+        setLinkToProductsOpen(false)
+        setLinkToGroupOpen(false)
+        setErrors({})
+        setIsDetailLoading(false)
+      })
+      return () => {
+        cancelled = true
+      }
+    }
+    setDetailFromApi(null)
+    setIsDetailLoading(false)
+    setImpressionCode("")
+    setImpressionName("")
+    setImpressionUrl("")
+    setSelectedImage(null)
+    setImpressionDetailsEnabled(true)
+    setShowOpposingWarning("yes")
+    setStatus("Active")
+    setImageFile(null)
+    setLinkToProductsOpen(false)
+    setLinkToGroupOpen(false)
+    setErrors({})
+  }, [isOpen, impression, mode, isCopying, getImpressionDetail, applyImpressionToForm])
 
   // Validate URL field on blur - required only after user explicitly sets opposing to "Yes"
   const validateUrlField = useCallback(() => {
@@ -86,56 +179,15 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
         return newErrors
       })
     }
-    prevOpposingRef.current = showOpposingWarning;
+    prevOpposingRef.current = showOpposingWarning
   }, [showOpposingWarning, isOpen])
 
   // Clear the interaction flag when modal opens/closes
   useEffect(() => {
     if (!isOpen) {
-      hasInteractedRef.current = false;
+      hasInteractedRef.current = false
     }
   }, [isOpen])
-
-  // Reset form when modal opens or impression changes
-  useEffect(() => {
-    if (isOpen) {
-      if (isCopying && impression) {
-        // Copying: use the provided impression data directly (no API call needed)
-        // Add "Copy" to the name if it doesn't already contain it
-        const originalName = impression.name || ""
-        const copiedName = originalName.includes("Copy") ? originalName : `${originalName} Copy`
-        setImpressionName(copiedName)
-        setImpressionCode(impression.code || "")
-        setImpressionUrl(impression.url || "")
-        setSelectedImage(impression.image_url || null)
-        setImpressionDetailsEnabled(true)
-        setShowOpposingWarning(impression.is_digital_impression?.toLowerCase() === "yes" ? "yes" : "no")
-        setStatus(impression.status || "Active")
-      } else if (mode === "edit" && impression && !isCopying) {
-        // Editing: use the provided impression data
-        setImpressionName(impression.name || "")
-        setImpressionCode(impression.code || "")
-        setImpressionUrl(impression.url || "")
-        setSelectedImage(impression.image_url || null)
-        setImpressionDetailsEnabled(true)
-        setShowOpposingWarning(impression.is_digital_impression?.toLowerCase() === "yes" ? "yes" : "no")
-        setStatus(impression.status || "Active")
-      } else {
-        // New impression: reset form
-        setImpressionCode("")
-        setImpressionName("")
-        setImpressionUrl("")
-        setSelectedImage(null)
-        setImpressionDetailsEnabled(true)
-        setShowOpposingWarning("yes")
-        setStatus("Active")
-      }
-      setImageFile(null)
-      setLinkToProductsOpen(false)
-      setLinkToGroupOpen(false)
-      setErrors({})
-    }
-  }, [isOpen, impression, mode, isCopying])
 
   // Image validation
   const validateImage = (file: File): string | null => {
@@ -255,7 +307,7 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
         (imp) => 
           imp.code.toLowerCase().trim() === impressionCode.toLowerCase().trim() &&
           // Exclude current impression when editing
-          (mode !== "edit" || imp.id !== impression?.id)
+          (mode !== "edit" || imp.id !== editTargetId)
       )
       
       if (codeExists) {
@@ -316,8 +368,8 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
     }
 
     try {
-      if (mode === "edit" && impression) {
-        await updateImpression(impression.id, payload)
+      if (mode === "edit" && editTargetId != null) {
+        await updateImpression(editTargetId, payload)
       } else {
         await createImpression(payload)
       }
@@ -371,6 +423,10 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
         </div>
 
         <div className="overflow-y-auto flex-1 p-4 sm:p-6 space-y-4">
+          {mode === "edit" && isDetailLoading ? (
+            <div className="text-center py-16 text-gray-500 text-sm">Loading details...</div>
+          ) : (
+          <>
           {/* Impression Details Section */}
           <div className="flex items-center gap-2">
             <span className="font-medium">Impression Details</span>
@@ -501,7 +557,7 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
                             (imp) => 
                               imp.code.toLowerCase().trim() === newCode.toLowerCase().trim() &&
                               // Exclude current impression when editing
-                              (mode !== "edit" || imp.id !== impression?.id)
+                              (mode !== "edit" || imp.id !== editTargetId)
                           )
                           
                           if (codeExists) {
@@ -530,7 +586,7 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
                             (imp) => 
                               imp.code.toLowerCase().trim() === impressionCode.toLowerCase().trim() &&
                               // Exclude current impression when editing
-                              (mode !== "edit" || imp.id !== impression?.id)
+                              (mode !== "edit" || imp.id !== editTargetId)
                           )
                           
                           if (codeExists) {
@@ -649,6 +705,8 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
               </div>
             </div>
           )}
+          </>
+          )}
         </div>
 
         {/* Footer with action buttons */}
@@ -661,6 +719,7 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
             onClick={handleSubmit}
             disabled={
               isLoading ||
+              (mode === "edit" && isDetailLoading) ||
               !impressionName.trim() ||
               !impressionCode.trim() ||
               !!errors.impressionUrl ||
