@@ -191,13 +191,19 @@ export default function AddOnsPage() {
             <Skeleton className="h-4 w-4" />
           </TableCell>
           <TableCell>
+            <Skeleton className="h-4 w-48" />
+          </TableCell>
+          <TableCell>
             <Skeleton className="h-4 w-32" />
+          </TableCell>
+          <TableCell>
+            <Skeleton className="h-4 w-20" />
           </TableCell>
           <TableCell>
             <Skeleton className="h-4 w-24" />
           </TableCell>
           <TableCell>
-            <Skeleton className="h-4 w-48" />
+            <Skeleton className="h-4 w-16" />
           </TableCell>
           <TableCell>
             <Skeleton className="h-4 w-16" />
@@ -312,6 +318,12 @@ export default function AddOnsPage() {
                       className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]"
                     />
                   </TableHead>
+                  <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("name")}>
+                    <div className="flex items-center">
+                      {t("Add on", "Add on")}
+                      {renderSortIndicator("name")}
+                    </div>
+                  </TableHead>
                   <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("add_on_sub_category")}>
                     <div className="flex items-center">
                       {t("Add-on Category", "Add-on Category")}
@@ -328,12 +340,6 @@ export default function AddOnsPage() {
                     <div className="flex items-center">
                       {t("Add-on Sub Category", "Add-on Sub Category")}
                       {renderSortIndicator("add_on_sub_category")}
-                    </div>
-                  </TableHead>
-                  <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("name")}>
-                    <div className="flex items-center">
-                      {t("Add on", "Add on")}
-                      {renderSortIndicator("name")}
                     </div>
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
@@ -360,9 +366,10 @@ export default function AddOnsPage() {
                           className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]"
                         />
                       </TableCell>
-                      <TableCell className="font-medium text-gray-900">{addOn.category_name}</TableCell>
-                      <TableCell className="text-gray-600">{addOn.subcategory_name}</TableCell>
                       <TableCell className="font-medium text-gray-900">{addOn.name}</TableCell>
+                      <TableCell className="font-medium text-gray-900">{addOn.category_name}</TableCell>
+                      <TableCell className="text-gray-600">{addOn.subcategory?.category?.code || "N/A"}</TableCell>
+                      <TableCell className="text-gray-600">{addOn.subcategory_name}</TableCell>
                       <TableCell className="font-medium text-gray-700">
                         All Labs
                         <Button variant="ghost" size="sm" className="ml-2 h-6 w-6 p-0 text-gray-400 hover:text-gray-600">
@@ -402,7 +409,7 @@ export default function AddOnsPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-12">
+                    <TableCell colSpan={9} className="text-center py-12">
                       <div className="flex flex-col items-center gap-4">
                         <div className="p-4 bg-gray-100 rounded-full">
                           <Package className="h-8 w-8 text-gray-400" />
