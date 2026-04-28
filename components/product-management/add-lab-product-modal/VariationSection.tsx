@@ -1,5 +1,6 @@
 import React from "react"
 import { useWatch, Control, UseFormSetValue } from "react-hook-form"
+import type { Path } from "react-hook-form"
 import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
 import { Trash2, Plus, Info, Image as ImageIcon, AlertCircle } from "lucide-react"
@@ -98,7 +99,9 @@ export function VariationSection({
   const nameInputRefs = React.useRef<Map<number, HTMLInputElement | null>>(new Map())
 
   const setVal = React.useCallback(
-    (name: string, value: unknown) => (setValue as (name: string, value: unknown) => void)(name, value),
+    (name: Path<ProductCreateForm>, value: unknown) => {
+      setValue(name, value as never, { shouldDirty: true, shouldValidate: true })
+    },
     [setValue]
   )
 
