@@ -2061,6 +2061,24 @@ export function AddLabProductModal({
     return obj
   }, [])
 
+  /** True if RHF marked this subtree dirty (handles nested arrays e.g. tooth_count_variations). */
+  const isSubtreeMarkedDirty = useCallback((marker: unknown): boolean => {
+    if (marker === true) return true
+    if (Array.isArray(marker)) return marker.some((x) => isSubtreeMarkedDirty(x))
+    if (marker && typeof marker === "object") {
+      return Object.values(marker as Record<string, unknown>).some((v) => isSubtreeMarkedDirty(v))
+    }
+    return false
+  }, [])
+
+  /** Current tab fields touched in RHF (covers setValue(..., shouldDirty: true); fixes Variation rows). */
+  const hasCurrentSectionDirtyFields = useMemo(() => {
+    if (!editingProduct?.id) return false
+    const fields = getSectionFields(activeTab)
+    const df = dirtyFields as Record<string, unknown>
+    return fields.some((field) => isSubtreeMarkedDirty(df[field]))
+  }, [editingProduct?.id, activeTab, dirtyFields, isSubtreeMarkedDirty])
+
   // Per-section comparison: only check if fields for the CURRENT tab changed from initial
   const hasCurrentSectionFieldChanges = useMemo(() => {
     if (!editingProduct || !editingProduct.id || !initialFormValues) return false
@@ -2100,12 +2118,23 @@ export function AddLabProductModal({
   // Check if current section has changes (fields + toggle + tab-specific extras)
   const hasSectionChanges = useMemo(() => {
     if (!editingProduct || !editingProduct.id) return false
-    let result = hasCurrentSectionFieldChanges || hasCurrentSectionToggleChange
+    let result =
+      hasCurrentSectionFieldChanges ||
+      hasCurrentSectionToggleChange ||
+      hasCurrentSectionDirtyFields
     // Tab-specific extras
     if (activeTab === "details" && imageBase64 !== null) result = true
     if (activeTab === "stages" && hasReleasingStageChanges) result = true
     return result
-  }, [editingProduct, hasCurrentSectionFieldChanges, hasCurrentSectionToggleChange, activeTab, imageBase64, hasReleasingStageChanges])
+  }, [
+    editingProduct,
+    hasCurrentSectionFieldChanges,
+    hasCurrentSectionToggleChange,
+    hasCurrentSectionDirtyFields,
+    activeTab,
+    imageBase64,
+    hasReleasingStageChanges,
+  ])
 
   // Generic handler to update any section
   const handleUpdateSection = async () => {
@@ -2998,20 +3027,6 @@ export function AddLabProductModal({
                       </>
                     ) : (
                       <>
-                        {(() => {
-                          if (editingProduct?.id) {
-                            console.log("[UpdateButton render] non-last tab:", {
-                              activeTab,
-                              hasSectionChanges,
-                              sectionWasToggled,
-                              showButton: hasSectionChanges || sectionWasToggled,
-                              hasCurrentSectionFieldChanges,
-                              hasCurrentSectionToggleChange,
-                              initialFormValues: !!initialFormValues,
-                            })
-                          }
-                          return null
-                        })()}
                         {(hasSectionChanges || sectionWasToggled) && editingProduct?.id && (
                           <Button
                             type="button"
