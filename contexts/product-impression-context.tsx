@@ -58,6 +58,8 @@ type ImpressionsContextType = {
 
   // CRUD operations
   fetchImpressions: (page?: number, perPage?: number) => Promise<void>
+  /** GET /library/impressions/{id} — full row for edit forms (list responses may omit fields). */
+  getImpressionDetail: (id: number) => Promise<Impression | null>
   createImpression: (payload: ImpressionPayload) => Promise<void>
   updateImpression: (id: number, payload: Partial<ImpressionPayload>) => Promise<void>
   deleteImpression: (id: number) => Promise<void>
@@ -218,6 +220,59 @@ export const ImpressionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       }
     },
     [searchQuery, sortColumn, sortDirection, toast, currentLanguage, isLabAdmin, customerId],
+  )
+
+  const getImpressionDetail = useCallback(
+    async (id: number): Promise<Impression | null> => {
+      try {
+        const token = getAuthToken()
+        let url = `${API_BASE_URL}/library/impressions/${id}?lang=${currentLanguage}`
+        if (isLabAdmin && customerId) {
+          url += `&customer_id=${customerId}`
+        }
+        const response = await fetch(url, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            "Accept-Language": currentLanguage || "en",
+          },
+        })
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}))
+          throw new Error(
+            errData.message ||
+              errData.error_description ||
+              `Failed to fetch impression (status ${response.status})`,
+          )
+        }
+        const result = await response.json()
+        const row = (result?.data ?? result) as Record<string, unknown> | null
+        if (!row || typeof row !== "object") return null
+        return {
+          id: Number(row.id),
+          name: String(row.name ?? ""),
+          code: String(row.code ?? ""),
+          sequence: Number(row.sequence ?? 0),
+          url: String(row.url ?? ""),
+          image_url: row.image_url != null ? String(row.image_url) : undefined,
+          is_digital_impression: String(row.is_digital_impression ?? "No"),
+          status: String(row.status ?? "Active"),
+          created_at: String(row.created_at ?? ""),
+          updated_at: String(row.updated_at ?? ""),
+        }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : "Failed to fetch impression"
+        console.error("Error fetching impression detail:", err)
+        toast({
+          title: "Error",
+          description: message,
+          variant: "destructive",
+        })
+        return null
+      }
+    },
+    [currentLanguage, toast, isLabAdmin, customerId],
   )
 
   const createImpression = useCallback(
@@ -536,6 +591,7 @@ export const ImpressionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
         sortDirection,
         selectedItems,
         fetchImpressions,
+        getImpressionDetail,
         createImpression,
         updateImpression,
         deleteImpression,
