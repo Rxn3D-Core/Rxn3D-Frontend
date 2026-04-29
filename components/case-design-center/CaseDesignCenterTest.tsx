@@ -154,6 +154,14 @@ function snapshotToProduct(snap: SlipProductSnapshot): SlipCreationProduct {
     })
     .filter((i) => i.impression_id > 0);
 
+  // --- Addons ---
+  const snapArch = snap.type === "Upper" ? "maxillary" : "mandibular";
+  const addonKey = `${snapArch}_${snap.repToothNumber}`;
+  const addonItems = snap.selectedAddonsByTooth?.[addonKey] ?? [];
+  const addons = addonItems
+    .filter((a) => a.qty > 0)
+    .map((a) => ({ addon_id: a.addon_id, quantity: a.qty }));
+
   // --- Fixed Restoration: advance_fields only, no grade/shade/gum IDs ---
   if (isFixed) {
     const advance_fields: Array<{ teeth_number: number | null; advance_field_id: number; advance_field_value: string }> = [];
@@ -211,6 +219,7 @@ function snapshotToProduct(snap: SlipProductSnapshot): SlipCreationProduct {
       status: "In Progress",
       notes: buildProductNote(snap, product, stageName),
       ...(impressions.length > 0 ? { impressions } : {}),
+      ...(addons.length > 0 ? { addons } : {}),
       ...(advance_fields.length > 0 ? { advance_fields } : {}),
       ...(snap.oppositeExtractions && snap.oppositeExtractions.length > 0
         ? { opposite_extractions: snap.oppositeExtractions }
@@ -274,6 +283,7 @@ function snapshotToProduct(snap: SlipProductSnapshot): SlipCreationProduct {
     status: "In Progress",
     notes: buildProductNote(snap, product, stageName),
     ...(impressions.length > 0 ? { impressions } : {}),
+    ...(addons.length > 0 ? { addons } : {}),
     ...(snap.oppositeExtractions && snap.oppositeExtractions.length > 0
       ? { opposite_extractions: snap.oppositeExtractions }
       : {}),

@@ -1,13 +1,12 @@
 "use client"
 
-import Link from "next/link"
-import { Plus, Minus, Trash2 } from "lucide-react"
+import { Check, Minus, Plus, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   Dialog,
   DialogContent,
 } from "@/components/ui/dialog"
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { STLFileSelectionModal } from "./stl-file-selection-modal"
 
 interface ImpressionOption {
@@ -29,7 +28,6 @@ interface STLFile {
 interface ImpressionSelectionModalProps {
   isOpen: boolean
   onClose: () => void
-  /** Called when user explicitly confirms their selection (Done / Next: Select Opposing confirmed) */
   onConfirm?: () => void
   impressions: ImpressionOption[]
   selectedImpressions: Record<string, number>
@@ -39,11 +37,8 @@ interface ImpressionSelectionModalProps {
   productId: string
   arch: "maxillary" | "mandibular"
   stlFilesByImpression?: Record<string, STLFile[]>
-  /** When "Yes", renders opposing arch selection after main impression is selected */
   oppositeImpression?: "Yes" | "No"
-  /** Impressions available for the opposite arch (defaults to same as impressions) */
   oppositeImpressions?: ImpressionOption[]
-  /** Called when user clicks "Submit, no opposing needed." */
   onSubmitNoOpposing?: () => void
 }
 
@@ -51,85 +46,83 @@ function ImpressionGrid({
   impressions,
   selectedImpressions,
   onUpdateQuantity,
-  onRemoveImpression,
   onSTLFilesAttached,
   productId,
   arch,
   stlFilesByImpression = {},
-  onClose,
+  showDoneCheckmark,
   onDone,
 }: {
   impressions: ImpressionOption[]
   selectedImpressions: Record<string, number>
   onUpdateQuantity: (key: string, qty: number) => void
-  onRemoveImpression: (key: string) => void
   onSTLFilesAttached?: (files: STLFile[], key: string) => void
   productId: string
   arch: "maxillary" | "mandibular"
   stlFilesByImpression?: Record<string, STLFile[]>
-  onClose: () => void
-  /** Called when user clicks the inline Done button — triggers confirm + close */
+  showDoneCheckmark: boolean
   onDone?: () => void
 }) {
   const [showSTLModal, setShowSTLModal] = useState(false)
   const [selectedSTLImpression, setSelectedSTLImpression] = useState<ImpressionOption | null>(null)
   const [lastTouchedKey, setLastTouchedKey] = useState<string | null>(null)
 
-  const getImpressionKey = (impression: ImpressionOption) => {
-    const identifier = impression.value || impression.name
-    return `${productId}_${arch}_${identifier}`
-  }
+  const getKey = (impression: ImpressionOption) =>
+    `${productId}_${arch}_${impression.value || impression.name}`
 
-  const getQuantity = (impression: ImpressionOption) => {
-    const key = getImpressionKey(impression)
-    return selectedImpressions[key] || 0
-  }
+  const getQty = (impression: ImpressionOption) =>
+    selectedImpressions[getKey(impression)] || 0
 
-  const handleIncrement = (impression: ImpressionOption) => {
-    const key = getImpressionKey(impression)
-    const currentQty = getQuantity(impression)
-    onUpdateQuantity(key, currentQty + 1)
-    setLastTouchedKey(key)
-  }
-
-  const handleDecrement = (impression: ImpressionOption) => {
-    const key = getImpressionKey(impression)
-    const currentQty = getQuantity(impression)
-    if (currentQty > 1) {
-      onUpdateQuantity(key, currentQty - 1)
-      setLastTouchedKey(key)
-    } else if (currentQty === 1) {
-      onUpdateQuantity(key, 0)
-      setLastTouchedKey((prev) => {
-        if (prev !== key) return prev
-        const otherKey = impressions
-          .map(getImpressionKey)
-          .find((k) => k !== key && (selectedImpressions[k] ?? 0) > 0)
-        return otherKey ?? null
-      })
-    }
-  }
-
-  const isSTLImpression = (impression: ImpressionOption): boolean => {
+  const isSTL = (impression: ImpressionOption) => {
     const name = impression.name.toLowerCase()
     const code = impression.code?.toLowerCase() || ""
     return name.includes("stl") || code === "stl" || name === "stl file"
   }
 
-  const handleImpressionClick = (impression: ImpressionOption) => {
-    const key = getImpressionKey(impression)
-    setLastTouchedKey(key)
-    if (isSTLImpression(impression)) {
+  const handleCardClick = (impression: ImpressionOption) => {
+    if (getQty(impression) > 0) return
+    const key = getKey(impression)
+    if (isSTL(impression)) {
       setSelectedSTLImpression(impression)
       setShowSTLModal(true)
     } else {
-      handleIncrement(impression)
+      onUpdateQuantity(key, 1)
+      setLastTouchedKey(key)
     }
   }
 
-  const handleSTLFilesConfirmed = (files: STLFile[]) => {
+  const handleIncrement = (impression: ImpressionOption, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const key = getKey(impression)
+    if (isSTL(impression)) {
+      setSelectedSTLImpression(impression)
+      setShowSTLModal(true)
+    } else {
+      onUpdateQuantity(key, getQty(impression) + 1)
+      setLastTouchedKey(key)
+    }
+  }
+
+  const handleDecrement = (impression: ImpressionOption, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const key = getKey(impression)
+    const qty = getQty(impression)
+    if (qty > 1) {
+      onUpdateQuantity(key, qty - 1)
+      setLastTouchedKey(key)
+    }
+  }
+
+  const handleRemove = (impression: ImpressionOption, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const key = getKey(impression)
+    onUpdateQuantity(key, 0)
+    if (lastTouchedKey === key) setLastTouchedKey(null)
+  }
+
+  const handleSTLConfirmed = (files: STLFile[]) => {
     if (!selectedSTLImpression || !onSTLFilesAttached) return
-    const key = getImpressionKey(selectedSTLImpression)
+    const key = getKey(selectedSTLImpression)
     onUpdateQuantity(key, files.length)
     onSTLFilesAttached(files, key)
     setLastTouchedKey(key)
@@ -137,220 +130,136 @@ function ImpressionGrid({
     setSelectedSTLImpression(null)
   }
 
-  const getExistingSTLFiles = (impression: ImpressionOption): STLFile[] => {
-    const key = getImpressionKey(impression)
-    return stlFilesByImpression[key] || []
-  }
+  const renderCard = (impression: ImpressionOption, compact: boolean) => {
+    const qty = getQty(impression)
+    const isSelected = qty > 0
+    const key = getKey(impression)
+    const canCheck = showDoneCheckmark && key === lastTouchedKey && qty >= 1
 
-  const getImpressionImage = (impression: ImpressionOption): string | null => {
-    return impression.image_url ?? null
-  }
+    const imgSize = compact ? "text-2xl" : "text-3xl lg:text-4xl"
+    const nameSize = compact ? "text-xs" : "text-sm lg:text-base"
+    const controlSize = compact ? "w-5 h-5" : "w-6 h-6"
+    const iconSize = compact ? "w-4 h-4" : "w-5 h-5"
+    const qtyTextSize = compact ? "text-xs min-w-[16px]" : "text-sm min-w-[20px]"
+    const qtyLabelSize = compact ? "text-xs" : "text-sm"
 
-  const activeDoneKey =
-    lastTouchedKey && (selectedImpressions[lastTouchedKey] ?? 0) > 0
-      ? lastTouchedKey
-      : null
+    return (
+      <div
+        key={impression.id}
+        className={cn(
+          "flex flex-col items-center rounded-[11px] transition-all duration-200 p-2 lg:p-3 cursor-pointer select-none h-full",
+          isSelected
+            ? "border-[3px] border-[#1162A8]"
+            : "border-2 border-[#B4B0B0]"
+        )}
+        onClick={() => handleCardClick(impression)}
+      >
+        {/* Image */}
+        <div className="w-full aspect-square rounded-[8px] overflow-hidden flex items-center justify-center bg-gray-50 flex-shrink-0">
+          {impression.image_url ? (
+            <img
+              src={impression.image_url}
+              alt={impression.name}
+              className="w-full h-full object-contain"
+              onError={(e) => {
+                const el = e.target as HTMLImageElement
+                el.style.display = "none"
+                const parent = el.parentElement
+                if (parent && !parent.querySelector(".fallback-letter")) {
+                  const div = document.createElement("div")
+                  div.className = `fallback-letter text-[#B4B0B0] ${imgSize} font-bold flex items-center justify-center w-full h-full`
+                  div.textContent = impression.name.charAt(0).toUpperCase()
+                  parent.appendChild(div)
+                }
+              }}
+            />
+          ) : (
+            <div className={cn("text-[#B4B0B0] font-bold flex items-center justify-center w-full h-full", imgSize)}>
+              {impression.name.charAt(0).toUpperCase()}
+            </div>
+          )}
+        </div>
+
+        {/* Name */}
+        <span className={cn("font-['Verdana'] font-normal text-black text-center mt-1.5 w-full flex-1 flex items-end justify-center pb-1", nameSize)}>
+          {impression.name}
+        </span>
+
+        {/* Controls — always pinned to bottom */}
+        <div
+          className="flex items-center gap-1 mt-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {qty === 0 ? (
+            <span
+              className={cn("font-['Verdana'] text-[#7F7F7F] cursor-pointer", qtyLabelSize)}
+              onClick={() => handleCardClick(impression)}
+            >
+              QTY +
+            </span>
+          ) : (
+            <>
+              {/* Trash */}
+              <button
+                className={cn("flex items-center justify-center flex-shrink-0", controlSize)}
+                onClick={(e) => handleRemove(impression, e)}
+              >
+                <Trash2 className={cn("text-[#CF0202]", iconSize)} strokeWidth={1.83} />
+              </button>
+
+              {/* Minus — only when qty > 1 */}
+              {qty > 1 && (
+                <button
+                  className={cn("flex items-center justify-center flex-shrink-0", controlSize)}
+                  onClick={(e) => handleDecrement(impression, e)}
+                >
+                  <Minus className={cn("text-[#1E1E1E]", iconSize)} strokeWidth={1.83} />
+                </button>
+              )}
+
+              {/* Quantity */}
+              <span className={cn("font-['Verdana'] font-normal text-black text-center", qtyTextSize)}>
+                {qty}
+              </span>
+
+              {/* Plus */}
+              <button
+                className={cn("flex items-center justify-center flex-shrink-0", controlSize)}
+                onClick={(e) => handleIncrement(impression, e)}
+              >
+                <Plus className={cn("text-[#1D1B20]", iconSize)} strokeWidth={1.83} />
+              </button>
+
+              {/* Checkmark (Done) */}
+              {canCheck && (
+                <button
+                  className={cn("flex items-center justify-center flex-shrink-0", controlSize)}
+                  onClick={(e) => { e.stopPropagation(); onDone?.() }}
+                >
+                  <Check className={cn("text-[#22c55e]", iconSize)} strokeWidth={2.5} />
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <>
       {/* Mobile: horizontal carousel */}
       <div className="flex sm:hidden gap-3 overflow-x-auto pb-3 snap-x snap-mandatory scrollbar-hide w-full">
-        {impressions.map((impression) => {
-          const qty = getQuantity(impression)
-          const isSelected = qty > 0
-          const isLastSelected = getImpressionKey(impression) === activeDoneKey
-
-          return (
-            <div key={impression.id} className="flex flex-col items-center snap-center flex-shrink-0 w-[150px]">
-              <div
-                className={cn(
-                  "flex flex-col justify-center items-center px-2 py-[8px] gap-[8px] bg-white rounded-[11px] transition-all duration-200 w-full",
-                  isSelected ? "border-[4px] border-[#1162A8]" : "border-2 border-[#B4B0B0]"
-                )}
-              >
-                <div className="w-full aspect-square rounded-[8px] overflow-hidden flex items-center justify-center bg-gray-50 flex-shrink-0">
-                  {getImpressionImage(impression) ? (
-                    <img
-                      width={201}
-                      height={201}
-                      src={getImpressionImage(impression)!}
-                      alt={impression.name}
-                      className="w-full h-full object-contain"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement
-                        target.style.display = "none"
-                        const parent = target.parentElement
-                        if (parent && !parent.querySelector('.fallback-letter')) {
-                          const fallbackDiv = document.createElement('div')
-                          fallbackDiv.className = 'fallback-letter text-[#B4B0B0] text-2xl font-bold flex items-center justify-center w-full h-full'
-                          fallbackDiv.textContent = impression.name.charAt(0).toUpperCase()
-                          parent.appendChild(fallbackDiv)
-                        }
-                      }}
-                    />
-                  ) : (
-                    <div className="text-[#B4B0B0] text-2xl font-bold flex items-center justify-center w-full h-full">
-                      {impression.name.charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                </div>
-                <span className="font-['Verdana'] font-normal text-xs tracking-[-0.02em] text-black text-center w-full flex-shrink-0">
-                  {impression.name}
-                </span>
-                {!isSelected && impression.description && (
-                  <span className="font-['Verdana'] font-normal text-[10px] leading-[14px] tracking-[-0.02em] text-[#7F7F7F] text-center flex-shrink-0">
-                    {impression.description}
-                  </span>
-                )}
-                <div className="flex flex-row items-center gap-[5px]">
-                  <button
-                    className="w-[30px] h-[30px] flex items-center justify-center rounded-[8px] border border-[#B4B0B0] bg-white hover:bg-gray-50 transition-all"
-                    onClick={() => handleImpressionClick(impression)}
-                  >
-                    <Plus className="w-[13px] h-[13px] text-[#1D1B20]" strokeWidth={1.83} />
-                  </button>
-                  <span className="font-['Verdana'] font-normal text-sm leading-[14px] tracking-[-0.02em] text-black text-center min-w-[30px] flex items-center justify-center h-[26px]">
-                    {qty}
-                  </span>
-                  {qty > 0 && (
-                    <button
-                      className="w-[30px] h-[30px] flex items-center justify-center rounded-[8px] border border-[#B4B0B0] bg-white hover:bg-gray-50 transition-all"
-                      onClick={() => handleDecrement(impression)}
-                    >
-                      {qty === 1 ? (
-                        <Trash2 className="w-[13px] h-[13px] text-[#CF0202]" strokeWidth={1.83} />
-                      ) : (
-                        <Minus className="w-[13px] h-[13px] text-[#1E1E1E]" strokeWidth={1.83} />
-                      )}
-                    </button>
-                  )}
-                </div>
-              </div>
-              {isSelected && isLastSelected && (
-                <div className="mt-1">
-                  {isSTLImpression(impression) ? (
-                    <button
-                      className="flex items-center justify-center px-[8px] py-[6px] bg-[#1162A8] rounded-[4px] hover:bg-[#0e5290] transition-colors h-[26px]"
-                      onClick={() => {
-                        setSelectedSTLImpression(impression)
-                        setShowSTLModal(true)
-                      }}
-                    >
-                      <span className="font-['Verdana'] font-normal text-[11px] leading-[14px] tracking-[-0.02em] text-white">Files</span>
-                    </button>
-                  ) : (
-                    <button
-                      className="flex items-center justify-center px-[8px] py-[6px] bg-[#1162A8] rounded-[4px] hover:bg-[#0e5290] transition-colors h-[26px]"
-                      onClick={onDone ?? onClose}
-                    >
-                      <span className="font-['Verdana'] font-normal text-[11px] leading-[14px] tracking-[-0.02em] text-white">Done</span>
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          )
-        })}
+        {impressions.map((impression) => (
+          <div key={impression.id} className="snap-center flex-shrink-0 w-[140px]">
+            {renderCard(impression, true)}
+          </div>
+        ))}
       </div>
 
-      {/* Desktop: grid layout - 6 per row */}
-      <div className="hidden sm:grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-4 lg:gap-[24px] w-full">
-        {impressions.map((impression) => {
-          const qty = getQuantity(impression)
-          const isSelected = qty > 0
-          const isLastSelected = getImpressionKey(impression) === activeDoneKey
-
-          return (
-            <div key={impression.id} className="flex flex-col items-center">
-              <div
-                className={cn(
-                  "flex flex-col justify-center items-center px-3 lg:px-[26px] py-[8px] gap-[10px] bg-white rounded-[11px] transition-all duration-200 w-full aspect-[254/303]",
-                  isSelected ? "border-[5px] border-[#1162A8]" : "border-2 border-[#B4B0B0]"
-                )}
-              >
-                <div className="w-full aspect-square rounded-[8px] overflow-hidden flex items-center justify-center bg-gray-50 flex-shrink-0">
-                  {getImpressionImage(impression) ? (
-                    <img
-                      width={201}
-                      height={201}
-                      src={getImpressionImage(impression)!}
-                      alt={impression.name}
-                      className="w-full h-full object-contain"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement
-                        target.style.display = "none"
-                        const parent = target.parentElement
-                        if (parent && !parent.querySelector('.fallback-letter')) {
-                          const fallbackDiv = document.createElement('div')
-                          fallbackDiv.className = 'fallback-letter text-[#B4B0B0] text-3xl lg:text-4xl font-bold flex items-center justify-center w-full h-full'
-                          fallbackDiv.textContent = impression.name.charAt(0).toUpperCase()
-                          parent.appendChild(fallbackDiv)
-                        }
-                      }}
-                    />
-                  ) : (
-                    <div className="text-[#B4B0B0] text-3xl lg:text-4xl font-bold flex items-center justify-center w-full h-full">
-                      {impression.name.charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                </div>
-                <span className="font-['Verdana'] font-normal text-base lg:text-[23px] lg:leading-[25px] tracking-[-0.02em] text-black text-center w-full flex-shrink-0">
-                  {impression.name}
-                </span>
-                {!isSelected && impression.description && (
-                  <span className="font-['Verdana'] font-normal text-xs lg:text-[14px] leading-[22px] tracking-[-0.02em] text-[#7F7F7F] text-center flex-shrink-0">
-                    {impression.description}
-                  </span>
-                )}
-                <div className="flex flex-row items-center gap-[5px]">
-                  <button
-                    className="w-[36px] h-[36px] flex items-center justify-center rounded-[8px] border border-[#B4B0B0] bg-white hover:bg-gray-50 transition-all"
-                    onClick={() => handleImpressionClick(impression)}
-                  >
-                    <Plus className="w-[15px] h-[15px] text-[#1D1B20]" strokeWidth={1.83} />
-                  </button>
-                  <span className="font-['Verdana'] font-normal text-sm lg:text-[18px] leading-[14px] tracking-[-0.02em] text-black text-center min-w-[30px] lg:min-w-[46px] flex items-center justify-center h-[31px]">
-                    {qty}
-                  </span>
-                  {qty > 0 && (
-                    <button
-                      className="w-[36px] h-[36px] flex items-center justify-center rounded-[8px] border border-[#B4B0B0] bg-white hover:bg-gray-50 transition-all"
-                      onClick={() => handleDecrement(impression)}
-                    >
-                      {qty === 1 ? (
-                        <Trash2 className="w-[15px] h-[15px] text-[#CF0202]" strokeWidth={1.83} />
-                      ) : (
-                        <Minus className="w-[15px] h-[15px] text-[#1E1E1E]" strokeWidth={1.83} />
-                      )}
-                    </button>
-                  )}
-                </div>
-              </div>
-              {isSelected && isLastSelected && (
-                <div className="mt-2">
-                  {isSTLImpression(impression) ? (
-                    <button
-                      className="flex items-center justify-center px-[10px] py-[8px] bg-[#1162A8] rounded-[4px] hover:bg-[#0e5290] transition-colors h-[31px]"
-                      onClick={() => {
-                        setSelectedSTLImpression(impression)
-                        setShowSTLModal(true)
-                      }}
-                    >
-                      <span className="font-['Verdana'] font-normal text-xs lg:text-[14px] leading-[14px] tracking-[-0.02em] text-white">Files</span>
-                    </button>
-                  ) : (
-                    <button
-                      className="flex items-center justify-center px-[10px] py-[8px] bg-[#1162A8] rounded-[4px] hover:bg-[#0e5290] transition-colors h-[31px]"
-                      onClick={onDone ?? onClose}
-                    >
-                      <span className="font-['Verdana'] font-normal text-xs lg:text-[14px] leading-[14px] tracking-[-0.02em] text-white">Done</span>
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          )
-        })}
+      {/* Desktop: grid */}
+      <div className="hidden sm:grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-4 w-full">
+        {impressions.map((impression) => renderCard(impression, false))}
       </div>
 
       {selectedSTLImpression && (
@@ -360,11 +269,11 @@ function ImpressionGrid({
             setShowSTLModal(false)
             setSelectedSTLImpression(null)
           }}
-          onConfirm={handleSTLFilesConfirmed}
+          onConfirm={handleSTLConfirmed}
           productId={productId}
           arch={arch}
           impressionName={selectedSTLImpression.name}
-          existingFiles={getExistingSTLFiles(selectedSTLImpression)}
+          existingFiles={stlFilesByImpression[getKey(selectedSTLImpression)] || []}
         />
       )}
     </>
@@ -389,40 +298,12 @@ export function ImpressionSelectionModal({
 }: ImpressionSelectionModalProps) {
   const oppositeArch = arch === "maxillary" ? "mandibular" : "maxillary"
   const oppositeList = oppositeImpressions ?? impressions
-
-  // Always start on the main arch view so user can update it.
-  // Only advance to opposing after user explicitly confirms main selection.
-  const [showOpposing, setShowOpposing] = useState(false)
-
-  // Reset to main view whenever the modal opens
-  useEffect(() => {
-    if (isOpen) setShowOpposing(false)
-  }, [isOpen])
+  const isDualArch = oppositeImpression === "Yes"
 
   const mainPrefix = `${productId}_${arch}_`
   const hasMainSelection = Object.entries(selectedImpressions).some(
     ([key, qty]) => key.startsWith(mainPrefix) && qty > 0
   )
-
-  const sharedGridProps = {
-    selectedImpressions,
-    onUpdateQuantity,
-    onRemoveImpression,
-    onSTLFilesAttached,
-    stlFilesByImpression,
-    onClose,
-  }
-
-  // Confirm main selection and advance to opposing arch view
-  const handleConfirmMain = () => {
-    setShowOpposing(true)
-  }
-
-  // Explicitly confirm selection and close
-  const handleDone = () => {
-    onConfirm?.()
-    onClose()
-  }
 
   const oppositePrefix = `${productId}_${oppositeArch}_`
   const hasOpposingSelection = Object.entries(selectedImpressions).some(
@@ -432,108 +313,100 @@ export function ImpressionSelectionModal({
   const archLabel = arch === "maxillary" ? "Maxillary" : "Mandibular"
   const oppositeArchLabel = oppositeArch === "maxillary" ? "Maxillary" : "Mandibular"
 
+  const handleDone = () => {
+    onConfirm?.()
+    onClose()
+  }
+
+  const sharedGridProps = {
+    selectedImpressions,
+    onUpdateQuantity,
+    onRemoveImpression,
+    onSTLFilesAttached,
+    stlFilesByImpression,
+    onDone: handleDone,
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="w-screen max-w-[100vw] max-h-[100vh] sm:max-w-[100vw] overflow-hidden flex flex-col p-0 border-0 rounded-none">
-        <div className="flex flex-col justify-center items-start px-3 sm:px-6 md:px-12 lg:px-[100px] py-6 sm:py-10 md:py-[71px] gap-4 sm:gap-[25px] bg-white w-full overflow-y-auto max-h-[100vh]">
+        <div className="flex flex-col px-3 sm:px-6 md:px-12 lg:px-[100px] py-6 sm:py-10 md:py-[71px] gap-6 bg-white w-full overflow-y-auto max-h-[100vh]">
 
-          <div className="flex flex-col gap-6 w-full">
-            {/* Main arch section */}
-            <div
+          {/* Main arch section */}
+          <div
+            className={cn(
+              "relative rounded-[12px] px-4 sm:px-6 pt-7 pb-5 border-2 transition-colors",
+              hasMainSelection ? "border-[#22c55e]" : "border-[#CF0202]"
+            )}
+          >
+            <span
               className={cn(
-                "relative rounded-[12px] px-4 sm:px-6 pt-6 pb-5 transition-colors",
-                hasMainSelection
-                  ? "border-2 border-[#22c55e]"
-                  : "border-2 border-[#CF0202]"
+                "absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-4 font-['Verdana'] font-bold text-sm sm:text-base whitespace-nowrap",
+                hasMainSelection ? "text-[#22c55e]" : "text-[#CF0202]"
               )}
             >
-              {/* Floating label */}
-              <span
-                className={cn(
-                  "absolute -top-[20px] left-1/2 -translate-x-1/2 bg-white px-3 py-0.5 font-['Verdana'] font-bold text-sm sm:text-base whitespace-nowrap",
-                  hasMainSelection ? "text-[#22c55e]" : "text-[#CF0202]"
-                )}
-              >
-                {hasMainSelection ? `${archLabel} impressions` : `Select ${archLabel} impressions`}
-              </span>
-
-              <ImpressionGrid
-                {...sharedGridProps}
-                impressions={impressions}
-                productId={productId}
-                arch={arch}
-                onDone={oppositeImpression === "Yes" ? handleConfirmMain : handleDone}
-              />
-            </div>
-
-            {/* Opposing arch section — shown after user clicks Done/Next on main */}
-            {oppositeImpression === "Yes" && showOpposing && (
-              <div
-                className={cn(
-                  "relative rounded-[12px] px-4 sm:px-6 pt-6 pb-5 transition-colors",
-                  hasOpposingSelection
-                    ? "border-2 border-[#22c55e]"
-                    : "border-2 border-[#CF0202]"
-                )}
-              >
-                {/* Floating label */}
-                <span
-                  className={cn(
-                    "absolute -top-[20px] left-1/2 -translate-x-1/2 bg-white px-3 py-0.5 font-['Verdana'] font-bold text-sm sm:text-base whitespace-nowrap",
-                    hasOpposingSelection ? "text-[#22c55e]" : "text-[#CF0202]"
-                  )}
-                >
-                  {hasOpposingSelection
-                    ? `${oppositeArchLabel} impression`
-                    : `Select ${oppositeArchLabel} impression for opposing`}
-                </span>
-
-                <ImpressionGrid
-                  {...sharedGridProps}
-                  impressions={oppositeList}
-                  productId={productId}
-                  arch={oppositeArch}
-                  onDone={handleDone}
-                />
-
-                {/* Skip opposing button */}
-                {!hasOpposingSelection && (
-                  <div className="flex justify-center mt-4">
-                    <button
-                      onClick={() => {
-                        onSubmitNoOpposing ? onSubmitNoOpposing() : handleDone()
-                      }}
-                      className="flex items-center justify-center px-6 py-2 rounded-[6px] transition-colors"
-                      style={{ background: "radial-gradient(ellipse at center, #CF0202 0%, #910202 100%)" }}
-                    >
-                      <span className="font-['Verdana'] font-bold text-[12px] leading-[22px] tracking-[-0.02em] text-white">
-                        Skip opposing
-                      </span>
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
+              Select {archLabel} Impressions
+            </span>
+            <ImpressionGrid
+              {...sharedGridProps}
+              impressions={impressions}
+              productId={productId}
+              arch={arch}
+              showDoneCheckmark={!isDualArch}
+            />
           </div>
 
+          {/* Opposing arch section — always visible in dual arch; locked until primary selected */}
+          {isDualArch && (
+            <div
+              className={cn(
+                "relative rounded-[12px] px-4 sm:px-6 pt-7 pb-5 border-2 transition-all duration-300",
+                hasOpposingSelection ? "border-[#22c55e]" : "border-[#CF0202]",
+                !hasMainSelection && "opacity-40 pointer-events-none"
+              )}
+            >
+              <span
+                className={cn(
+                  "absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-4 font-['Verdana'] font-bold text-sm sm:text-base whitespace-nowrap",
+                  hasOpposingSelection ? "text-[#22c55e]" : "text-[#CF0202]"
+                )}
+              >
+                Select {oppositeArchLabel} Impressions
+              </span>
+              <ImpressionGrid
+                {...sharedGridProps}
+                impressions={oppositeList}
+                productId={productId}
+                arch={oppositeArch}
+                showDoneCheckmark={true}
+              />
+              <div className="flex justify-center mt-4">
+                <button
+                  onClick={() => onSubmitNoOpposing ? onSubmitNoOpposing() : handleDone()}
+                  className="px-5 py-1.5 bg-[#CF0202] hover:bg-[#910202] text-white rounded font-['Verdana'] font-bold text-sm transition-colors"
+                >
+                  Skip Opposing
+                </button>
+              </div>
+            </div>
+          )}
+
           {impressions.length === 0 && (
-            <div className="text-center py-8 sm:py-12 text-[#7F7F7F] font-['Verdana'] text-[14px] sm:text-[18px] w-full">
+            <div className="text-center py-8 sm:py-12 text-[#7F7F7F] font-['Verdana'] text-sm sm:text-lg w-full">
               No impressions available
             </div>
           )}
 
-          {/* Cancel button */}
-          <div className="flex justify-start w-full">
+          {/* Cancel */}
+          <div className="flex justify-start">
             <button
               onClick={onClose}
-              className="flex items-center justify-center px-[40px] py-[12px] rounded-[6px] transition-colors min-w-[160px]"
-              style={{ background: "radial-gradient(ellipse at center, #CF0202 0%, #910202 100%)" }}
+              className="px-8 py-2.5 bg-[#CF0202] hover:bg-[#910202] text-white rounded-[6px] font-['Verdana'] font-bold text-sm transition-colors"
             >
-              <span className="font-['Verdana'] font-bold text-[12px] leading-[22px] tracking-[-0.02em] text-white">
-                cancel
-              </span>
+              Cancel
             </button>
           </div>
+
         </div>
       </DialogContent>
     </Dialog>

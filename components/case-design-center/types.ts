@@ -40,6 +40,11 @@ export interface SlipProductSnapshot {
    * Collected from MaxillaryPanel / MandibularPanel at snapshot time.
    */
   implantDetailByTooth?: Record<number, ImplantDetailData>;
+  /**
+   * Structured addon selections keyed as `${arch}_${toothNumber}`.
+   * Each entry carries addon_id and qty for payload submission.
+   */
+  selectedAddonsByTooth?: Record<string, Array<{ addon_id: number; qty: number }>>;
 }
 
 export interface CaseDesignProps {

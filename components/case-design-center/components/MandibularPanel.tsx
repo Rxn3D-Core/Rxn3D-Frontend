@@ -1341,8 +1341,14 @@ export function MandibularPanel({
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  const remainingAdded = addedProducts.filter(p => p.arch === "mandibular").length - 1;
+                                  const hasCard0 = mandibularHasFixedCard0 || mandibularHasRemovablesCard0;
+                                  MANDIBULAR_ALL_TEETH.filter(tn => getToothProductCard("mandibular", tn) === ap.id).forEach(tn => {
+                                    clearToothProgress("mandibular", tn);
+                                    handleMandibularToothDeselect(tn);
+                                  });
                                   handleRemoveAddedProduct(ap.id);
-                                  onBackToCategories?.("mandibular");
+                                  if (remainingAdded === 0 && !hasCard0) onBackToCategories?.("mandibular");
                                 }}
                                 className="hover:text-red-500 transition-colors"
                                 title="Remove product"
@@ -1407,8 +1413,14 @@ export function MandibularPanel({
                           onClick={(e) => {
                             e.stopPropagation();
                             const wasFixed = isFixedCategory(cardCategoryName);
+                            const remainingAdded = addedProducts.filter(p => p.arch === "mandibular").length - 1;
+                            const hasCard0 = mandibularHasFixedCard0 || mandibularHasRemovablesCard0;
+                            MANDIBULAR_ALL_TEETH.filter(tn => getToothProductCard("mandibular", tn) === ap.id).forEach(tn => {
+                              clearToothProgress("mandibular", tn);
+                              handleMandibularToothDeselect(tn);
+                            });
                             handleRemoveAddedProduct(ap.id);
-                            if (wasFixed) onBackToCategories?.("mandibular");
+                            if (wasFixed && remainingAdded === 0 && !hasCard0) onBackToCategories?.("mandibular");
                           }}
                           className="ml-1 hover:text-red-500 transition-colors"
                           title="Remove product"
@@ -1861,7 +1873,7 @@ export function MandibularPanel({
                                 tabIndex={0}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  const wasFixed = isFixedCategory(categoryName);
+                                  const noOtherProducts = addedProducts.filter(p => p.arch === "mandibular").length === 0;
                                   const teethToClear = MANDIBULAR_ALL_TEETH.filter(
                                     (tn) => getToothProduct("mandibular", tn) && getToothProductCard("mandibular", tn) === 0
                                   );
@@ -1869,13 +1881,13 @@ export function MandibularPanel({
                                     clearToothProgress("mandibular", tn);
                                     handleMandibularToothDeselect(tn);
                                   });
-                                  if (wasFixed) onBackToCategories?.("mandibular");
+                                  if (noOtherProducts) onBackToCategories?.("mandibular");
                                 }}
                                 onKeyDown={(e) => {
                                   if (e.key === "Enter" || e.key === " ") {
                                     e.preventDefault();
                                     e.stopPropagation();
-                                    const wasFixed = isFixedCategory(categoryName);
+                                    const noOtherProducts = addedProducts.filter(p => p.arch === "mandibular").length === 0;
                                     const teethToClear = MANDIBULAR_ALL_TEETH.filter(
                                       (tn) => getToothProduct("mandibular", tn) && getToothProductCard("mandibular", tn) === 0
                                     );
@@ -1883,7 +1895,7 @@ export function MandibularPanel({
                                       clearToothProgress("mandibular", tn);
                                       handleMandibularToothDeselect(tn);
                                     });
-                                    if (wasFixed) onBackToCategories?.("mandibular");
+                                    if (noOtherProducts) onBackToCategories?.("mandibular");
                                   }
                                 }}
                                 className="inline-flex items-center justify-center flex-shrink-0 cursor-pointer hover:text-red-500 transition-colors"
@@ -2135,6 +2147,7 @@ export function MandibularPanel({
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  const noOtherProducts = addedProducts.filter(p => p.arch === "mandibular").length === 0;
                                   const teethToClear = MANDIBULAR_ALL_TEETH.filter(
                                     (tn) => getToothProduct("mandibular", tn) && getToothProductCard("mandibular", tn) === 0
                                   );
@@ -2144,7 +2157,7 @@ export function MandibularPanel({
                                   });
                                   setInitialRemovablesExpanded(false);
                                   setActiveProductCardId(0);
-                                  onBackToCategories?.("mandibular");
+                                  if (noOtherProducts) onBackToCategories?.("mandibular");
                                 }}
                                 className="hover:text-red-500 transition-colors flex-shrink-0"
                                 title="Remove product"

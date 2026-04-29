@@ -326,11 +326,7 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
     if (!toothPos) {
       return { left: 0, top: 0, containerLeft: 0, containerRight: 0 }
     }
-    let viewportX = svgRect.left + (toothPos.cx * scaleX)
-    // Cap left position at 515.651px for right-side teeth to prevent edge overflow
-    if (toothNumber >= 12 && toothNumber <= 16) {
-      viewportX = Math.min(viewportX, 515.651)
-    }
+    const viewportX = svgRect.left + (toothPos.cx * scaleX)
     // Anchor bottom of popover to the top of the SVG so it never overlaps teeth
     const popoverTop = svgRect.top
     return {

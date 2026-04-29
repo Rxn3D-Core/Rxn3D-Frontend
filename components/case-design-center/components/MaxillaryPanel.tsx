@@ -1356,8 +1356,14 @@ export function MaxillaryPanel({
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  const remainingAdded = addedProducts.filter(p => p.arch === "maxillary").length - 1;
+                                  const hasCard0 = maxillaryHasFixedCard0 || maxillaryHasRemovablesCard0;
+                                  MAXILLARY_ALL_TEETH.filter(tn => getToothProductCard("maxillary", tn) === ap.id).forEach(tn => {
+                                    clearToothProgress("maxillary", tn);
+                                    handleMaxillaryToothDeselect(tn);
+                                  });
                                   handleRemoveAddedProduct(ap.id);
-                                  onBackToCategories?.("maxillary");
+                                  if (remainingAdded === 0 && !hasCard0) onBackToCategories?.("maxillary");
                                 }}
                                 className="hover:text-red-500 transition-colors"
                                 title="Remove product"
@@ -1422,8 +1428,14 @@ export function MaxillaryPanel({
                           onClick={(e) => {
                             e.stopPropagation();
                             const wasFixed = isFixedCategory(cardCategoryName);
+                            const remainingAdded = addedProducts.filter(p => p.arch === "maxillary").length - 1;
+                            const hasCard0 = maxillaryHasFixedCard0 || maxillaryHasRemovablesCard0;
+                            MAXILLARY_ALL_TEETH.filter(tn => getToothProductCard("maxillary", tn) === ap.id).forEach(tn => {
+                              clearToothProgress("maxillary", tn);
+                              handleMaxillaryToothDeselect(tn);
+                            });
                             handleRemoveAddedProduct(ap.id);
-                            if (wasFixed) onBackToCategories?.("maxillary");
+                            if (wasFixed && remainingAdded === 0 && !hasCard0) onBackToCategories?.("maxillary");
                           }}
                           className="ml-1 hover:text-red-500 transition-colors"
                           title="Remove product"
@@ -1882,7 +1894,7 @@ export function MaxillaryPanel({
                           tabIndex={0}
                           onClick={(e) => {
                             e.stopPropagation();
-                            const wasFixed = isFixedCategory(categoryName);
+                            const noOtherProducts = addedProducts.filter(p => p.arch === "maxillary").length === 0;
                             const teethToClear = MAXILLARY_ALL_TEETH.filter(
                               (tn) => getToothProduct("maxillary", tn) && getToothProductCard("maxillary", tn) === 0
                             );
@@ -1890,13 +1902,13 @@ export function MaxillaryPanel({
                               clearToothProgress("maxillary", tn);
                               handleMaxillaryToothDeselect(tn);
                             });
-                            if (wasFixed) onBackToCategories?.("maxillary");
+                            if (noOtherProducts) onBackToCategories?.("maxillary");
                           }}
                           onKeyDown={(e) => {
                             if (e.key === "Enter" || e.key === " ") {
                               e.preventDefault();
                               e.stopPropagation();
-                              const wasFixed = isFixedCategory(categoryName);
+                              const noOtherProducts = addedProducts.filter(p => p.arch === "maxillary").length === 0;
                               const teethToClear = MAXILLARY_ALL_TEETH.filter(
                                 (tn) => getToothProduct("maxillary", tn) && getToothProductCard("maxillary", tn) === 0
                               );
@@ -1904,7 +1916,7 @@ export function MaxillaryPanel({
                                 clearToothProgress("maxillary", tn);
                                 handleMaxillaryToothDeselect(tn);
                               });
-                              if (wasFixed) onBackToCategories?.("maxillary");
+                              if (noOtherProducts) onBackToCategories?.("maxillary");
                             }
                           }}
                           className="inline-flex items-center justify-center flex-shrink-0 cursor-pointer hover:text-red-500 transition-colors"
@@ -2156,6 +2168,7 @@ export function MaxillaryPanel({
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  const noOtherProducts = addedProducts.filter(p => p.arch === "maxillary").length === 0;
                                   const teethToClear = MAXILLARY_ALL_TEETH.filter(
                                     (tn) => getToothProduct("maxillary", tn) && getToothProductCard("maxillary", tn) === 0
                                   );
@@ -2165,7 +2178,7 @@ export function MaxillaryPanel({
                                   });
                                   setInitialRemovablesExpanded(false);
                                   setActiveProductCardId(0);
-                                  onBackToCategories?.("maxillary");
+                                  if (noOtherProducts) onBackToCategories?.("maxillary");
                                 }}
                                 className="hover:text-red-500 transition-colors flex-shrink-0"
                                 title="Remove product"

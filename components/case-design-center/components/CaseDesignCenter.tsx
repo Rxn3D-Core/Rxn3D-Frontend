@@ -552,6 +552,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           shadeGuide: state.selectedShadeGuide ?? "Vita Classical",
           ...(oppositeExtractions ? { oppositeExtractions } : {}),
           ...(hasImplantDetail ? { implantDetailByTooth: relevantImplantDetail } : {}),
+          selectedAddonsByTooth: { ...(state.selectedAddonsByTooth ?? {}) },
         });
       });
     };
@@ -574,6 +575,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     state.maxillaryToothExtractionMap,
     state.mandibularToothExtractionMap,
     state.opposingToothExtractionMap,
+    state.selectedAddonsByTooth,
     props.addedProducts,
     props.selectedProductId,
   ]);
@@ -1125,6 +1127,14 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             } else {
               state.completeFieldStep(arch, toothNum, "addons", value);
             }
+            // Store structured addon data (with IDs) for payload submission
+            const addonKey = `${arch}_${toothNum}`;
+            state.setSelectedAddonsByTooth((prev: Record<string, Array<{ addon_id: number; qty: number }>>) => ({
+              ...prev,
+              [addonKey]: addOns
+                .filter((a) => a.qty > 0)
+                .map((a) => ({ addon_id: a.addon_id, qty: a.qty })),
+            }));
           }
         }}
         showAttachModal={state.showAttachModal}
