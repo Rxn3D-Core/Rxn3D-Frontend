@@ -76,6 +76,16 @@ import { OnboardingStatusDisplay } from '@/components/onboarding-status-display'
 
 The system uses the following API endpoints:
 
+### `POST /labs/onboard-complete`
+
+The lab onboarding wizard (after business hours and lab team invites are collected in the UI) completes the flow in one call from [`app/onboarding/invite-users/page.tsx`](app/onboarding/invite-users/page.tsx) using [`postLabOnboardComplete`](lib/api-lab-onboarding.ts) with a body built via [`buildLabOnboardCompleteBody`](lib/lab-onboard-complete-payload.ts) from [`useBusinessSettings`](contexts/business-settings-context.tsx). This replaces the previous sequence of `POST /business-settings`, `POST /labs/onboard`, plus product selection steps for labs.
+
+**Requires:** Bearer JWT; lab admin for `customer_id`.
+
+**Request body (summary):** `customer_id`, `customer_type: "lab"`, `business_hours[]`, `case_schedule` (required for labs per backend), optional `office_invitations[{ name, email }]` (offices with valid emails are included; search results without an email are omitted).
+
+**Client behavior:** On success, onboarding status is refreshed via [`useOnboardingStatus`](hooks/use-onboarding-status.ts) (`refetch` clears the global cache). The client does **not** call `POST /business-hours/setup-completed` after this endpoint—the backend sets completion flags in the same transaction.
+
 ### Get Onboarding Status
 - **Endpoint**: `GET /v1/business-hours/setup-status/{customerId}`
 - **Description**: Get comprehensive onboarding status including both initial onboarding and business hours setup

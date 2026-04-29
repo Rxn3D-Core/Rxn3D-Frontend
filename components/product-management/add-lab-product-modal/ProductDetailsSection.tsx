@@ -599,12 +599,17 @@ export function ProductDetailsSection({
 
   // Categories list with editing product's category injected as fallback
   const categoriesForDropdown = React.useMemo(() => {
-    const cats = (categoriesWithSubcategories || []).map(c => ({ ...c, subcategories: [...(c.subcategories || [])] }))
+    const cats = (categoriesWithSubcategories || []).map((c: any) => {
+      const camel = Array.isArray(c.subcategories) ? c.subcategories : []
+      const snake = Array.isArray(c.sub_categories) ? c.sub_categories : []
+      const subs = camel.length >= snake.length ? camel : snake
+      return { ...c, subcategories: [...subs] }
+    })
     if (editingProduct?.subcategory) {
       const editCatId = editingProduct.subcategory.category_id || editingProduct.subcategory.category?.id
       const editCatName = editingProduct.subcategory.category?.name
       const editSub = { id: editingProduct.subcategory.id, name: editingProduct.subcategory.name, category_id: editCatId }
-      const existingCat = cats.find((c: any) => c.id === editCatId)
+      const existingCat = cats.find((c: any) => Number(c.id) === Number(editCatId))
       if (existingCat) {
         // Ensure the editing product's subcategory is included in the existing category
         if (!existingCat.subcategories?.some((s: any) => s.id === editSub.id)) {
@@ -625,9 +630,11 @@ export function ProductDetailsSection({
 
   // Get available subcategories based on selected category
   const availableSubcategories = React.useMemo(() => {
-    if (!selectedCategoryId) return []
-    const selectedCategory = categoriesForDropdown.find(cat => cat.id === selectedCategoryId)
-    return selectedCategory?.subcategories || []
+    if (selectedCategoryId == null || selectedCategoryId === "") return []
+    const sid = Number(selectedCategoryId)
+    const selectedCategory = categoriesForDropdown.find((cat) => Number(cat.id) === sid)
+    const subs = selectedCategory?.subcategories || selectedCategory?.sub_categories || []
+    return Array.isArray(subs) ? subs : []
   }, [selectedCategoryId, categoriesForDropdown])
 
   // Clear subcategory when user manually changes category (not during initial edit)
@@ -884,7 +891,8 @@ export function ProductDetailsSection({
                     name="category_id"
                     control={control}
                     render={({ field }) => {
-                      const selectedCategory = categoriesForDropdown.find(cat => cat.id === field.value)
+                      const cid = field.value != null && field.value !== "" ? Number(field.value) : NaN
+                      const selectedCategory = categoriesForDropdown.find((cat) => Number(cat.id) === cid)
                       const hasValue = !!selectedCategory
                       const hasError = getValidationError("category_id")
 
@@ -952,7 +960,8 @@ export function ProductDetailsSection({
                     name="subcategory_id"
                     control={control}
                     render={({ field }) => {
-                      const selectedSubcategory = availableSubcategories.find(sub => sub.id === field.value)
+                      const vid = field.value != null && field.value !== "" ? Number(field.value) : NaN
+                      const selectedSubcategory = availableSubcategories.find((sub) => Number(sub.id) === vid)
                       const hasValue = !!selectedSubcategory
                       const hasError = getValidationError("subcategory_id")
 

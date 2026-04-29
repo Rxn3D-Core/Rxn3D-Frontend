@@ -93,6 +93,8 @@ type ProductCategoryContextType = {
 
   // For "Nest Sub Category Under" dropdown in AddCategoryModal
   parentDropdownCategories: ProductCategory[]
+  /** Same `/library/categories` payload as above, kept with nested subcategories (`subcategories`) for Add/Edit product modals */
+  categoriesWithSubcategories: any[]
   isLoadingParentDropdown: boolean
   fetchParentDropdownCategories: () => Promise<void>
 
@@ -157,6 +159,50 @@ export const useProductCategory = () => {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000/api"
 
+/**
+ * Laravel often exposes both `subcategories` (partial / accessor) and `sub_categories` (full load).
+ * Prefer the non-empty list with more rows so dropdowns receive every subcategory.
+ */
+function normalizedSubcategoriesForCategory(cat: any): any[] {
+  const camel = Array.isArray(cat?.subcategories) ? cat.subcategories : []
+  const snake = Array.isArray(cat?.sub_categories) ? cat.sub_categories : []
+  if (camel.length === 0 && snake.length === 0) return []
+  if (camel.length >= snake.length) return [...camel]
+  return [...snake]
+}
+
+function mergeSubsById(a: any[], b: any[]): any[] {
+  const map = new Map<number, any>()
+  for (const s of [...(a || []), ...(b || [])]) {
+    const sid = Number(s?.id)
+    if (!Number.isFinite(sid)) continue
+    if (!map.has(sid)) map.set(sid, s)
+  }
+  return [...map.values()]
+}
+
+/** Dedupe duplicate category ids (API may repeat a parent row) while merging nested subs. */
+function normalizeCategoriesWithNestedSubcategories(raw: any[]): any[] {
+  if (!Array.isArray(raw)) return []
+  const byId = new Map<number, any>()
+  for (const cat of raw) {
+    const id = Number(cat?.id)
+    if (!Number.isFinite(id)) continue
+    const subs = normalizedSubcategoriesForCategory(cat)
+    const prev = byId.get(id)
+    if (!prev) {
+      byId.set(id, { ...cat, subcategories: subs })
+    } else {
+      byId.set(id, {
+        ...prev,
+        ...cat,
+        subcategories: mergeSubsById(prev.subcategories, subs),
+      })
+    }
+  }
+  return [...byId.values()]
+}
+
 export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // State for main list
   const [categories, setCategories] = useState<ProductCategory[]>([])
@@ -171,6 +217,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
 
   // State for parent dropdown in modal
   const [parentDropdownCategories, setParentDropdownCategories] = useState<ProductCategory[]>([])
+  const [categoriesWithSubcategories, setCategoriesWithSubcategories] = useState<any[]>([])
   const [isLoadingParentDropdown, setIsLoadingParentDropdown] = useState(false)
 
   // State for messages and animations
@@ -424,8 +471,9 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
       )
       if (!response.ok) throw new Error("Failed to fetch categories for dropdown.")
       const responseData = await response.json()
-      // Handle the nested structure: responseData.data.data contains the categories array
-      const categories = (responseData.data?.data || []).map((cat: any) => ({
+      const rawCategories = responseData.data?.data || []
+      // Flat rows for legacy "Nest Sub Category Under" / simple parent picker
+      const categories = rawCategories.map((cat: any) => ({
         id: cat.id,
         name: cat.name,
         code: cat.code,
@@ -438,10 +486,12 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
         updated_at: cat.updated_at,
       }))
       setParentDropdownCategories(categories)
+      setCategoriesWithSubcategories(normalizeCategoriesWithNestedSubcategories(rawCategories))
     } catch (err: any) {
       console.error("Error fetching categories for dropdown:", err)
       toast({ title: "Error", description: "Failed to load categories for dropdown.", variant: "destructive" })
       setParentDropdownCategories([])
+      setCategoriesWithSubcategories([])
     } finally {
       setIsLoadingParentDropdown(false)
     }
@@ -941,6 +991,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
         setSelectedItems,
         clearSelection,
         parentDropdownCategories,
+        categoriesWithSubcategories,
         isLoadingParentDropdown,
         fetchParentDropdownCategories,
         successMessage,

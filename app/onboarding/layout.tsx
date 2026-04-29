@@ -36,13 +36,17 @@ export default function OnboardingLayout({
       const isSuperAdmin = user.roles?.includes("superadmin")
       // Don't redirect superadmins - they can access onboarding pages
       if (!isSuperAdmin) {
+        // Allow completion screen to render (it may redirect locally)
+        if (pathname === "/onboarding/completion") {
+          return
+        }
         // Mark as redirected to prevent loops
         hasRedirectedRef.current = true
         // Immediate redirect to dashboard
         router.replace("/dashboard")
       }
     }
-  }, [isLoading, user, isOnboardingComplete, router])
+  }, [isLoading, user, isOnboardingComplete, router, pathname])
 
   // Calculate progress based on current path
   const getProgress = () => {
@@ -54,6 +58,8 @@ export default function OnboardingLayout({
         return 20
       case "/onboarding/business-hours":
         return 40
+      case "/onboarding/invite-lab-team":
+        return 52
       case "/onboarding/services":
       case "/onboarding/products":
         return 60
@@ -62,7 +68,7 @@ export default function OnboardingLayout({
       case "/onboarding/attachments":
         return 95
       case "/onboarding/invite-users":
-        return 97
+        return 92
       case "/onboarding/completion":
         return 99
       default:
