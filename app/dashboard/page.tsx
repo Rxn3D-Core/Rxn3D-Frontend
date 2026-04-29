@@ -1,38 +1,42 @@
 "use client"
 
-import React, { useEffect } from "react"
+import React, { useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar"
 import { Header } from "@/components/header"
 import { UnifiedDashboard } from "@/components/dashboard/unified-dashboard"
 import { useAuth } from "@/contexts/auth-context"
 import { useOnboardingStatus } from "@/hooks/use-onboarding-status"
-import { isCustomerProfileOnboardingWizardComplete } from "@/lib/customer-onboarding-complete"
 
 export default function Dashboard() {
   const router = useRouter()
   const { user, setCustomerId } = useAuth()
-  const { isOnboardingComplete, isLoading: onboardingLoading } = useOnboardingStatus()
+  const {
+    isOnboardingComplete,
+    isLoading: onboardingLoading,
+    onboardingStatus,
+    error: onboardingApiError,
+    refetch,
+  } = useOnboardingStatus()
+
+  // Always re-fetch setup-status when opening dashboard — bypasses stale 60s hook cache vs JWT.
+  useEffect(() => {
+    if (!user) return
+    void refetch()
+  }, [user, refetch])
 
   const MULTI_LOCATION_ROLES = ["lab_admin", "lab_user", "office_admin", "office_user"]
 
-  // Check onboarding status and redirect if not complete
-  const hasRedirectedRef = React.useRef(false)
+  // Require successful setup-status payload; do not use JWT onboarding flags here (avoid bounce with API).
+  const hasRedirectedRef = useRef(false)
   useEffect(() => {
-    // Prevent multiple redirects
-    if (hasRedirectedRef.current) {
-      return
-    }
-
+    if (hasRedirectedRef.current) return
     if (!user || onboardingLoading) return
 
     const userRoles = user.roles || (user.role ? [user.role] : [])
     const isSuperAdmin = userRoles.includes("superadmin")
-
-    // Skip onboarding check for superadmin
     if (isSuperAdmin) return
 
-    // Get primary customer from user
     let primaryCustomer = null
     if (user.customers && Array.isArray(user.customers) && user.customers.length > 0) {
       primaryCustomer = user.customers.find((c: any) => {
@@ -42,17 +46,25 @@ export default function Dashboard() {
       primaryCustomer = user.customer
     }
 
-    // If no customer, skip onboarding check (might be a different user type)
     if (!primaryCustomer) return
 
-    // Office: business hours alone can finish onboarding; JWT may lag — also trust hook (`isOnboardingComplete`).
-    const onboardingDoneFromEmbedded = isCustomerProfileOnboardingWizardComplete(primaryCustomer)
-    if (isOnboardingComplete || onboardingDoneFromEmbedded) {
+    if (onboardingApiError || onboardingStatus === null) {
+      return
+    }
+
+    if (isOnboardingComplete) {
       return
     }
     hasRedirectedRef.current = true
     router.push("/onboarding/business-hours")
-  }, [user, onboardingLoading, isOnboardingComplete, router])
+  }, [
+    user,
+    onboardingLoading,
+    onboardingStatus,
+    onboardingApiError,
+    isOnboardingComplete,
+    router,
+  ])
 
   useEffect(() => {
     if (user) {

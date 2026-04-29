@@ -16,12 +16,17 @@ import { useBusinessSettings } from "@/contexts/business-settings-context"
 import { convertTo12Hour } from "@/utils/time-utils"
 import { useOnboardingStatus } from "@/hooks/use-onboarding-status"
 import { useAuth } from "@/contexts/auth-context"
-import { isCustomerProfileOnboardingWizardComplete } from "@/lib/customer-onboarding-complete"
 
 export default function BusinessHoursPage() {
   const router = useRouter()
   const { user, logout } = useAuth()
-  const { isOnboardingComplete, isLoading: onboardingLoading, refetch: refetchOnboardingStatus } = useOnboardingStatus()
+  const {
+    isOnboardingComplete,
+    isLoading: onboardingLoading,
+    refetch: refetchOnboardingStatus,
+    onboardingStatus,
+    error: onboardingApiError,
+  } = useOnboardingStatus()
   const [activeTab, setActiveTab] = useState("working-days")
   const [customerType, setCustomerType] = useState("office")
   const [customerId, setCustomerId] = useState<string | null>(null)
@@ -54,25 +59,20 @@ export default function BusinessHoursPage() {
       return
     }
 
-    if (!onboardingLoading && user) {
+    if (
+      !onboardingLoading &&
+      user &&
+      onboardingStatus !== null &&
+      !onboardingApiError &&
+      isOnboardingComplete
+    ) {
       const isSuperAdmin = user.roles?.includes("superadmin")
-      let primaryCustomer = null
-      if (user.customers && Array.isArray(user.customers) && user.customers.length > 0) {
-        primaryCustomer =
-          user.customers.find((c: any) => c?.is_primary === true || c?.is_primary === 1 || c?.is_primary === "1") ||
-          user.customers[0]
-      } else if (user.customer) {
-        primaryCustomer = user.customer
-      }
-      const done =
-        isOnboardingComplete ||
-        (primaryCustomer !== null && isCustomerProfileOnboardingWizardComplete(primaryCustomer))
-      if (done && !isSuperAdmin) {
+      if (!isSuperAdmin) {
         hasRedirectedRef.current = true
         router.replace("/dashboard")
       }
     }
-  }, [onboardingLoading, user, isOnboardingComplete, router])
+  }, [onboardingLoading, user, isOnboardingComplete, onboardingStatus, onboardingApiError, router])
 
   useEffect(() => {
     if (customerType.toLowerCase() === "office") {

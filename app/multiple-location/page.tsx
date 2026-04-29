@@ -6,11 +6,20 @@ import MultipleLocation from "@/components/multiple-location-form"
 import { useAuth } from "@/contexts/auth-context"
 import { ProtectedRoute } from "@/components/protected-route"
 import { useOnboardingStatus } from "@/hooks/use-onboarding-status"
-import { isCustomerProfileOnboardingWizardComplete } from "@/lib/customer-onboarding-complete"
 
 export default function MultipleLocationPage() {
   const { user, isLoading, setCustomerId } = useAuth()
-  const { isOnboardingComplete, isLoading: onboardingLoading } = useOnboardingStatus()
+  const {
+    isOnboardingComplete,
+    isLoading: onboardingLoading,
+    onboardingStatus,
+    error: onboardingApiError,
+    refetch,
+  } = useOnboardingStatus()
+
+  useEffect(() => {
+    if (user) void refetch()
+  }, [user, refetch])
   const router = useRouter()
   const hasHandledSingleLocationRef = useRef(false)
 
@@ -35,10 +44,12 @@ export default function MultipleLocationPage() {
       // Set customer ID and redirect
       setCustomerId(singleLocation.id).then(() => {
         localStorage.setItem("selectedLocation", JSON.stringify(singleLocation))
-        
-        // Check onboarding status before redirecting
-        const onboardingDoneEmbedded = isCustomerProfileOnboardingWizardComplete(singleLocation)
-        if (onboardingDoneEmbedded || isOnboardingComplete) {
+
+        if (
+          onboardingStatus !== null &&
+          !onboardingApiError &&
+          isOnboardingComplete
+        ) {
           router.replace("/dashboard")
         } else {
           router.replace("/onboarding/business-hours")
@@ -47,17 +58,28 @@ export default function MultipleLocationPage() {
         console.error("Failed to set customer ID:", error)
         // Still save location even if API fails
         localStorage.setItem("selectedLocation", JSON.stringify(singleLocation))
-        
-        // Check onboarding status before redirecting
-        const onboardingDoneEmbedded = isCustomerProfileOnboardingWizardComplete(singleLocation)
-        if (onboardingDoneEmbedded || isOnboardingComplete) {
+
+        if (
+          onboardingStatus !== null &&
+          !onboardingApiError &&
+          isOnboardingComplete
+        ) {
           router.replace("/dashboard")
         } else {
           router.replace("/onboarding/business-hours")
         }
       })
     }
-  }, [user, isLoading, onboardingLoading, isOnboardingComplete, router, setCustomerId])
+  }, [
+    user,
+    isLoading,
+    onboardingLoading,
+    isOnboardingComplete,
+    onboardingStatus,
+    onboardingApiError,
+    router,
+    setCustomerId,
+  ])
 
   // Check onboarding status and redirect if not complete (only for multiple locations)
   useEffect(() => {
@@ -82,11 +104,23 @@ export default function MultipleLocationPage() {
     // If no customer, skip onboarding check
     if (!primaryCustomer) return
 
-    const onboardingDoneEmbedded = isCustomerProfileOnboardingWizardComplete(primaryCustomer)
-    if (!onboardingDoneEmbedded && !isOnboardingComplete) {
-      router.push("/onboarding/business-hours")
+    if (
+      onboardingStatus === null ||
+      onboardingApiError ||
+      isOnboardingComplete
+    ) {
+      return
     }
-  }, [user, isLoading, onboardingLoading, isOnboardingComplete, router])
+    router.push("/onboarding/business-hours")
+  }, [
+    user,
+    isLoading,
+    onboardingLoading,
+    isOnboardingComplete,
+    onboardingStatus,
+    onboardingApiError,
+    router,
+  ])
 
   // Show nothing while checking auth or redirecting
   if (isLoading || !user || onboardingLoading) {
