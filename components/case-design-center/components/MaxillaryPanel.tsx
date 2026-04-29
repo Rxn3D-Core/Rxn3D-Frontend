@@ -539,6 +539,8 @@ interface MaxillaryPanelProps {
   onBackToCategories?: (arch?: "maxillary" | "mandibular") => void;
   /** When true the footer acknowledgement checkbox is checked — accordion header borders turn green; orange when false. */
   confirmDetailsChecked?: boolean;
+  /** When true (stage or impression modal is open), disables the teeth SVG. */
+  isAnyModalOpen?: boolean;
 }
 
 function hasAdvanceField(
@@ -718,6 +720,7 @@ export function MaxillaryPanel({
   onImplantDetailChange,
   onBackToCategories,
   confirmDetailsChecked = false,
+  isAnyModalOpen = false,
 }: MaxillaryPanelProps) {
   const MAXILLARY_ALL_TEETH = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16];
   const [activeExtractionCode, setActiveExtractionCode] = useState<string | null>(null);
@@ -925,11 +928,30 @@ export function MaxillaryPanel({
         </button>
         {showMaxillary && (
           <div className="pl-9">
-            {activeProductIsRemovables && activeProductCardId !== 0 ? (
-              <p className="text-center text-orange-500 font-bold text-sm mb-1">
-                Select teeth that will be included in flipper/stayplate
-              </p>
-            ) : (() => {
+            {activeProductIsRemovables && !confirmDetailsChecked ? (() => {
+              const removableTeethCount = activeProductCardId !== 0
+                ? MAXILLARY_ALL_TEETH.filter(tn => getToothProductCard("maxillary", tn) === activeProductCardId).length
+                : MAXILLARY_ALL_TEETH.filter(tn => { const code = maxillaryToothExtractionMap[tn]; return code && code !== "TIM"; }).length;
+              const removableProductName = activeProductCardId !== 0
+                ? (() => {
+                    const ap = addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "maxillary");
+                    if (!ap?.product) return "";
+                    const apAssigned = MAXILLARY_ALL_TEETH.filter(tn => getToothProductCard("maxillary", tn) === activeProductCardId).length;
+                    return resolveVariationDisplay(ap.product, apAssigned).name.replace(/^\d+\s+teeth?\s+/i, "");
+                  })()
+                : (() => {
+                    const t = MAXILLARY_ALL_TEETH.find(tn => getToothProductCard("maxillary", tn) === 0);
+                    if (!t) return "";
+                    const cardProd = getToothProduct("maxillary", t);
+                    const dTeeth = MAXILLARY_ALL_TEETH.filter(tn => { const c = maxillaryToothExtractionMap[tn]; return c && c !== "TIM"; }).length;
+                    return resolveVariationDisplay(cardProd, dTeeth).name.replace(/^\d+\s+teeth?\s+/i, "");
+                  })();
+              return (
+                <p className={`text-center font-bold text-sm mb-1 ${removableTeethCount > 0 ? "text-orange-500" : "text-red-600"}`}>
+                  Select teeth that will be included in {removableProductName || "removable restoration"}
+                </p>
+              );
+            })() : (() => {
               const checkedCount = opposingProductData
                 ? Object.keys(opposingToothExtractionMap).length
                 : maxillaryCheckedTeeth.length;
@@ -1090,6 +1112,7 @@ export function MaxillaryPanel({
                   handleMaxillaryToothClick(toothNumber);
                 }
               }}
+              disabled={isAnyModalOpen || !!panelGumShadePicker || (shadeSelectionState.arch === "maxillary" && shadeSelectionState.fieldType !== null)}
               className="w-full"
               retentionTypesByTooth={maxillaryRetentionTypes}
               showRetentionPopover={
@@ -1234,8 +1257,10 @@ export function MaxillaryPanel({
               const cardProduct = cardTeeth.length > 0
                 ? getToothProduct("maxillary", cardTeeth[0])
                 : null;
-              const cardProductName = cardProduct?.name || ap.product?.name || "Untitled Product";
-              const cardProductImage = cardProduct?.image_url || ap.product?.image_url || null;
+              const apProduct = cardProduct ?? ap.product ?? null;
+              const apVariationDisplay = resolveVariationDisplay(apProduct, assignedTeeth.length);
+              const cardProductName = apVariationDisplay.name || "Untitled Product";
+              const cardProductImage = apVariationDisplay.imageUrl;
               const cardCategoryName = cardProduct?.subcategory?.category?.name || ap.product?.subcategory?.category?.name || ap.product?.category_name || "";
               const cardSubcategoryName = cardProduct?.subcategory?.name || ap.product?.subcategory?.name || ap.product?.subcategory_name || "";
               // For removable products, show all selected teeth from the chart
@@ -1304,74 +1329,101 @@ export function MaxillaryPanel({
                         <ProductImagePreview
                           imageUrl={cardProductImage}
                           altText={cardProductName}
-                          containerClassName="w-[64px] rounded-[6px] bg-white flex items-center justify-center flex-shrink-0 overflow-hidden shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]"
-                          imgClassName="w-[61.58px] h-[28.79px] object-contain"
+                          containerClassName="w-[162px] h-[152px] rounded-[6px] bg-white flex items-center justify-center flex-shrink-0 overflow-hidden shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]"
+                          imgClassName="w-full h-full object-contain"
                           fallback={
-                            <div className="w-[61.58px] h-[28.79px] flex items-center justify-center">
+                            <div className="w-full h-full flex items-center justify-center">
                               <span className="text-[10px] text-gray-400">No img</span>
                             </div>
                           }
                         />
                         <div className="flex-1 min-w-0 flex flex-col gap-[6px]">
-                          {/* Breadcrumb badges: category + subcategory at top */}
-                          <div className="flex items-center gap-[4px] flex-wrap">
-                            {cardCategoryName && <AccordionBadge>{cardCategoryName}</AccordionBadge>}
-                            {cardSubcategoryName && <AccordionBadge>{cardSubcategoryName}</AccordionBadge>}
-                          </div>
-                          {/* Title + tooth numbers in green-bordered box */}
-                          <div className={`flex flex-col items-center text-center gap-[5px] border rounded-[7px] p-[10px] mr-8 ${confirmDetailsChecked ? "border-[#34C759]" : "border-[#F97316]"}`}>
-                            <p className="font-[Inter] text-[20px] font-bold leading-[20px] tracking-[-0.02em] text-black">
-                              {cardProductName} {assignedTeeth.length} {assignedTeeth.length === 1 ? "tooth" : "teeth"} to replace
-                              {hasRushedAp && <RushIcon className="inline w-[14px] h-[14px] ml-1" />}
-                            </p>
-                            {assignedTeeth.length > 0 && (
-                              <p className="font-[Inter] text-[20px] font-normal leading-[20px] tracking-[-0.02em] text-black">
-                                #{assignedTeeth.join(",")}
-                              </p>
-                            )}
-                          </div>
-                          {/* Tooth status boxes */}
-                          {apExtractions.length > 0 && (
-                            <ToothStatusBoxes
-                              extractions={apExtractions}
-                              selectedTeeth={maxillaryTeeth}
-                              allArchTeeth={MAXILLARY_ALL_TEETH}
-                              toothExtractionMap={maxillaryToothExtractionMap}
-                              claspTeeth={maxillaryClaspTeeth}
-                              activeExtractionCode={activeExtractionCode}
-                              onActiveExtractionChange={(code, exts) => { setActiveExtractionCode(code); if (exts) setActiveExtractions(exts); }}
-                              onToothExtractionToggle={(tn, code, extractions) => handleToothExtractionToggle("maxillary", tn, code, extractions)}
-                              onSelectAllTeeth={selectAllMaxillaryTeeth}
-                              onRequiredValidationChange={onToothStatusValidationChange}
-                              isRemovable={true}
-                              submitted={caseSubmitted}
-                              hideDefaultBox={true}
-                            />
+                          {assignedTeeth.length > 0 ? (
+                            <>
+                              {/* Breadcrumb badges: category + subcategory at top */}
+                              <div className="flex items-center gap-[4px] flex-wrap">
+                                {cardCategoryName && <AccordionBadge>{cardCategoryName}</AccordionBadge>}
+                                {cardSubcategoryName && <AccordionBadge>{cardSubcategoryName}</AccordionBadge>}
+                              </div>
+                              {/* Title + tooth numbers in green-bordered box */}
+                              <div className={`flex flex-col items-center text-center gap-[5px] border rounded-[7px] p-[10px] mr-8 ${confirmDetailsChecked ? "border-[#34C759]" : "border-[#F97316]"}`}>
+                                <p className="font-[Inter] text-[20px] font-bold leading-[20px] tracking-[-0.02em] text-black">
+                                  {cardProductName} {assignedTeeth.length} {assignedTeeth.length === 1 ? "tooth" : "teeth"} to replace
+                                  {hasRushedAp && <RushIcon className="inline w-[14px] h-[14px] ml-1" />}
+                                </p>
+                                <p className="font-[Inter] text-[20px] font-normal leading-[20px] tracking-[-0.02em] text-black">
+                                  #{assignedTeeth.join(",")}
+                                </p>
+                              </div>
+                              {/* Tooth status boxes */}
+                              {apExtractions.length > 0 && (
+                                <ToothStatusBoxes
+                                  extractions={apExtractions}
+                                  selectedTeeth={maxillaryTeeth}
+                                  allArchTeeth={MAXILLARY_ALL_TEETH}
+                                  toothExtractionMap={maxillaryToothExtractionMap}
+                                  claspTeeth={maxillaryClaspTeeth}
+                                  activeExtractionCode={activeExtractionCode}
+                                  onActiveExtractionChange={(code, exts) => { setActiveExtractionCode(code); if (exts) setActiveExtractions(exts); }}
+                                  onToothExtractionToggle={(tn, code, extractions) => handleToothExtractionToggle("maxillary", tn, code, extractions)}
+                                  onSelectAllTeeth={selectAllMaxillaryTeeth}
+                                  onRequiredValidationChange={onToothStatusValidationChange}
+                                  isRemovable={true}
+                                  submitted={caseSubmitted}
+                                  hideDefaultBox={true}
+                                  grayed={true}
+                                  disableRequiredValidation={true}
+                                />
+                              )}
+                              {/* Est days + delete button on same line */}
+                              <div className="flex items-center gap-[6px]">
+                                <EstDaysLabel rushed={hasRushedAp} text={hasRushedAp ? "5 work days after submission" : apRemEstDaysText} />
+                                {!caseSubmitted && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const remainingAdded = addedProducts.filter(p => p.arch === "maxillary").length - 1;
+                                      const hasCard0 = maxillaryHasFixedCard0 || maxillaryHasRemovablesCard0;
+                                      MAXILLARY_ALL_TEETH.filter(tn => getToothProductCard("maxillary", tn) === ap.id).forEach(tn => {
+                                        clearToothProgress("maxillary", tn);
+                                        handleMaxillaryToothDeselect(tn);
+                                      });
+                                      handleRemoveAddedProduct(ap.id);
+                                      if (remainingAdded === 0 && !hasCard0) onBackToCategories?.("maxillary");
+                                    }}
+                                    className="hover:text-red-500 transition-colors"
+                                    title="Remove product"
+                                  >
+                                    <Trash2 size={18} className="text-[#999999] hover:text-red-500" />
+                                  </button>
+                                )}
+                              </div>
+                            </>
+                          ) : (
+                            !caseSubmitted && (
+                              <div className="flex items-center">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const remainingAdded = addedProducts.filter(p => p.arch === "maxillary").length - 1;
+                                    const hasCard0 = maxillaryHasFixedCard0 || maxillaryHasRemovablesCard0;
+                                    MAXILLARY_ALL_TEETH.filter(tn => getToothProductCard("maxillary", tn) === ap.id).forEach(tn => {
+                                      clearToothProgress("maxillary", tn);
+                                      handleMaxillaryToothDeselect(tn);
+                                    });
+                                    handleRemoveAddedProduct(ap.id);
+                                    if (remainingAdded === 0 && !hasCard0) onBackToCategories?.("maxillary");
+                                  }}
+                                  className="hover:text-red-500 transition-colors"
+                                  title="Remove product"
+                                >
+                                  <Trash2 size={18} className="text-[#999999] hover:text-red-500" />
+                                </button>
+                              </div>
+                            )
                           )}
-                          {/* Est days + delete button on same line */}
-                          <div className="flex items-center gap-[6px]">
-                            <EstDaysLabel rushed={hasRushedAp} text={hasRushedAp ? "5 work days after submission" : apRemEstDaysText} />
-                            {!caseSubmitted && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const remainingAdded = addedProducts.filter(p => p.arch === "maxillary").length - 1;
-                                  const hasCard0 = maxillaryHasFixedCard0 || maxillaryHasRemovablesCard0;
-                                  MAXILLARY_ALL_TEETH.filter(tn => getToothProductCard("maxillary", tn) === ap.id).forEach(tn => {
-                                    clearToothProgress("maxillary", tn);
-                                    handleMaxillaryToothDeselect(tn);
-                                  });
-                                  handleRemoveAddedProduct(ap.id);
-                                  if (remainingAdded === 0 && !hasCard0) onBackToCategories?.("maxillary");
-                                }}
-                                className="hover:text-red-500 transition-colors"
-                                title="Remove product"
-                              >
-                                <Trash2 size={18} className="text-[#999999] hover:text-red-500" />
-                              </button>
-                            )}
-                          </div>
                         </div>
                       </div>
                     </div>
@@ -2107,17 +2159,17 @@ export function MaxillaryPanel({
                     <ProductImagePreview
                       imageUrl={cardProductImage}
                       altText={cardProductName}
-                      containerClassName="w-[64px] rounded-[6px] bg-white flex items-center justify-center flex-shrink-0 overflow-hidden shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]"
-                      imgClassName="w-[61.58px] h-[28.79px] object-contain"
+                      containerClassName="w-[162px] h-[152px] rounded-[6px] bg-white flex items-center justify-center flex-shrink-0 overflow-hidden shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]"
+                      imgClassName="w-full h-full object-contain"
                       fallback={
-                        <div className="w-[61.58px] h-[28.79px] flex items-center justify-center">
+                        <div className="w-full h-full flex items-center justify-center">
                           <span className="text-[10px] text-gray-400">No img</span>
                         </div>
                       }
                     />
                     <div className="flex-1 min-w-0 flex flex-col gap-[9.94px]">
-                      {/* Show header content whenever teeth are assigned to this card, or case submitted */}
-                      {(cardTeeth.length > 0 || caseSubmitted) && (
+                      {/* Show header content only after user assigns a status via the popover, or case submitted */}
+                      {(displayTeeth.length > 0 || caseSubmitted) && (
                         <>
                           {/* Category badges above green box */}
                           <div className="flex items-center gap-[4px] flex-wrap">
@@ -2155,6 +2207,8 @@ export function MaxillaryPanel({
                               isRemovable={true}
                               submitted={caseSubmitted}
                               hideDefaultBox={true}
+                              grayed={true}
+                              disableRequiredValidation={true}
                             />
                           )}
                           {/* Est days + stage badge + trash below status boxes */}

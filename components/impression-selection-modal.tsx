@@ -1,6 +1,6 @@
 "use client"
 
-import { Check, Minus, Plus, Trash2 } from "lucide-react"
+import { Check, Plus, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   Dialog,
@@ -65,7 +65,12 @@ function ImpressionGrid({
 }) {
   const [showSTLModal, setShowSTLModal] = useState(false)
   const [selectedSTLImpression, setSelectedSTLImpression] = useState<ImpressionOption | null>(null)
-  const [lastTouchedKey, setLastTouchedKey] = useState<string | null>(null)
+  const [lastTouchedKey, setLastTouchedKey] = useState<string | null>(() => {
+    // On mount, restore check to the last impression in the list that already has qty > 0
+    const buildKey = (imp: ImpressionOption) => `${productId}_${arch}_${imp.value || imp.name}`
+    const preSelected = [...impressions].reverse().find(imp => (selectedImpressions[buildKey(imp)] || 0) > 0)
+    return preSelected ? buildKey(preSelected) : null
+  })
 
   const getKey = (impression: ImpressionOption) =>
     `${productId}_${arch}_${impression.value || impression.name}`
@@ -133,8 +138,8 @@ function ImpressionGrid({
   const renderCard = (impression: ImpressionOption, compact: boolean) => {
     const qty = getQty(impression)
     const isSelected = qty > 0
-    const key = getKey(impression)
-    const canCheck = showDoneCheckmark && key === lastTouchedKey && qty >= 1
+    // Check shows only on the last card touched in this grid
+    const showCheck = showDoneCheckmark && qty >= 1 && getKey(impression) === lastTouchedKey
 
     const imgSize = compact ? "text-2xl" : "text-3xl lg:text-4xl"
     const nameSize = compact ? "text-xs" : "text-sm lg:text-base"
@@ -213,7 +218,7 @@ function ImpressionGrid({
                   className={cn("flex items-center justify-center flex-shrink-0", controlSize)}
                   onClick={(e) => handleDecrement(impression, e)}
                 >
-                  <Minus className={cn("text-[#1E1E1E]", iconSize)} strokeWidth={1.83} />
+                  <span className={cn("font-['Verdana'] font-normal text-black text-center leading-none", qtyTextSize)}>−</span>
                 </button>
               )}
 
@@ -230,11 +235,12 @@ function ImpressionGrid({
                 <Plus className={cn("text-[#1D1B20]", iconSize)} strokeWidth={1.83} />
               </button>
 
-              {/* Checkmark (Done) */}
-              {canCheck && (
+              {/* Green checkmark — click to confirm done */}
+              {showCheck && (
                 <button
                   className={cn("flex items-center justify-center flex-shrink-0", controlSize)}
                   onClick={(e) => { e.stopPropagation(); onDone?.() }}
+                  title="Done"
                 >
                   <Check className={cn("text-[#22c55e]", iconSize)} strokeWidth={2.5} />
                 </button>
@@ -258,7 +264,7 @@ function ImpressionGrid({
       </div>
 
       {/* Desktop: grid */}
-      <div className="hidden sm:grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-4 w-full">
+      <div className="hidden sm:grid gap-3 md:gap-4 w-full" style={{ gridTemplateColumns: `repeat(${impressions.length}, minmax(0, 1fr))` }}>
         {impressions.map((impression) => renderCard(impression, false))}
       </div>
 
@@ -324,7 +330,6 @@ export function ImpressionSelectionModal({
     onRemoveImpression,
     onSTLFilesAttached,
     stlFilesByImpression,
-    onDone: handleDone,
   }
 
   return (
@@ -352,17 +357,17 @@ export function ImpressionSelectionModal({
               impressions={impressions}
               productId={productId}
               arch={arch}
-              showDoneCheckmark={!isDualArch}
+              showDoneCheckmark={true}
+              onDone={handleDone}
             />
           </div>
 
-          {/* Opposing arch section — always visible in dual arch; locked until primary selected */}
-          {isDualArch && (
+          {/* Opposing arch section — revealed once main arch has a selection */}
+          {isDualArch && hasMainSelection && (
             <div
               className={cn(
-                "relative rounded-[12px] px-4 sm:px-6 pt-7 pb-5 border-2 transition-all duration-300",
-                hasOpposingSelection ? "border-[#22c55e]" : "border-[#CF0202]",
-                !hasMainSelection && "opacity-40 pointer-events-none"
+                "relative rounded-[12px] px-4 sm:px-6 pt-7 pb-5 border-2 transition-colors",
+                hasOpposingSelection ? "border-[#22c55e]" : "border-[#CF0202]"
               )}
             >
               <span
@@ -379,6 +384,7 @@ export function ImpressionSelectionModal({
                 productId={productId}
                 arch={oppositeArch}
                 showDoneCheckmark={true}
+                onDone={handleDone}
               />
               <div className="flex justify-center mt-4">
                 <button

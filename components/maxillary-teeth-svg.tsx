@@ -98,6 +98,8 @@ interface MaxillaryTeethSVGProps {
   showCheckboxes?: boolean
   /** Called whenever the set of checked teeth changes. */
   onCheckedTeethChange?: (teeth: number[]) => void
+  /** When true, disables all tooth interactions (pointer-events-none + dimmed). */
+  disabled?: boolean
 }
 
 export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
@@ -128,6 +130,7 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
   retentionOptions,
   showCheckboxes = false,
   onCheckedTeethChange,
+  disabled = false,
 }) => {
   const svgRef = React.useRef<SVGSVGElement>(null)
   const [hoveredTooth, setHoveredTooth] = React.useState<number | null>(null)
@@ -513,7 +516,7 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
         )
       })()}
 
-      <div className={`relative ${className}`}>
+      <div className={`relative ${className}${disabled ? ' pointer-events-none opacity-50' : ''}`}>
 
         <svg ref={svgRef} width="100%" height={showCheckboxes ? "116" : "100"} viewBox={`0 0 700 ${showCheckboxes ? "158" : "139"}`} fill="none" xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink">
           {toothMapping.map(({ tooth, x, width, pattern }) => {

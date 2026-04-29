@@ -22,6 +22,13 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   // Tracks when the user explicitly hides the mandibular panel while it's force-shown by the opposing condition.
   const [userHidMandibular, setUserHidMandibular] = useState(false);
 
+  const isAnyModalOpen = state.showImpressionModal || state.isStageModalOpen || state.showAddOnsModal || state.showRushModal;
+  const onAnyModalOpenChangeRef = useRef(props.onAnyModalOpenChange);
+  onAnyModalOpenChangeRef.current = props.onAnyModalOpenChange;
+  useEffect(() => {
+    onAnyModalOpenChangeRef.current?.(isAnyModalOpen);
+  }, [isAnyModalOpen]);
+
   // Unified setter used by both CenterNavigation and MandibularPanel so the override state stays in sync.
   const handleSetShowMandibular = useCallback((v: boolean) => {
     state.setShowMandibular(v);
@@ -728,6 +735,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           onImplantDetailChange={(detail) => { maxillaryImplantDetailRef.current = detail; }}
           onBackToCategories={props.onBackToCategories}
           confirmDetailsChecked={props.confirmDetailsChecked}
+          isAnyModalOpen={state.showImpressionModal || state.isStageModalOpen}
         />
 
         {/* CENTER NAVIGATION */}
@@ -851,6 +859,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           onImplantDetailChange={(detail) => { mandibularImplantDetailRef.current = detail; }}
           onBackToCategories={props.onBackToCategories}
           confirmDetailsChecked={props.confirmDetailsChecked}
+          isAnyModalOpen={state.showImpressionModal || state.isStageModalOpen}
         />
       </div>
 

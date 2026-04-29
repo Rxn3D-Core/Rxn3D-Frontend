@@ -145,8 +145,7 @@ export function AddLabProductModal({
     setClientValidationErrors([])
     setServerValidationErrors([])
   }, [])
-  const { parentDropdownCategories, fetchParentDropdownCategories, allCategories, fetchAllCategories } = useProductCategory()
-  const [categoriesWithSubcategories, setCategoriesWithSubcategories] = useState<any[]>([])
+  const { parentDropdownCategories, fetchParentDropdownCategories, allCategories, fetchAllCategories, categoriesWithSubcategories, fetchCategoriesWithSubcategories } = useProductCategory()
   const { grades, fetchGrades } = useGrades()
   const { stages, fetchStages } = useStages()
   const { impressions, fetchImpressions } = useImpressions()
@@ -790,57 +789,14 @@ export function AddLabProductModal({
     ? parentDropdownCategories
     : []
 
-  // Fetch categories with subcategories
-  const fetchCategoriesWithSubcategories = useCallback(async () => {
-    try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
-      if (!token) return
-
-      const customerId = typeof window !== "undefined" ? localStorage.getItem("customerId") : null
-      const params = new URLSearchParams({ 
-        lang: "en",
-        per_page: "100",
-        status: "Active"
-      })
-      
-      if (customerId) {
-        params.append("customer_id", customerId)
-      }
-
-      const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-      const response = await fetch(
-        `${apiBaseUrl}/library/categories?${params.toString()}`,
-        {
-          method: "GET",
-          headers: { 
-            Authorization: `Bearer ${token}`, 
-            "Content-Type": "application/json" 
-          },
-        }
-      )
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch categories with subcategories")
-      }
-
-      const responseData = await response.json()
-      // The API returns categories with nested subcategories
-      const categories = responseData.data?.data || []
-      setCategoriesWithSubcategories(categories)
-    } catch (err: any) {
-      console.error("Error fetching categories with subcategories:", err)
-      setCategoriesWithSubcategories([])
-    }
-  }, [])
-
   const fetchData = useCallback(() => {
     fetchParentDropdownCategories()
     fetchCategoriesWithSubcategories()
     fetchGrades()
     fetchStages()
     fetchImpressions()
-    fetchGumShadeBrands() // fetch all brands without pagination
-    fetchTeethShadeBrands() // fetch all brands without pagination
+    fetchGumShadeBrands()
+    fetchTeethShadeBrands()
     fetchMaterials()
     fetchRetentions()
     fetchAllAddOns()
