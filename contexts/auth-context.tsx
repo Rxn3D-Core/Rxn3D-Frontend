@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useEffect, useCallback, type React
 import { redirect, useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { clearSessionStorage } from "@/lib/clear-session-storage"
+import { isCustomerProfileOnboardingWizardComplete } from "@/lib/customer-onboarding-complete"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
@@ -407,12 +408,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         primaryCustomer = null
       }
 
-      // Check if onboarding is complete (safely handle undefined/null values)
-      // Treat undefined/null as false (not completed)
-      // The API returns boolean false, so we check for explicit true
-      const onboardingCompleted = primaryCustomer?.onboarding_completed === true
-      const businessHoursCompleted = primaryCustomer?.business_hours_setup_completed === true
-      const isOnboardingComplete = onboardingCompleted && businessHoursCompleted
+      // Check if onboarding wizard is finished (office: business hours sufficient; lab: onboarding + hours)
+      const isOnboardingComplete = isCustomerProfileOnboardingWizardComplete(primaryCustomer)
 
       // Navigate based on onboarding status - PRIORITIZE onboarding check
       // Only redirect to dashboard/multi-location if onboarding is complete
@@ -486,20 +483,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (primaryCustomer) {
           // Check if onboarding is NOT complete
           if (!isOnboardingComplete) {
-            // User needs to complete onboarding - redirect to onboarding flow
-            // Always start with business-hours first
-            // Use setTimeout to ensure state is fully set before redirecting
             setTimeout(() => {
-              if (!onboardingCompleted) {
-                // Start onboarding flow with business-hours first
-                router.push("/onboarding/business-hours")
-              } else if (!businessHoursCompleted) {
-                // Initial onboarding done, but business hours setup needed
-                console.log('Redirecting to business hours setup: /onboarding/business-hours')
-                router.push("/onboarding/business-hours")
-              }
-            }, 100) // Small delay to ensure state is set
-            // Don't redirect to dashboard here - onboarding is not complete
+              router.push("/onboarding/business-hours")
+            }, 100)
             return true
           } else {
             // Onboarding is complete - safe to go to dashboard

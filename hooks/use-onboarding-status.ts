@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { OnboardingApiService, OnboardingStatus, OnboardingStatusResponse } from '@/lib/api-onboarding'
 import { useAuth } from '@/contexts/auth-context'
+import { isOnboardingStatusWizardComplete } from '@/lib/customer-onboarding-complete'
 
 // Global cache to share across all hook instances
 const globalCache = {
@@ -231,15 +232,23 @@ export function useOnboardingStatus(): UseOnboardingStatusReturn {
     }
   }, [customerId, fetchOnboardingStatus]) // Include fetchOnboardingStatus but it's stable due to useCallback
 
-  const isOnboardingComplete = onboardingStatus?.onboarding_completed && 
-                               onboardingStatus?.business_hours_setup_completed
+  const refetchWithInvalidation = useCallback(async (): Promise<void> => {
+    globalCache.data = null
+    globalCache.lastFetchTime = 0
+    await fetchOnboardingStatus(0, true)
+  }, [fetchOnboardingStatus])
+
+  const isOnboardingComplete = useMemo(
+    () => isOnboardingStatusWizardComplete(onboardingStatus),
+    [onboardingStatus],
+  )
 
   return {
     onboardingStatus,
-    isOnboardingComplete: !!isOnboardingComplete,
+    isOnboardingComplete,
     isLoading,
     error,
-    refetch: fetchOnboardingStatus,
+    refetch: refetchWithInvalidation,
     markBusinessHoursComplete
   }
 }

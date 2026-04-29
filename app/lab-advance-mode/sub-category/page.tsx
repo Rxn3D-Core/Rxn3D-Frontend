@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Search, Plus, Settings2, Link as LinkIcon, Edit, Copy, Trash2, MoreVertical, ArrowUpDown, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -34,6 +34,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { useAdvanceModeCustomerScope, advanceCustomerListQueriesEnabled } from "@/hooks/use-advance-mode-customer-scope"
 
 export default function SubCategoryPage() {
   const { t } = useTranslation()
@@ -54,30 +55,23 @@ export default function SubCategoryPage() {
   const [subcategoryToLink, setSubcategoryToLink] = useState<number | null>(null)
   const [selectedProducts, setSelectedProducts] = useState<number[]>([])
   const [selectedCategories, setSelectedCategories] = useState<number[]>([])
-  const [customerId, setCustomerId] = useState<number | undefined>(undefined)
 
-  // Get role and customer_id from localStorage
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const role = localStorage.getItem('role')
-      if (role === 'lab_admin') {
-        const customerIdStr = localStorage.getItem('customerId')
-        if (customerIdStr) {
-          setCustomerId(parseInt(customerIdStr, 10))
-        }
-      }
-    }
-  }, [])
+  const customerScope = useAdvanceModeCustomerScope()
+  const advanceListReady = advanceCustomerListQueriesEnabled(customerScope)
+  const customerId = customerScope.labCustomerId
 
-  // Fetch subcategories from API
-  const { data, isLoading, isError, refetch } = useAdvanceSubcategories({
-    page: currentPage,
-    per_page: parseInt(entriesPerPage),
-    q: debouncedSearchQuery || undefined,
-    order_by: orderBy,
-    sort_by: sortBy,
-    customer_id: customerId,
-  })
+  // Fetch subcategories from API (single scoped request once lab customer_id is known)
+  const { data, isLoading, isError, refetch } = useAdvanceSubcategories(
+    {
+      page: currentPage,
+      per_page: parseInt(entriesPerPage),
+      q: debouncedSearchQuery || undefined,
+      order_by: orderBy,
+      sort_by: sortBy,
+      ...(typeof customerId === "number" && { customer_id: customerId }),
+    },
+    { enabled: advanceListReady }
+  )
 
   // Mutations
   const createMutation = useCreateAdvanceSubcategory()
@@ -332,13 +326,13 @@ export default function SubCategoryPage() {
 
       {/* Table Section */}
       <div className="relative">
-        {isLoading && (
+        {(!advanceListReady || isLoading) && (
           <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
             <LoadingDots size="lg" />
           </div>
         )}
 
-        {isError && (
+        {advanceListReady && !isLoading && isError && (
           <div className="p-8 text-center">
             <p className="text-red-600 text-sm">
               {t("advanceMode.subCategory.error", "Failed to load subcategories. Please try again.")}
@@ -346,7 +340,7 @@ export default function SubCategoryPage() {
           </div>
         )}
 
-        {!isLoading && !isError && subCategoryData.length === 0 && (
+        {advanceListReady && !isLoading && !isError && subCategoryData.length === 0 && (
           <div className="p-8 text-center">
             <p className="text-gray-500 text-sm">
               {t("advanceMode.subCategory.noData", "No subcategories found.")}
@@ -354,7 +348,7 @@ export default function SubCategoryPage() {
           </div>
         )}
 
-        {!isLoading && !isError && subCategoryData.length > 0 && (
+        {advanceListReady && !isLoading && !isError && subCategoryData.length > 0 && (
           <div className="overflow-x-auto">
             <Table className="w-full text-xs">
               <TableHeader>
@@ -514,7 +508,7 @@ export default function SubCategoryPage() {
       </div>
 
       {/* Pagination */}
-      {!isLoading && !isError && subCategoryData.length > 0 && (
+      {advanceListReady && !isLoading && !isError && subCategoryData.length > 0 && (
         <div className="px-4 sm:px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-4 border-t border-gray-200">
           <div className="text-sm text-gray-600">
             {t("Showing")} {((currentPage - 1) * parseInt(entriesPerPage)) + 1} {t("to")} {Math.min(currentPage * parseInt(entriesPerPage), totalEntries)} {t("of")} {totalEntries} {t("entries")}
