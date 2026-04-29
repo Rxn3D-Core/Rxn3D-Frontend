@@ -109,8 +109,11 @@ function mapOppositeExtractionsFromApi(arr: any[]) {
 export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductModalProps) {
   const { createProduct, updateProduct, isLoading: isProductActionLoading, clearValidationErrors } = useProducts()
   const [validationErrors, setValidationErrors] = useState<{ field: string; message: string }[]>([])
-  const { parentDropdownCategories, fetchParentDropdownCategories } = useProductCategory()
-  const [categoriesWithSubcategories, setCategoriesWithSubcategories] = useState<any[]>([])
+  const {
+    parentDropdownCategories,
+    fetchParentDropdownCategories,
+    categoriesWithSubcategories,
+  } = useProductCategory()
   const [imageBase64, setImageBase64] = useState<string | null>(null)
   const [jawPhotos, setJawPhotos] = useState<{ upper?: string | null; lower?: string | null; both?: string | null }>({})
   const handleJawPhotoChange = useCallback((jawType: "upper" | "lower" | "both", base64: string | null) => {
@@ -418,46 +421,8 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
       ? parentDropdownCategories.data
       : []
 
-  // Fetch categories with subcategories for category/subcategory dropdowns
-  const fetchCategoriesWithSubcategories = useCallback(async () => {
-    try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
-      if (!token) return
-
-      const params = new URLSearchParams({
-        lang: "en",
-        per_page: "100",
-        status: "Active"
-      })
-
-      const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-      const response = await fetch(
-        `${apiBaseUrl}/library/categories?${params.toString()}`,
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json"
-          },
-        }
-      )
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch categories with subcategories")
-      }
-
-      const responseData = await response.json()
-      const categories = responseData.data?.data || []
-      setCategoriesWithSubcategories(categories)
-    } catch (err: any) {
-      console.error("Error fetching categories with subcategories:", err)
-      setCategoriesWithSubcategories([])
-    }
-  }, [])
-
   const fetchData = useCallback(() => {
     fetchParentDropdownCategories()
-    fetchCategoriesWithSubcategories()
     fetchGrades()
     fetchStages()
     fetchImpressions()
@@ -469,7 +434,6 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
     fetchExtractions()
   }, [
     fetchParentDropdownCategories,
-    fetchCategoriesWithSubcategories,
     fetchGrades,
     fetchStages,
     fetchImpressions,
