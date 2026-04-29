@@ -5,6 +5,7 @@ import React from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { useOnboardingStatus } from "@/hooks/use-onboarding-status"
+import { isCustomerProfileOnboardingWizardComplete } from "@/lib/customer-onboarding-complete"
 import { useEffect } from "react"
 import { Loader2 } from "lucide-react"
 
@@ -13,7 +14,7 @@ export default function OnboardingLayout({
 }: {
   children: React.ReactNode
 }) {
-  const { isNewUser, user } = useAuth()
+  const { user } = useAuth()
   const { isOnboardingComplete, isLoading } = useOnboardingStatus()
   const router = useRouter()
   const pathname = usePathname() || ""
@@ -31,9 +32,22 @@ export default function OnboardingLayout({
       return
     }
 
-    // Check if user is already onboarded
-    if (isOnboardingComplete) {
-      const isSuperAdmin = user.roles?.includes("superadmin")
+    const isSuperAdmin = user.roles?.includes("superadmin")
+    let primaryCustomer = null
+    if (user.customers && Array.isArray(user.customers) && user.customers.length > 0) {
+      primaryCustomer =
+        user.customers.find((c: any) => c?.is_primary === true || c?.is_primary === 1 || c?.is_primary === "1") ||
+        user.customers[0]
+    } else if (user.customer) {
+      primaryCustomer = user.customer
+    }
+
+    const doneFromJwt =
+      primaryCustomer !== null && isCustomerProfileOnboardingWizardComplete(primaryCustomer)
+    const alreadyDone = isOnboardingComplete || doneFromJwt
+
+    // Match dashboard / OnboardingCheck: API or JWT can indicate completion (they can briefly disagree)
+    if (alreadyDone) {
       // Don't redirect superadmins - they can access onboarding pages
       if (!isSuperAdmin) {
         // Allow completion screen to render (it may redirect locally)
