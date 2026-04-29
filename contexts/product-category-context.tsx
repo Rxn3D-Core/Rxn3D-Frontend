@@ -159,17 +159,48 @@ export const useProductCategory = () => {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000/api"
 
-/** Normalize API snake_case nested list for product modal dropdowns (`ProductDetailsSection`). */
+/**
+ * Laravel often exposes both `subcategories` (partial / accessor) and `sub_categories` (full load).
+ * Prefer the non-empty list with more rows so dropdowns receive every subcategory.
+ */
+function normalizedSubcategoriesForCategory(cat: any): any[] {
+  const camel = Array.isArray(cat?.subcategories) ? cat.subcategories : []
+  const snake = Array.isArray(cat?.sub_categories) ? cat.sub_categories : []
+  if (camel.length === 0 && snake.length === 0) return []
+  if (camel.length >= snake.length) return [...camel]
+  return [...snake]
+}
+
+function mergeSubsById(a: any[], b: any[]): any[] {
+  const map = new Map<number, any>()
+  for (const s of [...(a || []), ...(b || [])]) {
+    const sid = Number(s?.id)
+    if (!Number.isFinite(sid)) continue
+    if (!map.has(sid)) map.set(sid, s)
+  }
+  return [...map.values()]
+}
+
+/** Dedupe duplicate category ids (API may repeat a parent row) while merging nested subs. */
 function normalizeCategoriesWithNestedSubcategories(raw: any[]): any[] {
   if (!Array.isArray(raw)) return []
-  return raw.map((cat: any) => ({
-    ...cat,
-    subcategories: Array.isArray(cat?.subcategories)
-      ? cat.subcategories
-      : Array.isArray(cat?.sub_categories)
-        ? cat.sub_categories
-        : [],
-  }))
+  const byId = new Map<number, any>()
+  for (const cat of raw) {
+    const id = Number(cat?.id)
+    if (!Number.isFinite(id)) continue
+    const subs = normalizedSubcategoriesForCategory(cat)
+    const prev = byId.get(id)
+    if (!prev) {
+      byId.set(id, { ...cat, subcategories: subs })
+    } else {
+      byId.set(id, {
+        ...prev,
+        ...cat,
+        subcategories: mergeSubsById(prev.subcategories, subs),
+      })
+    }
+  }
+  return [...byId.values()]
 }
 
 export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
