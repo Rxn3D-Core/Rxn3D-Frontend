@@ -16,6 +16,7 @@ import { useBusinessSettings } from "@/contexts/business-settings-context"
 import { convertTo12Hour } from "@/utils/time-utils"
 import { useOnboardingStatus } from "@/hooks/use-onboarding-status"
 import { useAuth } from "@/contexts/auth-context"
+import { isCustomerProfileOnboardingWizardComplete } from "@/lib/customer-onboarding-complete"
 
 export default function BusinessHoursPage() {
   const router = useRouter()
@@ -53,9 +54,20 @@ export default function BusinessHoursPage() {
       return
     }
 
-    if (!onboardingLoading && user && isOnboardingComplete) {
+    if (!onboardingLoading && user) {
       const isSuperAdmin = user.roles?.includes("superadmin")
-      if (!isSuperAdmin) {
+      let primaryCustomer = null
+      if (user.customers && Array.isArray(user.customers) && user.customers.length > 0) {
+        primaryCustomer =
+          user.customers.find((c: any) => c?.is_primary === true || c?.is_primary === 1 || c?.is_primary === "1") ||
+          user.customers[0]
+      } else if (user.customer) {
+        primaryCustomer = user.customer
+      }
+      const done =
+        isOnboardingComplete ||
+        (primaryCustomer !== null && isCustomerProfileOnboardingWizardComplete(primaryCustomer))
+      if (done && !isSuperAdmin) {
         hasRedirectedRef.current = true
         router.replace("/dashboard")
       }

@@ -10,7 +10,7 @@ import type {
 } from "@/types/business-settings"
 import { convertTo24Hour } from "@/utils/time-utils"
 import { OnboardingApiService } from "@/lib/api-onboarding"
-import { setLegacyOnboardingCompleteLocalFlagTrue } from "@/lib/onboarding-storage"
+import { clearLegacyOnboardingCompleteLocalFlag } from "@/lib/onboarding-storage"
 
 interface BusinessSettingsContextType {
   // State
@@ -190,7 +190,7 @@ export function BusinessSettingsProvider({ children }: BusinessSettingsProviderP
           // Don't fail the entire operation if this fails
         }
 
-        setLegacyOnboardingCompleteLocalFlagTrue()
+        clearLegacyOnboardingCompleteLocalFlag()
         
         return result
       } catch (err) {

@@ -1,13 +1,12 @@
 /**
- * Legacy onboarding flag in localStorage. Source of truth is the API; sync this only after
- * confirmed server success so stale values do not trigger wrong redirects.
+ * Legacy `onboardingComplete` key in localStorage. Onboarding truth comes from the API;
+ * remove this after successful complete-onboarding responses so nothing reads a stale flag.
  */
-export function setLegacyOnboardingCompleteLocalFlagTrue(): void {
+export function clearLegacyOnboardingCompleteLocalFlag(): void {
   if (typeof window === "undefined") return
   try {
-    localStorage.setItem("onboardingComplete", "true")
+    localStorage.removeItem("onboardingComplete")
   } catch {
     /* quota / privacy mode — ignore */
   }
 }
-

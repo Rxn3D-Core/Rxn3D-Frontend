@@ -1,5 +1,5 @@
 import { LabOnboardCompleteBody } from "@/lib/lab-onboard-complete-payload"
-import { setLegacyOnboardingCompleteLocalFlagTrue } from "@/lib/onboarding-storage"
+import { clearLegacyOnboardingCompleteLocalFlag } from "@/lib/onboarding-storage"
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
 /** Success shape from LAB_COMPLETE_ONBOARDING_API.md */
@@ -50,7 +50,7 @@ export async function postLabOnboardComplete(body: LabOnboardCompleteBody): Prom
     throw new Error(msg)
   }
 
-  setLegacyOnboardingCompleteLocalFlagTrue()
+  clearLegacyOnboardingCompleteLocalFlag()
 
   return json as LabOnboardCompleteResponse
 }
