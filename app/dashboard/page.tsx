@@ -7,6 +7,7 @@ import { Header } from "@/components/header"
 import { UnifiedDashboard } from "@/components/dashboard/unified-dashboard"
 import { useAuth } from "@/contexts/auth-context"
 import { useOnboardingStatus } from "@/hooks/use-onboarding-status"
+import { isCustomerProfileOnboardingWizardComplete } from "@/lib/customer-onboarding-complete"
 
 export default function Dashboard() {
   const router = useRouter()
@@ -44,18 +45,13 @@ export default function Dashboard() {
     // If no customer, skip onboarding check (might be a different user type)
     if (!primaryCustomer) return
 
-    // Check onboarding status from customer data
-    const onboardingCompleted = primaryCustomer?.onboarding_completed === true
-    const businessHoursCompleted = primaryCustomer?.business_hours_setup_completed === true
-    const isOnboardingCompleteFromData = onboardingCompleted && businessHoursCompleted
-
-    // If onboarding is not complete, redirect to onboarding flow
-    // Always start with business-hours first
-    if (!isOnboardingCompleteFromData) {
-      hasRedirectedRef.current = true
-      router.push("/onboarding/business-hours")
-      return // Don't proceed with multi-location logic if redirecting to onboarding
+    // Office: business hours alone can finish onboarding; JWT may lag — also trust hook (`isOnboardingComplete`).
+    const onboardingDoneFromEmbedded = isCustomerProfileOnboardingWizardComplete(primaryCustomer)
+    if (isOnboardingComplete || onboardingDoneFromEmbedded) {
+      return
     }
+    hasRedirectedRef.current = true
+    router.push("/onboarding/business-hours")
   }, [user, onboardingLoading, isOnboardingComplete, router])
 
   useEffect(() => {

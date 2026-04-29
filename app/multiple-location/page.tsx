@@ -6,6 +6,7 @@ import MultipleLocation from "@/components/multiple-location-form"
 import { useAuth } from "@/contexts/auth-context"
 import { ProtectedRoute } from "@/components/protected-route"
 import { useOnboardingStatus } from "@/hooks/use-onboarding-status"
+import { isCustomerProfileOnboardingWizardComplete } from "@/lib/customer-onboarding-complete"
 
 export default function MultipleLocationPage() {
   const { user, isLoading, setCustomerId } = useAuth()
@@ -36,11 +37,8 @@ export default function MultipleLocationPage() {
         localStorage.setItem("selectedLocation", JSON.stringify(singleLocation))
         
         // Check onboarding status before redirecting
-        const onboardingCompleted = singleLocation?.onboarding_completed === true
-        const businessHoursCompleted = singleLocation?.business_hours_setup_completed === true
-        const isOnboardingCompleteFromData = onboardingCompleted && businessHoursCompleted
-
-        if (isOnboardingCompleteFromData || isOnboardingComplete) {
+        const onboardingDoneEmbedded = isCustomerProfileOnboardingWizardComplete(singleLocation)
+        if (onboardingDoneEmbedded || isOnboardingComplete) {
           router.replace("/dashboard")
         } else {
           router.replace("/onboarding/business-hours")
@@ -51,11 +49,8 @@ export default function MultipleLocationPage() {
         localStorage.setItem("selectedLocation", JSON.stringify(singleLocation))
         
         // Check onboarding status before redirecting
-        const onboardingCompleted = singleLocation?.onboarding_completed === true
-        const businessHoursCompleted = singleLocation?.business_hours_setup_completed === true
-        const isOnboardingCompleteFromData = onboardingCompleted && businessHoursCompleted
-
-        if (isOnboardingCompleteFromData || isOnboardingComplete) {
+        const onboardingDoneEmbedded = isCustomerProfileOnboardingWizardComplete(singleLocation)
+        if (onboardingDoneEmbedded || isOnboardingComplete) {
           router.replace("/dashboard")
         } else {
           router.replace("/onboarding/business-hours")
@@ -87,14 +82,8 @@ export default function MultipleLocationPage() {
     // If no customer, skip onboarding check
     if (!primaryCustomer) return
 
-    // Check onboarding status from customer data
-    const onboardingCompleted = primaryCustomer?.onboarding_completed === true
-    const businessHoursCompleted = primaryCustomer?.business_hours_setup_completed === true
-    const isOnboardingCompleteFromData = onboardingCompleted && businessHoursCompleted
-
-    // If onboarding is not complete, redirect to onboarding flow
-    // Always start with business-hours first
-    if (!isOnboardingCompleteFromData) {
+    const onboardingDoneEmbedded = isCustomerProfileOnboardingWizardComplete(primaryCustomer)
+    if (!onboardingDoneEmbedded && !isOnboardingComplete) {
       router.push("/onboarding/business-hours")
     }
   }, [user, isLoading, onboardingLoading, isOnboardingComplete, router])

@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { useOnboardingStatus } from "@/hooks/use-onboarding-status"
+import { isCustomerProfileOnboardingWizardComplete } from "@/lib/customer-onboarding-complete"
 
 export function OnboardingCheck() {
   const { user, isNewUser } = useAuth()
@@ -26,10 +27,13 @@ export function OnboardingCheck() {
     const isSuperAdmin = user.roles?.includes("superadmin")
     const isOnOnboardingPage = pathname?.startsWith("/onboarding")
     
-    // PRIORITY 1: If user is already onboarded and trying to access onboarding pages, redirect to dashboard
-    // BUT only if onboarding is truly complete (double-check from user data)
-    if (isOnOnboardingPage && isOnboardingComplete && !isSuperAdmin) {
-      // Double-check onboarding status from user data
+    // Already finished (API or embedded profile; office can be done with business hours alone)
+    if (isOnOnboardingPage && !isSuperAdmin) {
+      if (isOnboardingComplete) {
+        hasRedirectedRef.current = true
+        router.replace("/dashboard")
+        return
+      }
       let primaryCustomer = null
       if (user.customers && Array.isArray(user.customers) && user.customers.length > 0) {
         primaryCustomer = user.customers.find((c: any) => {
@@ -38,13 +42,7 @@ export function OnboardingCheck() {
       } else if (user.customer) {
         primaryCustomer = user.customer
       }
-
-      const onboardingCompleted = primaryCustomer?.onboarding_completed === true
-      const businessHoursCompleted = primaryCustomer?.business_hours_setup_completed === true
-      const isOnboardingCompleteFromData = onboardingCompleted && businessHoursCompleted
-
-      // Only redirect to dashboard if onboarding is confirmed complete
-      if (isOnboardingCompleteFromData) {
+      if (primaryCustomer && isCustomerProfileOnboardingWizardComplete(primaryCustomer)) {
         hasRedirectedRef.current = true
         router.replace("/dashboard")
         return

@@ -32,6 +32,27 @@ function cspUpgradeInsecureRequests() {
 const _cspHttpConnect = cspHttpApiConnectExtra();
 const _cspUpgrade = cspUpgradeInsecureRequests();
 
+/**
+ * Avoid browser CORS in local dev when the Laravel API runs on another port (e.g. :8080).
+ * Set in `.env.local`:
+ *   NEXT_PUBLIC_API_BASE_URL=http://localhost:3000/api-proxy/v1
+ *   API_PROXY_BACKEND_URL=http://localhost:8080
+ * Then `fetch(`${NEXT_PUBLIC_API_BASE_URL}/labs/…`)` is same-origin to Next (3000); Next proxies to Laravel.
+ */
+function apiDevProxyRewrites() {
+  const backend =
+    typeof process.env.API_PROXY_BACKEND_URL === 'string'
+      ? process.env.API_PROXY_BACKEND_URL.replace(/\/$/, '')
+      : '';
+  if (!backend) return [];
+  return [
+    {
+      source: '/api-proxy/v1/:path*',
+      destination: `${backend}/v1/:path*`,
+    },
+  ];
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Enable standalone output for Docker deployments
@@ -83,6 +104,9 @@ const nextConfig = {
   productionBrowserSourceMaps: false,
   // Optimize fonts
   optimizeFonts: true,
+  async rewrites() {
+    return [...apiDevProxyRewrites()];
+  },
   // Security headers
   async headers() {
     return [

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
 import { useOnboardingStatus } from "@/hooks/use-onboarding-status"
+import { isCustomerProfileOnboardingWizardComplete } from "@/lib/customer-onboarding-complete"
 
 type Location = {
   id: number
@@ -74,13 +75,8 @@ export default function MultipleLocation() {
       primaryCustomer = user.customer
     }
 
-    // Check onboarding status
-    const onboardingCompleted = primaryCustomer?.onboarding_completed === true
-    const businessHoursCompleted = primaryCustomer?.business_hours_setup_completed === true
-    const isOnboardingCompleteFromData = onboardingCompleted && businessHoursCompleted
-
-    // Only redirect to dashboard if onboarding is complete
-    if (isOnboardingCompleteFromData || isOnboardingComplete) {
+    const onboardingDoneEmbedded = isCustomerProfileOnboardingWizardComplete(primaryCustomer)
+    if (onboardingDoneEmbedded || isOnboardingComplete) {
       router.replace("/dashboard")
     } else {
       // Redirect to onboarding if not complete

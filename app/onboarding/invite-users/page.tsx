@@ -15,6 +15,9 @@ import { useToast } from "@/hooks/use-toast"
 import { SendingInvitesDialog } from "@/components/onboarding/sending-invites-dialog"
 import { useOnboardingStatus } from "@/hooks/use-onboarding-status"
 import { useAuth } from "@/contexts/auth-context"
+import { useBusinessSettings } from "@/contexts/business-settings-context"
+import { buildLabOnboardCompleteBody } from "@/lib/lab-onboard-complete-payload"
+import { postLabOnboardComplete } from "@/lib/api-lab-onboarding"
 
 interface Practice {
   id: number
@@ -31,7 +34,8 @@ interface FormErrors {
 export default function InvitePracticesPage() {
   const router = useRouter()
   const { user, logout } = useAuth()
-  const { isOnboardingComplete, isLoading: onboardingLoading } = useOnboardingStatus()
+  const { isOnboardingComplete, isLoading: onboardingLoading, refetch: refetchOnboardingStatus } = useOnboardingStatus()
+  const { workingDays, businessHours, caseSchedule } = useBusinessSettings()
   const [localSearchQuery, setLocalSearchQuery] = useState("")
   const [showResults, setShowResults] = useState(false)
   const [practiceName, setPracticeName] = useState("")
@@ -44,8 +48,9 @@ export default function InvitePracticesPage() {
   })
   const [customerId, setCustomerId] = useState<string | null>(localStorage.getItem("customerId") || null)
 
-  // Sending dialog state
+  // Sending dialog state (office onboarding only)
   const [isSending, setIsSending] = useState(false)
+  const [isLabCompleting, setIsLabCompleting] = useState(false)
 
   const searchRef = useRef<HTMLDivElement>(null)
 
@@ -55,6 +60,7 @@ export default function InvitePracticesPage() {
   const { toast } = useToast()
 
   const [customerType, setCustomerType] = useState(localStorage.getItem("customerType"))
+  const isLabCustomer = (customerType || "").toLowerCase() === "lab"
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -251,13 +257,58 @@ export default function InvitePracticesPage() {
    
   }
 
+  const completeLabOnboarding = async () => {
+    if (!customerId) {
+      toast({
+        title: "Error",
+        description: "Customer ID is missing.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const officeInvitations = invitedPractices
+      .map((p) => ({
+        name: p.name.trim(),
+        email: (p.email || "").trim(),
+      }))
+      .filter((o) => o.name && o.email && /\S+@\S+\.\S+/.test(o.email))
+
+    setIsLabCompleting(true)
+    try {
+      const body = buildLabOnboardCompleteBody(
+        Number(customerId),
+        officeInvitations,
+        workingDays,
+        businessHours,
+        caseSchedule,
+      )
+      await postLabOnboardComplete(body)
+      router.push("/onboarding/completion")
+      void refetchOnboardingStatus()
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Lab onboarding failed"
+      toast({
+        title: "Onboarding failed",
+        description: msg,
+        variant: "destructive",
+      })
+    } finally {
+      setIsLabCompleting(false)
+    }
+  }
+
   const handleDialogComplete = () => {
     setIsSending(false)
     router.push("/onboarding/completion")
   }
 
-  // Handle next button click
+  // Handle next / complete click
   const handleNextClick = () => {
+    if (isLabCustomer) {
+      void completeLabOnboarding()
+      return
+    }
     if (invitedPractices.length === 0) {
       toast({
         title: "No Practices to Invite",
@@ -266,8 +317,8 @@ export default function InvitePracticesPage() {
       })
       return
     }
-    setIsSending(true) // Show the dialog
-    executeSendInvitations() // Start sending invitations in background
+    setIsSending(true)
+    executeSendInvitations()
   }
 
   return (
@@ -438,22 +489,27 @@ export default function InvitePracticesPage() {
             <Button
               variant="outline"
               className="bg-[#eef1f4] border-[#eef1f4] hover:bg-[#dfeefb] hover:border-[#dfeefb]"
-              onClick={() => router.replace(customerType === "Office" ? "/onboarding/business-hours" : "/onboarding/product-grades")}
+              onClick={() => router.replace(isLabCustomer ? "/onboarding/invite-lab-team" : "/onboarding/business-hours")}
             >
               Previous
             </Button>
             <Button
               className="bg-[#1162a8] hover:bg-[#1162a8]/90 border border-[#1162a8]"
               onClick={handleNextClick}
-              disabled={isSending || invitationLoading}
+              disabled={isSending || invitationLoading || isLabCompleting}
             >
-              {isSending || invitationLoading ? (
+              {isLabCompleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Completing…
+                </>
+              ) : isSending || invitationLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Sending...
                 </>
               ) : (
-                "Next"
+                isLabCustomer ? "Complete setup" : "Next"
               )}
             </Button>
           </div>
@@ -461,7 +517,7 @@ export default function InvitePracticesPage() {
       </div>
 
       {/* Sending Dialog - Now a reusable component */}
-      <SendingInvitesDialog isOpen={isSending} onComplete={handleDialogComplete} practices={invitedPractices} />
+      <SendingInvitesDialog isOpen={!isLabCustomer && isSending} onComplete={handleDialogComplete} practices={invitedPractices} />
     </div>
   )
 }

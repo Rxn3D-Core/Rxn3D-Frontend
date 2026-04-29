@@ -2,8 +2,7 @@ import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { useOnboardingStatus } from "@/hooks/use-onboarding-status"
-
-/**
+import { isCustomerProfileOnboardingWizardComplete } from "@/lib/customer-onboarding-complete"
  * Hook to guard routes and redirect to onboarding if user is not onboarded
  * @param options - Configuration options
  * @param options.skipCheck - Skip onboarding check (for superadmin or special cases)
@@ -43,20 +42,16 @@ export function useOnboardingGuard(options: {
     // If no customer, skip onboarding check
     if (!primaryCustomer) return
 
-    // Check onboarding status from customer data
-    const onboardingCompleted = primaryCustomer?.onboarding_completed === true
-    const businessHoursCompleted = primaryCustomer?.business_hours_setup_completed === true
-    const isOnboardingCompleteFromData = onboardingCompleted && businessHoursCompleted
+    const onboardingDoneEmbedded = isCustomerProfileOnboardingWizardComplete(primaryCustomer)
 
     // If custom redirect path is provided, use it
-    if (options.redirectPath && !isOnboardingCompleteFromData) {
+    if (options.redirectPath && !onboardingDoneEmbedded && !isOnboardingComplete) {
       router.replace(options.redirectPath)
       return
     }
 
     // If onboarding is not complete, redirect to onboarding flow
-    // Always start with business-hours first
-    if (!isOnboardingCompleteFromData) {
+    if (!onboardingDoneEmbedded && !isOnboardingComplete) {
       router.replace("/onboarding/business-hours")
     }
   }, [user, authLoading, onboardingLoading, isOnboardingComplete, router, options.skipCheck, options.redirectPath])
