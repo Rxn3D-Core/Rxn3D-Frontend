@@ -2,7 +2,8 @@ import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { useOnboardingStatus } from "@/hooks/use-onboarding-status"
-import { isCustomerProfileOnboardingWizardComplete } from "@/lib/customer-onboarding-complete"
+
+/**
  * Hook to guard routes and redirect to onboarding if user is not onboarded
  * @param options - Configuration options
  * @param options.skipCheck - Skip onboarding check (for superadmin or special cases)
@@ -13,7 +14,8 @@ export function useOnboardingGuard(options: {
   redirectPath?: string
 } = {}) {
   const { user, isLoading: authLoading } = useAuth()
-  const { isOnboardingComplete, isLoading: onboardingLoading } = useOnboardingStatus()
+  const { isOnboardingComplete, isLoading: onboardingLoading, onboardingStatus, error } =
+    useOnboardingStatus()
   const router = useRouter()
 
   useEffect(() => {
@@ -32,34 +34,43 @@ export function useOnboardingGuard(options: {
     // Get primary customer from user
     let primaryCustomer = null
     if (user.customers && Array.isArray(user.customers) && user.customers.length > 0) {
-      primaryCustomer = user.customers.find((c: any) => {
-        return c?.is_primary === true || c?.is_primary === 1 || c?.is_primary === "1"
-      }) || user.customers[0]
+      primaryCustomer =
+        user.customers.find((c: any) => {
+          return c?.is_primary === true || c?.is_primary === 1 || c?.is_primary === "1"
+        }) || user.customers[0]
     } else if (user.customer) {
       primaryCustomer = user.customer
     }
 
     // If no customer, skip onboarding check
     if (!primaryCustomer) return
-
-    const onboardingDoneEmbedded = isCustomerProfileOnboardingWizardComplete(primaryCustomer)
+    if (error || onboardingStatus === null) return
 
     // If custom redirect path is provided, use it
-    if (options.redirectPath && !onboardingDoneEmbedded && !isOnboardingComplete) {
+    if (options.redirectPath && !isOnboardingComplete) {
       router.replace(options.redirectPath)
       return
     }
 
     // If onboarding is not complete, redirect to onboarding flow
-    if (!onboardingDoneEmbedded && !isOnboardingComplete) {
+    if (!isOnboardingComplete) {
       router.replace("/onboarding/business-hours")
     }
-  }, [user, authLoading, onboardingLoading, isOnboardingComplete, router, options.skipCheck, options.redirectPath])
+  }, [
+    user,
+    authLoading,
+    onboardingLoading,
+    isOnboardingComplete,
+    onboardingStatus,
+    error,
+    router,
+    options.skipCheck,
+    options.redirectPath,
+  ])
 
   return {
     isLoading: authLoading || onboardingLoading,
     isOnboardingComplete,
-    user
+    user,
   }
 }
-
