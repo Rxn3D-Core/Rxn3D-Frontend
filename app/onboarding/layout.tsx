@@ -1,12 +1,10 @@
 "use client"
 
 import type React from "react"
-import React from "react"
+import React, { useEffect } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { useOnboardingStatus } from "@/hooks/use-onboarding-status"
-import { isCustomerProfileOnboardingWizardComplete } from "@/lib/customer-onboarding-complete"
-import { useEffect } from "react"
 import { Loader2 } from "lucide-react"
 
 export default function OnboardingLayout({
@@ -15,7 +13,7 @@ export default function OnboardingLayout({
   children: React.ReactNode
 }) {
   const { user } = useAuth()
-  const { isOnboardingComplete, isLoading } = useOnboardingStatus()
+  const { isOnboardingComplete, isLoading, onboardingStatus, error } = useOnboardingStatus()
   const router = useRouter()
   const pathname = usePathname() || ""
   const hasRedirectedRef = React.useRef(false)
@@ -41,13 +39,11 @@ export default function OnboardingLayout({
     } else if (user.customer) {
       primaryCustomer = user.customer
     }
+    if (!primaryCustomer) return
+    if (error || onboardingStatus === null) return
 
-    const doneFromJwt =
-      primaryCustomer !== null && isCustomerProfileOnboardingWizardComplete(primaryCustomer)
-    const alreadyDone = isOnboardingComplete || doneFromJwt
-
-    // Match dashboard / OnboardingCheck: API or JWT can indicate completion (they can briefly disagree)
-    if (alreadyDone) {
+    // setup-status API only (via useOnboardingStatus)
+    if (isOnboardingComplete) {
       // Don't redirect superadmins - they can access onboarding pages
       if (!isSuperAdmin) {
         // Allow completion screen to render (it may redirect locally)
@@ -60,7 +56,7 @@ export default function OnboardingLayout({
         router.replace("/dashboard")
       }
     }
-  }, [isLoading, user, isOnboardingComplete, router, pathname])
+  }, [isLoading, user, isOnboardingComplete, onboardingStatus, error, router, pathname])
 
   // Calculate progress based on current path
   const getProgress = () => {

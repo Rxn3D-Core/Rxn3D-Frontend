@@ -4,11 +4,10 @@ import { useEffect, useRef } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { useOnboardingStatus } from "@/hooks/use-onboarding-status"
-import { isCustomerProfileOnboardingWizardComplete } from "@/lib/customer-onboarding-complete"
 
 export function OnboardingCheck() {
   const { user, isNewUser } = useAuth()
-  const { isOnboardingComplete, isLoading } = useOnboardingStatus()
+  const { isOnboardingComplete, isLoading, onboardingStatus, error } = useOnboardingStatus()
   const router = useRouter()
   const pathname = usePathname()
   const hasRedirectedRef = useRef(false)
@@ -27,26 +26,17 @@ export function OnboardingCheck() {
     const isSuperAdmin = user.roles?.includes("superadmin")
     const isOnOnboardingPage = pathname?.startsWith("/onboarding")
     
-    // Already finished (API or embedded profile; office can be done with business hours alone)
-    if (isOnOnboardingPage && !isSuperAdmin) {
-      if (isOnboardingComplete) {
-        hasRedirectedRef.current = true
-        router.replace("/dashboard")
-        return
-      }
-      let primaryCustomer = null
-      if (user.customers && Array.isArray(user.customers) && user.customers.length > 0) {
-        primaryCustomer = user.customers.find((c: any) => {
-          return c?.is_primary === true || c?.is_primary === 1 || c?.is_primary === "1"
-        }) || user.customers[0]
-      } else if (user.customer) {
-        primaryCustomer = user.customer
-      }
-      if (primaryCustomer && isCustomerProfileOnboardingWizardComplete(primaryCustomer)) {
-        hasRedirectedRef.current = true
-        router.replace("/dashboard")
-        return
-      }
+    // Finished per setup-status API (only)
+    if (
+      isOnOnboardingPage &&
+      !isSuperAdmin &&
+      onboardingStatus !== null &&
+      !error &&
+      isOnboardingComplete
+    ) {
+      hasRedirectedRef.current = true
+      router.replace("/dashboard")
+      return
     }
 
     // Get customerId from localStorage as primary source, fallback to user.customer?.id
@@ -75,13 +65,15 @@ export function OnboardingCheck() {
     if (
       isNewUser &&
       !isOnboardingComplete &&
+      !error &&
+      onboardingStatus !== null &&
       !isSuperAdmin &&
       (isDifferentCustomer || !customerId)
     ) {
       hasRedirectedRef.current = true
       router.push("/onboarding/business-hours")
     }
-  }, [user, isNewUser, isOnboardingComplete, isLoading, router, pathname])
+  }, [user, isNewUser, isOnboardingComplete, isLoading, onboardingStatus, error, router, pathname])
 
   // Reset redirect flag when onboarding is complete or user changes
   useEffect(() => {
