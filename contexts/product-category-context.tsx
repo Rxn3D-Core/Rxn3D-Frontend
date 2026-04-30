@@ -93,8 +93,6 @@ type ProductCategoryContextType = {
 
   // For "Nest Sub Category Under" dropdown in AddCategoryModal
   parentDropdownCategories: ProductCategory[]
-  /** Same `/library/categories` payload as above, kept with nested subcategories (`subcategories`) for Add/Edit product modals */
-  categoriesWithSubcategories: any[]
   isLoadingParentDropdown: boolean
   fetchParentDropdownCategories: () => Promise<void>
 
@@ -228,9 +226,8 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
 
   // State for parent dropdown in modal
   const [parentDropdownCategories, setParentDropdownCategories] = useState<ProductCategory[]>([])
-  const [categoriesWithSubcategories, setCategoriesWithSubcategories] = useState<any[]>([])
-  const [isLoadingParentDropdown, setIsLoadingParentDropdown] = useState(false)
   const [categoriesWithSubcategories, setCategoriesWithSubcategories] = useState<CategoryWithSubcategories[]>([])
+  const [isLoadingParentDropdown, setIsLoadingParentDropdown] = useState(false)
 
   // State for messages and animations
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
@@ -486,15 +483,8 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
       )
       if (!response.ok) throw new Error("Failed to fetch categories for dropdown.")
       const responseData = await response.json()
-<<<<<<< HEAD
-      const rawCategories = responseData.data?.data || []
-      // Flat rows for legacy "Nest Sub Category Under" / simple parent picker
+      const rawCategories: any[] = responseData.data?.data || []
       const categories = rawCategories.map((cat: any) => ({
-=======
-      const raw: any[] = responseData.data?.data || []
-      // Populate flat list for parent dropdown
-      setParentDropdownCategories(raw.map((cat: any) => ({
->>>>>>> afdef83b7cf14830009821f7b15758e5589fb4ed
         id: cat.id,
         name: cat.name,
         code: cat.code,
@@ -505,19 +495,12 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
         case_pan_id: cat.case_pan_id || null,
         created_at: cat.created_at,
         updated_at: cat.updated_at,
-<<<<<<< HEAD
       }))
       setParentDropdownCategories(categories)
       setCategoriesWithSubcategories(normalizeCategoriesWithNestedSubcategories(rawCategories))
-=======
-      })))
-      // Populate categories-with-subcategories for product form dropdowns (same response)
-      setCategoriesWithSubcategories(raw)
-      // Also populate allCategories so fetchAllCategories can skip its own request
-      setAllCategories(raw)
+      setAllCategories(rawCategories)
       lastFetchParamsRef.current = { lang: currentLanguage, customerId: customerId ?? undefined }
-      hasCategoriesLoadedRef.current = raw.length > 0
->>>>>>> afdef83b7cf14830009821f7b15758e5589fb4ed
+      hasCategoriesLoadedRef.current = rawCategories.length > 0
     } catch (err: any) {
       console.error("Error fetching categories for dropdown.", err)
       toast({ title: "Error", description: "Failed to load categories for dropdown.", variant: "destructive" })
@@ -1038,7 +1021,6 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
         subcategoriesLoading,
         subcategoriesError,
         fetchSubcategoriesByCategory,
-        categoriesWithSubcategories,
         fetchCategoriesWithSubcategories,
       }}
     >
