@@ -357,6 +357,12 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
   const fetchingCategoriesRef = useRef(false)
   const fetchingCategoriesForSelectRef = useRef(false)
 
+  // Listing pages pass explicit page/limit into fetch* while context still owns default
+  // currentPage/itemsPerPage (often 1/10). CRUD refetches must use the last params the UI requested.
+  const lastAddOnsListParamsRef = useRef({ page: 1, limit: 10 })
+  const lastAddOnCategoryListParamsRef = useRef({ page: 1, limit: 10 })
+  const lastAddOnSubcategoryListParamsRef = useRef({ page: 1, limit: 10 })
+
   // Memoize the fetchAddOns function and add duplicate call prevention
   const fetchAddOns = useCallback(
     async (
@@ -375,6 +381,7 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
       if (!headers) return
 
       fetchingRef.current = true
+      lastAddOnsListParamsRef.current = { page, limit }
       setIsLoadingAddOns(true)
       setAddOnError(null)
 
@@ -464,7 +471,8 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
           : { message: result.message || "Failed to create add-on" }
         throw { response: { data: errorData, status: response.status } }
       }
-      fetchAddOns(currentPage, itemsPerPage, searchQuery, sortColumn, sortDirection)
+      const { page: addOnsPage, limit: addOnsLimit } = lastAddOnsListParamsRef.current
+      fetchAddOns(addOnsPage, addOnsLimit, searchQuery, sortColumn, sortDirection)
       setSuccessMessage(`Successfully created ${data.name}`)
       setShowAnimation(false) 
       setAnimationType(null)
@@ -513,7 +521,8 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
       }
 
       triggerAnimation("success", result.message || "Add-on updated successfully!")
-      fetchAddOns(currentPage, itemsPerPage, searchQuery, sortColumn as string, sortDirection)
+      const { page: addOnsPage, limit: addOnsLimit } = lastAddOnsListParamsRef.current
+      fetchAddOns(addOnsPage, addOnsLimit, searchQuery, sortColumn as string, sortDirection)
       return result.data
     } catch (error: any) {
       handleApiError(error, "update add-on")
@@ -544,9 +553,11 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
         triggerAnimation("success", isSubcategory ? "Add-on subcategory deleted successfully!" : "Add-on category deleted successfully!")
         // Refresh the appropriate list
         if (isSubcategory) {
-          fetchAddOnSubcategories(currentPage, itemsPerPage, searchQuery, sortColumn as string, sortDirection)
+          const { page: p, limit: l } = lastAddOnSubcategoryListParamsRef.current
+          fetchAddOnSubcategories(p, l, searchQuery, sortColumn as string, sortDirection)
         } else {
-          fetchAddOnCategories(currentPage, itemsPerPage, searchQuery, sortColumn as string, sortDirection)
+          const { page: p, limit: l } = lastAddOnCategoryListParamsRef.current
+          fetchAddOnCategories(p, l, searchQuery, sortColumn as string, sortDirection)
         }
         return true
       }
@@ -563,9 +574,11 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
       triggerAnimation("success", result.message || (isSubcategory ? "Add-on subcategory deleted successfully!" : "Add-on category deleted successfully!"))
       // Refresh the appropriate list
       if (isSubcategory) {
-        fetchAddOnSubcategories(currentPage, itemsPerPage, searchQuery, sortColumn as string, sortDirection)
+        const { page: p, limit: l } = lastAddOnSubcategoryListParamsRef.current
+        fetchAddOnSubcategories(p, l, searchQuery, sortColumn as string, sortDirection)
       } else {
-        fetchAddOnCategories(currentPage, itemsPerPage, searchQuery, sortColumn as string, sortDirection)
+        const { page: p, limit: l } = lastAddOnCategoryListParamsRef.current
+        fetchAddOnCategories(p, l, searchQuery, sortColumn as string, sortDirection)
       }
       return true
     } catch (error: any) {
@@ -604,7 +617,8 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
       }
 
       triggerAnimation("success", result.message || "Add-on category created successfully!")
-      await fetchAddOnCategories(currentPage, itemsPerPage, searchQuery, sortColumn as string, sortDirection)
+      const { page: catPage, limit: catLimit } = lastAddOnCategoryListParamsRef.current
+      await fetchAddOnCategories(catPage, catLimit, searchQuery, sortColumn as string, sortDirection)
       categoriesFetchedRef.current = false
       await fetchAddOnCategoriesForSelect()
       return result.data
@@ -647,7 +661,8 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
       }
 
       triggerAnimation("success", result.message || "Add-on category updated successfully!")
-      await fetchAddOnCategories(currentPage, itemsPerPage, searchQuery, sortColumn as string, sortDirection)
+      const { page: catPage, limit: catLimit } = lastAddOnCategoryListParamsRef.current
+      await fetchAddOnCategories(catPage, catLimit, searchQuery, sortColumn as string, sortDirection)
       categoriesFetchedRef.current = false
       await fetchAddOnCategoriesForSelect()
       return result.data
@@ -690,7 +705,8 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
       }
 
       triggerAnimation("success", result.message || "Add-on subcategory updated successfully!")
-      fetchAddOnSubcategories(currentPage, itemsPerPage, searchQuery, sortColumn as string, sortDirection)
+      const { page: subPage, limit: subLimit } = lastAddOnSubcategoryListParamsRef.current
+      fetchAddOnSubcategories(subPage, subLimit, searchQuery, sortColumn as string, sortDirection)
       categoriesFetchedRef.current = false
       fetchAddOnCategoriesForSelect()
       return result.data
@@ -731,7 +747,8 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
 
       triggerAnimation("success", result.message || "Add-on Sub-category created successfully!")
       setSuccessMessage(`Successfully created ${data.name}`)
-      fetchAddOnSubcategories(currentPage, itemsPerPage, searchQuery, sortColumn as string, sortDirection)
+      const { page: subPage, limit: subLimit } = lastAddOnSubcategoryListParamsRef.current
+      fetchAddOnSubcategories(subPage, subLimit, searchQuery, sortColumn as string, sortDirection)
       categoriesFetchedRef.current = false
       fetchAddOnCategoriesForSelect()
       return result.data
@@ -761,6 +778,7 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
       if (!headers) return
 
       fetchingCategoriesRef.current = true
+      lastAddOnCategoryListParamsRef.current = { page, limit }
       setIsLoadingAddOnCategories(true)
       setAddOnCategoriesError(null)
 
@@ -837,6 +855,7 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
       setAddOnSubcategoriesError(null)
 
       try {
+        lastAddOnSubcategoryListParamsRef.current = { page, limit }
         const params = new URLSearchParams({
           page: page.toString(),
           per_page: limit.toString(),
