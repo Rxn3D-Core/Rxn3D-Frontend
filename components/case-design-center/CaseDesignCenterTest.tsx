@@ -334,6 +334,7 @@ export default function Page() {
   const [hasToothStatusValidation, setHasToothStatusValidation] = useState(false);
   // Once true, CaseDesignCenter stays mounted (hidden via CSS) so hook state survives Add Product wizard
   const [caseDesignMounted, setCaseDesignMounted] = useState(false);
+  const [isAnyModalOpen, setIsAnyModalOpen] = useState(false);
 
   // ---- Add Product via wizard redirect ----
   const [wizardKey, setWizardKey] = useState(0);
@@ -619,6 +620,7 @@ export default function Page() {
               initialArch={initialArch}
               slipCollectorRef={slipCollectorRef}
               confirmDetailsChecked={confirmDetailsChecked}
+              onAnyModalOpenChange={setIsAnyModalOpen}
             />
             {showDetails && (
               <CaseSummaryNotes
@@ -635,7 +637,7 @@ export default function Page() {
       </main>
 
       {/* Footer - outside main to avoid overflow clipping */}
-      {wizardComplete && !caseSubmitted && (
+      {wizardComplete && !caseSubmitted && !isAnyModalOpen && (
         <SlipCreationStepFooter
           mode="submit"
           confirmDetailsChecked={confirmDetailsChecked}

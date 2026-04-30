@@ -21,17 +21,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import type { CategoryWithSubcategories } from "@/contexts/product-category-context"
 
 /** Custom per-count pricing: up to 16 teeth (full arch); `sm+` uses 8 columns (row 1: 1–8, row 2: 9–16). */
 const MAX_TEETH = 16
 const PREVIEW_TEETH_COUNT = 8
-
-type CategoryWithSubcategories = {
-  id: number
-  name: string
-  code: string
-  subcategories: Array<{ id: number; name: string; category_id: number }>
-}
 
 // ─── Teeth Pricing Sub-component ─────────────────────────────────────────────
 
@@ -655,10 +649,14 @@ export function ProductDetailsSection({
       return { ...c, subcategories: [...subs] }
     })
     if (editingProduct?.subcategory) {
-      const editCatId = editingProduct.subcategory.category_id || editingProduct.subcategory.category?.id
+      const editCatId = Number(editingProduct.subcategory.category_id || editingProduct.subcategory.category?.id)
       const editCatName = editingProduct.subcategory.category?.name
       const editSub = { id: editingProduct.subcategory.id, name: editingProduct.subcategory.name, category_id: editCatId }
+<<<<<<< HEAD
       const existingCat = cats.find((c: any) => Number(c.id) === Number(editCatId))
+=======
+      const existingCat = cats.find((c: any) => Number(c.id) === editCatId)
+>>>>>>> afdef83b7cf14830009821f7b15758e5589fb4ed
       if (existingCat) {
         // Ensure the editing product's subcategory is included in the existing category
         if (!existingCat.subcategories?.some((s: any) => s.id === editSub.id)) {
@@ -674,7 +672,13 @@ export function ProductDetailsSection({
         })
       }
     }
-    return cats
+    // Deduplicate by id in case the API or fallback logic produces duplicates
+    const seen = new Set<number>()
+    return cats.filter((c) => {
+      if (seen.has(c.id)) return false
+      seen.add(c.id)
+      return true
+    })
   }, [categoriesWithSubcategories, editingProduct])
 
   // Get available subcategories based on selected category

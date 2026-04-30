@@ -1052,8 +1052,8 @@ export function AddLabProductModal({
     fetchGrades()
     fetchStages()
     fetchImpressions()
-    fetchGumShadeBrands() // fetch all brands without pagination
-    fetchTeethShadeBrands() // fetch all brands without pagination
+    fetchGumShadeBrands()
+    fetchTeethShadeBrands()
     fetchMaterials()
     fetchRetentions()
     fetchAllAddOns()
