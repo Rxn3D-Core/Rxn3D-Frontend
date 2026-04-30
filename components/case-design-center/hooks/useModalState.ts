@@ -45,7 +45,16 @@ export function useModalState() {
   // Tracks product+arch combos where user chose "Submit, no opposing needed"
   const [noOpposingNeeded, setNoOpposingNeeded] = useState<Record<string, boolean>>({});
 
+  const closeAllModals = () => {
+    setShowImpressionModal(false);
+    setIsStageModalOpen(false);
+    setShowAddOnsModal(false);
+    setShowRushModal(false);
+    setShowAttachModal(false);
+  };
+
   const handleOpenImpressionModal = (arch: Arch, productId: string, toothNumber?: number) => {
+    closeAllModals();
     setCurrentImpressionArch(arch);
     setCurrentImpressionProductId(productId);
     setCurrentImpressionToothNumber(toothNumber ?? null);
@@ -53,6 +62,7 @@ export function useModalState() {
   };
 
   const handleOpenAddOnsModal = (arch: Arch, productId: string, toothNumber?: number) => {
+    closeAllModals();
     setCurrentAddOnsArch(arch);
     setCurrentAddOnsProductId(productId);
     setCurrentAddOnsToothNumber(toothNumber ?? null);
@@ -60,6 +70,7 @@ export function useModalState() {
   };
 
   const handleOpenRushModal = (arch: Arch, productId: string, maxProductId?: string, mandProductId?: string) => {
+    closeAllModals();
     setCurrentRushArch(arch);
     setCurrentRushProductId(productId);
     setCurrentRushMaxProductId(maxProductId ?? "");
@@ -86,6 +97,7 @@ export function useModalState() {
   };
 
   const handleOpenStageModal = (productId: string, arch?: Arch, toothNumber?: number) => {
+    closeAllModals();
     setCurrentStageProductId(productId);
     setCurrentStageArch(arch ?? "maxillary");
     setCurrentStageToothNumber(toothNumber ?? null);

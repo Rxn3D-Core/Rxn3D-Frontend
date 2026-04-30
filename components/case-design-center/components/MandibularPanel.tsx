@@ -339,11 +339,26 @@ function ScrollToBottom() {
  *  - The step always shows regardless of advance_fields (stage, impression, addons, notes)
  *  - A matching advance_field name is found
  */
+/** Returns true if the product is a full-denture type: no TIM extraction, only "Missing teeth" extraction. */
+function isFullDentureProduct(extractions: Array<{ code: string; name: string; status: string }> | undefined): boolean {
+  if (!extractions || extractions.length === 0) return false;
+  const active = extractions.filter((e) => e.status === "Active");
+  if (active.length === 0) return false;
+  const hasTim = active.some((e) => e.code === "TIM" || (e.name ?? "").toLowerCase().trim() === "teeth in mouth");
+  if (hasTim) return false;
+  return active.every((e) => e.code === "MT" || (e.name ?? "").toLowerCase().trim() === "missing teeth");
+}
+
 function hasAdvanceField(
   step: string,
-  advanceFields: Array<{ name: string; field_type: string }> | undefined
+  advanceFields: Array<{ name: string; field_type: string }> | undefined,
+  product?: { has_impression?: "Yes" | "No" | null }
 ): boolean {
-  const alwaysShow = ["fixed_stage", "fixed_impression", "fixed_addons", "stage", "impression", "addons"];
+  // Removable impression is only shown when the product explicitly supports it
+  if (step === "impression") {
+    return product?.has_impression === "Yes";
+  }
+  const alwaysShow = ["fixed_stage", "fixed_impression", "fixed_addons", "stage", "addons"];
   if (alwaysShow.includes(step)) return true;
   if (!advanceFields || advanceFields.length === 0) return true;
 
@@ -586,6 +601,8 @@ interface MandibularPanelProps {
   card0Extractions?: ProductExtraction[];
   /** Product+arch combos where user chose "Submit, no opposing needed" */
   noOpposingNeeded?: Record<string, boolean>;
+  /** Impression selections by key (productId_arch_impressionValue → qty) */
+  selectedImpressions?: Record<string, number>;
   /** When set, renders the opposing product accordion for Removable Restoration products with opposite_extractions */
   opposingProductData?: ProductApiData | null;
   /**
@@ -698,6 +715,7 @@ export function MandibularPanel({
   card0Extractions = [],
   removablesImpressionDone = false,
   noOpposingNeeded = {},
+  selectedImpressions = {},
   opposingProductData = null,
   opposingToothExtractionMap = {},
   onOpposingExtractionToggle,
@@ -754,6 +772,27 @@ export function MandibularPanel({
   }, [activeProductCardId, addedProducts]);
   /** Panel-level gum shade picker state — shown above tooth status boxes */
   const [panelGumShadePicker, setPanelGumShadePicker] = useState<{ toothNumber: number; gumShades: { gum_shade_id: number; name: string; color_code_middle: string; brand: { id: number } }[]; selectedName?: string | null } | null>(null);
+  // Mutual exclusion: close gum shade picker when tooth shade picker opens for this arch
+  useEffect(() => {
+    if (shadeSelectionState.arch === "mandibular" && shadeSelectionState.fieldType !== null) {
+      setPanelGumShadePicker(null);
+    }
+  }, [shadeSelectionState.arch, shadeSelectionState.fieldType]);
+  // Mutual exclusion: close tooth shade picker when gum shade picker opens
+  useEffect(() => {
+    if (panelGumShadePicker !== null) {
+      setShadeSelectionState({ arch: null, fieldType: null, productId: null });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panelGumShadePicker]);
+  // Close both shade pickers when any modal opens
+  useEffect(() => {
+    if (isAnyModalOpen) {
+      setShadeSelectionState({ arch: null, fieldType: null, productId: null });
+      setPanelGumShadePicker(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAnyModalOpen]);
   // Auto-select default grade for removable products when product loads
   const autoGradeApplied = useRef<Set<string>>(new Set());
   useEffect(() => {
@@ -923,6 +962,13 @@ export function MandibularPanel({
         {showMandibular && (
           <div className="pr-9">
             {activeProductIsRemovables && !confirmDetailsChecked ? (() => {
+              const activeExtractions = activeProductCardId !== 0
+                ? addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "mandibular")?.product?.extractions
+                : (() => {
+                    const t = MANDIBULAR_ALL_TEETH.find(tn => getToothProductCard("mandibular", tn) === 0);
+                    return t ? getToothProduct("mandibular", t)?.extractions : undefined;
+                  })();
+              if (isFullDentureProduct(activeExtractions)) return null;
               const removableTeethCount = activeProductCardId !== 0
                 ? MANDIBULAR_ALL_TEETH.filter(tn => getToothProductCard("mandibular", tn) === activeProductCardId).length
                 : MANDIBULAR_ALL_TEETH.filter(tn => { const code = mandibularToothExtractionMap[tn]; return code && code !== "TIM"; }).length;
@@ -1280,6 +1326,16 @@ export function MandibularPanel({
                 ? (getToothProduct("mandibular", apRepTn)?.extractions ?? [])
                 : [];
 
+              // Full denture detection: only MT extraction, no TIM
+              const apIsFullDenture = isApRemovables && isFullDentureProduct(apExtractions);
+              // Replacing teeth: exclude MT-coded teeth (missing teeth should not count toward "to replace")
+              const apReplacingTeeth = apIsFullDenture
+                ? []
+                : assignedTeeth.filter(tn => {
+                    const code = mandibularToothExtractionMap[tn];
+                    return !code || code === "TIM" || (code !== "MT");
+                  });
+
               const apImpressionDone = apRepTn !== 0 && (
                 isFieldCompleted("mandibular", apRepTn, "impression") ||
                 isFieldCompleted("mandibular", apRepTn, "fixed_impression")
@@ -1333,7 +1389,9 @@ export function MandibularPanel({
                               {/* Title + tooth numbers in green-bordered box */}
                               <div className={`flex flex-col items-center text-center gap-[5px] border rounded-[7px] p-[10px] mr-8 ${confirmDetailsChecked ? "border-[#34C759]" : "border-[#F97316]"}`}>
                                 <p className="font-[Inter] text-[20px] font-bold leading-[20px] tracking-[-0.02em] text-black">
-                                  {cardProductName} {assignedTeeth.length} {assignedTeeth.length === 1 ? "tooth" : "teeth"} to replace
+                                  {apIsFullDenture
+                                    ? cardProductName
+                                    : `${cardProductName} ${apReplacingTeeth.length} ${apReplacingTeeth.length === 1 ? "tooth" : "teeth"} to replace`}
                                   {hasRushedAp && <RushIcon className="inline w-[14px] h-[14px] ml-1" />}
                                 </p>
                                 <p className="font-[Inter] text-[20px] font-normal leading-[20px] tracking-[-0.02em] text-black">
@@ -1505,7 +1563,10 @@ export function MandibularPanel({
                         const isRemovables = isCardRemovables || isRemovableCategory(categoryName);
                         const fixedChain = isFixed ? getFixedFieldChain(toothProduct?.advance_fields) : undefined;
                         const advFields = toothProduct?.advance_fields;
-                        const isF = (step: string) => isFieldVisible("mandibular", repTn, step as any, fixedChain);
+                        const isF = (step: string) => {
+                          if (step === "impression") return toothProduct?.has_impression === "Yes" && isFieldVisible("mandibular", repTn, step as any, fixedChain);
+                          return isFieldVisible("mandibular", repTn, step as any, fixedChain);
+                        };
                         const isFComplete = (step: string) => isFieldCompleted("mandibular", repTn, step as any);
                         const fVal = (step: string) => getFieldValue("mandibular", repTn, step as any);
 
@@ -2080,10 +2141,20 @@ export function MandibularPanel({
             const cardProduct = getToothProduct("mandibular", cardTeeth[0]);
             // mandibularTeeth is auto-populated with all arch teeth by runMissingTeethAutoSelect, so use
             // the extraction map directly — only teeth with explicit non-TIM codes were user-assigned.
-            const displayTeeth = MANDIBULAR_ALL_TEETH.filter(tn => {
+            const allAssignedTeeth = MANDIBULAR_ALL_TEETH.filter(tn => {
               const code = mandibularToothExtractionMap[tn];
               return code && code !== "TIM";
             }).sort((a, b) => a - b);
+            // For full dentures, all assigned teeth are "missing" — no separate "to replace" count.
+            const cardIsFullDenture = isFullDentureProduct(cardProduct?.extractions);
+            // Replacing teeth: non-MT codes (WED, WEOD, FR, etc.) — what the patient will replace
+            const replacingTeeth = cardIsFullDenture
+              ? []
+              : allAssignedTeeth.filter(tn => {
+                  const code = mandibularToothExtractionMap[tn];
+                  return code && code !== "MT";
+                });
+            const displayTeeth = cardIsFullDenture ? allAssignedTeeth : replacingTeeth;
             const variationDisplay = resolveVariationDisplay(cardProduct, displayTeeth.length);
             const cardProductName = variationDisplay.name;
             const cardProductImage = variationDisplay.imageUrl;
@@ -2162,9 +2233,11 @@ export function MandibularPanel({
                           {/* Title + tooth numbers in green-bordered box */}
                           <div className={`flex flex-col items-center text-center gap-[5px] border rounded-[7px] p-[10px] mr-8 ${confirmDetailsChecked ? "border-[#34C759]" : "border-[#F97316]"}`}>
                             <p className="font-[Inter] text-[20px] font-bold leading-[20px] tracking-[-0.02em] text-black">
-                              {hasVariationMatch
-                                ? `${cardProductName} to replace`
-                                : `${cardProductName} ${displayTeeth.length} ${displayTeeth.length === 1 ? "tooth" : "teeth"} to replace`}
+                              {cardIsFullDenture
+                                ? cardProductName
+                                : hasVariationMatch
+                                  ? `${cardProductName} to replace`
+                                  : `${cardProductName} ${displayTeeth.length} ${displayTeeth.length === 1 ? "tooth" : "teeth"} to replace`}
                               {hasRushedRemovables && <RushIcon className="inline w-[14px] h-[14px] ml-1" />}
                             </p>
                             <p className="font-[Inter] text-[20px] font-normal leading-[20px] tracking-[-0.02em] text-black">
@@ -2231,7 +2304,7 @@ export function MandibularPanel({
                       const repTn = cardTeeth[0];
                       const toothProduct = getToothProduct("mandibular", repTn);
                       const advFields = toothProduct?.advance_fields;
-                      const isF = (step: string) => hasAdvanceField(step, advFields) && isFieldVisible("mandibular", repTn, step as any);
+                      const isF = (step: string) => hasAdvanceField(step, advFields, toothProduct ?? undefined) && isFieldVisible("mandibular", repTn, step as any);
                       const isFComplete = (step: string) => isFieldCompleted("mandibular", repTn, step as any);
                       const fVal = (step: string) => getFieldValue("mandibular", repTn, step as any);
                       const productKey = `mandibular_prep_${repTn}`;
@@ -2428,8 +2501,12 @@ export function MandibularPanel({
             );
           })()}
 
-          {/* Opposing product accordion — shown when selected Removable Restoration product has opposite section */}
+          {/* Opposing product accordion — shown only when an opposing impression was selected in the modal */}
           {showDetails && opposingProductData && (opposingProductData.opposite_impression === "Yes" || (opposingProductData.opposite_extractions?.length ?? 0) > 0) && (() => {
+            const hasOpposingImpressionSelected = Object.entries(selectedImpressions).some(
+              ([key, qty]) => key.startsWith("maxillary_prep_") && key.includes("_mandibular_") && qty > 0
+            );
+            if (!hasOpposingImpressionSelected) return null;
             // Map ProductOppositeExtraction to ProductExtraction shape for ToothStatusBoxes
             const opposingExtractions: import("../types").ProductExtraction[] = (opposingProductData.opposite_extractions ?? []).map(e => ({
               id: e.id,

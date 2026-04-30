@@ -723,6 +723,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           maxillaryHasRemovablesCard0={maxillaryHasRemovablesCard0}
           removablesImpressionDone={maxillaryRemovablesImpressionDone}
           noOpposingNeeded={state.noOpposingNeeded}
+          selectedImpressions={state.selectedImpressions}
           opposingProductData={
             initialProductHasOppositeSection &&
             props.initialArch === "mandibular" &&
@@ -847,6 +848,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           mandibularHasRemovablesCard0={mandibularHasRemovablesCard0}
           removablesImpressionDone={mandibularRemovablesImpressionDone}
           noOpposingNeeded={state.noOpposingNeeded}
+          selectedImpressions={state.selectedImpressions}
           opposingProductData={
             initialProductHasOppositeSection &&
             props.initialArch === "maxillary" &&

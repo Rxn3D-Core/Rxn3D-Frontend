@@ -466,6 +466,7 @@ export interface ProductApiData {
       image_url: string | null;
     };
   };
+  has_impression?: "Yes" | "No" | null;
   has_variation?: string | boolean | null;
   variations?: Array<{
     id?: number;
