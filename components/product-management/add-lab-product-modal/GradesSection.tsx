@@ -145,6 +145,8 @@ interface GradesSectionProps {
   userRole: string
   customGradeNames: Record<number, string>
   setCustomGradeNames: React.Dispatch<React.SetStateAction<Record<number, string>>>
+  /** Lab / lab library: selected grades must have valid prices before Next/Save */
+  enforceLabGradePricing?: boolean
 }
 
 export function GradesSection({
@@ -162,6 +164,7 @@ export function GradesSection({
   userRole = "",
   customGradeNames,
   setCustomGradeNames,
+  enforceLabGradePricing = false,
 }: GradesSectionProps) {
   const watchedGrades = watch("grades") || []
   const watchedHasGradeBasedPricing = watch("has_grade_based_pricing")
@@ -469,6 +472,7 @@ export function GradesSection({
       {expandedSections.grades && (
         <div className="px-2 sm:px-6 pb-6">
           <ValidationError message={getValidationError("has_grade_based_pricing")} />
+          <ValidationError message={getValidationError("grades")} />
           {/* Grade list — disabled when the single Grades switch is off (sections.grades + has_grade_based_pricing stay in sync) */}
           <div className={cn(!sections.grades && "opacity-50 pointer-events-none select-none")}>
           {/* Hide price input and auto-billing for superadmin */}
@@ -492,9 +496,36 @@ export function GradesSection({
                     ? (getValidationError(`grades.${gradeIndexInWatched}.price`) || 
                        getValidationError(`grades[${gradeIndexInWatched}].price`))
                     : undefined
-                  // Check if price is 0 or invalid (real-time validation)
+                  const priceEditableRow =
+                    !(teethGradeLock && isAnchorGrade) && userRole !== "superadmin"
+                  const anchorPricingMissing =
+                    enforceLabGradePricing &&
+                    teethGradeLock &&
+                    isAnchorGrade &&
+                    (firstToothAnchor == null || firstToothAnchor <= 0)
+                  const priceMissingLabEditable =
+                    enforceLabGradePricing &&
+                    isSelected &&
+                    priceEditableRow &&
+                    String(gradeObj?.price ?? "").trim() === ""
+                  const markupTierMissingLab =
+                    enforceLabGradePricing &&
+                    teethGradeLock &&
+                    !isAnchorGrade &&
+                    isSelected &&
+                    userRole !== "superadmin" &&
+                    String(gradeObj?.price ?? "").trim() === ""
                   const isZero = isPriceZeroOrInvalid(gradeObj?.price)
-                  const hasPriceError = priceError !== undefined || isZero
+                  const hasPriceError =
+                    priceError !== undefined ||
+                    isZero ||
+                    anchorPricingMissing ||
+                    priceMissingLabEditable
+                  const inlinePriceMsg =
+                    priceError ||
+                    (anchorPricingMissing ? "Set per-tooth pricing on Product Details first" : undefined) ||
+                    (priceMissingLabEditable ? "Grade price is required" : undefined) ||
+                    (isZero ? "Price must be greater than 0" : undefined)
                   return (
                     <div key={grade.id} className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3">
                       <label className="flex items-center gap-3 cursor-pointer">
@@ -515,7 +546,12 @@ export function GradesSection({
                         <div className="relative w-full sm:w-32">
                           {teethGradeLock && isAnchorGrade ? (
                             <div
-                              className="pl-7 h-9 border rounded w-full border-gray-200 bg-gray-50 text-gray-700 flex items-center text-sm"
+                              className={cn(
+                                "pl-7 h-9 border rounded w-full text-gray-700 flex items-center text-sm",
+                                anchorPricingMissing
+                                  ? "border-red-500 bg-red-50/50"
+                                  : "border-gray-200 bg-gray-50",
+                              )}
                               title="First checked grade in list order: matches first tooth price from Product Details (not editable). Independent of default grade."
                             >
                               {firstToothAnchor != null ? firstToothAnchor.toFixed(2) : "—"}
@@ -526,8 +562,8 @@ export function GradesSection({
                               step="0.01"
                               min="0.01"
                               className={`pl-7 h-9 border rounded w-full ${
-                                hasPriceError 
-                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500 focus:ring-2" 
+                                hasPriceError
+                                  ? "border-red-500 focus:border-red-500 focus:ring-red-500 focus:ring-2"
                                   : "border-gray-300 focus:border-[#1162a8] focus:ring-[#1162a8]"
                               }`}
                               value={gradeObj?.price || ""}
@@ -562,7 +598,12 @@ export function GradesSection({
                             min="0"
                             placeholder="Markup %"
                             title="Markup % over anchor (first-in-list) price — price updates automatically"
-                            className="h-9 border rounded w-full px-2 border-gray-300 focus:border-[#1162a8] focus:ring-[#1162a8]"
+                            className={cn(
+                              "h-9 border rounded w-full px-2",
+                              markupTierMissingLab
+                                ? "border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500"
+                                : "border-gray-300 focus:border-[#1162a8] focus:ring-[#1162a8]",
+                            )}
                             value={gradeObj?.markup_percent ?? ""}
                             onChange={(e) => {
                               const markupStr = e.target.value
@@ -605,11 +646,8 @@ export function GradesSection({
                           {isDefault ? "Default Grade" : "Set as default grade"}
                         </Button>
                       )}
-                      {isSelected && hasPriceError && (
-                        <ValidationError 
-                          message={priceError || "Price must be greater than 0"} 
-                          className="ml-2 mt-0 flex-shrink-0" 
-                        />
+                      {isSelected && hasPriceError && !!inlinePriceMsg && (
+                        <ValidationError message={inlinePriceMsg} className="ml-2 mt-0 flex-shrink-0" />
                       )}
                     </div>
                   )
@@ -629,9 +667,38 @@ export function GradesSection({
                       ? (getValidationError(`grades.${gradeIndexInWatched}.price`) || 
                          getValidationError(`grades[${gradeIndexInWatched}].price`))
                       : undefined
+                    const isSelectedCustom = true
+                    const priceEditableRow =
+                      !(teethGradeLock && isAnchorGrade) && userRole !== "superadmin"
+                    const anchorPricingMissing =
+                      enforceLabGradePricing &&
+                      teethGradeLock &&
+                      isAnchorGrade &&
+                      (firstToothAnchor == null || firstToothAnchor <= 0)
+                    const priceMissingLabEditable =
+                      enforceLabGradePricing &&
+                      isSelectedCustom &&
+                      priceEditableRow &&
+                      String(customGrade.price ?? "").trim() === ""
+                    const markupTierMissingLab =
+                      enforceLabGradePricing &&
+                      teethGradeLock &&
+                      !isAnchorGrade &&
+                      isSelectedCustom &&
+                      userRole !== "superadmin" &&
+                      String(customGrade.price ?? "").trim() === ""
                     const isZero = isPriceZeroOrInvalid(customGrade.price)
-                    const hasPriceError = priceError !== undefined || isZero
-                    
+                    const hasPriceError =
+                      priceError !== undefined ||
+                      isZero ||
+                      anchorPricingMissing ||
+                      priceMissingLabEditable
+                    const inlinePriceMsg =
+                      priceError ||
+                      (anchorPricingMissing ? "Set per-tooth pricing on Product Details first" : undefined) ||
+                      (priceMissingLabEditable ? "Grade price is required" : undefined) ||
+                      (isZero ? "Price must be greater than 0" : undefined)
+
                     return (
                       <div key={customGradeId} className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3">
                         <label className="flex items-center gap-3 cursor-pointer">
@@ -660,7 +727,12 @@ export function GradesSection({
                           <div className="relative w-full sm:w-32">
                             {teethGradeLock && isAnchorGrade ? (
                               <div
-                                className="pl-7 h-9 border rounded w-full border-gray-200 bg-gray-50 text-gray-700 flex items-center text-sm"
+                                className={cn(
+                                  "pl-7 h-9 border rounded w-full text-gray-700 flex items-center text-sm",
+                                  anchorPricingMissing
+                                    ? "border-red-500 bg-red-50/50"
+                                    : "border-gray-200 bg-gray-50",
+                                )}
                                 title="First checked grade in list order: matches first tooth price from Product Details (not editable). Independent of default grade."
                               >
                                 {firstToothAnchor != null ? firstToothAnchor.toFixed(2) : "—"}
@@ -671,8 +743,8 @@ export function GradesSection({
                                 step="0.01"
                                 min="0.01"
                                 className={`pl-7 h-9 border rounded w-full ${
-                                  hasPriceError 
-                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500 focus:ring-2" 
+                                  hasPriceError
+                                    ? "border-red-500 focus:border-red-500 focus:ring-red-500 focus:ring-2"
                                     : "border-gray-300 focus:border-[#1162a8] focus:ring-[#1162a8]"
                                 }`}
                                 value={customGrade.price || ""}
@@ -707,7 +779,12 @@ export function GradesSection({
                               min="0"
                               placeholder="Markup %"
                               title="Markup % over anchor (first-in-list) price — price updates automatically"
-                              className="h-9 border rounded w-full px-2 border-gray-300 focus:border-[#1162a8] focus:ring-[#1162a8]"
+                              className={cn(
+                                "h-9 border rounded w-full px-2",
+                                markupTierMissingLab
+                                  ? "border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500"
+                                  : "border-gray-300 focus:border-[#1162a8] focus:ring-[#1162a8]",
+                              )}
                               value={customGrade.markup_percent ?? ""}
                               onChange={(e) => {
                                 const markupStr = e.target.value
@@ -748,11 +825,8 @@ export function GradesSection({
                         >
                           {isDefault ? "Default Grade" : "Set as default grade"}
                         </Button>
-                        {hasPriceError && (
-                          <ValidationError 
-                            message={priceError || "Price must be greater than 0"} 
-                            className="ml-2 mt-0 flex-shrink-0" 
-                          />
+                        {hasPriceError && !!inlinePriceMsg && (
+                          <ValidationError message={inlinePriceMsg} className="ml-2 mt-0 flex-shrink-0" />
                         )}
                       </div>
                     )

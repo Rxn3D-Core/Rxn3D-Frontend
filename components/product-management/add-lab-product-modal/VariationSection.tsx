@@ -12,12 +12,9 @@ import {
 } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { ProductCreateForm } from "@/lib/schemas"
+import { variationToothCountFormatIssue } from "@/lib/variation-step-validation"
 import { MAX_PRODUCT_VARIATIONS } from "@/lib/product-limits"
 import { useToast } from "@/hooks/use-toast"
-
-const MAX_TOOTH_COUNT = 16
-/** Maximum number of tooth-count variation rows per product */
-const MAX_VARIATION_ROWS = 16
 
 /** Stored in API / form; inserted via button — users are not expected to type it. */
 const NAME_PLACEHOLDER_TOKEN = "[x tooth/teeth]"
@@ -45,19 +42,6 @@ function insertTokenIntoString(
   return { next, caret }
 }
 
-function validateToothCount(value: string): string | null {
-  const trimmed = value.trim()
-  if (!trimmed) return null
-  const parts = trimmed.split("-").map((p) => p.trim())
-  for (const part of parts) {
-    const n = parseInt(part, 10)
-    if (!isNaN(n) && n > MAX_TOOTH_COUNT) {
-      return `Max is ${MAX_TOOTH_COUNT} (${MAX_TOOTH_COUNT} teeth = Full Denture)`
-    }
-  }
-  return null
-}
-
 interface ToothCountVariation {
   id?: number
   image?: string | null
@@ -71,6 +55,8 @@ interface VariationSectionProps {
   setValue: UseFormSetValue<ProductCreateForm>
   sections: Record<string, boolean>
   toggleSection: (section: string) => void
+  /** Step-validation messages (Next / Save), keyed as `tooth_count_variations.{i}.tooth_count` / `.name_template` */
+  getFieldError?: (field: string) => string | undefined
 }
 
 function buildPreview(tooth_count: string, name_template: string): string {
@@ -91,6 +77,7 @@ export function VariationSection({
   setValue,
   sections,
   toggleSection,
+  getFieldError,
 }: VariationSectionProps) {
   const { toast } = useToast()
   const isTeethBased = useWatch({ control, name: "is_teeth_based_price" })
@@ -342,7 +329,13 @@ export function VariationSection({
 
             {variations.map((variation, index) => {
               const preview = buildPreview(variation.tooth_count ?? "", variation.name_template ?? "")
-              const toothCountError = validateToothCount(variation.tooth_count ?? "")
+              const toothFieldKey = `tooth_count_variations.${index}.tooth_count`
+              const nameFieldKey = `tooth_count_variations.${index}.name_template`
+              const tcTrimmed = (variation.tooth_count ?? "").trim()
+              const stepToothErr = getFieldError?.(toothFieldKey)
+              const stepNameErr = getFieldError?.(nameFieldKey)
+              const formatToothErr = tcTrimmed ? variationToothCountFormatIssue(tcTrimmed) : undefined
+              const toothCountErrorMsg = stepToothErr ?? formatToothErr
               const fileInputRef = React.createRef<HTMLInputElement>()
               const imageSrc = variation.image || variation.image_url
               const hasToken = (variation.name_template ?? "").includes(NAME_PLACEHOLDER_TOKEN)
@@ -395,17 +388,17 @@ export function VariationSection({
                       onChange={(e) => handleVariationChange(index, "tooth_count", e.target.value)}
                       className="w-full px-3 bg-white text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-[#1162a8]/30 transition"
                       style={{
-                        border: toothCountError ? "1px solid #ef4444" : "1px solid #7F7F7F",
+                        border: toothCountErrorMsg ? "1px solid #ef4444" : "1px solid #7F7F7F",
                         borderRadius: "10px",
                         height: "40px",
                         fontFamily: "Verdana, sans-serif",
                         fontSize: "13px",
                       }}
                     />
-                    {toothCountError && (
+                    {toothCountErrorMsg && (
                       <p className="text-xs text-red-500 flex items-center gap-1">
                         <AlertCircle className="h-3 w-3 flex-shrink-0" />
-                        {toothCountError}
+                        {toothCountErrorMsg}
                       </p>
                     )}
                   </div>
@@ -422,7 +415,7 @@ export function VariationSection({
                       onChange={(e) => handleVariationChange(index, "name_template", e.target.value)}
                       className="w-full min-w-0 px-2.5 bg-white text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-[#1162a8]/30 transition"
                       style={{
-                        border: "1px solid #1162A8",
+                        border: stepNameErr ? "1px solid #ef4444" : "1px solid #1162A8",
                         borderRadius: "8px",
                         height: "36px",
                         fontFamily: "Verdana, sans-serif",
@@ -430,6 +423,12 @@ export function VariationSection({
                       }}
                       aria-label="Variation name template"
                     />
+                    {stepNameErr && (
+                      <p className="text-xs text-red-500 flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3 flex-shrink-0" />
+                        {stepNameErr}
+                      </p>
+                    )}
                     {!hasToken && (
                       <TooltipProvider delayDuration={200}>
                         <Tooltip>
