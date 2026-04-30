@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { useAuth } from "@/contexts/auth-context"
 import { AuthHeader } from "@/components/auth-header"
 import { useOnboardingStatus } from "@/hooks/use-onboarding-status"
+import { clearLegacyOnboardingCompleteLocalFlag } from "@/lib/onboarding-storage"
 
 export default function CompletePage() {
   const router = useRouter()
@@ -27,10 +28,9 @@ export default function CompletePage() {
     }
   }, [onboardingLoading, user, isOnboardingComplete, router])
 
-  // Mark onboarding as complete
+  // Drop legacy localStorage flag; status comes from the API
   useEffect(() => {
-    // In a real app, you would make an API call to mark onboarding as complete
-    localStorage.setItem("onboardingComplete", "true")
+    clearLegacyOnboardingCompleteLocalFlag()
     if (setOnboardingComplete) {
       setOnboardingComplete()
     }

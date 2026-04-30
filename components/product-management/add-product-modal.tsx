@@ -10,6 +10,20 @@ import { debounce } from "@/lib/performance"
 
 import { useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
+import { collectProductDetailsStepErrors } from "@/lib/product-details-step-validation"
+import { collectVariationStepErrors } from "@/lib/variation-step-validation"
+import { collectGradesStepErrors } from "@/lib/grades-step-validation"
+import { collectStagesStepErrors } from "@/lib/stages-step-validation"
+import {
+  SLIP_RELATION_FIELD_SET,
+  collectImpressionsStepErrors,
+  collectGumShadeStepErrors,
+  collectTeethShadeStepErrors,
+  collectMaterialStepErrors,
+  collectAddonsStepErrors,
+  collectRetentionsStepErrors,
+  firstSlipPicklistValidationFailure,
+} from "@/lib/slip-relation-step-validation"
 import { ProductCreateFormSchema, type ProductCreateForm, type Extraction } from "@/lib/schemas"
 import {
   finalizeLibraryProductApiPayload,
@@ -54,6 +68,8 @@ interface AddProductModalProps {
   isOpen: boolean
   onClose: () => void
   editingProduct?: any // <-- add editingProduct prop
+  /** Lab product library always enforces lab pricing rules regardless of parsed user.role */
+  pricingScope?: "global" | "lab"
 }
 
 const NO_SUBCATEGORIES_VALUE = "__NO_SUBCATEGORIES__"
@@ -71,6 +87,14 @@ const ADD_PRODUCT_MODAL_TABS: { id: string; label: string; sectionKey: string | 
   { id: "retention", label: "Retention", sectionKey: "retention" },
   { id: "extractions", label: "Extractions", sectionKey: "extractions" },
 ]
+
+function replaceSlipFieldErrors(
+  prev: { field: string; message: string }[],
+  field: string,
+  next: { field: string; message: string }[],
+): { field: string; message: string }[] {
+  return [...prev.filter((e) => e.field !== field), ...next]
+}
 
 const placeholderOffices = [
   { id: 1, name: "Dental Lab 1", is_visible: "Yes" },
@@ -106,17 +130,37 @@ function mapOppositeExtractionsFromApi(arr: any[]) {
     .filter((row) => Number.isFinite(row.extraction_id) && row.extraction_id > 0)
 }
 
-export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductModalProps) {
+export function AddProductModal({
+  isOpen,
+  onClose,
+  editingProduct,
+  pricingScope = "global",
+}: AddProductModalProps) {
   const { createProduct, updateProduct, isLoading: isProductActionLoading, clearValidationErrors } = useProducts()
   const [validationErrors, setValidationErrors] = useState<{ field: string; message: string }[]>([])
-  const { parentDropdownCategories, fetchParentDropdownCategories } = useProductCategory()
-  const [categoriesWithSubcategories, setCategoriesWithSubcategories] = useState<any[]>([])
+  const [manualDetailErrors, setManualDetailErrors] = useState<{ field: string; message: string }[]>([])
+  const [manualVariationErrors, setManualVariationErrors] = useState<{ field: string; message: string }[]>([])
+  const [manualGradeErrors, setManualGradeErrors] = useState<{ field: string; message: string }[]>([])
+  const [manualStageErrors, setManualStageErrors] = useState<{ field: string; message: string }[]>([])
+  const [manualSlipRelationErrors, setManualSlipRelationErrors] = useState<
+    { field: string; message: string }[]
+  >([])
+  const {
+    parentDropdownCategories,
+    fetchParentDropdownCategories,
+    categoriesWithSubcategories,
+  } = useProductCategory()
   const [imageBase64, setImageBase64] = useState<string | null>(null)
   const [jawPhotos, setJawPhotos] = useState<{ upper?: string | null; lower?: string | null; both?: string | null }>({})
   const handleJawPhotoChange = useCallback((jawType: "upper" | "lower" | "both", base64: string | null) => {
     setJawPhotos(prev => ({ ...prev, [jawType]: base64 }))
   }, [])
   const { grades, fetchGrades } = useGrades()
+  const masterGradesForValidation = useMemo(
+    (): { id: number | string; sequence?: number }[] =>
+      Array.isArray(grades) ? grades.map((g) => ({ id: g.id, sequence: g.sequence })) : [],
+    [grades],
+  )
   const { stages, fetchStages } = useStages()
   const { impressions, fetchImpressions } = useImpressions()
   const { gumShadeBrands, fetchAvailableShades, fetchGumShadeBrands } = useGumShades()
@@ -153,6 +197,14 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
         : ""
 
   const customerId = useMemo(() => getCustomerId(user), [user])
+  const isLabScopedUser = Boolean(
+    userRole === "lab_admin" ||
+      (Array.isArray(user?.roles) && user.roles.includes("lab_admin")) ||
+      (Array.isArray(user?.customers) &&
+        user.customers.some((c: { role?: string }) => c?.role === "lab_admin")),
+  )
+  /** Lab library route or lab admin role: require base price and teeth pricing when applicable */
+  const enforceLabPricing = pricingScope === "lab" || isLabScopedUser
   const preferredShadesFetchEnabled = isOpen && !editingProduct && Boolean(customerId)
   const {
     brand: preferredGumBrand,
@@ -261,8 +313,18 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
         editingProduct.is_teeth_based_price === "Yes" ||
         editingProduct.is_teeth_based_price === true ||
         editingProduct.is_teeth_based_price === "yes"
+      const singleStage =
+        editingProduct.is_single_stage === "Yes" ||
+        editingProduct.is_single_stage === true ||
+        editingProduct.is_single_stage === "yes"
       setVisibleTabs(
-        new Set(ADD_PRODUCT_MODAL_TABS.map((tab) => tab.id).filter((id) => id !== "variation" || teethOn)),
+        new Set(
+          ADD_PRODUCT_MODAL_TABS.map((tab) => tab.id).filter((id) => {
+            if (id === "variation" && !teethOn) return false
+            if (id === "stages" && singleStage) return false
+            return true
+          }),
+        ),
       )
       setSectionWasToggled(false)
     } else if (isOpen && !editingProduct) {
@@ -329,6 +391,8 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
     reset,
     watch,
     setValue,
+    getValues,
+    trigger,
     formState: { isDirty, dirtyFields, isValid, isSubmitting, errors },
   } = useForm<ProductCreateForm>({
     resolver: zodResolver(ProductCreateFormSchema),
@@ -339,12 +403,73 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
   })
 
   const watchedIsTeethBased = useWatch({ control, name: "is_teeth_based_price" })
+  const watchedIsSingleStage = useWatch({ control, name: "is_single_stage" })
+  const watchedToothVariations = useWatch({ control, name: "tooth_count_variations" })
 
-  /** Skip Variation entirely when not charging per tooth (same as lab product modal). */
+  /** Subscribes to fields validated on the details step so manual errors (and borders) update as the user edits. */
+  const watchedProductDetailsStep = useWatch({
+    control,
+    name: [
+      "name",
+      "code",
+      "category_id",
+      "subcategory_id",
+      "base_price",
+      "is_teeth_based_price",
+      "has_grade_based_pricing",
+      "teeth_pricing_type",
+      "teeth_price_per_tooth",
+      "teeth_first_tooth_price",
+      "teeth_additional_tooth_price",
+      "teeth_custom_prices",
+      "grades",
+    ],
+  })
+
+  const watchedVariationStep = useWatch({
+    control,
+    name: ["tooth_count_variations", "is_teeth_based_price", "enable_tooth_count_variation"],
+  })
+
+  const watchedStagesStep = useWatch({
+    control,
+    name: [
+      "stages",
+      "grades",
+      "has_grade_based_pricing",
+      "is_teeth_based_price",
+      "is_single_stage",
+    ],
+  })
+
+  const watchedGradePricingStep = useWatch({
+    control,
+    name: [
+      "grades",
+      "has_grade_based_pricing",
+      "is_teeth_based_price",
+      "teeth_pricing_type",
+      "teeth_price_per_tooth",
+      "teeth_first_tooth_price",
+      "teeth_additional_tooth_price",
+      "teeth_custom_prices",
+    ],
+  })
+
+  const watchedImpressions = useWatch({ control, name: "impressions" }) || []
+  const watchedGumShades = useWatch({ control, name: "gum_shades" }) || []
+  const watchedTeethShades = useWatch({ control, name: "teeth_shades" }) || []
+  const watchedMaterialsSlip = useWatch({ control, name: "materials" }) || []
+  const watchedAddonsSlip = useWatch({ control, name: "addons" }) || []
+  const watchedRetentionsSlip = useWatch({ control, name: "retentions" }) || []
+
+  /** Skip Variation when not per-tooth; skip Stages when product is single-stage (no workflow). */
   const tabsForNavigation = useMemo(() => {
-    if (watchedIsTeethBased === "Yes") return ADD_PRODUCT_MODAL_TABS
-    return ADD_PRODUCT_MODAL_TABS.filter((t) => t.id !== "variation")
-  }, [watchedIsTeethBased])
+    let tabs = [...ADD_PRODUCT_MODAL_TABS]
+    if (watchedIsTeethBased !== "Yes") tabs = tabs.filter((t) => t.id !== "variation")
+    if (watchedIsSingleStage === "Yes") tabs = tabs.filter((t) => t.id !== "stages")
+    return tabs
+  }, [watchedIsTeethBased, watchedIsSingleStage])
 
   const currentTabIndex = tabsForNavigation.findIndex((tab) => tab.id === activeTab)
   const safeTabIndex = currentTabIndex >= 0 ? currentTabIndex : 0
@@ -353,6 +478,107 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
 
   const handleNext = () => {
     if (isLastTab) return
+
+    if (activeTab === "details") {
+      const values = getValues() as Record<string, unknown>
+      const stepErrs = collectProductDetailsStepErrors(values, {
+        enforceLabPricing,
+        sections: { grades: sections.grades },
+      })
+      setManualDetailErrors(stepErrs)
+      void trigger(["name", "code", "category_id", "subcategory_id"])
+      if (stepErrs.length > 0) {
+        return
+      }
+    }
+
+    if (activeTab === "variation") {
+      const values = getValues() as Record<string, unknown>
+      const varErrs = collectVariationStepErrors(values, { variationSectionEnabled: sections.variation })
+      setManualVariationErrors(varErrs)
+      if (varErrs.length > 0) {
+        return
+      }
+    }
+
+    if (activeTab === "grades" && enforceLabPricing) {
+      const values = getValues() as Record<string, unknown>
+      const gErrs = collectGradesStepErrors(values, {
+        enforceLabGradePricing: enforceLabPricing,
+        gradesSectionEnabled: sections.grades,
+        masterGrades: masterGradesForValidation,
+      })
+      setManualGradeErrors(gErrs)
+      if (gErrs.length > 0) {
+        return
+      }
+    }
+
+    if (
+      activeTab === "stages" &&
+      sections.stages &&
+      watchedIsSingleStage !== "Yes"
+    ) {
+      const values = getValues() as Record<string, unknown>
+      const sErrs = collectStagesStepErrors(values, {
+        stagesSectionEnabled: sections.stages,
+        isSingleStage: false,
+        isSuperAdmin: userRole === "superadmin",
+      })
+      setManualStageErrors(sErrs)
+      if (sErrs.length > 0) {
+        return
+      }
+    }
+
+    if (activeTab === "impressions" && sections.impressions) {
+      const values = getValues() as Record<string, unknown>
+      const impErrs = collectImpressionsStepErrors(values, {
+        impressionsSectionEnabled: sections.impressions,
+      })
+      setManualSlipRelationErrors((prev) => replaceSlipFieldErrors(prev, "impressions", impErrs))
+      if (impErrs.length > 0) {
+        return
+      }
+    }
+
+    if (activeTab === "gumShade" && sections.gumShade) {
+      const values = getValues() as Record<string, unknown>
+      const gErr = collectGumShadeStepErrors(values, { gumShadeSectionEnabled: sections.gumShade })
+      setManualSlipRelationErrors((prev) => replaceSlipFieldErrors(prev, "gum_shades", gErr))
+      if (gErr.length > 0) return
+    }
+
+    if (activeTab === "teethShade" && sections.teethShade) {
+      const values = getValues() as Record<string, unknown>
+      const tErr = collectTeethShadeStepErrors(values, {
+        teethShadeSectionEnabled: sections.teethShade,
+      })
+      setManualSlipRelationErrors((prev) => replaceSlipFieldErrors(prev, "teeth_shades", tErr))
+      if (tErr.length > 0) return
+    }
+
+    if (activeTab === "material" && sections.material) {
+      const values = getValues() as Record<string, unknown>
+      const mErr = collectMaterialStepErrors(values, { materialSectionEnabled: sections.material })
+      setManualSlipRelationErrors((prev) => replaceSlipFieldErrors(prev, "materials", mErr))
+      if (mErr.length > 0) return
+    }
+
+    if (activeTab === "addOns" && sections.addOns) {
+      const values = getValues() as Record<string, unknown>
+      const aErr = collectAddonsStepErrors(values, { addOnsSectionEnabled: sections.addOns })
+      setManualSlipRelationErrors((prev) => replaceSlipFieldErrors(prev, "addons", aErr))
+      if (aErr.length > 0) return
+    }
+
+    if (activeTab === "retention" && sections.retention) {
+      const values = getValues() as Record<string, unknown>
+      const rErr = collectRetentionsStepErrors(values, { retentionSectionEnabled: sections.retention })
+      setManualSlipRelationErrors((prev) => replaceSlipFieldErrors(prev, "retentions", rErr))
+      if (rErr.length > 0) return
+    }
+
     const nextTab = tabsForNavigation[safeTabIndex + 1]
     setVisibleTabs((prev) => new Set([...prev, nextTab.id]))
     setActiveTab(nextTab.id)
@@ -397,6 +623,10 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
     setSections((s) => ({ ...s, variation: false }))
     setValue("enable_tooth_count_variation", "No", { shouldDirty: true })
     setValue("tooth_count_variations", [], { shouldDirty: true })
+    setManualVariationErrors([])
+    setManualGradeErrors([])
+    setManualStageErrors([])
+    setManualSlipRelationErrors([])
   }, [watchedIsTeethBased, setValue, isOpen])
 
   useEffect(() => {
@@ -418,46 +648,8 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
       ? parentDropdownCategories.data
       : []
 
-  // Fetch categories with subcategories for category/subcategory dropdowns
-  const fetchCategoriesWithSubcategories = useCallback(async () => {
-    try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
-      if (!token) return
-
-      const params = new URLSearchParams({
-        lang: "en",
-        per_page: "100",
-        status: "Active"
-      })
-
-      const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-      const response = await fetch(
-        `${apiBaseUrl}/library/categories?${params.toString()}`,
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json"
-          },
-        }
-      )
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch categories with subcategories")
-      }
-
-      const responseData = await response.json()
-      const categories = responseData.data?.data || []
-      setCategoriesWithSubcategories(categories)
-    } catch (err: any) {
-      console.error("Error fetching categories with subcategories:", err)
-      setCategoriesWithSubcategories([])
-    }
-  }, [])
-
   const fetchData = useCallback(() => {
     fetchParentDropdownCategories()
-    fetchCategoriesWithSubcategories()
     fetchGrades()
     fetchStages()
     fetchImpressions()
@@ -469,7 +661,6 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
     fetchExtractions()
   }, [
     fetchParentDropdownCategories,
-    fetchCategoriesWithSubcategories,
     fetchGrades,
     fetchStages,
     fetchImpressions,
@@ -721,6 +912,11 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
       }
       setImageBase64(null)
       clearValidationErrors()
+      setManualDetailErrors([])
+      setManualVariationErrors([])
+      setManualGradeErrors([])
+      setManualStageErrors([])
+      setManualSlipRelationErrors([])
       fetchData()
 
       // Initialize section toggles from product's has_* flags when editing.
@@ -798,13 +994,203 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
     }
   }, [isOpen])
 
-  const getValidationError = (fieldName: string) => {
-    return validationErrors.find((error) => error.field === fieldName)?.message
-  }
+  const getValidationError = useCallback(
+    (fieldName: string) => {
+      const manual = manualDetailErrors.find((e) => e.field === fieldName)
+      if (manual) return manual.message
+      const varErr = manualVariationErrors.find((e) => e.field === fieldName)
+      if (varErr) return varErr.message
+      const gradeErr = manualGradeErrors.find((e) => e.field === fieldName)
+      if (gradeErr) return gradeErr.message
+      const stageErr = manualStageErrors.find((e) => e.field === fieldName)
+      if (stageErr) return stageErr.message
+      const slipErr = manualSlipRelationErrors.find((e) => e.field === fieldName)
+      if (slipErr) return slipErr.message
+      return validationErrors.find((error) => error.field === fieldName)?.message
+    },
+    [
+      manualDetailErrors,
+      manualVariationErrors,
+      manualGradeErrors,
+      manualStageErrors,
+      manualSlipRelationErrors,
+      validationErrors,
+    ],
+  )
 
   const sectionHasErrors = (sectionFields: string[]) => {
-    return sectionFields.some((field) => validationErrors.some((error) => error.field.startsWith(field)))
+    return sectionFields.some(
+      (field) =>
+        validationErrors.some((error) => error.field.startsWith(field)) ||
+        manualDetailErrors.some((e) => e.field === field || e.field.startsWith(`${field}.`)) ||
+        manualVariationErrors.some((e) => e.field === field || e.field.startsWith(`${field}.`)) ||
+        manualGradeErrors.some((e) => e.field === field || e.field.startsWith(`${field}.`)) ||
+        manualStageErrors.some((e) => e.field === field || e.field.startsWith(`${field}.`) || e.field.startsWith(`${field}_`)) ||
+        manualSlipRelationErrors.some((e) => e.field === field || e.field.startsWith(`${field}.`)),
+    )
   }
+
+  useEffect(() => {
+    setManualDetailErrors((prev) => {
+      if (prev.length === 0) return prev
+      const next = collectProductDetailsStepErrors(getValues() as Record<string, unknown>, {
+        enforceLabPricing,
+        sections: { grades: sections.grades },
+      })
+      if (
+        prev.length === next.length &&
+        prev.every((e, i) => e.field === next[i]?.field && e.message === next[i]?.message)
+      ) {
+        return prev
+      }
+      return next
+    })
+    // Sync step-level errors whenever details fields change (after Next failed validation).
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- getValues intentionally omitted (stable snapshot on watched fields change only)
+  }, [watchedProductDetailsStep, enforceLabPricing, sections.grades])
+
+  useEffect(() => {
+    setManualVariationErrors((prev) => {
+      if (prev.length === 0) return prev
+      const next = collectVariationStepErrors(getValues() as Record<string, unknown>, {
+        variationSectionEnabled: sections.variation,
+      })
+      if (
+        prev.length === next.length &&
+        prev.every((e, i) => e.field === next[i]?.field && e.message === next[i]?.message)
+      ) {
+        return prev
+      }
+      return next
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedVariationStep, sections.variation])
+
+  useEffect(() => {
+    if (!enforceLabPricing) return
+    setManualGradeErrors((prev) => {
+      if (prev.length === 0) return prev
+      const next = collectGradesStepErrors(getValues() as Record<string, unknown>, {
+        enforceLabGradePricing: enforceLabPricing,
+        gradesSectionEnabled: sections.grades,
+        masterGrades: masterGradesForValidation,
+      })
+      if (
+        prev.length === next.length &&
+        prev.every((e, i) => e.field === next[i]?.field && e.message === next[i]?.message)
+      ) {
+        return prev
+      }
+      return next
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedGradePricingStep, enforceLabPricing, sections.grades, masterGradesForValidation])
+
+  useEffect(() => {
+    if (!enforceLabPricing) setManualGradeErrors([])
+  }, [enforceLabPricing])
+
+  useEffect(() => {
+    if (!sections.stages) setManualStageErrors([])
+  }, [sections.stages])
+
+  useEffect(() => {
+    setManualStageErrors((prev) => {
+      if (prev.length === 0) return prev
+      const next = collectStagesStepErrors(getValues() as Record<string, unknown>, {
+        stagesSectionEnabled: sections.stages,
+        isSingleStage: watchedIsSingleStage === "Yes",
+        isSuperAdmin: userRole === "superadmin",
+      })
+      if (
+        prev.length === next.length &&
+        prev.every((e, i) => e.field === next[i]?.field && e.message === next[i]?.message)
+      ) {
+        return prev
+      }
+      return next
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedStagesStep, sections.stages, watchedIsSingleStage, userRole])
+
+  useEffect(() => {
+    setManualSlipRelationErrors((prev) =>
+      prev.filter((e) => {
+        if (e.field === "impressions" && !sections.impressions) return false
+        if (e.field === "gum_shades" && !sections.gumShade) return false
+        if (e.field === "teeth_shades" && !sections.teethShade) return false
+        if (e.field === "materials" && !sections.material) return false
+        if (e.field === "addons" && !sections.addOns) return false
+        if (e.field === "retentions" && !sections.retention) return false
+        return true
+      }),
+    )
+  }, [
+    sections.impressions,
+    sections.gumShade,
+    sections.teethShade,
+    sections.material,
+    sections.addOns,
+    sections.retention,
+  ])
+
+  useEffect(() => {
+    setManualSlipRelationErrors((prev) => {
+      const slipPrev = prev.filter((e) => SLIP_RELATION_FIELD_SET.has(e.field))
+      if (slipPrev.length === 0) return prev
+      const fieldsToRefresh = new Set(slipPrev.map((e) => e.field))
+      const nonSlip = prev.filter((e) => !SLIP_RELATION_FIELD_SET.has(e.field))
+      const v = getValues() as Record<string, unknown>
+      const nextSlip: { field: string; message: string }[] = []
+      if (fieldsToRefresh.has("impressions")) {
+        nextSlip.push(
+          ...collectImpressionsStepErrors(v, { impressionsSectionEnabled: sections.impressions }),
+        )
+      }
+      if (fieldsToRefresh.has("gum_shades")) {
+        nextSlip.push(...collectGumShadeStepErrors(v, { gumShadeSectionEnabled: sections.gumShade }))
+      }
+      if (fieldsToRefresh.has("teeth_shades")) {
+        nextSlip.push(
+          ...collectTeethShadeStepErrors(v, { teethShadeSectionEnabled: sections.teethShade }),
+        )
+      }
+      if (fieldsToRefresh.has("materials")) {
+        nextSlip.push(...collectMaterialStepErrors(v, { materialSectionEnabled: sections.material }))
+      }
+      if (fieldsToRefresh.has("addons")) {
+        nextSlip.push(...collectAddonsStepErrors(v, { addOnsSectionEnabled: sections.addOns }))
+      }
+      if (fieldsToRefresh.has("retentions")) {
+        nextSlip.push(
+          ...collectRetentionsStepErrors(v, { retentionSectionEnabled: sections.retention }),
+        )
+      }
+      if (
+        slipPrev.length === nextSlip.length &&
+        slipPrev.every(
+          (e, i) => e.field === nextSlip[i]?.field && e.message === nextSlip[i]?.message,
+        )
+      ) {
+        return prev
+      }
+      return [...nonSlip, ...nextSlip]
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    watchedImpressions,
+    watchedGumShades,
+    watchedTeethShades,
+    watchedMaterialsSlip,
+    watchedAddonsSlip,
+    watchedRetentionsSlip,
+    sections.impressions,
+    sections.gumShade,
+    sections.teethShade,
+    sections.material,
+    sections.addOns,
+    sections.retention,
+  ])
 
   const toggleSection = (section: string) => {
     setSections((prev) => ({
@@ -835,6 +1221,11 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
       reset()
       setImageBase64(null)
       clearValidationErrors()
+      setManualDetailErrors([])
+      setManualVariationErrors([])
+      setManualGradeErrors([])
+      setManualStageErrors([])
+      setManualSlipRelationErrors([])
       onClose()
     }
   }
@@ -844,6 +1235,11 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
     reset()
     setImageBase64(null)
     clearValidationErrors()
+    setManualDetailErrors([])
+    setManualVariationErrors([])
+    setManualGradeErrors([])
+    setManualStageErrors([])
+    setManualSlipRelationErrors([])
     onClose()
   }
 
@@ -852,6 +1248,54 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
   }
 
   const onSubmit = async (data: ProductCreateForm) => {
+    const record = { ...data } as Record<string, unknown>
+    const stepErrs = collectProductDetailsStepErrors(record, {
+      enforceLabPricing,
+      sections: { grades: sections.grades },
+    })
+    setManualDetailErrors(stepErrs)
+    if (stepErrs.length > 0) {
+      setActiveTab("details")
+      return
+    }
+
+    const variationErrs = collectVariationStepErrors(record, { variationSectionEnabled: sections.variation })
+    setManualVariationErrors(variationErrs)
+    if (variationErrs.length > 0) {
+      setActiveTab("variation")
+      return
+    }
+
+    if (enforceLabPricing) {
+      const gradeErrs = collectGradesStepErrors(record, {
+        enforceLabGradePricing: enforceLabPricing,
+        gradesSectionEnabled: sections.grades,
+        masterGrades: masterGradesForValidation,
+      })
+      setManualGradeErrors(gradeErrs)
+      if (gradeErrs.length > 0) {
+        setActiveTab("grades")
+        return
+      }
+    }
+
+    const slipFailSubmit = firstSlipPicklistValidationFailure(record, {
+      impressions: sections.impressions,
+      gumShade: sections.gumShade,
+      teethShade: sections.teethShade,
+      material: sections.material,
+      addOns: sections.addOns,
+      retention: sections.retention,
+    })
+    setManualSlipRelationErrors((prev) => [
+      ...prev.filter((e) => !SLIP_RELATION_FIELD_SET.has(e.field)),
+      ...(slipFailSubmit?.errors ?? []),
+    ])
+    if (slipFailSubmit) {
+      setActiveTab(slipFailSubmit.tabId)
+      return
+    }
+
     clearValidationErrors()
     if (!normalizedGumShadeBrands || normalizedGumShadeBrands.length === 0) {
       console.error("GumShadeSection: gumShadeBrands is empty. Check API response and normalization logic.");
@@ -989,7 +1433,10 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
       // Always include opposite_impression (backend field) so toggling is always persisted
       payload.opposite_impression = data.request_opposing_extraction ? "Yes" : "No"
 
-      const allocUpdate = validateStageAllocationPercents(payload.stages ?? data.stages)
+      const allocUpdate = validateStageAllocationPercents(payload.stages ?? data.stages, {
+        isTeethBased: data.is_teeth_based_price === "Yes",
+        isSuperAdmin: userRole === "superadmin",
+      })
       if (allocUpdate) {
         alert(allocUpdate)
         return
@@ -1047,7 +1494,10 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
         payload.opposite_extractions = []
       }
 
-      const allocCreate = validateStageAllocationPercents(payload.stages)
+      const allocCreate = validateStageAllocationPercents(payload.stages, {
+        isTeethBased: data.is_teeth_based_price === "Yes",
+        isSuperAdmin: userRole === "superadmin",
+      })
       if (allocCreate) {
         alert(allocCreate)
         return
@@ -1062,6 +1512,11 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
       reset()
       setImageBase64(null)
       setSectionWasToggled(false)
+      setManualDetailErrors([])
+      setManualVariationErrors([])
+      setManualGradeErrors([])
+      setManualStageErrors([])
+      setManualSlipRelationErrors([])
       onClose()
     }
   }
@@ -1163,16 +1618,13 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
 
   const watchedGrades = useWatch({ control, name: "grades" }) || []
   const watchedStages = useWatch({ control, name: "stages" }) || []
-  const watchedImpressions = watch("impressions") || []
-  const watchedGumShades = watch("gum_shades") || []
-  const watchedTeethShades = watch("teeth_shades") || []
-  const watchedMaterials = watch("materials") || []
-  const watchedRetentions = watch("retentions") || []
-  const watchedAddons = watch("addons") || []
   const watchedExtractions = watch("extractions") || []
   const watchedOfficeVisibilities = watch("office_visibilities") || []
-  const watchedIsSingleStage = useWatch({ control, name: "is_single_stage" })
   const watchedHasGradeBasedPricing = watch("has_grade_based_pricing")
+  const watchedTeethPricingType = useWatch({ control, name: "teeth_pricing_type" })
+  const watchedTeethPricePerTooth = useWatch({ control, name: "teeth_price_per_tooth" })
+  const watchedTeethFirstToothPrice = useWatch({ control, name: "teeth_first_tooth_price" })
+  const watchedTeethCustomPrices = useWatch({ control, name: "teeth_custom_prices" })
   const watchedApplyRetentionMechanism = watch("apply_retention_mechanism")
   const watchedLinkAllAddons = watch("link_all_addons")
 
@@ -1196,8 +1648,19 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
         setSections((prev: any) => ({ ...prev, stages: false }))
         setValue("stages", [], { shouldDirty: true })
         setReleasingStageIds([])
+        setVisibleTabs((prev) => {
+          const next = new Set(prev)
+          next.delete("stages")
+          return next
+        })
+        setActiveTab((prev) => (prev === "stages" ? "grades" : prev))
       } else if (watchedIsSingleStage === "No") {
         setSections((prev: any) => ({ ...prev, stages: true }))
+        setVisibleTabs((prev) => {
+          const next = new Set(prev)
+          next.add("stages")
+          return next
+        })
       }
     }
   }, [watchedIsSingleStage, setValue])
@@ -1205,53 +1668,182 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
   // Track whether any grade is set as default
   const hasDefaultGrade = watchedGrades.some((g: any) => g.is_default === "Yes")
 
-  // Validate stages have prices > 0 and days > 0
-  const areStagesValid = useMemo(() => {
-    if (activeTab !== "stages") return true
-    if (!watchedStages || watchedStages.length === 0) return false
+  const stagesStepErrsPreview = useMemo(
+    () =>
+      collectStagesStepErrors(
+        {
+          stages: watchedStages,
+          grades: watchedGrades,
+          has_grade_based_pricing: watchedHasGradeBasedPricing,
+          is_teeth_based_price: watchedIsTeethBased,
+          is_single_stage: watchedIsSingleStage,
+        } as Record<string, unknown>,
+        {
+          stagesSectionEnabled: sections.stages,
+          isSingleStage: watchedIsSingleStage === "Yes",
+          isSuperAdmin: userRole === "superadmin",
+        },
+      ),
+    [
+      watchedStages,
+      watchedGrades,
+      watchedHasGradeBasedPricing,
+      watchedIsTeethBased,
+      watchedIsSingleStage,
+      sections.stages,
+      userRole,
+    ],
+  )
 
-    const hasGradeBasedPricing = String(watchedHasGradeBasedPricing || "") === "Yes"
-    const hasSelectedGrades = watchedGrades.length > 0
+  const impressionsStepErrsPreview = useMemo(
+    () =>
+      collectImpressionsStepErrors(
+        { impressions: watchedImpressions } as Record<string, unknown>,
+        { impressionsSectionEnabled: sections.impressions },
+      ),
+    [watchedImpressions, sections.impressions],
+  )
 
-    return watchedStages.every((stage: any) => {
-      // Validate days > 0
-      const days = stage.days
-      const numDays = typeof days === "string" ? parseInt(days, 10) : (typeof days === "number" ? days : 0)
-      if (isNaN(numDays) || numDays <= 0) return false
+  const gumShadeStepErrsPreview = useMemo(
+    () =>
+      collectGumShadeStepErrors(
+        { gum_shades: watchedGumShades } as Record<string, unknown>,
+        { gumShadeSectionEnabled: sections.gumShade },
+      ),
+    [watchedGumShades, sections.gumShade],
+  )
 
-      if (hasGradeBasedPricing && hasSelectedGrades) {
-        const gradePrices = stage.grade_prices || {}
-        return watchedGrades.every((grade: any) => {
-          const gradeId = grade.grade_id || grade.id
-          const normalizedId = gradeId?.toString() || ""
-          let price = gradePrices[gradeId] || gradePrices[normalizedId] || ""
-          if (!price && typeof gradeId === "string" && !isNaN(Number(gradeId))) {
-            price = gradePrices[Number(gradeId)] || ""
-          }
-          if (!price) price = (grade as any)?.price ?? ""
-          const numPrice = typeof price === "string" ? parseFloat(price) : price
-          return !isNaN(numPrice) && numPrice > 0
-        })
-      } else {
-        const price = stage.economy_price || stage.standard_price || ""
-        const numPrice = typeof price === "string" ? parseFloat(price) : price
-        return !isNaN(numPrice) && numPrice > 0
-      }
-    })
-  }, [activeTab, watchedStages, watchedGrades, watchedHasGradeBasedPricing])
+  const teethShadeStepErrsPreview = useMemo(
+    () =>
+      collectTeethShadeStepErrors(
+        { teeth_shades: watchedTeethShades } as Record<string, unknown>,
+        { teethShadeSectionEnabled: sections.teethShade },
+      ),
+    [watchedTeethShades, sections.teethShade],
+  )
+
+  const materialStepErrsPreview = useMemo(
+    () =>
+      collectMaterialStepErrors(
+        { materials: watchedMaterialsSlip } as Record<string, unknown>,
+        { materialSectionEnabled: sections.material },
+      ),
+    [watchedMaterialsSlip, sections.material],
+  )
+
+  const addonsStepErrsPreview = useMemo(
+    () =>
+      collectAddonsStepErrors(
+        { addons: watchedAddonsSlip } as Record<string, unknown>,
+        { addOnsSectionEnabled: sections.addOns },
+      ),
+    [watchedAddonsSlip, sections.addOns],
+  )
+
+  const retentionsStepErrsPreview = useMemo(
+    () =>
+      collectRetentionsStepErrors(
+        { retentions: watchedRetentionsSlip } as Record<string, unknown>,
+        { retentionSectionEnabled: sections.retention },
+      ),
+    [watchedRetentionsSlip, sections.retention],
+  )
 
   // Check if current step is valid for enabling/disabling Next button
   const isCurrentStepValid = useMemo(() => {
-    // Grades tab: require at least one grade selected with a default set
+    // Grades tab: require selections + default; lab: every tier must have a valid price
     if (activeTab === "grades" && sections.grades) {
       if (watchedGrades.length === 0 || !hasDefaultGrade) return false
+      if (enforceLabPricing && String(watchedHasGradeBasedPricing || "") === "Yes") {
+        const gradeTabErrs = collectGradesStepErrors(
+          {
+            grades: watchedGrades,
+            has_grade_based_pricing: watchedHasGradeBasedPricing,
+            is_teeth_based_price: watchedIsTeethBased,
+            teeth_pricing_type: watchedTeethPricingType,
+            teeth_price_per_tooth: watchedTeethPricePerTooth,
+            teeth_first_tooth_price: watchedTeethFirstToothPrice,
+            teeth_custom_prices: watchedTeethCustomPrices,
+          } as Record<string, unknown>,
+          {
+            enforceLabGradePricing: enforceLabPricing,
+            gradesSectionEnabled: sections.grades,
+            masterGrades: masterGradesForValidation,
+          },
+        )
+        if (gradeTabErrs.length > 0) return false
+      }
     }
-    // Stages tab: require all stages have price > 0 and days > 0
-    if (activeTab === "stages" && sections.stages) {
-      return areStagesValid
+    if (
+      activeTab === "stages" &&
+      sections.stages &&
+      watchedIsSingleStage !== "Yes"
+    ) {
+      return stagesStepErrsPreview.length === 0
+    }
+    if (activeTab === "impressions" && sections.impressions) {
+      return impressionsStepErrsPreview.length === 0
+    }
+    if (activeTab === "gumShade" && sections.gumShade) {
+      return gumShadeStepErrsPreview.length === 0
+    }
+    if (activeTab === "teethShade" && sections.teethShade) {
+      return teethShadeStepErrsPreview.length === 0
+    }
+    if (activeTab === "material" && sections.material) {
+      return materialStepErrsPreview.length === 0
+    }
+    if (activeTab === "addOns" && sections.addOns) {
+      return addonsStepErrsPreview.length === 0
+    }
+    if (activeTab === "retention" && sections.retention) {
+      return retentionsStepErrsPreview.length === 0
+    }
+    if (activeTab === "variation" && watchedIsTeethBased === "Yes" && sections.variation) {
+      const rows = Array.isArray(watchedToothVariations) ? watchedToothVariations : []
+      if (rows.length === 0) return true
+      return (
+        collectVariationStepErrors(
+          {
+            is_teeth_based_price: "Yes",
+            tooth_count_variations: rows,
+          } as Record<string, unknown>,
+          { variationSectionEnabled: sections.variation },
+        ).length === 0
+      )
     }
     return true
-  }, [activeTab, sections.grades, sections.stages, watchedGrades.length, hasDefaultGrade, areStagesValid])
+  }, [
+    activeTab,
+    sections.grades,
+    sections.stages,
+    sections.impressions,
+    sections.gumShade,
+    sections.teethShade,
+    sections.material,
+    sections.addOns,
+    sections.retention,
+    sections.variation,
+    watchedGrades,
+    enforceLabPricing,
+    watchedHasGradeBasedPricing,
+    watchedIsTeethBased,
+    watchedTeethPricingType,
+    watchedTeethPricePerTooth,
+    watchedTeethFirstToothPrice,
+    watchedTeethCustomPrices,
+    masterGradesForValidation,
+    hasDefaultGrade,
+    stagesStepErrsPreview,
+    impressionsStepErrsPreview,
+    gumShadeStepErrsPreview,
+    teethShadeStepErrsPreview,
+    materialStepErrsPreview,
+    addonsStepErrsPreview,
+    retentionsStepErrsPreview,
+    watchedToothVariations,
+    watchedIsSingleStage,
+  ])
 
   // Consider form changed if fields are dirty OR a new image was uploaded OR releasing stages changed
   const hasReleasingStageChanges = useMemo(() => {
@@ -1330,6 +1922,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
                       const isVisible = visibleTabs.has(tab.id)
                       const isSectionOff = tab.sectionKey ? sections[tab.sectionKey as keyof typeof sections] === false : false
                       if (tab.id === "variation" && watchedIsTeethBased !== "Yes") return null
+                      if (tab.id === "stages" && watchedIsSingleStage === "Yes") return null
                       if (!isVisible) return null
                       return (
                         <button
@@ -1372,6 +1965,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
                     currentImageBase64={imageBase64}
                     jawPhotos={jawPhotos}
                     onJawPhotoChange={handleJawPhotoChange}
+                    pricingValidationMode={enforceLabPricing ? "lab_required" : "superadmin_optional"}
                   />
                 </TabsContent>
 
@@ -1381,6 +1975,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
                     setValue={setValue}
                     sections={sections}
                     toggleSection={toggleSection}
+                    getFieldError={getValidationError}
                   />
                 </TabsContent>
 
@@ -1401,6 +1996,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
                     userRole={userRole}
                     customGradeNames={customGradeNames}
                     setCustomGradeNames={setCustomGradeNames}
+                    enforceLabGradePricing={enforceLabPricing}
                   />
                 </TabsContent>
 
@@ -1604,7 +2200,7 @@ export function AddProductModal({ isOpen, onClose, editingProduct }: AddProductM
                         type="button"
                         onClick={handleNext}
                         className="bg-[#1162a8] hover:bg-[#0d4c84] h-10 sm:px-8 disabled:opacity-50 disabled:cursor-not-allowed"
-                        disabled={!isCurrentStepValid}
+                        disabled={activeTab !== "details" && !isCurrentStepValid}
                       >
                         Next
                         <ChevronRight className="h-4 w-4 ml-1" />

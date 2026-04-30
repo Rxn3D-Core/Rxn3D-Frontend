@@ -777,8 +777,14 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
         }
 
         // Schema validation temporarily disabled
-        const customerId = localStorage.getItem("customerId")
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/library/products?customer_id=${customerId}`, {
+        // Super admin / global products: no customer_id in URL or body. Lab admin: only when payload has customer_id.
+        const apiBase = `${process.env.NEXT_PUBLIC_API_BASE_URL}/library/products`
+        const cid = finalPayload.customer_id
+        const createUrl =
+          typeof cid === "number" && Number.isFinite(cid)
+            ? `${apiBase}?customer_id=${cid}`
+            : apiBase
+        const response = await fetch(createUrl, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -839,6 +845,7 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
       triggerAnimation,
       t,
       user,
+      isLabAdmin,
     ],
   )
 

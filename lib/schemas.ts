@@ -182,17 +182,18 @@ export const ProductCreateFormSchema = z
     description: z.string().nullable().optional(),
     base_price: z
       .union([z.string(), z.number()])
+      .optional()
       .refine(
         (val) => {
           if (val === undefined || val === null || val === "") {
-            return false;
+            return true;
           }
           const numValue = typeof val === "string" ? parseFloat(val) : val;
           return !isNaN(numValue) && numValue >= 0;
         },
         {
-          message: "Base Price is required and must be a valid number",
-        }
+          message: "Base Price must be a valid number greater than or equal to 0",
+        },
       ),
     image: z.string().nullable().optional(),
     is_teeth_based_price: z.enum(["Yes", "No"]).default("No").optional(),
@@ -546,10 +547,22 @@ export const ProductCreateFormSchema = z
     {
       message: "Auto bill days is required when auto billing is enabled",
       path: ["auto_billing_days"],
-    }
+    },
   )
-
-// NOTE: Make sure your initial form values in the modal include a valid base_price!
+  .refine(
+    (data) => data.category_id != null && data.category_id !== "" && Number.isFinite(Number(data.category_id)),
+    {
+      message: "Category is required",
+      path: ["category_id"],
+    },
+  )
+  .refine((data) => {
+    const sid = data.subcategory_id as unknown
+    return sid != null && sid !== "" && Number.isFinite(Number(sid)) && Number(sid) > 0
+  }, {
+    message: "Subcategory is required",
+    path: ["subcategory_id"],
+  })
 
 export type ProductCreateForm = z.infer<typeof ProductCreateFormSchema>
 

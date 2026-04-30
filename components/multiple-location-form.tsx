@@ -39,7 +39,8 @@ export default function MultipleLocation() {
   
   // Add at the beginning of the component function
   const { user, token, isLoading: authLoading, setCustomerId } = useAuth()
-  const { isOnboardingComplete, isLoading: onboardingLoading } = useOnboardingStatus()
+  const { isOnboardingComplete, isLoading: onboardingLoading, onboardingStatus, error: onboardingApiError } =
+    useOnboardingStatus()
   const router = useRouter()
   const { toast } = useToast()
 
@@ -64,29 +65,17 @@ export default function MultipleLocation() {
   const checkOnboardingAndRedirect = useCallback(() => {
     if (!user) return
 
-    // Get primary customer to check onboarding status
-    let primaryCustomer = null
-    if (user.customers && Array.isArray(user.customers) && user.customers.length > 0) {
-      primaryCustomer = user.customers.find((c: any) => {
-        return c?.is_primary === true || c?.is_primary === 1 || c?.is_primary === "1"
-      }) || user.customers[0]
-    } else if (user.customer) {
-      primaryCustomer = user.customer
-    }
-
-    // Check onboarding status
-    const onboardingCompleted = primaryCustomer?.onboarding_completed === true
-    const businessHoursCompleted = primaryCustomer?.business_hours_setup_completed === true
-    const isOnboardingCompleteFromData = onboardingCompleted && businessHoursCompleted
-
-    // Only redirect to dashboard if onboarding is complete
-    if (isOnboardingCompleteFromData || isOnboardingComplete) {
+    if (
+      onboardingStatus !== null &&
+      !onboardingApiError &&
+      isOnboardingComplete
+    ) {
       router.replace("/dashboard")
     } else {
       // Redirect to onboarding if not complete
       router.replace("/onboarding/business-hours")
     }
-  }, [user, isOnboardingComplete, router])
+  }, [user, isOnboardingComplete, onboardingStatus, onboardingApiError, router])
 
   useEffect(() => {
     if (!user && !authLoading) {

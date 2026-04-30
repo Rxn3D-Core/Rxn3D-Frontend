@@ -6,6 +6,7 @@ import { ChevronDown, Info, Plus, Trash2, AlertCircle, GripVertical } from "luci
 import { ValidationError } from "@/components/ui/validation-error"
 import { useState, useCallback, useMemo, useEffect } from "react"
 import { cn } from "@/lib/utils"
+import { collectStagesStepErrors } from "@/lib/stages-step-validation"
 
 /** Teeth + grades: each stage row price = (grade full price from Grades) × (allocation % ÷ 100). */
 function mergeStageGradePricesForTeeth(
@@ -548,7 +549,10 @@ export function StagesSection({
         })
         .filter(item => item.stageInfo)
 
-    const showTeethAllocationColumn = isTeethBased && selectedStages.length > 0
+    const showTeethAllocationColumn =
+        isTeethBased &&
+        selectedStages.length > 0 &&
+        userRole !== "superadmin"
 
     const stagesTableGridTemplateColumns = useMemo(() => {
         const alloc = showTeethAllocationColumn ? "minmax(76px,96px) " : ""
@@ -598,6 +602,39 @@ export function StagesSection({
         }
     })()
 
+    const liveStagesStepErrors = useMemo(() => {
+        if (!sections.stages || isSingleStage) return [] as { field: string; message: string }[]
+        return collectStagesStepErrors(
+            {
+                stages: watchedStages,
+                grades: watchedGrades,
+                has_grade_based_pricing: hasGradeBasedPricing ? "Yes" : "No",
+                is_teeth_based_price: isTeethBased ? "Yes" : "No",
+                is_single_stage: "No",
+            } as Record<string, unknown>,
+            {
+                stagesSectionEnabled: sections.stages,
+                isSingleStage: false,
+                isSuperAdmin: userRole === "superadmin",
+            },
+        )
+    }, [
+        sections.stages,
+        isSingleStage,
+        watchedStages,
+        watchedGrades,
+        hasGradeBasedPricing,
+        isTeethBased,
+        userRole,
+    ])
+
+    /** Manual (after Next/Save) merged with live collector so invalid fields stay visibly highlighted. */
+    const stageIssue = useCallback(
+        (field: string) =>
+            getValidationError(field) ?? liveStagesStepErrors.find((e) => e.field === field)?.message,
+        [getValidationError, liveStagesStepErrors],
+    )
+
     // When single stage is active, the entire section is disabled
     if (isSingleStage) {
         return (
@@ -642,7 +679,7 @@ export function StagesSection({
                     >
                         <strong>{selectedStages.length} selected</strong>
                     </span>
-                    {sections.stages && selectedStages.length > 0 && (
+                    {sections.stages && selectedStages.length > 0 && userRole !== "superadmin" && (
                         <button
                             type="button"
                             onClick={() => setShowPriceSuggestion(!showPriceSuggestion)}
@@ -663,7 +700,7 @@ export function StagesSection({
             {expandedSections.stages && (
                 <div className={cn("px-6 pb-6", !sections.stages && "opacity-50 pointer-events-none select-none")}>
                     {/* Pricing suggestion banner */}
-                    {showPriceSuggestion && (
+                    {showPriceSuggestion && userRole !== "superadmin" && (
                         <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 mb-4">
                             <div className="flex items-start justify-between mb-2">
                                 <span className="text-sm text-gray-700">
@@ -704,7 +741,7 @@ export function StagesSection({
 
                     {showTeethAllocationColumn && (
                         <p className="mb-2 text-xs text-gray-500">
-                            Teeth-based: enter each stage&apos;s share in <strong>Alloc. %</strong> — when every stage has a value, they must sum to 100.
+                            Teeth-based: enter each stage&apos;s share in <strong>Alloc. %</strong> (every row needs a value; they do not need to total 100).
                         </p>
                     )}
                     {/* Stages table */}
@@ -732,7 +769,7 @@ export function StagesSection({
                                                     Alloc. %
                                                 </span>
                                                 <span className="text-[10px] font-normal text-gray-500 leading-tight">
-                                                    Σ 100%
+                                                    Σ total
                                                 </span>
                                             </div>
                                         </div>
@@ -776,6 +813,20 @@ export function StagesSection({
                                 {selectedStages.map((item) => {
                                     const { stageInfo, ...stageData } = item
                                     const isDragging = draggedStageId === stageData.stage_id
+                                    const rowIdx = watchedStages.findIndex(
+                                        (s) => s.stage_id?.toString() === stageData.stage_id?.toString(),
+                                    )
+                                    const allocationCellIssue =
+                                        rowIdx >= 0
+                                            ? stageIssue(`stages.${rowIdx}.allocation_percent`)
+                                            : undefined
+                                    const allocationCellInvalid = Boolean(allocationCellIssue)
+                                    const daysCellIssue =
+                                        rowIdx >= 0 ? stageIssue(`stages.${rowIdx}.days`) : undefined
+                                    const economyCellIssue =
+                                        rowIdx >= 0
+                                            ? stageIssue(`stages.${rowIdx}.economy_price`)
+                                            : undefined
 
                                     return (
                                         <div
@@ -804,23 +855,35 @@ export function StagesSection({
                                                 <div className="flex items-center justify-center px-1">
                                                     <input
                                                         type="number"
-                                                        min="0"
-                                                        max="100"
-                                                        step="0.01"
+                                                        step="any"
                                                         placeholder="%"
-                                                        className="h-8 w-full max-w-[5.5rem] rounded border border-gray-300 px-2 text-center text-sm tabular-nums focus:border-[#1162a8] focus:ring-1 focus:ring-[#1162a8]"
+                                                        className={cn(
+                                                            "h-8 w-full max-w-[5.5rem] rounded border px-2 text-center text-sm tabular-nums focus:ring-1",
+                                                            allocationCellInvalid
+                                                                ? "border-[#CF0202] ring-1 ring-[#CF0202]"
+                                                                : "border-gray-300 focus:border-[#1162a8] focus:ring-[#1162a8]",
+                                                        )}
                                                         value={stageData.allocation_percent ?? ""}
                                                         onChange={(e) =>
                                                             setAllocationPercent(stageData.stage_id, e.target.value)
                                                         }
                                                         aria-label={`Stage allocation % for ${stageInfo.name}`}
+                                                        aria-invalid={allocationCellInvalid}
                                                     />
                                                 </div>
                                             )}
                                             {/* Hide price inputs for superadmin */}
                                             {userRole !== "superadmin" && (
                                               hasSelectedGrades
-                                                ? selectedGradesWithNames.map((grade: any) => (
+                                                ? selectedGradesWithNames.map((grade: any) => {
+                                                      const gid = grade.grade_id || grade.id
+                                                      const gradeCellIssue =
+                                                          rowIdx >= 0
+                                                              ? stageIssue(
+                                                                    `stages.${rowIdx}.grade_price.${String(gid)}`,
+                                                                )
+                                                              : undefined
+                                                      return (
                                                     <div className="relative" key={grade.grade_id || grade.id}>
                                                         <Input
                                                             type="number"
@@ -831,6 +894,7 @@ export function StagesSection({
                                                             value={getGradePrice(stageData, grade.grade_id || grade.id)}
                                                             placeholder="0"
                                                             readOnly={teethAutoStagePricesFromAlloc}
+                                                            validationState={gradeCellIssue ? "error" : "default"}
                                                             title={
                                                                 teethAutoStagePricesFromAlloc
                                                                     ? "Derived from grade price × allocation % (teeth-based)"
@@ -842,7 +906,8 @@ export function StagesSection({
                                                         />
                                                         <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400">$</span>
                                                     </div>
-                                                ))
+                                                      )
+                                                  })
                                                 : (
                                                     <div className="relative">
                                                         <Input
@@ -850,6 +915,7 @@ export function StagesSection({
                                                             className="pl-7 h-8 w-full"
                                                             value={stageData.economy_price || ""}
                                                             placeholder="0"
+                                                            validationState={economyCellIssue ? "error" : "default"}
                                                             onChange={(e) => {
                                                                 const updated = watchedStages.map(s =>
                                                                     s.stage_id === stageData.stage_id 
@@ -866,6 +932,7 @@ export function StagesSection({
                                             <Input
                                                 type="number"
                                                 className="h-8 w-24 text-center"
+                                                validationState={daysCellIssue ? "error" : "default"}
                                                 value={stageData.days !== undefined && stageData.days !== null ? stageData.days : (stageInfo.days_to_process || "")}
                                                 placeholder="0"
                                                 onChange={(e) => {
@@ -945,19 +1012,10 @@ export function StagesSection({
                                         {showTeethAllocationColumn && (
                                             <div className="flex flex-col items-center justify-center px-1">
                                                 <span
-                                                    className={`text-sm font-semibold tabular-nums ${
-                                                        Math.abs(stageTableSubtotals.allocSum - 100) > 0.02
-                                                            ? "text-red-600"
-                                                            : "text-[#1162a8]"
-                                                    }`}
+                                                    className="text-sm font-semibold tabular-nums text-[#1162a8]"
                                                 >
                                                     {stageTableSubtotals.allocSum.toFixed(2)}%
                                                 </span>
-                                                {Math.abs(stageTableSubtotals.allocSum - 100) > 0.02 && (
-                                                    <span className="text-[10px] text-red-600 leading-tight">
-                                                        ≠ 100%
-                                                    </span>
-                                                )}
                                             </div>
                                         )}
                                         {userRole !== "superadmin" &&
@@ -1028,7 +1086,7 @@ export function StagesSection({
                         </div>
                     </div>
 
-                    <ValidationError message={getValidationError("stages")} />
+                    <ValidationError message={stageIssue("stages")} />
                 </div>
             )}
         </div>

@@ -1,11 +1,10 @@
 "use client"
 
 import type React from "react"
-import React from "react"
+import React, { useEffect } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { useOnboardingStatus } from "@/hooks/use-onboarding-status"
-import { useEffect } from "react"
 import { Loader2 } from "lucide-react"
 
 export default function OnboardingLayout({
@@ -13,8 +12,8 @@ export default function OnboardingLayout({
 }: {
   children: React.ReactNode
 }) {
-  const { isNewUser, user } = useAuth()
-  const { isOnboardingComplete, isLoading } = useOnboardingStatus()
+  const { user } = useAuth()
+  const { isOnboardingComplete, isLoading, onboardingStatus, error } = useOnboardingStatus()
   const router = useRouter()
   const pathname = usePathname() || ""
   const hasRedirectedRef = React.useRef(false)
@@ -31,18 +30,33 @@ export default function OnboardingLayout({
       return
     }
 
-    // Check if user is already onboarded
+    const isSuperAdmin = user.roles?.includes("superadmin")
+    let primaryCustomer = null
+    if (user.customers && Array.isArray(user.customers) && user.customers.length > 0) {
+      primaryCustomer =
+        user.customers.find((c: any) => c?.is_primary === true || c?.is_primary === 1 || c?.is_primary === "1") ||
+        user.customers[0]
+    } else if (user.customer) {
+      primaryCustomer = user.customer
+    }
+    if (!primaryCustomer) return
+    if (error || onboardingStatus === null) return
+
+    // setup-status API only (via useOnboardingStatus)
     if (isOnboardingComplete) {
-      const isSuperAdmin = user.roles?.includes("superadmin")
       // Don't redirect superadmins - they can access onboarding pages
       if (!isSuperAdmin) {
+        // Allow completion screen to render (it may redirect locally)
+        if (pathname === "/onboarding/completion") {
+          return
+        }
         // Mark as redirected to prevent loops
         hasRedirectedRef.current = true
         // Immediate redirect to dashboard
         router.replace("/dashboard")
       }
     }
-  }, [isLoading, user, isOnboardingComplete, router])
+  }, [isLoading, user, isOnboardingComplete, onboardingStatus, error, router, pathname])
 
   // Calculate progress based on current path
   const getProgress = () => {
@@ -54,6 +68,8 @@ export default function OnboardingLayout({
         return 20
       case "/onboarding/business-hours":
         return 40
+      case "/onboarding/invite-lab-team":
+        return 52
       case "/onboarding/services":
       case "/onboarding/products":
         return 60
@@ -62,7 +78,7 @@ export default function OnboardingLayout({
       case "/onboarding/attachments":
         return 95
       case "/onboarding/invite-users":
-        return 97
+        return 92
       case "/onboarding/completion":
         return 99
       default:

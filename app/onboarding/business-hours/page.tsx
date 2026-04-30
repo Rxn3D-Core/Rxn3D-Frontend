@@ -20,7 +20,13 @@ import { useAuth } from "@/contexts/auth-context"
 export default function BusinessHoursPage() {
   const router = useRouter()
   const { user, logout } = useAuth()
-  const { isOnboardingComplete, isLoading: onboardingLoading } = useOnboardingStatus()
+  const {
+    isOnboardingComplete,
+    isLoading: onboardingLoading,
+    refetch: refetchOnboardingStatus,
+    onboardingStatus,
+    error: onboardingApiError,
+  } = useOnboardingStatus()
   const [activeTab, setActiveTab] = useState("working-days")
   const [customerType, setCustomerType] = useState("office")
   const [customerId, setCustomerId] = useState<string | null>(null)
@@ -34,6 +40,17 @@ export default function BusinessHoursPage() {
     }
   }, [])
 
+  // Return from invite-lab-team "Previous" should reopen Case Schedule tab
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    if (customerType.toLowerCase() !== "lab") return
+    const tab = sessionStorage.getItem("onboardingReturnTab")
+    if (tab === "case-schedule") {
+      setActiveTab("case-schedule")
+      sessionStorage.removeItem("onboardingReturnTab")
+    }
+  }, [customerType])
+
   // Validate onboarding status - redirect if already onboarded
   const hasRedirectedRef = React.useRef(false)
   useEffect(() => {
@@ -42,14 +59,20 @@ export default function BusinessHoursPage() {
       return
     }
 
-    if (!onboardingLoading && user && isOnboardingComplete) {
+    if (
+      !onboardingLoading &&
+      user &&
+      onboardingStatus !== null &&
+      !onboardingApiError &&
+      isOnboardingComplete
+    ) {
       const isSuperAdmin = user.roles?.includes("superadmin")
       if (!isSuperAdmin) {
         hasRedirectedRef.current = true
         router.replace("/dashboard")
       }
     }
-  }, [onboardingLoading, user, isOnboardingComplete, router])
+  }, [onboardingLoading, user, isOnboardingComplete, onboardingStatus, onboardingApiError, router])
 
   useEffect(() => {
     if (customerType.toLowerCase() === "office") {
@@ -70,19 +93,31 @@ export default function BusinessHoursPage() {
     resetError,
   } = useBusinessSettings()
 
+  /** Office onboarding: finish after business settings (dashboard). Lab defers persistence to invite flow / `POST /labs/onboard-complete`. */
   const handleSubmit = async () => {
     if (!customerId) {
       return
     }
-    const result = await submitBusinessSettings(Number(customerId), customerType)
-
-    if (result) {
-      if (customerType.toLowerCase() === "office") {
-      router.push("/onboarding/invite-users")
-      } else {
-      router.push("/onboarding/products")
-      }
+    if (customerType.toLowerCase() !== "office") {
+      return
     }
+    const result = await submitBusinessSettings(Number(customerId), customerType)
+    if (result) {
+      await refetchOnboardingStatus()
+      router.replace("/dashboard")
+    }
+  }
+
+  const handleFooterNext = () => {
+    if (customerType.toLowerCase() === "lab") {
+      if (activeTab === "working-days") {
+        setActiveTab("case-schedule")
+        return
+      }
+      router.push("/onboarding/invite-lab-team")
+      return
+    }
+    void handleSubmit()
   }
 
   const handleContinueLater = () => {
@@ -348,7 +383,7 @@ export default function BusinessHoursPage() {
             </Button>
             <Button
               className="bg-[#1162a8] hover:bg-[#1162a8]/90 border border-[#1162a8]"
-              onClick={handleSubmit}
+              onClick={handleFooterNext}
               disabled={isLoading}
             >
               {isLoading ? (

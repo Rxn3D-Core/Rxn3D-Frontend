@@ -57,10 +57,11 @@ export default function FieldsPage() {
 
   const handleSort = (field: string) => {
     if (orderBy === field) {
-      setSortBy(sortBy === 'asc' ? 'desc' : 'asc')
+      setSortBy(sortBy === "asc" ? "desc" : "asc")
     } else {
       setOrderBy(field)
-      setSortBy('asc')
+      setSortBy("asc")
+      setCurrentPage(1)
     }
   }
 
@@ -284,40 +285,51 @@ export default function FieldsPage() {
                       <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />
                     </div>
                   </TableHead>
-                  <TableHead className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors">
+                  <TableHead
+                    className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors"
+                    onClick={() => handleSort("advance_subcategory_id")}
+                  >
                     <div className="flex items-center gap-1">
                       {t("Subcategory")}
                       <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />
                     </div>
                   </TableHead>
-                  <TableHead
-                    className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors"
-                    onClick={() => handleSort('code')}
-                  >
+                  <TableHead className="font-semibold text-gray-900 py-2 px-2">
                     <div className="flex items-center gap-1">
                       {t("Code")}
-                      <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />
                     </div>
                   </TableHead>
-                  <TableHead className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors">
+                  <TableHead
+                    className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors"
+                    onClick={() => handleSort("field_type")}
+                  >
                     <div className="flex items-center gap-1">
                       {t("Type")}
                       <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />
                     </div>
                   </TableHead>
-                  <TableHead className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors">
+                  <TableHead
+                    className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors"
+                    onClick={() => handleSort("charge_scope")}
+                  >
                     <div className="flex items-center gap-1">
                       {t("Pricing")}
                       <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />
                     </div>
                   </TableHead>
-                  <TableHead className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors">
+                  <TableHead
+                    className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors"
+                    onClick={() => handleSort("price")}
+                  >
                     <div className="flex items-center gap-1">
                       {t("Price")}
                       <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />
                     </div>
                   </TableHead>
-                  <TableHead className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors">
+                  <TableHead
+                    className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors"
+                    onClick={() => handleSort("advance_category_id")}
+                  >
                     <div className="flex items-center gap-1">
                       {t("Linked Category / Products")}
                       <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />

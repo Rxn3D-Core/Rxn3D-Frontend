@@ -1,8 +1,6 @@
-import { OnboardingLayout } from "@/components/onboarding/onboarding-layout"
-import BusinessHoursPage from "./business-hours/page"
+import { redirect } from "next/navigation"
 
-export default function OnboardingPage() {
-  return (
-    <BusinessHoursPage />
-  )
+/** Canonical entry: business hours (lab + office). Do not import sibling `page.tsx` modules as components. */
+export default function OnboardingIndexPage() {
+  redirect("/onboarding/business-hours")
 }

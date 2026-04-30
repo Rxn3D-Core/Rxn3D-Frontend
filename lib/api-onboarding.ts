@@ -1,4 +1,5 @@
 import { ApiService } from './api-service'
+import { isOnboardingStatusWizardComplete } from './customer-onboarding-complete'
 
 export interface OnboardingStatus {
   id: number
@@ -54,7 +55,7 @@ export class OnboardingApiService {
   static async isOnboardingComplete(customerId: number): Promise<boolean> {
     try {
       const response = await this.getOnboardingStatus(customerId)
-      return response.data.onboarding_completed && response.data.business_hours_setup_completed
+      return isOnboardingStatusWizardComplete(response.data)
     } catch (error) {
       console.error('Error checking onboarding status:', error)
       return false

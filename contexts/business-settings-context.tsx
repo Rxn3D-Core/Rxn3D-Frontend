@@ -10,6 +10,7 @@ import type {
 } from "@/types/business-settings"
 import { convertTo24Hour } from "@/utils/time-utils"
 import { OnboardingApiService } from "@/lib/api-onboarding"
+import { clearLegacyOnboardingCompleteLocalFlag } from "@/lib/onboarding-storage"
 
 interface BusinessSettingsContextType {
   // State
@@ -188,6 +189,8 @@ export function BusinessSettingsProvider({ children }: BusinessSettingsProviderP
           console.error('Error marking business hours as complete:', onboardingError)
           // Don't fail the entire operation if this fails
         }
+
+        clearLegacyOnboardingCompleteLocalFlag()
         
         return result
       } catch (err) {
