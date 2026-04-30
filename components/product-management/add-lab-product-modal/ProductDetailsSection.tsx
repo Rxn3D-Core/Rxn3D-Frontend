@@ -652,11 +652,7 @@ export function ProductDetailsSection({
       const editCatId = Number(editingProduct.subcategory.category_id || editingProduct.subcategory.category?.id)
       const editCatName = editingProduct.subcategory.category?.name
       const editSub = { id: editingProduct.subcategory.id, name: editingProduct.subcategory.name, category_id: editCatId }
-<<<<<<< HEAD
       const existingCat = cats.find((c: any) => Number(c.id) === Number(editCatId))
-=======
-      const existingCat = cats.find((c: any) => Number(c.id) === editCatId)
->>>>>>> afdef83b7cf14830009821f7b15758e5589fb4ed
       if (existingCat) {
         // Ensure the editing product's subcategory is included in the existing category
         if (!existingCat.subcategories?.some((s: any) => s.id === editSub.id)) {
