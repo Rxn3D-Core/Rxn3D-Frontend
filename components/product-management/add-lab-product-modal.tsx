@@ -9,6 +9,16 @@ import { useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { ProductCreateFormSchema, type ProductCreateForm } from "@/lib/schemas"
 import {
+  SLIP_RELATION_FIELD_SET,
+  collectImpressionsStepErrors,
+  collectGumShadeStepErrors,
+  collectTeethShadeStepErrors,
+  collectMaterialStepErrors,
+  collectAddonsStepErrors,
+  collectRetentionsStepErrors,
+  firstSlipPicklistValidationFailure,
+} from "@/lib/slip-relation-step-validation"
+import {
   finalizeLibraryProductApiPayload,
   validateStageAllocationPercents,
   teethStrategyApiToForm,
@@ -44,6 +54,14 @@ import { LoadingOverlay } from "@/components/ui/loading-overlay"
 type ValidationFieldError = {
   field: string
   message: string
+}
+
+function replaceSlipFieldErrors(
+  prev: ValidationFieldError[],
+  field: string,
+  next: ValidationFieldError[],
+): ValidationFieldError[] {
+  return [...prev.filter((e) => e.field !== field), ...next]
 }
 
 // Section components
@@ -133,17 +151,19 @@ export function AddLabProductModal({
 }: AddLabProductModalProps) {
   const [clientValidationErrors, setClientValidationErrors] = useState<ValidationFieldError[]>([])
   const [serverValidationErrors, setServerValidationErrors] = useState<ValidationFieldError[]>([])
+  const [manualSlipRelationErrors, setManualSlipRelationErrors] = useState<ValidationFieldError[]>([])
   const { toast } = useToast()
 
   const validationErrors = useMemo(
-    () => [...serverValidationErrors, ...clientValidationErrors],
-    [clientValidationErrors, serverValidationErrors],
+    () => [...serverValidationErrors, ...clientValidationErrors, ...manualSlipRelationErrors],
+    [clientValidationErrors, serverValidationErrors, manualSlipRelationErrors],
   )
   
   // Local function to clear validation errors
   const clearValidationErrors = useCallback(() => {
     setClientValidationErrors([])
     setServerValidationErrors([])
+    setManualSlipRelationErrors([])
   }, [])
   const {
     parentDropdownCategories,
@@ -420,6 +440,7 @@ export function AddLabProductModal({
     control,
     reset,
     watch,
+    getValues,
     setValue,
     trigger,
     formState: { isDirty, isValid, isSubmitting, errors, dirtyFields },
@@ -442,6 +463,12 @@ export function AddLabProductModal({
   const watchedMaxDays = watch("max_days_to_process")
   const watchedStages = useWatch({ control, name: "stages" }) || []
   const watchedGrades = useWatch({ control, name: "grades" }) || []
+  const watchedImpressions = useWatch({ control, name: "impressions" }) || []
+  const watchedGumShades = useWatch({ control, name: "gum_shades" }) || []
+  const watchedTeethShades = useWatch({ control, name: "teeth_shades" }) || []
+  const watchedMaterialsSlip = useWatch({ control, name: "materials" }) || []
+  const watchedAddonsSlip = useWatch({ control, name: "addons" }) || []
+  const watchedRetentionsSlip = useWatch({ control, name: "retentions" }) || []
   const watchedHasGradeBasedPricing = watch("has_grade_based_pricing")
   // Track whether any grade is set as default (used for Next button validation)
   const hasDefaultGrade = watchedGrades.some((g: any) => g.is_default === "Yes")
@@ -619,6 +646,60 @@ export function AddLabProductModal({
       if (watchedGrades.length === 0 || !hasDefaultGrade) return false
     }
 
+    if (activeTab === "impressions" && sections.impressions) {
+      return (
+        collectImpressionsStepErrors(
+          { impressions: watchedImpressions } as Record<string, unknown>,
+          { impressionsSectionEnabled: sections.impressions },
+        ).length === 0
+      )
+    }
+
+    if (activeTab === "gumShade" && sections.gumShade) {
+      return (
+        collectGumShadeStepErrors(
+          { gum_shades: watchedGumShades } as Record<string, unknown>,
+          { gumShadeSectionEnabled: sections.gumShade },
+        ).length === 0
+      )
+    }
+
+    if (activeTab === "teethShade" && sections.teethShade) {
+      return (
+        collectTeethShadeStepErrors(
+          { teeth_shades: watchedTeethShades } as Record<string, unknown>,
+          { teethShadeSectionEnabled: sections.teethShade },
+        ).length === 0
+      )
+    }
+
+    if (activeTab === "material" && sections.material) {
+      return (
+        collectMaterialStepErrors(
+          { materials: watchedMaterialsSlip } as Record<string, unknown>,
+          { materialSectionEnabled: sections.material },
+        ).length === 0
+      )
+    }
+
+    if (activeTab === "addOns" && sections.addOns) {
+      return (
+        collectAddonsStepErrors(
+          { addons: watchedAddonsSlip } as Record<string, unknown>,
+          { addOnsSectionEnabled: sections.addOns },
+        ).length === 0
+      )
+    }
+
+    if (activeTab === "retention" && sections.retention) {
+      return (
+        collectRetentionsStepErrors(
+          { retentions: watchedRetentionsSlip } as Record<string, unknown>,
+          { retentionSectionEnabled: sections.retention },
+        ).length === 0
+      )
+    }
+
     // For other tabs, use standard validation
     if (requiredFields.length === 0) {
       return true
@@ -659,7 +740,33 @@ export function AddLabProductModal({
       }
       return value !== null && value !== undefined && value !== ""
     })
-  }, [activeTab, watchedName, watchedCode, watchedSubcategoryId, watchedBasePrice, watchedIsSingleStage, watchedMinDays, watchedMaxDays, hasCurrentStepErrors, areStagesPriced, hasDefaultGrade, watchedGrades.length, sections.grades])
+  }, [
+    activeTab,
+    watchedName,
+    watchedCode,
+    watchedSubcategoryId,
+    watchedBasePrice,
+    watchedIsSingleStage,
+    watchedMinDays,
+    watchedMaxDays,
+    hasCurrentStepErrors,
+    areStagesPriced,
+    hasDefaultGrade,
+    watchedGrades.length,
+    sections.grades,
+    sections.impressions,
+    sections.gumShade,
+    sections.teethShade,
+    sections.material,
+    sections.addOns,
+    sections.retention,
+    watchedImpressions,
+    watchedGumShades,
+    watchedTeethShades,
+    watchedMaterialsSlip,
+    watchedAddonsSlip,
+    watchedRetentionsSlip,
+  ])
 
   const handleNext = async () => {
     if (isLastTab) return
@@ -696,6 +803,72 @@ export function AddLabProductModal({
           description: "Please set a default grade before proceeding.",
           variant: "destructive",
         })
+        return
+      }
+    }
+
+    if (activeTab === "impressions" && sections.impressions) {
+      const record = getValues() as Record<string, unknown>
+      const impErrsNext = collectImpressionsStepErrors(record, {
+        impressionsSectionEnabled: sections.impressions,
+      })
+      setManualSlipRelationErrors((prev) => replaceSlipFieldErrors(prev, "impressions", impErrsNext))
+      if (impErrsNext.length > 0) {
+        toast({
+          title: "Validation Error",
+          description: impErrsNext[0].message,
+          variant: "destructive",
+        })
+        return
+      }
+    }
+
+    if (activeTab === "gumShade" && sections.gumShade) {
+      const record = getValues() as Record<string, unknown>
+      const err = collectGumShadeStepErrors(record, { gumShadeSectionEnabled: sections.gumShade })
+      setManualSlipRelationErrors((prev) => replaceSlipFieldErrors(prev, "gum_shades", err))
+      if (err.length > 0) {
+        toast({ title: "Validation Error", description: err[0].message, variant: "destructive" })
+        return
+      }
+    }
+
+    if (activeTab === "teethShade" && sections.teethShade) {
+      const record = getValues() as Record<string, unknown>
+      const err = collectTeethShadeStepErrors(record, { teethShadeSectionEnabled: sections.teethShade })
+      setManualSlipRelationErrors((prev) => replaceSlipFieldErrors(prev, "teeth_shades", err))
+      if (err.length > 0) {
+        toast({ title: "Validation Error", description: err[0].message, variant: "destructive" })
+        return
+      }
+    }
+
+    if (activeTab === "material" && sections.material) {
+      const record = getValues() as Record<string, unknown>
+      const err = collectMaterialStepErrors(record, { materialSectionEnabled: sections.material })
+      setManualSlipRelationErrors((prev) => replaceSlipFieldErrors(prev, "materials", err))
+      if (err.length > 0) {
+        toast({ title: "Validation Error", description: err[0].message, variant: "destructive" })
+        return
+      }
+    }
+
+    if (activeTab === "addOns" && sections.addOns) {
+      const record = getValues() as Record<string, unknown>
+      const err = collectAddonsStepErrors(record, { addOnsSectionEnabled: sections.addOns })
+      setManualSlipRelationErrors((prev) => replaceSlipFieldErrors(prev, "addons", err))
+      if (err.length > 0) {
+        toast({ title: "Validation Error", description: err[0].message, variant: "destructive" })
+        return
+      }
+    }
+
+    if (activeTab === "retention" && sections.retention) {
+      const record = getValues() as Record<string, unknown>
+      const err = collectRetentionsStepErrors(record, { retentionSectionEnabled: sections.retention })
+      setManualSlipRelationErrors((prev) => replaceSlipFieldErrors(prev, "retentions", err))
+      if (err.length > 0) {
+        toast({ title: "Validation Error", description: err[0].message, variant: "destructive" })
         return
       }
     }
@@ -789,6 +962,85 @@ export function AddLabProductModal({
     }
   }, [isValid, errors])
 
+  useEffect(() => {
+    setManualSlipRelationErrors((prev) =>
+      prev.filter((e) => {
+        if (e.field === "impressions" && !sections.impressions) return false
+        if (e.field === "gum_shades" && !sections.gumShade) return false
+        if (e.field === "teeth_shades" && !sections.teethShade) return false
+        if (e.field === "materials" && !sections.material) return false
+        if (e.field === "addons" && !sections.addOns) return false
+        if (e.field === "retentions" && !sections.retention) return false
+        return true
+      }),
+    )
+  }, [
+    sections.impressions,
+    sections.gumShade,
+    sections.teethShade,
+    sections.material,
+    sections.addOns,
+    sections.retention,
+  ])
+
+  useEffect(() => {
+    setManualSlipRelationErrors((prev) => {
+      const slipPrev = prev.filter((e) => SLIP_RELATION_FIELD_SET.has(e.field))
+      if (slipPrev.length === 0) return prev
+      const fieldsToRefresh = new Set(slipPrev.map((e) => e.field))
+      const nonSlip = prev.filter((e) => !SLIP_RELATION_FIELD_SET.has(e.field))
+      const v = getValues() as Record<string, unknown>
+      const nextSlip: ValidationFieldError[] = []
+      if (fieldsToRefresh.has("impressions")) {
+        nextSlip.push(
+          ...collectImpressionsStepErrors(v, { impressionsSectionEnabled: sections.impressions }),
+        )
+      }
+      if (fieldsToRefresh.has("gum_shades")) {
+        nextSlip.push(...collectGumShadeStepErrors(v, { gumShadeSectionEnabled: sections.gumShade }))
+      }
+      if (fieldsToRefresh.has("teeth_shades")) {
+        nextSlip.push(
+          ...collectTeethShadeStepErrors(v, { teethShadeSectionEnabled: sections.teethShade }),
+        )
+      }
+      if (fieldsToRefresh.has("materials")) {
+        nextSlip.push(...collectMaterialStepErrors(v, { materialSectionEnabled: sections.material }))
+      }
+      if (fieldsToRefresh.has("addons")) {
+        nextSlip.push(...collectAddonsStepErrors(v, { addOnsSectionEnabled: sections.addOns }))
+      }
+      if (fieldsToRefresh.has("retentions")) {
+        nextSlip.push(
+          ...collectRetentionsStepErrors(v, { retentionSectionEnabled: sections.retention }),
+        )
+      }
+      if (
+        slipPrev.length === nextSlip.length &&
+        slipPrev.every(
+          (e, i) => e.field === nextSlip[i]?.field && e.message === nextSlip[i]?.message,
+        )
+      ) {
+        return prev
+      }
+      return [...nonSlip, ...nextSlip]
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    watchedImpressions,
+    watchedGumShades,
+    watchedTeethShades,
+    watchedMaterialsSlip,
+    watchedAddonsSlip,
+    watchedRetentionsSlip,
+    sections.impressions,
+    sections.gumShade,
+    sections.teethShade,
+    sections.material,
+    sections.addOns,
+    sections.retention,
+  ])
+
   // Validation errors are now managed locally
 
   const currentParentDropdownCategories = Array.isArray(parentDropdownCategories)
@@ -800,8 +1052,8 @@ export function AddLabProductModal({
     fetchGrades()
     fetchStages()
     fetchImpressions()
-    fetchGumShadeBrands() // fetch all brands without pagination
-    fetchTeethShadeBrands() // fetch all brands without pagination
+    fetchGumShadeBrands()
+    fetchTeethShadeBrands()
     fetchMaterials()
     fetchRetentions()
     fetchAllAddOns()
@@ -1581,6 +1833,29 @@ export function AddLabProductModal({
   const onSubmit = async (data: ProductCreateForm) => {
     clearValidationErrors()
 
+    const slipFlags = {
+      impressions: sections.impressions,
+      gumShade: sections.gumShade,
+      teethShade: sections.teethShade,
+      material: sections.material,
+      addOns: sections.addOns,
+      retention: sections.retention,
+    }
+    const slipFailSave = firstSlipPicklistValidationFailure({ ...data } as Record<string, unknown>, slipFlags)
+    setManualSlipRelationErrors((prev) => [
+      ...prev.filter((e) => !SLIP_RELATION_FIELD_SET.has(e.field)),
+      ...(slipFailSave?.errors ?? []),
+    ])
+    if (slipFailSave) {
+      toast({
+        title: "Validation Error",
+        description: slipFailSave.errors[0].message,
+        variant: "destructive",
+      })
+      setActiveTab(slipFailSave.tabId)
+      return
+    }
+
     // Helper to ensure sequence and status for array fields
     function ensureSequenceAndStatus(arr: any[], idKey: string) {
       if (!Array.isArray(arr)) return []
@@ -1864,7 +2139,10 @@ export function AddLabProductModal({
     if (!sections.addOns) payload.addons = []
     if (!sections.retention) payload.retentions = []
 
-    const allocationError = validateStageAllocationPercents(payload.stages)
+    const allocationError = validateStageAllocationPercents(payload.stages, {
+      isTeethBased: data.is_teeth_based_price === "Yes",
+      isSuperAdmin: userRole === "superadmin",
+    })
     if (allocationError) {
       toast({
         title: "Validation Error",
@@ -2120,6 +2398,32 @@ export function AddLabProductModal({
     try {
       clearValidationErrors()
       const formData = watch()
+
+      const slipFailSection = firstSlipPicklistValidationFailure(
+        formData as Record<string, unknown>,
+        {
+          impressions: sections.impressions,
+          gumShade: sections.gumShade,
+          teethShade: sections.teethShade,
+          material: sections.material,
+          addOns: sections.addOns,
+          retention: sections.retention,
+        },
+      )
+      setManualSlipRelationErrors((prev) => [
+        ...prev.filter((e) => !SLIP_RELATION_FIELD_SET.has(e.field)),
+        ...(slipFailSection?.errors ?? []),
+      ])
+      if (slipFailSection) {
+        toast({
+          title: "Validation Error",
+          description: slipFailSection.errors[0].message,
+          variant: "destructive",
+        })
+        setActiveTab(slipFailSection.tabId)
+        return
+      }
+
       // Collect fields from ALL tabs so no changes are lost
       const allTabIds = ["details", "variation", "grades", "stages", "impressions", "gumShade", "teethShade", "material", "addOns", "retention", "extractions", "visibility"]
       const allFields = allTabIds.flatMap(tabId => getSectionFields(tabId))
@@ -2473,9 +2777,10 @@ export function AddLabProductModal({
       payload.has_material = slipFlagToApi(sections.material)
       payload.has_addon = slipFlagToApi(sections.addOns)
 
-      const allocationErrorSection = validateStageAllocationPercents(
-        payload.stages ?? formData.stages,
-      )
+      const allocationErrorSection = validateStageAllocationPercents(payload.stages ?? formData.stages, {
+        isTeethBased: formData.is_teeth_based_price === "Yes",
+        isSuperAdmin: userRole === "superadmin",
+      })
       if (allocationErrorSection) {
         toast({
           title: "Validation Error",

@@ -27,6 +27,8 @@ interface ToothStatusBoxesProps {
   hideDefaultBox?: boolean;
   /** When true, suppress the "Required: select at least N tooth" validation outline and message */
   disableRequiredValidation?: boolean;
+  /** When true, render boxes with gray border and gray text (used in accordion headers) */
+  grayed?: boolean;
 }
 
 /** Fallback color map keyed by extraction code — used only when API color is null */
@@ -135,6 +137,7 @@ export function ToothStatusBoxes({
   submitted = false,
   hideDefaultBox = false,
   disableRequiredValidation = false,
+  grayed = false,
 }: ToothStatusBoxesProps) {
   const allActiveExtractions = extractions
     .filter((e) => e.status === "Active" && e.name != null && e.code != null)
@@ -254,18 +257,20 @@ export function ToothStatusBoxes({
             key={extraction.id}
             className={`flex flex-col items-center justify-center rounded-[6px] transition-all shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] ${isCompact ? "px-[10px] py-1 min-h-[28px]" : "px-[10px] py-1.5 min-h-[50px]"}`}
             style={{
-              backgroundColor: submitted ? style.bg : "white",
-              outline: isActive
+              backgroundColor: grayed ? "white" : submitted ? style.bg : "white",
+              outline: grayed
+                ? "1.5px solid #B4B0B0"
+                : isActive
                 ? "3px solid #1162A8"
                 : showRequiredValidation
                 ? "2px solid #CF0202"
                 : "none",
-              outlineOffset: isActive ? "2px" : showRequiredValidation ? "1px" : "0px",
+              outlineOffset: grayed ? "0px" : isActive ? "2px" : showRequiredValidation ? "1px" : "0px",
               ...(onlyOneBoxWithTeeth ? { flex: "1 1 100%" } : {}),
             }}
           >
             <p
-              className={`font-[Verdana] font-normal tracking-[0.05em] text-center break-words max-w-full ${submitted ? style.textClass : 'text-black'} text-[16px] leading-tight`}
+              className={`font-[Verdana] font-normal tracking-[0.05em] text-center break-words max-w-full ${grayed ? "text-[#9B9B9B]" : submitted ? style.textClass : 'text-black'} text-[16px] leading-tight`}
             >
               {extraction.name}
               {teethDisplay && (

@@ -98,6 +98,8 @@ export interface CaseDesignProps {
   initialSlipState?: VirtualSlipInitialState;
   /** When true the footer acknowledgement checkbox is checked — accordion header borders turn green; orange when false. */
   confirmDetailsChecked?: boolean;
+  /** Called whenever any full-screen modal (impression, stage, add-ons, etc.) opens or closes. */
+  onAnyModalOpenChange?: (isOpen: boolean) => void;
 }
 
 export interface AddedProduct {

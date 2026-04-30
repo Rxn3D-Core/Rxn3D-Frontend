@@ -344,23 +344,17 @@ export function applyProductLevelTeethPricingToPayload(
   }
 }
 
-const ALLOCATION_EPS = 0.02
-
-export function validateStageAllocationPercents(stages: any[] | undefined): string | null {
+/** When teeth pricing is on, each stage must have a non-empty allocation % (any numeric values allowed). Super-admin skips this. */
+export function validateStageAllocationPercents(
+  stages: any[] | undefined,
+  opts?: { isTeethBased?: boolean; isSuperAdmin?: boolean },
+): string | null {
+  if (!opts?.isTeethBased || opts?.isSuperAdmin) return null
   if (!Array.isArray(stages) || stages.length === 0) return null
-  const nums: number[] = []
   for (const s of stages) {
-    if (s == null || s.allocation_percent === undefined || s.allocation_percent === null || s.allocation_percent === "") {
-      return null
+    if (s == null || s.allocation_percent === undefined || s.allocation_percent === null || String(s.allocation_percent).trim() === "") {
+      return "Enter allocation % for each stage."
     }
-    const n = typeof s.allocation_percent === "number" ? s.allocation_percent : parseFloat(String(s.allocation_percent))
-    if (isNaN(n)) return null
-    nums.push(n)
-  }
-  if (nums.length !== stages.length) return null
-  const sum = nums.reduce((a, b) => a + b, 0)
-  if (Math.abs(sum - 100) > ALLOCATION_EPS) {
-    return `Stage allocation percentages must sum to 100 (currently ${sum.toFixed(2)}).`
   }
   return null
 }

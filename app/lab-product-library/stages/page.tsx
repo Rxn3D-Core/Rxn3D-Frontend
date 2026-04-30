@@ -53,6 +53,7 @@ export default function StagesPage() {
   const { t } = useTranslation()
 
   const [editingStage, setEditingStage] = useState<Stage | null>(null)
+  const [isCopying, setIsCopying] = useState(false)
   const [isModalDirty, setIsModalDirty] = useState(false)
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
@@ -122,8 +123,21 @@ export default function StagesPage() {
     setCurrentPage(page)
   }
 
+  const handleOpenCreateStageModal = (): void => {
+    setEditingStage(null)
+    setIsCopying(false)
+    setIsCreateStageModalOpen(true)
+  }
+
   const handleEdit = (stage: Stage): void => {
     setEditingStage(stage)
+    setIsCopying(false)
+    setIsCreateStageModalOpen(true)
+  }
+
+  function handleCopy(stage: Stage): void {
+    setEditingStage(stage)
+    setIsCopying(true)
     setIsCreateStageModalOpen(true)
   }
 
@@ -236,7 +250,7 @@ export default function StagesPage() {
 
           <Button
             className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
-            onClick={() => setIsCreateStageModalOpen(true)}
+            onClick={handleOpenCreateStageModal}
           >
             <Plus className="h-4 w-4 mr-2" />
             {t("Add Stage")}
@@ -292,12 +306,6 @@ export default function StagesPage() {
                     <div className="flex items-center">
                       <span>{t("Seq.")}</span>
                       {renderSortIndicator("sequence")}
-                    </div>
-                  </TableHead>
-                  <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("days")}>
-                    <div className="flex items-center">
-                      <span>{t("Process Days")}</span>
-                      {renderSortIndicator("days")}
                     </div>
                   </TableHead>
                   <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("status")}>
@@ -363,10 +371,6 @@ export default function StagesPage() {
                           {stage.sequence}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-gray-600">
-                        <span className="font-medium">{stage.days_to_process}</span>
-                        <span className="text-xs text-gray-500 ml-1">{t("days")}</span>
-                      </TableCell>
                       <TableCell>
                         <Badge
                           variant="outline"
@@ -431,6 +435,7 @@ export default function StagesPage() {
                             size="sm"
                             className="h-8 w-8 p-0 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
                             title={t("Duplicate")}
+                            onClick={() => handleCopy(stage)}
                           >
                             <Copy className="h-4 w-4" />
                           </Button>
@@ -449,7 +454,7 @@ export default function StagesPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-12">
+                    <TableCell colSpan={9} className="text-center py-12">
                       <div className="flex flex-col items-center gap-4">
                         <div className="p-4 bg-gray-100 rounded-full">
                           <Package className="h-8 w-8 text-gray-400" />
@@ -465,7 +470,7 @@ export default function StagesPage() {
                           {!contextSearchQuery && (
                             <Button
                               className="bg-[#1162a8] hover:bg-[#0f5497] text-white"
-                              onClick={() => setIsCreateStageModalOpen(true)}
+                              onClick={handleOpenCreateStageModal}
                             >
                               <Plus className="h-4 w-4 mr-2" />
                               {t("Add Your First Stage")}
@@ -535,11 +540,13 @@ export default function StagesPage() {
         onClose={() => {
           setIsCreateStageModalOpen(false)
           setEditingStage(null)
+          setIsCopying(false)
           setIsModalDirty(false)
         }}
         onHasChangesChange={setIsModalDirty}
         stage={editingStage}
-        mode={editingStage ? "edit" : "create"}
+        mode={editingStage && !isCopying ? "edit" : "create"}
+        isCopying={isCopying}
       />
       
       <CreateStageGroupModal

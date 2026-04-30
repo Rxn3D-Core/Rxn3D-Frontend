@@ -1408,6 +1408,28 @@ export const useDuplicateAdvanceSubcategory = () => {
 
 // ===== FIELDS =====
 
+/** order_by columns accepted by GET /library/advance/fields (`code` rejected by API). Keep in sync with field list sort UI. */
+const ADVANCE_FIELDS_LIST_ORDER_BY = new Set([
+  "name",
+  "status",
+  "field_type",
+  "charge_scope",
+  "charge_type",
+  "price",
+  "sequence",
+  "advance_subcategory_id",
+  "advance_category_id",
+  "created_at",
+  "updated_at",
+  "id",
+])
+
+function sanitizeAdvanceFieldsOrderBy(orderBy?: string): string | undefined {
+  const key = orderBy?.trim()
+  if (!key) return undefined
+  return ADVANCE_FIELDS_LIST_ORDER_BY.has(key) ? key : undefined
+}
+
 export const useAdvanceFields = (params?: PaginationParams & {
   advance_category_id?: number
   advance_subcategory_id?: number
@@ -1421,7 +1443,8 @@ export const useAdvanceFields = (params?: PaginationParams & {
       if (params?.per_page) queryParams.append('per_page', params.per_page.toString())
       if (params?.q) queryParams.append('q', params.q)
       if (params?.status) queryParams.append('status', params.status)
-      if (params?.order_by) queryParams.append('order_by', params.order_by)
+      const advanceFieldsOrderBy = sanitizeAdvanceFieldsOrderBy(params?.order_by)
+      if (advanceFieldsOrderBy) queryParams.append('order_by', advanceFieldsOrderBy)
       if (params?.sort_by) queryParams.append('sort_by', params.sort_by)
       if (params?.advance_category_id) queryParams.append('advance_category_id', params.advance_category_id.toString())
       if (params?.advance_subcategory_id) queryParams.append('advance_subcategory_id', params.advance_subcategory_id.toString())

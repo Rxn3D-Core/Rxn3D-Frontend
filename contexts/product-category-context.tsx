@@ -122,6 +122,17 @@ type ProductCategoryContextType = {
   subcategoriesLoading: boolean
   subcategoriesError: string | null
   fetchSubcategoriesByCategory: (categoryId: number, lang?: string, customerId?: number) => Promise<void>
+
+  // Categories with nested subcategories (for product form dropdowns)
+  categoriesWithSubcategories: CategoryWithSubcategories[]
+  fetchCategoriesWithSubcategories: () => Promise<void>
+}
+
+export type CategoryWithSubcategories = {
+  id: number
+  name: string
+  code: string
+  subcategories: Array<{ id: number; name: string; category_id: number }>
 }
 
 type ProductCategoryApi = {
@@ -219,6 +230,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
   const [parentDropdownCategories, setParentDropdownCategories] = useState<ProductCategory[]>([])
   const [categoriesWithSubcategories, setCategoriesWithSubcategories] = useState<any[]>([])
   const [isLoadingParentDropdown, setIsLoadingParentDropdown] = useState(false)
+  const [categoriesWithSubcategories, setCategoriesWithSubcategories] = useState<CategoryWithSubcategories[]>([])
 
   // State for messages and animations
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
@@ -443,37 +455,46 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
     ],
   )
 
-  const fetchParentDropdownCategories = useCallback(async () => {
-    // Same as fetchCategories / fetchSubcategories: avoid a first request before role + customerId are hydrated
-    // (otherwise lab_admin briefly looks like a non-lab user and hits /categories without customer_id).
-    if (!isRoleInitialized) return
+  // --- NEW: API for all categories ---
+  const [allCategories, setAllCategories] = useState<ProductCategoryApi[]>([])
+  const [allCategoriesLoading, setAllCategoriesLoading] = useState(false)
+  const [allCategoriesError, setAllCategoriesError] = useState<string | null>(null)
 
+  // Refs for in-flight guards and cache tracking (shared between fetchParentDropdownCategories and fetchAllCategories)
+  const fetchCategoriesInFlightRef = useRef(false)
+  const fetchAllCategoriesInProgressRef = useRef<{ lang: string; customerId?: number } | null>(null)
+  const lastFetchParamsRef = useRef<{ lang: string; customerId?: number } | null>(null)
+  const hasCategoriesLoadedRef = useRef<boolean>(false)
+
+  // Single debounced fetch that populates parentDropdownCategories, categoriesWithSubcategories, and allCategories
+
+  const fetchParentDropdownCategories = useCallback(async () => {
+    if (!isRoleInitialized) return
+    if (fetchCategoriesInFlightRef.current) return
+    fetchCategoriesInFlightRef.current = true
     setIsLoadingParentDropdown(true)
     try {
       const token = getAuthToken()
-      const params = new URLSearchParams({
-        per_page: "100",
-        status: "Active",
-        lang: currentLanguage,
-      })
-      
-      // Lab admin: pass customer_id so the dropdown matches lab-scoped categories. Superadmin: omit (global list).
+      const params = new URLSearchParams({ per_page: "100", status: "Active", lang: currentLanguage })
+      // Lab admin: scope to their customer. Superadmin: global list.
       if (isLabAdmin && customerId) {
         params.append("customer_id", customerId.toString())
       }
-      
       const response = await fetch(
         `${API_BASE_URL}/library/categories?${params.toString()}`,
-        {
-          method: "GET",
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "Accept-Language": currentLanguage || "en" },
-        }
+        { method: "GET", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "Accept-Language": currentLanguage || "en" } }
       )
       if (!response.ok) throw new Error("Failed to fetch categories for dropdown.")
       const responseData = await response.json()
+<<<<<<< HEAD
       const rawCategories = responseData.data?.data || []
       // Flat rows for legacy "Nest Sub Category Under" / simple parent picker
       const categories = rawCategories.map((cat: any) => ({
+=======
+      const raw: any[] = responseData.data?.data || []
+      // Populate flat list for parent dropdown
+      setParentDropdownCategories(raw.map((cat: any) => ({
+>>>>>>> afdef83b7cf14830009821f7b15758e5589fb4ed
         id: cat.id,
         name: cat.name,
         code: cat.code,
@@ -484,16 +505,27 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
         case_pan_id: cat.case_pan_id || null,
         created_at: cat.created_at,
         updated_at: cat.updated_at,
+<<<<<<< HEAD
       }))
       setParentDropdownCategories(categories)
       setCategoriesWithSubcategories(normalizeCategoriesWithNestedSubcategories(rawCategories))
+=======
+      })))
+      // Populate categories-with-subcategories for product form dropdowns (same response)
+      setCategoriesWithSubcategories(raw)
+      // Also populate allCategories so fetchAllCategories can skip its own request
+      setAllCategories(raw)
+      lastFetchParamsRef.current = { lang: currentLanguage, customerId: customerId ?? undefined }
+      hasCategoriesLoadedRef.current = raw.length > 0
+>>>>>>> afdef83b7cf14830009821f7b15758e5589fb4ed
     } catch (err: any) {
-      console.error("Error fetching categories for dropdown:", err)
+      console.error("Error fetching categories for dropdown.", err)
       toast({ title: "Error", description: "Failed to load categories for dropdown.", variant: "destructive" })
       setParentDropdownCategories([])
       setCategoriesWithSubcategories([])
     } finally {
       setIsLoadingParentDropdown(false)
+      fetchCategoriesInFlightRef.current = false
     }
   }, [toast, currentLanguage, customerId, isLabAdmin, isRoleInitialized])
 
@@ -776,22 +808,13 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
     [currentLanguage, toast, customerId]
   )
 
-  // --- NEW: API for all categories ---
-  const [allCategories, setAllCategories] = useState<ProductCategoryApi[]>([])
-  const [allCategoriesLoading, setAllCategoriesLoading] = useState(false)
-  const [allCategoriesError, setAllCategoriesError] = useState<string | null>(null)
-
   // --- NEW: API for subcategories by category ID ---
   const [subcategoriesByCategory, setSubcategoriesByCategory] = useState<ProductCategory[]>([])
   const [subcategoriesLoading, setSubcategoriesLoading] = useState(false)
   const [subcategoriesError, setSubcategoriesError] = useState<string | null>(null)
 
-  // Ref to track if a fetch is in progress to prevent duplicate calls
-  const fetchAllCategoriesInProgressRef = useRef<{ lang: string; customerId?: number } | null>(null)
-  // Ref to track the last successful fetch parameters
-  const lastFetchParamsRef = useRef<{ lang: string; customerId?: number } | null>(null)
-  // Ref to track if categories are currently loaded
-  const hasCategoriesLoadedRef = useRef<boolean>(false)
+  // fetchCategoriesWithSubcategories is an alias — both state values are populated in one request.
+  const fetchCategoriesWithSubcategories = fetchParentDropdownCategories
 
   // Fetch all categories (top-level, not subcategories)
   const fetchAllCategories = useCallback(
@@ -1015,6 +1038,8 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
         subcategoriesLoading,
         subcategoriesError,
         fetchSubcategoriesByCategory,
+        categoriesWithSubcategories,
+        fetchCategoriesWithSubcategories,
       }}
     >
       {children}

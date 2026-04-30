@@ -713,7 +713,12 @@ export default function ProductsPage() {
         zIndex={9999}
       />
 
-      <AddProductModal isOpen={isAddProductModalOpen && !isEditLoading} onClose={handleModalClose} editingProduct={editingProduct} />
+      <AddProductModal
+        isOpen={isAddProductModalOpen && !isEditLoading}
+        onClose={handleModalClose}
+        editingProduct={editingProduct}
+        pricingScope="lab"
+      />
     </div>
   )
 }

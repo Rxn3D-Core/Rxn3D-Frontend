@@ -21,17 +21,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import type { CategoryWithSubcategories } from "@/contexts/product-category-context"
 
 /** Custom per-count pricing: up to 16 teeth (full arch); `sm+` uses 8 columns (row 1: 1–8, row 2: 9–16). */
 const MAX_TEETH = 16
 const PREVIEW_TEETH_COUNT = 8
-
-type CategoryWithSubcategories = {
-  id: number
-  name: string
-  code: string
-  subcategories: Array<{ id: number; name: string; category_id: number }>
-}
 
 // ─── Teeth Pricing Sub-component ─────────────────────────────────────────────
 
@@ -62,9 +56,18 @@ function PricePreviewTable({ prices }: { prices: number[] }) {
 interface TeethPricingSectionProps {
   control: any
   setValue?: (name: string, value: any) => void
+  /** Lab: full pricing required. Superadmin: price inputs disabled / optional. */
+  pricingValidationMode?: "lab_required" | "superadmin_optional"
+  getValidationError?: (field: string) => string | undefined
 }
 
-function TeethPricingSection({ control, setValue }: TeethPricingSectionProps) {
+function TeethPricingSection({
+  control,
+  setValue,
+  pricingValidationMode = "lab_required",
+  getValidationError = () => undefined,
+}: TeethPricingSectionProps) {
+  const isLabPricing = pricingValidationMode === "lab_required"
   const isTeethBased = useWatch({ control, name: "is_teeth_based_price" })
   const pricingType = useWatch({ control, name: "teeth_pricing_type" }) ?? "same_price"
   const pricePerTooth = useWatch({ control, name: "teeth_price_per_tooth" }) ?? ""
@@ -103,6 +106,7 @@ function TeethPricingSection({ control, setValue }: TeethPricingSectionProps) {
   }
 
   const handleAddCustomSlot = () => {
+    if (!isLabPricing) return
     if (customPrices.length >= MAX_TEETH) return
     const newIndex = customPrices.length
     setVal("teeth_custom_prices", [...customPrices, ""])
@@ -116,6 +120,7 @@ function TeethPricingSection({ control, setValue }: TeethPricingSectionProps) {
   }
 
   const handleRemoveLastCustomSlot = () => {
+    if (!isLabPricing) return
     if (customPrices.length <= 1) return
     setVal("teeth_custom_prices", customPrices.slice(0, -1))
   }
@@ -161,6 +166,16 @@ function TeethPricingSection({ control, setValue }: TeethPricingSectionProps) {
                       className="pl-8"
                       value={pricePerTooth}
                       onChange={(e) => setVal("teeth_price_per_tooth", e.target.value)}
+                      disabled={!isLabPricing}
+                      validationState={
+                        getValidationError("teeth_price_per_tooth")
+                          ? "error"
+                          : isLabPricing && String(pricePerTooth ?? "").trim() !== ""
+                            ? "valid"
+                            : "default"
+                      }
+                      errorMessage={getValidationError("teeth_price_per_tooth")}
+                      required={isLabPricing}
                     />
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium pointer-events-none text-sm">
                       $
@@ -195,6 +210,16 @@ function TeethPricingSection({ control, setValue }: TeethPricingSectionProps) {
                         className="pl-8"
                         value={firstToothPrice}
                         onChange={(e) => setVal("teeth_first_tooth_price", e.target.value)}
+                        disabled={!isLabPricing}
+                        validationState={
+                          getValidationError("teeth_first_tooth_price")
+                            ? "error"
+                            : isLabPricing && String(firstToothPrice ?? "").trim() !== ""
+                              ? "valid"
+                              : "default"
+                        }
+                        errorMessage={getValidationError("teeth_first_tooth_price")}
+                        required={isLabPricing}
                       />
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium pointer-events-none text-sm">
                         $
@@ -209,6 +234,10 @@ function TeethPricingSection({ control, setValue }: TeethPricingSectionProps) {
                         className="pl-8"
                         value={additionalToothPrice}
                         onChange={(e) => setVal("teeth_additional_tooth_price", e.target.value)}
+                        disabled={!isLabPricing}
+                        validationState={getValidationError("teeth_additional_tooth_price") ? "error" : "default"}
+                        errorMessage={getValidationError("teeth_additional_tooth_price")}
+                        required={isLabPricing}
                       />
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium pointer-events-none text-sm">
                         $
@@ -253,6 +282,7 @@ function TeethPricingSection({ control, setValue }: TeethPricingSectionProps) {
                               : `${index + 1} teeth`
                         const isLastSlot = index === customPrices.length - 1
                         const showRemove = isLastSlot && customPrices.length > 1
+                        const cellErr = getValidationError(`teeth_custom_prices.${index}`)
                         return (
                           <div key={index} className="flex flex-col gap-1 min-w-0">
                             <span className="text-xs text-gray-500 text-center leading-tight px-0.5">
@@ -270,12 +300,21 @@ function TeethPricingSection({ control, setValue }: TeethPricingSectionProps) {
                                   type="number"
                                   min="0"
                                   step="0.01"
-                                  className="w-full min-w-0 pl-6 pr-1.5 py-2 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                  disabled={!isLabPricing}
+                                  className={cn(
+                                    "w-full min-w-0 pl-6 pr-1.5 py-2 rounded-lg border bg-white text-sm focus:outline-none focus:ring-2",
+                                    cellErr
+                                      ? "border-[#CF0202] focus:ring-red-400"
+                                      : isLabPricing && String(price ?? "").trim() !== ""
+                                        ? "border-[#119933] focus:ring-green-400"
+                                        : "border-gray-300 focus:ring-blue-400",
+                                    !isLabPricing && "opacity-60 cursor-not-allowed bg-gray-50",
+                                  )}
                                   value={String(price)}
                                   onChange={(e) => handleCustomPriceChange(index, e.target.value)}
                                 />
                               </div>
-                              {showRemove && (
+                              {showRemove && isLabPricing && (
                                 <button
                                   type="button"
                                   onClick={handleRemoveLastCustomSlot}
@@ -290,7 +329,7 @@ function TeethPricingSection({ control, setValue }: TeethPricingSectionProps) {
                           </div>
                         )
                       })}
-                      {customPrices.length < MAX_TEETH && (
+                      {customPrices.length < MAX_TEETH && isLabPricing && (
                         <div className="flex flex-col gap-1 min-w-0 justify-end">
                           <span className="text-xs text-transparent text-center select-none" aria-hidden>
                             &nbsp;
@@ -477,6 +516,8 @@ type ProductDetailsSectionProps = {
   onTeethBasedChange?: (checked: boolean) => void
   jawPhotos?: { upper?: string | null; lower?: string | null; both?: string | null }
   onJawPhotoChange?: (jawType: JawType, base64: string | null) => void
+  /** Lab products require priced fields; superadmin global products omit pricing validation in UI. */
+  pricingValidationMode?: "lab_required" | "superadmin_optional"
 }
 
 export function ProductDetailsSection({
@@ -497,7 +538,9 @@ export function ProductDetailsSection({
   onTeethBasedChange,
   jawPhotos = {},
   onJawPhotoChange,
+  pricingValidationMode = "lab_required",
 }: ProductDetailsSectionProps) {
+  const enforceLabPricing = pricingValidationMode === "lab_required"
   const grades = useWatch({ control, name: "grades" }) || []
   const name = useWatch({ control, name: "name" }) || ""
   const code = useWatch({ control, name: "code" }) || ""
@@ -606,10 +649,14 @@ export function ProductDetailsSection({
       return { ...c, subcategories: [...subs] }
     })
     if (editingProduct?.subcategory) {
-      const editCatId = editingProduct.subcategory.category_id || editingProduct.subcategory.category?.id
+      const editCatId = Number(editingProduct.subcategory.category_id || editingProduct.subcategory.category?.id)
       const editCatName = editingProduct.subcategory.category?.name
       const editSub = { id: editingProduct.subcategory.id, name: editingProduct.subcategory.name, category_id: editCatId }
+<<<<<<< HEAD
       const existingCat = cats.find((c: any) => Number(c.id) === Number(editCatId))
+=======
+      const existingCat = cats.find((c: any) => Number(c.id) === editCatId)
+>>>>>>> afdef83b7cf14830009821f7b15758e5589fb4ed
       if (existingCat) {
         // Ensure the editing product's subcategory is included in the existing category
         if (!existingCat.subcategories?.some((s: any) => s.id === editSub.id)) {
@@ -625,7 +672,13 @@ export function ProductDetailsSection({
         })
       }
     }
-    return cats
+    // Deduplicate by id in case the API or fallback logic produces duplicates
+    const seen = new Set<number>()
+    return cats.filter((c) => {
+      if (seen.has(c.id)) return false
+      seen.add(c.id)
+      return true
+    })
   }, [categoriesWithSubcategories, editingProduct])
 
   // Get available subcategories based on selected category
@@ -733,7 +786,17 @@ export function ProductDetailsSection({
     if (imagePreview) setShowPreviewModal(true)
   }
 
-  const hasErrors = getValidationError("name") || getValidationError("code") || getValidationError("category_id") || getValidationError("subcategory_id") || getValidationError("base_price")
+  const hasErrors =
+    getValidationError("name") ||
+    getValidationError("code") ||
+    getValidationError("category_id") ||
+    getValidationError("subcategory_id") ||
+    getValidationError("base_price") ||
+    getValidationError("teeth_price_per_tooth") ||
+    getValidationError("teeth_first_tooth_price") ||
+    getValidationError("teeth_additional_tooth_price") ||
+    getValidationError("teeth_custom_prices") ||
+    Array.from({ length: MAX_TEETH }, (_, i) => getValidationError(`teeth_custom_prices.${i}`)).some(Boolean)
 
   // Helper function to determine validation state based on focus and value
   const getValidationState = (
@@ -746,8 +809,25 @@ export function ProductDetailsSection({
     const isTouched = touchedFields[fieldName]
     const hasError = getValidationError(fieldName)
 
-    // If has value and no error, show green (valid)
-    if (hasValue && !hasError) {
+    if (hasError) {
+      return "error"
+    }
+
+    // Required lab base price: green only when strictly positive (default "0" is not valid)
+    if (fieldName === "base_price" && isRequired) {
+      const raw = String(value ?? "").trim()
+      if (raw !== "") {
+        const n = parseFloat(raw)
+        if (Number.isFinite(n) && n > 0) {
+          return "valid"
+        }
+        if (!Number.isFinite(n) || n <= 0) {
+          if (isFocused) return "warning"
+          if (isTouched) return "error"
+          return "default"
+        }
+      }
+    } else if (hasValue && !hasError) {
       return "valid"
     }
 
@@ -757,12 +837,10 @@ export function ProductDetailsSection({
     }
 
     // If blurred (touched) and empty and required, show red (error)
-    // Also show error if there's a validation error
-    if ((!isFocused && isTouched && !hasValue && isRequired) || hasError) {
+    if (!isFocused && isTouched && !hasValue && isRequired) {
       return "error"
     }
 
-    // Default state
     return "default"
   }
 
@@ -1071,12 +1149,12 @@ export function ProductDetailsSection({
                     const hasError = getValidationError("base_price")
                     const validationState = isLockedByGrades
                       ? "disabled"
-                      : getValidationState("base_price", currentValue, true)
+                      : getValidationState("base_price", currentValue, enforceLabPricing)
 
                     return (
                       <div className="relative">
                         <Input
-                          label="Base Price *"
+                          label={enforceLabPricing ? "Base Price *" : "Base Price"}
                           className={`pl-8 ${
                             isLockedByGrades
                               ? "border-gray-200 bg-gray-50 cursor-not-allowed"
@@ -1102,7 +1180,7 @@ export function ProductDetailsSection({
                           disabled={isLockedByGrades}
                           validationState={validationState}
                           errorMessage={hasError ? getValidationError("base_price") : undefined}
-                          required
+                          required={enforceLabPricing}
                         />
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium pointer-events-none">
                           $
@@ -1266,7 +1344,12 @@ export function ProductDetailsSection({
             </div>
 
             {/* Per-tooth pricing options — only visible when toggle is ON */}
-            <TeethPricingSection control={control} setValue={setValue} />
+            <TeethPricingSection
+              control={control}
+              setValue={setValue}
+              pricingValidationMode={pricingValidationMode}
+              getValidationError={getValidationError}
+            />
           </div>
       </div>
 
