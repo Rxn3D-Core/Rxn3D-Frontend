@@ -1186,13 +1186,24 @@ export function CaseDesignCenter(props: CaseDesignProps) {
               state.completeFieldStep(arch, toothNum, "addons", value);
             }
             // Store structured addon data (with IDs) for payload submission
+            const structuredAddons = addOns.filter((a) => a.qty > 0).map((a) => ({ addon_id: a.addon_id, qty: a.qty }));
             const addonKey = `${arch}_${toothNum}`;
-            state.setSelectedAddonsByTooth((prev: Record<string, Array<{ addon_id: number; qty: number }>>) => ({
-              ...prev,
-              [addonKey]: addOns
-                .filter((a) => a.qty > 0)
-                .map((a) => ({ addon_id: a.addon_id, qty: a.qty })),
-            }));
+            state.setSelectedAddonsByTooth((prev: Record<string, Array<{ addon_id: number; qty: number }>>) => {
+              const next: Record<string, Array<{ addon_id: number; qty: number }>> = { ...prev, [addonKey]: structuredAddons };
+              // Mirror to mandibular card-0 teeth for "both arch" removables
+              if (props.initialArch === "both" && arch === "maxillary" && !isFixed &&
+                  isRemovableCategory(props.selectedProductCategoryName || "") &&
+                  (state.toothProductCardMap[`maxillary_${toothNum}`] ?? 0) === 0) {
+                const mandibularAll = [17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32];
+                for (const mandTn of mandibularAll) {
+                  if (state.toothProducts[`mandibular_${mandTn}`] &&
+                      (state.toothProductCardMap[`mandibular_${mandTn}`] ?? 0) === 0) {
+                    next[`mandibular_${mandTn}`] = structuredAddons;
+                  }
+                }
+              }
+              return next;
+            });
           }
         }}
         showAttachModal={state.showAttachModal}
