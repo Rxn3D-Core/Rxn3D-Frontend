@@ -37,7 +37,7 @@ import {
 } from "@/lib/library-product-api-mapping"
 import { normalizeSinglePreferredShadeRow } from "@/lib/product-shade-preferences"
 import { ExtractionsApi } from "@/lib/api-service"
-import { useProducts } from "@/contexts/product-products-context"
+import { type ProductSaveResult, useProducts } from "@/contexts/product-products-context"
 import { useProductCategory } from "@/contexts/product-category-context"
 import { useGrades } from "@/contexts/product-grades-context"
 import { useStages } from "@/contexts/product-stages-context"
@@ -50,8 +50,21 @@ import { useAddOns } from "@/contexts/product-add-on-context"
 import { useTranslation } from "react-i18next"
 import { useAuth } from "@/contexts/auth-context"
 import { getCustomerId } from "@/lib/dashboard-widgets"
+import { hydrateAdvanceFieldsFormFromProduct, serializeAdvanceFieldsForApi } from "@/lib/product-advance-fields-form"
+import {
+  hydrateRetentionOptionsFromProduct,
+  serializeRetentionOptionsForApi,
+  serializeRetentionsForProductApi,
+} from "@/lib/product-retention-links-form"
+import { useAdvanceFields, ADVANCE_FIELDS_PRODUCT_MODAL_PAGE_SIZE } from "@/lib/api/advance-mode-query"
+import { useQueryClient } from "@tanstack/react-query"
+import {
+  retentionOptionsCatalogQueryKey,
+  useRetentionOptionsCatalogForProductModal,
+} from "@/hooks/use-retention-options-catalog"
 import { usePreferredGumShades } from "@/hooks/usePreferredGumShades"
 import { usePreferredTeethShades } from "@/hooks/usePreferredTeethShades"
+import { CreateRetentionOptionModal } from "@/components/product-management/create-retention-option-modal"
 import { ProductDetailsSection } from "./add-lab-product-modal/ProductDetailsSection"
 import { GradesSection } from "@/components/product-management/add-lab-product-modal/GradesSection"
 import { StagesSection } from "@/components/product-management/add-lab-product-modal/StagesSection"
@@ -60,7 +73,9 @@ import { GumShadeSection } from "@/components/product-management/add-lab-product
 import { TeethShadeSection } from "@/components/product-management/add-lab-product-modal/TeethShadeSection"
 import { MaterialSection } from "@/components/product-management/add-lab-product-modal/MaterialSection"
 import { AddOnsSection } from "@/components/product-management/add-lab-product-modal/AddOnsSection"
-import { RetentionSection } from "@/components/product-management/add-lab-product-modal/RetentionSection"
+import { RetentionSection, type RetentionOptionCreateRequestContext } from "@/components/product-management/add-lab-product-modal/RetentionSection"
+import { AdvanceFieldsSection } from "@/components/product-management/add-lab-product-modal/AdvanceFieldsSection"
+import type { AdvanceFieldEditorRequest } from "@/components/product-management/add-lab-product-modal/AdvanceFieldsSection"
 import { ExtractionsSection } from "@/components/product-management/add-lab-product-modal/ExtractionsSection"
 import { VariationSection } from "@/components/product-management/add-lab-product-modal/VariationSection"
 
@@ -70,6 +85,10 @@ interface AddProductModalProps {
   editingProduct?: any // <-- add editingProduct prop
   /** Lab product library always enforces lab pricing rules regardless of parsed user.role */
   pricingScope?: "global" | "lab"
+  /** Optional: called right before the modal closes after a successful create/update (listing pages clear `editingProduct` in `onClose`). */
+  onProductPersisted?: (product: Record<string, unknown>) => void
+  /** Opens Advance Field UI outside this dialog (recommended; hosted on product library pages). */
+  onRequestAdvanceFieldEditor?: (req: AdvanceFieldEditorRequest) => void
 }
 
 const NO_SUBCATEGORIES_VALUE = "__NO_SUBCATEGORIES__"
@@ -85,6 +104,7 @@ const ADD_PRODUCT_MODAL_TABS: { id: string; label: string; sectionKey: string | 
   { id: "material", label: "Material", sectionKey: "material" },
   { id: "addOns", label: "Add-Ons", sectionKey: "addOns" },
   { id: "retention", label: "Retention", sectionKey: "retention" },
+  { id: "advanceFields", label: "Advance Field", sectionKey: "advanceField" },
   { id: "extractions", label: "Extractions", sectionKey: "extractions" },
 ]
 
@@ -135,8 +155,16 @@ export function AddProductModal({
   onClose,
   editingProduct,
   pricingScope = "global",
+  onProductPersisted,
+  onRequestAdvanceFieldEditor,
 }: AddProductModalProps) {
-  const { createProduct, updateProduct, isLoading: isProductActionLoading, clearValidationErrors } = useProducts()
+  const {
+    createProduct,
+    updateProduct,
+    isLoading: isProductActionLoading,
+    clearValidationErrors,
+    getProductDetail,
+  } = useProducts()
   const [validationErrors, setValidationErrors] = useState<{ field: string; message: string }[]>([])
   const [manualDetailErrors, setManualDetailErrors] = useState<{ field: string; message: string }[]>([])
   const [manualVariationErrors, setManualVariationErrors] = useState<{ field: string; message: string }[]>([])
@@ -197,6 +225,44 @@ export function AddProductModal({
         : ""
 
   const customerId = useMemo(() => getCustomerId(user), [user])
+
+  /** Warm advance-field catalog cache when modal opens (tab content mounts lazily). */
+  const catalogAdvanceFieldsCustomerId = useMemo(() => {
+    if (pricingScope !== "lab") return undefined
+    if (typeof customerId === "number" && customerId > 0) return customerId
+    return undefined
+  }, [pricingScope, customerId])
+
+  useAdvanceFields(
+    {
+      page: 1,
+      per_page: ADVANCE_FIELDS_PRODUCT_MODAL_PAGE_SIZE,
+      status: "Active",
+      ...(catalogAdvanceFieldsCustomerId !== undefined ? { customer_id: catalogAdvanceFieldsCustomerId } : {}),
+    },
+    { enabled: isOpen },
+  )
+
+  const retentionOptionsCatalogCustomerId = useMemo((): number | null => {
+    if (pricingScope === "lab" && typeof customerId === "number" && customerId > 0) return customerId
+    return null
+  }, [pricingScope, customerId])
+
+  const retentionOptionsCatalog = useRetentionOptionsCatalogForProductModal(isOpen, retentionOptionsCatalogCustomerId)
+
+  const queryClient = useQueryClient()
+  const retentionOptionCatalogScopeRef = useRef<number | null>(null)
+  const [retentionOptionCreateOpen, setRetentionOptionCreateOpen] = useState(false)
+  const handleRequestRetentionOptionCreate = useCallback((ctx: RetentionOptionCreateRequestContext) => {
+    retentionOptionCatalogScopeRef.current = ctx.catalogCustomerId
+    setRetentionOptionCreateOpen(true)
+  }, [])
+  const retentionOptionModalScopedCustomerId = useMemo(() => {
+    if (!retentionOptionCreateOpen) return undefined
+    const c = retentionOptionCatalogScopeRef.current
+    return typeof c === "number" && c > 0 ? c : undefined
+  }, [retentionOptionCreateOpen])
+
   const isLabScopedUser = Boolean(
     userRole === "lab_admin" ||
       (Array.isArray(user?.roles) && user.roles.includes("lab_admin")) ||
@@ -285,6 +351,7 @@ export function AddProductModal({
     material: true,
     addOns: true,
     retention: true,
+    advanceField: true,
     extractions: true,
     visibilityManagement: true,
   })
@@ -299,6 +366,7 @@ export function AddProductModal({
     material: true,
     addOns: true,
     retention: true,
+    advanceField: true,
     extractions: true,
     visibilityManagement: true,
   })
@@ -350,7 +418,9 @@ export function AddProductModal({
     teeth_shades: [],
     materials: [],
     retentions: [],
+    retention_options: [],
     addons: [],
+    advance_fields: [],
     extractions: [],
     has_grade_based_pricing: "Yes",
     default_grade_id: undefined,
@@ -685,6 +755,19 @@ export function AddProductModal({
       }
     }
 
+    const retentionPriceByRid = new Map<number, string | number>()
+    for (const r of editingProduct.retentions || []) {
+      const rid = r?.retention_id ?? r?.id
+      if (rid == null) continue
+      const p =
+        r?.price ??
+        r?.pivot?.price ??
+        (r as { lab_retention?: { price?: unknown } }).lab_retention?.price
+      if (p !== undefined && p !== null && p !== "") {
+        retentionPriceByRid.set(Number(rid), p)
+      }
+    }
+
     function mapWithStatus(arr: any[], idKey: string) {
       if (!Array.isArray(arr)) return []
       return arr.map((item, idx) => {
@@ -794,8 +877,28 @@ export function AddProductModal({
             is_default: item.is_default === "Yes" ? "Yes" : "No",
             price,
           }
+        } else if (idKey === "retention_id") {
+          const rid = item[idKey] ?? item.id
+          const priceValue =
+            item.price ??
+            item.pivot?.price ??
+            (item as { lab_retention?: { price?: unknown } }).lab_retention?.price ??
+            (rid != null ? retentionPriceByRid.get(Number(rid)) : undefined) ??
+            ""
+          let price = 0
+          if (priceValue !== undefined && priceValue !== null && priceValue !== "") {
+            const parsedPrice = typeof priceValue === "number" ? priceValue : parseFloat(String(priceValue))
+            if (!Number.isNaN(parsedPrice) && parsedPrice >= 0) {
+              price = Math.min(parsedPrice, 999999.99)
+            }
+          }
+          return {
+            ...baseItem,
+            is_default: item.is_default === "Yes" ? "Yes" : "No",
+            price,
+          }
         }
-        
+
         return baseItem
       })
     }
@@ -854,7 +957,11 @@ export function AddProductModal({
           : editingProduct.materials || [],
         "material_id",
       ),
-      retentions: mapWithStatus(editingProduct.retentions || [], "retention_id"),
+      retentions:
+        editingProduct.retention_details && editingProduct.retention_details.length
+          ? mapWithStatus(editingProduct.retention_details, "retention_id")
+          : mapWithStatus(editingProduct.retentions || [], "retention_id"),
+      retention_options: hydrateRetentionOptionsFromProduct(editingProduct as Record<string, unknown>),
       addons: mapWithStatus(editingProduct.addons || [], "addon_id"),
       extractions: mapWithStatus(editingProduct.extractions || [], "extraction_id"),
       opposite_extractions: mapOppositeExtractionsFromApi(editingProduct.opposite_extractions || []),
@@ -883,6 +990,7 @@ export function AddProductModal({
         ? "Yes"
         : (editingProduct.show_jaw_photo || "No"),
       teeth_pricing_type: strategyForm,
+      advance_fields: hydrateAdvanceFieldsFormFromProduct(editingProduct as Record<string, unknown>),
       ...teethHydrate,
       ...variationForm,
     }
@@ -936,6 +1044,11 @@ export function AddProductModal({
         const hasMaterial = isYes(editingProduct.has_material, Array.isArray(editingProduct.materials) && editingProduct.materials.length > 0)
         const hasAddons = isYes(editingProduct.has_addon, Array.isArray(editingProduct.addons) && editingProduct.addons.length > 0)
         const hasRetention = isYes(editingProduct.has_retention, Array.isArray(editingProduct.retentions) && editingProduct.retentions.length > 0)
+        const linkedAdv = hydrateAdvanceFieldsFormFromProduct(editingProduct as Record<string, unknown>)
+        const hasAdvanceField = isYes(
+          (editingProduct as { has_advance_field?: unknown }).has_advance_field,
+          linkedAdv.length > 0,
+        )
         const hasExtractions = isYes(editingProduct.has_extraction, Array.isArray(editingProduct.extractions) && editingProduct.extractions.length > 0)
         const teethOnEdit =
           editingProduct.is_teeth_based_price === "Yes" ||
@@ -954,6 +1067,7 @@ export function AddProductModal({
           material: hasMaterial,
           addOns: hasAddons,
           retention: hasRetention,
+          advanceField: hasAdvanceField,
           extractions: hasExtractions,
           variation: hasVariation,
         }))
@@ -976,6 +1090,7 @@ export function AddProductModal({
           material: true,
           addOns: true,
           retention: true,
+          advanceField: true,
           extractions: true,
           visibilityManagement: true,
         })
@@ -1320,7 +1435,28 @@ export function AddProductModal({
       return;
     }
 
-    let success = false
+    let saveResult: ProductSaveResult = { success: false }
+
+    async function hydratePersistedFromSave(snapshot: Record<string, unknown> | null) {
+      const rawId =
+        editingProduct?.id ??
+        (snapshot?.id !== undefined && snapshot?.id !== null
+          ? typeof snapshot.id === "number"
+            ? snapshot.id
+            : typeof snapshot.id === "string" && /^\d+$/.test(String(snapshot.id).trim())
+              ? Number.parseInt(String(snapshot.id), 10)
+              : null
+          : null)
+      if (typeof rawId !== "number" || !Number.isFinite(rawId)) {
+        return snapshot
+      }
+      const detail = await getProductDetail(rawId)
+      if (detail && typeof detail === "object") {
+        return detail as Record<string, unknown>
+      }
+      return snapshot
+    }
+
     if (editingProduct && editingProduct.id) {
       // Build partial payload with only changed fields for update
       const payload: any = {}
@@ -1415,6 +1551,7 @@ export function AddProductModal({
       payload.has_retention = sections.retention ? "Yes" : "No"
       payload.has_material = sections.material ? "Yes" : "No"
       payload.has_addon = sections.addOns ? "Yes" : "No"
+      payload.has_advance_field = sections.advanceField ? "Yes" : "No"
 
       // When section is off: send empty arrays so backend deletes relations
       if (!sections.stages) payload.stages = []
@@ -1424,7 +1561,14 @@ export function AddProductModal({
       if (!sections.teethShade) payload.teeth_shades = []
       if (!sections.material) payload.materials = []
       if (!sections.addOns) payload.addons = []
-      if (!sections.retention) payload.retentions = []
+      // Preserve linked retention types + options when section is off; backend uses has_retention only.
+      payload.retentions = serializeRetentionsForProductApi(data.retentions ?? [])
+      payload.retention_options = serializeRetentionOptionsForApi(data.retention_options ?? [])
+      // Preserve linked advance field IDs when section is off; backend uses has_advance_field only.
+      payload.advance_fields = serializeAdvanceFieldsForApi(
+        ((payload.advance_fields !== undefined ? payload.advance_fields : data.advance_fields) ||
+          []) as Parameters<typeof serializeAdvanceFieldsForApi>[0],
+      )
       if (!sections.extractions) {
         payload.extractions = []
         payload.opposite_extractions = []
@@ -1445,7 +1589,7 @@ export function AddProductModal({
         variation: sections.variation,
       })
 
-      success = await updateProduct(editingProduct.id, payload, releasingStageIds)
+      saveResult = await updateProduct(editingProduct.id, payload, releasingStageIds)
     } else {
       // Send full payload for creating new product
       const payload = { ...data } as any
@@ -1480,6 +1624,7 @@ export function AddProductModal({
       payload.has_retention = sections.retention ? "Yes" : "No"
       payload.has_material = sections.material ? "Yes" : "No"
       payload.has_addon = sections.addOns ? "Yes" : "No"
+      payload.has_advance_field = sections.advanceField ? "Yes" : "No"
 
       if (!sections.stages) payload.stages = []
       if (!sections.grades) payload.grades = []
@@ -1488,7 +1633,13 @@ export function AddProductModal({
       if (!sections.teethShade) payload.teeth_shades = []
       if (!sections.material) payload.materials = []
       if (!sections.addOns) payload.addons = []
-      if (!sections.retention) payload.retentions = []
+      payload.retentions = serializeRetentionsForProductApi(data.retentions ?? [])
+      payload.retention_options = serializeRetentionOptionsForApi(data.retention_options ?? [])
+      payload.advance_fields = serializeAdvanceFieldsForApi(
+        (payload.advance_fields ?? data.advance_fields ?? []) as Parameters<
+          typeof serializeAdvanceFieldsForApi
+        >[0],
+      )
       if (!sections.extractions) {
         payload.extractions = []
         payload.opposite_extractions = []
@@ -1506,19 +1657,25 @@ export function AddProductModal({
         variation: sections.variation,
       })
 
-      success = await createProduct(payload)
+      saveResult = await createProduct(payload)
     }
-    if (success) {
-      reset()
-      setImageBase64(null)
-      setSectionWasToggled(false)
-      setManualDetailErrors([])
-      setManualVariationErrors([])
-      setManualGradeErrors([])
-      setManualStageErrors([])
-      setManualSlipRelationErrors([])
-      onClose()
+    if (!saveResult.success) return
+
+    const persisted = await hydratePersistedFromSave(saveResult.productSnapshot)
+
+    if (persisted && onProductPersisted) {
+      onProductPersisted(persisted)
     }
+    setImageBase64(null)
+    setSectionWasToggled(false)
+    setManualDetailErrors([])
+    setManualVariationErrors([])
+    setManualGradeErrors([])
+    setManualStageErrors([])
+    setManualSlipRelationErrors([])
+    reset()
+    clearValidationErrors()
+    onClose()
   }
 
   // Create debounced version of onSubmit to prevent multiple rapid submissions
@@ -2121,6 +2278,22 @@ export function AddProductModal({
                     toggleExpanded={toggleExpanded}
                     handleToggleSelection={handleToggleSelection}
                     userRole={userRole}
+                    catalogCustomerId={retentionOptionsCatalogCustomerId}
+                    retentionOptionsCatalog={retentionOptionsCatalog}
+                    onRequestRetentionOptionCreate={handleRequestRetentionOptionCreate}
+                  />
+                </TabsContent>
+
+                <TabsContent value="advanceFields" className="mt-0 p-0 focus-visible:outline-none">
+                  <AdvanceFieldsSection
+                    watch={watch}
+                    setValue={setValue}
+                    sections={sections}
+                    toggleSection={toggleSection}
+                    getValidationError={getValidationError}
+                    sectionHasErrors={sectionHasErrors}
+                    listCustomerId={pricingScope === "lab" ? (customerId ?? null) : null}
+                    onRequestAdvanceFieldEditor={onRequestAdvanceFieldEditor}
                   />
                 </TabsContent>
 
@@ -2213,6 +2386,16 @@ export function AddProductModal({
           </form>
         </DialogContent>
       </Dialog>
+      <CreateRetentionOptionModal
+        isOpen={retentionOptionCreateOpen}
+        onClose={() => setRetentionOptionCreateOpen(false)}
+        scopedCustomerId={retentionOptionModalScopedCustomerId}
+        onSuccess={() => {
+          void queryClient.invalidateQueries({
+            queryKey: retentionOptionsCatalogQueryKey(retentionOptionCatalogScopeRef.current),
+          })
+        }}
+      />
       <DiscardChangesDialog
         isOpen={showDiscardDialog}
         type="product"

@@ -60,6 +60,7 @@ export function AddOptionModal({ isOpen, onClose, onSave, title = "Add new optio
 
   const modalContent = (
     <div 
+      data-dialog-nested-overlay="true"
       className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 p-2 sm:p-4"
       onClick={(e) => {
         if (e.target === e.currentTarget) {

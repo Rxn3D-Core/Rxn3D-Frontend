@@ -23,6 +23,7 @@ import {
   useAdvanceField,
   AdvanceField
 } from "@/lib/api/advance-mode-query"
+import { normalizeAdvanceFieldChargeScopeForSubmit } from "@/lib/advance-field-charge-scope"
 import { LoadingDots } from "@/components/ui/loading-dots"
 
 export default function FieldsPage() {
@@ -611,13 +612,10 @@ export default function FieldsPage() {
 
               if (data.pricing.chargeType === 'once') {
                 payload.price = data.pricing.additionalCharge ? parseFloat(data.pricing.additionalCharge) : 0
-                
-                // Convert form format (per-case, per-unit) to API format (per_case, per_tooth, etc.)
-                const formChargeScope = data.pricing.chargeScope || 'per-case'
-                const apiChargeScope = formChargeScope === 'per-unit' ? 'per_tooth' : formChargeScope.replace('-', '_')
-                
-                // Always include charge_scope when charge_type is 'once_per_field' (backend requires it)
-                payload.charge_scope = apiChargeScope
+
+                payload.charge_scope = normalizeAdvanceFieldChargeScopeForSubmit(
+                  data.pricing.chargeScope,
+                )
               }
             }
 

@@ -6,6 +6,11 @@ import { createContext, useContext, useState, useCallback, useMemo } from "react
 import type { Product, ProductCreateForm, ProductPagination } from "@/lib/schemas"
 import { ProductCreateFormSchema } from "@/lib/schemas"
 import { normalizeOppositeImpressionPayload } from "@/lib/library-product-api-mapping"
+import { serializeAdvanceFieldsForApi } from "@/lib/product-advance-fields-form"
+import {
+  serializeRetentionOptionsForApi,
+  serializeRetentionsForProductApi,
+} from "@/lib/product-retention-links-form"
 import { AlertCircle, CheckCircle, Package, Save, Trash2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { useLanguage } from "@/contexts/language-context"
@@ -14,6 +19,30 @@ import { useAuth } from "@/contexts/auth-context" // <-- adjust as needed
 interface ValidationError {
   field: string
   message: string
+}
+
+/** Result of create/update with optional API product payload for modal re-hydration. */
+export type ProductSaveResult =
+  | { success: true; productSnapshot: Record<string, unknown> | null }
+  | { success: false }
+
+/** Best-effort product object from POST/PUT JSON (response shapes vary). */
+export function snapshotProductFromSaveResponse(json: unknown): Record<string, unknown> | null {
+  if (!json || typeof json !== "object") return null
+  let cur: unknown = json
+  for (let depth = 0; depth < 8; depth++) {
+    if (!cur || typeof cur !== "object") return null
+    const o = cur as Record<string, unknown>
+    const rid = o.id
+    const idOk =
+      typeof rid === "number"
+        ? Number.isFinite(rid)
+        : typeof rid === "string" && /^\d+$/.test(String(rid).trim())
+    if (idOk) return o as Record<string, unknown>
+    const nested = [o.product, o.data].find((v) => v && typeof v === "object")
+    cur = nested as unknown
+  }
+  return null
 }
 
 interface ProductsContextType {
@@ -38,8 +67,15 @@ interface ProductsContextType {
     subcategory_id?: number | null,
     selectedLabId?: number | null,
   ) => Promise<void>
-  createProduct: (payload: ProductCreateForm, releasingStageIds?: (string | number)[]) => Promise<boolean>
-  updateProduct: (id: number, payload: ProductCreateForm, releasingStageIds?: (string | number)[]) => Promise<boolean>
+  createProduct: (
+    payload: ProductCreateForm,
+    releasingStageIds?: (string | number)[],
+  ) => Promise<ProductSaveResult>
+  updateProduct: (
+    id: number,
+    payload: ProductCreateForm,
+    releasingStageIds?: (string | number)[],
+  ) => Promise<ProductSaveResult>
   deleteProduct: (id: number) => Promise<boolean>
   deleteMultipleProducts: (ids: number[]) => Promise<boolean>
   setSearchQuery: (query: string) => void
@@ -481,13 +517,20 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
       })
     }
 
-    // Map retentions: ensure not empty if selected
     if (Array.isArray(form.retentions)) {
-      payload.retentions = form.retentions.map((r: any, idx: number) => ({
-        retention_id: r.retention_id,
-        sequence: r.sequence ?? idx + 1,
-        status: r.status ?? "Active",
-      }))
+      payload.retentions = serializeRetentionsForProductApi(form.retentions)
+    }
+
+    if (Array.isArray((form as { retention_options?: unknown }).retention_options)) {
+      payload.retention_options = serializeRetentionOptionsForApi(
+        (form as { retention_options: Parameters<typeof serializeRetentionOptionsForApi>[0] }).retention_options,
+      )
+    }
+
+    if (Array.isArray((form as { advance_fields?: unknown }).advance_fields)) {
+      payload.advance_fields = serializeAdvanceFieldsForApi(
+        (form as { advance_fields: Parameters<typeof serializeAdvanceFieldsForApi>[0] }).advance_fields,
+      )
     }
 
     // Map other arrays (impressions, gum_shades, teeth_shades, materials, addons, extractions)
@@ -556,7 +599,8 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
     // Preserve has_* section flags passed from the modal (product_configurations)
     const sectionFlags = [
       "has_stage", "has_grade", "has_gum_shade", "has_teeth_shade",
-      "has_impression", "has_extraction", "has_retention", "has_material", "has_addon", "has_variation"
+      "has_impression", "has_extraction", "has_retention", "has_material", "has_addon",
+      "has_advance_field", "has_variation"
     ] as const
     for (const flag of sectionFlags) {
       if (form[flag] !== undefined) {
@@ -710,7 +754,10 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
   )
 
   const createProduct = useCallback(
-    async (payload: ProductCreateForm & Record<string, any>, releasingStageIds: (string | number)[] = []) => {
+    async (
+      payload: ProductCreateForm & Record<string, any>,
+      releasingStageIds: (string | number)[] = [],
+    ): Promise<ProductSaveResult> => {
       setIsLoading(true)
       setError(null)
       setValidationErrors([])
@@ -796,7 +843,7 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
 
         if (response.status === 401) {
           redirectToLogin()
-          return false
+          return { success: false as const }
         }
 
         const result = await response.json()
@@ -807,12 +854,13 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
             setValidationErrors(errors)
             setError(result.error_description || t("productContext.validationFailed", "Validation failed. Please check the form and try again."))
             triggerAnimation("error", result.error_description || t("productContext.validationErrorAnimation", "Please fix the validation errors and try again."))
-            return false
+            return { success: false as const }
           } else {
             throw new Error(result.message || t("productContext.httpError", `HTTP error! status: ${response.status}`))
           }
         }
 
+        const productSnapshot = snapshotProductFromSaveResponse(result)
         triggerAnimation("success", result.message || t("productContext.createSuccess", "Product created successfully!"))
         // Refresh products list
         await fetchProducts(
@@ -824,12 +872,12 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
           statusFilter,
           subcategoryFilter,
         )
-        return true
+        return { success: true as const, productSnapshot }
       } catch (err: any) {
         console.error("Failed to create product:", err)
         setError(err.message || t("productContext.createFailed", "Failed to create product."))
         triggerAnimation("error", err.message || t("productContext.createFailed", "Failed to create product."))
-        return false
+        return { success: false as const }
       } finally {
         setIsLoading(false)
       }
@@ -850,7 +898,11 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
   )
 
   const updateProduct = useCallback(
-    async (id: number, payload: ProductCreateForm & Record<string, any>, releasingStageIds: (string | number)[] = []) => {
+    async (
+      id: number,
+      payload: ProductCreateForm & Record<string, any>,
+      releasingStageIds: (string | number)[] = [],
+    ): Promise<ProductSaveResult> => {
       // Log at the very start
 
       setIsLoading(true)
@@ -943,7 +995,7 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
 
         if (response.status === 401) {
           redirectToLogin()
-          return false
+          return { success: false as const }
         }
 
         const result = await response.json()
@@ -964,8 +1016,9 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
+        const productSnapshot = snapshotProductFromSaveResponse(result)
         triggerAnimation("success", result.message || t("productContext.updateSuccess", "Product updated successfully!"))
-        
+
         // Use a more stable approach to refresh products - call fetchProducts with current state values
         // instead of relying on the dependency array
         await fetchProducts(
@@ -977,12 +1030,12 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
           statusFilter,
           subcategoryFilter,
         )
-        return true
+        return { success: true as const, productSnapshot }
       } catch (err: any) {
         console.error("Failed to update product:", err)
         setError(err.message || t("productContext.updateFailed", "Failed to update product."))
         triggerAnimation("error", err.message || t("productContext.updateFailed", "Failed to update product."))
-        return false
+        return { success: false as const }
       } finally {
         setIsLoading(false)
       }
