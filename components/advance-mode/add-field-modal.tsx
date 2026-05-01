@@ -17,8 +17,78 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useTranslation } from "react-i18next"
 import { AddOptionModal } from "./add-option-modal"
 import { AdvanceField, useAdvanceCategories, useAdvanceSubcategories, useCreateAdvanceField, useUpdateAdvanceField, useAdvanceField, fileToBase64, validateImageFile } from "@/lib/api/advance-mode-query"
+import {
+  normalizeAdvanceFieldChargeScopeForSubmit,
+  parseAdvanceFieldChargeScopeFromApi,
+  isAdvanceFieldChargeScope,
+  type AdvanceFieldChargeScope,
+} from "@/lib/advance-field-charge-scope"
 import { useToast } from "@/hooks/use-toast"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { cn } from "@/lib/utils"
+
+/** Unwrap API responses like `{ data: T }` / nested wrappers after create/update mutations. */
+function parseAdvanceFieldFromMutationResult(result: unknown): AdvanceField | null {
+  if (!result || typeof result !== "object") return null
+  let cur: unknown = (result as { data?: unknown }).data
+  for (let i = 0; i < 5; i++) {
+    if (!cur || typeof cur !== "object") return null
+    const o = cur as Record<string, unknown>
+    if (typeof o.id === "number") return cur as AdvanceField
+    cur = o.data
+  }
+  return null
+}
+
+/** When create response unwraps oddly, still notify parent so UIs can link by id + form labels. */
+function advanceFieldPersistFallbackFromCreate(
+  result: unknown,
+  values: { fieldName: string; category: string; subCategory: string },
+): AdvanceField | null {
+  let cur: unknown =
+    result && typeof result === "object" && "data" in result
+      ? (result as { data?: unknown }).data
+      : result
+  for (let i = 0; i < 8; i++) {
+    if (!cur || typeof cur !== "object") break
+    const o = cur as Record<string, unknown>
+    const id = o.id
+    if (typeof id === "number") {
+      const sub =
+        typeof o.advance_subcategory_id === "number"
+          ? o.advance_subcategory_id
+          : values.subCategory
+            ? parseInt(values.subCategory, 10)
+            : null
+      return {
+        id,
+        name: typeof o.name === "string" && o.name.trim() ? o.name.trim() : values.fieldName.trim(),
+        advance_category_id:
+          typeof o.advance_category_id === "number"
+            ? o.advance_category_id
+            : parseInt(values.category, 10),
+        advance_subcategory_id: sub,
+        ...(typeof o.advance_subcategory === "object" && o.advance_subcategory
+          ? { advance_subcategory: o.advance_subcategory as AdvanceField["advance_subcategory"] }
+          : {}),
+        ...(typeof o.subcategory === "object" && o.subcategory
+          ? { subcategory: o.subcategory as AdvanceField["subcategory"] }
+          : {}),
+        field_type: typeof o.field_type === "string" ? o.field_type : "text",
+        is_required:
+          o.is_required === "Yes" || o.is_required === "No" ? (o.is_required as "Yes" | "No") : "No",
+        has_additional_pricing:
+          o.has_additional_pricing === "Yes" || o.has_additional_pricing === "No"
+            ? (o.has_additional_pricing as "Yes" | "No")
+            : "No",
+        sequence:
+          typeof o.sequence === "number" && Number.isFinite(o.sequence) ? (o.sequence as number) : 0,
+      } as AdvanceField
+    }
+    cur = o.data
+  }
+  return null
+}
 
 interface AddFieldModalProps {
   isOpen: boolean
@@ -26,6 +96,10 @@ interface AddFieldModalProps {
   onSave?: (data: any) => void
   field?: AdvanceField | null
   isEditing?: boolean
+  /** Scopes queries and save payloads to this lab catalog (e.g. product modal’s lab customer_id). Lab admin still falls back to localStorage when unset. */
+  catalogCustomerId?: number | null
+  /** Built-in mutations only: notifies parent after success so nested UIs can sync linked labels without leaving the workflow. */
+  onFieldPersisted?: (field: AdvanceField) => void
 }
 
 interface FieldOption {
@@ -63,7 +137,7 @@ const addFieldSchema = z.object({
   canAddAdditionalCharges: z.boolean(),
   chargeType: z.enum(["once", "per-option"]),
   additionalCharge: z.string().optional(),
-  chargeScope: z.enum(["per-case", "per-unit"]),
+  chargeScope: z.enum(["per_case", "per_tooth", "per_slip", "per_arch"]),
 }).refine((data) => {
   // If charge type is "once" and additional charges are enabled, validate additionalCharge
   if (data.canAddAdditionalCharges && data.chargeType === "once") {
@@ -78,7 +152,15 @@ const addFieldSchema = z.object({
 
 type AddFieldFormValues = z.infer<typeof addFieldSchema>
 
-export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = false }: AddFieldModalProps) {
+export function AddFieldModal({
+  isOpen,
+  onClose,
+  onSave,
+  field,
+  isEditing = false,
+  catalogCustomerId,
+  onFieldPersisted,
+}: AddFieldModalProps) {
   const { t } = useTranslation()
   const { toast } = useToast()
   const [activeTab, setActiveTab] = useState<"options" | "pricing">("options")
@@ -115,7 +197,8 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
     return undefined
   }
 
-  const customerId = getCustomerId()
+  const catalogCustomerResolved =
+    typeof catalogCustomerId === "number" && catalogCustomerId > 0 ? catalogCustomerId : getCustomerId()
 
   // Fetch field data when editing using React Query
   // React Query handles caching and refetching automatically
@@ -129,7 +212,7 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
     refetch: refetchField
   } = useAdvanceField(
     fieldId,
-    customerId
+    catalogCustomerResolved
   )
   
   // React Query's enabled option in the hook already handles fieldId > 0 check
@@ -158,7 +241,7 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
       canAddAdditionalCharges: false,
       chargeType: "once",
       additionalCharge: "0.00",
-      chargeScope: "per-case",
+      chargeScope: "per_case",
     },
     mode: "onChange",
   })
@@ -206,14 +289,14 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
   const { data: categoriesData } = useAdvanceCategories({
     per_page: 100,
     status: "Active",
-    ...(customerId && { customer_id: customerId }),
+    ...(catalogCustomerResolved && { customer_id: catalogCustomerResolved }),
   }, { enabled: isOpen })
 
   // Fetch subcategories with customer_id if role is lab_admin, filtered by selected category - only when modal is open
   const { data: subcategoriesData } = useAdvanceSubcategories({
     per_page: 100,
     status: "Active",
-    ...(customerId && { customer_id: customerId }),
+    ...(catalogCustomerResolved && { customer_id: catalogCustomerResolved }),
     ...(selectedCategoryId && !isNaN(parseInt(selectedCategoryId, 10)) && { advance_category_id: parseInt(selectedCategoryId, 10) }),
   }, { enabled: isOpen })
 
@@ -271,12 +354,12 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
     }
   }, [selectedCategoryId])
 
-  // Ensure chargeScope always has a default value of "per-case"
+  // Ensure chargeScope matches backend Advance Field enums
   useEffect(() => {
     if (isOpen) {
       const currentChargeScope = form.getValues("chargeScope")
-      if (!currentChargeScope || (currentChargeScope !== "per-case" && currentChargeScope !== "per-unit")) {
-        form.setValue("chargeScope", "per-case", { shouldDirty: false })
+      if (!currentChargeScope || !isAdvanceFieldChargeScope(currentChargeScope)) {
+        form.setValue("chargeScope", "per_case", { shouldDirty: false })
       }
     }
   }, [isOpen, form])
@@ -443,18 +526,7 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
         canAddAdditionalCharges: fieldData.has_additional_pricing === 'Yes',
         chargeType: fieldData.charge_type === 'per_selected_option' ? 'per-option' as const : 'once' as const,
         additionalCharge: fieldData.price?.toString() || "0.00",
-        // Map API format (per_case) to form format (per-case), default to per-case
-        chargeScope: (() => {
-          const apiValue = fieldData.charge_scope
-          if (!apiValue) return "per-case"
-          // Convert underscore format to hyphen format
-          if (apiValue === 'per_case') return 'per-case'
-          if (apiValue === 'per_unit') return 'per-unit'
-          // If already in correct format, use it
-          if (apiValue === 'per-case' || apiValue === 'per-unit') return apiValue as "per-case" | "per-unit"
-          // Default fallback
-          return "per-case"
-        })() as "per-case" | "per-unit",
+        chargeScope: parseAdvanceFieldChargeScopeFromApi(fieldData.charge_scope),
       }
       
       // Reset form with field data — set category/subcategory separately
@@ -534,7 +606,7 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
           canAddAdditionalCharges: false,
           chargeType: "once",
           additionalCharge: "0.00",
-          chargeScope: "per-case",
+          chargeScope: "per_case",
         })
         form.clearErrors()
         setOptions([])
@@ -549,53 +621,8 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
     }
   }, [isOpen, isEditing, fieldData, isLoadingField, fetchedFieldData, fieldId, form])
 
-  if (!isOpen) return null
-
-  // Show loading state while fetching field data using React Query
-  if (isEditing && isLoadingField && fieldId > 0) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <div className="flex items-center gap-3">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#1162a8]"></div>
-            <p className="text-gray-700">Loading field data...</p>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // Show error state if field fetch failed
-  if (isEditing && fieldError && fieldId > 0) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-        <div className="bg-white rounded-lg shadow-lg p-6 max-w-md">
-          <div className="flex flex-col items-center gap-3">
-            <p className="text-red-600 font-medium">Failed to load field data</p>
-            <p className="text-sm text-gray-600 text-center">
-              {fieldError instanceof Error ? fieldError.message : "An error occurred"}
-            </p>
-            <div className="flex gap-2 mt-2">
-              <Button
-                variant="outline"
-                onClick={() => refetchField()}
-                className="text-sm"
-              >
-                Retry
-              </Button>
-              <Button
-                variant="outline"
-                onClick={onClose}
-                className="text-sm"
-              >
-                Close
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
+  const showFetchLoading = isOpen && isEditing && isLoadingField && fieldId > 0
+  const showFetchError = isOpen && isEditing && !!fieldError && fieldId > 0
 
   // Form validation check - use form.watch() to reactively track form values
   const formValues = form.watch()
@@ -639,24 +666,6 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
     additionalChargesValid
 
   const isLoading = isSaving || createFieldMutation.isPending || updateFieldMutation.isPending
-
-  // Debug: Log form state
-  console.log("Form state:", {
-    isFormValid,
-    hasFieldName,
-    categoryValid,
-    subCategoryValid,
-    hasFieldType,
-    additionalChargesValid,
-    category,
-    subCategory,
-    fieldType,
-    optionsLength: options.length,
-    requiresOptions: fieldType ? requiresOptions(fieldType) : false,
-    buttonDisabled: !isFormValid || (fieldType && requiresOptions(fieldType) && options.length === 0) || isLoading,
-    isEditing,
-    fieldData: fieldData?.id
-  })
 
   const handleSave = async (data: AddFieldFormValues) => {
     // Prevent multiple submissions
@@ -756,7 +765,10 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
         payload.price = data.canAddAdditionalCharges && data.chargeType === 'once' && data.additionalCharge
           ? parseFloat(data.additionalCharge)
           : undefined
-        payload.charge_scope = data.canAddAdditionalCharges ? data.chargeScope : undefined
+        payload.charge_scope =
+          data.canAddAdditionalCharges
+            ? normalizeAdvanceFieldChargeScopeForSubmit(data.chargeScope)
+            : undefined
       } else {
         // For editing, always include required fields (name and field_type) even if unchanged
         // Other fields are only included if they changed
@@ -794,8 +806,12 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
             payload.price = currentPrice
           }
         }
-        if (data.canAddAdditionalCharges && data.chargeScope !== initialFormValues.chargeScope) {
-          payload.charge_scope = data.chargeScope
+        if (
+          data.canAddAdditionalCharges &&
+          normalizeAdvanceFieldChargeScopeForSubmit(data.chargeScope) !==
+            normalizeAdvanceFieldChargeScopeForSubmit(initialFormValues.chargeScope)
+        ) {
+          payload.charge_scope = normalizeAdvanceFieldChargeScopeForSubmit(data.chargeScope)
         }
       }
 
@@ -1074,6 +1090,14 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
         }
       }
 
+      if (
+        typeof catalogCustomerResolved === "number" &&
+        Number.isFinite(catalogCustomerResolved) &&
+        catalogCustomerResolved > 0
+      ) {
+        payload.customer_id = catalogCustomerResolved
+      }
+
       // Call onSave callback - let the parent handle the mutation to avoid double submission
       if (onSave) {
         // For onSave callback, pass form-formatted data (not API-formatted)
@@ -1119,24 +1143,41 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
         }
       } else {
         // Fallback: if no onSave callback, handle mutation here
+        let persistedField: AdvanceField | null = null
+
         if (isEditing && fieldData && fieldData.id) {
           // Update existing field
-          await updateFieldMutation.mutateAsync({
+          const result = await updateFieldMutation.mutateAsync({
             id: fieldData.id,
             ...payload,
           })
+          persistedField =
+            parseAdvanceFieldFromMutationResult(result) ??
+            ({ ...fieldData, name: data.fieldName ?? fieldData.name } as AdvanceField)
           toast({
             title: "Success",
             description: "Field updated successfully",
           })
         } else {
           // Create new field
-          await createFieldMutation.mutateAsync(payload)
+          const result = await createFieldMutation.mutateAsync(payload)
+          persistedField =
+            parseAdvanceFieldFromMutationResult(result) ??
+            advanceFieldPersistFallbackFromCreate(result, {
+              fieldName: data.fieldName,
+              category: data.category,
+              subCategory: data.subCategory,
+            })
           toast({
             title: "Success",
             description: "Field created successfully",
           })
         }
+
+        if (persistedField && onFieldPersisted) {
+          onFieldPersisted(persistedField)
+        }
+
         onClose()
       }
     } catch (error: any) {
@@ -1257,9 +1298,9 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
     )
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-2 sm:p-4">
-      <div className="bg-white rounded-lg shadow-lg w-full max-w-5xl h-full max-h-[95vh] sm:h-auto sm:max-h-[90vh] flex flex-col relative">
+  const fieldWorkspace = (
+    <>
+      <div className="relative flex flex-1 flex-col bg-background min-h-0 max-h-[min(88vh,48rem)] w-full min-w-0 overflow-hidden sm:max-h-[min(90vh,52rem)]">
         {/* Loading Overlay */}
         {isLoading && (
           <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-50 rounded-lg">
@@ -1273,6 +1314,7 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
         <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 flex-shrink-0">
           <h2 className="text-xl sm:text-2xl font-bold text-gray-900">{isEditing ? "Edit Field" : "Add Field"}</h2>
           <button
+            type="button"
             onClick={onClose}
             disabled={isLoading}
             className="text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1282,7 +1324,8 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
         </div>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSave)} className="flex flex-col flex-1 min-h-0">
+          {/* No <form>: explicit save avoids accidental submits from nested contexts */}
+          <div className="flex flex-col flex-1 min-h-0">
             {/* Disable form interactions during save */}
             {isLoading && (
               <div className="absolute inset-0 z-40 cursor-not-allowed" />
@@ -1877,8 +1920,8 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
                             control={form.control}
                             name="chargeScope"
                             render={({ field }) => {
-                              // Always ensure we have a valid value, default to "per-case"
-                              const currentValue = field.value || "per-case"
+                              const currentValue: AdvanceFieldChargeScope =
+                                field.value && isAdvanceFieldChargeScope(field.value) ? field.value : "per_case"
                               const hasValue = !!currentValue
                               
                               return (
@@ -1889,8 +1932,9 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
                                         <Select
                                           value={currentValue}
                                           onValueChange={(value) => {
-                                            // Always set a value, default to "per-case" if empty
-                                            field.onChange(value || "per-case")
+                                            field.onChange(
+                                              value && isAdvanceFieldChargeScope(value) ? value : "per_case",
+                                            )
                                           }}
                                         >
                                           <SelectTrigger 
@@ -1899,8 +1943,10 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
                                             <SelectValue placeholder="Per case" />
                                           </SelectTrigger>
                                           <SelectContent>
-                                            <SelectItem value="per-case">Per case</SelectItem>
-                                            <SelectItem value="per-unit">Per unit</SelectItem>
+                                            <SelectItem value="per_case">Per case</SelectItem>
+                                            <SelectItem value="per_tooth">Per tooth</SelectItem>
+                                            <SelectItem value="per_slip">Per slip</SelectItem>
+                                            <SelectItem value="per_arch">Per arch</SelectItem>
                                           </SelectContent>
                                         </Select>
                                         {hasValue && (
@@ -1954,25 +2000,12 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
                 Cancel
               </Button>
               <Button
-                type="submit"
+                type="button"
                 disabled={!isFormValid || (formValues.fieldType && requiresOptions(formValues.fieldType) && options.length === 0) || isLoading}
                 onClick={(e) => {
-                  const currentFormValues = form.getValues()
-                  console.log("Save button clicked", {
-                    isFormValid,
-                    currentFormValues,
-                    formValues,
-                    optionsLength: options.length,
-                    disabled: !isFormValid || (formValues.fieldType && requiresOptions(formValues.fieldType) && options.length === 0) || isLoading,
-                    validationDetails: {
-                      hasFieldName: !!currentFormValues.fieldName?.trim(),
-                      hasCategory: !!currentFormValues.category,
-                      hasSubCategory: !!currentFormValues.subCategory,
-                      hasFieldType: !!currentFormValues.fieldType,
-                    }
-                  })
-                  // Don't prevent default - let form.handleSubmit handle it
-                  // This is just for debugging
+                  e.preventDefault()
+                  e.stopPropagation()
+                  void form.handleSubmit(handleSave)(e)
                 }}
                 className="px-4 sm:px-6 bg-[#1162a8] hover:bg-[#0f5497] text-white text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
               >
@@ -1986,7 +2019,7 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
                 )}
               </Button>
             </div>
-          </form>
+          </div>
         </Form>
       </div>
 
@@ -2035,6 +2068,45 @@ export function AddFieldModal({ isOpen, onClose, onSave, field, isEditing = fals
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
+  )
+
+  return (
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
+    >
+      <DialogContent
+        className={cn(
+          "flex max-h-[92vh] w-[min(100vw-1rem,64rem)] max-w-5xl flex-col gap-0 overflow-hidden p-0 [&>button:last-child]:hidden",
+        )}
+      >
+        {showFetchLoading ? (
+          <div className="flex flex-col items-center justify-center gap-4 px-6 py-14">
+            <Loader2 className="h-8 w-8 animate-spin text-[#1162a8]" />
+            <p className="text-sm text-muted-foreground">Loading field data...</p>
+          </div>
+        ) : showFetchError ? (
+          <div className="flex max-w-md flex-col items-center gap-3 px-6 py-10 text-center">
+            <p className="font-medium text-destructive">Failed to load field data</p>
+            <p className="text-sm text-muted-foreground">
+              {fieldError instanceof Error ? fieldError.message : "An error occurred"}
+            </p>
+            <div className="mt-2 flex gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => refetchField()}>
+                Retry
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={onClose}>
+                Close
+              </Button>
+            </div>
+          </div>
+        ) : (
+          fieldWorkspace
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }

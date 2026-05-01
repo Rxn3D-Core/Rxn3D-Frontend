@@ -26,6 +26,11 @@ interface CreateRetentionOptionModalProps {
     option?: any | null
     isCopying?: boolean
     onSuccess?: () => void
+    /**
+     * When opening from nested hosts (e.g. product modal), pin lab/global scope explicitly.
+     * Otherwise customer id is inferred from auth/storage.
+     */
+    scopedCustomerId?: number | null
 }
 
 // Shape definitions with SVG paths - returns icon with dynamic color
@@ -108,7 +113,14 @@ const getShapeIdFromApiName = (apiName: string | null): string => {
     return shape?.id || ""
 }
 
-export function CreateRetentionOptionModal({ isOpen, onClose, option, isCopying = false, onSuccess }: CreateRetentionOptionModalProps) {
+export function CreateRetentionOptionModal({
+    isOpen,
+    onClose,
+    option,
+    isCopying = false,
+    onSuccess,
+    scopedCustomerId,
+}: CreateRetentionOptionModalProps) {
     const { user } = useAuth()
     const { toast } = useToast()
     const [optionName, setOptionName] = useState("")
@@ -160,7 +172,9 @@ export function CreateRetentionOptionModal({ isOpen, onClose, option, isCopying 
         return null
     }
 
-    const customerId = getCustomerId()
+    const inferredCustomerId = getCustomerId()
+    const customerId =
+      typeof scopedCustomerId === "number" && scopedCustomerId > 0 ? scopedCustomerId : inferredCustomerId
 
     // Fetch details when editing
     useEffect(() => {

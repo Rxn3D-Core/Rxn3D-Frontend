@@ -46,6 +46,9 @@ const TabsContent = React.forwardRef<
     className={cn(
       "mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
       className,
+      // Radix sets `hidden` on inactive panels, but Tailwind `flex` / `flex-1` overrides that `display`,
+      // so inactive panels stayed in the flex layout and stole space — force-hide when inactive.
+      "data-[state=inactive]:!hidden [&[hidden]]:!hidden",
     )}
     {...props}
   />
