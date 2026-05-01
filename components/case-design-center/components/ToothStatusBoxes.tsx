@@ -129,7 +129,7 @@ export function ToothStatusBoxes({
   toothExtractionMap,
   claspTeeth,
   activeExtractionCode,
-  onActiveExtractionChange: _onActiveExtractionChange,
+  onActiveExtractionChange,
   onToothExtractionToggle: _onToothExtractionToggle,
   onSelectAllTeeth,
   onRequiredValidationChange,
@@ -248,6 +248,7 @@ export function ToothStatusBoxes({
         const isAtMax = hasMaxLimit && teethForBox.length >= maxTeeth!;
 
         const style = resolveStyle(extraction);
+        const isInteractive = !submitted && !grayed;
 
         // Compact (no teeth) vs normal size — only for removable context
         const isCompact = isRemovable && isEmpty;
@@ -255,7 +256,11 @@ export function ToothStatusBoxes({
         return (
           <div
             key={extraction.id}
-            className={`flex flex-col items-center justify-center rounded-[6px] transition-all shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] ${isCompact ? "px-[10px] py-1 min-h-[28px]" : "px-[10px] py-1.5 min-h-[50px]"}`}
+            className={`flex flex-col items-center justify-center rounded-[6px] transition-all shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] ${isCompact ? "px-[10px] py-1 min-h-[28px]" : "px-[10px] py-1.5 min-h-[50px]"} ${isInteractive ? "cursor-pointer hover:shadow-[1px_1px_5px_rgba(0,0,0,0.3)]" : ""}`}
+            onClick={() => {
+              if (!isInteractive) return;
+              onActiveExtractionChange(isActive ? null : extraction.code, extractions);
+            }}
             style={{
               backgroundColor: grayed ? "white" : submitted ? style.bg : "white",
               outline: grayed

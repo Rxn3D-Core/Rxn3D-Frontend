@@ -238,9 +238,13 @@ function ImpressionGrid({
               {/* Green checkmark — click to confirm done */}
               {showCheck && (
                 <button
-                  className={cn("flex items-center justify-center flex-shrink-0", controlSize)}
+                  className={cn(
+                    "flex items-center justify-center flex-shrink-0 rounded-full transition-all duration-200",
+                    "hover:scale-125 hover:bg-green-50",
+                    controlSize
+                  )}
                   onClick={(e) => { e.stopPropagation(); onDone?.() }}
-                  title="Done"
+                  title="Done — save and close"
                 >
                   <Check className={cn("text-[#22c55e]", iconSize)} strokeWidth={2.5} />
                 </button>
@@ -357,13 +361,13 @@ export function ImpressionSelectionModal({
               impressions={impressions}
               productId={productId}
               arch={arch}
-              showDoneCheckmark={true}
+              showDoneCheckmark={!isDualArch}
               onDone={handleDone}
             />
           </div>
 
-          {/* Opposing arch section — revealed once main arch has a selection */}
-          {isDualArch && hasMainSelection && (
+          {/* Opposing arch section — always visible for dual arch products */}
+          {isDualArch && (
             <div
               className={cn(
                 "relative rounded-[12px] px-4 sm:px-6 pt-7 pb-5 border-2 transition-colors",

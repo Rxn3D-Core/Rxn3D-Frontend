@@ -173,6 +173,9 @@ interface TransformOptions {
   savedProducts: SavedProduct[];
   user: User | null;
   locationId?: number;
+  pickupDate?: string | null;
+  deliveryDate?: string | null;
+  deliveryTime?: string | null;
 }
 
 /**
@@ -181,7 +184,7 @@ interface TransformOptions {
 export function transformToSlipCreationPayload(
   options: TransformOptions
 ): SlipCreationPayload {
-  const { selectedLab, selectedDoctor, patientData, savedProducts, user, locationId } = options;
+  const { selectedLab, selectedDoctor, patientData, savedProducts, user, locationId, pickupDate, deliveryDate, deliveryTime } = options;
 
   // Validate required data
   if (!selectedLab) {
@@ -278,6 +281,9 @@ export function transformToSlipCreationPayload(
       created_by: user.id,
       products,
       notes: firstProduct?.slipNotes?.map(n => ({ note: n.note })),
+      pickup_date: pickupDate ?? null,
+      delivery_date: deliveryDate ?? null,
+      delivery_time: deliveryTime ?? null,
     };
     
     return slip;

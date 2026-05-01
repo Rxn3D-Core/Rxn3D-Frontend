@@ -511,12 +511,12 @@ export function useCaseDesignState(props: CaseDesignProps) {
       const isFixed = isFixedCategory(catName);
       const addonStep = isFixed ? "fixed_addons" as const : "addons" as const;
       if (toothFieldProgress.isFieldCompleted(arch, toothNumber, addonStep)) return;
-      const value = defaultAddons.map((a) => `1x ${a.name}`).join(", ");
+      const value = defaultAddons.map((a) => `${a.quantity ?? 1}x ${a.name}`).join(", ");
       toothFieldProgress.completeFieldStep(arch, toothNumber, addonStep, value);
       const key = `${arch}_${toothNumber}`;
       setSelectedAddonsByTooth((prev) => ({
         ...prev,
-        [key]: defaultAddons.map((a) => ({ addon_id: a.id, qty: 1 })),
+        [key]: defaultAddons.map((a) => ({ addon_id: a.id, qty: a.quantity ?? 1 })),
       }));
     },
     [toothFieldProgress, setSelectedAddonsByTooth]

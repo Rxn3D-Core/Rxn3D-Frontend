@@ -8,7 +8,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
-import { updateBusinessSettings, getBusinessSettings, convertTo24Hour, convertTo12Hour } from "@/lib/api-business-settings"
+import { updateBusinessSettings, convertTo24Hour } from "@/lib/api-business-settings"
 import { useAuth } from "@/contexts/auth-context"
 
 interface PickupDeliveryTabProps {
@@ -45,7 +45,6 @@ export function PickupDeliveryTab({
 }: PickupDeliveryTabProps) {
   const [rushEnabled, setRushEnabled] = useState(rushSettings.enabled)
   const [turnaroundType, setTurnaroundType] = useState<"fixed" | "flexible">(rushSettings.rush_type || "fixed")
-  const [rushFeeType, setRushFeeType] = useState<"fixed" | "flexible">("fixed")
   const [turnaroundDays, setTurnaroundDays] = useState(rushSettings.fixed_turnaround_days?.toString() || "3")
   const [rushFeePercent, setRushFeePercent] = useState(rushSettings.fixed_rush_fee_percentage || "25")
   
@@ -58,24 +57,15 @@ export function PickupDeliveryTab({
   const { toast } = useToast()
   const { user } = useAuth()
 
-  // Initialize from existing data
+  // Sync state from API data
   useEffect(() => {
     setRushEnabled(rushSettings.enabled)
-    if (rushSettings.rush_type) {
-      setTurnaroundType(rushSettings.rush_type)
-    }
+    setTurnaroundType(rushSettings.rush_type || "fixed")
     if (rushSettings.fixed_turnaround_days !== undefined) {
       setTurnaroundDays(rushSettings.fixed_turnaround_days.toString())
     }
     if (rushSettings.fixed_rush_fee_percentage) {
-      // Convert to string if needed
-      const feeValue = String(rushSettings.fixed_rush_fee_percentage)
-      setRushFeePercent(feeValue)
-      setRushFeeType("fixed")
-    } else {
-      // If no fixed_rush_fee_percentage, it might be flexible
-      // But we'll default to fixed with default value
-      setRushFeeType("fixed")
+      setRushFeePercent(String(rushSettings.fixed_rush_fee_percentage))
     }
   }, [rushSettings])
 
@@ -218,7 +208,7 @@ export function PickupDeliveryTab({
           enable_rush_cases: rushEnabled,
           rush_type: rushEnabled ? turnaroundType : undefined,
           fixed_turnaround_days: rushEnabled && turnaroundType === "fixed" ? parseInt(turnaroundDays) : undefined,
-          fixed_rush_fee_percentage: rushEnabled && rushFeeType === "fixed" ? rushFeePercent : undefined,
+          fixed_rush_fee_percentage: rushEnabled && turnaroundType === "fixed" ? rushFeePercent : undefined,
         },
       })
 
@@ -435,13 +425,11 @@ export function PickupDeliveryTab({
                     </RadioGroup>
                   </div>
 
-                  {/* Right Column - Rush Fee */}
+                  {/* Right Column - Rush Fee (mirrors turnaround type per API) */}
                   <div>
-                    <RadioGroup 
-                      value={rushFeeType} 
-                      onValueChange={(value) => {
-                        setRushFeeType(value as "fixed" | "flexible")
-                      }} 
+                    <RadioGroup
+                      value={turnaroundType}
+                      onValueChange={(value) => setTurnaroundType(value as "fixed" | "flexible")}
                       className="space-y-4"
                       disabled={isSaving}
                     >
@@ -457,10 +445,8 @@ export function PickupDeliveryTab({
                         <Input
                           className="w-16 h-8 ml-4 text-center border-blue-300 focus:border-blue-500"
                           value={rushFeePercent}
-                          onChange={(e) => {
-                            setRushFeePercent(e.target.value)
-                          }}
-                          disabled={isSaving || rushFeeType !== "fixed"}
+                          onChange={(e) => setRushFeePercent(e.target.value)}
+                          disabled={isSaving || turnaroundType !== "fixed"}
                         />
                         <span className="text-gray-900">%</span>
                       </div>

@@ -100,6 +100,8 @@ export interface CaseDesignProps {
   confirmDetailsChecked?: boolean;
   /** Called whenever any full-screen modal (impression, stage, add-ons, etc.) opens or closes. */
   onAnyModalOpenChange?: (isOpen: boolean) => void;
+  /** When false, the Rush Case button is hidden. Defaults to true (visible). */
+  rushCasesEnabled?: boolean;
 }
 
 export interface AddedProduct {
@@ -403,12 +405,25 @@ export interface ProductTeethShade {
 
 export interface ProductAddon {
   id: number;
+  addon_id?: number;
   name: string;
   code: string;
   sequence?: number;
   status?: string;
   is_default?: string;
   price?: string | number | null;
+  quantity?: number;
+  subcategory?: {
+    id: number;
+    name: string;
+    code?: string;
+    category_id?: number;
+  } | null;
+  category?: {
+    id: number;
+    name: string;
+    code?: string;
+  } | null;
 }
 
 /** Product from the products API */

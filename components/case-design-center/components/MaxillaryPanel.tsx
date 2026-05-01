@@ -1429,7 +1429,6 @@ export function MaxillaryPanel({
                                   isRemovable={true}
                                   submitted={caseSubmitted}
                                   hideDefaultBox={true}
-                                  grayed={true}
                                   disableRequiredValidation={true}
                                 />
                               )}
@@ -2280,7 +2279,6 @@ export function MaxillaryPanel({
                               isRemovable={true}
                               submitted={caseSubmitted}
                               hideDefaultBox={true}
-                              grayed={true}
                               disableRequiredValidation={true}
                             />
                           )}
@@ -2529,6 +2527,7 @@ export function MaxillaryPanel({
               ([key, qty]) => key.includes("_mandibular_") && qty > 0
             );
             if (!hasOpposingImpressionSelected) return null;
+            const opposingImpressionText = getImpressionDisplayText(productKey, "mandibular");
             // Map ProductOppositeExtraction to ProductExtraction shape for ToothStatusBoxes
             const opposingExtractions: import("../types").ProductExtraction[] = (opposingProductData.opposite_extractions ?? []).map(e => ({
               id: e.id,
@@ -2606,12 +2605,14 @@ export function MaxillaryPanel({
                     <div className="px-[14px] py-[14px] flex flex-col gap-[10px]">
                       <fieldset className="border border-[#b4b0b0] rounded px-3 py-0 relative h-[42px] flex items-center">
                         <legend className="text-sm px-1 leading-none text-[#7f7f7f]">Impression</legend>
-                        <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">No Opposing</span>
+                        <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{opposingImpressionText || "No Opposing"}</span>
                       </fieldset>
-                      <p className="font-['Verdana'] text-sm text-black">
-                        No impression will be sent on this appointment.{" "}
-                        Please note that opposing scan is <span className="text-[#CF0202] font-bold">required</span> for this impression.
-                      </p>
+                      {!opposingImpressionText && (
+                        <p className="font-['Verdana'] text-sm text-black">
+                          No impression will be sent on this appointment.{" "}
+                          Please note that opposing scan is <span className="text-[#CF0202] font-bold">required</span> for this impression.
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>

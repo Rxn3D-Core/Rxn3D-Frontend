@@ -7138,6 +7138,13 @@ export function useCaseDesignCenter() {
       }
       const user = JSON.parse(userStr)
 
+      // Compute delivery date from the longest estimated_days across all products
+      const maxEstimatedDays = productsToSubmit.reduce((max, sp) => {
+        return Math.max(max, sp.product?.estimated_days || 7)
+      }, 7)
+      const deliveryDateObj = new Date(Date.now() + maxEstimatedDays * 24 * 60 * 60 * 1000)
+      const toApiDate = (d: Date) => d.toISOString().split("T")[0]
+
       // Transform data to API format
       const payload = transformToSlipCreationPayload({
         selectedLab,
@@ -7145,7 +7152,10 @@ export function useCaseDesignCenter() {
         patientData,
         savedProducts: productsToSubmit,
         user,
-        locationId: undefined, // Could be added from user preferences
+        locationId: undefined,
+        pickupDate: toApiDate(new Date()),
+        deliveryDate: toApiDate(deliveryDateObj),
+        deliveryTime: null,
       })
 
       // Extract files from advance fields if any

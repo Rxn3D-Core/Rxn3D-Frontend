@@ -13,6 +13,20 @@ import { useCaseDesignStore } from "@/stores/caseDesignStore"
 export interface AddOnsProduct {
   id: number
   name: string
+  /** Pre-loaded addons from the product API response */
+  addons?: Array<{
+    id: number
+    addon_id?: number
+    name: string
+    code: string
+    sequence?: number
+    status?: string
+    is_default?: string
+    price?: string | number | null
+    quantity?: number
+    subcategory?: { id: number; name: string; code?: string } | null
+    category?: { id: number; name: string; code?: string } | null
+  }>
 }
 
 interface AddOnsModalProps {
@@ -100,7 +114,6 @@ export default function AddOnsModal({ isOpen, onClose, onAddAddOns, labId, produ
       }
       if (pid !== null) {
         setActiveProductId(pid)
-        // Pre-populate selectedQtys from store so existing add-ons show their quantities
         const existing = storeProductAddOns[pid.toString()] || { maxillary: [], mandibular: [] }
         const restored: Record<string, number> = {}
         for (const archVal of ["maxillary", "mandibular"] as const) {
@@ -109,6 +122,17 @@ export default function AddOnsModal({ isOpen, onClose, onAddAddOns, labId, produ
             const qty = ((a as Record<string, unknown>).qty as number) || ((a as Record<string, unknown>).quantity as number) || 1
             if (addonId && qty > 0) {
               restored[`${pid}_${archVal}_${addonId}`] = qty
+            }
+          }
+        }
+        // If nothing was in the store, seed from product addon quantities (default addons)
+        if (Object.keys(restored).length === 0) {
+          const productAddons = products.find((p) => p.id === pid)?.addons ?? []
+          for (const a of productAddons) {
+            const addonId = a.addon_id ?? a.id
+            const qty = a.quantity ?? 1
+            if (addonId && qty > 0) {
+              restored[`${pid}_${arch}_${addonId}`] = qty
             }
           }
         }
@@ -145,7 +169,13 @@ export default function AddOnsModal({ isOpen, onClose, onAddAddOns, labId, produ
       : localStorage.getItem("customerId")
   }, [])
 
-  // Fetch addons for the active product
+  // Active product's pre-loaded addons (from product API response)
+  const activeProductAddons = useMemo(() => {
+    const found = products.find((p) => p.id === activeProductId)
+    return found?.addons ?? null
+  }, [products, activeProductId])
+
+  // Fetch addons for the active product only when not pre-loaded
   const fetchAddons = useCallback(async () => {
     if (!activeProductId || !effectiveLabId) return []
 
@@ -167,14 +197,33 @@ export default function AddOnsModal({ isOpen, onClose, onAddAddOns, labId, produ
   const { data: addOnCategories = [], isLoading: loading } = useQuery<ApiCategory[]>({
     queryKey: ['product-addons', activeProductId, effectiveLabId],
     queryFn: fetchAddons,
-    enabled: isOpen && !!activeProductId && !!effectiveLabId,
+    enabled: isOpen && !!activeProductId && !!effectiveLabId && activeProductAddons === null,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   })
 
-  // Flatten all addons from categories for the table view
+  // Flatten all addons for the table view.
+  // When the active product has pre-loaded addons, use them directly.
+  // Otherwise fall back to the category-grouped fetch result.
   const allAddons = useMemo(() => {
     const flat: { addon: ApiAddon; category: string; subcategory: string }[] = []
+    if (activeProductAddons !== null) {
+      for (const a of activeProductAddons) {
+        flat.push({
+          addon: {
+            id: a.addon_id ?? a.id,
+            name: a.name,
+            code: a.code,
+            sequence: a.sequence ?? 0,
+            price: typeof a.price === "string" ? parseFloat(a.price) : (a.price ?? 0),
+            status: a.status ?? "Active",
+          },
+          category: a.category?.name ?? a.subcategory?.name ?? "",
+          subcategory: a.subcategory?.name ?? "",
+        })
+      }
+      return flat
+    }
     for (const cat of addOnCategories) {
       for (const subcat of cat.subcategories) {
         for (const addon of subcat.addons) {
@@ -183,7 +232,7 @@ export default function AddOnsModal({ isOpen, onClose, onAddAddOns, labId, produ
       }
     }
     return flat
-  }, [addOnCategories])
+  }, [activeProductAddons, addOnCategories])
 
   // Filter and paginate for each arch
   const getFilteredAddons = useCallback((search: string) => {

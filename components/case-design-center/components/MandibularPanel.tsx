@@ -1414,7 +1414,6 @@ export function MandibularPanel({
                                   isRemovable={true}
                                   submitted={caseSubmitted}
                                   hideDefaultBox={true}
-                                  grayed={true}
                                   disableRequiredValidation={true}
                                 />
                               )}
@@ -2259,7 +2258,6 @@ export function MandibularPanel({
                               isRemovable={true}
                               submitted={caseSubmitted}
                               hideDefaultBox={true}
-                              grayed={true}
                               disableRequiredValidation={true}
                             />
                           )}
@@ -2503,10 +2501,30 @@ export function MandibularPanel({
 
           {/* Opposing product accordion — shown only when an opposing impression was selected in the modal */}
           {showDetails && opposingProductData && (opposingProductData.opposite_impression === "Yes" || (opposingProductData.opposite_extractions?.length ?? 0) > 0) && (() => {
+            // opposingProductData is always the maxillary product, so impression keys use "maxillary_prep_" prefix.
             const hasOpposingImpressionSelected = Object.entries(selectedImpressions).some(
               ([key, qty]) => key.startsWith("maxillary_prep_") && key.includes("_mandibular_") && qty > 0
             );
-            if (!hasOpposingImpressionSelected) return null;
+            const isNoOpposing = !hasOpposingImpressionSelected && Object.keys(noOpposingNeeded).some(
+              (k) => k.startsWith("maxillary_prep_") && k.includes("_maxillary_")
+            );
+            if (!hasOpposingImpressionSelected && !isNoOpposing) return null;
+            // Build impression display text directly from opposingProductData.impressions (the maxillary product),
+            // because getImpressionDisplayText looks up by tooth arch which would be wrong here.
+            const opposingImpressionText = (() => {
+              const prefix = "maxillary_prep_";
+              const entries = Object.entries(selectedImpressions).filter(
+                ([key, qty]) => key.startsWith(prefix) && key.includes("_mandibular_") && qty > 0
+              );
+              if (entries.length === 0) return "";
+              return entries.map(([key, qty]) => {
+                const afterMandibular = key.split("_mandibular_")[1] ?? "";
+                const productImpression = opposingProductData.impressions?.find(
+                  (imp: { code?: string; name?: string }) => imp.code === afterMandibular
+                );
+                return `${qty}x ${productImpression?.name || afterMandibular}`;
+              }).join(", ");
+            })();
             // Map ProductOppositeExtraction to ProductExtraction shape for ToothStatusBoxes
             const opposingExtractions: import("../types").ProductExtraction[] = (opposingProductData.opposite_extractions ?? []).map(e => ({
               id: e.id,
@@ -2606,12 +2624,14 @@ export function MandibularPanel({
                     <div className="px-[14px] py-[14px] flex flex-col gap-[10px]">
                       <fieldset className="border border-[#b4b0b0] rounded px-3 py-0 relative h-[42px] flex items-center">
                         <legend className="text-sm px-1 leading-none text-[#7f7f7f]">Impression</legend>
-                        <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">No Opposing</span>
+                        <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{opposingImpressionText || "No Opposing"}</span>
                       </fieldset>
-                      <p className="font-['Verdana'] text-sm text-black">
-                        No impression will be sent on this appointment.{" "}
-                        Please note that opposing scan is <span className="text-[#CF0202] font-bold">required</span> for this impression.
-                      </p>
+                      {!opposingImpressionText && (
+                        <p className="font-['Verdana'] text-sm text-black">
+                          No impression will be sent on this appointment.{" "}
+                          Please note that opposing scan is <span className="text-[#CF0202] font-bold">required</span> for this impression.
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>

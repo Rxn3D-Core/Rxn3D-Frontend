@@ -10,49 +10,6 @@ import ActivityLogTab from "@/components/lab-administrator/lab-profile-activity-
 import { LabProfileSidebar } from "@/components/lab-administrator/lab-profile-sidebar"
 import LabProfileTabs from "@/components/lab-administrator/lab-profile-tabs"
 
-// Sample activities data - this would need to come from a separate API
-const activities = [
-  {
-    id: "1",
-    user: "James Cagney",
-    action: "Changed Location",
-    target: "Case #50029385",
-    details: '"On route to lab" → To: "In lab"',
-    timestamp: "2024-01-27, 11:42 AM",
-  },
-  {
-    id: "2",
-    user: "James Cagney",
-    action: "Updated Setting",
-    target: "Auto-Billing",
-    details: "Enabled for Full Denture Acrylic",
-    timestamp: "2024-01-27, 10:26 AM",
-  },
-  {
-    id: "3",
-    user: "System",
-    action: "Invoice Generated",
-    target: "Case #50029392",
-    details: "Total: $295.00 - Sent to: office@abc.com",
-    timestamp: "2024-01-27, 8:19 AM",
-  },
-  {
-    id: "4",
-    user: "James Cagney",
-    action: "Invited Office",
-    target: "Sunrise Modern Dentistry",
-    details: "Email: dr.rivera@sunrisemoderm.com",
-    timestamp: "2024-01-26, 10:42 PM",
-  },
-  {
-    id: "5",
-    user: "James Cagney",
-    action: "Uploaded File",
-    target: "Case #50029388",
-    details: "File: lowerarch.stl",
-    timestamp: "2024-01-26, 6:08 PM",
-  },
-]
 
 const tabs = [
   { id: "overview", label: "Overview" },
@@ -306,7 +263,7 @@ export default function LabProfile() {
           />
         )
       case "activity-log":
-        return <ActivityLogTab activities={activities} />
+        return <ActivityLogTab customerId={getCustomerId()} />
       default:
         return <OverviewTab labData={transformedData.labData} />
     }

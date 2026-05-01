@@ -14,6 +14,7 @@ import type { SlipCreationProduct } from "@/contexts/slip-creation-context";
 import { isFixedCategory, isRemovableCategory, getCategoryName } from "./utils/categoryHelpers";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
+import { getBusinessSettings } from "@/lib/api-business-settings";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
@@ -335,6 +336,25 @@ export default function Page() {
   // Once true, CaseDesignCenter stays mounted (hidden via CSS) so hook state survives Add Product wizard
   const [caseDesignMounted, setCaseDesignMounted] = useState(false);
   const [isAnyModalOpen, setIsAnyModalOpen] = useState(false);
+  const [rushCasesEnabled, setRushCasesEnabled] = useState(true);
+
+  useEffect(() => {
+    const userRole = typeof window !== "undefined" ? localStorage.getItem("role") : null;
+    // lab_admin: lab is their own account; office_admin/doctor: lab is completedLab
+    const labCustomerId = userRole === "lab_admin"
+      ? Number(localStorage.getItem("customerId")) || null
+      : completedLab?.id ?? null;
+
+    if (!labCustomerId) return;
+
+    getBusinessSettings(labCustomerId)
+      .then((settings) => {
+        setRushCasesEnabled(settings?.case_schedule?.enable_rush_cases ?? true);
+      })
+      .catch(() => {
+        setRushCasesEnabled(true);
+      });
+  }, [completedLab?.id]);
 
   // ---- Add Product via wizard redirect ----
   const [wizardKey, setWizardKey] = useState(0);
@@ -621,6 +641,7 @@ export default function Page() {
               slipCollectorRef={slipCollectorRef}
               confirmDetailsChecked={confirmDetailsChecked}
               onAnyModalOpenChange={setIsAnyModalOpen}
+              rushCasesEnabled={rushCasesEnabled}
             />
             {showDetails && (
               <CaseSummaryNotes
