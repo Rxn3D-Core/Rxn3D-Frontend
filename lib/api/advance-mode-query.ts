@@ -1,4 +1,8 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMemo } from 'react'
+import { useQuery, useMutation, useQueryClient, useQueries } from '@tanstack/react-query'
+
+import type { AdvanceFieldChargeScope } from '@/lib/advance-field-charge-scope'
+import { hydrateAdvanceFieldsFormFromProduct } from '@/lib/product-advance-fields-form'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
@@ -104,7 +108,7 @@ export interface AdvanceField {
   has_additional_pricing: 'Yes' | 'No'
   charge_type?: 'once_per_field' | 'per_selected_option' | null
   price?: number | null
-  charge_scope?: string | null
+  charge_scope?: AdvanceFieldChargeScope | null
   sequence: number
   status?: 'Active' | 'Inactive'
   is_custom?: 'Yes' | 'No'
@@ -193,6 +197,9 @@ export interface PaginationParams {
   customer_id?: number
   is_custom?: 'Yes' | 'No'
 }
+
+/** Loaded once for product advance-field picker; filter/sort/search run client-side (`AdvanceFieldsSection`). */
+export const ADVANCE_FIELDS_PRODUCT_MODAL_PAGE_SIZE = 100
 
 export interface PaginatedResponse<T> {
   data: T[]
@@ -1064,7 +1071,10 @@ export const useDuplicateImplant = () => {
 
 // ===== SUBCATEGORIES =====
 
-export const useAdvanceSubcategories = (params?: PaginationParams & { advance_category_id?: number }, options?: { enabled?: boolean }) => {
+export const useAdvanceSubcategories = (
+  params?: PaginationParams & { advance_category_id?: number; customer_id?: number | null },
+  options?: { enabled?: boolean },
+) => {
   return useQuery({
     queryKey: ['advanceSubcategories', params],
     enabled: options?.enabled ?? true,
@@ -1076,7 +1086,25 @@ export const useAdvanceSubcategories = (params?: PaginationParams & { advance_ca
       if (params?.status) queryParams.append('status', params.status)
       if (params?.order_by) queryParams.append('order_by', params.order_by)
       if (params?.sort_by) queryParams.append('sort_by', params.sort_by)
-      if (params?.customer_id) queryParams.append('customer_id', params.customer_id.toString())
+
+      const explicitCustomerId =
+        typeof params?.customer_id === 'number' && Number.isFinite(params.customer_id)
+          ? params.customer_id
+          : null
+
+      if (explicitCustomerId != null && explicitCustomerId > 0) {
+        queryParams.append('customer_id', String(explicitCustomerId))
+      } else if (typeof window !== 'undefined') {
+        // Match GET /library/advance/fields: lab_admin uses stored customer unless caller passes explicit id
+        const role = localStorage.getItem('role')
+        if (role === 'lab_admin') {
+          const customerId = localStorage.getItem('customerId')
+          if (customerId) {
+            queryParams.append('customer_id', customerId)
+          }
+        }
+      }
+
       if (params?.advance_category_id) queryParams.append('advance_category_id', params.advance_category_id.toString())
 
       const response = await fetch(`${ensureAbsoluteUrl('/library/advance/subcategories')}?${queryParams.toString()}`, {
@@ -1430,12 +1458,77 @@ function sanitizeAdvanceFieldsOrderBy(orderBy?: string): string | undefined {
   return ADVANCE_FIELDS_LIST_ORDER_BY.has(key) ? key : undefined
 }
 
-export const useAdvanceFields = (params?: PaginationParams & {
+/** Params handled by GET /library/advance/fields (explicit null customer_id clears typing only; omitted from serialized key). */
+export type AdvanceFieldsListParams = PaginationParams & {
   advance_category_id?: number
   advance_subcategory_id?: number
-}, options?: { enabled?: boolean }) => {
+  /** When set (e.g. lab product modal), scoped to lab catalog; overrides localStorage-derived id */
+  customer_id?: number | null
+}
+
+/**
+ * Compact, stable query-key fragment so product-modal prefetch hits the same cache as AdvanceFieldsSection
+ * (omit empty `q`, undefined filters, optional pagination when callers omit page/per_page).
+ */
+export function advanceFieldsStableQueryParams(
+  params?: AdvanceFieldsListParams,
+): Record<string, string | number> {
+  if (!params) return {}
+  const out: Record<string, string | number> = {}
+
+  if (typeof params.page === "number" && Number.isFinite(params.page) && params.page >= 1) {
+    out.page = params.page
+  }
+  if (
+    typeof params.per_page === "number" &&
+    Number.isFinite(params.per_page) &&
+    params.per_page >= 1
+  ) {
+    out.per_page = params.per_page
+  }
+
+  const qTrim = typeof params.q === "string" ? params.q.trim() : ""
+  if (qTrim.length > 0) out.q = qTrim
+
+  if (params.status === "Active" || params.status === "Inactive") out.status = params.status
+
+  const orderBySan = sanitizeAdvanceFieldsOrderBy(params.order_by)
+  if (orderBySan) out.order_by = orderBySan
+
+  if (params.sort_by === "asc" || params.sort_by === "desc") out.sort_by = params.sort_by
+
+  if (params.is_custom === "Yes" || params.is_custom === "No") out.is_custom = params.is_custom
+
+  if (
+    typeof params.advance_category_id === "number" &&
+    Number.isFinite(params.advance_category_id)
+  ) {
+    out.advance_category_id = params.advance_category_id
+  }
+  if (
+    typeof params.advance_subcategory_id === "number" &&
+    Number.isFinite(params.advance_subcategory_id)
+  ) {
+    out.advance_subcategory_id = params.advance_subcategory_id
+  }
+
+  if (
+    typeof params.customer_id === "number" &&
+    Number.isFinite(params.customer_id) &&
+    params.customer_id > 0
+  ) {
+    out.customer_id = params.customer_id
+  }
+
+  return out
+}
+
+export const useAdvanceFields = (
+  params?: AdvanceFieldsListParams,
+  options?: { enabled?: boolean },
+) => {
   return useQuery({
-    queryKey: ['advanceFields', params],
+    queryKey: ['advanceFields', advanceFieldsStableQueryParams(params)],
     enabled: options?.enabled ?? true,
     queryFn: async () => {
       const queryParams = new URLSearchParams()
@@ -1449,8 +1542,15 @@ export const useAdvanceFields = (params?: PaginationParams & {
       if (params?.advance_category_id) queryParams.append('advance_category_id', params.advance_category_id.toString())
       if (params?.advance_subcategory_id) queryParams.append('advance_subcategory_id', params.advance_subcategory_id.toString())
 
-      // Add customer_id only if role is lab_admin
-      if (typeof window !== 'undefined') {
+      const explicitCustomerId =
+        typeof params?.customer_id === 'number' && Number.isFinite(params.customer_id)
+          ? params.customer_id
+          : null
+
+      if (explicitCustomerId != null && explicitCustomerId > 0) {
+        queryParams.append('customer_id', String(explicitCustomerId))
+      } else if (typeof window !== 'undefined') {
+        // Add customer_id only if role is lab_admin (backward compatible)
         const role = localStorage.getItem('role')
         if (role === 'lab_admin') {
           const customerId = localStorage.getItem('customerId')
@@ -1482,9 +1582,37 @@ export const useAdvanceFields = (params?: PaginationParams & {
             last_page: result.data.pagination?.last_page || result.data.last_page || 1,
           } as PaginatedResponse<AdvanceField>
         }
-        // If data is directly an array
+        // If data is directly an array (some API wrappers return `{ data: Field[] }`)
         if (Array.isArray(result.data)) {
-          return result.data as PaginatedResponse<AdvanceField>
+          const list = result.data as AdvanceField[]
+          return {
+            data: list,
+            current_page: 1,
+            per_page: list.length || 10,
+            total: list.length,
+            last_page: 1,
+          } as PaginatedResponse<AdvanceField>
+        }
+        // Paginated envelope using `items` (no nested `data` array)
+        const rd = result.data as Record<string, unknown>
+        if (rd && typeof rd === "object" && Array.isArray(rd.items)) {
+          const items = rd.items as AdvanceField[]
+          const pagination = rd.pagination as Record<string, unknown> | undefined
+          return {
+            data: items,
+            current_page:
+              (typeof pagination?.current_page === "number" ? pagination.current_page : null) ??
+              (typeof rd.current_page === "number" ? rd.current_page : 1),
+            per_page:
+              (typeof pagination?.per_page === "number" ? pagination.per_page : null) ??
+              (typeof rd.per_page === "number" ? rd.per_page : 10),
+            total:
+              (typeof pagination?.total === "number" ? pagination.total : null) ??
+              (typeof rd.total === "number" ? rd.total : items.length),
+            last_page:
+              (typeof pagination?.last_page === "number" ? pagination.last_page : null) ??
+              (typeof rd.last_page === "number" ? rd.last_page : 1),
+          } as PaginatedResponse<AdvanceField>
         }
       }
       // Fallback: return result as-is if it matches PaginatedResponse structure
@@ -1523,6 +1651,41 @@ export const useAdvanceField = (id: number, customer_id?: number) => {
   })
 }
 
+/**
+ * Hydrate display fields missing from product GET payloads (e.g. subcategory on linked pivots).
+ * Uses the same queryKey as {@link useAdvanceField} where customer_id is undefined so cache is shared.
+ */
+export function useAdvanceFieldHydrationQueries(
+  ids: readonly number[],
+  options?: { enabled?: boolean },
+) {
+  const uniqueIds = useMemo(() => [...new Set(ids.filter((id) => id > 0 && Number.isFinite(id)))], [ids])
+  const enabled = options?.enabled ?? true
+
+  return useQueries({
+    queries: uniqueIds.map((id) => ({
+      queryKey: ['advanceField', id, undefined],
+      enabled: enabled && uniqueIds.length > 0,
+      staleTime: 60 * 1000,
+      gcTime: 5 * 60 * 1000,
+      queryFn: async (): Promise<ApiResponse<AdvanceField>> => {
+        const url = ensureAbsoluteUrl(`/library/advance/fields/${id}`)
+        const response = await fetch(url, {
+          headers: getAuthHeaders(),
+        })
+
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({}))
+          throw new Error((error as { message?: string }).message || 'Failed to fetch field')
+        }
+
+        const result = await response.json()
+        return (result.data ? result : { data: result }) as ApiResponse<AdvanceField>
+      },
+    })),
+  })
+}
+
 export const useCreateAdvanceField = () => {
   const queryClient = useQueryClient()
 
@@ -1538,7 +1701,7 @@ export const useCreateAdvanceField = () => {
       has_additional_pricing?: 'Yes' | 'No'
       charge_type?: 'once_per_field' | 'per_selected_option' | null
       price?: number | null
-      charge_scope?: string | null
+      charge_scope?: AdvanceFieldChargeScope | null
       sequence?: number
       options?: Array<{
         name: string
@@ -1550,19 +1713,28 @@ export const useCreateAdvanceField = () => {
       }>
       customer_id?: number
     }) => {
-      // Add customer_id only if role is lab_admin
       const payload = { ...data }
-      if (typeof window !== 'undefined') {
-        const role = localStorage.getItem('role')
-        if (role === 'lab_admin') {
-          const customerId = localStorage.getItem('customerId')
-          if (customerId) {
-            payload.customer_id = parseInt(customerId, 10)
+
+      let resolvedCustomerId: number | undefined =
+        typeof payload.customer_id === "number" && Number.isFinite(payload.customer_id) && payload.customer_id > 0
+          ? payload.customer_id
+          : undefined
+
+      if (resolvedCustomerId === undefined && typeof window !== "undefined") {
+        const role = localStorage.getItem("role")
+        if (role === "lab_admin") {
+          const customerIdLs = localStorage.getItem("customerId")
+          if (customerIdLs) {
+            const n = parseInt(customerIdLs, 10)
+            if (!Number.isNaN(n) && n > 0) resolvedCustomerId = n
           }
-        } else {
-          // Remove customer_id if it was passed but user is not lab_admin
-          delete payload.customer_id
         }
+      }
+
+      if (resolvedCustomerId !== undefined && resolvedCustomerId > 0) {
+        payload.customer_id = resolvedCustomerId
+      } else {
+        delete payload.customer_id
       }
 
       const response = await fetch(ensureAbsoluteUrl('/library/advance/fields'), {
@@ -1604,7 +1776,7 @@ export const useUpdateAdvanceField = () => {
       has_additional_pricing?: 'Yes' | 'No'
       charge_type?: 'once_per_field' | 'per_selected_option' | null
       price?: number | null
-      charge_scope?: string | null
+      charge_scope?: AdvanceFieldChargeScope | null
       sequence?: number
       customer_id?: number
       options?: Array<{
@@ -1617,19 +1789,28 @@ export const useUpdateAdvanceField = () => {
         sequence?: number
       }>
     }) => {
-      // Add customer_id only if role is lab_admin
       const payload = { ...data }
-      if (typeof window !== 'undefined') {
-        const role = localStorage.getItem('role')
-        if (role === 'lab_admin') {
-          const customerId = localStorage.getItem('customerId')
-          if (customerId) {
-            payload.customer_id = parseInt(customerId, 10)
+
+      let resolvedCustomerId: number | undefined =
+        typeof payload.customer_id === "number" && Number.isFinite(payload.customer_id) && payload.customer_id > 0
+          ? payload.customer_id
+          : undefined
+
+      if (resolvedCustomerId === undefined && typeof window !== "undefined") {
+        const role = localStorage.getItem("role")
+        if (role === "lab_admin") {
+          const customerIdLs = localStorage.getItem("customerId")
+          if (customerIdLs) {
+            const n = parseInt(customerIdLs, 10)
+            if (!Number.isNaN(n) && n > 0) resolvedCustomerId = n
           }
-        } else {
-          // Remove customer_id if it was passed but user is not lab_admin
-          delete payload.customer_id
         }
+      }
+
+      if (resolvedCustomerId !== undefined && resolvedCustomerId > 0) {
+        payload.customer_id = resolvedCustomerId
+      } else {
+        delete payload.customer_id
       }
 
       const response = await fetch(ensureAbsoluteUrl(`/library/advance/fields/${id}`), {
@@ -1710,6 +1891,318 @@ export const useUpdateFieldStatus = () => {
   })
 }
 
+const invalidateAdvanceLinkFieldsBrowse = (queryClient: ReturnType<typeof useQueryClient>) => {
+  queryClient.invalidateQueries({ queryKey: ['advanceLinkBrowseByField'] })
+  queryClient.invalidateQueries({ queryKey: ['advanceLinkBrowseByProduct'] })
+}
+
+/** customer_id for `/library/advance/link-fields/*` (global super admin → omit). */
+export function getAdvanceLinkFieldsCustomerIdParam(
+  context: 'global' | 'lab',
+): number | null {
+  if (typeof window === 'undefined') return null
+  const role = localStorage.getItem('role')
+  if (context === 'global' && role === 'superadmin') return null
+  if (role === 'office_admin' || role === 'doctor') {
+    const raw = localStorage.getItem('selectedLabId')
+    const n = raw ? Number(raw) : NaN
+    return Number.isFinite(n) && n > 0 ? n : null
+  }
+  const raw = localStorage.getItem('customerId')
+  const n = raw ? Number(raw) : NaN
+  return Number.isFinite(n) && n > 0 ? n : null
+}
+
+export type AdvanceLinkBrowseRowByField = {
+  id: number
+  name: string
+  subcategory_id: number
+  subcategory_name: string
+  status: string
+  sequence: number
+  linked_products_count: number
+  linked_products_preview: { id: number; name: string }[]
+  linked_products_more_count: number
+}
+
+export type AdvanceLinkBrowseRowByProduct = {
+  id: number
+  name: string
+  subcategory_id: number
+  subcategory_name: string
+  status: string
+  sequence: number
+  linked_fields_count: number
+  linked_fields_preview: { id: number; name: string }[]
+  linked_fields_more_count: number
+}
+
+export type AdvanceLinkBrowseParams = {
+  q?: string
+  page: number
+  per_page: number
+  order_by?: string
+  sort_by?: 'asc' | 'desc'
+}
+
+type AdvanceLinkBrowsePagination = {
+  total: number
+  per_page: number
+  current_page: number
+  last_page: number
+}
+
+function normalizeAdvanceLinkPagination(
+  raw: unknown,
+  fallback: AdvanceLinkBrowsePagination,
+): AdvanceLinkBrowsePagination {
+  if (!raw || typeof raw !== 'object') return fallback
+  const p = raw as Record<string, unknown>
+  return {
+    total: typeof p.total === 'number' ? p.total : fallback.total,
+    per_page: typeof p.per_page === 'number' ? p.per_page : fallback.per_page,
+    current_page:
+      typeof p.current_page === 'number' ? p.current_page : fallback.current_page,
+    last_page: typeof p.last_page === 'number' ? p.last_page : fallback.last_page,
+  }
+}
+
+/**
+ * Laravel often wraps list payloads once or twice (`data → data → { data[], pagination }`).
+ * Accepts either the full JSON body or the inner `data` object.
+ */
+function extractAdvanceLinkBrowseRows<T>(
+  json: unknown,
+  fallbackPaging: AdvanceLinkBrowsePagination,
+): { rows: T[]; pagination: AdvanceLinkBrowsePagination } {
+  if (!json || typeof json !== 'object') {
+    return { rows: [], pagination: fallbackPaging }
+  }
+
+  let node: unknown = (json as Record<string, unknown>).data ?? json
+
+  if (Array.isArray(node)) {
+    return { rows: node as T[], pagination: fallbackPaging }
+  }
+
+  for (
+    let depth = 0;
+    depth < 10 && node && typeof node === 'object' && !Array.isArray(node);
+    depth++
+  ) {
+    const obj = node as Record<string, unknown>
+
+    if (Array.isArray(obj.data)) {
+      return {
+        rows: obj.data as T[],
+        pagination: normalizeAdvanceLinkPagination(obj.pagination, fallbackPaging),
+      }
+    }
+    if (Array.isArray(obj.items)) {
+      return {
+        rows: obj.items as T[],
+        pagination: normalizeAdvanceLinkPagination(obj.pagination, fallbackPaging),
+      }
+    }
+
+    if (obj.data != null && typeof obj.data === 'object' && !Array.isArray(obj.data)) {
+      node = obj.data
+      continue
+    }
+    break
+  }
+
+  return { rows: [], pagination: fallbackPaging }
+}
+
+export const useBrowseAdvanceLinkFieldsByField = (
+  context: 'global' | 'lab',
+  params: AdvanceLinkBrowseParams,
+  options?: { enabled?: boolean },
+) => {
+  return useQuery({
+    queryKey: ['advanceLinkBrowseByField', context, params] as const,
+    enabled: options?.enabled ?? true,
+    queryFn: async () => {
+      const sp = new URLSearchParams()
+      if (params.q) sp.set('q', params.q)
+      sp.set('page', String(params.page))
+      sp.set('per_page', String(params.per_page))
+      if (params.order_by) sp.set('order_by', params.order_by)
+      if (params.sort_by) sp.set('sort_by', params.sort_by)
+      const cid = getAdvanceLinkFieldsCustomerIdParam(context)
+      if (cid != null) sp.set('customer_id', String(cid))
+
+      const response = await fetch(
+        `${ensureAbsoluteUrl('/library/advance/link-fields/browse-by-field')}?${sp.toString()}`,
+        { headers: getAuthHeaders() },
+      )
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}))
+        throw new Error(error.message || 'Failed to browse field links')
+      }
+      const result = await response.json()
+      const fallbackPaging = {
+        total: 0,
+        per_page: params.per_page,
+        current_page: params.page,
+        last_page: 1,
+      }
+      const { rows, pagination } = extractAdvanceLinkBrowseRows<AdvanceLinkBrowseRowByField>(
+        result,
+        fallbackPaging,
+      )
+      return { rows, pagination }
+    },
+  })
+}
+
+export const useBrowseAdvanceLinkFieldsByProduct = (
+  context: 'global' | 'lab',
+  params: AdvanceLinkBrowseParams,
+  options?: { enabled?: boolean },
+) => {
+  return useQuery({
+    queryKey: ['advanceLinkBrowseByProduct', context, params] as const,
+    enabled: options?.enabled ?? true,
+    queryFn: async () => {
+      const sp = new URLSearchParams()
+      if (params.q) sp.set('q', params.q)
+      sp.set('page', String(params.page))
+      sp.set('per_page', String(params.per_page))
+      if (params.order_by) sp.set('order_by', params.order_by)
+      if (params.sort_by) sp.set('sort_by', params.sort_by)
+      const cid = getAdvanceLinkFieldsCustomerIdParam(context)
+      if (cid != null) sp.set('customer_id', String(cid))
+
+      const response = await fetch(
+        `${ensureAbsoluteUrl('/library/advance/link-fields/browse-by-product')}?${sp.toString()}`,
+        { headers: getAuthHeaders() },
+      )
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}))
+        throw new Error(error.message || 'Failed to browse product links')
+      }
+      const result = await response.json()
+      const fallbackPaging = {
+        total: 0,
+        per_page: params.per_page,
+        current_page: params.page,
+        last_page: 1,
+      }
+      const { rows, pagination } = extractAdvanceLinkBrowseRows<AdvanceLinkBrowseRowByProduct>(
+        result,
+        fallbackPaging,
+      )
+      return { rows, pagination }
+    },
+  })
+}
+
+export const useAdvanceLinkByField = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: { field_id: number; product_ids: number[]; customer_id?: number }) => {
+      const response = await fetch(ensureAbsoluteUrl('/library/advance/link-fields/link-by-field'), {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(body),
+      })
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}))
+        throw new Error(error.message || 'Failed to link products to field')
+      }
+      return response.json()
+    },
+    onSuccess: () => {
+      invalidateAdvanceLinkFieldsBrowse(queryClient)
+      queryClient.invalidateQueries({ queryKey: ['advanceFields'] })
+    },
+  })
+}
+
+export const useAdvanceLinkByProduct = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: { product_id: number; field_ids: number[]; customer_id?: number }) => {
+      const response = await fetch(ensureAbsoluteUrl('/library/advance/link-fields/link-by-product'), {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(body),
+      })
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}))
+        throw new Error(error.message || 'Failed to link fields to product')
+      }
+      return response.json()
+    },
+    onSuccess: () => {
+      invalidateAdvanceLinkFieldsBrowse(queryClient)
+      queryClient.invalidateQueries({ queryKey: ['advanceFields'] })
+    },
+  })
+}
+
+export const useAdvanceBulkLinkFields = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: { field_ids: number[]; product_ids: number[]; customer_id?: number }) => {
+      const response = await fetch(ensureAbsoluteUrl('/library/advance/link-fields/bulk-link'), {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(body),
+      })
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}))
+        throw new Error(error.message || 'Failed to bulk link fields and products')
+      }
+      return response.json()
+    },
+    onSuccess: () => {
+      invalidateAdvanceLinkFieldsBrowse(queryClient)
+      queryClient.invalidateQueries({ queryKey: ['advanceFields'] })
+    },
+  })
+}
+
+/** GET /library/products/{id} for linked advance field rows (sync/remove uses field link-products). */
+export async function fetchLibraryProductDetailForAdvanceLinks(
+  productId: number,
+  _context: 'global' | 'lab',
+): Promise<Record<string, unknown> | null> {
+  const url = new URL(ensureAbsoluteUrl(`/library/products/${productId}`))
+  url.searchParams.set('lang', 'en')
+
+  if (typeof window !== 'undefined') {
+    const role = localStorage.getItem('role')
+    if (role === 'superadmin') {
+      const customerId = localStorage.getItem('customerId')
+      if (customerId) url.searchParams.set('customer_id', customerId)
+    } else if (role === 'office_admin' || role === 'doctor') {
+      const labId = localStorage.getItem('selectedLabId')
+      if (labId) url.searchParams.set('customer_id', labId)
+    } else {
+      const labId = localStorage.getItem('customerId')
+      if (labId) url.searchParams.set('customer_id', labId)
+    }
+  }
+
+  const response = await fetch(url.toString(), { headers: getAuthHeaders() })
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}))
+    throw new Error(error.message || 'Failed to load product')
+  }
+  const json = await response.json()
+  const data = json.data
+  return data && typeof data === 'object' ? (data as Record<string, unknown>) : null
+}
+
+export function parseLinkedAdvanceFieldsFromProductPayload(
+  product: Record<string, unknown> | null | undefined,
+) {
+  return hydrateAdvanceFieldsFormFromProduct(product ?? null)
+}
+
 export const useLinkFieldProducts = () => {
   const queryClient = useQueryClient()
 
@@ -1747,6 +2240,7 @@ export const useLinkFieldProducts = () => {
       return response.json()
     },
     onSuccess: (_, variables) => {
+      invalidateAdvanceLinkFieldsBrowse(queryClient)
       queryClient.invalidateQueries({ queryKey: ['advanceFields'] })
       queryClient.invalidateQueries({ queryKey: ['advanceField', variables.id] })
     },

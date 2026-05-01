@@ -122,6 +122,9 @@ export interface SlipCreationSlip {
   created_by?: number;
   products: SlipCreationProduct[];
   notes?: SlipCreationNote[];
+  pickup_date?: string | null;
+  delivery_date?: string | null;
+  delivery_time?: string | null;
 }
 
 export interface SlipCreationPayload {

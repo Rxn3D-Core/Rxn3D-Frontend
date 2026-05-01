@@ -1,48 +1,83 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Eye, Filter, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-
-interface ActivityLogEntry {
-  id: string
-  user: string
-  action: string
-  target: string
-  details: string
-  timestamp: string
-}
+import { getAudits, type AuditEntry, type AuditFilters } from "@/lib/api-audit"
 
 interface ActivityLogTabProps {
-  activities: ActivityLogEntry[]
+  customerId?: number | null
 }
 
-export default function ActivityLogTab({ activities }: ActivityLogTabProps) {
+function formatChanges(entry: AuditEntry): string {
+  if (entry.changes.length === 0) return entry.event_label
+  return entry.changes
+    .slice(0, 2)
+    .map((c) => (c.old ? `"${c.old}" → "${c.new}"` : `Set to "${c.new}"`))
+    .join(", ")
+}
+
+export default function ActivityLogTab({ customerId }: ActivityLogTabProps) {
   const [entriesPerPage, setEntriesPerPage] = useState("10")
   const [currentPage, setCurrentPage] = useState(1)
   const [searchTerm, setSearchTerm] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
+  const [audits, setAudits] = useState<AuditEntry[]>([])
+  const [totalEntries, setTotalEntries] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const filteredActivities = useMemo(() => {
-    if (!searchTerm) return activities
-    return activities.filter(
-      (activity) =>
-        activity.user.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        activity.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        activity.target.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        activity.details.toLowerCase().includes(searchTerm.toLowerCase()),
-    )
-  }, [activities, searchTerm])
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 400)
+    return () => clearTimeout(timer)
+  }, [searchTerm])
 
-  const paginatedActivities = useMemo(() => {
-    const startIndex = (currentPage - 1) * Number.parseInt(entriesPerPage)
-    const endIndex = startIndex + Number.parseInt(entriesPerPage)
-    return filteredActivities.slice(startIndex, endIndex)
-  }, [filteredActivities, currentPage, entriesPerPage])
+  const fetchAudits = useCallback(async () => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      const filters: AuditFilters = {
+        per_page: Number(entriesPerPage),
+        page: currentPage,
+        sort_by: "desc",
+        order_by: "created_at",
+      }
 
-  const totalPages = Math.ceil(filteredActivities.length / Number.parseInt(entriesPerPage))
+      if (customerId) {
+        filters.auditable_type = "Customer"
+        filters.auditable_id = customerId
+      }
+
+      if (debouncedSearch) {
+        filters.search = debouncedSearch
+      }
+
+      const result = await getAudits(filters)
+      setAudits(result.data)
+      setTotalEntries(result.meta.total)
+      setTotalPages(result.meta.last_page)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to load activity log")
+    } finally {
+      setIsLoading(false)
+    }
+  }, [customerId, currentPage, entriesPerPage, debouncedSearch])
+
+  useEffect(() => {
+    fetchAudits()
+  }, [fetchAudits])
+
+  // Reset page when search or page size changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [debouncedSearch, entriesPerPage])
+
+  const from = totalEntries === 0 ? 0 : (currentPage - 1) * Number(entriesPerPage) + 1
+  const to = Math.min(currentPage * Number(entriesPerPage), totalEntries)
 
   return (
     <div className="p-6">
@@ -60,11 +95,11 @@ export default function ActivityLogTab({ activities }: ActivityLogTabProps) {
             </SelectContent>
           </Select>
           <span className="text-sm text-gray-600">entries</span>
-          <span className="text-sm text-gray-600">
-            Showing {(currentPage - 1) * Number.parseInt(entriesPerPage) + 1} to{" "}
-            {Math.min(currentPage * Number.parseInt(entriesPerPage), filteredActivities.length)} of{" "}
-            {filteredActivities.length} entries
-          </span>
+          {!isLoading && (
+            <span className="text-sm text-gray-600">
+              Showing {from} to {to} of {totalEntries} entries
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-4">
@@ -96,20 +131,58 @@ export default function ActivityLogTab({ activities }: ActivityLogTabProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {paginatedActivities.map((activity) => (
-              <TableRow key={activity.id}>
-                <TableCell className="font-medium">{activity.user}</TableCell>
-                <TableCell>{activity.action}</TableCell>
-                <TableCell>{activity.target}</TableCell>
-                <TableCell>{activity.details}</TableCell>
-                <TableCell>{activity.timestamp}</TableCell>
-                <TableCell>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                    <Eye className="h-4 w-4" />
-                  </Button>
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-8">
+                  <div className="flex justify-center space-x-1.5">
+                    {[0, 200, 400].map((delay) => (
+                      <div
+                        key={delay}
+                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                        style={{ animationDelay: `${delay}ms`, animationDuration: "1.4s" }}
+                      />
+                    ))}
+                  </div>
                 </TableCell>
               </TableRow>
-            ))}
+            ) : error ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-8 text-red-500">
+                  {error}
+                </TableCell>
+              </TableRow>
+            ) : audits.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                  No activity found
+                </TableCell>
+              </TableRow>
+            ) : (
+              audits.map((entry) => (
+                <TableRow key={entry.id}>
+                  <TableCell className="font-medium">{entry.user.name}</TableCell>
+                  <TableCell>{entry.event_label}</TableCell>
+                  <TableCell>{entry.auditable.type_label}</TableCell>
+                  <TableCell className="max-w-xs truncate">{formatChanges(entry)}</TableCell>
+                  <TableCell>
+                    {entry.created_at
+                      ? new Date(entry.created_at).toLocaleString("en-US", {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })
+                      : "—"}
+                  </TableCell>
+                  <TableCell>
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </div>
@@ -123,7 +196,7 @@ export default function ActivityLogTab({ activities }: ActivityLogTabProps) {
             <Button
               variant="outline"
               size="sm"
-              disabled={currentPage === 1}
+              disabled={currentPage === 1 || isLoading}
               onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
             >
               Previous
@@ -131,7 +204,7 @@ export default function ActivityLogTab({ activities }: ActivityLogTabProps) {
             <Button
               variant="outline"
               size="sm"
-              disabled={currentPage === totalPages}
+              disabled={currentPage === totalPages || isLoading}
               onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
             >
               Next

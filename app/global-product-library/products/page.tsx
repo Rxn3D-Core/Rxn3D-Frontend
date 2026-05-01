@@ -10,6 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { SearchableSelect } from "@/components/ui/searchable-select"
 import { TableRowSkeleton } from "@/components/ui/loading-skeleton"
 import { AddProductModal } from "@/components/product-management/add-product-modal"
+import { AddFieldModal } from "@/components/advance-mode"
+import type { AdvanceField } from "@/lib/api/advance-mode-query"
+import type { AdvanceFieldEditorRequest } from "@/components/product-management/add-lab-product-modal/AdvanceFieldsSection"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import { useProducts } from "@/contexts/product-products-context"
 import { useProductCategory } from "@/contexts/product-category-context"
@@ -58,6 +61,30 @@ export default function ProductsPage() {
   const [searchInput, setSearchInput] = useState(searchQuery)
   const { currentLanguage } = useLanguage()
   const { t } = useTranslation();
+
+  type AdvanceFieldModalHostState =
+    | { open: false }
+    | {
+        open: true
+        mode: "create" | "edit"
+        fieldId?: number
+        catalogCustomerId: number | null
+      }
+
+  const [advanceFieldHost, setAdvanceFieldHost] = useState<AdvanceFieldModalHostState>({
+    open: false,
+  })
+  const advanceFieldPersistRef = useRef<(field: AdvanceField) => void>(() => {})
+
+  const handleRequestAdvanceFieldEditor = useCallback((req: AdvanceFieldEditorRequest) => {
+    advanceFieldPersistRef.current = req.onPersisted
+    setAdvanceFieldHost({
+      open: true,
+      mode: req.mode,
+      fieldId: req.fieldId,
+      catalogCustomerId: req.catalogCustomerId ?? null,
+    })
+  }, [])
 
   // State for delete modal
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
@@ -699,7 +726,30 @@ export default function ProductsPage() {
         zIndex={9999}
       />
 
-      <AddProductModal isOpen={isAddProductModalOpen && !isEditLoading} onClose={handleModalClose} editingProduct={editingProduct} />
+      <AddFieldModal
+        isOpen={advanceFieldHost.open}
+        onClose={() => setAdvanceFieldHost({ open: false })}
+        isEditing={advanceFieldHost.open && advanceFieldHost.mode === "edit"}
+        field={
+          advanceFieldHost.open &&
+          advanceFieldHost.mode === "edit" &&
+          typeof advanceFieldHost.fieldId === "number"
+            ? ({ id: advanceFieldHost.fieldId } as AdvanceField)
+            : undefined
+        }
+        catalogCustomerId={
+          advanceFieldHost.open ? advanceFieldHost.catalogCustomerId ?? undefined : undefined
+        }
+        onFieldPersisted={(field) => advanceFieldPersistRef.current(field)}
+      />
+
+      <AddProductModal
+        isOpen={isAddProductModalOpen && !isEditLoading}
+        onClose={handleModalClose}
+        editingProduct={editingProduct}
+        onProductPersisted={(product) => setEditingProduct(product)}
+        onRequestAdvanceFieldEditor={handleRequestAdvanceFieldEditor}
+      />
     </div>
   )
 }

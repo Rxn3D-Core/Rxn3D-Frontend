@@ -363,11 +363,14 @@ export const ProductCreateFormSchema = z
       ),
     retentions: z
       .array(
-        z.object({
-          retention_id: z.number(),
-          sequence: z.number().optional(),
-          status: z.enum(["Active", "Inactive"]).default("Active").optional(),
-        }),
+        z
+          .object({
+            retention_id: z.number(),
+            sequence: z.number().optional(),
+            status: z.enum(["Active", "Inactive"]).default("Active").optional(),
+            price: z.union([z.number(), z.string()]).optional(),
+          })
+          .passthrough(),
       )
       .optional()
       .transform((arr) =>
@@ -375,6 +378,53 @@ export const ProductCreateFormSchema = z
           ? arr.map((item) => ({
               ...item,
               status: item.status || "Active",
+            }))
+          : arr,
+      ),
+    retention_options: z
+      .array(
+        z.object({
+          retention_option_id: z.number(),
+          sequence: z.number().optional(),
+          status: z.enum(["Active", "Inactive"]).default("Active").optional(),
+        }),
+      )
+      .optional()
+      .transform((arr) =>
+        Array.isArray(arr)
+          ? arr.map((item, idx) => ({
+              retention_option_id: item.retention_option_id,
+              sequence: typeof item.sequence === "number" ? item.sequence : idx + 1,
+              status: item.status === "Inactive" ? "Inactive" : "Active",
+            }))
+          : arr,
+      ),
+    advance_fields: z
+      .array(
+        z.object({
+          advance_field_id: z.number(),
+          sequence: z.number().optional(),
+          status: z.enum(["Active", "Inactive"]).default("Active").optional(),
+          /** Hydration-only hints for linked table labels (not sent to API) */
+          field_name: z.string().optional(),
+          category_name: z.string().optional(),
+          subcategory_name: z.string().optional(),
+          customer_id: z.number().nullable().optional(),
+        }).passthrough(),
+      )
+      .optional()
+      .transform((arr) =>
+        Array.isArray(arr)
+          ? arr.map((item, idx) => ({
+              advance_field_id: item.advance_field_id,
+              sequence: typeof item.sequence === "number" ? item.sequence : idx + 1,
+              status: item.status === "Inactive" ? "Inactive" : "Active",
+              ...(typeof item.field_name === "string" ? { field_name: item.field_name } : {}),
+              ...(typeof item.category_name === "string" ? { category_name: item.category_name } : {}),
+              ...(typeof item.subcategory_name === "string"
+                ? { subcategory_name: item.subcategory_name }
+                : {}),
+              ...(item.customer_id !== undefined ? { customer_id: item.customer_id } : {}),
             }))
           : arr
       ),

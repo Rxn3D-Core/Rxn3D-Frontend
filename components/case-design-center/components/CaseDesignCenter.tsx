@@ -102,6 +102,17 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   const mandibularHasRemovablesTeeth =
     mandibularHasRemovables && state.mandibularTeeth.length > 0;
 
+  // Count teeth with real extraction codes (not TIM) — mirrors the red-label condition in the panels.
+  // Used to disable the + Product buttons when the user hasn't selected any teeth yet.
+  const MAXILLARY_ALL_TEETH_CDC = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16];
+  const MANDIBULAR_ALL_TEETH_CDC = [17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32];
+  const maxillaryRemovableTeethSelected = maxillaryHasRemovablesCard0
+    ? MAXILLARY_ALL_TEETH_CDC.filter(tn => { const code = state.maxillaryToothExtractionMap[tn]; return code && code !== "TIM"; }).length
+    : 0;
+  const mandibularRemovableTeethSelected = mandibularHasRemovablesCard0
+    ? MANDIBULAR_ALL_TEETH_CDC.filter(tn => { const code = state.mandibularToothExtractionMap[tn]; return code && code !== "TIM"; }).length
+    : 0;
+
   // True only when at least one tooth exists AND every tooth has impression complete
   const hasAnyTooth =
     Object.keys(state.maxillaryRetentionTypes).length > 0 ||
@@ -222,8 +233,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
 
   // Build unique products list for add-ons/rush modal tabs
   const caseProducts = useMemo(() => {
-    const seen = new Map<number, string>();
-    // First try from tooth products (most accurate)
+    const seen = new Map<number, { name: string; addons?: import("../types").ProductAddon[] }>();
+    // First try from tooth products (most accurate — includes addons)
     const allTeethKeys = [
       ...Object.keys(state.maxillaryRetentionTypes).map((t) => ({ arch: "maxillary" as const, tn: Number(t) })),
       ...Object.keys(state.mandibularRetentionTypes || {}).map((t) => ({ arch: "mandibular" as const, tn: Number(t) })),
@@ -231,22 +242,22 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     for (const { arch, tn } of allTeethKeys) {
       const product = state.getToothProduct(arch, tn);
       if (product?.id && !seen.has(product.id)) {
-        seen.set(product.id, product.name);
+        seen.set(product.id, { name: product.name, addons: product.addons });
       }
     }
     // Fallback: include the initial selected product (card 0) if not yet found from teeth
     if (props.selectedProductId && !seen.has(props.selectedProductId) && props.selectedProductName) {
-      seen.set(props.selectedProductId, props.selectedProductName);
+      seen.set(props.selectedProductId, { name: props.selectedProductName });
     }
     // Fallback: also include products from addedProducts (covers cases where toothProducts hasn't loaded yet)
     for (const ap of (props.addedProducts ?? [])) {
       const pid = ap.productId ?? ap.product?.id;
       const pname = ap.product?.name || ap.product?.subcategory?.name || "";
       if (pid && !seen.has(pid) && pname) {
-        seen.set(pid, pname);
+        seen.set(pid, { name: pname, addons: ap.product?.addons });
       }
     }
-    return Array.from(seen.entries()).map(([id, name]) => ({ id, name }));
+    return Array.from(seen.entries()).map(([id, { name, addons }]) => ({ id, name, addons }));
   }, [state.maxillaryRetentionTypes, state.mandibularRetentionTypes, state.getToothProduct, props.selectedProductId, props.selectedProductName, props.addedProducts]);
 
   // Collect unique stage names from all tooth products for the attachment modal
@@ -326,6 +337,32 @@ export function CaseDesignCenter(props: CaseDesignProps) {
       }
       const impressionOwner = getImpressionOwnerTooth("maxillary", n);
       if (!IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("maxillary", impressionOwner, step))) return true;
+    }
+    return false;
+  })();
+
+  const mandibularIncomplete = (() => {
+    const mandibularTeeth = Object.keys(state.mandibularRetentionTypes || {}).map(Number);
+    const processedShadeGroups = new Set<string>();
+    for (const n of mandibularTeeth) {
+      const product = state.getToothProduct("mandibular", n);
+      if (isFixedCategory(getCategoryName(product))) {
+        const productKey = String(product?.id ?? n);
+        const firstToothInGroup = Math.min(
+          ...mandibularTeeth.filter(
+            (t) => String(state.getToothProduct("mandibular", t)?.id ?? t) === productKey
+          )
+        );
+        if (!processedShadeGroups.has(productKey)) {
+          processedShadeGroups.add(productKey);
+          const shadeId = `fixed_${firstToothInGroup}`;
+          const advFields = product?.advance_fields;
+          if (hasAdvanceField("fixed_stump_shade", advFields) && !state.getSelectedShade(shadeId, "mandibular", "stump_shade")) return true;
+          if (hasAdvanceField("fixed_shade_trio", advFields) && !state.getSelectedShade(shadeId, "mandibular", "tooth_shade")) return true;
+        }
+      }
+      const impressionOwner = getImpressionOwnerTooth("mandibular", n);
+      if (!IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("mandibular", impressionOwner, step))) return true;
     }
     return false;
   })();
@@ -608,10 +645,11 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           </button>
         )}
         <div className="flex-1 flex items-center justify-center">
-          {!props.caseSubmitted && (allMaxillaryAccordionsComplete || allMandibularAccordionsComplete) ? (
+          {!props.caseSubmitted ? (
             <button
               onClick={() => state.onAddProduct?.("maxillary")}
-              className="flex flex-row items-center justify-center px-[10px] py-0 w-[230px] h-[28px] bg-[#1162A8] shadow-[0.99px_0.99px_3.48px_rgba(0,0,0,0.25)] rounded-[5.96px] hover:bg-[#0d4a85] cursor-pointer"
+              disabled={!allMaxillaryAccordionsComplete || maxillaryIncomplete || (maxillaryHasRemovablesCard0 && maxillaryRemovableTeethSelected === 0)}
+              className={`flex flex-row items-center justify-center px-[10px] py-0 w-[230px] h-[28px] shadow-[0.99px_0.99px_3.48px_rgba(0,0,0,0.25)] rounded-[5.96px] ${!allMaxillaryAccordionsComplete || maxillaryIncomplete || (maxillaryHasRemovablesCard0 && maxillaryRemovableTeethSelected === 0) ? "bg-[#b4b0b0] cursor-not-allowed" : "bg-[#1162A8] hover:bg-[#0d4a85] cursor-pointer"}`}
             >
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5 12H19M12 5V19" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
               <span className="font-[Verdana] font-normal text-[14px] leading-[22px] text-center tracking-[-0.02em] text-white">MAXILLARY PRODUCT</span>
@@ -624,10 +662,11 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           CASE DESIGN CENTER
         </h2>
         <div className="flex-1 flex items-center justify-center">
-          {!props.caseSubmitted && (allMaxillaryAccordionsComplete || allMandibularAccordionsComplete) ? (
+          {!props.caseSubmitted ? (
             <button
               onClick={() => state.onAddProduct?.("mandibular")}
-              className="flex flex-row items-center justify-center px-[10px] py-0 w-[230px] h-[28px] bg-[#1162A8] shadow-[0.99px_0.99px_3.48px_rgba(0,0,0,0.25)] rounded-[5.96px] hover:bg-[#0d4a85] cursor-pointer"
+              disabled={!allMandibularAccordionsComplete || mandibularIncomplete || (mandibularHasRemovablesCard0 && mandibularRemovableTeethSelected === 0)}
+              className={`flex flex-row items-center justify-center px-[10px] py-0 w-[230px] h-[28px] shadow-[0.99px_0.99px_3.48px_rgba(0,0,0,0.25)] rounded-[5.96px] ${!allMandibularAccordionsComplete || mandibularIncomplete || (mandibularHasRemovablesCard0 && mandibularRemovableTeethSelected === 0) ? "bg-[#b4b0b0] cursor-not-allowed" : "bg-[#1162A8] hover:bg-[#0d4a85] cursor-pointer"}`}
             >
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5 12H19M12 5V19" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
               <span className="font-[Verdana] font-normal text-[14px] leading-[22px] text-center tracking-[-0.02em] text-white">MANDIBULAR PRODUCT</span>
@@ -723,6 +762,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           maxillaryHasRemovablesCard0={maxillaryHasRemovablesCard0}
           removablesImpressionDone={maxillaryRemovablesImpressionDone}
           noOpposingNeeded={state.noOpposingNeeded}
+          selectedImpressions={state.selectedImpressions}
           opposingProductData={
             initialProductHasOppositeSection &&
             props.initialArch === "mandibular" &&
@@ -752,7 +792,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           // Show TIM only when at least one panel is visible and no extractions applied
           const showMaxArrow = effectiveShowMax && !maxHasExtractions && (props.initialArch !== "mandibular" || !opposingHasExtractions);
           const showManArrow = effectiveShowMan && !manHasExtractions && (props.initialArch !== "maxillary" || !opposingHasExtractions);
-          const showTim = hasRemovables && !maxHasExtractions && !manHasExtractions && !opposingHasExtractions && (effectiveShowMax || effectiveShowMan);
+          const showTim = hasRemovables && (effectiveShowMax || effectiveShowMan);
           return (
             <CenterNavigation
               showMaxillary={effectiveShowMax}
@@ -847,6 +887,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           mandibularHasRemovablesCard0={mandibularHasRemovablesCard0}
           removablesImpressionDone={mandibularRemovablesImpressionDone}
           noOpposingNeeded={state.noOpposingNeeded}
+          selectedImpressions={state.selectedImpressions}
           opposingProductData={
             initialProductHasOppositeSection &&
             props.initialArch === "maxillary" &&
@@ -922,7 +963,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
                       state.handleOpenAddOnsModal("maxillary", "prep_0");
                     }
                   }}
-                  onRush={() => {
+                  onRush={props.rushCasesEnabled === false ? undefined : () => {
                     // Determine product IDs for both arches
                     const maxTeeth = Object.keys(state.maxillaryRetentionTypes).map(Number);
                     const mandTeeth = Object.keys(state.mandibularRetentionTypes || {}).map(Number);
@@ -1117,7 +1158,15 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         currentAddOnsArch={state.currentAddOnsArch}
         currentAddOnsProductId={state.currentAddOnsProductId}
         currentAddOnsToothNumber={state.currentAddOnsToothNumber}
-        addOnsProducts={caseProducts}
+        addOnsProducts={(() => {
+          const toothNum = state.currentAddOnsToothNumber;
+          const arch = state.currentAddOnsArch;
+          const currentProduct = toothNum !== null ? state.getToothProduct(arch, toothNum) : null;
+          return caseProducts.map((p) => ({
+            ...p,
+            addons: (currentProduct?.id === p.id ? currentProduct?.addons : p.addons) ?? p.addons,
+          }));
+        })()}
         addOnsVisibleArches={[
           ...(state.maxillaryTeeth.length > 0 ? ["maxillary" as const] : []),
           ...(state.mandibularTeeth.length > 0 ? ["mandibular" as const] : []),
@@ -1137,13 +1186,24 @@ export function CaseDesignCenter(props: CaseDesignProps) {
               state.completeFieldStep(arch, toothNum, "addons", value);
             }
             // Store structured addon data (with IDs) for payload submission
+            const structuredAddons = addOns.filter((a) => a.qty > 0).map((a) => ({ addon_id: a.addon_id, qty: a.qty }));
             const addonKey = `${arch}_${toothNum}`;
-            state.setSelectedAddonsByTooth((prev: Record<string, Array<{ addon_id: number; qty: number }>>) => ({
-              ...prev,
-              [addonKey]: addOns
-                .filter((a) => a.qty > 0)
-                .map((a) => ({ addon_id: a.addon_id, qty: a.qty })),
-            }));
+            state.setSelectedAddonsByTooth((prev: Record<string, Array<{ addon_id: number; qty: number }>>) => {
+              const next: Record<string, Array<{ addon_id: number; qty: number }>> = { ...prev, [addonKey]: structuredAddons };
+              // Mirror to mandibular card-0 teeth for "both arch" removables
+              if (props.initialArch === "both" && arch === "maxillary" && !isFixed &&
+                  isRemovableCategory(props.selectedProductCategoryName || "") &&
+                  (state.toothProductCardMap[`maxillary_${toothNum}`] ?? 0) === 0) {
+                const mandibularAll = [17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32];
+                for (const mandTn of mandibularAll) {
+                  if (state.toothProducts[`mandibular_${mandTn}`] &&
+                      (state.toothProductCardMap[`mandibular_${mandTn}`] ?? 0) === 0) {
+                    next[`mandibular_${mandTn}`] = structuredAddons;
+                  }
+                }
+              }
+              return next;
+            });
           }
         }}
         showAttachModal={state.showAttachModal}
