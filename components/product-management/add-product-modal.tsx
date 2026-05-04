@@ -841,21 +841,28 @@ export function AddProductModal({
             item.lab_addon?.price ??
             item.pivot?.price ??
             ""
-          const quantityValue =
-            item.quantity ??
-            item.lab_addon?.quantity ??
-            item.pivot?.quantity ??
-            1
           const isDefaultValue =
             item.is_default ??
             item.lab_addon?.is_default ??
             item.pivot?.is_default ??
             "No"
+          const isDefaultYes = isDefaultValue === "Yes"
+          let quantityValue: number | "" = ""
+          if (isDefaultYes) {
+            const rawQty = item.quantity ?? item.lab_addon?.quantity ?? item.pivot?.quantity
+            if (rawQty !== undefined && rawQty !== null && rawQty !== "") {
+              const parsed =
+                typeof rawQty === "number" ? rawQty : parseInt(String(rawQty), 10)
+              if (!Number.isNaN(parsed) && parsed >= 0) {
+                quantityValue = Math.floor(parsed)
+              }
+            }
+          }
           return {
             ...baseItem,
             price: priceValue,
             quantity: quantityValue,
-            is_default: isDefaultValue === "Yes" ? "Yes" : "No",
+            is_default: isDefaultYes ? "Yes" : "No",
           }
         } else if (idKey === "material_id") {
           const mid = item[idKey] ?? item.id

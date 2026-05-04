@@ -79,6 +79,37 @@ type SelectedAddOn = {
 
 const ITEMS_PER_PAGE = 10
 
+/**
+ * Default QTY when the modal opens with an empty store — follows lab product config
+ * (`is_default` + `quantity`), with legacy support for addons that only set `quantity`.
+ */
+function getDefaultSeedQtyFromProductAddon(a: {
+  id: number
+  addon_id?: number
+  status?: string
+  is_default?: string
+  quantity?: number
+}): number | null {
+  const addonId = a.addon_id ?? a.id
+  if (!addonId) return null
+  const status = String(a.status ?? "Active").trim().toLowerCase()
+  if (status === "inactive") return null
+  const isDef = String(a.is_default ?? "").trim().toLowerCase() === "yes"
+  const qRaw = a.quantity
+  const q =
+    typeof qRaw === "number"
+      ? qRaw
+      : qRaw != null && String(qRaw).trim() !== ""
+        ? Number(qRaw)
+        : NaN
+  if (isDef) {
+    if (Number.isFinite(q) && q > 0) return Math.max(1, Math.floor(q))
+    return 1
+  }
+  if (Number.isFinite(q) && q > 0) return Math.max(1, Math.floor(q))
+  return null
+}
+
 export default function AddOnsModal({ isOpen, onClose, onAddAddOns, labId, productId, arch, products = [], visibleArches = ["maxillary", "mandibular"] }: AddOnsModalProps) {
   const [activeProductId, setActiveProductId] = useState<number | null>(null)
   const [maxSearch, setMaxSearch] = useState("")
@@ -87,6 +118,8 @@ export default function AddOnsModal({ isOpen, onClose, onAddAddOns, labId, produ
   const [mandPage, setMandPage] = useState(1)
   // Key: `${productId}_${arch}_${addonId}`, Value: qty
   const [selectedQtys, setSelectedQtys] = useState<Record<string, number>>({})
+
+  const visibleArchesKey = visibleArches.join("|")
 
   const { token } = useAuth()
 
@@ -125,14 +158,21 @@ export default function AddOnsModal({ isOpen, onClose, onAddAddOns, labId, produ
             }
           }
         }
-        // If nothing was in the store, seed from product addon quantities (default addons)
+        // If nothing was in the store, seed from product defaults for each visible arch
+        // (same idea as dual-arch impressions: independent columns, same per-arch defaults).
         if (Object.keys(restored).length === 0) {
           const productAddons = products.find((p) => p.id === pid)?.addons ?? []
-          for (const a of productAddons) {
-            const addonId = a.addon_id ?? a.id
-            const qty = a.quantity ?? 1
-            if (addonId && qty > 0) {
-              restored[`${pid}_${arch}_${addonId}`] = qty
+          const archesFromKey = visibleArchesKey
+            .split("|")
+            .filter((s): s is "maxillary" | "mandibular" => s === "maxillary" || s === "mandibular")
+          const archesForDefaults = archesFromKey.length > 0 ? archesFromKey : [arch]
+          for (const archVal of archesForDefaults) {
+            for (const a of productAddons) {
+              const addonId = a.addon_id ?? a.id
+              const qty = getDefaultSeedQtyFromProductAddon(a)
+              if (addonId && qty != null && qty > 0) {
+                restored[`${pid}_${archVal}_${addonId}`] = qty
+              }
             }
           }
         }
@@ -141,7 +181,7 @@ export default function AddOnsModal({ isOpen, onClose, onAddAddOns, labId, produ
         setSelectedQtys({})
       }
     }
-  }, [isOpen, productId, products, storeProductAddOns])
+  }, [isOpen, productId, arch, visibleArchesKey, products, storeProductAddOns])
 
   // Debounced search terms
   const [debouncedMaxSearch, setDebouncedMaxSearch] = useState("")
@@ -318,10 +358,10 @@ export default function AddOnsModal({ isOpen, onClose, onAddAddOns, labId, produ
       mandibular: archAddons.mandibular,
     })
 
-    // Callback with all current add-ons
-    const allForCallback = [...archAddons.maxillary, ...archAddons.mandibular]
-    if (allForCallback.length > 0) {
-      onAddAddOns(allForCallback, arch)
+    // Notify parent once per visible arch so maxillary / mandibular fields stay independent.
+    const targetArches = visibleArches.length > 0 ? visibleArches : [arch]
+    for (const archVal of targetArches) {
+      onAddAddOns(archAddons[archVal] ?? [], archVal)
     }
 
     setSelectedQtys({})

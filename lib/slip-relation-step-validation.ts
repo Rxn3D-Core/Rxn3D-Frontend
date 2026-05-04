@@ -47,6 +47,25 @@ function collectMinOneSelected(
   return []
 }
 
+/** Quantity is required (non‑negative integer) only when the add-on row is marked default. */
+function addonDefaultRowHasValidQuantity(row: unknown): boolean {
+  if (row === null || typeof row !== "object") return true
+  const r = row as Record<string, unknown>
+  if (r.is_default !== "Yes") return true
+  const q = r.quantity
+  if (q === undefined || q === null || q === "") return false
+  if (typeof q === "number") {
+    return Number.isInteger(q) && q >= 0
+  }
+  if (typeof q === "string") {
+    const t = q.trim()
+    if (t === "") return false
+    const n = Number(t)
+    return Number.isFinite(n) && n >= 0 && Math.floor(n) === n
+  }
+  return false
+}
+
 export function collectImpressionsStepErrors(
   v: Record<string, unknown>,
   opts: { impressionsSectionEnabled: boolean },
@@ -103,13 +122,29 @@ export function collectAddonsStepErrors(
   v: Record<string, unknown>,
   opts: { addOnsSectionEnabled: boolean },
 ): SlipRelationStepFieldError[] {
-  return collectMinOneSelected(v, {
+  const out = collectMinOneSelected(v, {
     sectionEnabled: opts.addOnsSectionEnabled,
     arrayKey: "addons",
     idKey: "addon_id",
     errorField: "addons",
     message: "Select at least one add-on when Add-Ons is on.",
   })
+  if (!opts.addOnsSectionEnabled || out.length > 0) {
+    return out
+  }
+  const rowsUnknown = v.addons
+  const rows: unknown[] = Array.isArray(rowsUnknown) ? rowsUnknown : []
+  const invalidDefault = rows.some(
+    (row) => rowHasValidId(row, "addon_id") && !addonDefaultRowHasValidQuantity(row),
+  )
+  if (invalidDefault) {
+    out.push({
+      field: "addons",
+      message:
+        "Enter a quantity (0 or greater) for every add-on that is set as default. Leave quantity empty when default is off.",
+    })
+  }
+  return out
 }
 
 export function collectRetentionsStepErrors(
