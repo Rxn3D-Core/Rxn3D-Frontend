@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Edit, TrashIcon, Copy, Plus, Package, Link as LinkIcon, MoreVertical, ArrowUpDown } from 'lucide-react'
 import { CreateRetentionModal } from "@/components/product-management/create-retention-modal"
 import { LinkRetentionOptionModal } from "@/components/product-management/link-retention-option-modal"
+import { LinkRetentionModal } from "@/components/product-management/link-retention-modal"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import { LoadingDots } from "@/components/ui/loading-dots"
 import { useRetention } from "@/contexts/product-retention-context"
@@ -33,6 +34,7 @@ export default function RetentionPage() {
   const [deleteRetentionId, setDeleteRetentionId] = useState<number | null>(null)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [showLinkRetentionOptionModal, setShowLinkRetentionOptionModal] = useState(false)
+  const [showLinkRetentionModal, setShowLinkRetentionModal] = useState(false)
   const { currentLanguage } = useLanguage()
   const { t } = useTranslation()
 
@@ -208,6 +210,13 @@ export default function RetentionPage() {
             >
               <LinkIcon className="h-4 w-4 mr-2" />
               {t("Link Retention Option")}
+            </Button>
+            <Button
+              onClick={() => setShowLinkRetentionModal(true)}
+              className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
+            >
+              <LinkIcon className="h-4 w-4 mr-2" />
+              {t("Link Retention")}
             </Button>
 
             <div className="relative w-full sm:w-auto">
@@ -457,6 +466,14 @@ export default function RetentionPage() {
           console.log("Linking retention types:", selectedRetentionTypes, "to options:", selectedRetentionOptions)
           setShowLinkRetentionOptionModal(false)
         }}
+      />
+      <LinkRetentionModal
+        isOpen={showLinkRetentionModal}
+        onClose={() => {
+          setShowLinkRetentionModal(false)
+          fetchRetentions(currentPage, entriesPerPage, searchTerm, sortField, sortDirection)
+        }}
+        context="lab"
       />
     </div>
   )
