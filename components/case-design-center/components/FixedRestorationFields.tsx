@@ -22,6 +22,7 @@ import type {
 import type { FieldStep } from "../hooks/useToothFieldProgress";
 import { ImplantDetailSection, ImplantDetailData, defaultImplantDetailData } from "./ImplantDetailSection";
 import { isSingleStageNoStages } from "../utils/categoryHelpers";
+import { parseAddonDisplayItems } from "../utils/addonDisplayHelpers";
 
 /* ------------------------------------------------------------------ */
 /*  Articulator icon (Stage field)                                     */
@@ -714,7 +715,7 @@ export function FixedRestorationFields({
       {/* Step 9: Impression / Add ons */}
       {isFixed("fixed_impression") && !(toothNumbers.some((n) => (retentionTypesMap[n] || []).includes("Implant")) && implantDetailCompleteByTooth[firstToothNumber] !== true) && (() => {
         const addonsVal = isFixed("fixed_addons") ? (getFieldValue(arch, firstToothNumber, "fixed_addons") || "") : "";
-        const addonItems = addonsVal ? addonsVal.split(",").map((s: string) => s.trim()).filter(Boolean) : [];
+        const addonItems = parseAddonDisplayItems(addonsVal);
         const borderClass = isFieldCompleted(arch, firstToothNumber, "fixed_addons") && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]";
         const legendClass = isFieldCompleted(arch, firstToothNumber, "fixed_addons") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]";
         const onClickAddon = () => handleOpenAddOnsModal(arch, selectedProduct?.id?.toString() || `fixed_${firstToothNumber}`, firstToothNumber);

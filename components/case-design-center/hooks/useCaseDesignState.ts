@@ -229,10 +229,21 @@ export function useCaseDesignState(props: CaseDesignProps) {
   const implants = useImplantState();
   const toothFieldProgress = useToothFieldProgress();
 
-  // ── Auto-copy maxillary → mandibular for removable restoration "both arches" ──
+  // ── Auto-copy between arches for removable restoration "both arches" ──
+  // When user selects "both arches", configuring one side auto-copies to the other.
+  // The primary flow is upper-first: user fills maxillary, values copy to mandibular.
+  // Reverse (mandibular → maxillary) also works to cover auto-select race conditions
+  // and manual mandibular-first edits.
 
   /** Removable field steps that should be mirrored when both arches are selected */
-  const REMOVABLE_MIRROR_STEPS = new Set<string>(["grade", "stage", "teeth_shade", "gum_shade", "impression", "addons"]);
+  const REMOVABLE_MIRROR_STEPS = new Set<string>([
+    "grade",
+    "stage",
+    "teeth_shade",
+    "gum_shade",
+    "addons",
+    "impression",
+  ]);
 
   /** Returns all mandibular tooth numbers that belong to card 0 */
   const getMandibularCard0Teeth = useCallback((): number[] => {
@@ -242,59 +253,151 @@ export function useCaseDesignState(props: CaseDesignProps) {
     );
   }, [toothFieldProgress.toothProductCardMap, toothFieldProgress.toothProducts]);
 
-  /** Check if a field completion on maxillary should be mirrored to mandibular */
-  const shouldMirrorToMandibular = useCallback(
-    (arch: "maxillary" | "mandibular", toothNumber: number, step: string): boolean => {
-      if (props.initialArch !== "both") return false;
-      if (arch !== "maxillary") return false;
-      if (!REMOVABLE_MIRROR_STEPS.has(step)) return false;
+  /** Returns all maxillary tooth numbers that belong to card 0 */
+  const getMaxillaryCard0Teeth = useCallback((): number[] => {
+    return MAXILLARY_ALL.filter(
+      (tn) => (toothFieldProgress.toothProductCardMap[`maxillary_${tn}`] ?? 0) === 0 &&
+              toothFieldProgress.toothProducts[`maxillary_${tn}`]
+    );
+  }, [toothFieldProgress.toothProductCardMap, toothFieldProgress.toothProducts]);
+
+  /**
+   * Check if a field completion should be mirrored to the other arch.
+   * Returns the target arch to mirror to, or null if no mirroring needed.
+   */
+  const getMirrorTargetArch = useCallback(
+    (arch: "maxillary" | "mandibular", toothNumber: number, step: string): "maxillary" | "mandibular" | null => {
+      if (props.initialArch !== "both") return null;
+      if (!REMOVABLE_MIRROR_STEPS.has(step)) return null;
       // Only mirror when the initial product (card 0) is a removable
-      if (!isRemovablesCategoryName(props.selectedProductCategoryName)) return false;
-      // Only mirror card-0 maxillary teeth
-      const cardId = toothFieldProgress.toothProductCardMap[`maxillary_${toothNumber}`] ?? 0;
-      if (cardId !== 0) return false;
-      return true;
+      if (!isRemovablesCategoryName(props.selectedProductCategoryName)) return null;
+      // Only mirror card-0 teeth
+      const cardId = toothFieldProgress.toothProductCardMap[`${arch}_${toothNumber}`] ?? 0;
+      if (cardId !== 0) return null;
+      // Return the opposite arch
+      return arch === "maxillary" ? "mandibular" : "maxillary";
     },
     [props.initialArch, props.selectedProductCategoryName, toothFieldProgress.toothProductCardMap]
   );
 
-  /** Wrapped completeFieldStep: auto-copies maxillary removable fields to mandibular */
+  /** Get the card-0 teeth for a given arch */
+  const getCard0TeethForArch = useCallback(
+    (arch: "maxillary" | "mandibular"): number[] => {
+      return arch === "mandibular" ? getMandibularCard0Teeth() : getMaxillaryCard0Teeth();
+    },
+    [getMandibularCard0Teeth, getMaxillaryCard0Teeth]
+  );
+
+  /**
+   * Copy impression qty keys from source arch → other arch for the same card-0 product,
+   * only if the target arch has no impression selections yet (first-time bootstrap like TS/GS).
+   */
+  const mirrorImpressionSelectionKeysToOtherArch = useCallback(
+    (sourceArch: Arch, targetArch: Arch, sourceToothNumber: number) => {
+      const product = toothFieldProgress.getToothProduct(sourceArch, sourceToothNumber);
+      const pid = String(product?.id ?? "0");
+      const sourcePrefix = `${pid}_${sourceArch}_`;
+      const targetPrefix = `${pid}_${targetArch}_`;
+      modals.setSelectedImpressions((prev) => {
+        const hasTargetSelections = Object.keys(prev).some(
+          (k) => k.startsWith(targetPrefix) && (prev[k] ?? 0) > 0
+        );
+        if (hasTargetSelections) return prev;
+        let changed = false;
+        const next = { ...prev };
+        for (const [k, v] of Object.entries(prev)) {
+          if (!k.startsWith(sourcePrefix)) continue;
+          const qty = v ?? 0;
+          if (qty <= 0) continue;
+          const suffix = k.slice(sourcePrefix.length);
+          const destKey = `${targetPrefix}${suffix}`;
+          if (next[destKey] !== qty) {
+            next[destKey] = qty;
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+    },
+    [toothFieldProgress.getToothProduct, modals.setSelectedImpressions]
+  );
+
+  /** Wrapped completeFieldStep: auto-copies removable fields to the other arch */
   const mirroredCompleteFieldStep = useCallback(
     (arch: "maxillary" | "mandibular", toothNumber: number, step: any, value: string) => {
       toothFieldProgress.completeFieldStep(arch, toothNumber, step, value);
-      if (shouldMirrorToMandibular(arch, toothNumber, step)) {
-        for (const mandTn of getMandibularCard0Teeth()) {
-          toothFieldProgress.completeFieldStep("mandibular", mandTn, step, value);
+      const targetArch = getMirrorTargetArch(arch, toothNumber, step);
+      if (targetArch) {
+        for (const tn of getCard0TeethForArch(targetArch)) {
+          // Only copy if the field on the target arch is NOT already completed (first time only)
+          if (!toothFieldProgress.isFieldCompleted(targetArch, tn, step)) {
+            toothFieldProgress.completeFieldStep(targetArch, tn, step, value);
+          }
+        }
+        if (step === "impression") {
+          mirrorImpressionSelectionKeysToOtherArch(arch, targetArch, toothNumber);
         }
       }
     },
-    [toothFieldProgress.completeFieldStep, shouldMirrorToMandibular, getMandibularCard0Teeth]
+    [
+      toothFieldProgress.completeFieldStep,
+      toothFieldProgress.isFieldCompleted,
+      getMirrorTargetArch,
+      getCard0TeethForArch,
+      mirrorImpressionSelectionKeysToOtherArch,
+    ]
   );
 
-  /** Wrapped storeFieldValue: auto-copies maxillary removable fields to mandibular */
+  /** Wrapped storeFieldValue: auto-copies removable fields to the other arch */
   const mirroredStoreFieldValue = useCallback(
     (arch: "maxillary" | "mandibular", toothNumber: number, step: any, value: string) => {
       toothFieldProgress.storeFieldValue(arch, toothNumber, step, value);
-      if (shouldMirrorToMandibular(arch, toothNumber, step)) {
-        for (const mandTn of getMandibularCard0Teeth()) {
-          toothFieldProgress.storeFieldValue("mandibular", mandTn, step, value);
+      const targetArch = getMirrorTargetArch(arch, toothNumber, step);
+      if (targetArch) {
+        for (const tn of getCard0TeethForArch(targetArch)) {
+          // Only copy if the field on the target arch is NOT already completed (first time only)
+          if (!toothFieldProgress.isFieldCompleted(targetArch, tn, step)) {
+            toothFieldProgress.storeFieldValue(targetArch, tn, step, value);
+          }
         }
       }
     },
-    [toothFieldProgress.storeFieldValue, shouldMirrorToMandibular, getMandibularCard0Teeth]
+    [toothFieldProgress.storeFieldValue, toothFieldProgress.isFieldCompleted, getMirrorTargetArch, getCard0TeethForArch]
   );
 
-  /** Wrapped uncompleteFieldStep: auto-copies maxillary removable uncomplete to mandibular */
+  /** Wrapped uncompleteFieldStep: auto-copies removable uncomplete to the other arch */
   const mirroredUncompleteFieldStep = useCallback(
     (arch: "maxillary" | "mandibular", toothNumber: number, step: any) => {
+      const targetArch = getMirrorTargetArch(arch, toothNumber, step);
       toothFieldProgress.uncompleteFieldStep(arch, toothNumber, step);
-      if (shouldMirrorToMandibular(arch, toothNumber, step)) {
-        for (const mandTn of getMandibularCard0Teeth()) {
-          toothFieldProgress.uncompleteFieldStep("mandibular", mandTn, step);
+      if (targetArch) {
+        for (const tn of getCard0TeethForArch(targetArch)) {
+          toothFieldProgress.uncompleteFieldStep(targetArch, tn, step);
         }
       }
+      if (step === "impression" && targetArch) {
+        const product = toothFieldProgress.getToothProduct(arch, toothNumber);
+        const pid = String(product?.id ?? "0");
+        modals.setSelectedImpressions((prev) => {
+          const next = { ...prev };
+          let changed = false;
+          for (const key of Object.keys(next)) {
+            if (key.startsWith(`${pid}_maxillary_`) || key.startsWith(`${pid}_mandibular_`)) {
+              delete next[key];
+              changed = true;
+            }
+          }
+          return changed ? next : prev;
+        });
+      }
     },
-    [toothFieldProgress.uncompleteFieldStep, shouldMirrorToMandibular, getMandibularCard0Teeth]
+    [
+      toothFieldProgress.uncompleteFieldStep,
+      toothFieldProgress.getToothProduct,
+      getMirrorTargetArch,
+      getCard0TeethForArch,
+      modals.setSelectedImpressions,
+    ]
   );
 
   // Auto-activate the newest added product so teeth clicks assign to it.
@@ -785,22 +888,27 @@ export function useCaseDesignState(props: CaseDesignProps) {
         }
       }
 
-      // Mirror selectedShades entry for "both arches" removable
+      // Mirror selectedShades entry for "both arches" removable (bidirectional)
       if (
         props.initialArch === "both" &&
-        arch === "maxillary" &&
         isRemovablesCategoryName(props.selectedProductCategoryName)
       ) {
-        // Mirror the shade key to all mandibular card-0 teeth
-        // e.g. prep_5_maxillary_tooth_shade → prep_26_mandibular_tooth_shade
-        for (const mandTn of getMandibularCard0Teeth()) {
-          const mandProductId = productId.replace(/^prep_-?\d+$/, `prep_${mandTn}`);
-          const mandKey = `${mandProductId}_mandibular_${fieldType}`;
-          shades.setSelectedShades((prev: Record<string, string>) => ({ ...prev, [mandKey]: shade }));
+        const targetArch = arch === "maxillary" ? "mandibular" : "maxillary";
+        const targetTeeth = arch === "maxillary" ? getMandibularCard0Teeth() : getMaxillaryCard0Teeth();
+        for (const tn of targetTeeth) {
+          const targetProductId = productId.replace(/^prep_-?\d+$/, `prep_${tn}`);
+          const targetKey = `${targetProductId}_${targetArch}_${fieldType}`;
+          shades.setSelectedShades((prev: Record<string, string>) => {
+            // Only mirror shade if it's the first time (i.e. not already selected on target)
+            if (!prev[targetKey]) {
+              return { ...prev, [targetKey]: shade };
+            }
+            return prev;
+          });
         }
       }
     },
-    [shades.shadeSelectionState, shades.handleShadeSelect, shades.selectedShadeGuide, shades.setSelectedShades, mirroredCompleteFieldStep, getMandibularCard0Teeth, props.initialArch, props.selectedProductCategoryName]
+    [shades.shadeSelectionState, shades.handleShadeSelect, shades.selectedShadeGuide, shades.setSelectedShades, mirroredCompleteFieldStep, getMandibularCard0Teeth, getMaxillaryCard0Teeth, props.initialArch, props.selectedProductCategoryName]
   );
 
   // Use product impressions from get product response when toothNumber provided; otherwise fall back to modal's mock-based resolution
@@ -931,6 +1039,9 @@ export function useCaseDesignState(props: CaseDesignProps) {
     // Structured addon selections per tooth
     selectedAddonsByTooth,
     setSelectedAddonsByTooth,
+    // Mirroring helpers
+    getMaxillaryCard0Teeth,
+    getMandibularCard0Teeth,
     // Props pass-through
     ...props,
   };

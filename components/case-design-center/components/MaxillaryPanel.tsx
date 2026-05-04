@@ -42,6 +42,8 @@ import { getFixedFieldChain } from "../hooks/useToothFieldProgress";
 import { shadeGuideOptions as defaultShadeGuideOptions } from "../constants";
 import { isRemovableCategory, isFixedCategory, getCategoryName, isSingleStageNoStages } from "../utils/categoryHelpers";
 import { resolveVariationDisplay } from "../utils/variationHelpers";
+import { parseAddonDisplayItems } from "../utils/addonDisplayHelpers";
+import { isSingleDefaultOnlyExtractionList } from "../utils/extractionHelpers";
 import { FixedRestorationFields } from "./FixedRestorationFields";
 import type { ImplantDetailData } from "./ImplantDetailSection";
 import { RemovableRestorationFields } from "./RemovableRestorationFields";
@@ -1080,29 +1082,27 @@ export function MaxillaryPanel({
               onToothClick={(toothNumber: number) => {
                 // When a Removable/Ortho card is active (card 0 or added), show tooth status popover.
                 if (activeProductIsRemovables) {
+                  let exts: ProductExtraction[] = [];
                   if (activeProductCardId !== 0) {
-                    // Added removable card
                     const activeCard = addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "maxillary");
-                    if (activeCard) {
-                      const cardTeethForExts = MAXILLARY_ALL_TEETH.filter(tn =>
-                        getToothProduct("maxillary", tn) && getToothProductCard("maxillary", tn) === activeCard.id
-                      );
-                      const repTn = cardTeethForExts.length > 0 ? cardTeethForExts[0] : -activeCard.id;
-                      const exts: ProductExtraction[] = getToothProduct("maxillary", repTn)?.extractions ?? (activeCard.product as any)?.extractions ?? [];
-                      setToothStatusPopoverTooth(toothNumber);
-                      setToothStatusPopoverExtractions(exts);
-                    }
+                    if (!activeCard) return;
+                    const cardTeethForExts = MAXILLARY_ALL_TEETH.filter(tn =>
+                      getToothProduct("maxillary", tn) && getToothProductCard("maxillary", tn) === activeCard.id
+                    );
+                    const repTn = cardTeethForExts.length > 0 ? cardTeethForExts[0] : -activeCard.id;
+                    exts = getToothProduct("maxillary", repTn)?.extractions ?? (activeCard.product as any)?.extractions ?? [];
                   } else {
-                    // Initial card 0 removable/ortho
                     const card0Teeth = MAXILLARY_ALL_TEETH.filter(tn =>
                       getToothProduct("maxillary", tn) && getToothProductCard("maxillary", tn) === 0
                     );
-                    const exts: ProductExtraction[] = card0Teeth.length > 0
-                      ? (getToothProduct("maxillary", card0Teeth[0])?.extractions ?? card0Extractions)
-                      : card0Extractions;
-                    setToothStatusPopoverTooth(toothNumber);
-                    setToothStatusPopoverExtractions(exts);
+                    exts =
+                      card0Teeth.length > 0
+                        ? (getToothProduct("maxillary", card0Teeth[0])?.extractions ?? card0Extractions)
+                        : card0Extractions;
                   }
+                  if (isSingleDefaultOnlyExtractionList(exts)) return;
+                  setToothStatusPopoverTooth(toothNumber);
+                  setToothStatusPopoverExtractions(exts);
                   return;
                 }
                 // When an added Fixed Restoration card is active, bypass opposingProductData routing
@@ -1414,7 +1414,7 @@ export function MaxillaryPanel({
                                 </p>
                               </div>
                               {/* Tooth status boxes */}
-                              {apExtractions.length > 0 && (
+                              {apExtractions.length > 0 && !isSingleDefaultOnlyExtractionList(apExtractions) && (
                                 <ToothStatusBoxes
                                   extractions={apExtractions}
                                   selectedTeeth={maxillaryTeeth}
@@ -1586,6 +1586,7 @@ export function MaxillaryPanel({
 
                         if (isCardRemovables) {
                           const productKey = `maxillary_prep_${repTn}`;
+                          const impressionModalProductId = String(ap.id);
                           return (
                             <>
                             {!isSingleStageNoStages(toothProduct) && (
@@ -1606,7 +1607,7 @@ export function MaxillaryPanel({
                               isImpressionEmpty={!isFieldCompleted("maxillary", repTn, "impression")}
                               onOpenImpressionModal={handleOpenImpressionModal}
                               arch="maxillary"
-                              productId={productKey}
+                              productId={impressionModalProductId}
                               toothNumber={repTn}
                               caseSubmitted={caseSubmitted}
                             />
@@ -1727,17 +1728,17 @@ export function MaxillaryPanel({
                               {isF("impression") && (
                                 <fieldset
                                   className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${isFComplete("impression") && !caseSubmitted ? "border-[#34a853]" : isFComplete("impression") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
-                                  onClick={() => handleOpenImpressionModal("maxillary", productKey, repTn)}
+                                  onClick={() => handleOpenImpressionModal("maxillary", impressionModalProductId, repTn)}
                                 >
                                   <legend className={`text-sm px-1 leading-none ${isFComplete("impression") && !caseSubmitted ? "text-[#34a853]" : isFComplete("impression") ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Impression</legend>
-                                  <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{fVal("impression") || getImpressionDisplayText(productKey, "maxillary")}</span>
+                                  <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{fVal("impression") || getImpressionDisplayText(impressionModalProductId, "maxillary")}</span>
                                   {isFComplete("impression") && !caseSubmitted && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                                 </fieldset>
                               )}
                               {/* Row 5: Add ons (separate fields per add-on, responsive) */}
                               {isF("addons") && (() => {
                                 const addonsVal = fVal("addons") || "";
-                                const addonItems = addonsVal ? addonsVal.split(",").map((s: string) => s.trim()).filter(Boolean) : [];
+                                const addonItems = parseAddonDisplayItems(addonsVal);
                                 const borderClass = isFComplete("addons") && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]";
                                 const legendClass = isFComplete("addons") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]";
                                 const onClickAddon = () => handleOpenAddOnsModal("maxillary", toothProduct?.id?.toString() || productKey, repTn);
@@ -2264,7 +2265,7 @@ export function MaxillaryPanel({
                               {cardToothDisplay}
                             </p>
                           </div>
-                          {cardExtractions.length > 0 && (
+                          {cardExtractions.length > 0 && !isSingleDefaultOnlyExtractionList(cardExtractions) && (
                             <ToothStatusBoxes
                               extractions={cardExtractions}
                               selectedTeeth={maxillaryTeeth}
@@ -2327,6 +2328,7 @@ export function MaxillaryPanel({
                       const isFComplete = (step: string) => isFieldCompleted("maxillary", repTn, step as any);
                       const fVal = (step: string) => getFieldValue("maxillary", repTn, step as any);
                       const productKey = `maxillary_prep_${repTn}`;
+                      const impressionModalProductId = "0";
                       const stageVal = fVal("stage") || selectedStages[productKey] || "";
                       const singleStageSkip = isSingleStageNoStages(toothProduct);
                       return (
@@ -2349,7 +2351,7 @@ export function MaxillaryPanel({
                           isImpressionEmpty={!isFComplete("impression")}
                           onOpenImpressionModal={handleOpenImpressionModal}
                           arch="maxillary"
-                          productId={productKey}
+                          productId={impressionModalProductId}
                           toothNumber={repTn}
                           caseSubmitted={caseSubmitted}
                         />
@@ -2476,17 +2478,17 @@ export function MaxillaryPanel({
                           {isF("impression") && (
                             <fieldset
                               className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${isFComplete("impression") && !caseSubmitted ? "border-[#34a853]" : isFComplete("impression") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
-                              onClick={() => handleOpenImpressionModal("maxillary", productKey, repTn)}
+                              onClick={() => handleOpenImpressionModal("maxillary", impressionModalProductId, repTn)}
                             >
                               <legend className={`text-sm px-1 leading-none ${isFComplete("impression") && !caseSubmitted ? "text-[#34a853]" : isFComplete("impression") ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Impression</legend>
-                              <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{fVal("impression") || getImpressionDisplayText(productKey, "maxillary")}</span>
+                              <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{fVal("impression") || getImpressionDisplayText(impressionModalProductId, "maxillary")}</span>
                               {isFComplete("impression") && !caseSubmitted && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                             </fieldset>
                           )}
                           {/* Row 5: Add ons (separate fields per add-on, responsive) */}
                           {isF("addons") && (() => {
                             const addonsVal = fVal("addons") || "";
-                            const addonItems = addonsVal ? addonsVal.split(",").map((s: string) => s.trim()).filter(Boolean) : [];
+                            const addonItems = parseAddonDisplayItems(addonsVal);
                             const borderClass = isFComplete("addons") && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]";
                             const legendClass = isFComplete("addons") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]";
                             const onClickAddon = () => handleOpenAddOnsModal("maxillary", toothProduct?.id?.toString() || productKey, repTn);
@@ -2521,13 +2523,37 @@ export function MaxillaryPanel({
           })()}
 
 
-          {/* Opposing product accordion — shown only when an opposing impression was selected in the modal */}
+          {/* Opposing product accordion — maxillary opposing when slip is mand-primary (see CaseDesignCenter opposingProductData). */}
           {showDetails && opposingProductData && (opposingProductData.opposite_impression === "Yes" || (opposingProductData.opposite_extractions?.length ?? 0) > 0) && (() => {
+            const isMaxillaryImpressionKey = (key: string) =>
+              key.includes("_maxillary_") &&
+              (/^\d+_maxillary_/.test(key) || key.startsWith("mandibular_prep_"));
             const hasOpposingImpressionSelected = Object.entries(selectedImpressions).some(
-              ([key, qty]) => key.includes("_mandibular_") && qty > 0
+              ([key, qty]) => isMaxillaryImpressionKey(key) && qty > 0
             );
-            if (!hasOpposingImpressionSelected) return null;
-            const opposingImpressionText = getImpressionDisplayText(productKey, "mandibular");
+            const isNoOpposing =
+              !hasOpposingImpressionSelected &&
+              Object.keys(noOpposingNeeded).some(
+                (k) =>
+                  /^\d+_mandibular_/.test(k) ||
+                  (k.startsWith("mandibular_prep_") && k.includes("_mandibular_"))
+              );
+            if (!hasOpposingImpressionSelected && !isNoOpposing) return null;
+            const opposingImpressionText = (() => {
+              const entries = Object.entries(selectedImpressions).filter(
+                ([key, qty]) => isMaxillaryImpressionKey(key) && qty > 0
+              );
+              if (entries.length === 0) return "";
+              return entries
+                .map(([key, qty]) => {
+                  const afterMaxillary = key.split("_maxillary_")[1] ?? "";
+                  const productImpression = opposingProductData.impressions?.find(
+                    (imp: { code?: string; name?: string }) => imp.code === afterMaxillary
+                  );
+                  return `${qty}x ${productImpression?.name || afterMaxillary}`;
+                })
+                .join(", ");
+            })();
             // Map ProductOppositeExtraction to ProductExtraction shape for ToothStatusBoxes
             const opposingExtractions: import("../types").ProductExtraction[] = (opposingProductData.opposite_extractions ?? []).map(e => ({
               id: e.id,
@@ -2548,8 +2574,8 @@ export function MaxillaryPanel({
               status: "Active",
             }));
 
-            // Opposing arch for a maxillary product is mandibular (teeth 17–32)
-            const OPPOSING_ARCH_TEETH = [17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32];
+            // Maxillary opposing arch (teeth 1–16) when primary product is mandibular
+            const OPPOSING_ARCH_TEETH = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16];
 
             return (
               <div key="opposing-accordion" className="relative mt-4">
@@ -2568,30 +2594,29 @@ export function MaxillaryPanel({
                     {/* Product name, tooth status & category badges */}
                     <div className="flex items-stretch gap-[10px] px-[8px] py-[14px]">
                       <div className="flex-1 min-w-0 flex flex-col gap-[9.94px]">
-                        <p className="font-[Inter] text-[20px] font-bold leading-tight text-black pr-6 text-left">
-                          <span className="font-normal text-[16px] text-[#555555]">opposing</span>
-                        </p>
-                        <div onClick={(e) => e.stopPropagation()}>
-                          <ToothStatusBoxes
-                            extractions={opposingExtractions}
-                            selectedTeeth={Object.keys(opposingToothExtractionMap).map(Number)}
-                            allArchTeeth={OPPOSING_ARCH_TEETH}
-                            toothExtractionMap={opposingToothExtractionMap}
-                            claspTeeth={[]}
-                            activeExtractionCode={opposingActiveExtractionCode}
-                            onActiveExtractionChange={(code, exts) => {
-                              setOpposingActiveExtractionCode(code);
-                              if (exts) setOpposingActiveExtractions(exts);
-                            }}
-                            onToothExtractionToggle={(tn, code) => onOpposingExtractionToggle?.(tn, code)}
-                            onSelectAllTeeth={() => {}}
-                            onRequiredValidationChange={onToothStatusValidationChange}
-                            isRemovable={true}
-                            submitted={caseSubmitted}
-                            hideDefaultBox={true}
-                            disableRequiredValidation={true}
-                          />
-                        </div>
+                        {!isSingleDefaultOnlyExtractionList(opposingExtractions) && (
+                          <div onClick={(e) => e.stopPropagation()}>
+                            <ToothStatusBoxes
+                              extractions={opposingExtractions}
+                              selectedTeeth={Object.keys(opposingToothExtractionMap).map(Number).sort((a, b) => a - b)}
+                              allArchTeeth={OPPOSING_ARCH_TEETH}
+                              toothExtractionMap={opposingToothExtractionMap}
+                              claspTeeth={[]}
+                              activeExtractionCode={opposingActiveExtractionCode}
+                              onActiveExtractionChange={(code, exts) => {
+                                setOpposingActiveExtractionCode(code);
+                                if (exts) setOpposingActiveExtractions(exts);
+                              }}
+                              onToothExtractionToggle={(tn, code) => onOpposingExtractionToggle?.(tn, code)}
+                              onSelectAllTeeth={() => {}}
+                              onRequiredValidationChange={onToothStatusValidationChange}
+                              isRemovable={true}
+                              submitted={caseSubmitted}
+                              hideDefaultBox={true}
+                              disableRequiredValidation={true}
+                            />
+                          </div>
+                        )}
                         <div className="flex items-center gap-[4.97px] flex-wrap">
                           {opposingProductData.subcategory?.name && (
                             <AccordionBadge>{opposingProductData.subcategory.name}</AccordionBadge>
@@ -2603,7 +2628,13 @@ export function MaxillaryPanel({
                   {/* Body */}
                   {opposingAccordionExpanded && (
                     <div className="px-[14px] py-[14px] flex flex-col gap-[10px]">
-                      <fieldset className="border border-[#b4b0b0] rounded px-3 py-0 relative h-[42px] flex items-center">
+                      <fieldset
+                        className={`border border-[#b4b0b0] rounded px-3 py-0 relative h-[42px] flex items-center ${caseSubmitted ? "" : "cursor-pointer hover:bg-gray-50"}`}
+                        onClick={() => {
+                          if (caseSubmitted) return;
+                          handleOpenImpressionModal("mandibular", "0", 17);
+                        }}
+                      >
                         <legend className="text-sm px-1 leading-none text-[#7f7f7f]">Impression</legend>
                         <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{opposingImpressionText || "No Opposing"}</span>
                       </fieldset>

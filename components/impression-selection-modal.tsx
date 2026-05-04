@@ -8,16 +8,7 @@ import {
 } from "@/components/ui/dialog"
 import { useState } from "react"
 import { STLFileSelectionModal } from "./stl-file-selection-modal"
-
-interface ImpressionOption {
-  id: number
-  name: string
-  code?: string
-  description?: string
-  image_url?: string
-  value: string
-  label: string
-}
+import type { ImpressionOptionForModal as ImpressionOption } from "@/components/case-design-center/types"
 
 interface STLFile {
   file: File
@@ -40,6 +31,14 @@ interface ImpressionSelectionModalProps {
   oppositeImpression?: "Yes" | "No"
   oppositeImpressions?: ImpressionOption[]
   onSubmitNoOpposing?: () => void
+  /** When true, hides the 'Skip Opposing' button (used when both arches have their own products) */
+  hideSkipOpposing?: boolean
+  /** Optional title shown once above all arch sections (e.g. "Impressions") */
+  modalHeading?: string
+  /**
+   * Dual-grid only: slip's main product arch — that section is shown first (top), opposing second (bottom).
+   */
+  dualImpressionPrimaryArch?: "maxillary" | "mandibular"
 }
 
 function ImpressionGrid({
@@ -305,26 +304,45 @@ export function ImpressionSelectionModal({
   oppositeImpression = "No",
   oppositeImpressions,
   onSubmitNoOpposing,
+  hideSkipOpposing = false,
+  modalHeading,
+  dualImpressionPrimaryArch = "maxillary",
 }: ImpressionSelectionModalProps) {
-  const oppositeArch = arch === "maxillary" ? "mandibular" : "maxillary"
-  const oppositeList = oppositeImpressions ?? impressions
   const isDualArch = oppositeImpression === "Yes"
 
-  const mainPrefix = `${productId}_${arch}_`
-  const hasMainSelection = Object.entries(selectedImpressions).some(
-    ([key, qty]) => key.startsWith(mainPrefix) && qty > 0
+  const primaryArch: "maxillary" | "mandibular" = isDualArch ? dualImpressionPrimaryArch : arch
+  const topArch: "maxillary" | "mandibular" = isDualArch ? primaryArch : arch
+  const bottomArch: ("maxillary" | "mandibular") | null = isDualArch
+    ? (primaryArch === "maxillary" ? "mandibular" : "maxillary")
+    : oppositeImpression === "No"
+      ? null
+      : arch === "maxillary"
+        ? "mandibular"
+        : "maxillary"
+
+  const optionListForArch = (targetArch: "maxillary" | "mandibular") =>
+    targetArch === arch ? impressions : (oppositeImpressions ?? impressions)
+
+  const topList = isDualArch ? optionListForArch(topArch) : impressions
+  const bottomList = isDualArch && bottomArch
+    ? optionListForArch(bottomArch)
+    : (oppositeImpressions ?? impressions)
+
+  const topPrefix = `${productId}_${topArch}_`
+  const hasTopSelection = Object.entries(selectedImpressions).some(
+    ([key, qty]) => key.startsWith(topPrefix) && qty > 0
   )
 
-  const oppositePrefix = `${productId}_${oppositeArch}_`
-  const hasOpposingSelection = Object.entries(selectedImpressions).some(
-    ([key, qty]) => key.startsWith(oppositePrefix) && qty > 0
-  )
+  const bottomPrefix = bottomArch ? `${productId}_${bottomArch}_` : ""
+  const hasBottomSelection = bottomArch ? Object.entries(selectedImpressions).some(
+    ([key, qty]) => key.startsWith(bottomPrefix) && qty > 0
+  ) : false
 
-  const archLabel = arch === "maxillary" ? "Maxillary" : "Mandibular"
-  const oppositeArchLabel = oppositeArch === "maxillary" ? "Maxillary" : "Mandibular"
+  const topArchLabel = topArch === "maxillary" ? "Maxillary" : "Mandibular"
+  const bottomArchLabel = bottomArch === "maxillary" ? "Maxillary" : "Mandibular"
 
   const handleDone = () => {
-    onConfirm?.()
+    // Single close path avoids double-commit when parent uses the same logic in onClose and onConfirm.
     onClose()
   }
 
@@ -338,58 +356,65 @@ export function ImpressionSelectionModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="w-screen max-w-[100vw] max-h-[100vh] sm:max-w-[100vw] overflow-hidden flex flex-col p-0 border-0 rounded-none">
-        <div className="flex flex-col px-3 sm:px-6 md:px-12 lg:px-[100px] py-6 sm:py-10 md:py-[71px] gap-6 bg-white w-full overflow-y-auto max-h-[100vh]">
+      <DialogContent className="w-screen max-w-[100vw] sm:max-w-[100vw] max-h-[90dvh] overflow-hidden flex flex-col p-0 border-0 rounded-none">
+        <div className="flex flex-col px-3 sm:px-6 md:px-10 lg:px-16 py-4 sm:py-6 md:py-8 gap-4 sm:gap-5 bg-white w-full min-h-0 overflow-y-auto max-h-[90dvh]">
 
-          {/* Main arch section */}
+          {modalHeading ? (
+            <h2 className="font-['Verdana'] font-bold text-lg sm:text-xl text-center text-[#1d1d1b] tracking-wide -mt-1 mb-1">
+              {modalHeading}
+            </h2>
+          ) : null}
+
+          {/* Top arch section */}
           <div
             className={cn(
               "relative rounded-[12px] px-4 sm:px-6 pt-7 pb-5 border-2 transition-colors",
-              hasMainSelection ? "border-[#22c55e]" : "border-[#CF0202]"
+              hasTopSelection ? "border-[#22c55e]" : "border-[#CF0202]"
             )}
           >
             <span
               className={cn(
                 "absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-4 font-['Verdana'] font-bold text-sm sm:text-base whitespace-nowrap",
-                hasMainSelection ? "text-[#22c55e]" : "text-[#CF0202]"
+                hasTopSelection ? "text-[#22c55e]" : "text-[#CF0202]"
               )}
             >
-              Select {archLabel} Impressions
+              Select {topArchLabel} Impressions
             </span>
             <ImpressionGrid
               {...sharedGridProps}
-              impressions={impressions}
+              impressions={topList}
               productId={productId}
-              arch={arch}
-              showDoneCheckmark={!isDualArch}
+              arch={topArch}
+              showDoneCheckmark
               onDone={handleDone}
             />
           </div>
 
-          {/* Opposing arch section — always visible for dual arch products */}
-          {isDualArch && (
+          {/* Bottom arch section */}
+          {bottomArch && (
             <div
               className={cn(
                 "relative rounded-[12px] px-4 sm:px-6 pt-7 pb-5 border-2 transition-colors",
-                hasOpposingSelection ? "border-[#22c55e]" : "border-[#CF0202]"
+                hasBottomSelection ? "border-[#22c55e]" : "border-[#CF0202]"
               )}
             >
               <span
                 className={cn(
                   "absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-4 font-['Verdana'] font-bold text-sm sm:text-base whitespace-nowrap",
-                  hasOpposingSelection ? "text-[#22c55e]" : "text-[#CF0202]"
+                  hasBottomSelection ? "text-[#22c55e]" : "text-[#CF0202]"
                 )}
               >
-                Select {oppositeArchLabel} Impressions
+                Select {bottomArchLabel} Impressions
               </span>
               <ImpressionGrid
                 {...sharedGridProps}
-                impressions={oppositeList}
+                impressions={bottomList}
                 productId={productId}
-                arch={oppositeArch}
+                arch={bottomArch}
                 showDoneCheckmark={true}
                 onDone={handleDone}
               />
+              {!hideSkipOpposing && (
               <div className="flex justify-center mt-4">
                 <button
                   onClick={() => onSubmitNoOpposing ? onSubmitNoOpposing() : handleDone()}
@@ -398,10 +423,11 @@ export function ImpressionSelectionModal({
                   Skip Opposing
                 </button>
               </div>
+              )}
             </div>
           )}
 
-          {impressions.length === 0 && (
+          {(isDualArch ? topList.length === 0 && bottomList.length === 0 : impressions.length === 0) && (
             <div className="text-center py-8 sm:py-12 text-[#7F7F7F] font-['Verdana'] text-sm sm:text-lg w-full">
               No impressions available
             </div>

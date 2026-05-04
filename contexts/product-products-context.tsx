@@ -549,10 +549,11 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
         payload[key] = normalizedAddons.map((addon: any) => {
           const quantitySource =
             addon.quantity !== undefined && addon.quantity !== "" ? Number(addon.quantity) : undefined
-          const parsedQuantity =
-            quantitySource !== undefined && !Number.isNaN(quantitySource) && quantitySource >= 1
-              ? Math.max(1, Math.floor(quantitySource))
-              : 1
+          let parsedQuantity = 0
+          if (quantitySource !== undefined && !Number.isNaN(quantitySource)) {
+            const floored = Math.floor(quantitySource)
+            parsedQuantity = floored >= 0 ? floored : 0
+          }
 
           const priceSource = addon.price
           const parsedPrice =

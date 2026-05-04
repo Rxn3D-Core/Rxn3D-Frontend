@@ -42,37 +42,61 @@ const AddOnSchema = BaseEntitySchema.extend({
   subcategory: SubCategorySchema.optional(),
 })
 
-const AddOnQuantitySchema = z
-  .preprocess(
-    (value) => {
-      if (value === undefined || value === null) {
-        return undefined
+/** Raw addon quantity from the form (validated in superRefine only when default is Yes). */
+const AddOnQuantityInputSchema = z.preprocess(
+  (value) => {
+    if (value === undefined || value === null) {
+      return undefined
+    }
+    if (value === "") {
+      return ""
+    }
+    if (typeof value === "string") {
+      const trimmed = value.trim()
+      if (trimmed === "") {
+        return ""
       }
-      if (typeof value === "string") {
-        const trimmed = value.trim()
-        if (trimmed === "") {
-          return undefined
-        }
-        const parsed = Number(trimmed)
-        if (Number.isFinite(parsed)) {
-          return parsed
-        }
-        return value
+      const parsed = Number(trimmed)
+      if (Number.isFinite(parsed)) {
+        return parsed
       }
       return value
-    },
-    z.number().int().min(1),
-  )
-  .optional()
+    }
+    return value
+  },
+  z.union([z.number(), z.literal(""), z.string()]).optional(),
+)
 
-const AddOnFormSchema = z.object({
-  addon_id: z.number(),
-  sequence: z.number().optional(),
-  status: z.enum(["Active", "Inactive"]).default("Active").optional(),
-  price: z.union([z.string(), z.number()]).optional(),
-  quantity: AddOnQuantitySchema,
-  is_default: z.enum(["Yes", "No"]).default("No").optional(),
-})
+const AddOnFormSchema = z
+  .object({
+    addon_id: z.number(),
+    sequence: z.number().optional(),
+    status: z.enum(["Active", "Inactive"]).default("Active").optional(),
+    price: z.union([z.string(), z.number()]).optional(),
+    quantity: AddOnQuantityInputSchema,
+    is_default: z.enum(["Yes", "No"]).default("No").optional(),
+  })
+  .superRefine((row, ctx) => {
+    if (row.is_default !== "Yes") {
+      return
+    }
+    const q = row.quantity
+    if (q === "" || q === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Enter quantity when this add-on is set as default.",
+        path: ["quantity"],
+      })
+      return
+    }
+    if (typeof q !== "number" || !Number.isInteger(q) || q < 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Enter a valid whole number (0 or greater).",
+        path: ["quantity"],
+      })
+    }
+  })
 
 export const ProductSchema = z.object({
   id: z.number(),

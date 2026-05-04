@@ -27,22 +27,34 @@ interface ModalOrchestratorProps {
   impressionOptions: ImpressionOptionForModal[];
   /** Whether the current product has opposite_impression = "Yes" — triggers split layout */
   currentImpressionOppositeImpression?: "Yes" | "No";
+  /** Second grid options when dual-arch (defaults to primary list if omitted) */
+  oppositeImpressions?: ImpressionOptionForModal[];
   selectedImpressions: Record<string, number>;
   setSelectedImpressions: React.Dispatch<
     React.SetStateAction<Record<string, number>>
   >;
-  onImpressionConfirm: (displayText: string) => void;
+  onImpressionConfirm: (displayText: string, targetArch?: Arch) => void;
   /** Called when user confirms with no impressions selected — clears the completed state */
-  onImpressionClear?: () => void;
+  onImpressionClear?: (targetArch?: Arch) => void;
   /** Called when user clicks "Submit, no opposing needed" */
   onSubmitNoOpposing?: () => void;
+  /** When true, hides the 'Skip Opposing' button (both arches have their own products) */
+  hideSkipOpposing?: boolean;
+  /** Optional title above maxillary/mandibular sections inside the impression dialog */
+  impressionModalHeading?: string;
+  /** Dual impression modal: main product arch row first, opposing row second */
+  dualImpressionPrimaryArch?: "maxillary" | "mandibular";
   // Add-ons
   showAddOnsModal: boolean;
   setShowAddOnsModal: (v: boolean) => void;
   currentAddOnsArch: Arch;
   currentAddOnsProductId: string;
   currentAddOnsToothNumber: number | null;
-  onAddOnsConfirm: (addOns: { addon_id: number; qty: number; category: string; subcategory: string; name: string; price: number }[]) => void;
+  onAddOnsConfirm: (
+    addOns: { addon_id: number; qty: number; category: string; subcategory: string; name: string; price: number }[],
+    /** When the add-ons modal shows both arches, each arch is committed separately */
+    confirmArch?: Arch
+  ) => void;
   /** Products available in the case — shown as tabs in add-ons modal */
   addOnsProducts?: AddOnsProduct[];
   /** Which arch columns to display in add-ons modal */
@@ -122,11 +134,15 @@ export function ModalOrchestrator({
   currentImpressionToothNumber,
   impressionOptions,
   currentImpressionOppositeImpression,
+  oppositeImpressions,
   selectedImpressions,
   setSelectedImpressions,
   onImpressionConfirm,
   onImpressionClear,
   onSubmitNoOpposing,
+  hideSkipOpposing,
+  impressionModalHeading,
+  dualImpressionPrimaryArch,
   // Add-ons
   showAddOnsModal,
   setShowAddOnsModal,
@@ -167,6 +183,42 @@ export function ModalOrchestrator({
   const [attachViewerOpen, setAttachViewerOpen] = useState(false)
   const handleViewerToggle = useCallback((isOpen: boolean) => setAttachViewerOpen(isOpen), [])
 
+  const impressionLookupForCommit = [
+    ...impressionOptions,
+    ...(oppositeImpressions ?? []).filter(
+      (o) => !impressionOptions.some((i) => i.value === o.value)
+    ),
+  ];
+
+  const commitImpressionSelections = () => {
+    const arches: Arch[] =
+      currentImpressionOppositeImpression === "Yes"
+        ? [
+            currentImpressionArch,
+            (currentImpressionArch === "maxillary" ? "mandibular" : "maxillary") as Arch,
+          ]
+        : [currentImpressionArch];
+
+    for (const archToProcess of [...new Set(arches)]) {
+      const prefix = `${currentImpressionProductId}_${archToProcess}_`;
+      const entries = Object.entries(selectedImpressions).filter(
+        ([key, qty]) => key.startsWith(prefix) && qty > 0
+      );
+      if (entries.length > 0) {
+        const displayText = entries
+          .map(([key, qty]) => {
+            const identifier = key.replace(prefix, "");
+            const impression = impressionLookupForCommit.find((i) => i.value === identifier);
+            return `${qty}x ${impression?.name || identifier}`;
+          })
+          .join(", ");
+        onImpressionConfirm(displayText, archToProcess);
+      } else {
+        onImpressionClear?.(archToProcess);
+      }
+    }
+  };
+
   // In read-only (virtual slip) mode, suppress all modals
   if (caseSubmitted) return null;
 
@@ -176,53 +228,20 @@ export function ModalOrchestrator({
       <ImpressionSelectionModal
         isOpen={showImpressionModal}
         onClose={() => {
-          // Sync completion state with what's actually selected so closing via
-          // the X / backdrop still commits the user's picks (otherwise the
-          // display text shows the value but the field border stays red
-          // because completeFieldStep only runs on explicit Submit).
-          const prefix = `${currentImpressionProductId}_${currentImpressionArch}_`;
-          const entries = Object.entries(selectedImpressions).filter(
-            ([key, qty]) => key.startsWith(prefix) && qty > 0
-          );
-          if (entries.length > 0) {
-            const displayText = entries
-              .map(([key, qty]) => {
-                const identifier = key.replace(prefix, "");
-                const impression = impressionOptions.find((i) => i.value === identifier);
-                return `${qty}x ${impression?.name || identifier}`;
-              })
-              .join(", ");
-            onImpressionConfirm(displayText);
-          } else {
-            onImpressionClear?.();
-          }
+          commitImpressionSelections();
           setShowImpressionModal(false);
-        }}
-        onConfirm={() => {
-          // Build display text from currently selected impressions for this product/arch
-          const prefix = `${currentImpressionProductId}_${currentImpressionArch}_`;
-          const entries = Object.entries(selectedImpressions).filter(
-            ([key, qty]) => key.startsWith(prefix) && qty > 0
-          );
-          if (entries.length > 0) {
-            const displayText = entries
-              .map(([key, qty]) => {
-                const identifier = key.replace(prefix, "");
-                const impression = impressionOptions.find((i) => i.value === identifier);
-                return `${qty}x ${impression?.name || identifier}`;
-              })
-              .join(", ");
-            onImpressionConfirm(displayText);
-          } else {
-            // User removed all impressions — clear the completed state
-            onImpressionClear?.();
-          }
         }}
         impressions={impressionOptions}
         oppositeImpression={currentImpressionOppositeImpression}
+        oppositeImpressions={oppositeImpressions}
         selectedImpressions={selectedImpressions}
         onUpdateQuantity={(key, qty) => {
-          setSelectedImpressions((prev) => ({ ...prev, [key]: qty }));
+          setSelectedImpressions((prev) => {
+            const next = { ...prev };
+            if (qty === 0) delete next[key];
+            else next[key] = qty;
+            return next;
+          });
         }}
         onRemoveImpression={(key) => {
           setSelectedImpressions((prev) => {
@@ -243,23 +262,26 @@ export function ModalOrchestrator({
             const displayText = entries
               .map(([key, qty]) => {
                 const identifier = key.replace(prefix, "");
-                const impression = impressionOptions.find((i) => i.value === identifier);
+                const impression = impressionLookupForCommit.find((i) => i.value === identifier);
                 return `${qty}x ${impression?.name || identifier}`;
               })
               .join(", ");
-            onImpressionConfirm(displayText);
+            onImpressionConfirm(displayText, currentImpressionArch);
           }
           onSubmitNoOpposing?.();
           setShowImpressionModal(false);
         }}
+        hideSkipOpposing={hideSkipOpposing}
+        modalHeading={impressionModalHeading}
+        dualImpressionPrimaryArch={dualImpressionPrimaryArch}
       />
 
       {/* Add-Ons Modal */}
       <AddOnsModal
         isOpen={showAddOnsModal}
         onClose={() => setShowAddOnsModal(false)}
-        onAddAddOns={(addOns, _arch) => {
-          onAddOnsConfirm(addOns);
+        onAddAddOns={(addOns, confirmArch) => {
+          onAddOnsConfirm(addOns, confirmArch);
         }}
         labId={0}
         productId={currentAddOnsProductId}

@@ -1402,12 +1402,15 @@ export function AddLabProductModal({
             }
           }
 
-          // Handle quantity: ensure it's a valid number >= 1, default to 1
-          let quantity = 1
-          if (item.quantity !== undefined && item.quantity !== null && item.quantity !== "") {
-            const parsedQuantity = typeof item.quantity === "number" ? item.quantity : parseInt(item.quantity, 10)
-            if (!Number.isNaN(parsedQuantity) && parsedQuantity >= 1) {
-              quantity = Math.floor(parsedQuantity)
+          const isDefaultYes = item.is_default === "Yes"
+          let quantity: number | "" = ""
+          if (isDefaultYes) {
+            if (item.quantity !== undefined && item.quantity !== null && item.quantity !== "") {
+              const parsedQuantity =
+                typeof item.quantity === "number" ? item.quantity : parseInt(String(item.quantity), 10)
+              if (!Number.isNaN(parsedQuantity) && parsedQuantity >= 0) {
+                quantity = Math.floor(parsedQuantity)
+              }
             }
           }
 
@@ -1996,7 +1999,7 @@ export function AddLabProductModal({
             ...baseItem,
             is_default: item.is_default === "Yes" || item.is_default === true ? "Yes" : "No",
             price: item.price !== undefined ? item.price : "",
-            quantity: item.quantity !== undefined ? item.quantity : 1,
+            quantity: item.quantity !== undefined ? item.quantity : "",
           }
         }
         
@@ -2101,25 +2104,20 @@ export function AddLabProductModal({
       payload.jaw_photos = jawPhotoPayload
     }
 
-    // Helper function to check if an array should be included in update payload
-    const shouldIncludeArray = (fieldName: string, currentValue: any[]): boolean => {
+    // Include array in API payload when create mode has rows, or when edit mode processed state differs from baseline.
+    // Important: do not rely on `fieldName in payload` (calculateChanges diff) alone — use full `data` as source so
+    // fields like addons are not wiped when the diff object omits the key but the form actually changed.
+    const shouldIncludeProcessedArray = (
+      processedValue: any[],
+      baselineProcessed: any[],
+    ): boolean => {
       if (!editingProduct || !initialFormValues) {
-        // For create mode, include if not empty
-        return currentValue && currentValue.length > 0
+        return Array.isArray(processedValue) && processedValue.length > 0
       }
-      
-      // For update mode, only include if:
-      // 1. The field is in the changes (meaning it changed)
-      // 2. The array has items OR it's being cleared from non-empty to empty
-      if (!(fieldName in payload)) {
-        return false // Field wasn't changed, don't include it
+      if (JSON.stringify(processedValue) !== JSON.stringify(baselineProcessed)) {
+        return processedValue.length > 0 || baselineProcessed.length > 0
       }
-      
-      const originalValue = initialFormValues[fieldName as keyof ProductCreateForm]
-      const originalArray = Array.isArray(originalValue) ? originalValue : []
-      
-      // Include if it has items OR if we're clearing a non-empty array
-      return currentValue.length > 0 || originalArray.length > 0
+      return false
     }
 
     // Handle apply_same_status_to_opposing checkbox logic
@@ -2142,6 +2140,8 @@ export function AddLabProductModal({
       { key: 'opposite_extractions', idKey: 'extraction_id', processor: ensureOppositeExtractions },
     ]
 
+    const formRowArrays = data as Record<string, unknown>
+
     arrayFields.forEach(({ key, idKey, processor }) => {
       // Special handling for opposite_extractions when apply_same_status_to_opposing is true
       if (key === 'opposite_extractions' && data.apply_same_status_to_opposing === true) {
@@ -2150,21 +2150,32 @@ export function AddLabProductModal({
         return
       }
       
-      const currentValue = payload[key] ?? []
-      let processedValue: any[]
-      
+      const sourceFromForm = Array.isArray(formRowArrays[key]) ? (formRowArrays[key] as any[]) : []
+      const baselineRaw = Array.isArray(initialFormValues?.[key as keyof ProductCreateForm])
+        ? (initialFormValues[key as keyof ProductCreateForm] as any[])
+        : []
+
+      let baselineProcessed: any[]
       if (processor === ensureExtractions) {
-        processedValue = ensureExtractions(currentValue)
+        baselineProcessed = ensureExtractions(baselineRaw)
       } else if (processor === ensureOppositeExtractions) {
-        processedValue = ensureOppositeExtractions(currentValue)
+        baselineProcessed = ensureOppositeExtractions(baselineRaw)
       } else {
-        processedValue = ensureSequenceAndStatus(currentValue, idKey)
+        baselineProcessed = ensureSequenceAndStatus(baselineRaw, idKey)
       }
-      
-      if (shouldIncludeArray(key, processedValue)) {
+
+      let processedValue: any[]
+      if (processor === ensureExtractions) {
+        processedValue = ensureExtractions(sourceFromForm)
+      } else if (processor === ensureOppositeExtractions) {
+        processedValue = ensureOppositeExtractions(sourceFromForm)
+      } else {
+        processedValue = ensureSequenceAndStatus(sourceFromForm, idKey)
+      }
+
+      if (shouldIncludeProcessedArray(processedValue, baselineProcessed)) {
         payload[key] = processedValue
       } else {
-        // Remove empty arrays that weren't meaningfully changed
         delete payload[key]
       }
     })
@@ -2178,10 +2189,14 @@ export function AddLabProductModal({
         payload[key] = processed
       } else if (!editingProduct || !initialFormValues) {
         payload[key] = processed
-      } else if (shouldIncludeArray(key, processed)) {
-        payload[key] = processed
       } else {
-        delete payload[key]
+        const rawInit = initialFormValues.advance_fields ?? []
+        const baselineProcessed = serializeAdvanceFieldsForApi(Array.isArray(rawInit) ? rawInit : [])
+        if (shouldIncludeProcessedArray(processed, baselineProcessed)) {
+          payload[key] = processed
+        } else {
+          delete payload[key]
+        }
       }
     }
 
@@ -2266,7 +2281,7 @@ export function AddLabProductModal({
     payload.retentions = serializeRetentionsForProductApi(data.retentions ?? [])
     payload.retention_options = serializeRetentionOptionsForApi(data.retention_options ?? [])
 
-    const allocationError = validateStageAllocationPercents(payload.stages, {
+    const allocationError = validateStageAllocationPercents(payload.stages ?? data.stages, {
       isTeethBased: data.is_teeth_based_price === "Yes",
       isSuperAdmin: userRole === "superadmin",
     })
@@ -2310,7 +2325,14 @@ export function AddLabProductModal({
       }
     }
 
-    if (!saveResult.success) return
+    if (!saveResult.success) {
+      toast({
+        title: "Error",
+        description: "Failed to update product. Please try again or check your connection.",
+        variant: "destructive",
+      })
+      return
+    }
 
     const hydrateAfterSaveLab = async (snapshot: Record<string, unknown> | null) => {
       const rid =
@@ -2667,7 +2689,7 @@ export function AddLabProductModal({
               ...baseItem,
               is_default: item.is_default === "Yes" || item.is_default === true ? "Yes" : "No",
               price: item.price !== undefined ? item.price : "",
-              quantity: item.quantity !== undefined ? item.quantity : 1,
+              quantity: item.quantity !== undefined ? item.quantity : "",
             }
           }
           
