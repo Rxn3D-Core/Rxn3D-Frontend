@@ -13,6 +13,7 @@ import { useTranslation } from "react-i18next"
 import { CreateRetentionOptionModal } from "@/components/product-management/create-retention-option-modal"
 import { LinkRetentionTypeModal } from "@/components/product-management/link-retention-type-modal"
 import { LinkProductsModal } from "@/components/product-management/link-products-modal"
+import { LinkRetentionModal } from "@/components/product-management/link-retention-modal"
 import { getRetentionOptions, updateRetentionOptionStatus, deleteRetentionOption } from "@/services/retention-options-api"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import { useToast } from "@/hooks/use-toast"
@@ -35,6 +36,7 @@ export default function RetentionOptionPage() {
   const [pagination, setPagination] = useState({ total: 0, per_page: 20, last_page: 1, current_page: 1 })
   const [showLinkRetentionTypeModal, setShowLinkRetentionTypeModal] = useState(false)
   const [showLinkProductsModal, setShowLinkProductsModal] = useState(false)
+  const [showLinkRetentionModal, setShowLinkRetentionModal] = useState(false)
   const [deleteOptionId, setDeleteOptionId] = useState<number | null>(null)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const { currentLanguage } = useLanguage()
@@ -257,6 +259,13 @@ export default function RetentionOptionPage() {
             >
               <LinkIcon className="h-4 w-4 mr-2" />
               {t("Link Product")}
+            </Button>
+            <Button
+              onClick={() => setShowLinkRetentionModal(true)}
+              className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
+            >
+              <LinkIcon className="h-4 w-4 mr-2" />
+              {t("Link Retention")}
             </Button>
 
             <div className="relative w-full sm:w-auto">
@@ -528,6 +537,14 @@ export default function RetentionOptionPage() {
             fetchRetentionOptions()
           }}
           entityType="retention-option"
+          context="global"
+        />
+        <LinkRetentionModal
+          isOpen={showLinkRetentionModal}
+          onClose={() => {
+            setShowLinkRetentionModal(false)
+            fetchRetentionOptions()
+          }}
           context="global"
         />
         <DeleteConfirmationModal
