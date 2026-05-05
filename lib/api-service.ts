@@ -56,12 +56,19 @@ export class ApiService {
       
       return await response.json()
     } catch (error) {
-      // Re-throw 401 errors (they're already handled)
-      if (error instanceof Error && error.message.includes('Unauthorized')) {
-        throw error
+      // Re-throw application/API errors (including validation 4xx/5xx and 401 handling above)
+      if (error instanceof Error) {
+        const message = error.message.toLowerCase()
+        const isLikelyNetworkError =
+          error.name === 'TypeError' &&
+          (message.includes('network') || message.includes('fetch') || message.includes('failed to fetch'))
+
+        if (!isLikelyNetworkError) {
+          throw error
+        }
       }
-      
-      // Handle network errors
+
+      // Handle true network/connectivity failures
       console.error('API request failed:', error)
       throw new Error('Network error - Please check your connection')
     }
