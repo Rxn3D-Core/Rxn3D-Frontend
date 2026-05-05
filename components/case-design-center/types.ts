@@ -319,6 +319,7 @@ export interface ProductGumShade {
     system_name: string;
     status: string;
     sequence: number;
+    default?: string;
   };
   color_code_top: string;
   color_code_middle: string;
@@ -390,6 +391,7 @@ export interface ProductTeethShadeBrand {
   system_name: string;
   brand_color?: string | null;
   status?: string;
+  default?: string;
 }
 
 export interface ProductTeethShade {

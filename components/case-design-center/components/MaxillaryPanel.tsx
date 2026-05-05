@@ -994,9 +994,21 @@ export function MaxillaryPanel({
                     const dTeeth = MAXILLARY_ALL_TEETH.filter(tn => { const c = maxillaryToothExtractionMap[tn]; return c && c !== "TIM"; }).length;
                     return resolveVariationDisplay(cardProd, dTeeth).name.replace(/^\d+\s+teeth?\s+/i, "");
                   })();
+              if (!removableProductName) return null;
+              // Hide label until all visible accordion fields for the active card are complete
+              const activeRepTn = activeProductCardId !== 0
+                ? MAXILLARY_ALL_TEETH.find(tn => getToothProductCard("maxillary", tn) === activeProductCardId)
+                : MAXILLARY_ALL_TEETH.find(tn => getToothProductCard("maxillary", tn) === 0);
+              if (activeRepTn) {
+                const removableFields: Array<Parameters<typeof isFieldCompleted>[2]> = ["grade", "stage", "teeth_shade", "gum_shade", "impression"];
+                const allFieldsDone = removableFields.every(step =>
+                  !isFieldVisible("maxillary", activeRepTn, step) || isFieldCompleted("maxillary", activeRepTn, step)
+                );
+                if (!allFieldsDone) return null;
+              }
               return (
                 <p className={`text-center font-bold text-sm mb-1 ${removableTeethCount > 0 ? "text-orange-500" : "text-red-600"}`}>
-                  Select teeth that will be included in {removableProductName || "removable restoration"}
+                  Select teeth that will be included in {removableProductName}
                 </p>
               );
             })() : (() => {
@@ -1343,14 +1355,6 @@ export function MaxillaryPanel({
 
               // Full denture detection: only MT extraction, no TIM
               const apIsFullDenture = isApRemovables && isFullDentureProduct(apExtractions);
-              // Replacing teeth: exclude MT-coded teeth (missing teeth should not count toward "to replace")
-              const apReplacingTeeth = apIsFullDenture
-                ? []
-                : assignedTeeth.filter(tn => {
-                    const code = maxillaryToothExtractionMap[tn];
-                    return !code || code === "TIM" || (code !== "MT");
-                  });
-
               const apImpressionDone = apRepTn !== 0 && (
                 isFieldCompleted("maxillary", apRepTn, "impression") ||
                 isFieldCompleted("maxillary", apRepTn, "fixed_impression")
@@ -1406,7 +1410,7 @@ export function MaxillaryPanel({
                                 <p className="font-[Inter] text-[20px] font-bold leading-[20px] tracking-[-0.02em] text-black">
                                   {apIsFullDenture
                                     ? cardProductName
-                                    : `${cardProductName} ${apReplacingTeeth.length} ${apReplacingTeeth.length === 1 ? "tooth" : "teeth"} to replace`}
+                                    : `${cardProductName} ${assignedTeeth.length} ${assignedTeeth.length === 1 ? "tooth" : "teeth"} to replace`}
                                   {hasRushedAp && <RushIcon className="inline w-[14px] h-[14px] ml-1" />}
                                 </p>
                                 <p className="font-[Inter] text-[20px] font-normal leading-[20px] tracking-[-0.02em] text-black">

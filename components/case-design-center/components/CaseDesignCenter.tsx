@@ -665,8 +665,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           {!props.caseSubmitted ? (
             <button
               onClick={() => state.onAddProduct?.("mandibular")}
-              disabled={!allMandibularAccordionsComplete || mandibularIncomplete || (mandibularHasRemovablesCard0 && mandibularRemovableTeethSelected === 0)}
-              className={`flex flex-row items-center justify-center px-[10px] py-0 w-[230px] h-[28px] shadow-[0.99px_0.99px_3.48px_rgba(0,0,0,0.25)] rounded-[5.96px] ${!allMandibularAccordionsComplete || mandibularIncomplete || (mandibularHasRemovablesCard0 && mandibularRemovableTeethSelected === 0) ? "bg-[#b4b0b0] cursor-not-allowed" : "bg-[#1162A8] hover:bg-[#0d4a85] cursor-pointer"}`}
+              disabled={(hasMandibularProducts && !allMandibularAccordionsComplete) || mandibularIncomplete || (mandibularHasRemovablesCard0 && mandibularRemovableTeethSelected === 0)}
+              className={`flex flex-row items-center justify-center px-[10px] py-0 w-[230px] h-[28px] shadow-[0.99px_0.99px_3.48px_rgba(0,0,0,0.25)] rounded-[5.96px] ${(hasMandibularProducts && !allMandibularAccordionsComplete) || mandibularIncomplete || (mandibularHasRemovablesCard0 && mandibularRemovableTeethSelected === 0) ? "bg-[#b4b0b0] cursor-not-allowed" : "bg-[#1162A8] hover:bg-[#0d4a85] cursor-pointer"}`}
             >
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5 12H19M12 5V19" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
               <span className="font-[Verdana] font-normal text-[14px] leading-[22px] text-center tracking-[-0.02em] text-white">MANDIBULAR PRODUCT</span>
