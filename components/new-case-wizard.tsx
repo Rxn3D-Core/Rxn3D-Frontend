@@ -451,9 +451,8 @@ function StepPatientInfo({
   const showGenderField = (() => {
     const nameParts = name.trim().split(/\s+/).filter((part) => part.length > 0);
     if (nameParts.length < 2) return false;
-    if (nameParts.length >= 3) {
-      return nameParts[0].length >= 2 && nameParts[1].length >= 2;
-    }
+    // Keep visibility criteria aligned with submit/name validation:
+    // first and last name must be at least 2 chars; middle words may be initials.
     const lastPart = nameParts[nameParts.length - 1];
     return nameParts[0].length >= 2 && lastPart.length >= 2;
   })();
@@ -493,10 +492,6 @@ function StepPatientInfo({
     if (!hasNameValue) return false;
     const nameParts = name.trim().split(/\s+/).filter((part) => part.length > 0);
     if (nameParts.length < 2) return false;
-    if (nameParts.length >= 3) {
-      // With 3+ words, validate based on first two words only
-      return nameParts[0].length >= 2 && nameParts[1].length >= 2;
-    }
     const lastPart = nameParts[nameParts.length - 1];
     return nameParts[0].length >= 2 && lastPart.length >= 2;
   };
