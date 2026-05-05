@@ -33,8 +33,10 @@ export function ShadeSelectionGuide({
   useEffect(() => {
     if (shadeGuideOptions.length === 1 && !selectedShadeGuide) {
       setSelectedShadeGuide(shadeGuideOptions[0]);
+      // Auto-close dropdown when there's only one option — don't make user click it
+      setShowShadeGuideDropdown(false);
     }
-  }, [shadeGuideOptions, selectedShadeGuide, setSelectedShadeGuide]);
+  }, [shadeGuideOptions, selectedShadeGuide, setSelectedShadeGuide, setShowShadeGuideDropdown]);
 
   const stumpShade = getSelectedShade(
     shadeSelectionState.productId || '',

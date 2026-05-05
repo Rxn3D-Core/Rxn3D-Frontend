@@ -16,6 +16,7 @@ import type {
 } from "../types";
 import type { FieldStep } from "../hooks/useToothFieldProgress";
 import { isSingleStageNoStages } from "../utils/categoryHelpers";
+import { hasVisibleAddonDisplay } from "../utils/addonDisplayHelpers";
 
 /* ------------------------------------------------------------------ */
 /*  Diamond SVG icons (Grade field)                                    */
@@ -568,7 +569,8 @@ export function RemovableRestorationFields({
             </div>
           </fieldset>
 
-          {isFieldVisibleFn(arch, firstToothNumber, "addons") && getFieldValueFn(arch, firstToothNumber, "addons") ? (
+          {isFieldVisibleFn(arch, firstToothNumber, "addons") &&
+          hasVisibleAddonDisplay(getFieldValueFn(arch, firstToothNumber, "addons")) ? (
             <fieldset
               className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
                 isFieldCompletedFn(arch, firstToothNumber, "addons") && !caseSubmitted

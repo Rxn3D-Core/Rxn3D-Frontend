@@ -188,7 +188,7 @@ export function AddOnsSection({
           sequence: newSequence,
           is_default: "No",
           price: customerId ? 0 : "",
-          quantity: 1,
+          quantity: "" as const,
         }
 
         setValue("addons", [...currentList, newAddon], { 
@@ -236,28 +236,33 @@ export function AddOnsSection({
   // Helper to get selected add-on by id
   const getSelectedAddon = (id: number) => watchedAddons.find((a) => a.addon_id === id)
 
-  const normalizeQuantityValue = (value: unknown) => {
-    if (typeof value === "number" && Number.isFinite(value)) {
-      return value >= 1 ? Math.floor(value) : 1
+  const normalizeQuantityValue = (value: unknown): number | "" => {
+    if (value === "" || value === null || value === undefined) {
+      return ""
     }
-
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value >= 0 ? Math.floor(value) : ""
+    }
     if (typeof value === "string") {
       const trimmed = value.trim()
-      if (trimmed !== "") {
-        const parsed = Number(trimmed)
-        if (Number.isFinite(parsed) && parsed >= 1) {
-          return Math.floor(parsed)
-        }
+      if (trimmed === "") {
+        return ""
+      }
+      const parsed = Number(trimmed)
+      if (Number.isFinite(parsed) && parsed >= 0) {
+        return Math.floor(parsed)
       }
     }
-
-    return 1
+    return ""
   }
 
   const buildSelectedAddon = (addOn: any) => {
-    const quantity = normalizeQuantityValue(addOn.lab_addon?.quantity ?? addOn.quantity)
     const isDefaultCandidate = addOn.lab_addon?.is_default ?? addOn.is_default
     const isDefault = isDefaultCandidate === "Yes" ? "Yes" : "No"
+    const quantity =
+      isDefault === "Yes"
+        ? normalizeQuantityValue(addOn.lab_addon?.quantity ?? addOn.quantity)
+        : ""
 
     return {
       addon_id: addOn.id,
@@ -291,16 +296,17 @@ export function AddOnsSection({
   }
 
   const handleQuantityChange = (addon_id: number, value: string) => {
-    // Normalize quantity: if empty or invalid, default to 1, otherwise ensure it's at least 1
-    let normalizedValue: number
+    let normalizedValue: number | ""
     if (value === "" || value === null || value === undefined) {
-      normalizedValue = 1
+      normalizedValue = ""
     } else {
       const parsed = Number(value)
-      if (Number.isFinite(parsed) && parsed >= 1) {
-        normalizedValue = Math.floor(parsed)
+      if (!Number.isFinite(parsed)) {
+        normalizedValue = ""
+      } else if (parsed < 0) {
+        normalizedValue = 0
       } else {
-        normalizedValue = 1
+        normalizedValue = Math.floor(parsed)
       }
     }
     setValue(
@@ -320,7 +326,11 @@ export function AddOnsSection({
       "addons",
       watchedAddons.map((a) => {
         if (a.addon_id === addon_id) {
-          return { ...a, is_default: isDefaultValue }
+          return {
+            ...a,
+            is_default: isDefaultValue,
+            ...(!checked ? { quantity: "" as const } : {}),
+          }
         }
         return a
       }),
@@ -468,7 +478,15 @@ export function AddOnsSection({
             </div>
             {filteredAddOns.map((addOn) => {
               const selected = getSelectedAddon(addOn.id)
-              const defaultQuantity = normalizeQuantityValue(addOn.lab_addon?.quantity ?? addOn.quantity)
+              const qtyEditable = !!selected && selected.is_default === "Yes"
+              const quantityDisplay =
+                selected && selected.is_default === "Yes"
+                  ? selected.quantity === "" ||
+                    selected.quantity === undefined ||
+                    selected.quantity === null
+                    ? ""
+                    : String(selected.quantity)
+                  : ""
               return (
                 <div
                   key={addOn.id}
@@ -509,16 +527,15 @@ export function AddOnsSection({
                     </div>
                   )}
                   <div className="flex justify-center">
-                    {selected ? (
+                    {qtyEditable ? (
                       <Input
                         type="number"
-                        min={1}
+                        min={0}
                         step={1}
-                        value={selected.quantity ?? defaultQuantity}
-                        onChange={e => handleQuantityChange(addOn.id, e.target.value)}
+                        value={quantityDisplay}
+                        onChange={(e) => handleQuantityChange(addOn.id, e.target.value)}
                         className="w-20"
-                        disabled={!selected}
-                        style={selected ? { borderColor: "rgb(17,98,168)" } : {}}
+                        style={{ borderColor: "rgb(17,98,168)" }}
                       />
                     ) : (
                       <span className="text-xs font-semibold text-gray-400">—</span>
