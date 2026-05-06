@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { ChevronLeft, ChevronRight, ChevronDown, Check } from "lucide-react";
 import type { ProductGumShade } from "../types";
 
@@ -30,6 +30,14 @@ export function GumShadePicker({ selected, onSelect, gumShades }: GumShadePicker
   }, [gumShades]);
 
   const [selectedBrandId, setSelectedBrandId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (selectedBrandId !== null) return;
+    const defaultBrand = gumShades.find(
+      (s) => String(s.brand?.default ?? "").trim().toLowerCase() === "yes"
+    )?.brand;
+    if (defaultBrand) setSelectedBrandId(defaultBrand.id);
+  }, [gumShades, selectedBrandId]);
 
   // Filter shades by selected brand, or show all if none selected
   const filteredShades = useMemo(() => {

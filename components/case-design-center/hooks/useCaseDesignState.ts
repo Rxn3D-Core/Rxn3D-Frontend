@@ -526,6 +526,30 @@ export function useCaseDesignState(props: CaseDesignProps) {
     return systemNames;
   }, [shades.shadeSelectionState, toothFieldProgress.getToothProduct]);
 
+  // Auto-select the default shade guide when options load
+  useEffect(() => {
+    if (!shadeGuideOptions.length || shades.selectedShadeGuide) return;
+    const { arch, productId } = shades.shadeSelectionState;
+    if (!arch || !productId) return;
+    const fixedMatch = productId.match(/^fixed_(\d+)$/);
+    const prepMatch = productId.match(/^prep_(-?\d+)$/);
+    const toothNumber = fixedMatch
+      ? parseInt(fixedMatch[1], 10)
+      : prepMatch
+        ? parseInt(prepMatch[1], 10)
+        : null;
+    if (toothNumber == null) return;
+    const product = toothFieldProgress.getToothProduct(arch, toothNumber);
+    const teethShades = product?.teeth_shades;
+    if (!teethShades) return;
+    const defaultShade = teethShades.find(
+      (s) => String(s.brand?.default ?? "").trim().toLowerCase() === "yes"
+    );
+    if (defaultShade?.brand?.system_name) {
+      shades.setSelectedShadeGuide(defaultShade.brand.system_name);
+    }
+  }, [shadeGuideOptions, shades.selectedShadeGuide, shades.shadeSelectionState, toothFieldProgress.getToothProduct, shades.setSelectedShadeGuide]);
+
   // Auto-complete stage step when product is single-stage with no stage options
   const autoCompleteSingleStage = useCallback(
     (arch: Arch, toothNumber: number, product: ProductApiData) => {

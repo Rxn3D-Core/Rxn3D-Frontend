@@ -451,9 +451,8 @@ function StepPatientInfo({
   const showGenderField = (() => {
     const nameParts = name.trim().split(/\s+/).filter((part) => part.length > 0);
     if (nameParts.length < 2) return false;
-    if (nameParts.length >= 3) {
-      return nameParts[0].length >= 2 && nameParts[1].length >= 2;
-    }
+    // Keep visibility criteria aligned with submit/name validation:
+    // first and last name must be at least 2 chars; middle words may be initials.
     const lastPart = nameParts[nameParts.length - 1];
     return nameParts[0].length >= 2 && lastPart.length >= 2;
   })();
@@ -493,10 +492,6 @@ function StepPatientInfo({
     if (!hasNameValue) return false;
     const nameParts = name.trim().split(/\s+/).filter((part) => part.length > 0);
     if (nameParts.length < 2) return false;
-    if (nameParts.length >= 3) {
-      // With 3+ words, validate based on first two words only
-      return nameParts[0].length >= 2 && nameParts[1].length >= 2;
-    }
     const lastPart = nameParts[nameParts.length - 1];
     return nameParts[0].length >= 2 && lastPart.length >= 2;
   };
@@ -922,7 +917,21 @@ function StepSubProduct({
   const [subLabelHeight, setSubLabelHeight] = useState(0);
   const subCardRefs = useRef<Record<number, HTMLButtonElement | null>>({});
   const subLabelRefs = useRef<Record<number, HTMLSpanElement | null>>({});
-  const subLeaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const subPopoverRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!archPopoverSubId) return;
+    const handler = (e: MouseEvent) => {
+      if (subPopoverRef.current && !subPopoverRef.current.contains(e.target as Node)) {
+        const cardEl = subCardRefs.current[archPopoverSubId];
+        if (cardEl && cardEl.contains(e.target as Node)) return;
+        setArchPopoverSubId(null);
+        setSubPopoverRect(null);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [archPopoverSubId]);
 
   return (
     <div className="flex-1 flex flex-col px-6 py-4">
@@ -960,25 +969,20 @@ function StepSubProduct({
           <div key={prod.id} className="relative flex-shrink-0">
             <button
               ref={(el) => { subCardRefs.current[prod.id] = el; }}
-              onMouseEnter={() => {
-                const isSingle = subcategoryProductCounts?.[prod.id] === 1;
-                if (!onArchPickForSingle || !isSingle) return;
-                if (subLeaveTimerRef.current) clearTimeout(subLeaveTimerRef.current);
-                const rect = subCardRefs.current[prod.id]?.getBoundingClientRect();
-                if (rect) setSubPopoverRect(rect);
-                const lh = subLabelRefs.current[prod.id]?.getBoundingClientRect().height ?? 0;
-                setSubLabelHeight(lh);
-                setArchPopoverSubId(prod.id);
-              }}
-              onMouseLeave={() => {
-                subLeaveTimerRef.current = setTimeout(() => {
-                  setArchPopoverSubId(null);
-                  setSubPopoverRect(null);
-                }, 120);
-              }}
               onClick={() => {
                 const isSingle = subcategoryProductCounts?.[prod.id] === 1;
-                if (!onArchPickForSingle || !isSingle) {
+                if (onArchPickForSingle && isSingle) {
+                  if (archPopoverSubId === prod.id) {
+                    setArchPopoverSubId(null);
+                    setSubPopoverRect(null);
+                  } else {
+                    const rect = subCardRefs.current[prod.id]?.getBoundingClientRect();
+                    if (rect) setSubPopoverRect(rect);
+                    const lh = subLabelRefs.current[prod.id]?.getBoundingClientRect().height ?? 0;
+                    setSubLabelHeight(lh);
+                    setArchPopoverSubId(prod.id);
+                  }
+                } else {
                   onSelect(prod.id);
                 }
               }}
@@ -1019,21 +1023,13 @@ function StepSubProduct({
         const rowHeight = Math.floor(availableHeight / 3);
         return (
           <div
+            ref={subPopoverRef}
             className="fixed z-50 rounded-b-[7px] overflow-hidden bg-black"
             style={{
               top: subPopoverRect.top + offsetTop,
               left: subPopoverRect.left + border,
               width: subPopoverRect.width - border * 2,
               height: rowHeight * 3,
-            }}
-            onMouseEnter={() => {
-              if (subLeaveTimerRef.current) clearTimeout(subLeaveTimerRef.current);
-            }}
-            onMouseLeave={() => {
-              subLeaveTimerRef.current = setTimeout(() => {
-                setArchPopoverSubId(null);
-                setSubPopoverRect(null);
-              }, 120);
             }}
           >
             {archOptions.map((option, i) => (
@@ -1138,7 +1134,21 @@ function StepMaterial({
   const [labelHeight, setLabelHeight] = useState(0);
   const cardRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const labelRefs = useRef<Record<string, HTMLSpanElement | null>>({});
-  const leaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prodPopoverRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!archPopoverProductId) return;
+    const handler = (e: MouseEvent) => {
+      if (prodPopoverRef.current && !prodPopoverRef.current.contains(e.target as Node)) {
+        const cardEl = cardRefs.current[archPopoverProductId];
+        if (cardEl && cardEl.contains(e.target as Node)) return;
+        setArchPopoverProductId(null);
+        setPopoverRect(null);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [archPopoverProductId]);
 
   useEffect(() => {
     if (
@@ -1250,24 +1260,20 @@ function StepMaterial({
               <div key={prod.id} className="relative flex-shrink-0">
                 <button
                   ref={(el) => { cardRefs.current[prodId] = el; }}
-                  onMouseEnter={() => {
-                    if (!isRemovableRestoration || forceArch) return;
-                    if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
-                    const rect = cardRefs.current[prodId]?.getBoundingClientRect();
-                    if (rect) setPopoverRect(rect);
-                    const lh = labelRefs.current[prodId]?.getBoundingClientRect().height ?? 0;
-                    setLabelHeight(lh);
-                    setArchPopoverProductId(prodId);
-                  }}
-                  onMouseLeave={() => {
-                    leaveTimerRef.current = setTimeout(() => {
-                      setArchPopoverProductId(null);
-                      setPopoverRect(null);
-                    }, 120);
-                  }}
                   onClick={() => {
                     if (!isRemovableRestoration || forceArch) {
                       onSelect(prodId, forceArch);
+                    } else {
+                      if (archPopoverProductId === prodId) {
+                        setArchPopoverProductId(null);
+                        setPopoverRect(null);
+                      } else {
+                        const rect = cardRefs.current[prodId]?.getBoundingClientRect();
+                        if (rect) setPopoverRect(rect);
+                        const lh = labelRefs.current[prodId]?.getBoundingClientRect().height ?? 0;
+                        setLabelHeight(lh);
+                        setArchPopoverProductId(prodId);
+                      }
                     }
                   }}
                   className={`group relative flex flex-col items-center overflow-hidden w-[200px] sm:w-[250px] md:w-[300px] rounded-[7px] border-[3px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${
@@ -1308,21 +1314,13 @@ function StepMaterial({
         const rowHeight = Math.floor(availableHeight / 3);
         return (
           <div
+            ref={prodPopoverRef}
             className="fixed z-50 rounded-b-[7px] overflow-hidden bg-black"
             style={{
               top: popoverRect.top + offsetTop,
               left: popoverRect.left + border,
               width: popoverRect.width - border * 2,
               height: rowHeight * 3,
-            }}
-            onMouseEnter={() => {
-              if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
-            }}
-            onMouseLeave={() => {
-              leaveTimerRef.current = setTimeout(() => {
-                setArchPopoverProductId(null);
-                setPopoverRect(null);
-              }, 120);
             }}
           >
             {archOptions.map((option, i) => (

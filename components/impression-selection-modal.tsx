@@ -340,6 +340,7 @@ export function ImpressionSelectionModal({
 
   const topArchLabel = topArch === "maxillary" ? "Maxillary" : "Mandibular"
   const bottomArchLabel = bottomArch === "maxillary" ? "Maxillary" : "Mandibular"
+  const showBottomSection = !!bottomArch && (!isDualArch || hasTopSelection)
 
   const handleDone = () => {
     // Single close path avoids double-commit when parent uses the same logic in onClose and onConfirm.
@@ -356,8 +357,8 @@ export function ImpressionSelectionModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="w-screen max-w-[100vw] sm:max-w-[100vw] max-h-[90dvh] overflow-hidden flex flex-col p-0 border-0 rounded-none">
-        <div className="flex flex-col px-3 sm:px-6 md:px-10 lg:px-16 py-4 sm:py-6 md:py-8 gap-4 sm:gap-5 bg-white w-full min-h-0 overflow-y-auto max-h-[90dvh]">
+      <DialogContent className="w-[96vw] max-w-[1120px] max-h-[94dvh] overflow-hidden flex flex-col p-0 border-0 rounded-[10px]">
+        <div className="flex flex-col px-3 sm:px-5 md:px-8 lg:px-10 py-3 sm:py-5 md:py-6 gap-3 sm:gap-4 bg-white w-full min-h-0 overflow-y-auto max-h-[94dvh]">
 
           {modalHeading ? (
             <h2 className="font-['Verdana'] font-bold text-lg sm:text-xl text-center text-[#1d1d1b] tracking-wide -mt-1 mb-1">
@@ -391,7 +392,7 @@ export function ImpressionSelectionModal({
           </div>
 
           {/* Bottom arch section */}
-          {bottomArch && (
+          {showBottomSection && bottomArch && (
             <div
               className={cn(
                 "relative rounded-[12px] px-4 sm:px-6 pt-7 pb-5 border-2 transition-colors",
@@ -424,6 +425,12 @@ export function ImpressionSelectionModal({
                 </button>
               </div>
               )}
+            </div>
+          )}
+
+          {isDualArch && bottomArch && !hasTopSelection && (
+            <div className="text-center text-sm text-[#7F7F7F] font-['Verdana']">
+              Select at least one {topArchLabel.toLowerCase()} impression to continue.
             </div>
           )}
 
