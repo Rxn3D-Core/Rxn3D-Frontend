@@ -456,31 +456,27 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
         const retentionTypes = retentionTypesByTooth[retentionPopoverTooth] || []
         const selectedType = retentionTypes.length > 0 ? retentionTypes[0] : null
         return ReactDOM.createPortal(
-          <PopoverPositioner key={retentionPopoverTooth} targetX={popoverPosition.left} targetY={popoverPosition.top} containerLeft={popoverPosition.containerLeft} containerRight={popoverPosition.containerRight}>
-            <RetentionTypePopover
-              retentionOptions={retentionOptions}
-              onSelectRetentionType={(type) => onSelectRetentionType(retentionPopoverTooth, type)}
-              selectedType={selectedType || undefined}
-              onClose={onClosePopover}
-              onDeselect={() => {
-                // Deselect by calling with the currently selected type (triggers deselection logic)
-                if (selectedType) {
-                  onSelectRetentionType(retentionPopoverTooth, selectedType)
-                }
-              }}
-              onDeselectTooth={() => {
-                // Deselect the tooth directly (bypasses toggle logic)
-                if (retentionPopoverTooth !== null) {
-                  if (onDeselectTooth) {
-                    onDeselectTooth(retentionPopoverTooth)
-                  } else if (onToothClick) {
-                    // Fallback to toggle if onDeselectTooth is not provided
-                    onToothClick(retentionPopoverTooth)
+          <PopoverPositioner key={retentionPopoverTooth} targetX={popoverPosition.left} targetY={popoverPosition.top} containerLeft={popoverPosition.containerLeft} containerRight={popoverPosition.containerRight}
+            renderChildren={(arrowOffsetX) => (
+              <RetentionTypePopover
+                retentionOptions={retentionOptions}
+                onSelectRetentionType={(type) => onSelectRetentionType(retentionPopoverTooth, type)}
+                selectedType={selectedType || undefined}
+                onClose={onClosePopover}
+                onDeselectTooth={() => {
+                  if (retentionPopoverTooth !== null) {
+                    if (onDeselectTooth) {
+                      onDeselectTooth(retentionPopoverTooth)
+                    } else if (onToothClick) {
+                      onToothClick(retentionPopoverTooth)
+                    }
                   }
-                }
-              }}
-            />
-          </PopoverPositioner>,
+                }}
+                arrowOffsetX={arrowOffsetX}
+                arrowDirection="down"
+              />
+            )}
+          />,
           document.body
         )
       })()

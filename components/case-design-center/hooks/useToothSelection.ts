@@ -2,20 +2,12 @@
 
 import { useState } from "react";
 import type { Arch, RetentionType, RetentionPopoverState, AddedProduct, ProductExtraction } from "../types";
-import { isRemovableCategory } from "../utils/categoryHelpers";
-
-/** Exported for use in useCaseDesignState when computing active product category. */
-export function isRemovablesCategoryName(name: string | undefined): boolean {
-  return isRemovableCategory(name);
-}
+import { hasRetentionOptions } from "../utils/categoryHelpers";
 
 function isRemovablesArch(addedProducts: AddedProduct[], arch: Arch): boolean {
   return addedProducts
     .filter((ap) => ap.arch === arch)
-    .some((ap) => {
-      const name = ap.product?.subcategory?.category?.name || ap.product?.category_name || "";
-      return isRemovableCategory(name);
-    });
+    .some((ap) => !hasRetentionOptions(ap.product));
 }
 
 export interface TreatArchAsRemovables {

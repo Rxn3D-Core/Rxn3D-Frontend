@@ -11,7 +11,7 @@ import { CaseSummaryNotes } from "./components/CaseSummaryNotes";
 import { FloatingActions } from "./components/FloatingActions";
 import { useSlipCreation } from "@/contexts/slip-creation-context";
 import type { SlipCreationProduct } from "@/contexts/slip-creation-context";
-import { isFixedCategory, isRemovableCategory, getCategoryName } from "./utils/categoryHelpers";
+import { isFixedCategory, isRemovableCategory } from "./utils/categoryHelpers";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { getBusinessSettings } from "@/lib/api-business-settings";
@@ -24,7 +24,7 @@ const _productCache = new Map<string, any>();
 const _productInflight = new Map<string, Promise<any>>();
 
 /** Fetch basic product info for the accordion (name/image/category). */
-async function fetchProductDetails(productId: number): Promise<{ name: string; image_url: string | null; category_name: string; subcategory_name: string } | null> {
+async function fetchProductDetails(productId: number): Promise<{ name: string; image_url: string | null; category_name: string; subcategory_name: string; retention_options?: unknown[]; extractions?: unknown[] } | null> {
   const role = localStorage.getItem("role");
   const customerId = Number(
     role === "office_admin" || role === "doctor"
@@ -41,6 +41,8 @@ async function fetchProductDetails(productId: number): Promise<{ name: string; i
       image_url: data.image_url || null,
       category_name: data.subcategory?.category?.name || "",
       subcategory_name: data.subcategory?.name || "",
+      retention_options: data.retention_options,
+      extractions: data.extractions,
     } : null;
   }
 
@@ -52,6 +54,8 @@ async function fetchProductDetails(productId: number): Promise<{ name: string; i
       image_url: data.image_url || null,
       category_name: data.subcategory?.category?.name || "",
       subcategory_name: data.subcategory?.name || "",
+      retention_options: data.retention_options,
+      extractions: data.extractions,
     } : null;
   }
 
@@ -85,6 +89,8 @@ async function fetchProductDetails(productId: number): Promise<{ name: string; i
     image_url: data.image_url || null,
     category_name: data.subcategory?.category?.name || "",
     subcategory_name: data.subcategory?.name || "",
+    retention_options: data.retention_options,
+    extractions: data.extractions,
   };
 }
 
@@ -139,7 +145,7 @@ function parseShadeDisplayName(raw: string): string {
  */
 function snapshotToProduct(snap: SlipProductSnapshot): SlipCreationProduct {
   const product = snap.productApiData;
-  const isFixed = isFixedCategory(getCategoryName(product));
+  const isFixed = isFixedCategory(product);
 
   // --- Stage --- plain name; resolve stage_id from product.stages
   const stageName = snap.stageName ?? snap.fieldValues["stage"] ?? snap.fieldValues["fixed_stage"] ?? null;
@@ -388,7 +394,7 @@ export default function Page() {
         // Fetch real product details so the accordion shows the correct name/image
         const details = addedProductId ? await fetchProductDetails(addedProductId) : null;
         const categoryName = details?.category_name || result.categoryName || "";
-        const isRemovable = isRemovableCategory(categoryName);
+        const isRemovable = isRemovableCategory(details);
         const newProduct: AddedProduct = {
           id: Date.now(),
           productId: addedProductId,

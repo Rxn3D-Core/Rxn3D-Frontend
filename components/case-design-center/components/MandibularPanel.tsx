@@ -43,7 +43,7 @@ import type { FieldStep } from "../hooks/useToothFieldProgress";
 import { getFixedFieldChain } from "../hooks/useToothFieldProgress";
 import type { ImplantDetailData } from "./ImplantDetailSection";
 import { GumShadePicker } from "./GumShadePicker";
-import { isRemovableCategory, isFixedCategory, getCategoryName, isSingleStageNoStages } from "../utils/categoryHelpers";
+import { isRemovableCategory, isFixedCategory, isSingleStageNoStages } from "../utils/categoryHelpers";
 import { resolveVariationDisplay } from "../utils/variationHelpers";
 import { isSingleDefaultOnlyExtractionList } from "../utils/extractionHelpers";
 import { parseAddonDisplayItems } from "../utils/addonDisplayHelpers";
@@ -880,8 +880,7 @@ export function MandibularPanel({
   useEffect(() => {
     for (const ap of addedProducts.filter(ap => ap.arch === "mandibular")) {
       if (!ap.productId) continue;
-      const apCatName = (ap.product?.subcategory?.category?.name || ap.product?.category_name || "").toLowerCase();
-      if (!isRemovableCategory(apCatName)) continue;
+      if (!isRemovableCategory(ap.product)) continue;
       const hasTeeth = MANDIBULAR_ALL_TEETH.some(tn => getToothProductCard("mandibular", tn) === ap.id);
       if (hasTeeth) continue;
       const virtualSlot = -ap.id;
@@ -896,8 +895,7 @@ export function MandibularPanel({
   useEffect(() => {
     for (const ap of addedProducts.filter(ap => ap.arch === "mandibular")) {
       if (!ap.productId) continue;
-      const apCatName = (ap.product?.subcategory?.category?.name || ap.product?.category_name || "").toLowerCase();
-      if (!isFixedCategory(apCatName)) continue;
+      if (!isFixedCategory(ap.product)) continue;
       const assignedTeeth = MANDIBULAR_ALL_TEETH.filter(tn => getToothProductCard("mandibular", tn) === ap.id);
       for (const tn of assignedTeeth) {
         if (getToothProduct("mandibular", tn)) continue;
@@ -920,8 +918,7 @@ export function MandibularPanel({
       // Check if the active added card is a removable product
       const activeAp = addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "mandibular");
       if (activeAp) {
-        const apCatName = (activeAp.product?.subcategory?.category?.name || activeAp.product?.category_name || "").toLowerCase();
-        if (isRemovableCategory(apCatName)) {
+        if (isRemovableCategory(activeAp.product)) {
           // For removable products, always show all selected teeth (don't filter by card ownership)
           return mandibularTeeth;
         }
@@ -1291,10 +1288,9 @@ export function MandibularPanel({
             .filter(ap => ap.arch === "mandibular")
             .map((ap, apIndex) => {
               // For removable restoration products, use all arch teeth so accordion stays visible when teeth are marked missing
-              const apCatName = ap.product?.subcategory?.category?.name || ap.product?.category_name || "";
               // Each added product is an independent slot — always show its accordion.
               // Newly added Fixed products have no teeth yet and show an empty state until the user assigns teeth.
-              const isApRemovables = isRemovableCategory(apCatName);
+              const isApRemovables = isRemovableCategory(ap.product);
               const cardTeethSource = isApRemovables ? MANDIBULAR_ALL_TEETH : mandibularTeeth;
               const cardTeeth = cardTeethSource.filter(
                 tn => isApRemovables
@@ -1509,17 +1505,17 @@ export function MandibularPanel({
                           <AccordionBadge>{cardSubcategoryName}</AccordionBadge>
                         )}
                         {!isSingleStageNoStages(cardProduct) && (() => {
-                          const apStageKey = isFixedCategory(cardCategoryName)
+                          const apStageKey = isFixedCategory(apProduct)
                             ? `mandibular_fixed_${apRepTn}`
                             : `mandibular_prep_${apRepTn}`;
-                          const apStageVal = apRepTn > 0 ? (selectedStages[apStageKey] || getFieldValue("mandibular", apRepTn, isFixedCategory(cardCategoryName) ? "fixed_stage" : "stage")) : "";
+                          const apStageVal = apRepTn > 0 ? (selectedStages[apStageKey] || getFieldValue("mandibular", apRepTn, isFixedCategory(apProduct) ? "fixed_stage" : "stage")) : "";
                           return apStageVal ? <AccordionBadge>{apStageVal}</AccordionBadge> : null;
                         })()}
                         {(() => {
-                          const apStageKey = isFixedCategory(cardCategoryName)
+                          const apStageKey = isFixedCategory(apProduct)
                             ? `mandibular_fixed_${apRepTn}`
                             : `mandibular_prep_${apRepTn}`;
-                          const apStageValForDays = apRepTn > 0 ? (selectedStages[apStageKey] || getFieldValue("mandibular", apRepTn, isFixedCategory(cardCategoryName) ? "fixed_stage" : "stage")) : "";
+                          const apStageValForDays = apRepTn > 0 ? (selectedStages[apStageKey] || getFieldValue("mandibular", apRepTn, isFixedCategory(apProduct) ? "fixed_stage" : "stage")) : "";
                           const apStageObj = cardProduct?.stages?.find(s => s.name === apStageValForDays);
                           const apDays = apStageObj?.days_to_process;
                           const apEstDays = apDays != null
@@ -1532,7 +1528,7 @@ export function MandibularPanel({
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            const wasFixed = isFixedCategory(cardCategoryName);
+                            const wasFixed = isFixedCategory(apProduct);
                             const remainingAdded = addedProducts.filter(p => p.arch === "mandibular").length - 1;
                             const hasCard0 = mandibularHasFixedCard0 || mandibularHasRemovablesCard0;
                             MANDIBULAR_ALL_TEETH.filter(tn => getToothProductCard("mandibular", tn) === ap.id).forEach(tn => {
@@ -1564,13 +1560,12 @@ export function MandibularPanel({
                           Select teeth from the chart above to assign them to this product.
                         </p>
                       ) : (() => {
-                        const isCardRemovables = isApRemovables || isRemovableCategory(cardCategoryName);
+                        const isCardRemovables = isApRemovables || isRemovableCategory(apProduct);
                         // For removable cards with no teeth yet, use the virtual slot (-ap.id) where product data was pre-fetched
                         const repTn = cardTeeth.length > 0 ? cardTeeth[0] : (isCardRemovables ? -ap.id : 0);
                         const toothProduct = getToothProduct("mandibular", repTn);
-                        const categoryName = toothProduct?.subcategory?.category?.name?.toLowerCase() || "";
-                        const isFixed = isFixedCategory(categoryName);
-                        const isRemovables = isCardRemovables || isRemovableCategory(categoryName);
+                        const isFixed = isFixedCategory(toothProduct);
+                        const isRemovables = isCardRemovables || isRemovableCategory(toothProduct);
                         const fixedChain = isFixed ? getFixedFieldChain(toothProduct?.advance_fields) : undefined;
                         const advFields = toothProduct?.advance_fields;
                         const isF = (step: string) => {
@@ -1880,11 +1875,10 @@ export function MandibularPanel({
                   const selectedProduct = getToothProduct("mandibular", firstToothNumber);
                   const productName = selectedProduct?.name || "Select Product";
                   const productImage = selectedProduct?.image_url || "/placeholder.svg?height=48&width=48&query=dental+crown+implant+tooth";
-                  const categoryName = selectedProduct?.subcategory?.category?.name || "";
                   const subcategoryName = selectedProduct?.subcategory?.name || "";
 
                   // Skip removables products — they have their own dedicated accordion section
-                  if (isRemovableCategory(categoryName)) return null;
+                  if (isRemovableCategory(selectedProduct)) return null;
                   const fixedStageName = selectedStages[`mandibular_prep_${firstToothNumber}`] || selectedStages[`mandibular_fixed_${firstToothNumber}`] || "";
                   const fixedStageObj = selectedProduct?.stages?.find(s => s.name === fixedStageName);
                   const fixedDays = fixedStageObj?.days_to_process;
@@ -1940,8 +1934,8 @@ export function MandibularPanel({
                     );
 
                   // ---- Product Accordion (progressive step-by-step) ----
-                  const showFixedActionsMand = isFixedCategory(categoryName) && isFieldCompleted("mandibular", groupStageToothNumber, "fixed_impression") && !caseSubmitted;
-                  const showPrepActionsMand = !isFixedCategory(categoryName) && isFieldCompleted("mandibular", firstToothNumber, "addons") && !caseSubmitted;
+                  const showFixedActionsMand = isFixedCategory(selectedProduct) && isFieldCompleted("mandibular", groupStageToothNumber, "fixed_impression") && !caseSubmitted;
+                  const showPrepActionsMand = !isFixedCategory(selectedProduct) && isFieldCompleted("mandibular", firstToothNumber, "addons") && !caseSubmitted;
                   const showActionsMand = showFixedActionsMand || showPrepActionsMand;
 
                   return (
@@ -2043,17 +2037,17 @@ export function MandibularPanel({
                       <div className={`border-t border-[#d9d9d9] p-4 bg-white space-y-3 max-h-[600px] overflow-y-auto scrollbar-blue${caseSubmitted ? " pointer-events-none select-none" : ""}`}>
                         {!isSingleStageNoStages(selectedProduct) && (
                         <AutoOpenStageIfEmpty
-                          productId={isFixedCategory(categoryName) ? groupStageProductIdFixed : `mandibular_prep_${firstToothNumber}`}
+                          productId={isFixedCategory(selectedProduct) ? groupStageProductIdFixed : `mandibular_prep_${firstToothNumber}`}
                           arch="mandibular"
-                          toothNumber={isFixedCategory(categoryName) ? groupStageToothNumber : firstToothNumber}
+                          toothNumber={isFixedCategory(selectedProduct) ? groupStageToothNumber : firstToothNumber}
                           isExpanded={true}
-                          isStageVisible={isFixedCategory(categoryName) ? isFixed("fixed_stage") : isFieldVisible("mandibular", firstToothNumber, "stage")}
-                          isStageEmpty={isFixedCategory(categoryName) ? !(selectedStages[groupStageProductIdFixed] || getFieldValue("mandibular", groupStageToothNumber, "fixed_stage")) : !(selectedStages[`mandibular_prep_${firstToothNumber}`] || getFieldValue("mandibular", firstToothNumber, "stage"))}
+                          isStageVisible={isFixedCategory(selectedProduct) ? isFixed("fixed_stage") : isFieldVisible("mandibular", firstToothNumber, "stage")}
+                          isStageEmpty={isFixedCategory(selectedProduct) ? !(selectedStages[groupStageProductIdFixed] || getFieldValue("mandibular", groupStageToothNumber, "fixed_stage")) : !(selectedStages[`mandibular_prep_${firstToothNumber}`] || getFieldValue("mandibular", firstToothNumber, "stage"))}
                           onOpenStage={handleOpenStageModal}
                           caseSubmitted={caseSubmitted}
                         />
                         )}
-                        {isFixedCategory(categoryName) && (
+                        {isFixedCategory(selectedProduct) && (
                           <>
                             <AutoOpenShadeGuideIfEmpty
                               arch="mandibular"
@@ -2078,7 +2072,7 @@ export function MandibularPanel({
                           </>
                         )}
 
-                        {isFixedCategory(categoryName) ? (
+                        {isFixedCategory(selectedProduct) ? (
                           <FixedRestorationFields
                             arch="mandibular"
                             firstToothNumber={groupStageToothNumber}
