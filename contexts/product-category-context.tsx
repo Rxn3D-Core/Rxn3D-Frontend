@@ -15,6 +15,8 @@ export interface ProductCategory {
   sub_name?: string // For subcategories from API
   code: string
   type: string
+  /** Whether jaw selection applies (library_categories). */
+  show_jaw_selection?: "Yes" | "No"
   sequence: number
   status: string
   parent_id: number | null
@@ -30,6 +32,8 @@ export interface ProductCategoryPayload {
   name: string
   code: string
   type: string
+  /** Required on POST /library/categories; optional on PUT when allowed. */
+  show_jaw_selection: "Yes" | "No"
   sequence: number
   status: string
   parent_id?: number | null
@@ -138,6 +142,7 @@ type ProductCategoryApi = {
   name: string
   code: string
   type: string
+  show_jaw_selection?: "Yes" | "No"
   sequence: number
   status: string
   customer_id: number | null
@@ -768,11 +773,15 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
         }
         const result = await response.json()
         const category = result.data
+        const jaw = category.show_jaw_selection
+        const showJawSelection: "Yes" | "No" =
+          jaw === "No" || String(jaw).toLowerCase() === "no" ? "No" : "Yes"
         return {
           id: category.id,
           name: category.name,
           code: category.code,
           type: category.type,
+          show_jaw_selection: showJawSelection,
           sequence: category.sequence,
           status: category.status,
           parent_id: null,

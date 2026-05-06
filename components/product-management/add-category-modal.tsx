@@ -31,6 +31,9 @@ const categorySchema = z.object({
   code: z.string().min(1, "Code is required."),
   type: z.string().min(1, "Arch type is required."),
   status: z.string().min(1, "Status is required."),
+  show_jaw_selection: z.enum(["Yes", "No"], {
+    required_error: "Show jaw selection is required.",
+  }),
 })
 
 export function AddCategoryModal({ 
@@ -56,6 +59,7 @@ export function AddCategoryModal({
     name: "",
     code: "",
     type: "Both",
+    show_jaw_selection: "Yes" as "Yes" | "No",
     sequence: 1,
     status: "Active",
     case_pan_id: null as number | null,
@@ -113,10 +117,12 @@ export function AddCategoryModal({
   useEffect(() => {
     if (isOpen && isCopying && copyingCategory) {
       // Copying: use the provided copyingCategory data directly
+      const showJaw: "Yes" | "No" = copyingCategory.show_jaw_selection === "No" ? "No" : "Yes"
       setFormData({
         name: copyingCategory.name || "",
         code: copyingCategory.code || "",
         type: copyingCategory.type || "Both",
+        show_jaw_selection: showJaw,
         sequence: copyingCategory.sequence || 1,
         status: copyingCategory.status || "Active",
         case_pan_id: (copyingCategory as any).case_pan_id ?? null,
@@ -146,6 +152,7 @@ export function AddCategoryModal({
             name: detail.name || "",
             code: detail.code || "",
             type: detail.type || "Both",
+            show_jaw_selection: detail.show_jaw_selection === "No" ? "No" : "Yes",
             sequence: detail.sequence || 1,
             status: detail.status || "Active",
             case_pan_id: detail.case_pan_id ?? null,
@@ -187,6 +194,7 @@ export function AddCategoryModal({
       formData.name !== initialFormData.name ||
       formData.code !== initialFormData.code ||
       formData.type !== initialFormData.type ||
+      formData.show_jaw_selection !== initialFormData.show_jaw_selection ||
       formData.status !== initialFormData.status ||
       formData.case_pan_id !== initialFormData.case_pan_id ||
       imageBase64 !== null
@@ -215,6 +223,10 @@ export function AddCategoryModal({
     if (archLabel === "Upper arch only") apiArchValue = "Upper"
     else if (archLabel === "Lower arch only") apiArchValue = "Lower"
     handleInputChange("type", apiArchValue)
+  }
+
+  const handleShowJawSelectionChange = (value: "Yes" | "No") => {
+    handleInputChange("show_jaw_selection", value)
   }
 
   const resetForm = () => {
@@ -315,6 +327,7 @@ export function AddCategoryModal({
       name: formData.name,
       code: formData.code,
       type: formData.type,
+      show_jaw_selection: formData.show_jaw_selection,
       sequence: formData.sequence,
       status: formData.status,
       case_pan_id: formData.case_pan_id,
@@ -386,7 +399,8 @@ export function AddCategoryModal({
     formData.name.trim() !== "" &&
     formData.code.trim() !== "" &&
     formData.type.trim() !== "" &&
-    formData.status.trim() !== ""
+    formData.status.trim() !== "" &&
+    (formData.show_jaw_selection === "Yes" || formData.show_jaw_selection === "No")
 
   let currentArchLabel = t("categoryModal.bothArches", "Both Arches")
   if (formData.type === "Upper") currentArchLabel = t("categoryModal.upperArch", "Upper arch only")
@@ -598,8 +612,8 @@ export function AddCategoryModal({
                           </div>
                         </div> */}
 
-                        {/* Applicable Arch Section */}
-                        <div className="space-y-4">
+                        {/* Applicable Arch — hidden in UI; `formData.type` stays default "Both" (API: Both) unless loaded from edit/copy */}
+                        <div className="space-y-4 hidden" aria-hidden="true">
                           <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">
                             {t("categoryModal.archLabel", "Applicable Arch")} <span className="text-red-500">*</span>
                           </h3>
@@ -624,6 +638,42 @@ export function AddCategoryModal({
                               </div>
                             ))}
                           </div>
+                        </div>
+
+                        {/* Show jaw selection (library_categories) */}
+                        <div className="space-y-4">
+                          <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">
+                            {t("categoryModal.showJawSelectionLabel", "Show jaw selection")}{" "}
+                            <span className="text-red-500">*</span>
+                          </h3>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            {(["Yes", "No"] as const).map((opt) => (
+                              <div
+                                key={opt}
+                                className="flex items-center p-3 border rounded-lg hover:bg-gray-50 transition-colors"
+                              >
+                                <div
+                                  className={`w-5 h-5 rounded-full border-2 ${
+                                    formData.show_jaw_selection === opt ? "border-[#1162a8]" : "border-gray-300"
+                                  } flex items-center justify-center cursor-pointer mr-3`}
+                                  onClick={() => !effectiveDisableFields && handleShowJawSelectionChange(opt)}
+                                  style={effectiveDisableFields ? { pointerEvents: "none", opacity: 0.5 } : {}}
+                                >
+                                  {formData.show_jaw_selection === opt && (
+                                    <div className="w-2.5 h-2.5 rounded-full bg-[#1162a8]" />
+                                  )}
+                                </div>
+                                <span className="text-sm font-medium text-gray-700">
+                                  {opt === "Yes"
+                                    ? t("categoryModal.showJawYes", "Yes")
+                                    : t("categoryModal.showJawNo", "No")}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                          {validationErrors.show_jaw_selection && (
+                            <div className="text-sm text-red-600">{validationErrors.show_jaw_selection}</div>
+                          )}
                         </div>
                       </div>
                     </div>

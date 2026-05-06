@@ -388,6 +388,9 @@
     "upperArch": "Upper arch only",
     "lowerArch": "Lower arch only",
     "bothArches": "Both Arches",
+    "showJawSelectionLabel": "Show jaw selection",
+    "showJawYes": "Yes",
+    "showJawNo": "No",
     "cancel": "Cancel",
     "saveCategory": "Save Category",
     "saving": "Saving..."
