@@ -268,6 +268,10 @@ export default function ToothMappingPage() {
           detailedExtraction?.is_image_extraction ??
           editingToothStatus.is_image_extraction ??
           "No",
+        is_overlay:
+          detailedExtraction?.is_overlay ??
+          editingToothStatus.is_overlay ??
+          "No",
         image_url: detailedExtraction?.image_url ?? editingToothStatus.image_url ?? null,
       }
     : null
@@ -544,6 +548,7 @@ export default function ToothMappingPage() {
         mode={isCopying ? "create" : (editingToothStatus ? "edit" : "create")}
         isCopying={isCopying}
         onSuccess={refetch}
+        globalToothImageLibrary
       />
 
       <CreateToothStatusGroupModal

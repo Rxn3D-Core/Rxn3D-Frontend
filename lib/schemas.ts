@@ -624,7 +624,10 @@ export const ProductCreateFormSchema = z
     },
   )
   .refine(
-    (data) => data.category_id != null && data.category_id !== "" && Number.isFinite(Number(data.category_id)),
+    (data) => {
+      const cid = data.category_id as unknown
+      return cid != null && cid !== "" && Number.isFinite(Number(cid))
+    },
     {
       message: "Category is required",
       path: ["category_id"],
@@ -661,6 +664,12 @@ export const ExtractionSchema = z.object({
   status: z.enum(["Active", "Inactive"]),
   customer_id: z.number().nullable(),
   is_custom: z.enum(["Yes", "No"]),
+  /** Optional global-link flags for lab extractions. */
+  is_connected_to_global: z.boolean().optional(),
+  global_extraction_id: z.number().nullable().optional(),
+  global_extraction_name: z.string().nullable().optional(),
+  /** Sample image from global extraction mapping (if available). */
+  sample_image_url: z.string().nullable().optional(),
   /** When Yes, catalog can show an extraction image (see image_url). */
   is_image_extraction: z.enum(["Yes", "No"]).optional(),
   /** Public URL for the extraction image when present. */
@@ -706,6 +715,8 @@ export const CreateExtractionSchema = z.object({
     .optional(),
   /** When Yes, API expects base64 image in the `image` field (see ExtractionsApi). */
   is_image_extraction: z.enum(["Yes", "No"]).default("No"),
+  /** Global library only (superadmin): whether this extraction is used as overlay. */
+  is_overlay: z.enum(["Yes", "No"]).default("No").optional(),
 })
 
 export const UpdateExtractionSchema = z.object({
@@ -721,6 +732,8 @@ export const UpdateExtractionSchema = z.object({
     .nullable()
     .optional(),
   is_image_extraction: z.enum(["Yes", "No"]).optional(),
+  /** Global library only (superadmin). */
+  is_overlay: z.enum(["Yes", "No"]).optional(),
 })
 
 export const ExtractionsFiltersSchema = z.object({
