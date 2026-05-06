@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { X, HelpCircle, Edit, Copy, Trash2, Search, Loader2, Camera } from "lucide-react"
+import { X, HelpCircle, Copy, Search, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -10,8 +10,6 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useTranslation } from "react-i18next"
-import { AddOptionModal } from "./add-option-modal"
 import { Implant, ImplantPlatform } from "@/lib/api/advance-mode-query"
 
 interface AddImplantModalProps {
@@ -30,13 +28,23 @@ interface PlatformOption {
   isDefault: boolean
   status: boolean
   price?: string
+  sizes: SizeOption[]
+}
+
+interface SizeOption {
+  id: string
+  isDefault: boolean
+  diameterMm: string
+  lengthMm: string
+  label: string
+  price?: string
+  status: boolean
 }
 
 export function AddImplantModal({ isOpen, onClose, onSave, implant, isEditMode = false, isSaving: externalIsSaving = false }: AddImplantModalProps) {
-  const { t } = useTranslation()
-  const [activeTab, setActiveTab] = useState<"platform-options" | "platform-pricing">("platform-options")
+  const [activeTab, setActiveTab] = useState<"platform-options" | "additional-pricing">("platform-options")
   const [searchQuery, setSearchQuery] = useState("")
-  const [isAddOptionModalOpen, setIsAddOptionModalOpen] = useState(false)
+  const [selectedPlatformId, setSelectedPlatformId] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     brandName: "",
     systemName: "",
@@ -48,9 +56,9 @@ export function AddImplantModal({ isOpen, onClose, onSave, implant, isEditMode =
 
   const [pricingData, setPricingData] = useState({
     canAddAdditionalCharges: false,
-    chargeType: "once-per-implant" as "once-per-implant" | "per-platform-option",
+    chargeType: "once-per-implant" as "once-per-implant" | "per-platform-option" | "per-size-option",
     additionalCharge: "0.00",
-    chargeScope: "per-case",
+    chargeScope: "per_case",
   })
 
   const [platforms, setPlatforms] = useState<PlatformOption[]>([])
@@ -79,11 +87,17 @@ export function AddImplantModal({ isOpen, onClose, onSave, implant, isEditMode =
         implantDetails: true,
       })
 
+      const apiChargeType = implant.charge_type as string | null | undefined
       setPricingData({
         canAddAdditionalCharges: implant.has_additional_pricing === "Yes",
-        chargeType: implant.charge_type === "once_per_implant" ? "once-per-implant" : "per-platform-option",
+        chargeType:
+          apiChargeType === "per_size_option"
+            ? "per-size-option"
+            : apiChargeType === "per_platform_option"
+              ? "per-platform-option"
+              : "once-per-implant",
         additionalCharge: implant.price?.toString() || "0.00",
-        chargeScope: implant.charge_scope || "per-case",
+        chargeScope: implant.charge_scope || "per_case",
       })
 
       // Set image preview if implant has image
@@ -105,16 +119,26 @@ export function AddImplantModal({ isOpen, onClose, onSave, implant, isEditMode =
           isDefault: platform.is_default === "Yes",
           status: platform.status === "Active",
           price: platform.price?.toString() || "0.00",
+          sizes: ((platform as any).sizes || []).map((size: any, sizeIndex: number) => ({
+            id: size.id?.toString() || `${platform.id || index + 1}-size-${sizeIndex + 1}`,
+            isDefault: size.is_default === "Yes",
+            diameterMm: size.diameter_mm?.toString() || "",
+            lengthMm: size.length_mm?.toString() || "",
+            label: size.label || "",
+            price: size.price?.toString() || "0",
+            status: (size.status || "Active") === "Active",
+          })),
         }))
         setPlatforms(convertedPlatforms)
+        setSelectedPlatformId(convertedPlatforms[0]?.id ?? null)
       } else {
         setPlatforms([])
+        setSelectedPlatformId(null)
       }
     } else if (isOpen && !isEditMode) {
       // Reset all fields when modal opens in create mode
       setActiveTab("platform-options")
       setSearchQuery("")
-      setIsAddOptionModalOpen(false)
       setInternalIsSaving(false)
       setFormData({
         brandName: "",
@@ -126,11 +150,12 @@ export function AddImplantModal({ isOpen, onClose, onSave, implant, isEditMode =
       })
       setPricingData({
         canAddAdditionalCharges: false,
-        chargeType: "once-per-implant" as "once-per-implant" | "per-platform-option",
+        chargeType: "once-per-implant" as "once-per-implant" | "per-platform-option" | "per-size-option",
         additionalCharge: "0.00",
-        chargeScope: "per-case",
+        chargeScope: "per_case",
       })
       setPlatforms([])
+      setSelectedPlatformId(null)
       setCurrentPage(1)
       setImageBase64(null)
       setImagePreview(null)
@@ -225,8 +250,8 @@ export function AddImplantModal({ isOpen, onClose, onSave, implant, isEditMode =
           apiData.price = parseFloat(pricingData.additionalCharge) || 0
           apiData.charge_scope = pricingData.chargeScope
         } else {
-          apiData.charge_type = "per_platform_option"
-          // Platforms will be included with prices
+          apiData.charge_type = pricingData.chargeType === "per-size-option" ? "per_size_option" : "per_platform_option"
+          apiData.charge_scope = pricingData.chargeScope
         }
       }
 
@@ -246,6 +271,32 @@ export function AddImplantModal({ isOpen, onClose, onSave, implant, isEditMode =
           
           if (pricingData.chargeType === "per-platform-option" && platform.price) {
             platformData.price = parseFloat(platform.price) || 0
+          }
+
+          if (platform.sizes.length > 0) {
+            platformData.sizes = platform.sizes.map((size, sizeIndex) => {
+              const sizeData: any = {
+                is_default: size.isDefault ? "Yes" : "No",
+                diameter_mm: parseFloat(size.diameterMm) || 0,
+                length_mm: parseFloat(size.lengthMm) || 0,
+                label: size.label?.trim() || `Ø ${size.diameterMm || 0} mm × ${size.lengthMm || 0} mm`,
+                status: size.status ? "Active" : "Inactive",
+                sequence: sizeIndex + 1,
+              }
+
+              if (pricingData.chargeType === "per-size-option") {
+                sizeData.price = parseFloat(size.price || "0") || 0
+              }
+
+              if (isEditMode) {
+                const sizeId = parseInt(size.id, 10)
+                if (!isNaN(sizeId)) {
+                  sizeData.id = sizeId
+                }
+              }
+
+              return sizeData
+            })
           }
           
           // Include id if editing existing platform
@@ -294,19 +345,20 @@ export function AddImplantModal({ isOpen, onClose, onSave, implant, isEditMode =
   }
 
   const handleAddOption = () => {
-    setIsAddOptionModalOpen(true)
-  }
-
-  const handleSaveNewOption = (data: { image: string | null; label: string }) => {
     const newPlatform: PlatformOption = {
-      id: String(platforms.length + 1),
-      image: data.image,
-      platformName: data.label,
+      id: `tmp-platform-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      image: null,
+      platformName: "",
       isDefault: false,
       status: true,
       price: "0.00",
+      sizes: [],
     }
-    setPlatforms([...platforms, newPlatform])
+    const updated = [...platforms, newPlatform]
+    setPlatforms(updated)
+    if (!selectedPlatformId) {
+      setSelectedPlatformId(newPlatform.id)
+    }
   }
 
   const handleUpdatePlatformPrice = (id: string, price: string) => {
@@ -317,8 +369,20 @@ export function AddImplantModal({ isOpen, onClose, onSave, implant, isEditMode =
     )
   }
 
+  const handleUpdatePlatformName = (id: string, platformName: string) => {
+    setPlatforms(
+      platforms.map((plat) =>
+        plat.id === id ? { ...plat, platformName } : plat
+      )
+    )
+  }
+
   const handleDeletePlatform = (id: string) => {
-    setPlatforms(platforms.filter((plat) => plat.id !== id))
+    const updated = platforms.filter((plat) => plat.id !== id)
+    setPlatforms(updated)
+    if (selectedPlatformId === id) {
+      setSelectedPlatformId(updated[0]?.id ?? null)
+    }
   }
 
   const handleDuplicatePlatform = (id: string) => {
@@ -329,6 +393,10 @@ export function AddImplantModal({ isOpen, onClose, onSave, implant, isEditMode =
         id: String(platforms.length + 1),
         platformName: `${platform.platformName} (Copy)`,
         price: platform.price || "0.00",
+        sizes: platform.sizes.map((size) => ({
+          ...size,
+          id: `tmp-size-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        })),
       }
       setPlatforms([...platforms, newPlatform])
     }
@@ -348,6 +416,77 @@ export function AddImplantModal({ isOpen, onClose, onSave, implant, isEditMode =
       platforms.map((plat) =>
         plat.id === id ? { ...plat, status: !plat.status } : plat
       )
+    )
+  }
+
+  const getSelectedPlatform = () => platforms.find((platform) => platform.id === selectedPlatformId) ?? null
+
+  const handleAddSize = () => {
+    if (!selectedPlatformId) return
+    setPlatforms((prev) =>
+      prev.map((platform) => {
+        if (platform.id !== selectedPlatformId) return platform
+        const newSize: SizeOption = {
+          id: `tmp-size-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          isDefault: platform.sizes.length === 0,
+          diameterMm: "",
+          lengthMm: "",
+          label: "",
+          price: "0",
+          status: true,
+        }
+        return { ...platform, sizes: [...platform.sizes, newSize] }
+      }),
+    )
+  }
+
+  const handleUpdateSize = (platformId: string, sizeId: string, patch: Partial<SizeOption>) => {
+    setPlatforms((prev) =>
+      prev.map((platform) => {
+        if (platform.id !== platformId) return platform
+        return {
+          ...platform,
+          sizes: platform.sizes.map((size) => {
+            if (size.id !== sizeId) return size
+            const previousAutoLabel = `Ø ${size.diameterMm || "0"} mm × ${size.lengthMm || "0"} mm`
+            const next = { ...size, ...patch }
+            if (
+              patch.diameterMm !== undefined ||
+              patch.lengthMm !== undefined
+            ) {
+              const d = next.diameterMm || "0"
+              const l = next.lengthMm || "0"
+              // Keep manual label edits, but keep auto-generated labels in sync with inputs.
+              if (!size.label || size.label === previousAutoLabel) {
+                next.label = `Ø ${d} mm × ${l} mm`
+              }
+            }
+            return next
+          }),
+        }
+      }),
+    )
+  }
+
+  const handleDeleteSize = (platformId: string, sizeId: string) => {
+    setPlatforms((prev) =>
+      prev.map((platform) => {
+        if (platform.id !== platformId) return platform
+        const filtered = platform.sizes.filter((size) => size.id !== sizeId)
+        return { ...platform, sizes: filtered }
+      }),
+    )
+  }
+
+  const toggleSizeDefault = (platformId: string, sizeId: string) => {
+    setPlatforms((prev) =>
+      prev.map((platform) => {
+        if (platform.id !== platformId) return platform
+        return {
+          ...platform,
+          sizes: platform.sizes.map((size) => ({ ...size, isDefault: size.id === sizeId })),
+        }
+      }),
     )
   }
 
@@ -548,14 +687,14 @@ export function AddImplantModal({ isOpen, onClose, onSave, implant, isEditMode =
                 Platform Options
               </button>
               <button
-                onClick={() => setActiveTab("platform-pricing")}
+                onClick={() => setActiveTab("additional-pricing")}
                 className={`pb-2 px-1 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === "platform-pricing"
+                  activeTab === "additional-pricing"
                     ? "border-[#1162a8] text-[#1162a8]"
                     : "border-transparent text-gray-500 hover:text-gray-700"
                 }`}
               >
-                Platform Pricing
+                Additional Pricing
               </button>
             </div>
           </div>
@@ -563,120 +702,206 @@ export function AddImplantModal({ isOpen, onClose, onSave, implant, isEditMode =
           {/* Platform Options Tab Content */}
           {activeTab === "platform-options" && (
             <div>
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 mb-4">
-                <div></div>
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
-                  <Button
-                    onClick={handleAddOption}
-                    variant="outline"
-                    className="text-sm w-full sm:w-auto"
-                  >
-                    Add option
-                  </Button>
-                  <div className="relative w-full sm:w-64">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <Input
-                      type="search"
-                      placeholder="Search Platform"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10 w-full"
-                    />
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                <div className="lg:col-span-3 border border-gray-200 rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Button onClick={handleAddOption} variant="outline" size="sm">
+                      Add Platform
+                    </Button>
+                    <div className="relative flex-1">
+                      <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-gray-400" />
+                      <Input
+                        type="search"
+                        placeholder="Search platform..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-7 h-8 text-xs"
+                      />
+                    </div>
                   </div>
-                </div>
-              </div>
 
-              {/* Platforms Table */}
-              <div className="border border-gray-200 rounded-lg overflow-x-auto">
-                <table className="w-full min-w-[600px]">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-2 sm:px-4 py-2 sm:py-3 text-left">
-                        <Checkbox className="data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]" />
-                      </th>
-                      <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold text-gray-900">Image</th>
-                      <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold text-gray-900">Platform Name</th>
-                        {pricingData.chargeType === "per-platform-option" && (
-                        <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold text-gray-900">Price</th>
-                      )}
-                      <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold text-gray-900">Default</th>
-                      <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold text-gray-900">Status</th>
-                      <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-semibold text-gray-900">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
                     {paginatedPlatforms.map((platform) => (
-                      <tr key={platform.id} className="hover:bg-gray-50">
-                        <td className="px-2 sm:px-4 py-2 sm:py-3">
-                          <Checkbox className="data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]" />
-                        </td>
-                        <td className="px-2 sm:px-4 py-2 sm:py-3">
-                          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gray-100 rounded border border-gray-200"></div>
-                        </td>
-                        <td className="px-2 sm:px-4 py-2 sm:py-3">
-                          <span className="text-xs sm:text-sm text-gray-900">{platform.platformName}</span>
-                        </td>
-                        {pricingData.chargeType === "per-platform-option" && (
-                          <td className="px-2 sm:px-4 py-2 sm:py-3">
-                            <div className="relative">
-                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 text-xs sm:text-sm">$</span>
-                              <Input
-                                type="text"
-                                value={platform.price || "0.00"}
-                                onChange={(e) => {
-                                  const value = e.target.value.replace(/[^0-9.]/g, "")
-                                  handleUpdatePlatformPrice(platform.id, value)
-                                }}
-                                className="pl-6 h-8 text-xs sm:text-sm w-20 sm:w-24"
-                                placeholder="0.00"
-                              />
-                            </div>
-                          </td>
-                        )}
-                        <td className="px-2 sm:px-4 py-2 sm:py-3">
-                          <button
-                            onClick={() => toggleDefault(platform.id)}
-                            className={`w-4 h-4 sm:w-5 sm:h-5 rounded-full border-2 ${
-                              platform.isDefault
-                                ? "border-[#1162a8] bg-[#1162a8] flex items-center justify-center"
-                                : "border-gray-300"
-                            }`}
-                          >
-                            {platform.isDefault && (
-                              <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-white rounded-full"></div>
-                            )}
-                          </button>
-                        </td>
-                        <td className="px-2 sm:px-4 py-2 sm:py-3">
+                      <div
+                        key={platform.id}
+                        onClick={() => setSelectedPlatformId(platform.id)}
+                        className={`rounded border p-2 cursor-pointer transition-colors ${
+                          selectedPlatformId === platform.id ? "border-[#1162a8] bg-[#eaf2fb]" : "border-gray-200 hover:border-gray-300"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            checked={selectedPlatformId === platform.id}
+                            onCheckedChange={() => setSelectedPlatformId(platform.id)}
+                            className="data-[state=checked]:bg-[#8b5cf6] data-[state=checked]:border-[#8b5cf6]"
+                          />
+                          <div className="flex-1">
+                            <Input
+                              value={platform.platformName}
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={(e) => handleUpdatePlatformName(platform.id, e.target.value)}
+                              className="h-8 text-sm bg-white"
+                            />
+                          </div>
                           <Switch
                             checked={platform.status}
                             onCheckedChange={() => toggleStatus(platform.id)}
-                            className="data-[state=checked]:bg-[#1162a8]"
+                            className="data-[state=checked]:bg-[#2563eb]"
                           />
-                        </td>
-                        <td className="px-2 sm:px-4 py-2 sm:py-3">
-                          <div className="flex items-center gap-1 sm:gap-2">
-                            <button className="text-gray-600 hover:text-[#1162a8]">
-                              <Edit className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDuplicatePlatform(platform.id)}
-                              className="text-gray-600 hover:text-[#1162a8]"
-                            >
-                              <Copy className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDeletePlatform(platform.id)}
-                              className="text-gray-600 hover:text-red-600"
-                            >
-                              <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                            </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDeletePlatform(platform.id)
+                            }}
+                            aria-label="Delete platform"
+                            title="Delete platform"
+                            className="text-red-500 hover:text-red-600"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+
+                        <p className="mt-2 text-xs text-gray-500">{platform.sizes.length} sizes</p>
+
+                        {pricingData.canAddAdditionalCharges && pricingData.chargeType === "per-platform-option" && (
+                          <div className="mt-2">
+                            <Input
+                              type="text"
+                              value={platform.price || "0"}
+                              onChange={(e) => handleUpdatePlatformPrice(platform.id, e.target.value.replace(/[^0-9.]/g, ""))}
+                              className="h-7 text-xs"
+                              placeholder="0"
+                            />
+                            <p className="text-[10px] text-right text-gray-500 mt-1">+ ${platform.price || "0.00"}</p>
                           </div>
-                        </td>
-                      </tr>
+                        )}
+                      </div>
                     ))}
-                  </tbody>
-                </table>
+                    {paginatedPlatforms.length === 0 && (
+                      <div className="rounded border border-gray-100 px-3 py-4 text-sm text-gray-500">
+                        No platforms yet.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="lg:col-span-9 border border-gray-200 rounded-lg p-3">
+                  {getSelectedPlatform() ? (
+                    <>
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <h3 className="text-sm font-semibold text-gray-900">{getSelectedPlatform()?.platformName}</h3>
+                          <p className="text-xs text-gray-500">Add sizes under the selected platform.</p>
+                        </div>
+                        <Button onClick={handleAddSize} variant="outline" size="sm">
+                          Add Size
+                        </Button>
+                      </div>
+
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[720px]">
+                          <thead>
+                            <tr className="border-b border-gray-200">
+                              <th className="text-left text-xs text-gray-600 py-2 pr-2">Default</th>
+                              <th className="text-left text-xs text-gray-600 py-2 pr-2">Diameter (mm)</th>
+                              <th className="text-left text-xs text-gray-600 py-2 pr-2">Length (mm)</th>
+                              <th className="text-left text-xs text-gray-600 py-2 pr-2">Label</th>
+                              {pricingData.canAddAdditionalCharges && pricingData.chargeType === "per-size-option" && (
+                                <th className="text-left text-xs text-gray-600 py-2 pr-2">Add. Price</th>
+                              )}
+                              <th className="text-left text-xs text-gray-600 py-2 pr-2">Status</th>
+                              <th className="text-left text-xs text-gray-600 py-2">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {getSelectedPlatform()?.sizes.map((size) => (
+                              <tr key={size.id} className="border-b border-gray-100">
+                                <td className="py-2 pr-2">
+                                  <Checkbox
+                                    checked={size.isDefault}
+                                    onCheckedChange={() => toggleSizeDefault(getSelectedPlatform()!.id, size.id)}
+                                    className="data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]"
+                                  />
+                                </td>
+                                <td className="py-2 pr-2">
+                                  <Input
+                                    value={size.diameterMm}
+                                    onChange={(e) =>
+                                      handleUpdateSize(getSelectedPlatform()!.id, size.id, {
+                                        diameterMm: e.target.value.replace(/[^0-9.]/g, ""),
+                                      })
+                                    }
+                                    className="h-8 text-xs"
+                                  />
+                                </td>
+                                <td className="py-2 pr-2">
+                                  <Input
+                                    value={size.lengthMm}
+                                    onChange={(e) =>
+                                      handleUpdateSize(getSelectedPlatform()!.id, size.id, {
+                                        lengthMm: e.target.value.replace(/[^0-9.]/g, ""),
+                                      })
+                                    }
+                                    className="h-8 text-xs"
+                                  />
+                                </td>
+                                <td className="py-2 pr-2">
+                                  <Input
+                                    value={size.label}
+                                    onChange={(e) => handleUpdateSize(getSelectedPlatform()!.id, size.id, { label: e.target.value })}
+                                    className="h-8 text-xs"
+                                    placeholder="Auto (Ø diameter mm × length mm)"
+                                  />
+                                </td>
+                                {pricingData.canAddAdditionalCharges && pricingData.chargeType === "per-size-option" && (
+                                  <td className="py-2 pr-2">
+                                    <Input
+                                      value={size.price || "0"}
+                                      onChange={(e) =>
+                                        handleUpdateSize(getSelectedPlatform()!.id, size.id, {
+                                          price: e.target.value.replace(/[^0-9.]/g, ""),
+                                        })
+                                      }
+                                      className="h-8 text-xs"
+                                    />
+                                  </td>
+                                )}
+                                <td className="py-2 pr-2">
+                                  <Switch
+                                    checked={size.status}
+                                    onCheckedChange={(checked) => handleUpdateSize(getSelectedPlatform()!.id, size.id, { status: checked })}
+                                    className="scale-75 data-[state=checked]:bg-[#1162a8]"
+                                  />
+                                </td>
+                                <td className="py-2">
+                                  <button
+                                    onClick={() => handleDeleteSize(getSelectedPlatform()!.id, size.id)}
+                                    aria-label="Delete size"
+                                    title="Delete size"
+                                    className="text-red-500 hover:text-red-600"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                            {getSelectedPlatform()?.sizes.length === 0 && (
+                              <tr>
+                                <td colSpan={pricingData.canAddAdditionalCharges && pricingData.chargeType === "per-size-option" ? 7 : 6} className="py-6 text-center text-sm text-gray-500">
+                                  No sizes added yet.
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="py-10 text-center text-sm text-gray-500">
+                      Pick a platform on the left.
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Pagination */}
@@ -723,8 +948,8 @@ export function AddImplantModal({ isOpen, onClose, onSave, implant, isEditMode =
             </div>
           )}
 
-          {/* Platform Pricing Tab Content */}
-          {activeTab === "platform-pricing" && (
+          {/* Additional Pricing Tab Content */}
+          {activeTab === "additional-pricing" && (
             <div className="space-y-4 sm:space-y-6">
               {/* Checkbox for additional charges */}
               <div className="flex items-center gap-2">
@@ -748,10 +973,10 @@ export function AddImplantModal({ isOpen, onClose, onSave, implant, isEditMode =
                   <div>
                     <RadioGroup
                       value={pricingData.chargeType}
-                      onValueChange={(value: "once-per-implant" | "per-platform-option") =>
+                      onValueChange={(value: "once-per-implant" | "per-platform-option" | "per-size-option") =>
                         setPricingData({ ...pricingData, chargeType: value })
                       }
-                      className="grid grid-cols-2 gap-4"
+                      className="grid grid-cols-1 md:grid-cols-3 gap-3"
                     >
                       <label
                         htmlFor="charge-once"
@@ -783,30 +1008,50 @@ export function AddImplantModal({ isOpen, onClose, onSave, implant, isEditMode =
                           </div>
                         </div>
                       </label>
+                      <label
+                        htmlFor="charge-per-size"
+                        onClick={() => setPricingData({ ...pricingData, chargeType: "per-size-option" })}
+                        className="border border-gray-200 rounded-lg p-4 hover:border-[#1162a8] transition-colors cursor-pointer block"
+                      >
+                        <div className="flex items-start gap-3">
+                          <RadioGroupItem value="per-size-option" id="charge-per-size" className="mt-0.5" />
+                          <div className="flex-1">
+                            <div className="text-sm font-medium text-gray-900 cursor-pointer block mb-1">
+                              Charge per size option
+                            </div>
+                            <p className="text-xs text-gray-500">Set additional price per size under a platform</p>
+                          </div>
+                        </div>
+                      </label>
                     </RadioGroup>
                   </div>
 
-                  {/* Additional Charge and Charge Scope */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="additionalCharge" className="text-sm font-medium text-gray-700">
-                        Additional Charge
-                      </Label>
-                      <div className="relative mt-1">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-                        <Input
-                          id="additionalCharge"
-                          type="text"
-                          value={pricingData.additionalCharge}
-                          onChange={(e) => {
-                            const value = e.target.value.replace(/[^0-9.]/g, "")
-                            setPricingData({ ...pricingData, additionalCharge: value })
-                          }}
-                          className="pl-7"
-                          placeholder="0.00"
-                        />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {pricingData.chargeType === "once-per-implant" ? (
+                      <div>
+                        <Label htmlFor="additionalCharge" className="text-sm font-medium text-gray-700">
+                          Additional Charge
+                        </Label>
+                        <div className="relative mt-1">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                          <Input
+                            id="additionalCharge"
+                            type="text"
+                            value={pricingData.additionalCharge}
+                            onChange={(e) => {
+                              const value = e.target.value.replace(/[^0-9.]/g, "")
+                              setPricingData({ ...pricingData, additionalCharge: value })
+                            }}
+                            className="pl-7"
+                            placeholder="0.00"
+                          />
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="text-xs text-gray-500 self-end pb-2">
+                        Set price adjustments in the Platforms & Sizes tab.
+                      </div>
+                    )}
                     <div>
                       <Label htmlFor="chargeScope" className="text-sm font-medium text-gray-700">
                         Charge Scope
@@ -816,11 +1061,12 @@ export function AddImplantModal({ isOpen, onClose, onSave, implant, isEditMode =
                         onValueChange={(value) => setPricingData({ ...pricingData, chargeScope: value })}
                       >
                         <SelectTrigger className="mt-1">
-                          <SelectValue placeholder="Per case" />
+                          <SelectValue placeholder="Select..." />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="per_case">Per case</SelectItem>
                           <SelectItem value="per_tooth">Per tooth</SelectItem>
+                          <SelectItem value="per_item">Per item</SelectItem>
                           <SelectItem value="per_slip">Per slip</SelectItem>
                           <SelectItem value="per_arch">Per arch</SelectItem>
                         </SelectContent>
@@ -828,15 +1074,14 @@ export function AddImplantModal({ isOpen, onClose, onSave, implant, isEditMode =
                     </div>
                   </div>
 
-                  {/* Instructional text when "per-platform-option" is selected */}
-                  {pricingData.chargeType === "per-platform-option" && (
+                  {(pricingData.chargeType === "per-platform-option" || pricingData.chargeType === "per-size-option") && (
                     <div className="text-sm text-gray-600">
                       Set price adjustments per option in the{" "}
                       <button
                         onClick={() => setActiveTab("platform-options")}
                         className="text-[#1162a8] hover:underline font-medium"
                       >
-                        Platform Options tab
+                        Platforms & Sizes tab
                       </button>
                       .
                     </div>
@@ -873,13 +1118,6 @@ export function AddImplantModal({ isOpen, onClose, onSave, implant, isEditMode =
         </div>
       </div>
 
-      {/* Add Option Modal */}
-      <AddOptionModal
-        isOpen={isAddOptionModalOpen}
-        onClose={() => setIsAddOptionModalOpen(false)}
-        onSave={handleSaveNewOption}
-        title="Add new option"
-      />
     </div>
   )
 }

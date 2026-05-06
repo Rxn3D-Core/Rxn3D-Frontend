@@ -132,6 +132,16 @@ export interface ImplantPlatform {
   is_default: 'Yes' | 'No'
   price?: number | null
   sequence: number
+  sizes?: Array<{
+    id?: number
+    is_default?: 'Yes' | 'No'
+    diameter_mm?: number
+    length_mm?: number
+    label?: string
+    price?: number | null
+    status?: 'Active' | 'Inactive'
+    sequence?: number
+  }>
 }
 
 export interface Implant {
@@ -144,7 +154,7 @@ export interface Implant {
   description?: string
   allow_user_input?: 'Yes' | 'No'
   has_additional_pricing: 'Yes' | 'No'
-  charge_type?: 'once_per_implant' | 'per_platform_option' | null
+  charge_type?: 'once_per_implant' | 'per_platform_option' | 'per_size_option' | null
   price?: number | null
   charge_scope?: string | null
   platforms?: ImplantPlatform[]
@@ -689,7 +699,7 @@ export const useCreateImplant = () => {
       description?: string
       allow_user_input?: 'Yes' | 'No'
       has_additional_pricing?: 'Yes' | 'No'
-      charge_type?: 'once_per_implant' | 'per_platform_option' | null
+      charge_type?: 'once_per_implant' | 'per_platform_option' | 'per_size_option' | null
       price?: number | null
       charge_scope?: string | null
       platforms?: Array<{
@@ -698,6 +708,16 @@ export const useCreateImplant = () => {
         is_default?: 'Yes' | 'No'
         price?: number
         sequence?: number
+        sizes?: Array<{
+          id?: number
+          is_default?: 'Yes' | 'No'
+          diameter_mm?: number
+          length_mm?: number
+          label?: string
+          price?: number | null
+          status?: 'Active' | 'Inactive'
+          sequence?: number
+        }>
       }>
     }) => {
       const response = await fetch(ensureAbsoluteUrl('/library/implants'), {
@@ -735,7 +755,7 @@ export const useUpdateImplant = () => {
       description?: string
       allow_user_input?: 'Yes' | 'No'
       has_additional_pricing?: 'Yes' | 'No'
-      charge_type?: 'once_per_implant' | 'per_platform_option' | null
+      charge_type?: 'once_per_implant' | 'per_platform_option' | 'per_size_option' | null
       price?: number | null
       charge_scope?: string | null
       sequence?: number
@@ -747,6 +767,16 @@ export const useUpdateImplant = () => {
         is_default?: 'Yes' | 'No'
         price?: number | null
         sequence?: number
+        sizes?: Array<{
+          id?: number
+          is_default?: 'Yes' | 'No'
+          diameter_mm?: number
+          length_mm?: number
+          label?: string
+          price?: number | null
+          status?: 'Active' | 'Inactive'
+          sequence?: number
+        }>
       }>
     }) => {
       const response = await fetch(ensureAbsoluteUrl(`/library/implants/${id}`), {
