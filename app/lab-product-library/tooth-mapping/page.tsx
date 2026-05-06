@@ -27,6 +27,60 @@ type SortState = {
   direction: SortDirection
 }
 
+const getGlobalExtractionTooltipData = (status: Extraction) => {
+  const legacy = status as Record<string, unknown>
+  const globalConnection =
+    typeof legacy.global_connection === "object" && legacy.global_connection !== null
+      ? (legacy.global_connection as Record<string, unknown>)
+      : null
+
+  const connectedRaw: unknown =
+    status.is_connected_to_global ??
+    globalConnection?.is_connected_to_global
+  const connected =
+    connectedRaw === true ||
+    connectedRaw === 1 ||
+    connectedRaw === "1" ||
+    connectedRaw === "true" ||
+    connectedRaw === "Yes"
+
+  const globalIdRaw =
+    status.global_extraction_id ??
+    (typeof globalConnection?.global_extraction_id === "number"
+      ? globalConnection.global_extraction_id
+      : null)
+
+  const legacyGlobalImage =
+    typeof legacy.global_extraction_image === "string" ? legacy.global_extraction_image : ""
+  const legacyExtractionImage =
+    typeof legacy.extraction_image === "string" ? legacy.extraction_image : ""
+
+  const globalName =
+    status.global_extraction_name?.trim() ||
+    (typeof globalConnection?.global_extraction_name === "string"
+      ? globalConnection.global_extraction_name.trim()
+      : "") ||
+    ""
+  const imageUrl =
+    status.sample_image_url?.trim() ||
+    (typeof globalConnection?.sample_image_url === "string" ? globalConnection.sample_image_url.trim() : "") ||
+    legacyGlobalImage.trim() ||
+    legacyExtractionImage.trim() ||
+    ""
+
+  const hasGlobalLink =
+    connected ||
+    Boolean(globalIdRaw) ||
+    globalName.length > 0 ||
+    imageUrl.length > 0
+  if (!hasGlobalLink) return null
+
+  return {
+    name: globalName || status.name,
+    imageUrl: imageUrl || null,
+  }
+}
+
 export default function ToothMappingPage() {
   const { currentLanguage } = useLanguage()
   
@@ -408,7 +462,48 @@ export default function ToothMappingPage() {
                           className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]"
                         />
                       </TableCell>
-                      <TableCell className="font-medium text-gray-900">{status.name}</TableCell>
+                      <TableCell className="font-medium text-gray-900">
+                        {(() => {
+                          const tooltipData = getGlobalExtractionTooltipData(status)
+                          if (!tooltipData) {
+                            return status.name
+                          }
+                          return (
+                            <TooltipProvider delayDuration={120} skipDelayDuration={0}>
+                              <Tooltip>
+                                <div className="inline-flex items-center gap-2">
+                                  <span>{status.name}</span>
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      type="button"
+                                      className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-100"
+                                      title="Global extraction info"
+                                    >
+                                      <Info className="h-3 w-3" />
+                                      Global
+                                    </button>
+                                  </TooltipTrigger>
+                                </div>
+                                <TooltipContent side="top" className="max-w-xs bg-white text-gray-900 border border-gray-200 shadow-md">
+                                  <div className="space-y-2">
+                                    <p className="text-xs font-semibold text-gray-700">Global extraction</p>
+                                    {tooltipData.imageUrl ? (
+                                      <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded border border-gray-200 bg-gray-50">
+                                        <img
+                                          src={tooltipData.imageUrl}
+                                          alt={tooltipData.name}
+                                          className="max-h-full max-w-full object-contain"
+                                        />
+                                      </div>
+                                    ) : null}
+                                    <p className="text-sm font-medium leading-tight">{tooltipData.name}</p>
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )
+                        })()}
+                      </TableCell>
                       <TableCell>
                         <div 
                           className="w-6 h-6 rounded border border-gray-300"

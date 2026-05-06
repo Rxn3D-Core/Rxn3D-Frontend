@@ -19,6 +19,8 @@ export const extractionsKeys = {
   details: () => [...extractionsKeys.all, 'detail'] as const,
   detail: (id: number) => [...extractionsKeys.details(), id] as const,
   detailWithLang: (id: number, lang: string) => [...extractionsKeys.detail(id), lang] as const,
+  globalToothImages: (extractionId: number) =>
+    [...extractionsKeys.all, 'global-tooth-images', extractionId] as const,
 }
 
 // Fetch extractions list with filters
@@ -223,4 +225,87 @@ export function useExtractionForm() {
     createError: createMutation.error,
     updateError: updateMutation.error,
   }
+}
+
+export type GlobalExtractionToothImageItem = {
+  tooth_number: number
+  image_url: string
+  updated_at: string
+}
+
+export function useGlobalExtractionToothImages(extractionId: number | null, enabled = true) {
+  return useQuery({
+    queryKey: extractionId != null ? extractionsKeys.globalToothImages(extractionId) : ['extractions', 'global-tooth-images', 'none'],
+    queryFn: async () => {
+      if (extractionId == null) throw new Error('Extraction ID is required')
+      const res = await ExtractionsApi.getGlobalExtractionToothImages(extractionId)
+      return (res.data?.images ?? []) as GlobalExtractionToothImageItem[]
+    },
+    enabled: enabled && extractionId != null,
+    staleTime: 0,
+  })
+}
+
+export function useUpsertGlobalExtractionToothImages() {
+  const queryClient = useQueryClient()
+  const { toast } = useToast()
+
+  return useMutation({
+    mutationFn: async ({
+      extractionId,
+      images,
+    }: {
+      extractionId: number
+      images: Array<{ tooth_number: number; image: string }>
+    }) => ExtractionsApi.upsertGlobalExtractionToothImages(extractionId, { images }),
+    onSuccess: async (response, variables) => {
+      await queryClient.invalidateQueries({
+        queryKey: extractionsKeys.globalToothImages(variables.extractionId),
+      })
+      toast({
+        title: 'Images saved',
+        description: response.message || 'Tooth images updated successfully.',
+        variant: 'default',
+      })
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to save tooth images',
+        variant: 'destructive',
+      })
+    },
+  })
+}
+
+export function useDeleteGlobalExtractionToothImage() {
+  const queryClient = useQueryClient()
+  const { toast } = useToast()
+
+  return useMutation({
+    mutationFn: async ({
+      extractionId,
+      toothNumber,
+    }: {
+      extractionId: number
+      toothNumber: number
+    }) => ExtractionsApi.deleteGlobalExtractionToothImage(extractionId, toothNumber),
+    onSuccess: async (data, variables) => {
+      await queryClient.invalidateQueries({
+        queryKey: extractionsKeys.globalToothImages(variables.extractionId),
+      })
+      toast({
+        title: 'Image removed',
+        description: data.message || 'Tooth image deleted.',
+        variant: 'default',
+      })
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to delete tooth image',
+        variant: 'destructive',
+      })
+    },
+  })
 }

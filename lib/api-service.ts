@@ -273,6 +273,11 @@ export const ExtractionsApi = {
           status: "Active" | "Inactive";
           customer_id: number | null;
           is_custom: "Yes" | "No";
+          is_connected_to_global?: boolean;
+          global_extraction_id?: number | null;
+          global_extraction_name?: string | null;
+          sample_image_url?: string | null;
+          is_overlay?: "Yes" | "No";
           is_image_extraction?: "Yes" | "No";
           image_url?: string | null;
           created_at: string;
@@ -324,6 +329,11 @@ export const ExtractionsApi = {
         status: "Active" | "Inactive";
         customer_id: number | null;
         is_custom: "Yes" | "No";
+        is_connected_to_global?: boolean;
+        global_extraction_id?: number | null;
+        global_extraction_name?: string | null;
+        sample_image_url?: string | null;
+        is_overlay?: "Yes" | "No";
         is_image_extraction?: "Yes" | "No";
         image_url?: string | null;
         created_at: string;
@@ -344,6 +354,7 @@ export const ExtractionsApi = {
     status: "Active" | "Inactive";
     customer_id?: number;
     is_image_extraction?: "Yes" | "No";
+    is_overlay?: "Yes" | "No";
     /** Base64-encoded image (data URL or raw) when is_image_extraction is Yes */
     image?: string | null;
   }) => {
@@ -367,6 +378,11 @@ export const ExtractionsApi = {
         status: "Active" | "Inactive";
         customer_id: number | null;
         is_custom: "Yes" | "No";
+        is_connected_to_global?: boolean;
+        global_extraction_id?: number | null;
+        global_extraction_name?: string | null;
+        sample_image_url?: string | null;
+        is_overlay?: "Yes" | "No";
         is_image_extraction?: "Yes" | "No";
         image_url?: string | null;
         created_at: string;
@@ -386,6 +402,7 @@ export const ExtractionsApi = {
     sequence?: number;
     status?: "Active" | "Inactive";
     is_image_extraction?: "Yes" | "No";
+    is_overlay?: "Yes" | "No";
     image?: string | null;
   }) => {
     return ApiService.put<{
@@ -402,6 +419,11 @@ export const ExtractionsApi = {
         status: "Active" | "Inactive";
         customer_id: number | null;
         is_custom: "Yes" | "No";
+        is_connected_to_global?: boolean;
+        global_extraction_id?: number | null;
+        global_extraction_name?: string | null;
+        sample_image_url?: string | null;
+        is_overlay?: "Yes" | "No";
         is_image_extraction?: "Yes" | "No";
         image_url?: string | null;
         created_at: string;
@@ -426,6 +448,49 @@ export const ExtractionsApi = {
       status: boolean;
       message: string;
     }>(endpoint);
+  },
+
+  /** Global library only — per-tooth reference images for an extraction (superadmin for writes). */
+  getGlobalExtractionToothImages: async (extractionId: number) => {
+    return ApiService.get<{
+      status: boolean;
+      message: string;
+      data: {
+        extraction_id: number;
+        images: Array<{
+          tooth_number: number;
+          image_url: string;
+          updated_at: string;
+        }>;
+      };
+    }>(`/library/extractions/${extractionId}/tooth-images`);
+  },
+
+  upsertGlobalExtractionToothImages: async (
+    extractionId: number,
+    payload: {
+      images: Array<{ tooth_number: number; image: string }>;
+    },
+  ) => {
+    return ApiService.post<{
+      status: boolean;
+      message: string;
+      data: {
+        extraction_id: number;
+        images: Array<{
+          tooth_number: number;
+          image_url: string;
+          updated_at: string;
+        }>;
+      };
+    }>(`/library/extractions/${extractionId}/tooth-images`, payload);
+  },
+
+  deleteGlobalExtractionToothImage: async (extractionId: number, toothNumber: number) => {
+    return ApiService.delete<{
+      status: boolean;
+      message: string;
+    }>(`/library/extractions/${extractionId}/tooth-images/${toothNumber}`);
   },
 
   // Stage Notes API
@@ -463,10 +528,14 @@ export const ExtractionsApi = {
     stage_id?: number;
     type?: 'stage';
   }) => {
+    const queryParams = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) queryParams.append(key, String(value))
+    })
     return ApiService.get<{
       success: boolean;
       data: any[];
-    }>('/slip/notes', { params });
+    }>(`/slip/notes${queryParams.toString() ? `?${queryParams.toString()}` : ''}`);
   },
 };
 
