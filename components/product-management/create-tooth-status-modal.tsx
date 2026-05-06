@@ -21,8 +21,12 @@ import {
   TooltipProvider as HelpTooltipProvider,
   TooltipTrigger as HelpTooltipTrigger,
 } from "@/components/ui/tooltip"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { GlobalExtractionToothImagesPanel } from "@/components/product-management/global-extraction-tooth-images-panel"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 
 const MAX_EXTRACTION_IMAGE_BYTES = 5120 * 1024
+const SHOW_EXTRACTION_IMAGE_FIELD = false
 
 // Use the CreateExtractionSchema from schemas.ts
 type ToothStatusForm = z.infer<typeof CreateExtractionSchema>
@@ -37,6 +41,7 @@ interface ToothStatus {
   active: boolean
   description?: string | null
   is_image_extraction?: "Yes" | "No"
+  is_overlay?: "Yes" | "No"
   /** Resolved URL for display when editing (from API `image_url`). */
   image_url?: string | null
 }
@@ -49,6 +54,8 @@ interface CreateToothStatusModalProps {
   mode: "create" | "edit"
   isCopying?: boolean // Flag to indicate if we're copying a tooth status
   onSuccess?: () => void // Callback to refetch data after successful creation/update
+  /** When true (global product library only), edit mode shows a tab for global per-tooth extraction images. */
+  globalToothImageLibrary?: boolean
 }
 
 // Color map for predefined colors (matching case pan modal pattern)
@@ -84,10 +91,13 @@ export function CreateToothStatusModal({
   mode,
   isCopying = false,
   onSuccess,
+  globalToothImageLibrary = false,
 }: CreateToothStatusModalProps) {
   const [isMaximized, setIsMaximized] = useState(false)
   const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false)
+  const [mainTab, setMainTab] = useState<"details" | "library">("details")
   const { toast } = useToast()
+  const [isSuperadmin, setIsSuperadmin] = useState(false)
   const previousToothStatusIdRef = useRef<number | undefined>(undefined)
   const previousToothStatusLoadingRef = useRef<boolean | undefined>(undefined)
 
@@ -111,6 +121,7 @@ export function CreateToothStatusModal({
       sequence: 1,
       status: "Active",
       is_image_extraction: "No",
+      is_overlay: "No",
     },
   })
 
@@ -125,6 +136,23 @@ export function CreateToothStatusModal({
 
   const previewSrc = imageBase64 ?? existingImageUrl
   const isDetailLoading = Boolean(toothStatus?.initial_loading)
+
+  const showGlobalLibraryTab =
+    globalToothImageLibrary && mode === "edit" && Boolean(toothStatus?.id) && !isCopying
+
+  const showOverlayField = globalToothImageLibrary && isSuperadmin
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const role = localStorage.getItem("role")
+    setIsSuperadmin(role === "superadmin")
+  }, [isOpen])
+
+  useEffect(() => {
+    if (isOpen) {
+      setMainTab("details")
+    }
+  }, [isOpen])
 
   // Auto-generate code when name changes (only in create mode)
   useEffect(() => {
@@ -168,6 +196,7 @@ export function CreateToothStatusModal({
           status: toothStatus.active ? "Active" : "Inactive",
           is_image_extraction:
             hasStoredImage || toothStatus.is_image_extraction === "Yes" ? "Yes" : "No",
+          is_overlay: toothStatus.is_overlay ?? "No",
         })
         setImageBase64(null)
         setExistingImageUrl(isCopying ? null : (toothStatus.image_url ?? null))
@@ -180,6 +209,7 @@ export function CreateToothStatusModal({
           sequence: 1,
           status: "Active",
           is_image_extraction: "No",
+          is_overlay: "No",
         })
         setImageBase64(null)
         setExistingImageUrl(null)
@@ -293,6 +323,9 @@ export function CreateToothStatusModal({
               is_image_extraction: "Yes" as const,
               ...(imageBase64 ? { image: imageBase64 } : {}),
             }
+
+      const overlayFields =
+        showOverlayField ? { is_overlay: data.is_overlay ?? "No" } : {}
       
       if (mode === "create" || isCopying) {
         // Create new extraction (including when copying)
@@ -304,6 +337,7 @@ export function CreateToothStatusModal({
           sequence: data.sequence,
           status: data.status,
           ...imageFields,
+          ...overlayFields,
         }, {
           onSuccess: () => {
             reset()
@@ -330,6 +364,7 @@ export function CreateToothStatusModal({
             sequence: data.sequence,
             status: data.status,
             ...imageFields,
+            ...overlayFields,
           }
         }, {
           onSuccess: () => {
@@ -355,53 +390,17 @@ export function CreateToothStatusModal({
     setValue("color", color, { shouldDirty: true })
   }, [setValue])
 
-  return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent
-        className={`p-0 gap-0 transition-all duration-300 ease-in-out overflow-hidden flex flex-col ${
-          isMaximized 
-            ? "w-[95vw] h-[95vh] max-w-[95vw] max-h-[95vh]" 
-            : "w-[95vw] sm:w-[90vw] md:w-[85vw] max-w-[600px] h-[85vh] sm:h-[90vh] max-h-[85vh] sm:max-h-[90vh]"
-        } bg-white`}
-      >
-        <DialogHeader className="px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 md:py-4 flex flex-row items-center justify-between border-b bg-white flex-shrink-0">
-          <DialogTitle className="text-xl font-bold pr-2">
-            {isCopying ? "Copy tooth status" : mode === "edit" ? "Edit tooth status" : "Create tooth status"}
-          </DialogTitle>
-          <div className="flex items-center gap-1 sm:gap-2">
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={toggleMaximize} 
-              className="h-7 w-7 sm:h-8 sm:w-8 hover:bg-gray-100"
-              title={isMaximized ? "Minimize" : "Maximize"}
-            >
-              <Maximize2 className={`h-3.5 w-3.5 sm:h-4 sm:w-4 transition-transform ${isMaximized ? "rotate-180" : ""}`} />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={handleClose}
-              className="h-7 w-7 sm:h-8 sm:w-8 hover:bg-gray-100"
-            >
-              <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-            </Button>
+  const toothStatusFieldsBlock = (
+    <div className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 space-y-3 sm:space-y-4">
+      <div className="space-y-3 sm:space-y-4">
+        {!showGlobalLibraryTab && (
+          <div className="flex items-center gap-2">
+            <h3 className="text-base sm:text-lg font-medium">Tooth Status details</h3>
+            <Info className="h-4 w-4 text-gray-400" />
           </div>
-        </DialogHeader>
-        
-        <div className="flex-1 overflow-hidden flex flex-col min-h-0">
-          <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col h-full min-h-0 overflow-hidden">
-            <div className="relative flex-1 overflow-y-auto min-h-0">
-              <div className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 space-y-3 sm:space-y-4">
-              {/* Tooth Status Details Section */}
-              <div className="space-y-3 sm:space-y-4">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-base sm:text-lg font-medium">Tooth Status details</h3>
-                  <Info className="h-4 w-4 text-gray-400" />
-                </div>
+        )}
 
-                <div className="space-y-3 sm:space-y-4">
+        <div className="space-y-3 sm:space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Tooth status name
@@ -457,70 +456,72 @@ export function CreateToothStatusModal({
                     />
                   </div>
 
-                  <div className="rounded-lg border border-gray-100 bg-gray-50/50 p-3 sm:p-4 space-y-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <label className="text-sm font-medium text-gray-700">Extraction image</label>
-                      <span className="text-xs text-gray-500">(optional)</span>
-                      <HelpTooltipProvider>
-                        <HelpTooltip>
-                          <HelpTooltipTrigger asChild>
-                            <button
-                              type="button"
-                              className="inline-flex rounded-full p-0.5 text-gray-400 hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162a8]"
-                              aria-label="Extraction image help"
-                            >
-                              <Info className="h-4 w-4" />
-                            </button>
-                          </HelpTooltipTrigger>
-                          <HelpTooltipContent side="bottom" className="max-w-xs">
-                            <p className="text-xs">
-                              If you upload a reference image (JPG, PNG, GIF, or WebP, max 5MB), it is saved for extraction
-                              automatically. Remove the image to turn that off.
-                            </p>
-                          </HelpTooltipContent>
-                        </HelpTooltip>
-                      </HelpTooltipProvider>
-                    </div>
+                  {SHOW_EXTRACTION_IMAGE_FIELD && (
+                    <div className="rounded-lg border border-gray-100 bg-gray-50/50 p-3 sm:p-4 space-y-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <label className="text-sm font-medium text-gray-700">Extraction image</label>
+                        <span className="text-xs text-gray-500">(optional)</span>
+                        <HelpTooltipProvider>
+                          <HelpTooltip>
+                            <HelpTooltipTrigger asChild>
+                              <button
+                                type="button"
+                                className="inline-flex rounded-full p-0.5 text-gray-400 hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162a8]"
+                                aria-label="Extraction image help"
+                              >
+                                <Info className="h-4 w-4" />
+                              </button>
+                            </HelpTooltipTrigger>
+                            <HelpTooltipContent side="bottom" className="max-w-xs">
+                              <p className="text-xs">
+                                If you upload a reference image (JPG, PNG, GIF, or WebP, max 5MB), it is saved for extraction
+                                automatically. Remove the image to turn that off.
+                              </p>
+                            </HelpTooltipContent>
+                          </HelpTooltip>
+                        </HelpTooltipProvider>
+                      </div>
 
-                    <div className="flex flex-col items-start gap-2">
-                      <button
-                        type="button"
-                        onClick={() => imageInputRef.current?.click()}
-                        className="relative flex h-28 w-28 sm:h-32 sm:w-32 shrink-0 items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-gray-300 bg-gradient-to-br from-gray-50 to-gray-100 transition hover:border-gray-400"
-                      >
-                        {previewSrc ? (
-                          <img
-                            src={previewSrc}
-                            alt="Extraction"
-                            className="max-h-full max-w-full object-contain p-1"
-                          />
-                        ) : (
-                          <div className="flex flex-col items-center justify-center gap-1 px-2 text-gray-500">
-                            <ImageIcon className="h-8 w-8" />
-                            <span className="text-[10px] font-medium leading-tight text-center">Upload</span>
-                          </div>
-                        )}
-                      </button>
-                      <input
-                        ref={imageInputRef}
-                        type="file"
-                        accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
-                        className="hidden"
-                        onChange={handleImageFileChange}
-                      />
-                      {previewSrc && (
-                        <Button
-                          variant="outline"
-                          size="sm"
+                      <div className="flex flex-col items-start gap-2">
+                        <button
                           type="button"
-                          className="text-xs text-red-600 hover:bg-red-50"
-                          onClick={handleRemoveImage}
+                          onClick={() => imageInputRef.current?.click()}
+                          className="relative flex h-28 w-28 sm:h-32 sm:w-32 shrink-0 items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-gray-300 bg-gradient-to-br from-gray-50 to-gray-100 transition hover:border-gray-400"
                         >
-                          Remove image
-                        </Button>
-                      )}
+                          {previewSrc ? (
+                            <img
+                              src={previewSrc}
+                              alt="Extraction"
+                              className="max-h-full max-w-full object-contain p-1"
+                            />
+                          ) : (
+                            <div className="flex flex-col items-center justify-center gap-1 px-2 text-gray-500">
+                              <ImageIcon className="h-8 w-8" />
+                              <span className="text-[10px] font-medium leading-tight text-center">Upload</span>
+                            </div>
+                          )}
+                        </button>
+                        <input
+                          ref={imageInputRef}
+                          type="file"
+                          accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                          className="hidden"
+                          onChange={handleImageFileChange}
+                        />
+                        {previewSrc && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            type="button"
+                            className="text-xs text-red-600 hover:bg-red-50"
+                            onClick={handleRemoveImage}
+                          >
+                            Remove image
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -553,45 +554,161 @@ export function CreateToothStatusModal({
                       <p className="text-red-500 text-sm mt-1">{errors.status.message}</p>
                     )}
                   </div>
+
+                  {showOverlayField && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Is overlay?
+                      </label>
+                      <RadioGroup
+                        value={(watch("is_overlay") as "Yes" | "No" | undefined) ?? "No"}
+                        onValueChange={(v) => setValue("is_overlay", v as any, { shouldDirty: true })}
+                        className="flex items-center gap-6"
+                      >
+                        <label className="flex items-center gap-2 text-sm text-gray-700">
+                          <RadioGroupItem value="Yes" />
+                          Yes
+                        </label>
+                        <label className="flex items-center gap-2 text-sm text-gray-700">
+                          <RadioGroupItem value="No" />
+                          No
+                        </label>
+                      </RadioGroup>
+                    </div>
+                  )}
                 </div>
               </div>
-              </div>
+    </div>
+  )
 
-              {isDetailLoading && (
-                <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-3 bg-white/90">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1162a8]" />
-                  <p className="text-sm font-medium text-gray-700">Loading tooth status details…</p>
-                  <p className="text-xs text-gray-500">We'll update the form once the latest data arrives.</p>
+  const toothStatusDetailOverlay = isDetailLoading ? (
+    <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-3 bg-white/90">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1162a8]" />
+      <p className="text-sm font-medium text-gray-700">Loading tooth status details…</p>
+      <p className="text-xs text-gray-500">We'll update the form once the latest data arrives.</p>
+    </div>
+  ) : null
+
+  const modalFooter = (
+    <div className="px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 md:py-4 flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 border-t bg-white flex-shrink-0">
+      <Button
+        variant="destructive"
+        type="button"
+        onClick={handleClose}
+        className="w-full sm:w-auto h-9 sm:h-10 text-sm sm:text-base"
+      >
+        Cancel
+      </Button>
+      {(!showGlobalLibraryTab || mainTab === "details") && (
+        <Button
+          type="submit"
+          form={showGlobalLibraryTab ? "tooth-status-form" : undefined}
+          className="bg-[#1162a8] h-9 sm:h-10 hover:bg-[#0d4d87] w-full sm:w-auto text-sm sm:text-base"
+          disabled={isCreating || isUpdating || isDetailLoading}
+        >
+          {isCreating || isUpdating ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+              {isCopying ? "Copying..." : mode === "edit" ? "Updating..." : "Creating..."}
+            </>
+          ) : (
+            isCopying ? "Copy Tooth Status" : mode === "edit" ? "Update Tooth Status" : "Save Tooth Status"
+          )}
+        </Button>
+      )}
+    </div>
+  )
+
+  return (
+    <Dialog open={isOpen} onOpenChange={handleClose}>
+      <DialogContent
+        className={`p-0 gap-0 transition-all duration-300 ease-in-out overflow-hidden flex flex-col ${
+          isMaximized
+            ? "w-[95vw] h-[95vh] max-w-[95vw] max-h-[95vh]"
+            : showGlobalLibraryTab
+              ? "w-[97vw] sm:w-[95vw] md:w-[94vw] max-w-[1380px] h-[85vh] sm:h-[90vh] max-h-[85vh] sm:max-h-[90vh]"
+              : "w-[95vw] sm:w-[90vw] md:w-[85vw] max-w-[600px] h-[85vh] sm:h-[90vh] max-h-[85vh] sm:max-h-[90vh]"
+        } bg-white`}
+      >
+        <DialogHeader className="px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 md:py-4 flex flex-row items-center justify-between border-b bg-white flex-shrink-0">
+          <DialogTitle className="text-xl font-bold pr-2">
+            {isCopying ? "Copy tooth status" : mode === "edit" ? "Edit tooth status" : "Create tooth status"}
+          </DialogTitle>
+          <div className="flex items-center gap-1 sm:gap-2">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={toggleMaximize} 
+              className="h-7 w-7 sm:h-8 sm:w-8 hover:bg-gray-100"
+              title={isMaximized ? "Minimize" : "Maximize"}
+            >
+              <Maximize2 className={`h-3.5 w-3.5 sm:h-4 sm:w-4 transition-transform ${isMaximized ? "rotate-180" : ""}`} />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={handleClose}
+              className="h-7 w-7 sm:h-8 sm:w-8 hover:bg-gray-100"
+            >
+              <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            </Button>
+          </div>
+        </DialogHeader>
+        
+        <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
+          {showGlobalLibraryTab ? (
+            <>
+              <Tabs
+                value={mainTab}
+                onValueChange={(v) => setMainTab(v as "details" | "library")}
+                className="flex flex-1 flex-col min-h-0 gap-0 overflow-hidden"
+              >
+                <div className="flex-shrink-0 border-b border-gray-100 bg-white px-3 sm:px-4 md:px-6 pt-2 pb-3">
+                  <TabsList className="h-auto w-full justify-start gap-1 bg-muted/80 p-1">
+                    <TabsTrigger value="details" className="text-xs sm:text-sm">
+                      Tooth Status details
+                    </TabsTrigger>
+                    <TabsTrigger value="library" className="text-xs sm:text-sm">
+                      Global tooth images
+                    </TabsTrigger>
+                  </TabsList>
                 </div>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 md:py-4 flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 border-t bg-white flex-shrink-0">
-              <Button
-                variant="destructive"
-                type="button" 
-                onClick={handleClose}
-                className="w-full sm:w-auto h-9 sm:h-10 text-sm sm:text-base"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                className="bg-[#1162a8] h-9 sm:h-10 hover:bg-[#0d4d87] w-full sm:w-auto text-sm sm:text-base"
-                disabled={isCreating || isUpdating || isDetailLoading}
-              >
-                {isCreating || isUpdating ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    {isCopying ? "Copying..." : mode === "edit" ? "Updating..." : "Creating..."}
-                  </>
-                ) : (
-                  isCopying ? "Copy Tooth Status" : mode === "edit" ? "Update Tooth Status" : "Save Tooth Status"
-                )}
-              </Button>
-            </div>
-          </form>
+                <TabsContent
+                  value="details"
+                  className="mt-0 flex flex-1 flex-col min-h-0 overflow-hidden px-0 pt-0 data-[state=inactive]:hidden"
+                >
+                  <form
+                    id="tooth-status-form"
+                    onSubmit={handleSubmit(onSubmit)}
+                    className="flex flex-col flex-1 min-h-0 overflow-hidden"
+                  >
+                    <div className="relative flex-1 overflow-y-auto min-h-0">
+                      {toothStatusFieldsBlock}
+                      {toothStatusDetailOverlay}
+                    </div>
+                  </form>
+                </TabsContent>
+                <TabsContent
+                  value="library"
+                  className="mt-0 flex flex-1 flex-col min-h-0 overflow-y-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 data-[state=inactive]:hidden"
+                >
+                  {toothStatus?.id != null && (
+                    <GlobalExtractionToothImagesPanel extractionId={toothStatus.id} />
+                  )}
+                </TabsContent>
+              </Tabs>
+              {modalFooter}
+            </>
+          ) : (
+            <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col h-full min-h-0 overflow-hidden">
+              <div className="relative flex-1 overflow-y-auto min-h-0">
+                {toothStatusFieldsBlock}
+                {toothStatusDetailOverlay}
+              </div>
+              {modalFooter}
+            </form>
+          )}
         </div>
       </DialogContent>
       
