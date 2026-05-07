@@ -573,6 +573,8 @@ export const ProductCreateFormSchema = z
     is_single_stage: z.enum(["Yes", "No"]).default("No"),
     link_all_addons: z.enum(["Yes", "No"]).default("No"),
     apply_retention_mechanism: z.enum(["Yes", "No"]).default("No"),
+    has_implant: z.enum(["Yes", "No"]).default("No"),
+    has_abutment: z.enum(["Yes", "No"]).default("No"),
     retention_type: z.enum(["Cement Retained", "Screw Retained", "Hybrid Retention"]).nullable().optional(),
     show_to_all_lab: z.enum(["Yes", "No", "Hide"]).default("Yes"),
     office_visibilities: z

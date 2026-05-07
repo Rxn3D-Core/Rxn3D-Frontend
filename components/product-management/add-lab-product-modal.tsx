@@ -490,6 +490,8 @@ export function AddLabProductModal({
     is_single_stage: "No",
     link_all_addons: "No",
     apply_retention_mechanism: "Yes",
+    has_implant: "No",
+    has_abutment: "No",
     retention_type: undefined,
     show_to_all_lab: "Yes",
     office_visibilities: officeCustomers.map((office) => ({
@@ -1571,6 +1573,8 @@ export function AddLabProductModal({
         is_single_stage: editingProduct.is_single_stage || "No",
         link_all_addons: editingProduct.link_all_addons || "No",
         apply_retention_mechanism: editingProduct.apply_retention_mechanism || "No",
+        has_implant: editingProduct.has_implant === "Yes" ? "Yes" : "No",
+        has_abutment: editingProduct.has_abutment === "Yes" ? "Yes" : "No",
         retention_type: editingProduct.retention_type,
         show_to_all_lab: editingProduct.show_to_all_lab || "Yes",
         office_visibilities: editingProduct.office_visibilities || [],
@@ -2265,6 +2269,8 @@ export function AddLabProductModal({
     payload.has_material = slipFlagToApi(sections.material)
     payload.has_addon = slipFlagToApi(sections.addOns)
     payload.has_advance_field = slipFlagToApi(sections.advanceField)
+    payload.has_implant = data.has_implant === "Yes" ? "Yes" : "No"
+    payload.has_abutment = data.has_abutment === "Yes" ? "Yes" : "No"
 
     // When section flags are false: send empty arrays so backend deletes relations (per Behavior: Skip Sync & Delete When False)
     if (!sections.extractions) {
@@ -2419,7 +2425,7 @@ export function AddLabProductModal({
       teethShade: ["teeth_shades", "teeth_shade_group_id"],
       material: ["materials", "material_group_id"],
       addOns: ["addons", "addon_group_id", "link_all_addons"],
-      retention: ["retentions", "retention_options", "apply_retention_mechanism", "retention_type"],
+      retention: ["retentions", "retention_options", "apply_retention_mechanism", "has_implant", "has_abutment", "retention_type"],
       advanceFields: ["advance_fields"],
       extractions: ["extractions", "opposite_extractions", "apply_same_status_to_opposing"],
       visibility: ["show_to_all_lab", "office_visibilities"],
@@ -2966,6 +2972,8 @@ export function AddLabProductModal({
       payload.has_material = slipFlagToApi(sections.material)
       payload.has_addon = slipFlagToApi(sections.addOns)
       payload.has_advance_field = slipFlagToApi(sections.advanceField)
+      payload.has_implant = formData.has_implant === "Yes" ? "Yes" : "No"
+      payload.has_abutment = formData.has_abutment === "Yes" ? "Yes" : "No"
 
       const allocationErrorSection = validateStageAllocationPercents(payload.stages ?? formData.stages, {
         isTeethBased: formData.is_teeth_based_price === "Yes",

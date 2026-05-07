@@ -7,7 +7,25 @@ import { usePathname } from "next/navigation"
 import { useTranslation } from "react-i18next"
 import { useMemo, useState, useEffect } from "react"
 import { useAuth } from "@/contexts/auth-context"
-import { ChevronDown, ChevronRight } from "lucide-react"
+import {
+  ChevronDown,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Box,
+  PlusSquare,
+  ClipboardList,
+  Workflow,
+  Award,
+  Map,
+  ScanLine,
+  Palette,
+  ShieldCheck,
+  FlaskConical,
+  Settings2,
+  Layers3,
+  Tags,
+} from "lucide-react"
 import { useCasePanTrackingLabelStore } from "@/stores/case-pan-tracking-label-store"
 import { useProductLibraryWarningsStore } from "@/stores/product-library-warnings-store"
 import { usePreferredShadeGuideStore } from "@/stores/preferred-shade-guide-store"
@@ -19,12 +37,14 @@ type SideTabItem = {
   id: string
   label: string
   href: string
+  icon?: React.ReactNode
   children?: SideTabItem[]
 }
 
 type SidebarGroup = {
   id: string
   label: string
+  icon?: React.ReactNode
   items: SideTabItem[]
 }
 
@@ -41,6 +61,7 @@ export function ProductSidebar({ activeTab = "products", onTabChange }: ProductS
   const teethExplicit = usePreferredShadeGuideStore((s) => s.teethExplicit)
   const gumExplicit = usePreferredShadeGuideStore((s) => s.gumExplicit)
   const [expandedItems, setExpandedItems] = useState<string[]>([])
+  const [isSidebarExpanded, setIsSidebarExpanded] = useState(true)
 
   // Get user role from auth context
   const userRoles = user?.roles || (user?.role ? [user.role] : [])
@@ -89,19 +110,21 @@ export function ProductSidebar({ activeTab = "products", onTabChange }: ProductS
     {
       id: "products",
       label: t("productLibrary.sideBar.Products", "Products"),
+      icon: <Box className="h-4 w-4" />,
       items: [
-        { id: "product-category", label: t("productLibrary.sideBar.Category", "Category"), href: `${routePrefix}/product-category` },
-        { id: "product-sub-category", label: t("productLibrary.sideBar.SubCategory", "Sub Category"), href: `${routePrefix}/product-sub-category` },
-        { id: "products", label: t("productLibrary.sideBar.Products", "Products"), href: `${routePrefix}/products` },
+        { id: "product-category", label: t("productLibrary.sideBar.Category", "Category"), href: `${routePrefix}/product-category`, icon: <Tags className="h-4 w-4" /> },
+        { id: "product-sub-category", label: t("productLibrary.sideBar.SubCategory", "Sub Category"), href: `${routePrefix}/product-sub-category`, icon: <Tags className="h-4 w-4" /> },
+        { id: "products", label: t("productLibrary.sideBar.Products", "Products"), href: `${routePrefix}/products`, icon: <Box className="h-4 w-4" /> },
       ]
     },
     {
       id: "addons",
       label: t("productLibrary.sideBar.AddOns", "Add-ons"),
+      icon: <PlusSquare className="h-4 w-4" />,
       items: [
-        { id: "add-ons-category", label: t("productLibrary.sideBar.Category", "Category"), href: `${routePrefix}/add-ons-category` },
-        { id: "add-ons-sub-category", label: t("productLibrary.sideBar.SubCategory", "Sub category"), href: `${routePrefix}/add-ons-sub-category` },
-        { id: "add-ons", label: t("productLibrary.sideBar.AddOns", "Add-ons"), href: `${routePrefix}/add-ons` },
+        { id: "add-ons-category", label: t("productLibrary.sideBar.Category", "Category"), href: `${routePrefix}/add-ons-category`, icon: <Tags className="h-4 w-4" /> },
+        { id: "add-ons-sub-category", label: t("productLibrary.sideBar.SubCategory", "Sub category"), href: `${routePrefix}/add-ons-sub-category`, icon: <Tags className="h-4 w-4" /> },
+        { id: "add-ons", label: t("productLibrary.sideBar.AddOns", "Add-ons"), href: `${routePrefix}/add-ons`, icon: <PlusSquare className="h-4 w-4" /> },
       ]
     },
   ], [t, routePrefix])
@@ -109,29 +132,57 @@ export function ProductSidebar({ activeTab = "products", onTabChange }: ProductS
   const retentionGroup: SidebarGroup = useMemo(() => ({
     id: "retention",
     label: t("productLibrary.sideBar.Retention", "Retention"),
+    icon: <ShieldCheck className="h-4 w-4" />,
     items: [
-      { id: "retention-type", label: t("productLibrary.sideBar.RetentionType", "Retention Type"), href: `${routePrefix}/retention` },
-      { id: "retention-option", label: t("productLibrary.sideBar.RetentionOption", "Retention Option"), href: `${routePrefix}/retention-option` },
+      { id: "retention-option", label: t("productLibrary.sideBar.RetentionOption", "Retention Option"), href: `${routePrefix}/retention-option`, icon: <ShieldCheck className="h-4 w-4" /> },
+      { id: "retention-type", label: t("productLibrary.sideBar.RetentionType", "Retention Type"), href: `${routePrefix}/retention`, icon: <ShieldCheck className="h-4 w-4" /> },
+      { id: "implant-library", label: t("advanceMode.sidebar.ImplantLibrary", "Implant Library"), href: `${routePrefix}/implant-library`, icon: <Layers3 className="h-4 w-4" /> },
+      { id: "abutment-library", label: t("advanceMode.sidebar.AbutmentLibrary", "Abutment Library"), href: `${routePrefix}/abutment-library`, icon: <Layers3 className="h-4 w-4" /> },
     ]
   }), [t, routePrefix])
+
+  const advanceConfigGroup: SidebarGroup = useMemo(() => ({
+    id: "advance-configurations",
+    label: t("advanceMode.sidebar.AdvanceFields", "Advance Configurations"),
+    icon: <Settings2 className="h-4 w-4" />,
+    items: [
+      { id: "advance-config-category", label: t("advanceMode.sidebar.Category", "Category"), href: `${routePrefix}/advance-category`, icon: <Tags className="h-4 w-4" /> },
+      { id: "advance-config-sub-category", label: t("advanceMode.sidebar.SubCategory", "Sub Category"), href: `${routePrefix}/advance-sub-category`, icon: <Tags className="h-4 w-4" /> },
+      { id: "advance-config-fields", label: t("advanceMode.sidebar.Fields", "Fields"), href: `${routePrefix}/advance-fields`, icon: <Settings2 className="h-4 w-4" /> },
+    ],
+  }), [t, routePrefix])
+
+  const groupIds = useMemo(
+    () => [...sidebarGroups.map((group) => group.id), retentionGroup.id, advanceConfigGroup.id],
+    [sidebarGroups, retentionGroup.id, advanceConfigGroup.id],
+  )
+  const expandedGroupsStorageKey = useMemo(
+    () => `product-sidebar-expanded-groups:${routePrefix}`,
+    [routePrefix],
+  )
+  const sidebarOpenStorageKey = useMemo(
+    () => `product-sidebar-open:${routePrefix}`,
+    [routePrefix],
+  )
+  const [hasHydratedExpandedItems, setHasHydratedExpandedItems] = useState(false)
 
   // Flat items (single tabs, not in accordion)
   const flatItems: SideTabItem[] = useMemo(() => [
     // { id: "case-pans", label: t("productLibrary.sideBar.CasePans", "Case Pans"), href: `${routePrefix}/case-pans` },
-    { id: "case-tracking", label: caseTrackingLabel, href: `${routePrefix}/case-tracking` },
-    { id: "stages", label: t("productLibrary.sideBar.Stages", "Stages"), href: `${routePrefix}/stages` },
-    { id: "grades", label: t("productLibrary.sideBar.Grades", "Grades"), href: `${routePrefix}/grades` },
-    { id: "tooth-mapping", label: t("productLibrary.sideBar.ToothMapping", "Tooth Mapping"), href: `${routePrefix}/tooth-mapping` },
-    { id: "impression", label: t("productLibrary.sideBar.Impressions", "Impression"), href: `${routePrefix}/impression` },
-    { id: "teeth-shade", label: t("productLibrary.sideBar.TeethShades", "Teeth Shade"), href: `${routePrefix}/teeth-shade` },
-    { id: "gum-shade", label: t("productLibrary.sideBar.GumShades", "Gum Shade"), href: `${routePrefix}/gum-shade` },
-    { id: "material", label: t("productLibrary.sideBar.Materials", "Material"), href: `${routePrefix}/material` },
+    { id: "case-tracking", label: caseTrackingLabel, href: `${routePrefix}/case-tracking`, icon: <ClipboardList className="h-4 w-4" /> },
+    { id: "stages", label: t("productLibrary.sideBar.Stages", "Stages"), href: `${routePrefix}/stages`, icon: <Workflow className="h-4 w-4" /> },
+    { id: "grades", label: t("productLibrary.sideBar.Grades", "Grades"), href: `${routePrefix}/grades`, icon: <Award className="h-4 w-4" /> },
+    { id: "tooth-mapping", label: t("productLibrary.sideBar.ToothMapping", "Tooth Mapping"), href: `${routePrefix}/tooth-mapping`, icon: <Map className="h-4 w-4" /> },
+    { id: "impression", label: t("productLibrary.sideBar.Impressions", "Impression"), href: `${routePrefix}/impression`, icon: <ScanLine className="h-4 w-4" /> },
+    { id: "teeth-shade", label: t("productLibrary.sideBar.TeethShades", "Teeth Shade"), href: `${routePrefix}/teeth-shade`, icon: <Palette className="h-4 w-4" /> },
+    { id: "gum-shade", label: t("productLibrary.sideBar.GumShades", "Gum Shade"), href: `${routePrefix}/gum-shade`, icon: <Palette className="h-4 w-4" /> },
+    { id: "material", label: t("productLibrary.sideBar.Materials", "Material"), href: `${routePrefix}/material`, icon: <FlaskConical className="h-4 w-4" /> },
   ], [t, routePrefix, caseTrackingLabel])
 
   // Flatten all items to find active tab
   const allItems = useMemo(() => 
-    [...sidebarGroups.flatMap(group => group.items), ...retentionGroup.items, ...flatItems],
-    [sidebarGroups, retentionGroup, flatItems]
+    [...sidebarGroups.flatMap(group => group.items), ...retentionGroup.items, ...advanceConfigGroup.items, ...flatItems],
+    [sidebarGroups, retentionGroup, advanceConfigGroup, flatItems]
   )
 
   // Find the active tab only once
@@ -140,24 +191,60 @@ export function ProductSidebar({ activeTab = "products", onTabChange }: ProductS
     [pathname, allItems]
   )
 
-  // Automatically expand parent groups when a child is active
+  // Restore saved group state; default all groups open if not found.
   useEffect(() => {
-    const currentPath = pathname || "";
-    const shouldBeExpanded: string[] = []
+    if (typeof window === "undefined") return
 
-    const checkGroup = (group: SidebarGroup) => {
-      const hasActiveChild = group.items.some(item => 
-        currentPath === item.href || currentPath.startsWith(`${item.href}/`)
-      )
-      if (hasActiveChild) {
-        shouldBeExpanded.push(group.id)
-      }
+    const savedExpandedGroups = window.localStorage.getItem(expandedGroupsStorageKey)
+    if (!savedExpandedGroups) {
+      setExpandedItems(groupIds)
+      setHasHydratedExpandedItems(true)
+      return
     }
 
-    sidebarGroups.forEach((group) => checkGroup(group))
-    checkGroup(retentionGroup)
-    setExpandedItems([...new Set(shouldBeExpanded)])
-  }, [pathname, sidebarGroups, retentionGroup])
+    try {
+      const parsedExpandedGroups = JSON.parse(savedExpandedGroups)
+      if (!Array.isArray(parsedExpandedGroups)) {
+        setExpandedItems(groupIds)
+        setHasHydratedExpandedItems(true)
+        return
+      }
+
+      const validExpandedGroups = parsedExpandedGroups.filter(
+        (groupId): groupId is string => typeof groupId === "string" && groupIds.includes(groupId),
+      )
+
+      setExpandedItems(validExpandedGroups)
+    } catch {
+      setExpandedItems(groupIds)
+    } finally {
+      setHasHydratedExpandedItems(true)
+    }
+  }, [expandedGroupsStorageKey, groupIds])
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !hasHydratedExpandedItems) return
+    window.localStorage.setItem(expandedGroupsStorageKey, JSON.stringify(expandedItems))
+  }, [expandedItems, expandedGroupsStorageKey, hasHydratedExpandedItems])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const savedSidebarOpenState = window.localStorage.getItem(sidebarOpenStorageKey)
+    if (savedSidebarOpenState === null) {
+      setIsSidebarExpanded(true)
+      return
+    }
+    setIsSidebarExpanded(savedSidebarOpenState === "true")
+  }, [sidebarOpenStorageKey])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    window.localStorage.setItem(sidebarOpenStorageKey, String(isSidebarExpanded))
+  }, [isSidebarExpanded, sidebarOpenStorageKey])
+
+  const toggleSidebarPanel = () => {
+    setIsSidebarExpanded((prev) => !prev)
+  }
 
   const toggleMenuItem = (groupId: string) => {
     setExpandedItems((prev) =>
@@ -182,11 +269,62 @@ export function ProductSidebar({ activeTab = "products", onTabChange }: ProductS
     }
   }
 
+  const collapsedMenuItems = useMemo(() => {
+    const groupNavItems = sidebarGroups
+      .map((group) => ({
+        id: group.id,
+        label: group.label,
+        href: group.items[0]?.href,
+        icon: group.icon,
+      }))
+      .filter((item) => !!item.href)
+
+    const leadingFlatItems = flatItems.filter((item) => item.id !== "material")
+    const materialItem = flatItems.filter((item) => item.id === "material")
+
+    return [
+      ...groupNavItems,
+      ...leadingFlatItems,
+      { id: retentionGroup.id, label: retentionGroup.label, href: retentionGroup.items[0]?.href, icon: retentionGroup.icon },
+      ...materialItem,
+      {
+        id: advanceConfigGroup.id,
+        label: advanceConfigGroup.label,
+        href: advanceConfigGroup.items[0]?.href,
+        icon: advanceConfigGroup.icon,
+      },
+    ].filter((item): item is { id: string; label: string; href: string; icon?: React.ReactNode } => Boolean(item.href))
+  }, [sidebarGroups, flatItems, retentionGroup, advanceConfigGroup])
+
   return (
     <TooltipProvider>
-      <div className="w-72 bg-white border-r border-[#d9d9d9] flex flex-col h-full">
-      <div className="px-6 py-4 font-bold text-lg border-b border-[#d9d9d9] flex-shrink-0">{t("productLibrary.productManagementLabel")}</div>
-      <div className="overflow-y-auto flex-1 [scrollbar-width:thin] [scrollbar-color:#1162a8_#e5e7eb]">
+      <div className={cn(
+        "bg-white border-r border-[#d9d9d9] flex flex-col h-full transition-all duration-300",
+        isSidebarExpanded ? "w-72" : "w-14",
+      )}>
+      <div className={cn(
+        "py-4 border-b border-[#d9d9d9] flex-shrink-0 flex items-center sticky top-0 bg-white z-10",
+        isSidebarExpanded ? "px-4 justify-between" : "px-2 justify-center",
+      )}>
+        {isSidebarExpanded && (
+          <span className="font-bold text-lg truncate">{t("productLibrary.productManagementLabel")}</span>
+        )}
+        <button
+          type="button"
+          onClick={toggleSidebarPanel}
+          className="p-2 rounded-md text-[#1162a8] hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162a8]/40 transition-colors"
+          aria-label={isSidebarExpanded ? "Collapse Product Management sidebar" : "Expand Product Management sidebar"}
+          title={isSidebarExpanded ? "Collapse" : "Expand"}
+        >
+          {isSidebarExpanded ? (
+            <ChevronsLeft className="h-4 w-4" />
+          ) : (
+            <ChevronsRight className="h-4 w-4" />
+          )}
+        </button>
+      </div>
+      {isSidebarExpanded ? (
+      <div className="overflow-y-auto flex-1 [scrollbar-width:thin] [scrollbar-color:#1162a8_#e5e7eb] pb-2">
         {sidebarGroups.map((group) => {
           const hasActiveItem = group.items.some(item => isActive(item.href))
           const groupExpanded = isExpanded(group.id)
@@ -221,11 +359,14 @@ export function ProductSidebar({ activeTab = "products", onTabChange }: ProductS
               href={item.href}
               prefetch={true}
               className={cn(
-                "flex items-center gap-2 px-6 py-4 text-base transition-colors font-medium",
-                itemActive ? "bg-[#dfeefb] text-[#1162a8] border-l-4 border-[#1162a8]" : "text-[#000000] hover:bg-gray-100",
+                "flex items-center gap-2 px-6 py-3.5 text-base transition-all duration-200 font-medium rounded-r-md",
+                itemActive
+                  ? "bg-[#dfeefb] text-[#1162a8] border-l-4 border-[#1162a8] shadow-[inset_0_0_0_1px_rgba(17,98,168,0.08)]"
+                  : "text-[#000000] hover:bg-gray-100 hover:translate-x-[1px]",
               )}
               onClick={() => handleTabClick(item.id)}
             >
+              {item.icon && <span className="text-[#1162a8]">{item.icon}</span>}
               {item.label}
               {showWarning && <SidebarWarningIcon itemType={item.label} />}
               {showPreferredShadeGuideWarning && <SidebarPreferredShadeGuideWarningIcon />}
@@ -262,17 +403,69 @@ export function ProductSidebar({ activeTab = "products", onTabChange }: ProductS
               href={item.href}
               prefetch={true}
               className={cn(
-                "flex items-center gap-2 px-6 py-4 text-base transition-colors font-medium",
-                itemActive ? "bg-[#dfeefb] text-[#1162a8] border-l-4 border-[#1162a8]" : "text-[#000000] hover:bg-gray-100",
+                "flex items-center gap-2 px-6 py-3.5 text-base transition-all duration-200 font-medium rounded-r-md",
+                itemActive
+                  ? "bg-[#dfeefb] text-[#1162a8] border-l-4 border-[#1162a8] shadow-[inset_0_0_0_1px_rgba(17,98,168,0.08)]"
+                  : "text-[#000000] hover:bg-gray-100 hover:translate-x-[1px]",
               )}
               onClick={() => handleTabClick(item.id)}
             >
+              {item.icon && <span className="text-[#1162a8]">{item.icon}</span>}
               {item.label}
               {showWarning && <SidebarWarningIcon itemType={item.label} />}
             </Link>
           )
         })}
+        {/* Advance configurations group (last) */}
+        {(() => {
+          const hasActiveItem = advanceConfigGroup.items.some(item => isActive(item.href))
+          const groupExpanded = isExpanded(advanceConfigGroup.id)
+          const groupWarning = advanceConfigGroup.items.some(item => itemHasWarning(item.id))
+
+          return (
+            <SidebarGroupItem
+              key={advanceConfigGroup.id}
+              group={advanceConfigGroup}
+              isExpanded={groupExpanded}
+              hasActiveItem={hasActiveItem}
+              isActive={isActive}
+              toggleExpand={toggleMenuItem}
+              handleTabClick={handleTabClick}
+              hasWarning={groupWarning}
+              itemHasWarning={itemHasWarning}
+            />
+          )
+        })()}
       </div>
+      ) : (
+        <div className="overflow-y-auto flex-1 flex flex-col items-center gap-1 py-2">
+          {collapsedMenuItems.map((item) => {
+            const itemActive = isActive(item.href)
+            return (
+              <Tooltip key={item.id}>
+                <TooltipTrigger asChild>
+                  <Link
+                    href={item.href}
+                    prefetch={true}
+                    onClick={() => handleTabClick(item.id)}
+                    className={cn(
+                      "w-10 h-10 rounded-md flex items-center justify-center transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162a8]/40",
+                      itemActive
+                        ? "bg-[#dfeefb] text-[#1162a8] border border-[#1162a8] shadow-sm"
+                        : "text-[#1162a8] hover:bg-gray-100 hover:scale-[1.03]",
+                    )}
+                  >
+                    {item.icon ?? <span className="text-sm font-semibold">{item.label.charAt(0)}</span>}
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="text-sm">
+                  {item.label}
+                </TooltipContent>
+              </Tooltip>
+            )
+          })}
+        </div>
+      )}
       </div>
     </TooltipProvider>
   )
@@ -300,11 +493,14 @@ function SidebarGroupItem({ group, isExpanded, hasActiveItem, isActive, toggleEx
       <button
         onClick={handleClick}
         className={cn(
-          "flex items-center justify-between w-full px-6 py-4 text-base font-medium transition-colors text-left",
-          hasActiveItem ? "bg-[#dfeefb] text-[#1162a8]" : "text-[#000000] hover:bg-gray-100"
+          "flex items-center justify-between w-full px-6 py-3.5 text-base font-medium transition-all duration-200 text-left rounded-r-md",
+          hasActiveItem
+            ? "bg-[#dfeefb] text-[#1162a8] border-l-4 border-[#1162a8] shadow-[inset_0_0_0_1px_rgba(17,98,168,0.08)]"
+            : "text-[#000000] hover:bg-gray-100 hover:translate-x-[1px]"
         )}
       >
         <span className="flex items-center gap-2">
+          {group.icon && <span className="text-[#1162a8]">{group.icon}</span>}
           {group.label}
           {hasWarning && <SidebarWarningIcon itemType={group.label} />}
         </span>
@@ -326,11 +522,14 @@ function SidebarGroupItem({ group, isExpanded, hasActiveItem, isActive, toggleEx
                 href={item.href}
                 prefetch={true}
                 className={cn(
-                  "flex items-center gap-2 pl-12 pr-6 py-3 text-base transition-colors font-medium",
-                  itemActive ? "bg-[#dfeefb] text-[#1162a8] border-l-4 border-[#1162a8]" : "text-[#000000] hover:bg-gray-100",
+                  "flex items-center gap-2 pl-12 pr-6 py-2.5 text-base transition-all duration-200 font-medium rounded-r-md",
+                  itemActive
+                    ? "bg-[#dfeefb] text-[#1162a8] border-l-4 border-[#1162a8] shadow-[inset_0_0_0_1px_rgba(17,98,168,0.08)]"
+                    : "text-[#000000] hover:bg-gray-100 hover:translate-x-[1px]",
                 )}
                 onClick={() => handleTabClick(item.id)}
               >
+                {item.icon && <span className="text-[#1162a8]">{item.icon}</span>}
                 {item.label}
                 {showItemWarning && <SidebarWarningIcon itemType={item.label} />}
               </Link>

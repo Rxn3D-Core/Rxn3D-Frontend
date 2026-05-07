@@ -428,6 +428,8 @@ export function AddProductModal({
     is_single_stage: "No",
     link_all_addons: "No",
     apply_retention_mechanism: "No",
+    has_implant: "No",
+    has_abutment: "No",
     retention_type: undefined,
     show_to_all_lab: "Yes",
     office_visibilities: placeholderOffices.map((office) => ({
@@ -978,6 +980,8 @@ export function AddProductModal({
       is_single_stage: editingProduct.is_single_stage || "No",
       link_all_addons: editingProduct.link_all_addons || "No",
       apply_retention_mechanism: editingProduct.apply_retention_mechanism || "No",
+      has_implant: editingProduct.has_implant === "Yes" ? "Yes" : "No",
+      has_abutment: editingProduct.has_abutment === "Yes" ? "Yes" : "No",
       retention_type: editingProduct.retention_type,
       show_to_all_lab: editingProduct.show_to_all_lab || "Yes",
       office_visibilities: editingProduct.office_visibilities || initialFormValues.office_visibilities,
@@ -1559,6 +1563,8 @@ export function AddProductModal({
       payload.has_material = sections.material ? "Yes" : "No"
       payload.has_addon = sections.addOns ? "Yes" : "No"
       payload.has_advance_field = sections.advanceField ? "Yes" : "No"
+      payload.has_implant = data.has_implant === "Yes" ? "Yes" : "No"
+      payload.has_abutment = data.has_abutment === "Yes" ? "Yes" : "No"
 
       // When section is off: send empty arrays so backend deletes relations
       if (!sections.stages) payload.stages = []
@@ -1632,6 +1638,8 @@ export function AddProductModal({
       payload.has_material = sections.material ? "Yes" : "No"
       payload.has_addon = sections.addOns ? "Yes" : "No"
       payload.has_advance_field = sections.advanceField ? "Yes" : "No"
+      payload.has_implant = data.has_implant === "Yes" ? "Yes" : "No"
+      payload.has_abutment = data.has_abutment === "Yes" ? "Yes" : "No"
 
       if (!sections.stages) payload.stages = []
       if (!sections.grades) payload.grades = []
