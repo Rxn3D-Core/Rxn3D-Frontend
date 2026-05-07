@@ -120,19 +120,18 @@ export interface AbutmentPlatform {
 
 export interface Abutment {
   id: number
-  brand_name: string
-  system_name: string
+  type: string
   code: string
   status: 'Active' | 'Inactive'
   image_url?: string
   description?: string
-  allow_user_input: 'Yes' | 'No'
-  has_additional_pricing: 'Yes' | 'No'
-  charge_type?: 'once_per_field' | 'per_platform_option' | null
+  charge_type?: 'once_per_abutment' | 'per_option' | null
   price?: number | null
-  charge_scope?: string | null
+  options?: AbutmentPlatform[]
+  // Backward-compatible alias for older payloads.
   platforms?: AbutmentPlatform[]
-  products?: any[]
+  customer_id?: number | null
+  is_custom?: 'Yes' | 'No'
   created_at: string
   updated_at: string
 }
@@ -759,17 +758,14 @@ export const advanceModeApi = apiSlice.injectEndpoints({
     }),
 
     createAbutment: builder.mutation<ApiResponse<Abutment>, {
-      brand_name: string
-      system_name: string
-      code: string
+      type: string
+      code?: string
       image?: string
       description?: string
-      allow_user_input?: 'Yes' | 'No'
-      has_additional_pricing?: 'Yes' | 'No'
-      charge_type?: 'once_per_field' | 'per_platform_option' | null
+      charge_type?: 'once_per_abutment' | 'per_option' | null
       price?: number | null
-      charge_scope?: string | null
-      platforms?: Array<{
+      customer_id?: number | null
+      options?: Array<{
         name: string
         image?: string
         is_default?: 'Yes' | 'No'
@@ -787,16 +783,21 @@ export const advanceModeApi = apiSlice.injectEndpoints({
 
     updateAbutment: builder.mutation<ApiResponse<Abutment>, {
       id: number
-      brand_name?: string
-      system_name?: string
+      type?: string
       code?: string
       image?: string
       description?: string
-      allow_user_input?: 'Yes' | 'No'
-      has_additional_pricing?: 'Yes' | 'No'
-      charge_type?: 'once_per_field' | 'per_platform_option' | null
+      charge_type?: 'once_per_abutment' | 'per_option' | null
       price?: number | null
-      charge_scope?: string | null
+      customer_id?: number | null
+      options?: Array<{
+        id?: number
+        name?: string
+        image?: string
+        is_default?: 'Yes' | 'No'
+        price?: number | null
+        sequence?: number
+      }>
     }>({
       query: ({ id, ...data }) => ({
         url: `/library/abutments/${id}`,
@@ -820,18 +821,6 @@ export const advanceModeApi = apiSlice.injectEndpoints({
       ],
     }),
 
-    linkAbutmentProducts: builder.mutation<ApiResponse<null>, {
-      id: number
-      product_ids: number[]
-    }>({
-      query: ({ id, product_ids }) => ({
-        url: `/library/abutments/${id}/link-products`,
-        method: 'POST',
-        body: { product_ids },
-      }),
-      invalidatesTags: (result, error, { id }) => [{ type: 'Abutments', id }],
-    }),
-
     updateAbutmentStatus: builder.mutation<ApiResponse<Abutment>, {
       id: number
       status: 'Active' | 'Inactive'
@@ -847,63 +836,6 @@ export const advanceModeApi = apiSlice.injectEndpoints({
       ],
     }),
 
-    // Abutment Platforms
-    addAbutmentPlatform: builder.mutation<ApiResponse<AbutmentPlatform>, {
-      abutment_id: number
-      name: string
-      image?: string
-      is_default?: 'Yes' | 'No'
-      price?: number
-      sequence?: number
-    }>({
-      query: ({ abutment_id, ...data }) => ({
-        url: `/library/abutments/${abutment_id}/platforms`,
-        method: 'POST',
-        body: data,
-      }),
-      invalidatesTags: (result, error, { abutment_id }) => [{ type: 'Abutments', id: abutment_id }],
-    }),
-
-    updateAbutmentPlatform: builder.mutation<ApiResponse<AbutmentPlatform>, {
-      abutment_id: number
-      platform_id: number
-      name?: string
-      image?: string
-      is_default?: 'Yes' | 'No'
-      price?: number
-      sequence?: number
-    }>({
-      query: ({ abutment_id, platform_id, ...data }) => ({
-        url: `/library/abutments/${abutment_id}/platforms/${platform_id}`,
-        method: 'PUT',
-        body: data,
-      }),
-      invalidatesTags: (result, error, { abutment_id }) => [{ type: 'Abutments', id: abutment_id }],
-    }),
-
-    deleteAbutmentPlatform: builder.mutation<ApiResponse<null>, {
-      abutment_id: number
-      platform_id: number
-    }>({
-      query: ({ abutment_id, platform_id }) => ({
-        url: `/library/abutments/${abutment_id}/platforms/${platform_id}`,
-        method: 'DELETE',
-      }),
-      invalidatesTags: (result, error, { abutment_id }) => [{ type: 'Abutments', id: abutment_id }],
-    }),
-
-    updateAbutmentPlatformStatus: builder.mutation<ApiResponse<AbutmentPlatform>, {
-      abutment_id: number
-      platform_id: number
-      status: 'Active' | 'Inactive'
-    }>({
-      query: ({ abutment_id, platform_id, status }) => ({
-        url: `/library/abutments/${abutment_id}/platforms/${platform_id}/status`,
-        method: 'PATCH',
-        body: { status },
-      }),
-      invalidatesTags: (result, error, { abutment_id }) => [{ type: 'Abutments', id: abutment_id }],
-    }),
   }),
 })
 
@@ -959,10 +891,5 @@ export const {
   useCreateAbutmentMutation,
   useUpdateAbutmentMutation,
   useDeleteAbutmentMutation,
-  useLinkAbutmentProductsMutation,
   useUpdateAbutmentStatusMutation,
-  useAddAbutmentPlatformMutation,
-  useUpdateAbutmentPlatformMutation,
-  useDeleteAbutmentPlatformMutation,
-  useUpdateAbutmentPlatformStatusMutation,
 } = advanceModeApi

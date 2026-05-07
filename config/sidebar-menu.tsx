@@ -1,6 +1,5 @@
 import {
   BarChart,
-  Box,
   Briefcase,
   Building,
   Calendar,
@@ -20,7 +19,6 @@ import {
   FlaskConical,
   Layers,
   Settings2,
-  ListPlusIcon,
   LayoutDashboard,
 } from "lucide-react"
 import type { ReactNode } from "react"
@@ -120,12 +118,6 @@ export const superadminMenu: MenuItem[] = [
         id: "global-product-library",
         title: "Global Product Library",
         path: "/global-product-library",
-      },
-      {
-        id: "global-advance-mode",
-        title: "Global Advance Mode",
-        icon: <ListPlusIcon className="h-5 w-5" />,
-        path: "/global-advance-mode",
       },
       {
         id: "global-workflow",
@@ -242,14 +234,8 @@ export const labAdminMenu: MenuItem[] = [
   {
     id: "product-management",
     title: "Product Management",
-    icon: <Box className="h-5 w-5" />,
+    icon: <Layers className="h-5 w-5" />,
     path: "/lab-product-library/products",
-  },
-  {
-    id: "advance-mode",
-    title: "Advance Mode",
-    icon: <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-list-plus-icon lucide-list-plus"><path d="M16 5H3"/><path d="M11 12H3"/><path d="M16 19H3"/><path d="M18 9v6"/><path d="M21 12h-6"/></svg>,
-    path: "/lab-advance-mode",
   },
   {
     id: "case-management",

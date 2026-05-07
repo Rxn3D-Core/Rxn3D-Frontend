@@ -12,7 +12,6 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from "@/lib/utils"
 import { type MenuItem, getMenuByRole } from "@/config/sidebar-menu"
 import { useAuth } from "@/contexts/auth-context"
-import { useLanguage } from "@/contexts/language-context"
 import { useTranslation } from "react-i18next"
 import { CompactPreloadStatus } from "@/components/3d-model-preload-status"
 import { CustomerLogo } from "@/components/customer-logo"
@@ -58,9 +57,26 @@ export function DashboardSidebar({ onClose, isMobileOverlay = false }: Dashboard
   })
   const userRole = user?.roles?.[0]
   const menuItems = useMemo(() => getMenuByRole(userRole || ""), [userRole])
-  const { currentLanguage } = useLanguage()
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { theme } = useTheme();
+  const expandableMenuItemIds = useMemo(() => {
+    const ids: string[] = []
+    const collectExpandableIds = (items: MenuItem[]) => {
+      items.forEach((item) => {
+        if (item.children && item.children.length > 0) {
+          ids.push(item.id)
+          collectExpandableIds(item.children)
+        }
+      })
+    }
+    collectExpandableIds(menuItems)
+    return ids
+  }, [menuItems])
+  const expandedMenuStorageKey = useMemo(
+    () => `dashboard-sidebar-expanded-items:${userRole || "default"}`,
+    [userRole],
+  )
+  const [hasHydratedExpandedItems, setHasHydratedExpandedItems] = useState(false)
   
   // Initialize logo store from localStorage on mount
   const initializeFromStorage = useCustomerLogoStore((state) => state.initializeFromStorage)
@@ -99,33 +115,39 @@ export function DashboardSidebar({ onClose, isMobileOverlay = false }: Dashboard
   const customerId = getCustomerId()
   
   useEffect(() => {
-    const currentPath = pathname || "";
+    if (typeof window === "undefined") return
 
-    const shouldBeExpanded: string[] = []
-
-    const checkItem = (item: MenuItem, parentIds: string[] = []) => {
-      const currentIds = [...parentIds, item.id]
-
-      if (item.path && (currentPath === item.path || currentPath.startsWith(`${item.path}/`))) {
-        shouldBeExpanded.push(...currentIds)
-        return true
-      }
-
-      if (item.children) {
-        for (const child of item.children) {
-          if (checkItem(child, currentIds)) {
-            return true
-          }
-        }
-      }
-
-      return false
+    const savedExpandedItems = window.localStorage.getItem(expandedMenuStorageKey)
+    if (!savedExpandedItems) {
+      setExpandedItems(expandableMenuItemIds)
+      setHasHydratedExpandedItems(true)
+      return
     }
 
-    menuItems.forEach((item) => checkItem(item))
+    try {
+      const parsedExpandedItems = JSON.parse(savedExpandedItems)
+      if (!Array.isArray(parsedExpandedItems)) {
+        setExpandedItems(expandableMenuItemIds)
+        setHasHydratedExpandedItems(true)
+        return
+      }
 
-    setExpandedItems([...new Set(shouldBeExpanded)])
-  }, [pathname, menuItems, currentLanguage])
+      const validExpandedItems = parsedExpandedItems.filter(
+        (itemId): itemId is string => typeof itemId === "string" && expandableMenuItemIds.includes(itemId),
+      )
+
+      setExpandedItems(validExpandedItems)
+    } catch {
+      setExpandedItems(expandableMenuItemIds)
+    } finally {
+      setHasHydratedExpandedItems(true)
+    }
+  }, [expandableMenuItemIds, expandedMenuStorageKey])
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !hasHydratedExpandedItems) return
+    window.localStorage.setItem(expandedMenuStorageKey, JSON.stringify(expandedItems))
+  }, [expandedItems, expandedMenuStorageKey, hasHydratedExpandedItems])
 
   const toggleSidebar = () => {
     setExpanded(!expanded)
