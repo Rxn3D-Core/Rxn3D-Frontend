@@ -569,7 +569,9 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
 
   // Helper function to render retention popover
   const getRetentionPopover = (): React.ReactPortal | null => {
-    if (!showRetentionPopover || retentionPopoverTooth === null || !onSelectRetentionType || typeof window === 'undefined') {
+    // If the removable tooth-status popover is active, never show retention popover.
+    const effectiveShowRetentionPopover = showRetentionPopover && !showToothStatusPopover
+    if (!effectiveShowRetentionPopover || retentionPopoverTooth === null || !onSelectRetentionType || typeof window === 'undefined') {
       return null
     }
     const popoverPosition = getPopoverPosition()
@@ -652,7 +654,6 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             onSelect={(code) => onSelectToothStatus(toothStatusPopoverTooth, code)}
             onRemove={onRemoveToothStatus ? () => onRemoveToothStatus(toothStatusPopoverTooth) : undefined}
             onClose={onCloseToothStatusPopover}
-            productName={toothStatusProductName}
             productImageUrl={toothStatusProductImageUrl}
             arrowOffsetX={arrowOffsetX}
             arrowDirection="down"

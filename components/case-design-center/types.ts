@@ -483,6 +483,15 @@ export interface ProductApiData {
       image_url: string | null;
     };
   };
+  has_grade?: "Yes" | "No" | null;
+  has_stage?: "Yes" | "No" | null;
+  has_teeth_shade?: "Yes" | "No" | null;
+  has_gum_shade?: "Yes" | "No" | null;
+  has_addon?: "Yes" | "No" | null;
+  has_extraction?: "Yes" | "No" | null;
+  has_retention?: "Yes" | "No" | null;
+  has_advance_field?: "Yes" | "No" | null;
+  has_material?: "Yes" | "No" | null;
   has_impression?: "Yes" | "No" | null;
   has_variation?: string | boolean | null;
   variations?: Array<{

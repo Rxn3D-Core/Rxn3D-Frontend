@@ -15,6 +15,7 @@ import type {
   RetentionType,
 } from "../types";
 import type { FieldStep } from "../hooks/useToothFieldProgress";
+import { getRemovableFieldChain } from "../hooks/useToothFieldProgress";
 import { isSingleStageNoStages } from "../utils/categoryHelpers";
 import { hasVisibleAddonDisplay } from "../utils/addonDisplayHelpers";
 
@@ -296,11 +297,14 @@ export function RemovableRestorationFields({
   setPanelGumShadePicker,
   noOpposingNeeded = {},
 }: RemovableRestorationFieldsProps) {
+  const removableChain = getRemovableFieldChain(selectedProduct);
+  const isVisible = (step: FieldStep): boolean => isFieldVisibleFn(arch, firstToothNumber, step, removableChain);
+
   return (
     <>
       <AutoOpenImpressionIfEmpty
         isExpanded={isExpanded}
-        isImpressionVisible={isFieldVisibleFn(arch, firstToothNumber, "impression")}
+        isImpressionVisible={isVisible("impression")}
         isImpressionEmpty={!isFieldCompletedFn(arch, firstToothNumber, "impression")}
         onOpenImpressionModal={(a, productId, toothNum) => {
           const hasImplantForm = toothNumbers.some((n) => (retentionTypesMap[n] || []).includes("Implant"));
@@ -323,7 +327,7 @@ export function RemovableRestorationFields({
       )}
 
       {/* Step 1: Grade / Stage */}
-      {isFieldVisibleFn(arch, firstToothNumber, "grade") && (() => {
+      {isVisible("grade") && (() => {
         const stageName = getFieldValueFn(arch, firstToothNumber, "stage");
         const selectedStageObj = selectedProduct?.stages?.find((s) => s.name === stageName);
         const stageCfg = selectedStageObj?.stage_configurations;
@@ -337,7 +341,7 @@ export function RemovableRestorationFields({
         // Hide grade if stage_configurations.grade === "No"
         const gradeAllowedByStage = !stageCfg || stageCfg.grade !== "No";
         const hasGrades = productGrades.length > 0 && gradeAllowedByStage;
-        const showStage = isFieldVisibleFn(arch, firstToothNumber, "stage") && !isSingleStageNoStages(selectedProduct);
+        const showStage = isVisible("stage") && !isSingleStageNoStages(selectedProduct);
         const showTwoCols = hasGrades && showStage;
         return (
         <div className={`grid grid-cols-1 ${showTwoCols ? "sm:grid-cols-2" : ""} gap-3`}>
@@ -416,8 +420,8 @@ export function RemovableRestorationFields({
       })()}
 
       {/* Step 2: Teeth shade / Gum Shade */}
-      {isFieldVisibleFn(arch, firstToothNumber, "teeth_shade") && (() => {
-        const showGumShade = isFieldVisibleFn(arch, firstToothNumber, "gum_shade");
+      {isVisible("teeth_shade") && (() => {
+        const showGumShade = isVisible("gum_shade");
         return (
         <>
         <AutoOpenShade
@@ -470,7 +474,7 @@ export function RemovableRestorationFields({
             </div>
           </fieldset>
 
-          {isFieldVisibleFn(arch, firstToothNumber, "gum_shade") ? (
+          {isVisible("gum_shade") ? (
             <fieldset
               className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
                 isFieldCompletedFn(arch, firstToothNumber, "gum_shade") && !caseSubmitted
@@ -530,8 +534,8 @@ export function RemovableRestorationFields({
       })()}
 
       {/* Step 3: Impression / Add ons */}
-      {isFieldVisibleFn(arch, firstToothNumber, "impression") && (() => {
-        const showAddons = isFieldVisibleFn(arch, firstToothNumber, "addons");
+      {isVisible("impression") && (() => {
+        const showAddons = isVisible("addons");
         return (
         <div className="flex flex-col gap-3 mt-3">
           <fieldset
@@ -569,7 +573,7 @@ export function RemovableRestorationFields({
             </div>
           </fieldset>
 
-          {isFieldVisibleFn(arch, firstToothNumber, "addons") &&
+          {isVisible("addons") &&
           hasVisibleAddonDisplay(getFieldValueFn(arch, firstToothNumber, "addons")) ? (
             <fieldset
               className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${

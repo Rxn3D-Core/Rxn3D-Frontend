@@ -1,9 +1,8 @@
 /**
  * Centralized category detection helpers.
  * Detection is based on product API data fields, not category name strings.
- * - Fixed Restoration: has retention_options
- * - Removable Restoration: has extractions, no retention_options
- * - Orthodontics: has neither extractions nor retention_options
+ * - Fixed Restoration: has retention_options → hasRetentionOptions(product)
+ * - Removable / Orthodontics: no retention_options → !hasRetentionOptions(product)
  */
 
 type ProductForCategoryCheck = {
@@ -13,36 +12,29 @@ type ProductForCategoryCheck = {
 
 type ProductWithRetention = { retention_options?: unknown[] } | null | undefined;
 
+type AnyProduct = { retention_options?: unknown[]; extractions?: unknown[] };
+
 /**
- * Returns true if the product has retention options configured.
- * Fixed products are tooth-based and always have retention_options.
- * Removable/Orthodontics products do not.
+ * Returns true if the product is Fixed Restoration (has retention_options).
+ * Use !hasRetentionOptions for Removable Restoration and Orthodontics.
  */
-export function hasRetentionOptions(product: ProductWithRetention): boolean {
-  if (!product) return false;
-  return Array.isArray(product.retention_options) && product.retention_options.length > 0;
+export function hasRetentionOptions(product: ProductWithRetention | ProductForCategoryCheck): boolean {
+  const p = product as AnyProduct | null | undefined;
+  if (!p) return false;
+  return Array.isArray(p.retention_options) && p.retention_options.length > 0;
 }
 
-/** Returns true if the product is Fixed Restoration (has retention_options) */
-export function isFixedCategory(product: ProductForCategoryCheck): boolean {
-  if (!product) return false;
-  return Array.isArray(product.retention_options) && product.retention_options.length > 0;
-}
+/** @deprecated Use hasRetentionOptions */
+export const isFixedCategory = hasRetentionOptions;
 
-/** Returns true if the product is Removable Restoration (has extractions, no retention_options) */
+/** @deprecated Use !hasRetentionOptions */
 export function isRemovableCategory(product: ProductForCategoryCheck): boolean {
-  if (!product) return false;
-  const hasExtractions = Array.isArray(product.extractions) && product.extractions.length > 0;
-  const hasRetention = Array.isArray(product.retention_options) && product.retention_options.length > 0;
-  return hasExtractions && !hasRetention;
+  return !hasRetentionOptions(product);
 }
 
-/** Returns true if the product is Orthodontics (has neither extractions nor retention_options) */
+/** @deprecated Use !hasRetentionOptions */
 export function isOrthodonticsCategory(product: ProductForCategoryCheck): boolean {
-  if (!product) return false;
-  const hasRetention = Array.isArray(product.retention_options) && product.retention_options.length > 0;
-  const hasExtractions = Array.isArray(product.extractions) && product.extractions.length > 0;
-  return !hasRetention && !hasExtractions;
+  return !hasRetentionOptions(product);
 }
 
 /** Get the normalized category name from a product's nested subcategory */

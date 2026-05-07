@@ -341,8 +341,10 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
   }
 
   // Position above the specific tooth that triggered the retention popover
+  // If the removable tooth-status popover is active, never show retention popover.
+  const effectiveShowRetentionPopover = showRetentionPopover && !showToothStatusPopover
   const getPopoverPosition = () => {
-    if (!showRetentionPopover || retentionPopoverTooth === null) {
+    if (!effectiveShowRetentionPopover || retentionPopoverTooth === null) {
       return { left: 0, top: 0, containerLeft: 0, containerRight: 0 }
     }
     return getToothPopoverPosition(retentionPopoverTooth)
@@ -446,7 +448,7 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
   return (
     <>
       {/* Retention Type Popover - using portal to avoid nesting issues */}
-      {showRetentionPopover && retentionPopoverTooth !== null && onSelectRetentionType && typeof window !== 'undefined' && (() => {
+      {effectiveShowRetentionPopover && retentionPopoverTooth !== null && onSelectRetentionType && typeof window !== 'undefined' && (() => {
         const popoverPosition = getPopoverPosition()
         // Don't render if position calculation failed (returned 0, 0)
         if (popoverPosition.left === 0 && popoverPosition.top === 0) {

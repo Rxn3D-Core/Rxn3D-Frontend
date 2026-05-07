@@ -205,6 +205,8 @@ export function useCaseDesignState(props: CaseDesignProps) {
 
   const isActiveProductRemovables = (arch: Arch): boolean => {
     if (activeProductCardId === 0) {
+      // Still loading — don't assume removable; let the popover show once data arrives
+      if (initialProductDetails === null) return false;
       if (hasRetentionOptions(initialProductDetails)) return false;
       // Respect the arch selection from the wizard (e.g. user chose "maxillary" only)
       if (props.initialArch === "maxillary" && arch === "mandibular") return false;
@@ -630,7 +632,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
     [toothFieldProgress, autoCompleteSingleStage, autoPopulateDefaultAddons]
   );
 
-  // Auto-assign initial removable product to all teeth when initialArch === "both".
+  // Auto-assign initial non-fixed product (Removable/Orthodontics) to all teeth when initialArch === "both".
   // runMissingTeethAutoSelect adds teeth to the selection but doesn't call setToothProduct,
   // so the accordion body (which requires getToothProduct to return data) would stay empty.
   // We assign the product to each arch's first tooth so the accordion renders with fields.

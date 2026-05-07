@@ -62,7 +62,7 @@ export const FIXED_SHADE_FIELD_TO_STEP: Record<string, FieldStep> = {
 const FIXED_STEP_ADVANCE_FIELD_PATTERNS: Record<string, (name: string) => boolean> = {
   fixed_stump_shade:       (n) => n.includes("stump") && n.includes("shade"),
   fixed_shade_trio:        (n) => (n.includes("crown") || n.includes("tooth") || n.includes("incisal") || n.includes("cervical") || n.includes("body")) && n.includes("shade"),
-  fixed_characterization:  (n) => n.includes("characterization"),
+  fixed_characterization:  (n) => n.includes("characterization") || n.includes("character") || n.includes("intensity") || n.includes("surface finish") || n.includes("surface_finish"),
   fixed_contact_icons:     (n) => n.includes("occlusal") || n.includes("pontic") || n.includes("embrasure") || (n.includes("proximal") && n.includes("contact")),
   fixed_margin:            (n) => n.includes("margin"),
   fixed_metal:             (n) => n.includes("metal"),
@@ -73,18 +73,25 @@ const FIXED_STEP_ADVANCE_FIELD_PATTERNS: Record<string, (name: string) => boolea
  * Build the fixed-field chain for a specific product, skipping steps whose
  * corresponding advance_fields are not returned by the API.
  * Steps with no pattern (stage, impression, addons, notes) are always included.
+ * Shade steps (fixed_stump_shade, fixed_shade_trio) are also included when the
+ * product's has_teeth_shade or has_gum_shade flag is "Yes", regardless of advance_fields.
  */
 export function getFixedFieldChain(
-  advanceFields: ProductAdvanceField[] | undefined
+  advanceFields: ProductAdvanceField[] | undefined,
+  product?: Pick<ProductApiData, "has_teeth_shade" | "has_gum_shade"> | null
 ): readonly (typeof FIXED_FIELD_STEPS)[number][] {
+  const hasTeethShadeFlag = product?.has_teeth_shade === "Yes";
+  const hasGumShadeFlag = product?.has_gum_shade === "Yes";
+
   if (!advanceFields || advanceFields.length === 0) {
-    // No advance_fields configured — show stage, shade steps, impression, addons.
-    // Exclude gated fields that require specific advance_field entries
+    // No advance_fields configured — show stage, shade steps (gated by has_* flags),
+    // impression, addons. Exclude gated fields that require specific advance_field entries
     // (characterization, contact_icons, margin, metal, proximal_contact).
-    const SHADE_STEPS = new Set(["fixed_stump_shade", "fixed_shade_trio"]);
-    return FIXED_FIELD_STEPS.filter(
-      (step) => !FIXED_STEP_ADVANCE_FIELD_PATTERNS[step] || SHADE_STEPS.has(step)
-    );
+    return FIXED_FIELD_STEPS.filter((step) => {
+      if (step === "fixed_stump_shade") return hasTeethShadeFlag || hasGumShadeFlag;
+      if (step === "fixed_shade_trio") return hasTeethShadeFlag;
+      return !FIXED_STEP_ADVANCE_FIELD_PATTERNS[step];
+    });
   }
 
   const normalizedNames = advanceFields.map((f) => (f.name ?? "").toLowerCase().trim());
@@ -92,7 +99,38 @@ export function getFixedFieldChain(
   return FIXED_FIELD_STEPS.filter((step) => {
     const pattern = FIXED_STEP_ADVANCE_FIELD_PATTERNS[step];
     if (!pattern) return true; // no gate — always show (stage, impression, addons, notes)
+    // Shade steps: include if advance_fields match OR has_* flag is set
+    if (step === "fixed_stump_shade") return normalizedNames.some(pattern) || hasTeethShadeFlag || hasGumShadeFlag;
+    if (step === "fixed_shade_trio") return normalizedNames.some(pattern) || hasTeethShadeFlag;
     return normalizedNames.some(pattern);
+  });
+}
+
+/**
+ * Build the removable field chain for a specific product, skipping steps whose
+ * corresponding has_* flag is explicitly "No".
+ * Steps with no flag configured are always included.
+ */
+export function getRemovableFieldChain(
+  product: ProductApiData | null | undefined
+): readonly (typeof FIELD_STEPS)[number][] {
+  if (!product) return FIELD_STEPS;
+
+  const stepFlagMap: Record<(typeof FIELD_STEPS)[number], keyof ProductApiData | null> = {
+    grade: "has_grade",
+    stage: "has_stage",
+    teeth_shade: "has_teeth_shade",
+    gum_shade: "has_gum_shade",
+    impression: "has_impression",
+    addons: "has_addon",
+  };
+
+  return FIELD_STEPS.filter((step) => {
+    const flagKey = stepFlagMap[step];
+    if (!flagKey) return true;
+    const val = product[flagKey];
+    // Only exclude when flag is explicitly "No"
+    return val !== "No";
   });
 }
 
@@ -223,11 +261,18 @@ export function useToothFieldProgress() {
    *  Automatically selects the correct chain (prep/pontic vs fixed restoration).
    *  Pass a custom fixedChain (from getFixedFieldChain) to filter steps by product advance_fields. */
   const isFieldVisible = useCallback(
-    (arch: Arch, toothNumber: number, step: FieldStep, fixedChain?: readonly string[]): boolean => {
+    (arch: Arch, toothNumber: number, step: FieldStep, customChain?: readonly string[]): boolean => {
       const isFixedStep = (FIXED_FIELD_STEPS as readonly string[]).includes(step);
-      const chain = isFixedStep ? (fixedChain ?? FIXED_FIELD_STEPS) : FIELD_STEPS;
+      let chain: readonly string[];
+      if (customChain) {
+        chain = customChain;
+      } else if (isFixedStep) {
+        chain = FIXED_FIELD_STEPS;
+      } else {
+        chain = FIELD_STEPS;
+      }
       // If the step isn't in the (possibly filtered) chain, it should not be shown
-      const stepIndex = (chain as readonly string[]).indexOf(step);
+      const stepIndex = chain.indexOf(step);
       if (stepIndex === -1) return false;
       const visibleCount = getVisibleStepCount(arch, toothNumber, chain as readonly FieldStep[]);
       return stepIndex < visibleCount;
