@@ -1,15 +1,15 @@
 "use client"
 
-import { useState } from "react"
-import { Search, Plus, Settings2, Link as LinkIcon, Edit, Copy, Trash2, MoreVertical, ArrowUpDown } from "lucide-react"
+import { useMemo, useState } from "react"
+import { Search, Plus, Settings2, Edit, Copy, Trash2, MoreVertical, ArrowUpDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useTranslation } from "react-i18next"
-import { AddAbutmentModal, LinkAbutmentModal } from "@/components/advance-mode"
-import { useAbutments, useUpdateAbutmentStatus, useDeleteAbutment } from "@/lib/api/advance-mode-query"
+import { AddAbutmentModal } from "@/components/advance-mode"
+import { useAbutments, useCreateAbutment, useUpdateAbutmentStatus, useDeleteAbutment } from "@/lib/api/advance-mode-query"
 import { useToast } from "@/hooks/use-toast"
 import { LoadingDots } from "@/components/ui/loading-dots"
 
@@ -20,21 +20,24 @@ export default function AbutmentLibraryPage() {
   const [entriesPerPage, setEntriesPerPage] = useState("10")
   const [currentPage, setCurrentPage] = useState(1)
   const [sortBy, setSortBy] = useState<'asc' | 'desc'>('asc')
-  const [orderBy, setOrderBy] = useState('brand_name')
+  const [orderBy, setOrderBy] = useState('type')
   const [isAddAbutmentModalOpen, setIsAddAbutmentModalOpen] = useState(false)
-  const [isLinkAbutmentModalOpen, setIsLinkAbutmentModalOpen] = useState(false)
 
   // Fetch abutments from API
+  const serverSortableFields = ["type", "code", "sequence", "created_at"]
+  const isServerSortable = serverSortableFields.includes(orderBy)
+
   const { data, isLoading, isError } = useAbutments({
     page: currentPage,
     per_page: parseInt(entriesPerPage),
     q: searchQuery || undefined,
-    order_by: orderBy,
-    sort_by: sortBy,
+    order_by: isServerSortable ? orderBy : undefined,
+    sort_by: isServerSortable ? sortBy : undefined,
   })
 
   const updateStatusMutation = useUpdateAbutmentStatus()
   const deleteAbutmentMutation = useDeleteAbutment()
+  const createAbutmentMutation = useCreateAbutment()
 
   const handleStatusToggle = async (id: number, currentStatus: 'Active' | 'Inactive') => {
     const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active'
@@ -90,6 +93,30 @@ export default function AbutmentLibraryPage() {
   }
 
   const abutmentData = data?.data || []
+  const sortedAbutmentData = useMemo(() => {
+    if (isServerSortable) return abutmentData
+
+    const normalize = (value: unknown) => String(value ?? "").toLowerCase()
+    const items = [...abutmentData]
+    items.sort((a, b) => {
+      let result = 0
+      if (orderBy === "options") {
+        const aCount = a.options?.length ?? a.platforms?.length ?? 0
+        const bCount = b.options?.length ?? b.platforms?.length ?? 0
+        result = aCount - bCount
+      } else if (orderBy === "pricing") {
+        result = normalize(a.charge_type).localeCompare(normalize(b.charge_type))
+      } else if (orderBy === "price") {
+        const aPrice = Number(a.price ?? 0)
+        const bPrice = Number(b.price ?? 0)
+        result = aPrice - bPrice
+      } else if (orderBy === "status") {
+        result = normalize(a.status).localeCompare(normalize(b.status))
+      }
+      return sortBy === "asc" ? result : -result
+    })
+    return items
+  }, [abutmentData, isServerSortable, orderBy, sortBy])
   const totalPages = data?.last_page || 1
   const totalEntries = data?.total || 0
 
@@ -106,7 +133,7 @@ export default function AbutmentLibraryPage() {
               {t("advanceMode.abutmentLibrary.title", "Abutment Library")}
             </h1>
             <p className="text-sm text-gray-500">
-              {t("advanceMode.abutmentLibrary.description", "Manage abutment systems and types")}
+              {t("advanceMode.abutmentLibrary.description", "Manage abutment types and options")}
             </p>
           </div>
         </div>
@@ -143,14 +170,6 @@ export default function AbutmentLibraryPage() {
               <Plus className="h-4 w-4 mr-2" />
               {t("advanceMode.abutmentLibrary.addAbutments", "Add Abutments")}
             </Button>
-            <Button
-              onClick={() => setIsLinkAbutmentModalOpen(true)}
-              className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
-            >
-              <LinkIcon className="h-4 w-4 mr-2" />
-              {t("advanceMode.abutmentLibrary.linkProduct", "Link Product")}
-            </Button>
-
             <div className="relative w-full sm:w-auto">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
@@ -194,41 +213,41 @@ export default function AbutmentLibraryPage() {
                   </TableHead>
                   <TableHead
                     className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors"
-                    onClick={() => handleSort('brand_name')}
+                    onClick={() => handleSort('type')}
                   >
                     <div className="flex items-center gap-1">
-                      {t("Brand")}
+                      {t("Type")}
                       <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />
                     </div>
                   </TableHead>
                   <TableHead
                     className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors"
-                    onClick={() => handleSort('system_name')}
+                    onClick={() => handleSort('code')}
                   >
                     <div className="flex items-center gap-1">
-                      {t("System")}
+                      {t("Code")}
                       <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />
                     </div>
                   </TableHead>
-                <TableHead className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors">
+                <TableHead className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors" onClick={() => handleSort('options')}>
                   <div className="flex items-center gap-1">
-                    {t("Platform")}
+                    {t("Options")}
                     <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />
                   </div>
                 </TableHead>
-                <TableHead className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors">
+                <TableHead className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors" onClick={() => handleSort('pricing')}>
                   <div className="flex items-center gap-1">
-                    {t("Size")}
+                    {t("Pricing")}
                     <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />
                   </div>
                 </TableHead>
-                <TableHead className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors">
+                <TableHead className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors" onClick={() => handleSort('price')}>
                   <div className="flex items-center gap-1">
                     {t("Price")}
                     <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />
                   </div>
                 </TableHead>
-                <TableHead className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors">
+                <TableHead className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors" onClick={() => handleSort('status')}>
                   <div className="flex items-center gap-1">
                     {t("Status")}
                     <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />
@@ -246,30 +265,24 @@ export default function AbutmentLibraryPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                abutmentData.map((item, index) => (
+                sortedAbutmentData.map((item, index) => (
                 <TableRow key={item.id} className={`border-b border-gray-100 hover:bg-gray-50/50 transition-colors ${index === 0 ? "bg-blue-50/30" : ""}`}>
                   <TableCell className="pl-4 py-2">
                     <Checkbox className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8] h-4 w-4" />
                   </TableCell>
                   <TableCell className="py-2 px-2">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-medium">{item.brand_name}</span>
-                      {item.brand_name === 'Other' && (
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
-                          <path d="M13.3332 8.66664C13.3332 12 10.9998 13.6666 8.2265 14.6333C8.08128 14.6825 7.92353 14.6802 7.77984 14.6266C4.99984 13.6666 2.6665 12 2.6665 8.66664V3.99997C2.6665 3.82316 2.73674 3.65359 2.86177 3.52857C2.98679 3.40355 3.15636 3.33331 3.33317 3.33331C4.6665 3.33331 6.33317 2.53331 7.49317 1.51997C7.63441 1.39931 7.81407 1.33301 7.99984 1.33301C8.1856 1.33301 8.36527 1.39931 8.5065 1.51997C9.67317 2.53997 11.3332 3.33331 12.6665 3.33331C12.8433 3.33331 13.0129 3.40355 13.1379 3.52857C13.2629 3.65359 13.3332 3.82316 13.3332 3.99997V8.66664Z" stroke="#34C759" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                          <path d="M6 8.00033L7.33333 9.33366L10 6.66699" stroke="#34C759" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                      )}
+                      <span className="text-xs font-medium">{item.type}</span>
                     </div>
                   </TableCell>
                   <TableCell className="py-2 px-2">
-                    <span className="text-xs">{item.system_name || '-'}</span>
+                    <span className="text-xs">{item.code || '-'}</span>
                   </TableCell>
                   <TableCell className="py-2 px-2">
-                    <span className="text-xs">{item.platforms?.length || 0} platforms</span>
+                    <span className="text-xs">{(item.options?.length ?? item.platforms?.length ?? 0)} options</span>
                   </TableCell>
                   <TableCell className="py-2 px-2">
-                    <span className="text-xs">-</span>
+                    <span className="text-xs">{item.charge_type === "per_option" ? "Per option" : "Once per abutment"}</span>
                   </TableCell>
                   <TableCell className="py-2 px-2">
                     <span className="text-xs">{item.price ? `$${item.price}` : '-'}</span>
@@ -366,23 +379,32 @@ export default function AbutmentLibraryPage() {
       <AddAbutmentModal
         isOpen={isAddAbutmentModalOpen}
         onClose={() => setIsAddAbutmentModalOpen(false)}
-        onSave={(data) => {
-          console.log("Abutment data:", data)
-          // Handle abutment creation here
+        onSave={async (data) => {
+          const payload = { ...data } as any
+          if (typeof window !== "undefined") {
+            const customerId = localStorage.getItem("customerId")
+            if (customerId) payload.customer_id = parseInt(customerId, 10)
+          }
+
+          await new Promise<void>((resolve, reject) => {
+            createAbutmentMutation.mutate(payload, {
+              onSuccess: () => {
+                toast({ title: "Success", description: "Abutment created successfully" })
+                resolve()
+              },
+              onError: (error: any) => {
+                toast({
+                  title: "Error",
+                  description: error?.message || "Failed to create abutment",
+                  variant: "destructive",
+                })
+                reject(error)
+              },
+            })
+          })
         }}
       />
 
-      {/* Link Abutment Modal */}
-      <LinkAbutmentModal
-        isOpen={isLinkAbutmentModalOpen}
-        onClose={() => setIsLinkAbutmentModalOpen(false)}
-        context="lab"
-        onApply={(selectedAbutments, selectedProducts) => {
-          console.log("Selected abutments:", selectedAbutments)
-          console.log("Selected products:", selectedProducts)
-          // Handle abutment linking here
-        }}
-      />
     </div>
   )
 }

@@ -61,10 +61,7 @@ export function AdvanceSidebar({ activeTab = "advance-fields", onTabChange }: Ad
   }, [t, routePrefix, isSuperAdmin, isLabAdmin])
 
   // Flat items (single tabs, not in accordion)
-  const flatItems: SideTabItem[] = useMemo(() => [
-    { id: "implant-library", label: t("advanceMode.sidebar.ImplantLibrary", "Implant Library"), href: `${routePrefix}/implant-library` },
-    // { id: "abutment-library", label: t("advanceMode.sidebar.AbutmentLibrary", "Abutment Library"), href: `${routePrefix}/abutment-library` },
-  ], [t, routePrefix])
+  const flatItems: SideTabItem[] = useMemo(() => [], [])
 
   // Flatten all items to find active tab
   const allItems = useMemo(() =>

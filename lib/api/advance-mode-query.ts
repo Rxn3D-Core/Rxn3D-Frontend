@@ -178,21 +178,19 @@ export interface AbutmentPlatform {
 
 export interface Abutment {
   id: number
-  brand_name: string
-  system_name: string
+  type: string
   code: string
   status: 'Active' | 'Inactive'
   image_url?: string
   description?: string
-  allow_user_input?: 'Yes' | 'No'
-  has_additional_pricing: 'Yes' | 'No'
-  charge_type?: 'once_per_abutment' | 'per_platform_option' | null
+  charge_type?: 'once_per_abutment' | 'per_option' | null
   price?: number | null
-  charge_scope?: string | null
+  options?: AbutmentPlatform[]
+  // Keep for backward compatibility with older payloads.
   platforms?: AbutmentPlatform[]
-  products?: any[]
-  lab_status?: 'Active' | 'Inactive' | null
-  lab_price?: number | null
+  customer_id?: number | null
+  is_custom?: 'Yes' | 'No'
+  sequence?: number
   created_at: string
   updated_at: string
 }
@@ -2458,7 +2456,7 @@ export const useAbutments = (params?: PaginationParams) => {
       if (params?.order_by) queryParams.append('order_by', params.order_by)
       if (params?.sort_by) queryParams.append('sort_by', params.sort_by)
 
-      // Add customer_id only if role is lab_admin
+      // Use customer_id for lab context, and explicit global filter otherwise.
       if (typeof window !== 'undefined') {
         const role = localStorage.getItem('role')
         if (role === 'lab_admin') {
@@ -2466,6 +2464,8 @@ export const useAbutments = (params?: PaginationParams) => {
           if (customerId) {
             queryParams.append('customer_id', customerId)
           }
+        } else {
+          queryParams.append('customer_id_filter', 'global')
         }
       }
 
@@ -2539,18 +2539,16 @@ export const useCreateAbutment = () => {
 
   return useMutation({
     mutationFn: async (data: {
-      brand_name: string
-      system_name: string
-      code: string
+      type: string
+      code?: string
       image?: string
       description?: string
       status?: 'Active' | 'Inactive'
-      has_additional_pricing?: 'Yes' | 'No'
-      charge_type?: 'once_per_abutment' | 'per_platform_option' | null
+      charge_type?: 'once_per_abutment' | 'per_option' | null
       price?: number | null
-      charge_scope?: string | null
       sequence?: number
-      platforms?: Array<{
+      customer_id?: number | null
+      options?: Array<{
         name: string
         image?: string
         status?: 'Active' | 'Inactive'
@@ -2587,18 +2585,16 @@ export const useUpdateAbutment = () => {
       ...data
     }: {
       id: number
-      brand_name?: string
-      system_name?: string
+      type?: string
       code?: string
       image?: string
       description?: string
       status?: 'Active' | 'Inactive'
-      has_additional_pricing?: 'Yes' | 'No'
-      charge_type?: 'once_per_abutment' | 'per_platform_option' | null
+      charge_type?: 'once_per_abutment' | 'per_option' | null
       price?: number | null
-      charge_scope?: string | null
       sequence?: number
-      platforms?: Array<{
+      customer_id?: number | null
+      options?: Array<{
         id?: number
         name?: string
         image?: string
@@ -2690,182 +2686,6 @@ export const useUpdateAbutmentStatus = () => {
   })
 }
 
-export const useLinkAbutmentProducts = () => {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({
-      id,
-      product_ids,
-    }: {
-      id: number
-      product_ids: number[]
-    }) => {
-      const response = await fetch(ensureAbsoluteUrl(`/library/abutments/${id}/link-products`), {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ product_ids }),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Failed to link products to abutment')
-      }
-
-      return response.json()
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['abutments'] })
-      queryClient.invalidateQueries({ queryKey: ['abutment', variables.id] })
-    },
-  })
-}
-
-export const useCreateAbutmentPlatform = () => {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({
-      abutmentId,
-      ...data
-    }: {
-      abutmentId: number
-      name: string
-      status?: 'Active' | 'Inactive'
-      is_default?: 'Yes' | 'No'
-      price?: number | null
-      sequence: number
-      image?: string
-    }) => {
-      const response = await fetch(ensureAbsoluteUrl(`/library/abutments/${abutmentId}/platforms`), {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(data),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Failed to create abutment platform')
-      }
-
-      return response.json() as Promise<ApiResponse<AbutmentPlatform>>
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['abutments'] })
-      queryClient.invalidateQueries({ queryKey: ['abutment', variables.abutmentId] })
-    },
-  })
-}
-
-export const useUpdateAbutmentPlatform = () => {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({
-      abutmentId,
-      platformId,
-      ...data
-    }: {
-      abutmentId: number
-      platformId: number
-      name?: string
-      status?: 'Active' | 'Inactive'
-      is_default?: 'Yes' | 'No'
-      price?: number | null
-      sequence?: number
-      image?: string
-    }) => {
-      const response = await fetch(ensureAbsoluteUrl(`/library/abutments/${abutmentId}/platforms/${platformId}`), {
-        method: 'PUT',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(data),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Failed to update abutment platform')
-      }
-
-      return response.json() as Promise<ApiResponse<AbutmentPlatform>>
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['abutments'] })
-      queryClient.invalidateQueries({ queryKey: ['abutment', variables.abutmentId] })
-    },
-  })
-}
-
-export const useDeleteAbutmentPlatform = () => {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({
-      abutmentId,
-      platformId,
-    }: {
-      abutmentId: number
-      platformId: number
-    }) => {
-      const response = await fetch(ensureAbsoluteUrl(`/library/abutments/${abutmentId}/platforms/${platformId}`), {
-        method: 'DELETE',
-        headers: getAuthHeaders(),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Failed to delete abutment platform')
-      }
-
-      return response.json() as Promise<ApiResponse<null>>
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['abutments'] })
-      queryClient.invalidateQueries({ queryKey: ['abutment', variables.abutmentId] })
-    },
-  })
-}
-
-export const useUpdateAbutmentPlatformStatus = () => {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({
-      abutmentId,
-      platformId,
-      status,
-      customer_id,
-      price,
-    }: {
-      abutmentId: number
-      platformId: number
-      status: 'Active' | 'Inactive'
-      customer_id?: number
-      price?: number
-    }) => {
-      const body: any = { status }
-      if (customer_id !== undefined) body.customer_id = customer_id
-      if (price !== undefined) body.price = price
-
-      const response = await fetch(ensureAbsoluteUrl(`/library/abutments/${abutmentId}/platforms/${platformId}/status`), {
-        method: 'PATCH',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(body),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Failed to update abutment platform status')
-      }
-
-      return response.json() as Promise<ApiResponse<AbutmentPlatform>>
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['abutments'] })
-      queryClient.invalidateQueries({ queryKey: ['abutment', variables.abutmentId] })
-    },
-  })
-}
-
 export const useDuplicateAbutment = () => {
   const queryClient = useQueryClient()
 
@@ -2884,23 +2704,21 @@ export const useDuplicateAbutment = () => {
       const abutmentData = await getResponse.json()
       const abutment = abutmentData.data || abutmentData
 
-      // Create a new abutment with modified name and code
+      // Create a new abutment with modified type and code
       const duplicateData: any = {
-        brand_name: abutment.brand_name,
-        system_name: `${abutment.system_name} (Copy)`,
-        code: `${abutment.code}_COPY`,
+        type: `${abutment.type} (Copy)`,
+        code: `${abutment.code || 'ABUTMENT'}_COPY`,
         status: abutment.status,
         description: abutment.description,
-        has_additional_pricing: abutment.has_additional_pricing,
         charge_type: abutment.charge_type,
         price: abutment.price,
-        charge_scope: abutment.charge_scope,
         sequence: abutment.sequence,
       }
 
       // Duplicate platforms if they exist
-      if (abutment.platforms && abutment.platforms.length > 0) {
-        duplicateData.platforms = abutment.platforms.map((platform: AbutmentPlatform) => ({
+      const sourceOptions = abutment.options || abutment.platforms || []
+      if (sourceOptions.length > 0) {
+        duplicateData.options = sourceOptions.map((platform: AbutmentPlatform) => ({
           name: platform.name,
           status: platform.status,
           is_default: platform.is_default,
