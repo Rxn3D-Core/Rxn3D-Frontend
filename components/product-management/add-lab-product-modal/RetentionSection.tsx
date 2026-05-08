@@ -67,8 +67,6 @@ export function RetentionSection({
 }) {
   const watchedRetentions = watch("retentions") || []
   const watchedRetentionOptions = (watch("retention_options") || []) as RetentionOptionFormRow[]
-  const includeImplant = watch("has_implant") === "Yes"
-  const includeAbutment = watch("has_abutment") === "Yes"
   const isLabAdmin = userRole === "lab_admin"
   const retentionEnabled = sections.retention !== false
 
@@ -332,31 +330,6 @@ export function RetentionSection({
                     })}
                   </div>
 
-                  <div className="mt-6 border border-red-200 rounded-md p-3 bg-red-50/30">
-                    <Label className="text-sm font-medium mb-2 block">
-                      Include in product configuration
-                    </Label>
-                    <div className="flex flex-col gap-2">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={includeImplant}
-                          onChange={(e) => setValue("has_implant", e.target.checked ? "Yes" : "No", { shouldDirty: true })}
-                          className="accent-[#1162a8] w-5 h-5"
-                        />
-                        <span>Include Implant</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={includeAbutment}
-                          onChange={(e) => setValue("has_abutment", e.target.checked ? "Yes" : "No", { shouldDirty: true })}
-                          className="accent-[#1162a8] w-5 h-5"
-                        />
-                        <span>Include Abutment</span>
-                      </label>
-                    </div>
-                  </div>
                 </div>
 
                 {/* Right — retention options (catalog checkboxes → retention_options payload) */}

@@ -5,6 +5,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8
 export interface RetentionOption {
   id: number
   name: string
+  code?: string | null
   image_url: string | null
   status: "Active" | "Inactive"
   is_default: "Yes" | "No"
@@ -14,6 +15,8 @@ export interface RetentionOption {
   price: number | null
   tooth_chart_type: string | null
   selector_shape: string | null
+  has_implant?: "Yes" | "No"
+  has_abutment?: "Yes" | "No"
   retentions: any[]
   retentions_count: number
   created_at: string
@@ -22,6 +25,7 @@ export interface RetentionOption {
 
 export interface RetentionOptionPayload {
   name: string
+  code?: string
   image?: string // Base64 encoded image
   image_url?: string // URL to image (alternative to image)
   status?: "Active" | "Inactive"
@@ -32,11 +36,14 @@ export interface RetentionOptionPayload {
   price?: number | null
   tooth_chart_type?: "Implant" | "Prep" | "Pontic" | null
   selector_shape?: string | null
+  has_implant?: "Yes" | "No"
+  has_abutment?: "Yes" | "No"
   retentions?: number[] // Array of retention IDs to link
 }
 
 export interface RetentionOptionUpdatePayload {
   name?: string
+  code?: string
   image?: string
   image_url?: string
   status?: "Active" | "Inactive"
@@ -46,6 +53,8 @@ export interface RetentionOptionUpdatePayload {
   price?: number | null
   tooth_chart_type?: "Implant" | "Prep" | "Pontic" | null
   selector_shape?: string | null
+  has_implant?: "Yes" | "No"
+  has_abutment?: "Yes" | "No"
   retentions?: number[]
 }
 

@@ -70,6 +70,7 @@ export function AddImplantModal({ isOpen, onClose, onSave, implant, isEditMode =
   const [imageBase64, setImageBase64] = useState<string | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const platformImageInputRef = useRef<HTMLInputElement>(null)
 
   // Use external isSaving if provided, otherwise use internal state
   const isSaving = externalIsSaving || internalIsSaving
@@ -265,7 +266,7 @@ export function AddImplantModal({ isOpen, onClose, onSave, implant, isEditMode =
             sequence: index + 1,
           }
           
-          if (platform.image) {
+          if (platform.image && platform.image.startsWith("data:image/")) {
             platformData.image = platform.image
           }
           
@@ -375,6 +376,50 @@ export function AddImplantModal({ isOpen, onClose, onSave, implant, isEditMode =
         plat.id === id ? { ...plat, platformName } : plat
       )
     )
+  }
+
+  const handlePlatformImageClick = () => {
+    platformImageInputRef.current?.click()
+  }
+
+  const handlePlatformImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    const targetPlatformId = selectedPlatformId
+    if (!file || !targetPlatformId) return
+
+    if (!file.type.startsWith("image/")) {
+      alert("Please select a valid image file")
+      return
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Image size should not exceed 5MB")
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      const base64String = reader.result as string
+      setPlatforms((prev) =>
+        prev.map((platform) =>
+          platform.id === targetPlatformId ? { ...platform, image: base64String } : platform,
+        ),
+      )
+    }
+    reader.readAsDataURL(file)
+
+    if (platformImageInputRef.current) {
+      platformImageInputRef.current.value = ""
+    }
+  }
+
+  const handleRemovePlatformImage = (platformId: string) => {
+    setPlatforms((prev) =>
+      prev.map((platform) => (platform.id === platformId ? { ...platform, image: null } : platform)),
+    )
+    if (platformImageInputRef.current) {
+      platformImageInputRef.current.value = ""
+    }
   }
 
   const handleDeletePlatform = (id: string) => {
@@ -796,6 +841,47 @@ export function AddImplantModal({ isOpen, onClose, onSave, implant, isEditMode =
                         <Button onClick={handleAddSize} variant="outline" size="sm">
                           Add Size
                         </Button>
+                      </div>
+
+                      <div className="mb-3">
+                        <div
+                          className="group relative h-12 w-12 cursor-pointer overflow-hidden rounded border border-gray-200"
+                          onClick={handlePlatformImageClick}
+                          title="Click to upload/replace platform image"
+                        >
+                          {getSelectedPlatform()?.image ? (
+                            <>
+                              <img
+                                src={getSelectedPlatform()?.image || ""}
+                                alt="Platform preview"
+                                className="h-full w-full object-cover"
+                              />
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleRemovePlatformImage(getSelectedPlatform()!.id)
+                                }}
+                                className="absolute inset-0 hidden items-center justify-center bg-black/45 text-white group-hover:flex"
+                                aria-label="Remove platform image"
+                                title="Remove image"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </>
+                          ) : (
+                            <div className="h-full w-full border border-dashed border-gray-300 bg-gray-50 text-[10px] text-gray-500 flex items-center justify-center text-center px-1">
+                              Add
+                            </div>
+                          )}
+                        </div>
+                        <input
+                          ref={platformImageInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={handlePlatformImageChange}
+                          className="hidden"
+                        />
                       </div>
 
                       <div className="overflow-x-auto">
