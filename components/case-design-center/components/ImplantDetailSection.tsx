@@ -249,18 +249,12 @@ export function ImplantDetailSection({
               )}
 
               {brand && platform && (
-                <div className={`grid gap-3 ${sizeField ? "grid-cols-3" : "grid-cols-2"}`}>
+                <div className={`grid gap-3 ${sizeField ? "grid-cols-2" : "grid-cols-1"}`}>
                   <CardSelectorField
-                    label={brandField?.name ?? "Implant Brand"}
-                    value={brand}
+                    label={`${brandField?.name ?? "Implant Brand"} - ${systemField?.name ?? "System"}`}
+                    value={`${brand} - ${platform}`}
                     caseSubmitted={caseSubmitted}
                     onClick={() => update({ brand: "", platform: "", size: "" })}
-                  />
-                  <CardSelectorField
-                    label={systemField?.name ?? "Implant System"}
-                    value={platform}
-                    caseSubmitted={caseSubmitted}
-                    onClick={() => update({ platform: "", size: "" })}
                   />
                   {sizeField && (
                     <SelectField
@@ -337,18 +331,12 @@ export function ImplantDetailSection({
               )}
 
               {brand && platform && (
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 gap-3">
                   <CardSelectorField
-                    label="Implant Brand"
-                    value={brand}
+                    label="Implant Brand - Platform"
+                    value={`${brand} - ${platform}`}
                     caseSubmitted={caseSubmitted}
                     onClick={() => update({ brand: "", platform: "", size: "" })}
-                  />
-                  <CardSelectorField
-                    label="Implant Platform"
-                    value={platform}
-                    caseSubmitted={caseSubmitted}
-                    onClick={() => update({ platform: "", size: "" })}
                   />
                   <SelectField
                     label="Implant Size"
