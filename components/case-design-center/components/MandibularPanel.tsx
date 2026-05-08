@@ -49,6 +49,7 @@ import { isSingleDefaultOnlyExtractionList } from "../utils/extractionHelpers";
 import { parseAddonDisplayItems } from "../utils/addonDisplayHelpers";
 import { FixedRestorationFields } from "./FixedRestorationFields";
 import { RemovableRestorationFields } from "./RemovableRestorationFields";
+import { ProductAccordionCard } from "./ProductAccordionCard";
 
 import { AccordionBadge, EstDaysLabel } from "./AccordionBadge";
 import { ProductImagePreview } from "./ProductImagePreview";
@@ -759,8 +760,15 @@ export function MandibularPanel({
       return next;
     });
   }, [onImplantDetailChange]);
-  /** Expand/collapse for initial (card 0) Removables product accordion */
-  const [initialRemovablesExpanded, setInitialRemovablesExpanded] = useState(true);
+  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({
+    removable0: true,
+  });
+  const isCardExpanded = (slotId: string): boolean => expandedCards[slotId] ?? false;
+  const toggleCard = (slotId: string) =>
+    setExpandedCards((prev) => ({ ...prev, [slotId]: !prev[slotId] }));
+  const expandCard = (slotId: string) =>
+    setExpandedCards((prev) => ({ ...prev, [slotId]: true }));
+  const collapseAllCards = () => setExpandedCards({});
   /** Expand/collapse for the opposing product accordion */
   const [opposingAccordionExpanded, setOpposingAccordionExpanded] = useState(true);
   /** Active extraction code selected in the opposing ToothStatusBoxes */
@@ -778,7 +786,7 @@ export function MandibularPanel({
       prevActiveCardRef.current !== activeProductCardId &&
       addedProducts.some(ap => ap.id === activeProductCardId && ap.arch === "mandibular")
     ) {
-      setInitialRemovablesExpanded(false);
+      collapseAllCards();
     }
     prevActiveCardRef.current = activeProductCardId;
   }, [activeProductCardId, addedProducts]);
@@ -1364,212 +1372,57 @@ export function MandibularPanel({
               );
 
               return (
-                <div key={ap.id} className="relative mt-2">
-                <div
-                  className={`rounded-lg bg-white overflow-hidden ${hasRushedAp ? "border-2 border-[#CF0202]" : "border border-[#d9d9d9]"}`}
+                <ProductAccordionCard
+                  key={ap.id}
+                  slotId={`added_${ap.id}`}
+                  arch="mandibular"
+                  isExpanded={ap.expanded}
+                  onToggle={() => {
+                    toggleAddedProductExpanded(ap.id);
+                    setActiveProductCardId(isActive ? 0 : ap.id);
+                    setActiveFixedGroupProductId(null);
+                    setActiveExtractionCode(null);
+                  }}
+                  productName={cardProductName}
+                  productImageUrl={cardProductImage}
+                  toothDisplay={cardToothDisplay}
+                  subcategoryName={cardSubcategoryName || undefined}
+                  stageName={(() => {
+                    const apStageKey = isFixedCategory(apProduct)
+                      ? `mandibular_fixed_${apRepTn}`
+                      : `mandibular_prep_${apRepTn}`;
+                    return apRepTn > 0
+                      ? (selectedStages[apStageKey] || getFieldValue("mandibular", apRepTn, isFixedCategory(apProduct) ? "fixed_stage" : "stage") || undefined)
+                      : undefined;
+                  })()}
+                  estDaysText={(() => {
+                    const apStageKey = isFixedCategory(apProduct)
+                      ? `mandibular_fixed_${apRepTn}`
+                      : `mandibular_prep_${apRepTn}`;
+                    const apStageValForDays = apRepTn > 0 ? (selectedStages[apStageKey] || getFieldValue("mandibular", apRepTn, isFixedCategory(apProduct) ? "fixed_stage" : "stage")) : "";
+                    const apStageObj = cardProduct?.stages?.find(s => s.name === apStageValForDays);
+                    const apDays = apStageObj?.days_to_process;
+                    return apDays != null
+                      ? `${apDays} work day${apDays === 1 ? "" : "s"} after submission`
+                      : "10 work days after submission";
+                  })()}
+                  hasRush={!!hasRushedAp}
+                  canDelete={true}
+                  onDelete={() => {
+                    const wasFixed = isFixedCategory(apProduct);
+                    const remainingAdded = addedProducts.filter(p => p.arch === "mandibular").length - 1;
+                    const hasCard0 = mandibularHasFixedCard0 || mandibularHasRemovablesCard0;
+                    MANDIBULAR_ALL_TEETH.filter(tn => getToothProductCard("mandibular", tn) === ap.id).forEach(tn => {
+                      clearToothProgress("mandibular", tn);
+                      handleMandibularToothDeselect(tn);
+                    });
+                    handleRemoveAddedProduct(ap.id);
+                    if (wasFixed && remainingAdded === 0 && !hasCard0) onBackToCategories?.("mandibular");
+                  }}
+                  confirmDetailsChecked={confirmDetailsChecked}
+                  caseSubmitted={caseSubmitted}
                 >
-                  {isApRemovables ? (
-                    // Removable restoration: product name top, image+tooth-status-boxes in same row
-                    <div
-                      className={`w-full flex flex-col transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] relative ${hasRushedAp ? "bg-[#FCE4E4]" : "bg-white"}`}
-                      onClick={() => {
-                        toggleAddedProductExpanded(ap.id);
-                        setActiveProductCardId(isActive ? 0 : ap.id);
-                        setActiveFixedGroupProductId(null);
-                        setActiveExtractionCode(null);
-                      }}
-                      style={{ cursor: "pointer" }}
-                    >
-                      {/* Chevron top-right */}
-                      <div className="absolute top-3 right-2 z-10">
-                        <ChevronDown
-                          size={21.6}
-                          className={`text-black transition-transform ${ap.expanded ? "rotate-180" : ""}`}
-                        />
-                      </div>
-                      {/* Image left + product name, status boxes & badges right */}
-                      <div className="flex items-stretch gap-[10px] px-[8px] py-[14px]" onClick={(e) => e.stopPropagation()}>
-                        <ProductImagePreview
-                          imageUrl={cardProductImage}
-                          altText={cardProductName}
-                          containerClassName="w-[162px] h-[152px] rounded-[6px] bg-white flex items-center justify-center flex-shrink-0 overflow-hidden shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]"
-                          imgClassName="w-full h-full object-contain"
-                          fallback={
-                            <div className="w-full h-full flex items-center justify-center">
-                              <span className="text-[10px] text-gray-400">No img</span>
-                            </div>
-                          }
-                        />
-                        <div className="flex-1 min-w-0 flex flex-col gap-[6px]">
-                          {assignedTeeth.length > 0 ? (
-                            <>
-                              {/* Breadcrumb badges: category + subcategory at top */}
-                              <div className="flex items-center gap-[4px] flex-wrap">
-                                {cardCategoryName && <AccordionBadge>{cardCategoryName}</AccordionBadge>}
-                                {cardSubcategoryName && <AccordionBadge>{cardSubcategoryName}</AccordionBadge>}
-                              </div>
-                              {/* Title + tooth numbers in green-bordered box */}
-                              <div className={`flex flex-col items-center text-center gap-[5px] border rounded-[7px] p-[10px] mr-8 ${confirmDetailsChecked ? "border-[#34C759]" : "border-[#F97316]"}`}>
-                                <p className="font-[Inter] text-[20px] font-bold leading-[20px] tracking-[-0.02em] text-black">
-                                  {apIsFullDenture
-                                    ? cardProductName
-                                    : `${cardProductName} ${assignedTeeth.length} ${assignedTeeth.length === 1 ? "tooth" : "teeth"} to replace`}
-                                  {hasRushedAp && <RushIcon className="inline w-[14px] h-[14px] ml-1" />}
-                                </p>
-                                <p className="font-[Inter] text-[20px] font-normal leading-[20px] tracking-[-0.02em] text-black">
-                                  #{assignedTeeth.join(",")}
-                                </p>
-                              </div>
-                              {/* Tooth status boxes */}
-                              {apExtractions.length > 0 && !isSingleDefaultOnlyExtractionList(apExtractions) && (
-                                <ToothStatusBoxes
-                                  extractions={apExtractions}
-                                  selectedTeeth={mandibularTeeth}
-                                  allArchTeeth={MANDIBULAR_ALL_TEETH}
-                                  toothExtractionMap={mandibularToothExtractionMap}
-                                  claspTeeth={mandibularClaspTeeth}
-                                  activeExtractionCode={activeExtractionCode}
-                                  onActiveExtractionChange={(code, exts) => { setActiveExtractionCode(code); if (exts) setActiveExtractions(exts); }}
-                                  onToothExtractionToggle={(tn, code, extractions) => handleToothExtractionToggle("mandibular", tn, code, extractions)}
-                                  onSelectAllTeeth={selectAllMandibularTeeth}
-                                  onRequiredValidationChange={onToothStatusValidationChange}
-                                  isRemovable={true}
-                                  submitted={caseSubmitted}
-                                  hideDefaultBox={true}
-                                  disableRequiredValidation={true}
-                                />
-                              )}
-                              {/* Est days + delete button on same line */}
-                              <div className="flex items-center gap-[6px]">
-                                <EstDaysLabel rushed={hasRushedAp} text={hasRushedAp ? "5 work days after submission" : apRemEstDaysText} />
-                                {!caseSubmitted && (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      const remainingAdded = addedProducts.filter(p => p.arch === "mandibular").length - 1;
-                                      const hasCard0 = mandibularHasFixedCard0 || mandibularHasRemovablesCard0;
-                                      MANDIBULAR_ALL_TEETH.filter(tn => getToothProductCard("mandibular", tn) === ap.id).forEach(tn => {
-                                        clearToothProgress("mandibular", tn);
-                                        handleMandibularToothDeselect(tn);
-                                      });
-                                      handleRemoveAddedProduct(ap.id);
-                                      if (remainingAdded === 0 && !hasCard0) onBackToCategories?.("mandibular");
-                                    }}
-                                    className="hover:text-red-500 transition-colors"
-                                    title="Remove product"
-                                  >
-                                    <Trash2 size={18} className="text-[#999999] hover:text-red-500" />
-                                  </button>
-                                )}
-                              </div>
-                            </>
-                          ) : (
-                            !caseSubmitted && (
-                              <div className="flex items-center">
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const remainingAdded = addedProducts.filter(p => p.arch === "mandibular").length - 1;
-                                    const hasCard0 = mandibularHasFixedCard0 || mandibularHasRemovablesCard0;
-                                    MANDIBULAR_ALL_TEETH.filter(tn => getToothProductCard("mandibular", tn) === ap.id).forEach(tn => {
-                                      clearToothProgress("mandibular", tn);
-                                      handleMandibularToothDeselect(tn);
-                                    });
-                                    handleRemoveAddedProduct(ap.id);
-                                    if (remainingAdded === 0 && !hasCard0) onBackToCategories?.("mandibular");
-                                  }}
-                                  className="hover:text-red-500 transition-colors"
-                                  title="Remove product"
-                                >
-                                  <Trash2 size={18} className="text-[#999999] hover:text-red-500" />
-                                </button>
-                              </div>
-                            )
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    // Non-removable: original horizontal layout
-                  <button
-                    type="button"
-                    onClick={() => {
-                      toggleAddedProductExpanded(ap.id);
-                      setActiveProductCardId(isActive ? 0 : ap.id);
-                      setActiveFixedGroupProductId(null);
-                      setActiveExtractionCode(null);
-                    }}
-                    className={`w-full flex items-center py-[14px] px-2 gap-[10px] transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] ${hasRushedAp ? "bg-[#FCE4E4] hover:bg-[#f8d4d4]" : "bg-white hover:bg-gray-50"}`}
-                  >
-                    <ProductImagePreview
-                      imageUrl={cardProductImage}
-                      altText={cardProductName}
-                    />
-                    <div className="flex-1 min-w-0 text-left flex flex-col gap-0.5">
-                      <p className="font-[Verdana] text-[14px] sm:text-lg font-bold leading-tight tracking-[-0.02em] text-black flex items-center gap-1 truncate">
-                        {cardProductName}
-                        {cardToothDisplay && (
-                          <span className="font-normal text-[13px] sm:text-base text-black">{cardToothDisplay}</span>
-                        )}
-                        {hasRushedAp && <RushIcon className="w-[20px] h-[20px] flex-shrink-0" />}
-                      </p>
-                      <div className="flex items-center gap-[5px] flex-wrap">
-                        {cardSubcategoryName && (
-                          <AccordionBadge>{cardSubcategoryName}</AccordionBadge>
-                        )}
-                        {!isSingleStageNoStages(cardProduct) && (() => {
-                          const apStageKey = isFixedCategory(apProduct)
-                            ? `mandibular_fixed_${apRepTn}`
-                            : `mandibular_prep_${apRepTn}`;
-                          const apStageVal = apRepTn > 0 ? (selectedStages[apStageKey] || getFieldValue("mandibular", apRepTn, isFixedCategory(apProduct) ? "fixed_stage" : "stage")) : "";
-                          return apStageVal ? <AccordionBadge>{apStageVal}</AccordionBadge> : null;
-                        })()}
-                        {(() => {
-                          const apStageKey = isFixedCategory(apProduct)
-                            ? `mandibular_fixed_${apRepTn}`
-                            : `mandibular_prep_${apRepTn}`;
-                          const apStageValForDays = apRepTn > 0 ? (selectedStages[apStageKey] || getFieldValue("mandibular", apRepTn, isFixedCategory(apProduct) ? "fixed_stage" : "stage")) : "";
-                          const apStageObj = cardProduct?.stages?.find(s => s.name === apStageValForDays);
-                          const apDays = apStageObj?.days_to_process;
-                          const apEstDays = apDays != null
-                            ? `${apDays} work day${apDays === 1 ? "" : "s"} after submission`
-                            : "10 work days after submission";
-                          return <EstDaysLabel rushed={hasRushedAp} text={hasRushedAp ? "5 work days after submission" : apEstDays} />;
-                        })()}
-                        {!caseSubmitted && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const wasFixed = isFixedCategory(apProduct);
-                            const remainingAdded = addedProducts.filter(p => p.arch === "mandibular").length - 1;
-                            const hasCard0 = mandibularHasFixedCard0 || mandibularHasRemovablesCard0;
-                            MANDIBULAR_ALL_TEETH.filter(tn => getToothProductCard("mandibular", tn) === ap.id).forEach(tn => {
-                              clearToothProgress("mandibular", tn);
-                              handleMandibularToothDeselect(tn);
-                            });
-                            handleRemoveAddedProduct(ap.id);
-                            if (wasFixed && remainingAdded === 0 && !hasCard0) onBackToCategories?.("mandibular");
-                          }}
-                          className="ml-1 hover:text-red-500 transition-colors"
-                          title="Remove product"
-                        >
-                          <Trash2 size={18} className="text-[#999999] hover:text-red-500" />
-                        </button>
-                        )}
-                      </div>
-                    </div>
-                    <ChevronDown
-                      size={21.6}
-                      className={`text-black flex-shrink-0 transition-transform ${ap.expanded ? "rotate-180" : ""}`}
-                    />
-                  </button>
-                  )}
 
-                  {ap.expanded && (
-                    <div className={`border-t border-[#d9d9d9] p-2.5 sm:p-4 bg-white space-y-3 max-h-[600px] overflow-y-auto scrollbar-blue${caseSubmitted ? " pointer-events-none select-none" : ""}`}>
                       {cardTeeth.length === 0 ? (
                         <p className="text-xs text-[#b4b0b0] text-center py-4">
                           Select teeth from the chart above to assign them to this product.
@@ -1864,10 +1717,7 @@ export function MandibularPanel({
                       })()}
 
                       <ScrollToBottom />
-                    </div>
-                  )}
-                </div>
-                </div>
+                </ProductAccordionCard>
               );
             })
           }
@@ -1972,103 +1822,39 @@ export function MandibularPanel({
                   const showPrepActionsMand = !isFixedCategory(selectedProduct) && isFieldCompleted("mandibular", firstToothNumber, "addons") && !caseSubmitted;
                   const showActionsMand = showFixedActionsMand || showPrepActionsMand;
 
+                  const slotId = `fixed0_${groupKey}`;
                   return (
-                    <div key={`prep-pontic-group-${groupKey}`} className="relative mt-4">
-                    <div
-                      className={`rounded-lg bg-white overflow-hidden ${
-                        hasRushed
-                          ? "border-2 border-[#CF0202]"
-                          : "border border-[#d9d9d9]"
-                      }`}
+                    <ProductAccordionCard
+                      key={`prep-pontic-group-${groupKey}`}
+                      slotId={slotId}
+                      arch="mandibular"
+                      isExpanded={isCardExpanded(slotId)}
+                      onToggle={() => {
+                        toggleCard(slotId);
+                        setActiveProductCardId(0);
+                        setActiveFixedGroupProductId(selectedProduct?.id ?? null);
+                      }}
+                      productName={productName}
+                      productImageUrl={selectedProduct?.image_url ? productImage : null}
+                      toothDisplay={toothNumbersDisplay}
+                      subcategoryName={subcategoryName || undefined}
+                      stageName={(!isSingleStageNoStages(selectedProduct) && (selectedStages[`mandibular_prep_${firstToothNumber}`] || selectedStages[groupStageProductIdFixed])) ? (selectedStages[`mandibular_prep_${firstToothNumber}`] || selectedStages[groupStageProductIdFixed]) : undefined}
+                      estDaysText={estDays}
+                      hasRush={hasRushed}
+                      canDelete={true}
+                      onDelete={() => {
+                        const noOtherProducts = addedProducts.filter(p => p.arch === "mandibular").length === 0;
+                        const teethToClear = MANDIBULAR_ALL_TEETH.filter(
+                          (tn) => getToothProduct("mandibular", tn) && getToothProductCard("mandibular", tn) === 0
+                        );
+                        teethToClear.forEach((tn) => {
+                          clearToothProgress("mandibular", tn);
+                          handleMandibularToothDeselect(tn);
+                        });
+                        if (noOtherProducts) onBackToCategories?.("mandibular");
+                      }}
+                      caseSubmitted={caseSubmitted}
                     >
-                      {/* Accordion header */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          togglePrepPonticExpanded(firstToothNumber);
-                          setActiveProductCardId(0);
-                          setActiveFixedGroupProductId(selectedProduct?.id ?? null);
-                        }}
-                        className={`w-full flex items-center py-[14px] px-2 gap-[10px] transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] ${
-                          hasRushed
-                            ? "bg-[#FCE4E4] hover:bg-[#f8d4d4]"
-                            : "bg-white hover:bg-gray-50"
-                        }`}
-                      >
-                        <ProductImagePreview
-                          imageUrl={selectedProduct?.image_url ? productImage : null}
-                          altText={productName}
-                        />
-                        <div className="flex-1 min-w-0 text-left flex flex-col gap-0.5">
-                          <p className="font-[Verdana] text-[14px] sm:text-lg font-bold leading-tight tracking-[-0.02em] text-black flex items-center gap-1 truncate">
-                            {productName}
-                            {toothNumbersDisplay && (
-                              <span className="font-normal text-[13px] sm:text-base text-black">{toothNumbersDisplay}</span>
-                            )}
-                            {hasRushed && (
-                              <RushIcon className="w-[20px] h-[20px] flex-shrink-0" />
-                            )}
-                          </p>
-                          <div className="flex items-center gap-[5px] flex-wrap">
-                            {subcategoryName && (
-                              <AccordionBadge>{subcategoryName}</AccordionBadge>
-                            )}
-                            {!isSingleStageNoStages(selectedProduct) && (selectedStages[`mandibular_prep_${firstToothNumber}`] || selectedStages[groupStageProductIdFixed]) && (
-                                <AccordionBadge>
-                                  {selectedStages[`mandibular_prep_${firstToothNumber}`] || selectedStages[groupStageProductIdFixed]}
-                                </AccordionBadge>
-                            )}
-                            <EstDaysLabel rushed={hasRushed} text={hasRushed ? "5 work days after submission" : estDays} />
-                            {!caseSubmitted && (
-                              <span
-                                role="button"
-                                tabIndex={0}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const noOtherProducts = addedProducts.filter(p => p.arch === "mandibular").length === 0;
-                                  const teethToClear = MANDIBULAR_ALL_TEETH.filter(
-                                    (tn) => getToothProduct("mandibular", tn) && getToothProductCard("mandibular", tn) === 0
-                                  );
-                                  teethToClear.forEach((tn) => {
-                                    clearToothProgress("mandibular", tn);
-                                    handleMandibularToothDeselect(tn);
-                                  });
-                                  if (noOtherProducts) onBackToCategories?.("mandibular");
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter" || e.key === " ") {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    const noOtherProducts = addedProducts.filter(p => p.arch === "mandibular").length === 0;
-                                    const teethToClear = MANDIBULAR_ALL_TEETH.filter(
-                                      (tn) => getToothProduct("mandibular", tn) && getToothProductCard("mandibular", tn) === 0
-                                    );
-                                    teethToClear.forEach((tn) => {
-                                      clearToothProgress("mandibular", tn);
-                                      handleMandibularToothDeselect(tn);
-                                    });
-                                    if (noOtherProducts) onBackToCategories?.("mandibular");
-                                  }
-                                }}
-                                className="inline-flex items-center justify-center flex-shrink-0 cursor-pointer hover:text-red-500 transition-colors"
-                                title="Remove product"
-                              >
-                                <Trash2 size={18} className="text-[#999999] hover:text-red-500" />
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <ChevronDown
-                          size={21.6}
-                          className={`text-black flex-shrink-0 transition-transform ${
-                            isPrepPonticExpanded(firstToothNumber) ? "rotate-180" : ""
-                          }`}
-                        />
-                      </button>
-
-                      {/* Accordion body - single shared set of fields for the product group */}
-                      {isPrepPonticExpanded(firstToothNumber) && (
-                      <div className={`border-t border-[#d9d9d9] p-4 bg-white space-y-3 max-h-[600px] overflow-y-auto scrollbar-blue${caseSubmitted ? " pointer-events-none select-none" : ""}`}>
                         {!isSingleStageNoStages(selectedProduct) && (
                         <AutoOpenStageIfEmpty
                           productId={isFixedCategory(selectedProduct) ? groupStageProductIdFixed : `mandibular_prep_${firstToothNumber}`}
@@ -2094,7 +1880,7 @@ export function MandibularPanel({
                               caseSubmitted={caseSubmitted}
                             />
                             <AutoOpenImpressionIfEmpty
-                              isExpanded={isPrepPonticExpanded(firstToothNumber)}
+                              isExpanded={isCardExpanded(slotId)}
                               isImpressionVisible={!fixedShadeIncomplete && isFixed("fixed_impression") && !(toothNumbers.some((n) => (mandibularRetentionTypes[n] || []).includes("Implant")) && implantDetailCompleteByTooth[groupStageToothNumber] !== true)}
                               isImpressionEmpty={!isFieldCompleted("mandibular", groupStageToothNumber, "fixed_impression")}
                               onOpenImpressionModal={handleOpenImpressionModal}
@@ -2149,7 +1935,7 @@ export function MandibularPanel({
                             retentionTypesMap={mandibularRetentionTypes}
                             implantDetailCompleteByTooth={implantDetailCompleteByTooth}
                             setImplantDetailCompleteByTooth={setImplantDetailCompleteByTooth}
-                            isExpanded={isPrepPonticExpanded(firstToothNumber)}
+                            isExpanded={isCardExpanded(slotId)}
                             isFieldVisible={isFieldVisible}
                             isFieldCompleted={isFieldCompleted}
                             getFieldValue={getFieldValue}
@@ -2165,10 +1951,7 @@ export function MandibularPanel({
                           />
                         )}
                         <ScrollToBottom />
-                      </div>
-                      )}
-                    </div>
-                    </div>
+                    </ProductAccordionCard>
                   );
                 });
               })()}
@@ -2222,123 +2005,44 @@ export function MandibularPanel({
               return true;
             });
 
+            const SLOT_ID = "removable0";
             return (
-              <div key="initial-removables-mandibular" className="relative mt-4">
-              <div className={`rounded-lg bg-white overflow-hidden ${hasRushedRemovables ? "border-2 border-[#CF0202]" : "border border-[#d9d9d9]"}`}>
-                <div
-                  className={`w-full flex flex-col transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] relative ${hasRushedRemovables ? "bg-[#FCE4E4]" : "bg-white"}`}
-                  onClick={() => {
-                    const willExpand = !initialRemovablesExpanded;
-                    setInitialRemovablesExpanded((e) => !e);
-                    if (willExpand) {
-                      setActiveProductCardId(0);
-                      collapseAllAddedProducts();
-                    }
-                  }}
-                  style={{ cursor: "pointer" }}
-                >
-                  {/* Chevron top-right */}
-                  <div className="absolute top-3 right-2 z-10">
-                    <ChevronDown
-                      size={21.6}
-                      className={`text-black transition-transform ${initialRemovablesExpanded ? "rotate-180" : ""}`}
-                    />
-                  </div>
-                  {/* Image left + product name, status boxes & badges right */}
-                  <div className="flex items-stretch gap-[10px] px-[8px] py-[14px]" onClick={(e) => e.stopPropagation()}>
-                    <ProductImagePreview
-                      imageUrl={cardProductImage}
-                      altText={cardProductName}
-                      containerClassName="w-[162px] h-[152px] rounded-[6px] bg-white flex items-center justify-center flex-shrink-0 overflow-hidden shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]"
-                      imgClassName="w-full h-full object-contain"
-                      fallback={
-                        <div className="w-full h-full flex items-center justify-center">
-                          <span className="text-[10px] text-gray-400">No img</span>
-                        </div>
-                      }
-                    />
-                    <div className="flex-1 min-w-0 flex flex-col gap-[9.94px]">
-                      {/* Show header content only after user assigns a status via the popover, or case submitted */}
-                      {(displayTeeth.length > 0 || caseSubmitted) && (
-                        <>
-                          {/* Category badges above green box */}
-                          <div className="flex items-center gap-[4px] flex-wrap">
-                            {cardProduct?.subcategory?.category?.name && (
-                              <AccordionBadge>{cardProduct.subcategory.category.name}</AccordionBadge>
-                            )}
-                            {cardProduct?.subcategory?.name && (
-                              <AccordionBadge>{cardProduct.subcategory.name}</AccordionBadge>
-                            )}
-                          </div>
-                          {/* Title + tooth numbers in green-bordered box */}
-                          <div className={`flex flex-col items-center text-center gap-[5px] border rounded-[7px] p-[10px] mr-8 ${confirmDetailsChecked ? "border-[#34C759]" : "border-[#F97316]"}`}>
-                            <p className="font-[Inter] text-[20px] font-bold leading-[20px] tracking-[-0.02em] text-black">
-                              {cardIsFullDenture
-                                ? cardProductName
-                                : hasVariationMatch
-                                  ? `${cardProductName} to replace`
-                                  : `${cardProductName} ${displayTeeth.length} ${displayTeeth.length === 1 ? "tooth" : "teeth"} to replace`}
-                              {hasRushedRemovables && <RushIcon className="inline w-[14px] h-[14px] ml-1" />}
-                            </p>
-                            <p className="font-[Inter] text-[20px] font-normal leading-[20px] tracking-[-0.02em] text-black">
-                              {cardToothDisplay}
-                            </p>
-                          </div>
-                          {cardExtractions.length > 0 && !isSingleDefaultOnlyExtractionList(cardExtractions) && (
-                            <ToothStatusBoxes
-                              extractions={cardExtractions}
-                              selectedTeeth={mandibularTeeth}
-                              allArchTeeth={MANDIBULAR_ALL_TEETH}
-                              toothExtractionMap={mandibularToothExtractionMap}
-                              claspTeeth={mandibularClaspTeeth}
-                              activeExtractionCode={activeExtractionCode}
-                              onActiveExtractionChange={(code, exts) => { setActiveExtractionCode(code); if (exts) setActiveExtractions(exts); }}
-                              onToothExtractionToggle={(tn, code, extractions) => handleToothExtractionToggle("mandibular", tn, code, extractions)}
-                              onSelectAllTeeth={selectAllMandibularTeeth}
-                              onRequiredValidationChange={onToothStatusValidationChange}
-                              isRemovable={true}
-                              submitted={caseSubmitted}
-                              hideDefaultBox={true}
-                              disableRequiredValidation={true}
-                            />
-                          )}
-                          {/* Est days + stage badge + trash below status boxes */}
-                          <div className="flex items-center gap-[4.97px] flex-wrap">
-                            {stageVal && !isSingleStageNoStages(cardProduct) && (
-                              <AccordionBadge>{stageVal}</AccordionBadge>
-                            )}
-                            <EstDaysLabel rushed={hasRushedRemovables} text={hasRushedRemovables ? "5 work days after submission" : estDays} />
-                            {!caseSubmitted && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const noOtherProducts = addedProducts.filter(p => p.arch === "mandibular").length === 0;
-                                  const teethToClear = MANDIBULAR_ALL_TEETH.filter(
-                                    (tn) => getToothProduct("mandibular", tn) && getToothProductCard("mandibular", tn) === 0
-                                  );
-                                  teethToClear.forEach((tn) => {
-                                    clearToothProgress("mandibular", tn);
-                                    handleMandibularToothDeselect(tn);
-                                  });
-                                  setInitialRemovablesExpanded(false);
-                                  setActiveProductCardId(0);
-                                  if (noOtherProducts) onBackToCategories?.("mandibular");
-                                }}
-                                className="hover:text-red-500 transition-colors flex-shrink-0"
-                                title="Remove product"
-                              >
-                                <Trash2 size={18} className="text-[#999999] hover:text-red-500" />
-                              </button>
-                            )}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className={`border-t border-[#d9d9d9] p-2.5 sm:p-4 bg-white space-y-3 max-h-[600px] overflow-y-auto scrollbar-blue${initialRemovablesExpanded ? "" : " hidden"}${caseSubmitted ? " pointer-events-none select-none" : ""}`}>
+              <ProductAccordionCard
+                key="initial-removables-mandibular"
+                slotId={SLOT_ID}
+                arch="mandibular"
+                isExpanded={isCardExpanded(SLOT_ID)}
+                onToggle={() => {
+                  const willExpand = !isCardExpanded(SLOT_ID);
+                  toggleCard(SLOT_ID);
+                  if (willExpand) {
+                    setActiveProductCardId(0);
+                    collapseAllAddedProducts();
+                  }
+                }}
+                productName={cardProductName}
+                productImageUrl={cardProductImage}
+                toothDisplay={cardToothDisplay}
+                stageName={stageVal && !isSingleStageNoStages(cardProduct) ? stageVal : undefined}
+                estDaysText={estDays}
+                hasRush={!!hasRushedRemovables}
+                canDelete={true}
+                onDelete={() => {
+                  const noOtherProducts = addedProducts.filter(p => p.arch === "mandibular").length === 0;
+                  const teethToClear = MANDIBULAR_ALL_TEETH.filter(
+                    (tn) => getToothProduct("mandibular", tn) && getToothProductCard("mandibular", tn) === 0
+                  );
+                  teethToClear.forEach((tn) => {
+                    clearToothProgress("mandibular", tn);
+                    handleMandibularToothDeselect(tn);
+                  });
+                  collapseAllCards();
+                  setActiveProductCardId(0);
+                  if (noOtherProducts) onBackToCategories?.("mandibular");
+                }}
+                confirmDetailsChecked={confirmDetailsChecked}
+                caseSubmitted={caseSubmitted}
+              >
                     {(() => {
                       const repTn = cardTeeth[0];
                       const toothProduct = getToothProduct("mandibular", repTn);
@@ -2357,7 +2061,7 @@ export function MandibularPanel({
                           productId={productKey}
                           arch="mandibular"
                           toothNumber={repTn}
-                          isExpanded={initialRemovablesExpanded}
+                          isExpanded={isCardExpanded(SLOT_ID)}
                           isStageVisible={isF("stage")}
                           isStageEmpty={!stageVal}
                           onOpenStage={handleOpenStageModal}
@@ -2366,7 +2070,7 @@ export function MandibularPanel({
                         )}
                         {!suppressAutoOpen && (
                         <AutoOpenImpressionIfEmpty
-                          isExpanded={initialRemovablesExpanded}
+                          isExpanded={isCardExpanded(SLOT_ID)}
                           isImpressionVisible={isF("impression")}
                           isImpressionEmpty={!isFComplete("impression")}
                           onOpenImpressionModal={handleOpenImpressionModal}
@@ -2539,9 +2243,7 @@ export function MandibularPanel({
                         </>
                       );
                     })()}
-                  </div>
-              </div>
-              </div>
+              </ProductAccordionCard>
             );
           })()}
 
