@@ -44,6 +44,7 @@ import { isRemovableCategory, isFixedCategory, hasRetentionOptions, isSingleStag
 import { resolveVariationDisplay } from "../utils/variationHelpers";
 import { parseAddonDisplayItems } from "../utils/addonDisplayHelpers";
 import { isSingleDefaultOnlyExtractionList } from "../utils/extractionHelpers";
+import { hasImplantRetention } from "../utils/implantHelpers";
 import { FixedRestorationFields } from "./FixedRestorationFields";
 import type { ImplantDetailData } from "./ImplantDetailSection";
 import { RemovableRestorationFields } from "./RemovableRestorationFields";
@@ -771,6 +772,23 @@ export function MaxillaryPanel({
   }, [onImplantDetailChange]);
   /** Expand/collapse for initial (card 0) Removables product accordion */
   const [initialRemovablesExpanded, setInitialRemovablesExpanded] = useState(true);
+
+  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({
+    removable0: true,
+  });
+
+  const isCardExpanded = (slotId: string): boolean => expandedCards[slotId] ?? false;
+
+  const toggleCard = (slotId: string) =>
+    setExpandedCards(prev => ({ ...prev, [slotId]: !prev[slotId] }));
+
+  const expandCard = (slotId: string) =>
+    setExpandedCards(prev => ({ ...prev, [slotId]: true }));
+
+  const collapseAllCards = () =>
+    setExpandedCards(prev =>
+      Object.fromEntries(Object.keys(prev).map(k => [k, false]))
+    );
   /** Expand/collapse for the opposing product accordion */
   const [opposingAccordionExpanded, setOpposingAccordionExpanded] = useState(true);
   /** Active extraction code selected in the opposing ToothStatusBoxes */
@@ -1835,7 +1853,7 @@ export function MaxillaryPanel({
                             />
                             <AutoOpenImpressionIfEmpty
                               isExpanded={ap.expanded}
-                              isImpressionVisible={!apFixedShadeIncomplete && apIsFixed("fixed_impression") && !(cardTeeth.some((n) => (maxillaryRetentionTypes[n] || []).includes("Implant")) && implantDetailCompleteByTooth[apFirstTn] !== true)}
+                              isImpressionVisible={!apFixedShadeIncomplete && apIsFixed("fixed_impression") && !(hasImplantRetention(cardTeeth, maxillaryRetentionTypes, apToothProduct?.retention_options) && implantDetailCompleteByTooth[apFirstTn] !== true)}
                               isImpressionEmpty={!isFieldCompleted("maxillary", apFirstTn, "fixed_impression")}
                               onOpenImpressionModal={handleOpenImpressionModal}
                               arch="maxillary"
@@ -2110,7 +2128,7 @@ export function MaxillaryPanel({
                       />
                       <AutoOpenImpressionIfEmpty
                         isExpanded={isPrepPonticExpanded(firstToothNumber)}
-                        isImpressionVisible={!fixedShadeIncomplete && isFixed("fixed_impression") && !(toothNumbers.some((n) => (maxillaryRetentionTypes[n] || []).includes("Implant")) && implantDetailCompleteByTooth[groupStageToothNumber] !== true)}
+                        isImpressionVisible={!fixedShadeIncomplete && isFixed("fixed_impression") && !(hasImplantRetention(toothNumbers, maxillaryRetentionTypes, selectedProduct?.retention_options) && implantDetailCompleteByTooth[groupStageToothNumber] !== true)}
                         isImpressionEmpty={!isFieldCompleted("maxillary", groupStageToothNumber, "fixed_impression")}
                         onOpenImpressionModal={handleOpenImpressionModal}
                         arch="maxillary"
