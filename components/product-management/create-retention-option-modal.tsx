@@ -133,6 +133,8 @@ export function CreateRetentionOptionModal({
     const [hasChanges, setHasChanges] = useState(false)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [isLoadingDetails, setIsLoadingDetails] = useState(false)
+    const [hasImplant, setHasImplant] = useState<"Yes" | "No">("No")
+    const [hasAbutment, setHasAbutment] = useState<"Yes" | "No">("No")
     const [errors, setErrors] = useState<{ [key: string]: string }>({})
     const [showLinkRetentionOptionModal, setShowLinkRetentionOptionModal] = useState(false)
     const [imageBase64, setImageBase64] = useState<string | null>(null)
@@ -187,6 +189,8 @@ export function CreateRetentionOptionModal({
                 setStatus(option.status === "Inactive" ? "Inactive" : "Active")
                 setDetailsEnabled(option.status === "Active")
                 setSelectedShape(getShapeIdFromApiName(option.selector_shape))
+                setHasImplant(option.has_implant === "Yes" ? "Yes" : "No")
+                setHasAbutment(option.has_abutment === "Yes" ? "Yes" : "No")
                 setImageBase64(null)
                 setImagePreview(option.image_url || null)
             } else if (option && option.id && !isCopying) {
@@ -196,11 +200,13 @@ export function CreateRetentionOptionModal({
                     .then((response) => {
                         const data = response.data
                         setOptionName(data.name || "")
-                        setOptionCode("") // Code is not in API response, keep empty or generate
+                        setOptionCode(data.code || option?.code || "")
                         setSequence(data.sequence || 1)
                         setStatus(data.status || "Active")
                         setDetailsEnabled(data.status === "Active")
                         setSelectedShape(getShapeIdFromApiName(data.selector_shape))
+                        setHasImplant(data.has_implant === "Yes" ? "Yes" : "No")
+                        setHasAbutment(data.has_abutment === "Yes" ? "Yes" : "No")
                         setImageBase64(null)
                         setImagePreview(data.image_url || null)
                         setIsLoadingDetails(false)
@@ -221,6 +227,8 @@ export function CreateRetentionOptionModal({
                             setStatus(option.status === "Inactive" ? "Inactive" : "Active")
                             setDetailsEnabled(option.status === "Active")
                             setSelectedShape(getShapeIdFromApiName(option.selector_shape))
+                            setHasImplant(option.has_implant === "Yes" ? "Yes" : "No")
+                            setHasAbutment(option.has_abutment === "Yes" ? "Yes" : "No")
                             setImageBase64(null)
                             setImagePreview(option.image_url || null)
                         }
@@ -233,6 +241,8 @@ export function CreateRetentionOptionModal({
                 setStatus("Active")
                 setDetailsEnabled(true)
                 setSelectedShape("")
+                setHasImplant("No")
+                setHasAbutment("No")
                 setImageBase64(null)
                 setImagePreview(null)
             }
@@ -271,6 +281,8 @@ export function CreateRetentionOptionModal({
         setStatus("Active")
         setDetailsEnabled(true)
         setSelectedShape("")
+        setHasImplant("No")
+        setHasAbutment("No")
         setImageBase64(null)
         setImagePreview(null)
         setShowDiscardDialog(false)
@@ -325,9 +337,12 @@ export function CreateRetentionOptionModal({
                 // Update existing option
                 const updatePayload: RetentionOptionUpdatePayload = {
                     name: optionName.trim(),
+                    code: optionCode.trim(),
                     status: status,
                     sequence: sequence,
                     selector_shape: shapeApiName || undefined,
+                    has_implant: hasImplant,
+                    has_abutment: hasAbutment,
                     image: imagePayload,
                 }
 
@@ -346,9 +361,12 @@ export function CreateRetentionOptionModal({
                 // Create new option
                 const createPayload: RetentionOptionPayload = {
                     name: optionName.trim(),
+                    code: optionCode.trim(),
                     status: status,
                     sequence: sequence,
                     selector_shape: shapeApiName || undefined,
+                    has_implant: hasImplant,
+                    has_abutment: hasAbutment,
                     is_custom: isLabAdmin ? "Yes" : "No",
                     image: imagePayload,
                 }
@@ -379,6 +397,8 @@ export function CreateRetentionOptionModal({
             setStatus("Active")
             setDetailsEnabled(true)
             setSelectedShape("")
+            setHasImplant("No")
+            setHasAbutment("No")
             setImageBase64(null)
             setImagePreview(null)
             setHasChanges(false)
@@ -736,6 +756,43 @@ export function CreateRetentionOptionModal({
                                                 {errors.sequence && (
                                                     <p className="text-red-500 text-xs mt-1 ml-2">{errors.sequence}</p>
                                                 )}
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div className="rounded-md border border-gray-200 px-3 py-2.5">
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <div>
+                                                        <p className="text-sm font-medium text-gray-900">Has implant</p>
+                                                        <p className="text-xs text-gray-500">Default: No</p>
+                                                    </div>
+                                                    <Switch
+                                                        className="data-[state=checked]:bg-[#1162a8]"
+                                                        checked={hasImplant === "Yes"}
+                                                        onCheckedChange={(checked) => {
+                                                            setHasImplant(checked ? "Yes" : "No")
+                                                            setHasChanges(true)
+                                                        }}
+                                                        disabled={!detailsEnabled}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="rounded-md border border-gray-200 px-3 py-2.5">
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <div>
+                                                        <p className="text-sm font-medium text-gray-900">Has abutment</p>
+                                                        <p className="text-xs text-gray-500">Default: No</p>
+                                                    </div>
+                                                    <Switch
+                                                        className="data-[state=checked]:bg-[#1162a8]"
+                                                        checked={hasAbutment === "Yes"}
+                                                        onCheckedChange={(checked) => {
+                                                            setHasAbutment(checked ? "Yes" : "No")
+                                                            setHasChanges(true)
+                                                        }}
+                                                        disabled={!detailsEnabled}
+                                                    />
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
