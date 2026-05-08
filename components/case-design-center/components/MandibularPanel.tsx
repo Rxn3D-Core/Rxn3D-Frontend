@@ -2026,22 +2026,120 @@ export function MandibularPanel({
                 stageName={stageVal && !isSingleStageNoStages(cardProduct) ? stageVal : undefined}
                 estDaysText={estDays}
                 hasRush={!!hasRushedRemovables}
-                canDelete={true}
-                onDelete={() => {
-                  const noOtherProducts = addedProducts.filter(p => p.arch === "mandibular").length === 0;
-                  const teethToClear = MANDIBULAR_ALL_TEETH.filter(
-                    (tn) => getToothProduct("mandibular", tn) && getToothProductCard("mandibular", tn) === 0
-                  );
-                  teethToClear.forEach((tn) => {
-                    clearToothProgress("mandibular", tn);
-                    handleMandibularToothDeselect(tn);
-                  });
-                  collapseAllCards();
-                  setActiveProductCardId(0);
-                  if (noOtherProducts) onBackToCategories?.("mandibular");
-                }}
+                canDelete={false}
                 confirmDetailsChecked={confirmDetailsChecked}
                 caseSubmitted={caseSubmitted}
+                customHeader={
+                  <div
+                    className={`w-full flex flex-col transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] relative cursor-pointer ${hasRushedRemovables ? "bg-[#FCE4E4]" : "bg-white"}`}
+                    onClick={() => {
+                      const willExpand = !isCardExpanded(SLOT_ID);
+                      toggleCard(SLOT_ID);
+                      if (willExpand) {
+                        setActiveProductCardId(0);
+                        collapseAllAddedProducts();
+                      }
+                    }}
+                  >
+                    <div className="absolute top-3 right-2 z-10">
+                      <ChevronDown
+                        size={21.6}
+                        className={`text-black transition-transform ${isCardExpanded(SLOT_ID) ? "rotate-180" : ""}`}
+                      />
+                    </div>
+                    <div className="flex items-stretch gap-[10px] px-[8px] py-[14px]" onClick={(e) => e.stopPropagation()}>
+                      <ProductImagePreview
+                        imageUrl={cardProductImage}
+                        altText={cardProductName}
+                        containerClassName="w-[162px] h-[152px] rounded-[6px] bg-white flex items-center justify-center flex-shrink-0 overflow-hidden shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]"
+                        imgClassName="w-full h-full object-contain"
+                        fallback={
+                          <div className="w-full h-full flex items-center justify-center">
+                            <span className="text-[10px] text-gray-400">No img</span>
+                          </div>
+                        }
+                      />
+                      <div className="flex-1 min-w-0 flex flex-col gap-[9.94px]">
+                        {(displayTeeth.length > 0 || caseSubmitted) && (
+                          <>
+                            <div className="flex items-center gap-[4px] flex-wrap">
+                              {cardProduct?.subcategory?.category?.name && (
+                                <AccordionBadge>{cardProduct.subcategory.category.name}</AccordionBadge>
+                              )}
+                              {cardProduct?.subcategory?.name && (
+                                <AccordionBadge>{cardProduct.subcategory.name}</AccordionBadge>
+                              )}
+                            </div>
+                            <div className={`flex flex-col items-center text-center gap-[5px] border rounded-[7px] p-[10px] mr-8 ${confirmDetailsChecked ? "border-[#34C759]" : "border-[#F97316]"}`}>
+                              <p className="font-[Inter] text-[20px] font-bold leading-[20px] tracking-[-0.02em] text-black">
+                                {cardIsFullDenture
+                                  ? cardProductName
+                                  : hasVariationMatch
+                                    ? `${cardProductName} to replace`
+                                    : `${cardProductName} ${displayTeeth.length} ${displayTeeth.length === 1 ? "tooth" : "teeth"} to replace`}
+                                {hasRushedRemovables && <RushIcon className="inline w-[14px] h-[14px] ml-1" />}
+                              </p>
+                              <p className="font-[Inter] text-[20px] font-normal leading-[20px] tracking-[-0.02em] text-black">
+                                {cardToothDisplay}
+                              </p>
+                            </div>
+                            {cardExtractions.length > 0 && !isSingleDefaultOnlyExtractionList(cardExtractions) && (
+                              <ToothStatusBoxes
+                                extractions={cardExtractions}
+                                selectedTeeth={mandibularTeeth}
+                                allArchTeeth={MANDIBULAR_ALL_TEETH}
+                                toothExtractionMap={mandibularToothExtractionMap}
+                                claspTeeth={mandibularClaspTeeth}
+                                activeExtractionCode={activeExtractionCode}
+                                onActiveExtractionChange={(code, exts) => { setActiveExtractionCode(code); if (exts) setActiveExtractions(exts); }}
+                                onToothExtractionToggle={(tn, code, extractions) => handleToothExtractionToggle("mandibular", tn, code, extractions)}
+                                onSelectAllTeeth={selectAllMandibularTeeth}
+                                onRequiredValidationChange={onToothStatusValidationChange}
+                                isRemovable={true}
+                                submitted={caseSubmitted}
+                                hideDefaultBox={true}
+                                disableRequiredValidation={true}
+                              />
+                            )}
+                            <div className="flex items-center gap-[4.97px] flex-wrap">
+                              {stageVal && !isSingleStageNoStages(cardProduct) && (
+                                <AccordionBadge>{stageVal}</AccordionBadge>
+                              )}
+                              <EstDaysLabel rushed={!!hasRushedRemovables} text={hasRushedRemovables ? "5 work days after submission" : estDays} />
+                              {!caseSubmitted && (
+                                <span
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const noOtherProducts = addedProducts.filter(p => p.arch === "mandibular").length === 0;
+                                    const teethToClear = MANDIBULAR_ALL_TEETH.filter(
+                                      (tn) => getToothProduct("mandibular", tn) && getToothProductCard("mandibular", tn) === 0
+                                    );
+                                    teethToClear.forEach((tn) => {
+                                      clearToothProgress("mandibular", tn);
+                                      handleMandibularToothDeselect(tn);
+                                    });
+                                    collapseAllCards();
+                                    setActiveProductCardId(0);
+                                    if (noOtherProducts) onBackToCategories?.("mandibular");
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter" || e.key === " ") e.currentTarget.click();
+                                  }}
+                                  className="inline-flex items-center justify-center flex-shrink-0 cursor-pointer hover:text-red-500 transition-colors"
+                                  title="Remove product"
+                                >
+                                  <Trash2 size={18} className="text-[#999999] hover:text-red-500" />
+                                </span>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                }
               >
                     {(() => {
                       const repTn = cardTeeth[0];
