@@ -72,11 +72,28 @@ export function DashboardSidebar({ onClose, isMobileOverlay = false }: Dashboard
     collectExpandableIds(menuItems)
     return ids
   }, [menuItems])
-  const expandedMenuStorageKey = useMemo(
-    () => `dashboard-sidebar-expanded-items:${userRole || "default"}`,
+
+  const findActivePathTrail = (items: MenuItem[], currentPathname: string): string[] => {
+    for (const item of items) {
+      const isCurrent =
+        !!item.path && (currentPathname === item.path || currentPathname.startsWith(`${item.path}/`))
+      if (isCurrent) {
+        return [item.id]
+      }
+
+      if (item.children && item.children.length > 0) {
+        const childTrail = findActivePathTrail(item.children, currentPathname)
+        if (childTrail.length > 0) {
+          return [item.id, ...childTrail]
+        }
+      }
+    }
+    return []
+  }
+  const sidebarPanelStorageKey = useMemo(
+    () => `dashboard-sidebar-open:${userRole || "default"}`,
     [userRole],
   )
-  const [hasHydratedExpandedItems, setHasHydratedExpandedItems] = useState(false)
   
   // Initialize logo store from localStorage on mount
   const initializeFromStorage = useCustomerLogoStore((state) => state.initializeFromStorage)
@@ -115,51 +132,33 @@ export function DashboardSidebar({ onClose, isMobileOverlay = false }: Dashboard
   const customerId = getCustomerId()
   
   useEffect(() => {
-    if (typeof window === "undefined") return
-
-    const savedExpandedItems = window.localStorage.getItem(expandedMenuStorageKey)
-    if (!savedExpandedItems) {
-      setExpandedItems(expandableMenuItemIds)
-      setHasHydratedExpandedItems(true)
-      return
-    }
-
-    try {
-      const parsedExpandedItems = JSON.parse(savedExpandedItems)
-      if (!Array.isArray(parsedExpandedItems)) {
-        setExpandedItems(expandableMenuItemIds)
-        setHasHydratedExpandedItems(true)
-        return
-      }
-
-      const validExpandedItems = parsedExpandedItems.filter(
-        (itemId): itemId is string => typeof itemId === "string" && expandableMenuItemIds.includes(itemId),
-      )
-
-      setExpandedItems(validExpandedItems)
-    } catch {
-      setExpandedItems(expandableMenuItemIds)
-    } finally {
-      setHasHydratedExpandedItems(true)
-    }
-  }, [expandableMenuItemIds, expandedMenuStorageKey])
+    const activeTrail = findActivePathTrail(menuItems, pathname)
+    const activeExpandable = activeTrail.filter((id) => expandableMenuItemIds.includes(id))
+    setExpandedItems(activeExpandable)
+  }, [menuItems, pathname, expandableMenuItemIds])
 
   useEffect(() => {
-    if (typeof window === "undefined" || !hasHydratedExpandedItems) return
-    window.localStorage.setItem(expandedMenuStorageKey, JSON.stringify(expandedItems))
-  }, [expandedItems, expandedMenuStorageKey, hasHydratedExpandedItems])
+    if (typeof window === "undefined" || isMobileOverlay) return
+    const savedSidebarOpenState = window.localStorage.getItem(sidebarPanelStorageKey)
+    if (savedSidebarOpenState === null) {
+      setExpanded(false)
+      return
+    }
+    setExpanded(savedSidebarOpenState === "true")
+  }, [sidebarPanelStorageKey, isMobileOverlay])
+
+  useEffect(() => {
+    if (typeof window === "undefined" || isMobileOverlay) return
+    window.localStorage.setItem(sidebarPanelStorageKey, String(expanded))
+  }, [expanded, sidebarPanelStorageKey, isMobileOverlay])
 
   const toggleSidebar = () => {
     setExpanded(!expanded)
   }
 
   const toggleMenuItem = (itemId: string) => {
-    setExpanded(true); // Automatically expand sidebar when a tab is clicked
-    setExpandedItems((prev) =>
-      prev.includes(itemId)
-        ? prev.filter((id) => id !== itemId && !isChildOf(id, itemId, menuItems))
-        : [...prev, itemId],
-    );
+    setExpanded(true) // Automatically expand sidebar when a tab is clicked
+    setExpandedItems((prev) => (prev.includes(itemId) ? [] : [itemId]))
   }
 
   const isChildOf = (childId: string, parentId: string, items: MenuItem[]): boolean => {
