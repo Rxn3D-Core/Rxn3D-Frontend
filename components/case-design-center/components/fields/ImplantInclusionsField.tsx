@@ -10,6 +10,7 @@ export function ImplantInclusionsField({
   quantity,
   onChange,
   onQuantityChange,
+  options,
   autoOpenWhenVisible = false,
   caseSubmitted = false,
 }: {
@@ -18,7 +19,8 @@ export function ImplantInclusionsField({
   quantity: number;
   onChange: (v: string) => void;
   onQuantityChange: (qty: number) => void;
-  /** When true, open the dropdown automatically when the field is shown (e.g. when no value yet). */
+  /** Dynamic options from advance_fields. When provided, replaces internal hardcoded options. */
+  options?: string[];
   autoOpenWhenVisible?: boolean;
   caseSubmitted?: boolean;
 }) {
@@ -26,11 +28,14 @@ export function ImplantInclusionsField({
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const triggerRef = useRef<HTMLFieldSetElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const hasValue = value.trim().length > 0;
-  const borderColor = hasValue && !caseSubmitted ? "border-[#34a853]" : hasValue ? "border-[#b4b0b0]" : "border-[#cf0202]";
-  const legendColor = hasValue && !caseSubmitted ? "text-[#34a853]" : hasValue ? "text-[#7f7f7f]" : "text-[#cf0202]";
+  const isNoInclusion = value === "No inclusion";
+  const isComplete = value.trim().length > 0;
+  const borderColor = isComplete && !caseSubmitted ? "border-[#34a853]" : isComplete ? "border-[#b4b0b0]" : "border-[#cf0202]";
+  const legendColor = isComplete && !caseSubmitted ? "text-[#34a853]" : isComplete ? "text-[#7f7f7f]" : "text-[#cf0202]";
 
-  // Auto-open dropdown when field is shown and has no value yet
+  // Fall back to the legacy hardcoded option when no API options supplied
+  const inclusionOptions: string[] = options && options.length > 0 ? options : ["Model with Tissue + QTY"];
+
   useEffect(() => {
     if (autoOpenWhenVisible && !value.trim()) {
       setShowDropdown(true);
@@ -41,7 +46,7 @@ export function ImplantInclusionsField({
     if (showDropdown && triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
       const footerHeight = 60;
-      const estimatedDropdownHeight = 110;
+      const estimatedDropdownHeight = 120;
       const spaceBelow = window.innerHeight - rect.bottom;
       const openUpward = spaceBelow < estimatedDropdownHeight + 8 || rect.bottom > window.innerHeight - footerHeight;
 
@@ -55,7 +60,6 @@ export function ImplantInclusionsField({
     }
   }, [showDropdown]);
 
-  // Close on outside click (don't close when clicking trigger or dropdown content)
   useEffect(() => {
     if (!showDropdown) return;
     const handler = (e: MouseEvent) => {
@@ -70,68 +74,76 @@ export function ImplantInclusionsField({
     return () => document.removeEventListener("mousedown", handler);
   }, [showDropdown]);
 
+  const displayValue = () => {
+    if (!value.trim() || isNoInclusion) return value || "Select...";
+    const isQtyOption = inclusionOptions.includes(value);
+    if (isQtyOption && quantity >= 1) return `${quantity} X ${value}`;
+    return value;
+  };
+
   const dropdown = showDropdown ? (
     <div
       ref={dropdownRef}
       style={dropdownStyle}
       className="bg-white border border-[#b4b0b0] rounded shadow-lg"
     >
-          {/* No inclusion option */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onChange("No inclusion");
-              setShowDropdown(false);
-            }}
-            className="w-full text-left px-3 py-2.5 text-xs hover:bg-[#DFEEFB] transition-colors text-[#1d1d1b]"
-          >
-            No inclusion
-          </button>
+      {/* No inclusion */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onChange("No inclusion");
+          setShowDropdown(false);
+        }}
+        className="w-full text-left px-3 py-2.5 text-xs hover:bg-[#DFEEFB] transition-colors text-[#1d1d1b]"
+      >
+        No inclusion
+      </button>
 
-          {/* Model with Tissue + inline quantity controls */}
-          <div
-            className="flex items-center justify-between px-3 py-2.5 hover:bg-[#DFEEFB] transition-colors cursor-pointer"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (value !== "Model with Tissue + QTY") {
-                onChange("Model with Tissue + QTY");
-                if (quantity === 0) onQuantityChange(1);
-              }
-            }}
-          >
-            <span className="text-xs text-[#1d1d1b]">
-              Model with Tissue + QTY
+      {/* Dynamic options — each gets inline quantity controls */}
+      {inclusionOptions.map((opt) => (
+        <div
+          key={opt}
+          className="flex items-center justify-between px-3 py-2.5 hover:bg-[#DFEEFB] transition-colors cursor-pointer"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (value !== opt) {
+              onChange(opt);
+              if (quantity === 0) onQuantityChange(1);
+            }
+          }}
+        >
+          <span className="text-xs text-[#1d1d1b]">{opt}</span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (value !== opt) onChange(opt);
+                onQuantityChange(Math.max(0, quantity - 1));
+              }}
+              className="w-8 h-8 rounded border border-[#b4b0b0] bg-white flex items-center justify-center hover:bg-gray-100 transition-colors"
+            >
+              <span className="text-base text-[#7f7f7f]">−</span>
+            </button>
+            <span className="text-sm font-semibold text-[#1d1d1b] min-w-[24px] text-center">
+              {value === opt ? quantity : 0}
             </span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (value !== "Model with Tissue + QTY") onChange("Model with Tissue + QTY");
-                  onQuantityChange(Math.max(0, quantity - 1));
-                }}
-                className="w-8 h-8 rounded border border-[#b4b0b0] bg-white flex items-center justify-center hover:bg-gray-100 transition-colors"
-              >
-                <span className="text-base text-[#7f7f7f]">−</span>
-              </button>
-              <span className="text-sm font-semibold text-[#1d1d1b] min-w-[24px] text-center">
-                {value === "Model with Tissue + QTY" ? quantity : 0}
-              </span>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (value !== "Model with Tissue + QTY") onChange("Model with Tissue + QTY");
-                  onQuantityChange(quantity + 1);
-                }}
-                className="w-8 h-8 rounded border border-[#b4b0b0] bg-white flex items-center justify-center hover:bg-gray-100 transition-colors"
-              >
-                <span className="text-base text-[#7f7f7f]">+</span>
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (value !== opt) onChange(opt);
+                onQuantityChange(quantity + 1);
+              }}
+              className="w-8 h-8 rounded border border-[#b4b0b0] bg-white flex items-center justify-center hover:bg-gray-100 transition-colors"
+            >
+              <span className="text-base text-[#7f7f7f]">+</span>
+            </button>
           </div>
         </div>
+      ))}
+    </div>
   ) : null;
 
   return (
@@ -146,11 +158,11 @@ export function ImplantInclusionsField({
         </legend>
         <div className="flex items-center gap-2 w-full min-h-0">
           <span className="text-[14px] sm:text-lg leading-tight text-[#000000] flex-1 min-w-0 truncate">
-            {value === "Model with Tissue + QTY" && quantity >= 1
-              ? `${quantity} X Model with Tissue + QTY`
-              : value || "Select..."}
+            {displayValue()}
           </span>
-          {hasValue && !caseSubmitted && <Check size={16} className="text-[#34a853] flex-shrink-0" />}
+          {isComplete && !caseSubmitted && (
+            <Check size={16} className="text-[#34a853] flex-shrink-0" />
+          )}
         </div>
       </fieldset>
       {createPortal(dropdown, document.body)}

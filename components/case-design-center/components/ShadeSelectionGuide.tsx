@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { Check, ChevronDown } from "lucide-react";
 import { ToothShadeSelectionSVG } from "@/components/tooth-shade-selection-svg";
-import type { Arch, ShadeFieldType, ShadeSelectionState } from "../types";
+import type { Arch, ShadeFieldType, ShadeSelectionState, ProductAdvanceField } from "../types";
 
 interface ShadeSelectionGuideProps {
   arch: Arch;
@@ -16,6 +16,37 @@ interface ShadeSelectionGuideProps {
   shadeGuideOptions: string[];
   getSelectedShade: (productId: string, arch: Arch, fieldType: ShadeFieldType) => string;
   handleShadeSelect: (shade: string) => void;
+  /** Pass advance_fields from the active product to derive dynamic shade labels */
+  advanceFields?: ProductAdvanceField[];
+  /** Whether the product has_gum_shade flag (used when no advance_fields match) */
+  hasGumShadeFlag?: boolean;
+  /** Whether the product has_teeth_shade flag (used when no advance_fields match) */
+  hasTeethShadeFlag?: boolean;
+}
+
+function getShadeLabels(
+  advanceFields?: ProductAdvanceField[],
+  hasGumShadeFlag?: boolean,
+  hasTeethShadeFlag?: boolean,
+): { stumpLabel: string | null; toothLabel: string | null } {
+  if (advanceFields && advanceFields.length > 0) {
+    const stumpField = advanceFields.find((f) => {
+      const n = (f.name || "").toLowerCase();
+      return (n.includes("stump") || n.includes("gum")) && n.includes("shade");
+    });
+    const toothField = advanceFields.find((f) => {
+      const n = (f.name || "").toLowerCase();
+      return (n.includes("tooth") || n.includes("teeth") || n.includes("cervical") || n.includes("incisal") || n.includes("body") || n.includes("crown")) && n.includes("shade") && !n.includes("stump") && !n.includes("gum");
+    });
+    return {
+      stumpLabel: stumpField ? stumpField.name : null,
+      toothLabel: toothField ? toothField.name : null,
+    };
+  }
+  return {
+    stumpLabel: hasGumShadeFlag ? "Stump Shade" : null,
+    toothLabel: hasTeethShadeFlag ? "Tooth Shade" : null,
+  };
 }
 
 export function ShadeSelectionGuide({
@@ -29,7 +60,12 @@ export function ShadeSelectionGuide({
   shadeGuideOptions,
   getSelectedShade,
   handleShadeSelect,
+  advanceFields,
+  hasGumShadeFlag,
+  hasTeethShadeFlag,
 }: ShadeSelectionGuideProps) {
+  const { stumpLabel, toothLabel } = getShadeLabels(advanceFields, hasGumShadeFlag, hasTeethShadeFlag);
+
   useEffect(() => {
     if (shadeGuideOptions.length === 1 && !selectedShadeGuide) {
       setSelectedShadeGuide(shadeGuideOptions[0]);
@@ -50,8 +86,8 @@ export function ShadeSelectionGuide({
     'tooth_shade'
   );
 
-  // When opened directly as tooth_shade (e.g. removable products), stump shade is not required
-  const toothShadeOnly = shadeSelectionState.fieldType === 'tooth_shade' && !stumpShade;
+  // When opened directly as tooth_shade or no stump label exists, stump shade is not required
+  const toothShadeOnly = shadeSelectionState.fieldType === 'tooth_shade' || stumpLabel === null;
 
   // The active field is tracked by the hook; default to stump_shade if not yet set
   const activeField: ShadeFieldType = shadeSelectionState.fieldType ?? (toothShadeOnly ? 'tooth_shade' : 'stump_shade');
@@ -114,7 +150,7 @@ export function ShadeSelectionGuide({
         {/* Only show shade fields after a shade guide is selected */}
         {selectedShadeGuide && (
           <>
-            {/* Tooth-shade-only mode (removable products): show Tooth Shade directly */}
+            {/* Tooth-shade-only mode: show Tooth Shade directly (no stump shade field) */}
             {toothShadeOnly ? (
               toothShade ? (
                 <div
@@ -122,7 +158,7 @@ export function ShadeSelectionGuide({
                   onClick={() => setShadeSelectionState(prev => ({ ...prev, fieldType: 'tooth_shade' }))}
                 >
                   <label className="absolute left-3 top-0 -translate-y-1/2 text-xs bg-white px-1 pointer-events-none text-[#34a853]">
-                    Tooth Shade
+                    {toothLabel ?? "Tooth Shade"}
                   </label>
                   <div className="flex items-center gap-2 w-full">
                     <span className="text-base text-[#000000]">{`${selectedShadeGuide} - ${toothShade}`}</span>
@@ -134,7 +170,7 @@ export function ShadeSelectionGuide({
                   className="text-[#cf0202] text-base font-medium flex items-center cursor-pointer"
                   onClick={() => setShadeSelectionState(prev => ({ ...prev, fieldType: 'tooth_shade' }))}
                 >
-                  Select tooth shade
+                  {`Select ${(toothLabel ?? "tooth shade").toLowerCase()}`}
                 </span>
               )
             ) : (
@@ -146,7 +182,7 @@ export function ShadeSelectionGuide({
                     onClick={() => setShadeSelectionState(prev => ({ ...prev, fieldType: 'stump_shade' }))}
                   >
                     <label className="absolute left-3 top-0 -translate-y-1/2 text-xs bg-white px-1 pointer-events-none text-[#34a853]">
-                      Stump Shade
+                      {stumpLabel ?? "Stump Shade"}
                     </label>
                     <div className="flex items-center gap-2 w-full">
                       <span className="text-base text-[#000000]">{`${selectedShadeGuide} - ${stumpShade}`}</span>
@@ -158,19 +194,19 @@ export function ShadeSelectionGuide({
                     className="text-[#cf0202] text-base font-medium flex items-center cursor-pointer"
                     onClick={() => setShadeSelectionState(prev => ({ ...prev, fieldType: 'stump_shade' }))}
                   >
-                    Select stump shade
+                    {`Select ${(stumpLabel ?? "stump shade").toLowerCase()}`}
                   </span>
                 )}
 
                 {/* Tooth Shade Field — only shown after stump shade is filled */}
-                {stumpShade && (
+                {stumpShade && toothLabel !== null && (
                   toothShade ? (
                     <div
                       className="relative border border-[#34a853] rounded h-[42px] flex items-center px-3 cursor-pointer hover:bg-gray-50 transition-colors"
                       onClick={() => setShadeSelectionState(prev => ({ ...prev, fieldType: 'tooth_shade' }))}
                     >
                       <label className="absolute left-3 top-0 -translate-y-1/2 text-xs bg-white px-1 pointer-events-none text-[#34a853]">
-                        Tooth Shade
+                        {toothLabel}
                       </label>
                       <div className="flex items-center gap-2 w-full">
                         <span className="text-base text-[#000000]">{`${selectedShadeGuide} - ${toothShade}`}</span>
@@ -182,7 +218,7 @@ export function ShadeSelectionGuide({
                       className="text-[#cf0202] text-base font-medium flex items-center cursor-pointer"
                       onClick={() => setShadeSelectionState(prev => ({ ...prev, fieldType: 'tooth_shade' }))}
                     >
-                      Select tooth shade
+                      {`Select ${toothLabel.toLowerCase()}`}
                     </span>
                   )
                 )}
