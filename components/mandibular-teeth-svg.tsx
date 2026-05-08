@@ -383,8 +383,8 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
 
     // Convert SVG coordinates to viewport coordinates
     const viewportX = svgRect.left + (toothPos.cx * scaleX)
-    // Anchor bottom of popover to SVG top so it never overlaps teeth
-    const popoverTop = svgRect.top
+    // 8px gap above the SVG top edge
+    const popoverTop = svgRect.top - 8
 
     return {
       left: viewportX,
@@ -569,48 +569,47 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
 
   // Helper function to render retention popover
   const getRetentionPopover = (): React.ReactPortal | null => {
-    if (!showRetentionPopover || retentionPopoverTooth === null || !onSelectRetentionType || typeof window === 'undefined') {
+    // If the removable tooth-status popover is active, never show retention popover.
+    const effectiveShowRetentionPopover = showRetentionPopover && !showToothStatusPopover
+    if (!effectiveShowRetentionPopover || retentionPopoverTooth === null || !onSelectRetentionType || typeof window === 'undefined') {
       return null
     }
     const popoverPosition = getPopoverPosition()
     if (popoverPosition.left === 0 && popoverPosition.top === 0) {
       return null
     }
+    const svgRect = svgRef.current?.getBoundingClientRect()
+    const containerLeft = svgRect?.left ?? 0
+    const containerRight = svgRect ? svgRect.left + svgRect.width : window.innerWidth
     const retentionTypes = retentionTypesByTooth[retentionPopoverTooth] || []
     const selectedType = retentionTypes.length > 0 ? retentionTypes[0] : null
     return ReactDOM.createPortal(
-      <div
-        className="fixed z-50"
-        style={{
-          left: `${popoverPosition.left}px`,
-          top: `${popoverPosition.top}px`,
-          transform: 'translateX(-50%)'
-        }}
-      >
-        <RetentionTypePopover
-          retentionOptions={retentionOptions}
-          onSelectRetentionType={(type) => onSelectRetentionType(retentionPopoverTooth, type)}
-          selectedType={selectedType || undefined}
-          onClose={onClosePopover}
-          onDeselect={() => {
-            // Deselect by calling with the currently selected type (triggers deselection logic)
-            if (selectedType) {
-              onSelectRetentionType(retentionPopoverTooth, selectedType)
-            }
-          }}
-          onDeselectTooth={() => {
-            // Deselect the tooth directly (bypasses toggle logic)
-            if (retentionPopoverTooth !== null) {
-              if (onDeselectTooth) {
-                onDeselectTooth(retentionPopoverTooth)
-              } else if (onToothClick) {
-                // Fallback to toggle if onDeselectTooth is not provided
-                onToothClick(retentionPopoverTooth)
+      <PopoverPositioner
+        key={retentionPopoverTooth}
+        targetX={popoverPosition.left}
+        targetY={popoverPosition.top}
+        containerLeft={containerLeft}
+        containerRight={containerRight}
+        renderChildren={(arrowOffsetX) => (
+          <RetentionTypePopover
+            retentionOptions={retentionOptions}
+            onSelectRetentionType={(type) => onSelectRetentionType(retentionPopoverTooth, type)}
+            selectedType={selectedType || undefined}
+            onClose={onClosePopover}
+            onDeselectTooth={() => {
+              if (retentionPopoverTooth !== null) {
+                if (onDeselectTooth) {
+                  onDeselectTooth(retentionPopoverTooth)
+                } else if (onToothClick) {
+                  onToothClick(retentionPopoverTooth)
+                }
               }
-            }
-          }}
-        />
-      </div>,
+            }}
+            arrowOffsetX={arrowOffsetX}
+            arrowDirection="down"
+          />
+        )}
+      />,
       document.body
     )
   }
@@ -655,7 +654,6 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             onSelect={(code) => onSelectToothStatus(toothStatusPopoverTooth, code)}
             onRemove={onRemoveToothStatus ? () => onRemoveToothStatus(toothStatusPopoverTooth) : undefined}
             onClose={onCloseToothStatusPopover}
-            productName={toothStatusProductName}
             productImageUrl={toothStatusProductImageUrl}
             arrowOffsetX={arrowOffsetX}
             arrowDirection="down"

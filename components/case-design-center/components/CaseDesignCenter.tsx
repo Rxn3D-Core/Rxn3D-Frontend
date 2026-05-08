@@ -12,7 +12,7 @@ import { CenterActionIcons } from "./CenterActionIcons";
 import { ModalOrchestrator } from "./ModalOrchestrator";
 import { CaseSummaryNotes } from "./CaseSummaryNotes";
 import { mockImpressions } from "../constants";
-import { isRemovableCategory, isFixedCategory, getCategoryName } from "../utils/categoryHelpers";
+import { hasRetentionOptions, isRemovableCategory, isFixedCategory } from "../utils/categoryHelpers";
 import { hasAdvanceField } from "./FixedRestorationFields";
 
 export function CaseDesignCenter(props: CaseDesignProps) {
@@ -45,12 +45,11 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     return IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("mandibular", n, step));
   });
 
-  // True when any arch has a Removables/Removables Restoration product
-  const isRemovablesCategory = (arch: "maxillary" | "mandibular") =>
+  // True when any arch has a non-fixed product (Removable/Ortho): no retention_options
+  const isNonFixedForArch = (arch: "maxillary" | "mandibular") =>
     (props.addedProducts ?? []).some((ap) => {
       if (ap.arch !== arch) return false;
-      const name = ap.product?.subcategory?.category?.name || ap.product?.category_name || "";
-      return isRemovableCategory(name);
+      return !hasRetentionOptions(ap.product);
     });
 
   // Show panels/accordion as soon as a removables product exists (no teeth required)
@@ -58,27 +57,25 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   // Use stable props-derived flags (not activeProductCardId-dependent state) so that
   // activating a different product card does not flicker maxillaryHasRemovables off/on,
   // which would cascade into maxillaryRemovablesImpressionDone = false and hide the opposing accordion.
-  const initialProductIsRemovable = isRemovableCategory(props.selectedProductCategoryName || "");
-  const maxillaryHasRemovables = isRemovablesCategory("maxillary") ||
-    (initialProductIsRemovable && (props.initialArch === "maxillary" || props.initialArch === "both") && !!props.selectedProductId);
-  const mandibularHasRemovables = isRemovablesCategory("mandibular") ||
-    (initialProductIsRemovable && (props.initialArch === "mandibular" || props.initialArch === "both") && !!props.selectedProductId);
+  const initialProductIsNonFixed = !hasRetentionOptions(state.initialProductDetails);
+  const maxillaryHasRemovables = isNonFixedForArch("maxillary") ||
+    (initialProductIsNonFixed && (props.initialArch === "maxillary" || props.initialArch === "both") && !!props.selectedProductId);
+  const mandibularHasRemovables = isNonFixedForArch("mandibular") ||
+    (initialProductIsNonFixed && (props.initialArch === "mandibular" || props.initialArch === "both") && !!props.selectedProductId);
 
   // Show panels/accordion as soon as a Fixed Restoration added product exists
   const maxillaryHasFixedAdded = (props.addedProducts ?? []).some((ap) => {
     if (ap.arch !== "maxillary") return false;
-    const name = ap.product?.subcategory?.category?.name || ap.product?.category_name || "";
-    return isFixedCategory(name);
+    return hasRetentionOptions(ap.product);
   });
   const mandibularHasFixedAdded = (props.addedProducts ?? []).some((ap) => {
     if (ap.arch !== "mandibular") return false;
-    const name = ap.product?.subcategory?.category?.name || ap.product?.category_name || "";
-    return isFixedCategory(name);
+    return hasRetentionOptions(ap.product);
   });
 
   // Show accordion when card 0 initial product is Fixed Restoration AND teeth have been selected
-  const activeProductIsFixed = isFixedCategory(props.selectedProductCategoryName || "");
-  const activeProductIsRemovable = initialProductIsRemovable;
+  const activeProductIsFixed = hasRetentionOptions(state.initialProductDetails);
+  const activeProductIsRemovable = initialProductIsNonFixed;
   const maxillaryHasFixedCard0 = activeProductIsFixed && Object.keys(state.maxillaryRetentionTypes)
     .some(tn => state.getToothProductCard("maxillary", Number(tn)) === 0);
   const mandibularHasFixedCard0 = activeProductIsFixed && Object.keys(state.mandibularRetentionTypes || {})
@@ -191,7 +188,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   // another AP that happens to share the same product.id.
   const getImpressionOwnerTooth = (arch: "maxillary" | "mandibular", toothNum: number): number => {
     const product = state.getToothProduct(arch, toothNum);
-    const isFixed = isFixedCategory(getCategoryName(product));
+    const isFixed = hasRetentionOptions(product);
     if (!isFixed) return toothNum;
     const currentCard = state.getToothProductCard(arch, toothNum);
     const allTeeth = arch === "maxillary"
@@ -289,7 +286,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     const processedGroups = new Set<string>();
     for (const { arch, toothNum } of allArchTeeth) {
       const product = state.getToothProduct(arch, toothNum);
-      const isFixedRestoration = isFixedCategory(getCategoryName(product));
+      const isFixedRestoration = hasRetentionOptions(product);
       const productKey = product?.id ?? toothNum;
       const groupKey = `${arch}_${productKey}`;
 
@@ -320,7 +317,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     const processedShadeGroups = new Set<string>();
     for (const n of maxillaryTeeth) {
       const product = state.getToothProduct("maxillary", n);
-      if (isFixedCategory(getCategoryName(product))) {
+      if (hasRetentionOptions(product)) {
         const productKey = String(product?.id ?? n);
         const firstToothInGroup = Math.min(
           ...maxillaryTeeth.filter(
@@ -346,7 +343,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     const processedShadeGroups = new Set<string>();
     for (const n of mandibularTeeth) {
       const product = state.getToothProduct("mandibular", n);
-      if (isFixedCategory(getCategoryName(product))) {
+      if (hasRetentionOptions(product)) {
         const productKey = String(product?.id ?? n);
         const firstToothInGroup = Math.min(
           ...mandibularTeeth.filter(
@@ -518,7 +515,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         }
 
         // Stage: look up from selectedStages using the product key format used in the panels
-        const isFixed = isFixedCategory(getCategoryName(productApiData));
+        const isFixed = isFixedCategory(productApiData);
         const stageKey = isFixed
           ? `${arch}_fixed_${repTooth}`
           : `${arch}_prep_${repTooth}`;
@@ -648,8 +645,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           {!props.caseSubmitted ? (
             <button
               onClick={() => state.onAddProduct?.("maxillary")}
-              disabled={!allMaxillaryAccordionsComplete || maxillaryIncomplete || (maxillaryHasRemovablesCard0 && maxillaryRemovableTeethSelected === 0)}
-              className={`flex flex-row items-center justify-center px-[10px] py-0 w-[230px] h-[28px] shadow-[0.99px_0.99px_3.48px_rgba(0,0,0,0.25)] rounded-[5.96px] ${!allMaxillaryAccordionsComplete || maxillaryIncomplete || (maxillaryHasRemovablesCard0 && maxillaryRemovableTeethSelected === 0) ? "bg-[#b4b0b0] cursor-not-allowed" : "bg-[#1162A8] hover:bg-[#0d4a85] cursor-pointer"}`}
+              disabled={(hasMaxillaryProducts && !allMaxillaryAccordionsComplete) || maxillaryIncomplete || (maxillaryHasRemovablesCard0 && maxillaryRemovableTeethSelected === 0)}
+              className={`flex flex-row items-center justify-center px-[10px] py-0 w-[230px] h-[28px] shadow-[0.99px_0.99px_3.48px_rgba(0,0,0,0.25)] rounded-[5.96px] ${(hasMaxillaryProducts && !allMaxillaryAccordionsComplete) || maxillaryIncomplete || (maxillaryHasRemovablesCard0 && maxillaryRemovableTeethSelected === 0) ? "bg-[#b4b0b0] cursor-not-allowed" : "bg-[#1162A8] hover:bg-[#0d4a85] cursor-pointer"}`}
             >
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5 12H19M12 5V19" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
               <span className="font-[Verdana] font-normal text-[14px] leading-[22px] text-center tracking-[-0.02em] text-white">MAXILLARY PRODUCT</span>
@@ -792,7 +789,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           // Show TIM only when at least one panel is visible and no extractions applied
           const showMaxArrow = effectiveShowMax && !maxHasExtractions && (props.initialArch !== "mandibular" || !opposingHasExtractions);
           const showManArrow = effectiveShowMan && !manHasExtractions && (props.initialArch !== "maxillary" || !opposingHasExtractions);
-          const showTim = hasRemovables && (effectiveShowMax || effectiveShowMan);
+          const initialProductHasExtractions = (state.initialProductDetails?.extractions?.length ?? 0) > 0;
+          const showTim = hasRemovables && (effectiveShowMax || effectiveShowMan) && initialProductHasExtractions;
           return (
             <CenterNavigation
               showMaxillary={effectiveShowMax}
@@ -904,7 +902,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           suppressAutoOpen={
             // When both arches selected, suppress mandibular auto-opens until maxillary finishes
             props.initialArch === "both" &&
-            isRemovableCategory(props.selectedProductCategoryName || "") &&
+            isRemovableCategory(state.initialProductDetails) &&
             !state.isFieldCompleted("maxillary", MAXILLARY_SENTINEL, "impression")
           }
         />
@@ -1055,7 +1053,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             // Single-arch removable: mandibular opposing impressions may run before any mand tooth product row exists
             if (
               !product &&
-              isRemovableCategory(props.selectedProductCategoryName || "") &&
+              isRemovableCategory(state.initialProductDetails) &&
               state.initialProductDetails &&
               (state.initialProductDetails.id?.toString() === state.currentImpressionProductId ||
                 state.currentImpressionProductId === "0")
@@ -1072,14 +1070,14 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             // Removable + both arches: one dialog with maxillary and mandibular sections (no mirroring).
             if (
               props.initialArch === "both" &&
-              isRemovableCategory(props.selectedProductCategoryName || "")
+              isRemovableCategory(state.initialProductDetails)
             ) {
               return "Yes";
             }
             // Single-arch removable with opposing scan: same dual-grid + Skip Opposing flow as primary product.
             if (
               props.initialArch !== "both" &&
-              isRemovableCategory(props.selectedProductCategoryName || "") &&
+              isRemovableCategory(state.initialProductDetails) &&
               initialProductHasOppositeSection &&
               (() => {
                 const oi = state.initialProductDetails?.opposite_impression as unknown;
@@ -1107,7 +1105,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             }
             if (
               !product &&
-              isRemovableCategory(props.selectedProductCategoryName || "") &&
+              isRemovableCategory(state.initialProductDetails) &&
               state.initialProductDetails &&
               (state.initialProductDetails.id?.toString() === state.currentImpressionProductId ||
                 state.currentImpressionProductId === "0")
@@ -1127,7 +1125,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           // Resolve card-0 rep tooth when committing the "other" arch in dual impression flows
           // (both-arches removable, or single-arch removable with opposing scan).
           if (
-            isRemovableCategory(props.selectedProductCategoryName || "") &&
+            isRemovableCategory(state.initialProductDetails) &&
             arch !== state.currentImpressionArch &&
             (props.initialArch === "both" ||
               (props.initialArch === "maxillary" && initialProductHasOppositeSection) ||
@@ -1150,14 +1148,14 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             }
             if (
               !product &&
-              isRemovableCategory(props.selectedProductCategoryName || "") &&
+              isRemovableCategory(state.initialProductDetails) &&
               state.initialProductDetails &&
               (state.initialProductDetails.id?.toString() === state.currentImpressionProductId ||
                 state.currentImpressionProductId === "0")
             ) {
               product = state.initialProductDetails;
             }
-            const isFixed = isFixedCategory(getCategoryName(product));
+            const isFixed = isFixedCategory(product);
             if (isFixed) {
               // Store impression on the group's owner tooth (min tooth in group) so that
               // getImpressionOwnerTooth resolves to the same tooth when checking completion.
@@ -1173,7 +1171,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           let toothNum = state.currentImpressionToothNumber;
           
           if (
-            isRemovableCategory(props.selectedProductCategoryName || "") &&
+            isRemovableCategory(state.initialProductDetails) &&
             arch !== state.currentImpressionArch &&
             (props.initialArch === "both" ||
               (props.initialArch === "maxillary" && initialProductHasOppositeSection) ||
@@ -1194,7 +1192,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
                 if (p?.id?.toString() === state.currentImpressionProductId) { product = p; break; }
               }
             }
-            const isFixed = isFixedCategory(getCategoryName(product));
+            const isFixed = isFixedCategory(product);
             const ownerTooth = isFixed ? getImpressionOwnerTooth(arch, toothNum) : toothNum;
             const step = isFixed ? "fixed_impression" : "impression";
             state.uncompleteFieldStep(arch, ownerTooth, step);
@@ -1211,11 +1209,11 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         }}
         hideSkipOpposing={
           props.initialArch === "both" &&
-          isRemovableCategory(props.selectedProductCategoryName || "")
+          isRemovableCategory(state.initialProductDetails)
         }
         impressionModalHeading={
           props.initialArch === "both" &&
-          isRemovableCategory(props.selectedProductCategoryName || "")
+          isRemovableCategory(state.initialProductDetails)
             ? "Impressions"
             : undefined
         }
@@ -1252,7 +1250,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           if (
             openedFromCard0 &&
             props.initialArch === "both" &&
-            isRemovableCategory(props.selectedProductCategoryName || "")
+            isRemovableCategory(state.initialProductDetails)
           ) {
             const card0 =
               arch === "maxillary" ? state.getMaxillaryCard0Teeth() : state.getMandibularCard0Teeth();
@@ -1263,7 +1261,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           const addonLabels = addOns.map((a) => `${a.qty}x ${a.name}`);
           const value = addonLabels.length === 0 ? "0 selected" : addonLabels.join(", ");
           const product = state.getToothProduct(arch, toothNum);
-          const isFixed = isFixedCategory(getCategoryName(product));
+          const isFixed = isFixedCategory(product);
           if (isFixed) {
             state.completeFieldStep(arch, toothNum, "fixed_addons", value);
           } else {
@@ -1317,7 +1315,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           const arch = state.currentStageArch;
           if (toothNum !== null) {
             const product = state.getToothProduct(arch, toothNum);
-            const isFixed = isFixedCategory(getCategoryName(product));
+            const isFixed = isFixedCategory(product);
             if (isFixed) {
               state.completeFieldStep(arch, toothNum, "fixed_stage", stageName);
             } else {

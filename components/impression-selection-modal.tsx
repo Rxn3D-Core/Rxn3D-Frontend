@@ -172,14 +172,14 @@ function ImpressionGrid({
                 if (parent && !parent.querySelector(".fallback-letter")) {
                   const div = document.createElement("div")
                   div.className = `fallback-letter text-[#B4B0B0] ${imgSize} font-bold flex items-center justify-center w-full h-full`
-                  div.textContent = impression.name.charAt(0).toUpperCase()
+                  div.textContent = (impression.name ?? '').charAt(0).toUpperCase()
                   parent.appendChild(div)
                 }
               }}
             />
           ) : (
             <div className={cn("text-[#B4B0B0] font-bold flex items-center justify-center w-full h-full", imgSize)}>
-              {impression.name.charAt(0).toUpperCase()}
+              {(impression.name ?? '').charAt(0).toUpperCase()}
             </div>
           )}
         </div>
@@ -259,16 +259,16 @@ function ImpressionGrid({
     <>
       {/* Mobile: horizontal carousel */}
       <div className="flex sm:hidden gap-3 overflow-x-auto pb-3 snap-x snap-mandatory scrollbar-hide w-full">
-        {impressions.map((impression) => (
-          <div key={impression.id} className="snap-center flex-shrink-0 w-[140px]">
-            {renderCard(impression, true)}
-          </div>
-        ))}
+          {impressions && impressions.map((impression) => (
+            <div key={impression.id} className="snap-center flex-shrink-0 w-[140px]">
+              {renderCard(impression, true)}
+            </div>
+          ))}
       </div>
 
       {/* Desktop: grid */}
       <div className="hidden sm:grid gap-3 md:gap-4 w-full" style={{ gridTemplateColumns: `repeat(${impressions.length}, minmax(0, 1fr))` }}>
-        {impressions.map((impression) => renderCard(impression, false))}
+        {impressions && impressions.map((impression) => renderCard(impression, false))}
       </div>
 
       {selectedSTLImpression && (

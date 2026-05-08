@@ -37,15 +37,20 @@ interface RetentionTypePopoverProps {
   onDeselect?: () => void
   onDeselectTooth?: () => void
   retentionOptions?: RetentionOptionItem[]
+  /** Pixel offset from the popover's left edge where the arrow should point. */
+  arrowOffsetX?: number | null
+  /** Arrow direction. 'down' points from popover bottom toward a tooth below; 'up' points from popover top toward a tooth above. */
+  arrowDirection?: 'down' | 'up'
 }
 
 export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({
   onSelectRetentionType,
   selectedType,
   onClose,
-  onDeselect,
   onDeselectTooth,
   retentionOptions,
+  arrowOffsetX = null,
+  arrowDirection = 'down',
 }) => {
   const popoverRef = useRef<HTMLDivElement>(null)
 
@@ -97,8 +102,29 @@ export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({
     ]
   }, [retentionOptions])
 
+  const showArrow = typeof arrowOffsetX === 'number'
+
   return (
-    <div ref={popoverRef} className="absolute z-50 bg-white border border-gray-200 hover:border-blue-500 rounded-lg shadow-lg p-2 flex gap-2 mb-2 transition-colors">
+    <div ref={popoverRef} className="relative" style={{ overflow: 'visible' }}>
+      {showArrow && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            left: `${arrowOffsetX}px`,
+            transform: 'translateX(-50%)',
+            width: 0,
+            height: 0,
+            borderLeft: '8px solid transparent',
+            borderRight: '8px solid transparent',
+            zIndex: 51,
+            ...(arrowDirection === 'down'
+              ? { bottom: '-8px', borderTop: '8px solid white', filter: 'drop-shadow(0 2px 2px rgba(0,0,0,0.15))' }
+              : { top: '-8px', borderBottom: '8px solid white', filter: 'drop-shadow(0 -2px 2px rgba(0,0,0,0.15))' }),
+          }}
+        />
+      )}
+      <div className="bg-white border border-gray-200 hover:border-blue-500 rounded-lg shadow-xl p-2 flex gap-2 transition-colors">
       {options.map((opt) => (
         <button
           key={opt.toothChartType}
@@ -157,6 +183,7 @@ export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({
           <span className="text-[10px] text-gray-600 mt-1 font-medium group-hover:text-orange-500">Remove</span>
         </button>
       )}
+      </div>
     </div>
   )
 }

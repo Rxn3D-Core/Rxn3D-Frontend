@@ -1,25 +1,40 @@
 /**
  * Centralized category detection helpers.
- * Replaces dozens of inline toLowerCase() comparisons scattered across panels.
+ * Detection is based on product API data fields, not category name strings.
+ * - Fixed Restoration: has retention_options → hasRetentionOptions(product)
+ * - Removable / Orthodontics: no retention_options → !hasRetentionOptions(product)
  */
 
-/** Returns true if the category is a Removable-type category (Removables Restoration, Orthodontics) */
-export function isRemovableCategory(name: string | null | undefined): boolean {
-  if (!name) return false;
-  const n = name.toLowerCase().trim();
-  return n === "orthodontics" || n.includes("removable");
+type ProductForCategoryCheck = {
+  retention_options?: unknown[];
+  extractions?: unknown[];
+} | null | undefined;
+
+type ProductWithRetention = { retention_options?: unknown[] } | null | undefined;
+
+type AnyProduct = { retention_options?: unknown[]; extractions?: unknown[] };
+
+/**
+ * Returns true if the product is Fixed Restoration (has retention_options).
+ * Use !hasRetentionOptions for Removable Restoration and Orthodontics.
+ */
+export function hasRetentionOptions(product: ProductWithRetention | ProductForCategoryCheck): boolean {
+  const p = product as AnyProduct | null | undefined;
+  if (!p) return false;
+  return Array.isArray(p.retention_options) && p.retention_options.length > 0;
 }
 
-/** Returns true if the category is Fixed Restoration */
-export function isFixedCategory(name: string | null | undefined): boolean {
-  if (!name) return false;
-  return name.toLowerCase().trim() === "fixed restoration";
+/** @deprecated Use hasRetentionOptions */
+export const isFixedCategory = hasRetentionOptions;
+
+/** @deprecated Use !hasRetentionOptions */
+export function isRemovableCategory(product: ProductForCategoryCheck): boolean {
+  return !hasRetentionOptions(product);
 }
 
-/** Returns true if the category is Orthodontics */
-export function isOrthodonticsCategory(name: string | null | undefined): boolean {
-  if (!name) return false;
-  return name.toLowerCase().trim() === "orthodontics";
+/** @deprecated Use !hasRetentionOptions */
+export function isOrthodonticsCategory(product: ProductForCategoryCheck): boolean {
+  return !hasRetentionOptions(product);
 }
 
 /** Get the normalized category name from a product's nested subcategory */

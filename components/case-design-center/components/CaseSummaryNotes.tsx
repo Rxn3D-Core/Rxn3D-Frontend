@@ -10,7 +10,7 @@ import {
   Maximize2,
 } from "lucide-react";
 import type { NotesProps, Arch, ProductApiData, RetentionType } from "../types";
-import { isRemovableCategory, isOrthodonticsCategory, getCategoryName } from "../utils/categoryHelpers";
+import { isRemovableCategory, isOrthodonticsCategory } from "../utils/categoryHelpers";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -186,8 +186,7 @@ function buildNoteGroups(props: NotesProps): NoteGroup[] {
     for (const toothStr of Object.keys(retTypes)) {
       const tn = Number(toothStr);
       const product = props.getToothProduct(arch, tn);
-      const category = getCategoryName(product);
-      if (isOrthodonticsCategory(category)) continue; // handled separately
+      if (isOrthodonticsCategory(product)) continue; // handled separately
       const key = product?.id != null ? String(product.id) : `solo_${tn}`;
       if (!fixedTeethByProductKey.has(key)) fixedTeethByProductKey.set(key, []);
       fixedTeethByProductKey.get(key)!.push(tn);
@@ -196,8 +195,7 @@ function buildNoteGroups(props: NotesProps): NoteGroup[] {
     for (const [, teeth] of fixedTeethByProductKey) {
       const minTooth = Math.min(...teeth);
       const product = props.getToothProduct(arch, minTooth);
-      const category = getCategoryName(product);
-      if (isOrthodonticsCategory(category)) continue;
+      if (isOrthodonticsCategory(product)) continue;
 
       const retentionArr = retTypes[minTooth] || retTypes[teeth[0]] || [];
       const retentionType: RetentionType = retentionArr[0] || "Prep";
@@ -252,17 +250,16 @@ function buildNoteGroups(props: NotesProps): NoteGroup[] {
 
     for (const [card, repTooth] of cardToRepTooth) {
       const product = props.getToothProduct(arch, repTooth);
-      const category = getCategoryName(product);
       const cardTeeth = cardToTeeth.get(card) || [repTooth];
       const allCardTeeth = allCardToTeeth.get(card) || [repTooth];
 
-      if (isOrthodonticsCategory(category)) {
+      if (isOrthodonticsCategory(product)) {
         groups.push({
           arch,
           category: "Orthodontic",
           note: buildOrthoNote(arch, cardTeeth, product, repTooth, props),
         });
-      } else if (isRemovableCategory(category)) {
+      } else if (isRemovableCategory(product)) {
         groups.push({
           arch,
           category: "Removable",
