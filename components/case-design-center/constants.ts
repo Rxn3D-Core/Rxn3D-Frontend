@@ -1,13 +1,3 @@
-export const implantBrandPlatforms: Record<string, string[]> = {
-  "Truabutment": ["Truscan", "Truscan NP", "Truscan WP", "NovaBridge"],
-  "Nobel Biocare": ["Bone Level", "Bone Level Tapered", "Active", "Replace Select"],
-  "Xtechnology": ["KATANA Zirconia", "KATANA UTML", "KATANA STML"],
-  "H Implants": ["Legacy", "Legacy Zimmer", "SwissPlus", "Tapered Screw-Vent"],
-  "Other Brands": ["Straumann BL", "Straumann TL", "Astra TX", "Astra EV", "Zimmer TSV", "BioHorizons"],
-};
-
-export const implantBrandList = Object.keys(implantBrandPlatforms);
-
 /**
  * Fallback list used when a product's teeth_shades (brand.system_name) cannot be resolved.
  * Real options are derived per-product in `useCaseDesignState` from the product detail API.
