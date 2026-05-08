@@ -47,6 +47,7 @@ import { isRemovableCategory, isFixedCategory, hasRetentionOptions, isSingleStag
 import { resolveVariationDisplay } from "../utils/variationHelpers";
 import { isSingleDefaultOnlyExtractionList } from "../utils/extractionHelpers";
 import { parseAddonDisplayItems } from "../utils/addonDisplayHelpers";
+import { hasImplantRetention } from "../utils/implantHelpers";
 import { FixedRestorationFields } from "./FixedRestorationFields";
 import { RemovableRestorationFields } from "./RemovableRestorationFields";
 import { ProductAccordionCard } from "./ProductAccordionCard";
@@ -550,10 +551,6 @@ interface MandibularPanelProps {
   handleShadeSelect: (shade: string) => void;
   handleShadeFieldClick: (arch: Arch, fieldType: ShadeFieldType, productId: string) => void;
 
-  // Expansion (Prep/Pontic)
-  isPrepPonticExpanded: (toothNumber: number) => boolean;
-  togglePrepPonticExpanded: (toothNumber: number) => void;
-
   // Stage
   handleOpenStageModal: (productId: string, arch?: Arch, toothNumber?: number) => void;
 
@@ -689,8 +686,6 @@ export function MandibularPanel({
   getSelectedShade,
   handleShadeSelect,
   handleShadeFieldClick,
-  isPrepPonticExpanded,
-  togglePrepPonticExpanded,
   handleOpenStageModal,
   handleOpenImpressionModal,
   getImpressionDisplayText,
@@ -1672,7 +1667,7 @@ export function MandibularPanel({
                             />
                             <AutoOpenImpressionIfEmpty
                               isExpanded={ap.expanded}
-                              isImpressionVisible={!apFixedShadeIncomplete && apIsFixed("fixed_impression") && !(cardTeeth.some((n) => (mandibularRetentionTypes[n] || []).includes("Implant")) && implantDetailCompleteByTooth[apFirstTn] !== true)}
+                              isImpressionVisible={!apFixedShadeIncomplete && apIsFixed("fixed_impression") && !(hasImplantRetention(cardTeeth, mandibularRetentionTypes, apToothProduct?.retention_options) && implantDetailCompleteByTooth[apFirstTn] !== true)}
                               isImpressionEmpty={!isFieldCompleted("mandibular", apFirstTn, "fixed_impression")}
                               onOpenImpressionModal={handleOpenImpressionModal}
                               arch="mandibular"
@@ -1881,7 +1876,7 @@ export function MandibularPanel({
                             />
                             <AutoOpenImpressionIfEmpty
                               isExpanded={isCardExpanded(slotId)}
-                              isImpressionVisible={!fixedShadeIncomplete && isFixed("fixed_impression") && !(toothNumbers.some((n) => (mandibularRetentionTypes[n] || []).includes("Implant")) && implantDetailCompleteByTooth[groupStageToothNumber] !== true)}
+                              isImpressionVisible={!fixedShadeIncomplete && isFixed("fixed_impression") && !(hasImplantRetention(toothNumbers, mandibularRetentionTypes, selectedProduct?.retention_options) && implantDetailCompleteByTooth[groupStageToothNumber] !== true)}
                               isImpressionEmpty={!isFieldCompleted("mandibular", groupStageToothNumber, "fixed_impression")}
                               onOpenImpressionModal={handleOpenImpressionModal}
                               arch="mandibular"

@@ -479,9 +479,6 @@ interface MaxillaryPanelProps {
   // Expansion
   expandedLeft: boolean;
   setExpandedLeft: (v: boolean) => void;
-  isPrepPonticExpanded: (toothNumber: number) => boolean;
-  togglePrepPonticExpanded: (toothNumber: number) => void;
-
   // Rush
   rushedProducts: Record<string, any>;
 
@@ -702,8 +699,6 @@ export function MaxillaryPanel({
   handleShadeFieldClick,
   expandedLeft,
   setExpandedLeft,
-  isPrepPonticExpanded,
-  togglePrepPonticExpanded,
   rushedProducts,
   handleOpenImpressionModal,
   handleOpenAddOnsModal,
