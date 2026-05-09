@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -296,14 +296,38 @@ export function UserListTable({ roleFilter, title, description }: UserListTableP
   }
 
   // Handle status change
-  const handleStatusChange = (userId: number, newStatus: string) => {
-    setStaffUsers((prevUsers) =>
-      prevUsers.map((user) =>
-        user.id === userId ? { ...user, status: newStatus as "Active" | "Inactive" | "Suspended" | "Archived" } : user,
-      ),
-    )
-    setShowStatusDropdown(null)
-    setDropdownPosition(null)
+  const handleStatusChange = async (userId: number, newStatus: string) => {
+    try {
+      const apiStatusMap: Record<string, string> = {
+        Active: "active",
+        Inactive: "inactive",
+        Suspended: "suspended",
+        Archived: "archived",
+      }
+      const result = await updateUser(userId, { status: apiStatusMap[newStatus] || "inactive" })
+      if (!result?.status && result?.success === false) {
+        throw new Error(result?.message || "Failed to update status")
+      }
+
+      setStaffUsers((prevUsers) =>
+        prevUsers.map((user) =>
+          user.id === userId ? { ...user, status: newStatus as "Active" | "Inactive" | "Suspended" | "Archived" } : user,
+        ),
+      )
+      toast({
+        title: "Status Updated",
+        description: `User status changed to ${newStatus}.`,
+      })
+    } catch (error: any) {
+      toast({
+        title: "Update Failed",
+        description: error?.message || "Could not update user status.",
+        variant: "destructive",
+      })
+    } finally {
+      setShowStatusDropdown(null)
+      setDropdownPosition(null)
+    }
   }
 
   // Handle status dropdown open/close and position

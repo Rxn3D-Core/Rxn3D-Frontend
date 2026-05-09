@@ -20,7 +20,7 @@ const updateUserSchema = z.object({
   phone: z.string().min(10, "Please enter a valid phone number"),
   work_number: z.string().optional(),
   status: z.string().min(1, "Please select a status"),
-  department_ids: z.array(z.number()).min(1, "Please select at least one department"),
+  department_ids: z.array(z.number()).optional(),
 })
 
 type UpdateUserFormValues = z.infer<typeof updateUserSchema>
@@ -65,6 +65,8 @@ export function UpdateUserModal({ isOpen, onClose, onSuccess, user }: UpdateUser
   const [selectedDepartments, setSelectedDepartments] = useState<number[]>([])
   const [departments, setDepartments] = useState<Department[]>([])
   const [isLoadingDepartments, setIsLoadingDepartments] = useState(false)
+  const customerType = typeof window !== "undefined" ? localStorage.getItem("customerType")?.toLowerCase() : null
+  const isLabCustomer = customerType === "lab"
 
   // Get auth context
   const authContext = useAuth()
@@ -111,20 +113,20 @@ export function UpdateUserModal({ isOpen, onClose, onSuccess, user }: UpdateUser
         phone: user.phone || "",
         work_number: user.phone || "", // Default to phone if work_number not available
         status: user.status.toLowerCase() as "active" | "inactive" | "suspended" | "archived",
-        department_ids: [1], // Default department - in real app, get from user data
+        department_ids: [],
       })
       
-      // Set default departments - in real app, get from user data
-      setSelectedDepartments([1])
+      setSelectedDepartments([])
       
-      // Fetch departments
-      fetchDepartments()
+      if (isLabCustomer) {
+        fetchDepartments()
+      }
     }
-  }, [user, isOpen, form])
+  }, [user, isOpen, form, isLabCustomer])
 
   // Update department_ids when selectedDepartments changes
   useEffect(() => {
-    form.setValue("department_ids", selectedDepartments)
+    form.setValue("department_ids", selectedDepartments, { shouldValidate: true })
   }, [selectedDepartments, form])
 
   const handleDepartmentToggle = (departmentId: number) => {
@@ -140,7 +142,7 @@ export function UpdateUserModal({ isOpen, onClose, onSuccess, user }: UpdateUser
     setIsLoadingDepartments(true)
     try {
       const customerId = localStorage.getItem("customerId")
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000'}/departments?customer_id=${customerId || '6'}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || ""}/departments?customer_id=${customerId || ""}`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -158,16 +160,10 @@ export function UpdateUserModal({ isOpen, onClose, onSuccess, user }: UpdateUser
       console.error("Error fetching departments:", error)
       toast({
         title: "Error",
-        description: "Failed to load departments. Using default list.",
+        description: "Failed to load departments.",
         variant: "destructive",
       })
-      // Fallback to default departments
-      setDepartments([
-        { id: 1, name: "General Dentistry" },
-        { id: 2, name: "Orthodontics" },
-        { id: 3, name: "Oral Surgery" },
-        { id: 4, name: "Periodontics" },
-      ])
+      setDepartments([])
     } finally {
       setIsLoadingDepartments(false)
     }
@@ -175,6 +171,13 @@ export function UpdateUserModal({ isOpen, onClose, onSuccess, user }: UpdateUser
 
   const onSubmit = async (data: UpdateUserFormValues) => {
     if (!user) return
+    if (isLabCustomer && selectedDepartments.length === 0) {
+      form.setError("department_ids", {
+        type: "manual",
+        message: "Please select at least one department for lab users",
+      })
+      return
+    }
 
     setIsSubmitting(true)
     try {
@@ -183,8 +186,8 @@ export function UpdateUserModal({ isOpen, onClose, onSuccess, user }: UpdateUser
         last_name: data.last_name,
         phone: data.phone,
         work_number: data.work_number || data.phone,
-        status: data.status,
-        department_ids: data.department_ids,
+        status: statusOptions.find((option) => option.value === data.status)?.label || data.status,
+        ...(isLabCustomer ? { department_ids: selectedDepartments } : {}),
       }
 
       await authContext.updateUserDetails(user.id, payload)
@@ -304,37 +307,39 @@ export function UpdateUserModal({ isOpen, onClose, onSuccess, user }: UpdateUser
               )}
             />
 
-            <div className="space-y-3">
-              <FormLabel>Departments *</FormLabel>
-              {isLoadingDepartments ? (
-                <div className="flex items-center justify-center p-4">
-                  <div className="text-sm text-gray-500">Loading departments...</div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-2">
-                  {departments.map((department) => (
-                    <div key={department.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`dept-${department.id}`}
-                        checked={selectedDepartments.includes(department.id)}
-                        onCheckedChange={() => handleDepartmentToggle(department.id)}
-                      />
-                      <label
-                        htmlFor={`dept-${department.id}`}
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                      >
-                        {department.name}
-                      </label>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {form.formState.errors.department_ids && (
-                <p className="text-sm text-red-500">
-                  {form.formState.errors.department_ids.message}
-                </p>
-              )}
-            </div>
+            {isLabCustomer && (
+              <div className="space-y-3">
+                <FormLabel>Departments *</FormLabel>
+                {isLoadingDepartments ? (
+                  <div className="flex items-center justify-center p-4">
+                    <div className="text-sm text-gray-500">Loading departments...</div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    {departments.map((department) => (
+                      <div key={department.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`dept-${department.id}`}
+                          checked={selectedDepartments.includes(department.id)}
+                          onCheckedChange={() => handleDepartmentToggle(department.id)}
+                        />
+                        <label
+                          htmlFor={`dept-${department.id}`}
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                        >
+                          {department.name}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {form.formState.errors.department_ids && (
+                  <p className="text-sm text-red-500">
+                    {form.formState.errors.department_ids.message}
+                  </p>
+                )}
+              </div>
+            )}
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>

@@ -39,12 +39,17 @@ interface CreateUserModalProps {
   onSuccess: () => void
 }
 
-// Mock data - in a real app, these would come from API calls
+interface Department {
+  id: number
+  name: string
+}
+
 const roles = [
   { value: "lab_user", label: "Lab User" },
+  { value: "lab_admin", label: "Lab Admin" },
   { value: "office_admin", label: "Office Admin" },
+  { value: "office_user", label: "Office User" },
   { value: "doctor", label: "Doctor" },
-  { value: "technician", label: "Technician" },
 ]
 
 
@@ -53,6 +58,9 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [signatureFile, setSignatureFile] = useState<File | null>(null)
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  const [departments, setDepartments] = useState<Department[]>([])
+  const [selectedDepartments, setSelectedDepartments] = useState<number[]>([])
+  const [isLoadingDepartments, setIsLoadingDepartments] = useState(false)
 
   // Get auth context
   const authContext = useAuth()
@@ -97,6 +105,8 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
   // Watch for changes to trigger validation
   const licenseNumber = form.watch("license_number")
   const isDoctor = form.watch("is_doctor")
+  const customerType = typeof window !== "undefined" ? localStorage.getItem("customerType")?.toLowerCase() : null
+  const isLabCustomer = customerType === "lab"
 
   // Validate doctor fields and clear errors when both have values
   useEffect(() => {
@@ -218,8 +228,16 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
       form.reset()
       setSignatureFile(null)
       setAvatarFile(null)
+      setSelectedDepartments([])
+      if (isLabCustomer) {
+        fetchDepartments()
+      }
     }
-  }, [isOpen, form])
+  }, [isOpen, form, isLabCustomer])
+
+  useEffect(() => {
+    form.setValue("department_ids", selectedDepartments, { shouldValidate: true })
+  }, [selectedDepartments, form])
 
   // Auto-set is_doctor when role is doctor
   useEffect(() => {
@@ -227,6 +245,46 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
       form.setValue("is_doctor", true)
     }
   }, [selectedRole, form])
+
+  const fetchDepartments = async () => {
+    setIsLoadingDepartments(true)
+    try {
+      const customerId = localStorage.getItem("customerId")
+      const token = localStorage.getItem("token")
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL || ""}/departments?customer_id=${customerId || ""}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      )
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch departments")
+      }
+
+      const result = await response.json()
+      setDepartments(result.data || [])
+    } catch (error) {
+      setDepartments([])
+      toast({
+        title: "Department Load Failed",
+        description: "Could not load departments for this customer.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoadingDepartments(false)
+    }
+  }
+
+  const handleDepartmentToggle = (departmentId: number) => {
+    setSelectedDepartments((prev) =>
+      prev.includes(departmentId) ? prev.filter((id) => id !== departmentId) : [...prev, departmentId],
+    )
+  }
 
 
   // Handle signature file upload
@@ -326,6 +384,18 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
         return
       }
     }
+    if (isLabCustomer && selectedDepartments.length === 0) {
+      form.setError("department_ids", {
+        type: "manual",
+        message: "At least one department is required for lab users",
+      })
+      toast({
+        title: "Validation Error",
+        description: "Please select at least one department for lab users.",
+        variant: "destructive",
+      })
+      return
+    }
 
     setIsSubmitting(true)
     try {
@@ -345,9 +415,9 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
       formData.append('is_doctor', data.is_doctor ? "1" : "0")
       formData.append('status', "Pending")
       
-      // Add department_ids if they exist
-      if (data.department_ids && data.department_ids.length > 0) {
-        data.department_ids.forEach((id) => {
+      // Add department_ids only for lab customers
+      if (isLabCustomer && selectedDepartments.length > 0) {
+        selectedDepartments.forEach((id) => {
           formData.append('department_ids[]', id.toString())
         })
       }
@@ -631,6 +701,32 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
                 )}
               </div>
             </div>
+
+            {isLabCustomer && (
+              <div className="space-y-3 pb-3 border-b border-gray-100">
+                <h3 className="text-xs font-semibold text-gray-900">Departments *</h3>
+                {isLoadingDepartments ? (
+                  <div className="text-xs text-gray-500">Loading departments...</div>
+                ) : departments.length === 0 ? (
+                  <div className="text-xs text-red-500">No departments found for this lab customer.</div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {departments.map((department) => (
+                      <label key={department.id} className="flex items-center space-x-2 text-sm">
+                        <Checkbox
+                          checked={selectedDepartments.includes(department.id)}
+                          onCheckedChange={() => handleDepartmentToggle(department.id)}
+                        />
+                        <span>{department.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+                {form.formState.errors.department_ids && (
+                  <p className="text-xs text-red-500">{form.formState.errors.department_ids.message as string}</p>
+                )}
+              </div>
+            )}
 
             {/* Doctor-Specific Fields */}
             {isDoctor && (

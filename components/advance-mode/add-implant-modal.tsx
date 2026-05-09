@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Implant, ImplantPlatform } from "@/lib/api/advance-mode-query"
+import { generateCodeFromName } from "@/lib/utils"
 
 interface AddImplantModalProps {
   isOpen: boolean
@@ -67,6 +68,7 @@ export function AddImplantModal({ isOpen, onClose, onSave, implant, isEditMode =
   const itemsPerPage = 10
   const totalPages = Math.ceil(platforms.length / itemsPerPage)
   const [internalIsSaving, setInternalIsSaving] = useState(false)
+  const [isCodeManuallyEdited, setIsCodeManuallyEdited] = useState(false)
   const [imageBase64, setImageBase64] = useState<string | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -79,6 +81,7 @@ export function AddImplantModal({ isOpen, onClose, onSave, implant, isEditMode =
   useEffect(() => {
     if (isOpen && isEditMode && implant) {
       setInternalIsSaving(false)
+      setIsCodeManuallyEdited(true)
       setFormData({
         brandName: implant.brand_name || "",
         systemName: implant.system_name || "",
@@ -141,6 +144,7 @@ export function AddImplantModal({ isOpen, onClose, onSave, implant, isEditMode =
       setActiveTab("platform-options")
       setSearchQuery("")
       setInternalIsSaving(false)
+      setIsCodeManuallyEdited(false)
       setFormData({
         brandName: "",
         systemName: "",
@@ -162,6 +166,23 @@ export function AddImplantModal({ isOpen, onClose, onSave, implant, isEditMode =
       setImagePreview(null)
     }
   }, [isOpen, isEditMode, implant])
+
+  // Auto-generate code for new implants from brand + system.
+  // Keep it user-editable by stopping auto-generation after manual code edit.
+  useEffect(() => {
+    if (!isOpen || isEditMode || isCodeManuallyEdited) return
+    const sourceName = `${formData.brandName || ""} ${formData.systemName || ""}`.trim()
+    if (!sourceName) {
+      if (formData.code) {
+        setFormData((prev) => ({ ...prev, code: "" }))
+      }
+      return
+    }
+    const generated = generateCodeFromName(sourceName)
+    if (generated && formData.code !== generated) {
+      setFormData((prev) => ({ ...prev, code: generated }))
+    }
+  }, [isOpen, isEditMode, isCodeManuallyEdited, formData.brandName, formData.systemName, formData.code])
 
   if (!isOpen) return null
 
@@ -683,7 +704,10 @@ export function AddImplantModal({ isOpen, onClose, onSave, implant, isEditMode =
                   id="code"
                   placeholder="STR-BLX"
                   value={formData.code}
-                  onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                  onChange={(e) => {
+                    setIsCodeManuallyEdited(true)
+                    setFormData({ ...formData, code: e.target.value })
+                  }}
                   className="mt-1"
                 />
               </div>
