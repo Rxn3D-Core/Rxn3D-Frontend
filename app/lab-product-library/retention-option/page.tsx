@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Search, Edit, TrashIcon, Copy, Plus, Package, Link as LinkIcon, MoreVertical, ArrowUpDown } from 'lucide-react'
+import { Search, Edit, TrashIcon, Copy, Plus, Package, Link as LinkIcon, MoreVertical, ArrowUpDown, Info } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { LoadingDots } from "@/components/ui/loading-dots"
 import { useLanguage } from "@/contexts/language-context"
@@ -17,6 +17,7 @@ import { LinkProductsModal } from "@/components/product-management/link-products
 import { LinkRetentionModal } from "@/components/product-management/link-retention-modal"
 import { getRetentionOptions, updateRetentionOptionStatus, deleteRetentionOption } from "@/services/retention-options-api"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useToast } from "@/hooks/use-toast"
 
 type SortField = "name" | "code" | "status" | "linked_retention"
@@ -32,6 +33,57 @@ const getCustomerId = (user: any): number | null => {
   return null
 }
 
+const getGlobalRetentionOptionTooltipData = (option: Record<string, unknown>) => {
+  const legacy = option
+  const globalConnection =
+    typeof legacy.global_connection === "object" && legacy.global_connection !== null
+      ? (legacy.global_connection as Record<string, unknown>)
+      : null
+
+  const connectedRaw: unknown =
+    legacy.is_connected_to_global ?? globalConnection?.is_connected_to_global
+  const connected =
+    connectedRaw === true ||
+    connectedRaw === 1 ||
+    connectedRaw === "1" ||
+    connectedRaw === "true" ||
+    connectedRaw === "Yes"
+
+  const globalIdRaw =
+    legacy.global_relationship_id ??
+    legacy.global_retention_option_id ??
+    (typeof globalConnection?.global_retention_option_id === "number"
+      ? globalConnection.global_retention_option_id
+      : null)
+
+  const globalName =
+    (typeof legacy.global_retention_option_name === "string" ? legacy.global_retention_option_name.trim() : "") ||
+    (typeof globalConnection?.global_retention_option_name === "string"
+      ? (globalConnection.global_retention_option_name as string).trim()
+      : "") ||
+    (typeof globalConnection?.name === "string" ? (globalConnection.name as string).trim() : "") ||
+    ""
+
+  const imageUrl =
+    (typeof legacy.sample_image_url === "string" ? legacy.sample_image_url.trim() : "") ||
+    (typeof globalConnection?.sample_image_url === "string"
+      ? (globalConnection.sample_image_url as string).trim()
+      : "") ||
+    ""
+
+  const hasGlobalLink =
+    connected ||
+    (typeof globalIdRaw === "number" && globalIdRaw > 0) ||
+    globalName.length > 0 ||
+    imageUrl.length > 0
+  if (!hasGlobalLink) return null
+
+  return {
+    name: globalName || (typeof legacy.name === "string" ? legacy.name : "Global retention option"),
+    imageUrl: imageUrl || null,
+  }
+}
+
 export default function RetentionOptionPage() {
   const [retentionOptions, setRetentionOptions] = useState<any[]>([])
   const [selectedOptions, setSelectedOptions] = useState<string[]>([])
@@ -43,6 +95,7 @@ export default function RetentionOptionPage() {
   const [entriesPerPage, setEntriesPerPage] = useState(20)
   const [currentPage, setCurrentPage] = useState(1)
   const [editOption, setEditOption] = useState<any | null>(null)
+  const [isCopyingOption, setIsCopyingOption] = useState(false)
   const [loading, setLoading] = useState(false)
   const [pagination, setPagination] = useState({ total: 0, per_page: 20, last_page: 1, current_page: 1 })
   const [showLinkRetentionTypeModal, setShowLinkRetentionTypeModal] = useState(false)
@@ -173,11 +226,13 @@ export default function RetentionOptionPage() {
   }
 
   function handleEdit(option: any): void {
+    setIsCopyingOption(false)
     setEditOption(option)
     setShowCreateModal(true)
   }
 
   function handleCopy(option: any): void {
+    setIsCopyingOption(true)
     setEditOption(option)
     setShowCreateModal(true)
   }
@@ -251,6 +306,7 @@ export default function RetentionOptionPage() {
             <Button
               onClick={() => {
                 setEditOption(null)
+                setIsCopyingOption(false)
                 setShowCreateModal(true)
               }}
               className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
@@ -383,7 +439,46 @@ export default function RetentionOptionPage() {
                     </TableCell>
                     <TableCell className="py-2 px-2">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-medium">{option.name}</span>
+                        {(() => {
+                          const tooltipData = getGlobalRetentionOptionTooltipData(option as Record<string, unknown>)
+                          if (!tooltipData) {
+                            return <span className="text-xs font-medium">{option.name}</span>
+                          }
+                          return (
+                            <TooltipProvider delayDuration={120} skipDelayDuration={0}>
+                              <Tooltip>
+                                <div className="inline-flex flex-wrap items-center gap-2">
+                                  <span className="text-xs font-medium">{option.name}</span>
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      type="button"
+                                      className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-100"
+                                      title="Global retention option info"
+                                    >
+                                      <Info className="h-3 w-3" />
+                                      Global
+                                    </button>
+                                  </TooltipTrigger>
+                                </div>
+                                <TooltipContent side="top" className="max-w-xs border border-gray-200 bg-white text-gray-900 shadow-md">
+                                  <div className="space-y-2">
+                                    <p className="text-xs font-semibold text-gray-700">Global retention option</p>
+                                    {tooltipData.imageUrl ? (
+                                      <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded border border-gray-200 bg-gray-50">
+                                        <img
+                                          src={tooltipData.imageUrl}
+                                          alt={String(tooltipData.name)}
+                                          className="max-h-full max-w-full object-contain"
+                                        />
+                                      </div>
+                                    ) : null}
+                                    <p className="text-sm font-medium leading-tight">{tooltipData.name}</p>
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )
+                        })()}
                         {option.is_custom === 'No' && (
                           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
                             <path d="M13.3332 8.66664C13.3332 12 10.9998 13.6666 8.2265 14.6333C8.08128 14.6825 7.92353 14.6802 7.77984 14.6266C4.99984 13.6666 2.6665 12 2.6665 8.66664V3.99997C2.6665 3.82316 2.73674 3.65359 2.86177 3.52857C2.98679 3.40355 3.15636 3.33331 3.33317 3.33331C4.6665 3.33331 6.33317 2.53331 7.49317 1.51997C7.63441 1.39931 7.81407 1.33301 7.99984 1.33301C8.1856 1.33301 8.36527 1.39931 8.5065 1.51997C9.67317 2.53997 11.3332 3.33331 12.6665 3.33331C12.8433 3.33331 13.0129 3.40355 13.1379 3.52857C13.2629 3.65359 13.3332 3.82316 13.3332 3.99997V8.66664Z" stroke="#34C759" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -522,8 +617,10 @@ export default function RetentionOptionPage() {
           onClose={() => {
             setShowCreateModal(false)
             setEditOption(null)
+            setIsCopyingOption(false)
           }}
           option={editOption}
+          isCopying={isCopyingOption}
           onSuccess={() => {
             // Refresh the list after successful create/update
             fetchRetentionOptions()
