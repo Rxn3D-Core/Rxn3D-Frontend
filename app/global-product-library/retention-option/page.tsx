@@ -32,6 +32,7 @@ export default function RetentionOptionPage() {
   const [entriesPerPage, setEntriesPerPage] = useState(20)
   const [currentPage, setCurrentPage] = useState(1)
   const [editOption, setEditOption] = useState<any | null>(null)
+  const [isCopyingOption, setIsCopyingOption] = useState(false)
   const [loading, setLoading] = useState(false)
   const [pagination, setPagination] = useState({ total: 0, per_page: 20, last_page: 1, current_page: 1 })
   const [showLinkRetentionTypeModal, setShowLinkRetentionTypeModal] = useState(false)
@@ -161,11 +162,13 @@ export default function RetentionOptionPage() {
   }
 
   function handleEdit(option: any): void {
+    setIsCopyingOption(false)
     setEditOption(option)
     setShowCreateModal(true)
   }
 
   function handleCopy(option: any): void {
+    setIsCopyingOption(true)
     setEditOption(option)
     setShowCreateModal(true)
   }
@@ -239,6 +242,7 @@ export default function RetentionOptionPage() {
             <Button
               onClick={() => {
                 setEditOption(null)
+                setIsCopyingOption(false)
                 setShowCreateModal(true)
               }}
               className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
@@ -510,8 +514,11 @@ export default function RetentionOptionPage() {
           onClose={() => {
             setShowCreateModal(false)
             setEditOption(null)
+            setIsCopyingOption(false)
           }}
           option={editOption}
+          isCopying={isCopyingOption}
+          globalToothImageLibrary
           onSuccess={() => {
             // Refresh the list after successful create/update
             fetchRetentionOptions()

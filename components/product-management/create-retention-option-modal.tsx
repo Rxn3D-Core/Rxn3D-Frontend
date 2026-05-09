@@ -1,12 +1,14 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
-import { X, Info, Link as LinkIcon, Check } from "lucide-react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { X, Info, Link as LinkIcon, Check, Maximize2 } from "lucide-react"
 import { DiscardChangesDialog } from "./discard-changes-dialog"
 import { LinkRetentionOptionModal } from "./link-retention-option-modal"
+import { GlobalRetentionOptionToothImagesPanel } from "@/components/product-management/global-retention-option-tooth-images-panel"
 import { useAuth } from "@/contexts/auth-context"
 import { generateCodeFromName } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
@@ -31,6 +33,8 @@ interface CreateRetentionOptionModalProps {
      * Otherwise customer id is inferred from auth/storage.
      */
     scopedCustomerId?: number | null
+    /** Global product library: edit mode shows a tab for per-tooth catalog images (teeth 1–32). */
+    globalToothImageLibrary?: boolean
 }
 
 // Shape definitions with SVG paths - returns icon with dynamic color
@@ -120,6 +124,7 @@ export function CreateRetentionOptionModal({
     isCopying = false,
     onSuccess,
     scopedCustomerId,
+    globalToothImageLibrary = false,
 }: CreateRetentionOptionModalProps) {
     const { user } = useAuth()
     const { toast } = useToast()
@@ -146,6 +151,21 @@ export function CreateRetentionOptionModal({
     const nameInputRef = useRef<HTMLInputElement>(null)
     const codeInputRef = useRef<HTMLInputElement>(null)
     const sequenceInputRef = useRef<HTMLInputElement>(null)
+    const [mainTab, setMainTab] = useState<"details" | "library">("details")
+    const [isMaximized, setIsMaximized] = useState(false)
+
+    const showGlobalLibraryTab =
+        globalToothImageLibrary && Boolean(option?.id) && !isCopying
+
+    useEffect(() => {
+        if (isOpen) {
+            setMainTab("details")
+        } else {
+            setIsMaximized(false)
+        }
+    }, [isOpen])
+
+    const toggleMaximize = () => setIsMaximized((v) => !v)
 
     // Helper to check lab admin role
     const isLabAdmin = (() => {
@@ -489,20 +509,44 @@ export function CreateRetentionOptionModal({
     const hasCodeValue = optionCode.trim() !== ""
     const hasSequenceValue = sequence > 0
 
-    return (
-        <>
-            <Dialog open={isOpen} onOpenChange={() => { }}>
-                <DialogContent className="sm:max-w-[600px] p-0 gap-0 overflow-hidden bg-white rounded-md">
-                    <div className="flex items-center justify-between px-6 py-4 border-b">
-                        <DialogTitle className="text-xl font-bold">
-                            {isCopying ? "Copy Retention Option" : option && option.id ? "Edit Retention Option" : "Add Retention Option"}
-                        </DialogTitle>
-                        <button onClick={handleClose} className="text-gray-500 hover:text-gray-700">
-                            <X className="w-6 h-6" />
-                        </button>
-                    </div>
+    const dialogClass = `p-0 gap-0 transition-all duration-300 ease-in-out overflow-hidden flex min-h-0 flex-col bg-white rounded-md ${
+        isMaximized
+            ? "w-[95vw] h-[95vh] max-w-[95vw] max-h-[95vh]"
+            : showGlobalLibraryTab
+              ? "w-[97vw] sm:w-[95vw] md:w-[94vw] max-w-[1380px] h-[85vh] sm:h-[90vh] max-h-[85vh] sm:max-h-[90vh]"
+              : "sm:max-w-[600px] max-h-[85vh] sm:max-h-[90vh]"
+    }`
 
-                    <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+    const detailsScrollClass = showGlobalLibraryTab
+        ? "p-6 space-y-6 min-h-0 flex-1 overflow-y-auto"
+        : "p-6 space-y-6 max-h-[70vh] overflow-y-auto"
+
+    const modalFooter = (
+        <div className="flex justify-end gap-3 px-6 py-4 border-t flex-shrink-0 bg-white">
+            <Button
+                type="button"
+                variant="outline"
+                onClick={handleClose}
+                className="border-red-500 text-red-500 hover:bg-red-50"
+            >
+                Cancel
+            </Button>
+            {(!showGlobalLibraryTab || mainTab === "details") && (
+                <Button
+                    type={showGlobalLibraryTab ? "submit" : "button"}
+                    form={showGlobalLibraryTab ? "retention-option-form" : undefined}
+                    onClick={showGlobalLibraryTab ? undefined : () => void handleSave()}
+                    disabled={isSaveDisabled || isLoadingDetails}
+                    className="bg-[#1162a8] hover:bg-[#0f5490] text-white"
+                >
+                    {isSubmitting ? "Saving..." : "Save Retention"}
+                </Button>
+            )}
+        </div>
+    )
+
+    const detailsBody = (
+        <div className={detailsScrollClass}>
                         {isLoadingDetails && (
                             <div className="flex items-center justify-center py-8">
                                 <div className="text-sm text-gray-500">Loading retention option details...</div>
@@ -836,24 +880,92 @@ export function CreateRetentionOptionModal({
                                 </div>
                             </>
                         )}
+        </div>
+    )
+
+    return (
+        <>
+            <Dialog open={isOpen} onOpenChange={() => { }}>
+                <DialogContent className={dialogClass}>
+                    <DialogHeader className="flex flex-row items-center justify-between gap-2 space-y-0 border-b px-6 py-4 flex-shrink-0">
+                        <DialogTitle className="pr-2 text-left text-xl font-bold">
+                            {isCopying ? "Copy Retention Option" : option && option.id ? "Edit Retention Option" : "Add Retention Option"}
+                        </DialogTitle>
+                        <div className="flex items-center gap-1">
+                            {showGlobalLibraryTab && (
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={toggleMaximize}
+                                    className="h-8 w-8 hover:bg-gray-100"
+                                    title={isMaximized ? "Minimize" : "Maximize"}
+                                >
+                                    <Maximize2 className={`h-4 w-4 transition-transform ${isMaximized ? "rotate-180" : ""}`} />
+                                </Button>
+                            )}
+                            <Button type="button" variant="ghost" size="icon" onClick={handleClose} className="h-8 w-8 hover:bg-gray-100">
+                                <X className="h-5 w-5" />
+                            </Button>
+                        </div>
+                    </DialogHeader>
+
+                    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                        {showGlobalLibraryTab ? (
+                            <Tabs
+                                value={mainTab}
+                                onValueChange={(v) => setMainTab(v as "details" | "library")}
+                                className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden"
+                            >
+                                <div className="flex-shrink-0 border-b border-gray-100 bg-white px-6 pb-3 pt-2">
+                                    <TabsList className="h-auto w-full justify-start gap-1 bg-muted/80 p-1">
+                                        <TabsTrigger value="details" className="text-xs sm:text-sm">
+                                            Retention option details
+                                        </TabsTrigger>
+                                        <TabsTrigger value="library" className="text-xs sm:text-sm">
+                                            Global tooth images
+                                        </TabsTrigger>
+                                    </TabsList>
+                                </div>
+                                <TabsContent
+                                    value="details"
+                                    className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden px-0 pt-0 data-[state=inactive]:hidden"
+                                >
+                                    <form
+                                        id="retention-option-form"
+                                        className="flex min-h-0 flex-1 flex-col overflow-hidden"
+                                        onSubmit={async (e) => {
+                                            e.preventDefault()
+                                            await handleSave()
+                                        }}
+                                    >
+                                        {detailsBody}
+                                    </form>
+                                </TabsContent>
+                                <TabsContent
+                                    value="library"
+                                    className="mt-0 flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-3 data-[state=inactive]:hidden sm:px-6 sm:py-4"
+                                >
+                                    {option?.id != null && (
+                                        <GlobalRetentionOptionToothImagesPanel retentionOptionId={option.id} />
+                                    )}
+                                </TabsContent>
+                            </Tabs>
+                        ) : (
+                            <form
+                                className="flex min-h-0 flex-1 flex-col overflow-hidden"
+                                onSubmit={async (e) => {
+                                    e.preventDefault()
+                                    await handleSave()
+                                }}
+                            >
+                                {detailsBody}
+                                {modalFooter}
+                            </form>
+                        )}
                     </div>
 
-                    <div className="flex justify-end gap-3 px-6 py-4 border-t">
-                        <Button
-                            variant="outline"
-                            onClick={handleClose}
-                            className="border-red-500 text-red-500 hover:bg-red-50"
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={handleSave}
-                            disabled={isSaveDisabled || isLoadingDetails}
-                            className="bg-[#1162a8] hover:bg-[#0f5490] text-white"
-                        >
-                            {isSubmitting ? "Saving..." : "Save Retention"}
-                        </Button>
-                    </div>
+                    {showGlobalLibraryTab ? modalFooter : null}
                 </DialogContent>
             </Dialog>
 
