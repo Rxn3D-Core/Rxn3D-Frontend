@@ -103,8 +103,25 @@ type AuthContextType = {
     email: string,
     verification_token: string,
   ) => Promise<boolean>
-  fetchUsers: (params?: { status?: string; role?: string; customer_id?: string }) => Promise<any>
-  updateUser: (userId: number, data: { status?: string }) => Promise<any>
+  fetchUsers: (params?: {
+    status?: string
+    role?: string
+    customer_id?: string
+    department_id?: string
+    q?: string
+    per_page?: number
+    order_by?: string
+    sort_by?: "asc" | "desc"
+    page?: number
+  }) => Promise<any>
+  updateUser: (userId: number, data: {
+    first_name?: string
+    last_name?: string
+    phone?: string
+    work_number?: string
+    status?: string
+    department_ids?: number[]
+  }) => Promise<any>
   createUser: (userData: FormData | {
     first_name: string;
     last_name: string;
@@ -124,8 +141,11 @@ type AuthContextType = {
     phone: string;
     work_number?: string;
     status: string;
-    department_ids: number[];
+    department_ids?: number[];
   }) => Promise<any>
+  deleteUser: (userId: number) => Promise<any>
+  fetchUserById: (userId: number, customerId?: string) => Promise<any>
+  getUserPermissions: (customerId?: string) => Promise<any>
   setCustomerId: (customerId: number) => Promise<boolean>
   isAuthenticated: boolean
   checkAuthAndRedirect: () => boolean
@@ -688,7 +708,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const fetchUsers = useCallback(async (params?: { status?: string; role?: string; customer_id?: string }): Promise<any> => {
+  const fetchUsers = useCallback(async (params?: {
+    status?: string
+    role?: string
+    customer_id?: string
+    department_id?: string
+    q?: string
+    per_page?: number
+    order_by?: string
+    sort_by?: "asc" | "desc"
+    page?: number
+  }): Promise<any> => {
     try {
       // Always get customer_id from params first, then fall back to localStorage
       const customerId = params?.customer_id || localStorage.getItem("customerId");
@@ -696,6 +726,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       if (params?.status) queryParams.append("status", params.status);
       if (params?.role) queryParams.append("role", params.role);
+      if (params?.department_id) queryParams.append("department_id", params.department_id);
+      if (params?.q) queryParams.append("q", params.q);
+      if (params?.per_page) queryParams.append("per_page", String(params.per_page));
+      if (params?.order_by) queryParams.append("order_by", params.order_by);
+      if (params?.sort_by) queryParams.append("sort_by", params.sort_by);
+      if (params?.page) queryParams.append("page", String(params.page));
       
       // Always include customer_id if it exists (required for office_admin role)
       if (customerId) {
@@ -738,7 +774,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [handleUnauthorized]);
 
-  const updateUser = useCallback(async (userId: number, data: { status?: string }): Promise<any> => {
+  const updateUser = useCallback(async (userId: number, data: {
+    first_name?: string
+    last_name?: string
+    phone?: string
+    work_number?: string
+    status?: string
+    department_ids?: number[]
+  }): Promise<any> => {
     try {
       const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
         method: "PUT",
@@ -765,6 +808,97 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw error;
     }
   }, [handleUnauthorized]);
+
+  const deleteUser = useCallback(async (userId: number): Promise<any> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      })
+
+      if (response.status === 401) {
+        handleUnauthorized()
+        throw new Error("Unauthorized")
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || "Failed to delete user")
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error("Delete user error:", error)
+      throw error
+    }
+  }, [handleUnauthorized])
+
+  const fetchUserById = useCallback(async (userId: number, customerId?: string): Promise<any> => {
+    try {
+      const queryParams = new URLSearchParams()
+      if (customerId) {
+        queryParams.append("customer_id", customerId)
+      }
+      const url = `${API_BASE_URL}/users/${userId}${queryParams.toString() ? `?${queryParams.toString()}` : ""}`
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      })
+
+      if (response.status === 401) {
+        handleUnauthorized()
+        throw new Error("Unauthorized")
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || "Failed to fetch user details")
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error("Fetch user by id error:", error)
+      throw error
+    }
+  }, [handleUnauthorized])
+
+  const getUserPermissions = useCallback(async (customerId?: string): Promise<any> => {
+    try {
+      const queryParams = new URLSearchParams()
+      if (customerId) {
+        queryParams.append("customer_id", customerId)
+      }
+      const url = `${API_BASE_URL}/users/permissions${queryParams.toString() ? `?${queryParams.toString()}` : ""}`
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      })
+
+      if (response.status === 401) {
+        handleUnauthorized()
+        throw new Error("Unauthorized")
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || "Failed to fetch user permissions")
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error("Get user permissions error:", error)
+      throw error
+    }
+  }, [handleUnauthorized])
 
   const createUser = useCallback(async (userData: FormData | {
     first_name: string;
@@ -821,7 +955,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     phone: string;
     work_number?: string;
     status: string;
-    department_ids: number[];
+    department_ids?: number[];
   }): Promise<any> => {
     try {
       const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
@@ -1049,6 +1183,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         updateUser,
         createUser,
         updateUserDetails,
+        deleteUser,
+        fetchUserById,
+        getUserPermissions,
         setCustomerId,
         isAuthenticated,
         checkAuthAndRedirect,

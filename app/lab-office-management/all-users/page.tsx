@@ -1,29 +1,45 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
-import { Eye, Filter, Search, Plus, ChevronDown } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Eye, Search, Plus, ChevronDown, Edit, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { SearchableSelect } from "@/components/ui/searchable-select"
 import { StaffUserDetail } from "@/components/lab-administrator/staff-user-detail"
-import { AddUserForm } from "@/components/lab-administrator/add-user-form"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar } from "@/components/ui/avatar"
 import ReactDOM from "react-dom"
+import { CreateUserModal } from "@/components/office-administrator/create-user-modal"
+import { UpdateUserModal } from "@/components/office-administrator/update-user-modal"
 
 interface StaffUser {
   id: number
   name: string
   email: string
+  customerName: string
+  customerId?: number
   phone: string
   userType: string
+  customerRoles?: Array<{
+    customerId: number
+    customerName: string
+    roleName: string
+    departments: string[]
+  }>
+  customerNamesList?: string[]
+  roleNamesList?: string[]
   joinDate: string
   status: "Active" | "Inactive" | "Suspended" | "Archived"
   avatar?: string
   avatarColor?: string
+}
+
+interface CustomerOption {
+  value: string
+  label: string
 }
 
 const avatarColors = [
@@ -36,14 +52,14 @@ const avatarColors = [
 ]
 
 export default function AllUsers() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const { fetchUsers } = useAuth()
+  const { fetchUsers, updateUser, deleteUser, fetchUserById, getUserPermissions } = useAuth()
   const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [selectedUser, setSelectedUser] = useState<StaffUser | null>(null)
   const [showAddUser, setShowAddUser] = useState(false)
+  const [showUpdateUser, setShowUpdateUser] = useState(false)
+  const [userToUpdate, setUserToUpdate] = useState<StaffUser | null>(null)
   const [entriesPerPage, setEntriesPerPage] = useState("20")
   const [selectedRows, setSelectedRows] = useState<number[]>([])
   const [allSelected, setAllSelected] = useState(false)
@@ -51,77 +67,165 @@ export default function AllUsers() {
   const [users, setUsers] = useState<StaffUser[]>([])
   const [showStatusDropdown, setShowStatusDropdown] = useState<number | null>(null)
   const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null)
+  const [sortColumn, setSortColumn] = useState("created_at")
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pagination, setPagination] = useState({ total: 0, per_page: 20, current_page: 1, last_page: 1 })
+  const [roleFilter, setRoleFilter] = useState("all")
+  const [departmentFilter, setDepartmentFilter] = useState("")
+  const [customerFilter, setCustomerFilter] = useState("")
+  const [customerOptions, setCustomerOptions] = useState<CustomerOption[]>([])
+  const [permissions, setPermissions] = useState<any>(null)
+
+  const canCreateUser = permissions?.all_permissions?.includes("create_user")
+  const canEditUser = permissions?.all_permissions?.includes("edit_user")
+  const hasActiveFilters = statusFilter !== "all" || roleFilter !== "all" || !!departmentFilter || !!customerFilter
+
+  const customerNameById = customerOptions.reduce<Record<string, string>>((acc, option) => {
+    acc[option.value] = option.label
+    return acc
+  }, {})
+
+  const formatFirstPlusCount = (items: string[]) => {
+    if (!items || items.length === 0) return "N/A"
+    if (items.length === 1) return items[0]
+    return `${items[0]} +${items.length - 1}`
+  }
+
+  const buildCustomerScopedRoleData = (userData: any, selectedCustomerId?: number) => {
+    const customerUsers = Array.isArray(userData?.customer_users) ? userData.customer_users : []
+    const mapped = customerUsers.map((cu: any) => ({
+      customerId: cu?.customer_id || cu?.customer?.id,
+      customerName: cu?.customer?.name || customerNameById[String(cu?.customer_id || cu?.customer?.id || "")] || "",
+      roleName: cu?.role?.name || "",
+      departments: Array.isArray(cu?.departments) ? cu.departments.map((d: any) => d?.name).filter(Boolean) : [],
+    })).filter((item: any) => item.customerId && item.roleName)
+
+    const scoped = selectedCustomerId ? mapped.filter((item: any) => item.customerId === selectedCustomerId) : mapped
+    const source = scoped.length > 0 ? scoped : mapped
+
+    const customerNames = Array.from(new Set(source.map((item: any) => item.customerName).filter(Boolean)))
+    const roleNames = Array.from(new Set(source.map((item: any) => item.roleName).filter(Boolean)))
+
+    return {
+      customerNameDisplay: formatFirstPlusCount(customerNames),
+      roleDisplay: formatFirstPlusCount(roleNames),
+      customerNamesList: customerNames,
+      roleNamesList: roleNames,
+      customerRoles: mapped,
+    }
+  }
+
+  const loadCustomerOptions = async () => {
+    try {
+      const token = localStorage.getItem("token") || localStorage.getItem("library_token")
+      if (!token) return
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
+      const buildUrl = (type: "lab" | "office") =>
+        `${API_BASE_URL}/customers/search?${new URLSearchParams({
+          type,
+          per_page: "200",
+          order_by: "name",
+          sort_by: "asc",
+        }).toString()}`
+      const [labsRes, officesRes] = await Promise.all([
+        fetch(buildUrl("lab"), {
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        }),
+        fetch(buildUrl("office"), {
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        }),
+      ])
+      const [labsJson, officesJson] = await Promise.all([
+        labsRes.ok ? labsRes.json() : Promise.resolve({ data: [] }),
+        officesRes.ok ? officesRes.json() : Promise.resolve({ data: [] }),
+      ])
+      const combined = [...(labsJson?.data || []), ...(officesJson?.data || [])]
+      const uniqueById = new Map<number, CustomerOption>()
+      combined.forEach((customer: any) => {
+        if (customer?.id && customer?.name && !uniqueById.has(customer.id)) {
+          uniqueById.set(customer.id, {
+            value: String(customer.id),
+            label: customer.name,
+          })
+        }
+      })
+      setCustomerOptions(Array.from(uniqueById.values()))
+    } catch {
+      setCustomerOptions([])
+    }
+  }
+
+  const loadUsers = async () => {
+    setIsLoading(true)
+    try {
+      const response = await fetchUsers({
+        q: searchTerm.trim() || undefined,
+        status: statusFilter === "all" ? undefined : statusFilter,
+        role: roleFilter === "all" ? undefined : roleFilter,
+        department_id: departmentFilter.trim() || undefined,
+        customer_id: customerFilter.trim() || undefined,
+        per_page: Number(entriesPerPage),
+        order_by: sortColumn,
+        sort_by: sortDirection,
+        page: currentPage,
+      })
+      const usersData = response?.data || []
+      if (!Array.isArray(usersData)) throw new Error("Invalid response format")
+
+      const selectedCustomerId = customerFilter.trim() ? Number(customerFilter.trim()) : undefined
+      setUsers(usersData.map((user: any, index: number) => {
+        const scopedRoleData = buildCustomerScopedRoleData(user, selectedCustomerId)
+        return {
+          id: user.id,
+          name: `${user.first_name || ""} ${user.last_name || ""}`.trim(),
+          email: user.email,
+          customerName: scopedRoleData.customerNameDisplay,
+          customerId: selectedCustomerId,
+          phone: user.phone || user.work_number || "N/A",
+          userType: scopedRoleData.roleDisplay,
+          customerRoles: scopedRoleData.customerRoles,
+          customerNamesList: scopedRoleData.customerNamesList,
+          roleNamesList: scopedRoleData.roleNamesList,
+          joinDate: user.created_at ? new Date(user.created_at).toISOString().split("T")[0] : "",
+          status: (user.status || "Inactive") as StaffUser["status"],
+          avatarColor: avatarColors[index % avatarColors.length],
+        }
+      }))
+      setPagination({
+        total: response?.total || response?.pagination?.total || usersData.length,
+        per_page: response?.per_page || response?.pagination?.per_page || Number(entriesPerPage),
+        current_page: response?.current_page || response?.pagination?.current_page || 1,
+        last_page: response?.last_page || response?.pagination?.last_page || 1,
+      })
+    } catch (error: any) {
+      toast({ title: "Error", description: error?.message || "Failed to load users.", variant: "destructive" })
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   useEffect(() => {
-    const loadUsers = async () => {
-      setIsLoading(true)
-      try {
-        // Get customer_id from localStorage and pass it explicitly
-        const customerId = localStorage.getItem('customerId')
-        const params: { customer_id?: string } = {}
-        if (customerId) {
-          params.customer_id = customerId
-        }
-        const response = await fetchUsers(params)
-
-        // Ensure response.data exists and is an array
-        const usersData = response?.data || []
-        if (!Array.isArray(usersData)) {
-          throw new Error("Invalid response format: data is not an array")
-        }
-
-        const data = usersData.map((user, index) => {
-          const primaryCustomer = user.customers.find((customer) => customer.is_primary === 1)
-          const userType = primaryCustomer?.role?.name.replace("_", " ") || "N/A"
-
-          return {
-            id: user.id,
-            name: `${user.first_name} ${user.last_name}`,
-            email: user.email,
-            phone: user.phone || "N/A",
-            userType,
-            joinDate: new Date(user.created_at).toISOString().split("T")[0],
-            status: user.status,
-            avatarColor: avatarColors[index % avatarColors.length],
-          }
-        })
-
-        setUsers(data)
-      } catch (error) {
-        console.error("Failed to load users:", error)
-        toast({
-          title: "Error",
-          description: "Failed to load users. Please try again.",
-          variant: "destructive",
-        })
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
     loadUsers()
-  }, [toast])
+  }, [searchTerm, statusFilter, roleFilter, departmentFilter, customerFilter, entriesPerPage, sortColumn, sortDirection, currentPage])
 
   useEffect(() => {
-    const userId = searchParams.get("userId")
-    if (userId) {
-      const user = users.find((u) => u.id === Number.parseInt(userId))
-      if (user) {
-        setSelectedUser(user)
+    loadCustomerOptions()
+  }, [])
+
+  useEffect(() => {
+    const loadPermissions = async () => {
+      try {
+        const result = await getUserPermissions(customerFilter.trim() || undefined)
+        setPermissions(result)
+      } catch {
+        setPermissions(null)
       }
     }
-  }, [searchParams, users])
+    loadPermissions()
+  }, [customerFilter, getUserPermissions])
 
-  const filteredUsers = users.filter((user) => {
-    const matchesSearch =
-      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.phone.includes(searchTerm)
-
-    const matchesStatus = statusFilter === "all" || user.status === statusFilter
-
-    return matchesSearch && matchesStatus
-  })
+  const filteredUsers = users
 
   // Handle row selection
   const toggleSelectRow = (id: number) => {
@@ -139,14 +243,58 @@ export default function AllUsers() {
   }
 
   // Handle view user details
-  const handleViewUser = (user: StaffUser) => {
-    setSelectedUser(user)
+  const handleViewUser = async (user: StaffUser) => {
+    try {
+      const result = await fetchUserById(user.id, customerFilter.trim() || undefined)
+      const details = result?.data || result
+      const selectedCustomerId = customerFilter.trim() ? Number(customerFilter.trim()) : undefined
+      const scopedRoleData = buildCustomerScopedRoleData(details, selectedCustomerId)
+      const mapped: StaffUser = {
+        id: details.id,
+        name: `${details.first_name || ""} ${details.last_name || ""}`.trim(),
+        email: details.email || "",
+        customerName: scopedRoleData.customerNameDisplay,
+        customerId: selectedCustomerId || user.customerId,
+        phone: details.phone || details.work_number || "N/A",
+        userType: scopedRoleData.roleDisplay,
+        customerRoles: scopedRoleData.customerRoles,
+        customerNamesList: scopedRoleData.customerNamesList,
+        roleNamesList: scopedRoleData.roleNamesList,
+        joinDate: details.created_at ? new Date(details.created_at).toISOString().split("T")[0] : "",
+        status: (details.status || "Inactive") as StaffUser["status"],
+        avatarColor: user.avatarColor,
+      }
+      setSelectedUser(mapped)
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to load user details.",
+        variant: "destructive",
+      })
+    }
   }
 
-  // Handle add new user
   const handleAddUser = () => {
+    if (!canCreateUser) return
     setShowAddUser(true)
     setSelectedUser(null)
+  }
+
+  const handleEditUser = (user: StaffUser) => {
+    if (!canEditUser) return
+    setUserToUpdate(user)
+    setShowUpdateUser(true)
+  }
+
+  const handleDeleteUser = async (userId: number) => {
+    if (!canEditUser) return
+    try {
+      await deleteUser(userId)
+      toast({ title: "User Deleted", description: "User deleted successfully." })
+      loadUsers()
+    } catch (error: any) {
+      toast({ title: "Delete Failed", description: error?.message || "Failed to delete user.", variant: "destructive" })
+    }
   }
 
   // Handle back to list
@@ -183,15 +331,32 @@ export default function AllUsers() {
     return { initials, color: avatarColors[colorIndex] };
   }
 
-  // Handle status change
-  const handleStatusChange = (userId: number, newStatus: string) => {
-    setUsers((prevUsers) =>
-      prevUsers.map((user) =>
-        user.id === userId ? { ...user, status: newStatus as "Active" | "Inactive" | "Suspended" | "Archived" } : user,
-      ),
-    )
-    setShowStatusDropdown(null)
-    setDropdownPosition(null)
+  const handleStatusChange = async (userId: number, newStatus: string) => {
+    if (!canEditUser) return
+    try {
+      const statusMap: Record<string, string> = { Active: "active", Inactive: "inactive", Suspended: "suspended", Archived: "archived" }
+      await updateUser(userId, { status: statusMap[newStatus] || "inactive" })
+      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, status: newStatus as StaffUser["status"] } : u)))
+    } finally {
+      setShowStatusDropdown(null)
+      setDropdownPosition(null)
+    }
+  }
+
+  const handleSort = (column: string) => {
+    if (sortColumn === column) setSortDirection(sortDirection === "asc" ? "desc" : "asc")
+    else {
+      setSortColumn(column)
+      setSortDirection("asc")
+    }
+  }
+
+  const clearFilters = () => {
+    setStatusFilter("all")
+    setRoleFilter("all")
+    setDepartmentFilter("")
+    setCustomerFilter("")
+    setCurrentPage(1)
   }
 
   // Handle status dropdown open/close and position
@@ -225,23 +390,23 @@ export default function AllUsers() {
     }
   }, [showStatusDropdown])
 
-  // If showing user detail or add user form
-  if (selectedUser || showAddUser) {
+  if (selectedUser) {
     return (
       <div className="h-full">
-        {selectedUser ? (
-          <StaffUserDetail user={selectedUser} onBack={handleBackToList} />
-        ) : (
-          <AddUserForm onCancel={handleBackToList} onSuccess={handleBackToList} />
-        )}
+        <StaffUserDetail user={selectedUser} onBack={handleBackToList} />
       </div>
     )
   }
 
   return (
-    <div className="py-6">
+    <div className="py-6 px-4">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
+        <p className="text-gray-500 mt-1">Manage all users across labs and offices.</p>
+      </div>
+
       {/* Filters and actions */}
-      <div className="bg-white border border-gray-200 rounded-lg mb-6">
+      <div className="bg-white border border-gray-200 rounded-lg mb-6 shadow-sm">
         <div className="p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-gray-200">
           <div className="flex items-center gap-2">
             <span className="text-sm">Show</span>
@@ -260,15 +425,53 @@ export default function AllUsers() {
           </div>
 
           <div className="flex flex-col md:flex-row items-start md:items-center gap-4 w-full md:w-auto">
-            <div className="flex items-center gap-2 w-full md:w-auto">
-              <div className=" px-4 py-2 rounded-lg flex items-center gap-2 w-full md:w-auto">
-                <Button variant="outline" size="sm" className="flex items-center gap-2">
-                    <Filter className="h-4 w-4" />
-                    Filter
-                </Button>
+            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+              <div className="w-[220px]">
+                <SearchableSelect
+                  value={customerFilter}
+                  onValueChange={(value) => {
+                    setCustomerFilter(value)
+                    setCurrentPage(1)
+                  }}
+                  placeholder="Filter by customer"
+                  searchPlaceholder="Search customer..."
+                  emptyMessage="No customers found."
+                  options={customerOptions}
+                />
               </div>
-
-              <Button className="bg-[#1162a8] text-white px-3 py-1.5 rounded text-sm" onClick={handleAddUser}>
+              <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value); setCurrentPage(1) }}>
+                <SelectTrigger className="w-[150px]"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="Active">Active</SelectItem>
+                  <SelectItem value="Inactive">Inactive</SelectItem>
+                  <SelectItem value="Suspended">Suspended</SelectItem>
+                  <SelectItem value="Archived">Archived</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={roleFilter} onValueChange={(value) => { setRoleFilter(value); setCurrentPage(1) }}>
+                <SelectTrigger className="w-[160px]"><SelectValue placeholder="All Roles" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Roles</SelectItem>
+                  <SelectItem value="lab_admin">Lab Admin</SelectItem>
+                  <SelectItem value="lab_user">Lab User</SelectItem>
+                  <SelectItem value="office_admin">Office Admin</SelectItem>
+                  <SelectItem value="office_user">Office User</SelectItem>
+                  <SelectItem value="doctor">Doctor</SelectItem>
+                </SelectContent>
+              </Select>
+              <Input
+                value={departmentFilter}
+                onChange={(e) => { setDepartmentFilter(e.target.value.replace(/[^0-9]/g, "")); setCurrentPage(1) }}
+                placeholder="Department ID"
+                className="w-[140px]"
+              />
+              {hasActiveFilters && (
+                <Button variant="outline" size="sm" onClick={clearFilters}>
+                  Clear Filters
+                </Button>
+              )}
+              <Button className="bg-[#1162a8] text-white px-3 py-1.5 rounded text-sm" onClick={handleAddUser} disabled={!canCreateUser}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add User
               </Button>
@@ -294,40 +497,33 @@ export default function AllUsers() {
                 <th className="px-4 py-3 text-left">
                   <Checkbox checked={allSelected} onCheckedChange={toggleSelectAll} aria-label="Select all rows" />
                 </th>
-                <th className="px-4 py-3 text-left font-medium">
+                <th className="px-4 py-3 text-left font-medium cursor-pointer" onClick={() => handleSort("first_name")}>
                   <div className="flex items-center">
                     Name
-                    <ChevronDown className="h-4 w-4 ml-1" />
+                    {sortColumn === "first_name" && <ChevronDown className={`h-4 w-4 ml-1 ${sortDirection === "asc" ? "rotate-180" : ""}`} />}
                   </div>
                 </th>
-                <th className="px-4 py-3 text-left font-medium">
+                <th className="px-4 py-3 text-left font-medium cursor-pointer" onClick={() => handleSort("email")}>
                   <div className="flex items-center">
                     Email
-                    <ChevronDown className="h-4 w-4 ml-1" />
+                    {sortColumn === "email" && <ChevronDown className={`h-4 w-4 ml-1 ${sortDirection === "asc" ? "rotate-180" : ""}`} />}
                   </div>
                 </th>
                 <th className="px-4 py-3 text-left font-medium">
                   <div className="flex items-center">
-                    User Type
-                    <ChevronDown className="h-4 w-4 ml-1" />
+                    Customer
                   </div>
                 </th>
-                <th className="px-4 py-3 text-left font-medium">
+                <th className="px-4 py-3 text-left font-medium cursor-pointer" onClick={() => handleSort("role")}>
                   <div className="flex items-center">
-                    Phone Number
-                    <ChevronDown className="h-4 w-4 ml-1" />
+                    Role
+                    {sortColumn === "role" && <ChevronDown className={`h-4 w-4 ml-1 ${sortDirection === "asc" ? "rotate-180" : ""}`} />}
                   </div>
                 </th>
-                <th className="px-4 py-3 text-left font-medium">
-                  <div className="flex items-center">
-                    Join Date
-                    <ChevronDown className="h-4 w-4 ml-1" />
-                  </div>
-                </th>
-                <th className="px-4 py-3 text-left font-medium">
+                <th className="px-4 py-3 text-left font-medium cursor-pointer" onClick={() => handleSort("status")}>
                   <div className="flex items-center">
                     Status
-                    <ChevronDown className="h-4 w-4 ml-1" />
+                    {sortColumn === "status" && <ChevronDown className={`h-4 w-4 ml-1 ${sortDirection === "asc" ? "rotate-180" : ""}`} />}
                   </div>
                 </th>
                 <th className="px-4 py-3 text-center font-medium">Actions</th>
@@ -377,14 +573,18 @@ export default function AllUsers() {
                         </div>
                     </td>
                     <td className="px-4 py-4 text-gray-700">{user.email}</td>
-                    <td className="px-4 py-4 text-gray-700">{user.userType}</td>
-                    <td className="px-4 py-4 text-gray-700">{user.phone}</td>
-                    <td className="px-4 py-4 text-gray-700">{user.joinDate}</td>
+                    <td className="px-4 py-4 text-gray-700" title={user.customerNamesList?.join(", ") || user.customerName}>
+                      {user.customerName}
+                    </td>
+                    <td className="px-4 py-4 text-gray-700" title={user.roleNamesList?.join(", ") || user.userType}>
+                      {user.userType}
+                    </td>
                     <td className="px-4 py-4 relative">
                       <div className="relative">
                         <button
                           onClick={(e) => handleStatusDropdown(user.id, e)}
                           className={`${getStatusBadgeClass(user.status)} px-3 py-1 rounded-md text-sm flex items-center`}
+                          disabled={!canEditUser}
                         >
                           <span className="mr-1">•</span> {user.status}
                           <ChevronDown className="h-4 w-4 ml-1" />
@@ -438,14 +638,11 @@ export default function AllUsers() {
                       </div>
                     </td>
                     <td className="px-4 py-4 text-center">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleViewUser(user)}
-                        className="text-blue-600 hover:text-blue-800"
-                      >
-                        <Eye className="h-5 w-5" />
-                      </Button>
+                      <div className="flex items-center justify-center gap-2">
+                        <Button variant="ghost" size="sm" onClick={() => handleViewUser(user)} className="text-blue-600 hover:text-blue-800"><Eye className="h-5 w-5" /></Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleEditUser(user)} className="text-green-600 hover:text-green-800" disabled={!canEditUser}><Edit className="h-5 w-5" /></Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleDeleteUser(user.id)} className="text-red-600 hover:text-red-800" disabled={!canEditUser}><Trash2 className="h-5 w-5" /></Button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -457,29 +654,38 @@ export default function AllUsers() {
         {/* Pagination */}
         <div className="p-4 flex justify-between items-center border-t border-[#d9d9d9]">
           <div className="text-sm text-[#6b7280]">
-            Showing {Math.min(filteredUsers.length, 1)} to {Math.min(filteredUsers.length, Number.parseInt(entriesPerPage))} of {filteredUsers.length} entries
+            Showing {pagination.total === 0 ? 0 : (pagination.current_page - 1) * pagination.per_page + 1} to {Math.min(pagination.current_page * pagination.per_page, pagination.total)} of {pagination.total} entries
           </div>
           <div className="flex items-center space-x-1">
-            <button
-              className="h-8 w-8 rounded-full flex items-center justify-center text-xs bg-[#f0f0f0] text-[#6b7280] disabled:opacity-50"
-              disabled={true}
-            >
-              «
-            </button>
-            <button
-              className="h-8 w-8 rounded-full flex items-center justify-center text-xs bg-[#1162a8] text-white"
-            >
-              1
-            </button>
-            <button
-              className="h-8 w-8 rounded-full flex items-center justify-center text-xs bg-[#f0f0f0] text-[#6b7280] disabled:opacity-50"
-              disabled={true}
-            >
-              »
-            </button>
+            <button className="h-8 w-8 rounded-full flex items-center justify-center text-xs bg-[#f0f0f0] text-[#6b7280] disabled:opacity-50" disabled={pagination.current_page <= 1} onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}>«</button>
+            <button className="h-8 w-8 rounded-full flex items-center justify-center text-xs bg-[#1162a8] text-white">{pagination.current_page}</button>
+            <button className="h-8 w-8 rounded-full flex items-center justify-center text-xs bg-[#f0f0f0] text-[#6b7280] disabled:opacity-50" disabled={pagination.current_page >= pagination.last_page} onClick={() => setCurrentPage((p) => Math.min(pagination.last_page, p + 1))}>»</button>
           </div>
         </div>
       </div>
+
+      <CreateUserModal
+        isOpen={showAddUser}
+        onClose={() => setShowAddUser(false)}
+        onSuccess={() => {
+          setShowAddUser(false)
+          loadUsers()
+        }}
+      />
+
+      <UpdateUserModal
+        isOpen={showUpdateUser}
+        onClose={() => {
+          setShowUpdateUser(false)
+          setUserToUpdate(null)
+        }}
+        onSuccess={() => {
+          setShowUpdateUser(false)
+          setUserToUpdate(null)
+          loadUsers()
+        }}
+        user={userToUpdate}
+      />
     </div>
   )
 }
