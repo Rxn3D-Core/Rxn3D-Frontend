@@ -21,6 +21,12 @@ export interface RetentionOption {
   retentions_count: number
   created_at: string
   updated_at: string
+  /** Lab row → global catalog template id when applicable */
+  global_relationship_id?: number | null
+  /** Lab-scoped GET: link to global row + sample per-tooth image */
+  global_connection?: Record<string, unknown> | null
+  sample_image_url?: string | null
+  tooth_images?: Array<{ tooth_number: number; image_url: string }>
 }
 
 export interface RetentionOptionPayload {
@@ -410,6 +416,118 @@ export async function linkRetentionOptionsWithRetentions(payload: {
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}))
     throw new Error(errorData.message || `Failed to link retention options with retentions: ${response.statusText}`)
+  }
+
+  return response.json()
+}
+
+export interface GlobalRetentionOptionToothImagesResponse {
+  status: boolean
+  message: string
+  data: {
+    retention_option_id: number
+    images: Array<{
+      tooth_number: number
+      image_url: string
+      updated_at: string
+    }>
+  }
+}
+
+/**
+ * Global catalog only — per-tooth reference images (universal teeth 1–32).
+ */
+export async function getGlobalRetentionOptionToothImages(
+  retentionOptionId: number,
+): Promise<GlobalRetentionOptionToothImagesResponse> {
+  const token = getAuthToken()
+
+  const response = await fetch(
+    `${API_BASE_URL}/library/retention-options/${retentionOptionId}/tooth-images`,
+    {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  )
+
+  if (response.status === 401) {
+    if (typeof window !== "undefined") {
+      window.location.href = "/login"
+    }
+    throw new Error("Unauthorized - Redirecting to login")
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.message || `Failed to fetch retention option tooth images: ${response.statusText}`)
+  }
+
+  return response.json()
+}
+
+export async function upsertGlobalRetentionOptionToothImages(
+  retentionOptionId: number,
+  payload: { images: Array<{ tooth_number: number; image: string }> },
+): Promise<GlobalRetentionOptionToothImagesResponse> {
+  const token = getAuthToken()
+
+  const response = await fetch(
+    `${API_BASE_URL}/library/retention-options/${retentionOptionId}/tooth-images`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    },
+  )
+
+  if (response.status === 401) {
+    if (typeof window !== "undefined") {
+      window.location.href = "/login"
+    }
+    throw new Error("Unauthorized - Redirecting to login")
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.message || `Failed to save retention option tooth images: ${response.statusText}`)
+  }
+
+  return response.json()
+}
+
+export async function deleteGlobalRetentionOptionToothImage(
+  retentionOptionId: number,
+  toothNumber: number,
+): Promise<{ status: boolean; message: string }> {
+  const token = getAuthToken()
+
+  const response = await fetch(
+    `${API_BASE_URL}/library/retention-options/${retentionOptionId}/tooth-images/${toothNumber}`,
+    {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  )
+
+  if (response.status === 401) {
+    if (typeof window !== "undefined") {
+      window.location.href = "/login"
+    }
+    throw new Error("Unauthorized - Redirecting to login")
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.message || `Failed to delete retention option tooth image: ${response.statusText}`)
   }
 
   return response.json()
