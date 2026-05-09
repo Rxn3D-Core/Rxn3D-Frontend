@@ -1,8 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
-import { Eye, Filter, Search, Plus, ChevronDown } from "lucide-react"
+import { Eye, Search, Plus, ChevronDown, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -14,22 +13,79 @@ import { useToast } from "@/hooks/use-toast"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useCustomer } from "@/contexts/customer-context"
 import ReactDOM from "react-dom"
+import { Dialog, DialogContent } from "@/components/ui/dialog"
 
 // Updated interface to match customer data structure
 interface LabCustomer {
   id: number
   name: string
-  website: string
+  website: string | null
   address: string
   logo_url: string | null
   city: string
   postal_code: string
   email: string
+  phone?: string
+  userType?: string
+  joinDate?: string
   type: string
   status: string
   unique_code: string
   created_at: string
   updated_at: string
+}
+
+interface SelectedLabCustomer extends LabCustomer {
+  phone: string
+  userType: string
+  joinDate: string
+  city: string
+  postal_code: string
+  stateName?: string
+  countryName?: string
+  labNumber?: string
+  contactName?: string
+  contactEmail?: string
+  contactNumber?: string
+  release_casepan?: string
+  hoursData?: {
+    workingDays: Array<{
+      day: string
+      enabled: boolean
+      startTime: string
+      endTime: string
+    }>
+    timezone: string
+    holidays: string
+  }
+  pickupData?: {
+    serviceArea: string
+    pickupDays: string
+    cutOffTime: string
+    frequency: string
+    window: string
+  }
+  deliveryData?: {
+    serviceArea: string
+    deliveryDays: string
+    defaultTime: string
+    window: string
+  }
+  rushSettings?: {
+    enabled: boolean
+    description: string
+    rush_type?: "fixed" | "flexible"
+    fixed_turnaround_days?: number
+    fixed_rush_fee_percentage?: string
+  }
+  labAdmins?: Array<{
+    id: number
+    name: string
+    email: string
+    phone?: string
+    status?: string
+    role?: string
+  }>
 }
 
 function TableSkeletonRows({ rows = 5, cols = 8 }: { rows?: number; cols?: number }) {
@@ -49,13 +105,11 @@ function TableSkeletonRows({ rows = 5, cols = 8 }: { rows?: number; cols?: numbe
 }
 
 export default function AllLabs() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
   const { user } = useAuth()
   const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
-  const [selectedUser, setSelectedUser] = useState<LabCustomer | null>(null)
+  const [selectedUser, setSelectedUser] = useState<SelectedLabCustomer | null>(null)
   const [showAddUser, setShowAddUser] = useState(false)
   const [entriesPerPage, setEntriesPerPage] = useState("20")
   const [selectedRows, setSelectedRows] = useState<number[]>([])
@@ -66,34 +120,19 @@ export default function AllLabs() {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc")
   const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null)
 
-  const { isLoading, customers, labCustomers, fetchCustomers } = useCustomer()
-  // Fetch customers when component mounts
+  const { isCustomersLoading, labCustomers, fetchCustomers, pagination, updateCustomerProfile, fetchCustomerProfile } = useCustomer()
+  const API_STATUS_OPTIONS = ["Active", "Inactive"] as const
+
   useEffect(() => {
-    fetchCustomers("lab")
-  }, [fetchCustomers])
-
-  // Check URL params for user detail view
-  useEffect(() => {
-    const userId = searchParams.get("userId")
-    if (userId && labCustomers) {
-      const user = labCustomers.find((u) => u.id === Number.parseInt(userId))
-      if (user) {
-        setSelectedUser(user)
-      }
-    }
-  }, [searchParams, labCustomers])
-
-  // Filter lab customers based on search term and status filter
-  const filteredUsers = labCustomers ? labCustomers.filter((user) => {
-    const matchesSearch =
-      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.unique_code.toLowerCase().includes(searchTerm.toLowerCase())
-
-    const matchesStatus = statusFilter === "all" || user.status === statusFilter
-
-    return matchesSearch && matchesStatus
-  }) : []
+    fetchCustomers("lab", {
+      q: searchTerm.trim() || undefined,
+      status: statusFilter === "all" ? undefined : (statusFilter as "Active" | "Inactive"),
+      per_page: parseInt(entriesPerPage, 10),
+      order_by: sortField === "name" ? "name" : "created_at",
+      sort_by: sortOrder,
+      page: currentPage,
+    })
+  }, [fetchCustomers, searchTerm, statusFilter, entriesPerPage, sortField, sortOrder, currentPage])
 
   // Handle sorting
   const handleSort = (field: keyof LabCustomer) => {
@@ -105,27 +144,15 @@ export default function AllLabs() {
     }
   }
 
-  // Sort and paginate filtered users
-  const sortedUsers = [...filteredUsers].sort((a, b) => {
-    if (!sortField) return 0
-    const aValue = a[sortField]
-    const bValue = b[sortField]
-    if (typeof aValue === "string" && typeof bValue === "string") {
-      return sortOrder === "asc" ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue)
-    }
-    if (typeof aValue === "number" && typeof bValue === "number") {
-      return sortOrder === "asc" ? aValue - bValue : bValue - aValue
-    }
-    return 0
-  })
-
   const entriesPerPageNum = parseInt(entriesPerPage, 10)
-  const paginatedUsers = sortedUsers.slice((currentPage - 1) * entriesPerPageNum, currentPage * entriesPerPageNum)
-  const totalPages = Math.ceil(filteredUsers.length / entriesPerPageNum)
+  const paginatedUsers = labCustomers || []
+  const totalPages = pagination?.last_page || 1
 
   // Handle page change
   const handlePageChange = (page: number) => {
-    setCurrentPage(page)
+    if (page > 0 && page <= totalPages) {
+      setCurrentPage(page)
+    }
   }
 
   // Handle row selection
@@ -138,14 +165,145 @@ export default function AllLabs() {
     if (allSelected) {
       setSelectedRows([])
     } else {
-      setSelectedRows(filteredUsers.map((user) => user.id))
+      setSelectedRows(paginatedUsers.map((user) => user.id))
     }
     setAllSelected(!allSelected)
   }
 
   // Handle view user details
-  const handleViewUser = (user: LabCustomer) => {
-    setSelectedUser(user)
+  const handleViewUser = async (user: LabCustomer) => {
+    try {
+      const profile = await fetchCustomerProfile(user.id)
+      const profileData = profile as any
+      const toDisplayTime = (timeValue?: string) => {
+        if (!timeValue) return ""
+        const parsed = new Date(timeValue)
+        if (!Number.isNaN(parsed.getTime())) {
+          return parsed.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true })
+        }
+        if (typeof timeValue === "string") {
+          const [h, m] = timeValue.split(":")
+          if (h && m) {
+            const d = new Date()
+            d.setHours(Number(h), Number(m), 0, 0)
+            if (!Number.isNaN(d.getTime())) {
+              return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true })
+            }
+          }
+        }
+        return ""
+      }
+      const hoursData = {
+        workingDays: (profileData?.business_settings?.business_hours || []).map((hour: any) => ({
+          day: hour?.day ? `${String(hour.day).charAt(0).toUpperCase()}${String(hour.day).slice(1)}` : "",
+          enabled: !!hour?.is_open,
+          startTime: hour?.open_time ? toDisplayTime(hour.open_time) : "",
+          endTime: hour?.close_time ? toDisplayTime(hour.close_time) : "",
+        })),
+        timezone: profileData?.state?.name || "Unknown Timezone",
+        holidays: "All Federal Holidays",
+      }
+      const pickupData = {
+        serviceArea: `${profileData?.city || ""}, ${profileData?.state?.name || ""} ${profileData?.country?.name || ""}`.trim(),
+        pickupDays: "Lab hours",
+        cutOffTime: profileData?.business_settings?.case_schedule?.default_pickup_time
+          ? toDisplayTime(profileData.business_settings.case_schedule.default_pickup_time)
+          : "",
+        frequency: "Daily",
+        window: "10:00 am - 2:00 pm",
+      }
+      const deliveryData = {
+        serviceArea: `${profileData?.city || ""}, ${profileData?.state?.name || ""} ${profileData?.country?.name || ""}`.trim(),
+        deliveryDays: "Lab hours",
+        defaultTime: profileData?.business_settings?.case_schedule?.default_delivery_time
+          ? toDisplayTime(profileData.business_settings.case_schedule.default_delivery_time)
+          : "",
+        window: "3:00 pm - 6:00 pm",
+      }
+      const rushSettings = {
+        enabled: !!profileData?.business_settings?.case_schedule?.enable_rush_cases,
+        description: "Allow users to request expedited processing.",
+        rush_type: profileData?.business_settings?.case_schedule?.rush_type as "fixed" | "flexible" | undefined,
+        fixed_turnaround_days: profileData?.business_settings?.case_schedule?.fixed_turnaround_days,
+        fixed_rush_fee_percentage:
+          profileData?.business_settings?.case_schedule?.fixed_rush_fee_percentage !== undefined
+            ? String(profileData.business_settings.case_schedule.fixed_rush_fee_percentage)
+            : undefined,
+      }
+      const admins = (profileData?.users || [])
+        .filter((u: any) => u?.role?.name === "lab_admin")
+        .map((u: any) => ({
+          id: u.id,
+          name: `${u.first_name || ""} ${u.last_name || ""}`.trim(),
+          email: u.email || "",
+          phone: u.phone || "",
+          status: u.status || "",
+          role: u?.role?.name || "lab_admin",
+        }))
+
+      setSelectedUser({
+        ...user,
+        phone: user.phone || "",
+        userType: user.userType || user.type,
+        joinDate: user.joinDate || formatDate(user.created_at),
+        city: profileData?.city || user.city || "",
+        postal_code: profileData?.postal_code || user.postal_code || "",
+        stateName: profileData?.state?.name || "",
+        countryName: profileData?.country?.name || "",
+        labNumber: profileData?.default_admin?.work_number || "",
+        contactName: profileData?.default_admin ? `${profileData.default_admin.first_name || ""} ${profileData.default_admin.last_name || ""}`.trim() : "",
+        contactEmail: profileData?.default_admin?.email || "",
+        contactNumber: profileData?.default_admin?.phone || "",
+        release_casepan: profileData?.release_casepan || "",
+        hoursData,
+        pickupData,
+        deliveryData,
+        rushSettings,
+        address: [profileData?.address || user.address, profileData?.city || user.city, profileData?.state?.name, profileData?.country?.name, profileData?.postal_code || user.postal_code]
+          .filter(Boolean)
+          .join(", "),
+        labAdmins: admins,
+      })
+    } catch {
+      setSelectedUser({
+        ...user,
+        phone: user.phone || "",
+        userType: user.userType || user.type,
+        joinDate: user.joinDate || formatDate(user.created_at),
+        city: user.city || "",
+        postal_code: user.postal_code || "",
+        stateName: "",
+        countryName: "",
+        labNumber: "",
+        contactName: "",
+        contactEmail: "",
+        contactNumber: "",
+        release_casepan: "",
+        hoursData: {
+          workingDays: [],
+          timezone: "Unknown Timezone",
+          holidays: "All Federal Holidays",
+        },
+        pickupData: {
+          serviceArea: "",
+          pickupDays: "",
+          cutOffTime: "",
+          frequency: "",
+          window: "",
+        },
+        deliveryData: {
+          serviceArea: "",
+          deliveryDays: "",
+          defaultTime: "",
+          window: "",
+        },
+        rushSettings: {
+          enabled: false,
+          description: "Allow users to request expedited processing.",
+        },
+        labAdmins: [],
+      })
+    }
   }
 
   // Handle add new user
@@ -202,13 +360,31 @@ export default function AllLabs() {
   }
 
   // Handle status change
-  const handleStatusChange = (userId: number, newStatus: string) => {
-    toast({
-      title: "Status Update",
-      description: `Status would be updated to ${newStatus} (API call needed)`,
-    })
-    setShowStatusDropdown(null)
-    setDropdownPosition(null)
+  const handleStatusChange = async (userId: number, newStatus: "Active" | "Inactive") => {
+    try {
+      await updateCustomerProfile(userId, { status: newStatus } as any)
+      toast({
+        title: "Status Updated",
+        description: `Customer status changed to ${newStatus}.`,
+      })
+      await fetchCustomers("lab", {
+        q: searchTerm.trim() || undefined,
+        status: statusFilter === "all" ? undefined : (statusFilter as "Active" | "Inactive"),
+        per_page: parseInt(entriesPerPage, 10),
+        order_by: sortField === "name" ? "name" : "created_at",
+        sort_by: sortOrder,
+        page: currentPage,
+      })
+    } catch (error: any) {
+      toast({
+        title: "Update Failed",
+        description: error?.message || "Failed to update customer status.",
+        variant: "destructive",
+      })
+    } finally {
+      setShowStatusDropdown(null)
+      setDropdownPosition(null)
+    }
   }
 
   // Handle status dropdown open/close and position
@@ -242,15 +418,11 @@ export default function AllLabs() {
     }
   }, [showStatusDropdown])
 
-  // If showing user detail or add user form
-  if (selectedUser || showAddUser) {
+  // If showing add user form
+  if (showAddUser) {
     return (
       <div className="h-full">
-        {selectedUser ? (
-          <StaffUserDetail user={selectedUser} onBack={handleBackToList} />
-        ) : (
-          <AddUserForm onCancel={handleBackToList} onSuccess={handleBackToList} />
-        )}
+        <AddUserForm onCancel={handleBackToList} onSuccess={handleBackToList} />
       </div>
     )
   }
@@ -284,12 +456,16 @@ export default function AllLabs() {
 
           <div className="flex flex-col md:flex-row items-start md:items-center gap-4 w-full md:w-auto">
             <div className="flex items-center gap-2 w-full md:w-auto">
-              <div className="px-4 py-2 rounded-lg flex items-center gap-2 w-full md:w-auto">
-                <Button variant="outline" size="sm" className="flex items-center gap-2">
-                  <Filter className="h-4 w-4" />
-                  Filter
-                </Button>
-              </div>
+              <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value); setCurrentPage(1) }}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="Filter status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="Active">Active</SelectItem>
+                  <SelectItem value="Inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
 
               <Button className="bg-[#1162a8] text-white px-3 py-1.5 rounded text-sm" onClick={handleAddUser}>
                 <Plus className="h-4 w-4 mr-2" />
@@ -301,7 +477,7 @@ export default function AllLabs() {
                 type="text"
                 placeholder="Search Lab"
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1) }}
                 className="pl-10 pr-4 py-2 w-full md:w-[300px]"
               />
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -354,7 +530,7 @@ export default function AllLabs() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {isLoading ? (
+              {isCustomersLoading ? (
                 <TableSkeletonRows rows={5} cols={8} />
               ) : paginatedUsers.length === 0 ? (
                 <tr>
@@ -405,34 +581,16 @@ export default function AllLabs() {
                               }}
                             >
                               <div className="py-1">
-                                <button
-                                  className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center"
-                                  onClick={() => handleStatusChange(lab.id, "Active")}
-                                >
-                                  <span className="w-2 h-2 rounded-full bg-green-500 mr-2"></span>
-                                  Active
-                                </button>
-                                <button
-                                  className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center"
-                                  onClick={() => handleStatusChange(lab.id, "Inactive")}
-                                >
-                                  <span className="w-2 h-2 rounded-full bg-gray-400 mr-2"></span>
-                                  Inactive
-                                </button>
-                                <button
-                                  className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center"
-                                  onClick={() => handleStatusChange(lab.id, "Suspended")}
-                                >
-                                  <span className="w-2 h-2 rounded-full bg-yellow-500 mr-2"></span>
-                                  Suspended
-                                </button>
-                                <button
-                                  className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center"
-                                  onClick={() => handleStatusChange(lab.id, "Archived")}
-                                >
-                                  <span className="w-2 h-2 rounded-full bg-red-500 mr-2"></span>
-                                  Archived
-                                </button>
+                                {API_STATUS_OPTIONS.map((status) => (
+                                  <button
+                                    key={status}
+                                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center"
+                                    onClick={() => handleStatusChange(lab.id, status)}
+                                  >
+                                    <span className={`w-2 h-2 rounded-full mr-2 ${status === "Active" ? "bg-green-500" : "bg-gray-400"}`}></span>
+                                    {status}
+                                  </button>
+                                ))}
                               </div>
                             </div>,
                             document.body
@@ -460,13 +618,13 @@ export default function AllLabs() {
         {/* Pagination */}
         <div className="p-4 flex justify-between items-center border-t border-[#d9d9d9]">
           <div className="text-sm text-[#6b7280]">
-            Showing {(currentPage - 1) * entriesPerPageNum + 1} to{" "}
-            {Math.min(currentPage * entriesPerPageNum, filteredUsers.length)} of {filteredUsers.length} entries
+            Showing {pagination.total === 0 ? 0 : (pagination.current_page - 1) * pagination.per_page + 1} to{" "}
+            {Math.min(pagination.current_page * pagination.per_page, pagination.total)} of {pagination.total} entries
           </div>
           <div className="flex items-center space-x-1">
             <button
               className="h-8 w-8 rounded-full flex items-center justify-center text-xs bg-[#f0f0f0] text-[#6b7280] disabled:opacity-50"
-              disabled={currentPage === 1}
+              disabled={pagination.current_page === 1}
               onClick={() => handlePageChange(currentPage - 1)}
             >
               «
@@ -475,7 +633,7 @@ export default function AllLabs() {
               <button
                 key={i}
                 className={`h-8 w-8 rounded-full flex items-center justify-center text-xs ${
-                  currentPage === i + 1 ? "bg-[#1162a8] text-white" : "bg-[#f0f0f0] text-[#6b7280]"
+                  pagination.current_page === i + 1 ? "bg-[#1162a8] text-white" : "bg-[#f0f0f0] text-[#6b7280]"
                 }`}
                 onClick={() => handlePageChange(i + 1)}
               >
@@ -484,7 +642,7 @@ export default function AllLabs() {
             ))}
             <button
               className="h-8 w-8 rounded-full flex items-center justify-center text-xs bg-[#f0f0f0] text-[#6b7280] disabled:opacity-50"
-              disabled={currentPage === totalPages}
+              disabled={pagination.current_page === totalPages}
               onClick={() => handlePageChange(currentPage + 1)}
             >
               »
@@ -492,6 +650,54 @@ export default function AllLabs() {
           </div>
         </div>
       </div>
+
+      <Dialog open={!!selectedUser} onOpenChange={(open) => !open && setSelectedUser(null)}>
+        <DialogContent className="max-w-[95vw] w-[1200px] h-[90vh] p-0 overflow-hidden flex flex-col">
+          <div className="shrink-0 border-b bg-white px-4 py-3 flex items-center justify-between">
+            <h2 className="text-base font-semibold text-gray-900">
+              {selectedUser?.name ? `${selectedUser.name} Details` : "Lab Details"}
+            </h2>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => setSelectedUser(null)}
+              className="h-8 w-8"
+              aria-label="Close details modal"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+
+          <div className="flex-1 min-h-0 overflow-hidden">
+            {selectedUser && (
+              <StaffUserDetail
+                user={selectedUser as any}
+                onBack={() => setSelectedUser(null)}
+                mode="lab"
+                hideOtherNotes={true}
+                customerId={selectedUser.id}
+                customerType="lab"
+                hoursData={selectedUser.hoursData}
+                pickupData={selectedUser.pickupData}
+                deliveryData={selectedUser.deliveryData}
+                rushSettings={selectedUser.rushSettings}
+                labAdmins={selectedUser.labAdmins || []}
+              />
+            )}
+          </div>
+
+          <div className="shrink-0 border-t bg-white px-4 py-3 flex justify-end">
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => setSelectedUser(null)}
+            >
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
