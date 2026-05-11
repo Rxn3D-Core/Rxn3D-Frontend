@@ -35,6 +35,14 @@ const getAuthHeaders = () => {
   }
 }
 
+/** For multipart requests — do not set Content-Type (browser sets boundary). */
+const getAuthHeadersFormData = () => {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+  return {
+    ...(token && { Authorization: `Bearer ${token}` }),
+  }
+}
+
 // Types
 export interface AdvanceCategory {
   id: number
@@ -886,6 +894,72 @@ export const useLinkImplantProducts = () => {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['implants'] })
       queryClient.invalidateQueries({ queryKey: ['implant', variables.id] })
+    },
+  })
+}
+
+const MAX_IMPLANT_CSV_IMPORT_BYTES = 5120 * 1024
+
+export interface ImplantCsvImportApiData {
+  created_implants?: number
+  updated_implants?: number
+  platforms_created?: number
+  sizes_created?: number
+  new_implant_ids?: number[]
+  errors?: Array<{ line: number; message: string }>
+  row_count?: number
+  implant_codes?: string[]
+  resolved_implants?: Array<{ brand_name: string; system_name: string; code: string }>
+}
+
+export type ImplantCsvImportApiResponse = {
+  status: boolean
+  message: string
+  data?: ImplantCsvImportApiData
+}
+
+/**
+ * Superadmin: POST multipart `file` to global implant library import (no dry_run).
+ * @see POST /api/v1/library/implants/import
+ */
+export async function importImplantsCsv(file: File): Promise<ImplantCsvImportApiResponse> {
+  if (file.size > MAX_IMPLANT_CSV_IMPORT_BYTES) {
+    throw new Error(`File must be ${MAX_IMPLANT_CSV_IMPORT_BYTES / 1024} KB or smaller.`)
+  }
+  const form = new FormData()
+  form.append('file', file)
+  const response = await fetch(ensureAbsoluteUrl('/library/implants/import'), {
+    method: 'POST',
+    headers: getAuthHeadersFormData(),
+    body: form,
+  })
+  const json = (await response.json().catch(() => ({}))) as ImplantCsvImportApiResponse
+
+  if (!response.ok) {
+    const topMsg = json.message || `Import failed (${response.status})`
+    const list = json.data?.errors
+    if (Array.isArray(list) && list.length > 0) {
+      const detail = list
+        .map((e) =>
+          typeof e?.line === 'number' ? `Line ${e.line}: ${e.message ?? ''}` : (e?.message ?? ''),
+        )
+        .filter(Boolean)
+        .join('\n')
+      throw new Error(detail ? `${topMsg}\n${detail}` : topMsg)
+    }
+    throw new Error(topMsg)
+  }
+
+  return json
+}
+
+export const useImportImplantsCsv = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (file: File) => importImplantsCsv(file),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['implants'] })
     },
   })
 }

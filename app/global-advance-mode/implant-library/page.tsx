@@ -1,14 +1,14 @@
 "use client"
 
 import { useState } from "react"
-import { Search, Plus, Settings2, Link as LinkIcon, Edit, Copy, Trash2, MoreVertical, ArrowUpDown, Loader2 } from "lucide-react"
+import { Search, Plus, Settings2, Link as LinkIcon, Edit, Copy, Trash2, MoreVertical, ArrowUpDown, Loader2, FileUp } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useTranslation } from "react-i18next"
-import { AddImplantModal, LinkImplantModal } from "@/components/advance-mode"
+import { AddImplantModal, ImplantLibraryImportModal, LinkImplantModal } from "@/components/advance-mode"
 import { useImplants, useUpdateImplantStatus, useDeleteImplant, useCreateImplant, useUpdateImplant, useDuplicateImplant, useLinkImplantProducts, useImplant } from "@/lib/api/advance-mode-query"
 import { useToast } from "@/hooks/use-toast"
 import { useDebounce } from "@/lib/performance-utils"
@@ -23,6 +23,7 @@ export default function ImplantLibraryPage() {
   const [orderBy, setOrderBy] = useState('brand_name')
   const [isAddImplantModalOpen, setIsAddImplantModalOpen] = useState(false)
   const [isLinkImplantModalOpen, setIsLinkImplantModalOpen] = useState(false)
+  const [isImportCsvModalOpen, setIsImportCsvModalOpen] = useState(false)
   const [editingImplantId, setEditingImplantId] = useState<number | null>(null)
   const [linkingImplantId, setLinkingImplantId] = useState<number | null>(null)
 
@@ -180,6 +181,15 @@ export default function ImplantLibraryPage() {
             >
               <Plus className="h-4 w-4 mr-2" />
               {t("advanceMode.implantLibrary.addImplants", "Add Implants")}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsImportCsvModalOpen(true)}
+              className="border-[#1162a8] text-[#1162a8] hover:bg-[#1162a8]/10 px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
+            >
+              <FileUp className="h-4 w-4 mr-2" />
+              {t("advanceMode.implantLibrary.importCsv", "Import CSV")}
             </Button>
             <Button
               onClick={() => setIsLinkImplantModalOpen(true)}
@@ -464,6 +474,8 @@ export default function ImplantLibraryPage() {
           }
         }}
       />
+
+      <ImplantLibraryImportModal open={isImportCsvModalOpen} onOpenChange={setIsImportCsvModalOpen} />
 
       {/* Link Implant Modal */}
       <LinkImplantModal
