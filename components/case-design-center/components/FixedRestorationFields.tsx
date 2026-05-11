@@ -23,7 +23,6 @@ import type { FieldStep } from "../hooks/useToothFieldProgress";
 import { ImplantDetailSection, ImplantDetailData, defaultImplantDetailData } from "./ImplantDetailSection";
 import { isSingleStageNoStages } from "../utils/categoryHelpers";
 import { parseAddonDisplayItems } from "../utils/addonDisplayHelpers";
-import { hasImplantRetention } from "../utils/implantHelpers";
 
 /* ------------------------------------------------------------------ */
 /*  Articulator icon (Stage field)                                     */
@@ -258,6 +257,7 @@ function AdvanceFieldSelect({
 /* ------------------------------------------------------------------ */
 interface FixedRestorationFieldsProps {
   arch: "mandibular" | "maxillary";
+  isExpanded: boolean;
   firstToothNumber: number;
   groupStageToothNumber: number;
   groupStageProductIdFixed: string;
@@ -294,6 +294,7 @@ interface FixedRestorationFieldsProps {
 /* ------------------------------------------------------------------ */
 export function FixedRestorationFields({
   arch,
+  isExpanded,
   firstToothNumber,
   groupStageToothNumber,
   groupStageProductIdFixed,
@@ -324,6 +325,59 @@ export function FixedRestorationFields({
   getImpressionDisplayText,
   setPanelGumShadePicker,
 }: FixedRestorationFieldsProps) {
+  const hasImplantForm = toothNumbers.some((n) => (retentionTypesMap[n] || []).includes("Implant"));
+  const implantDetailReady = !hasImplantForm || implantDetailCompleteByTooth[firstToothNumber] === true;
+  const impressionProductId = selectedProduct?.id?.toString() || `fixed_${firstToothNumber}`;
+  const impressionVisible = isFixed("fixed_impression") && implantDetailReady;
+  const impressionEmpty = !isFieldCompleted(arch, firstToothNumber, "fixed_impression");
+  const hasAutoOpenedImpressionRef = useRef(false);
+  const impressionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (caseSubmitted) return;
+    if (!isExpanded) {
+      hasAutoOpenedImpressionRef.current = false;
+      if (impressionTimerRef.current) {
+        clearTimeout(impressionTimerRef.current);
+        impressionTimerRef.current = null;
+      }
+      return;
+    }
+    if (!impressionVisible || !impressionEmpty) {
+      hasAutoOpenedImpressionRef.current = false;
+      if (impressionTimerRef.current) {
+        clearTimeout(impressionTimerRef.current);
+        impressionTimerRef.current = null;
+      }
+      return;
+    }
+    if (hasAutoOpenedImpressionRef.current) return;
+
+    hasAutoOpenedImpressionRef.current = true;
+    if (impressionTimerRef.current) clearTimeout(impressionTimerRef.current);
+    impressionTimerRef.current = setTimeout(() => {
+      impressionTimerRef.current = null;
+      handleOpenImpressionModal(arch, impressionProductId, firstToothNumber);
+    }, 150);
+  }, [
+    arch,
+    caseSubmitted,
+    firstToothNumber,
+    handleOpenImpressionModal,
+    impressionEmpty,
+    impressionProductId,
+    impressionVisible,
+    isExpanded,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      if (impressionTimerRef.current) {
+        clearTimeout(impressionTimerRef.current);
+      }
+    };
+  }, []);
+
   // Auto-complete steps whose advance_fields are empty — must be in useEffect, not inline during render
   useEffect(() => {
     if (!isFixed("fixed_characterization")) return;
@@ -993,7 +1047,7 @@ export function FixedRestorationFields({
       })()}
 
       {/* Step 9: Impression / Add ons */}
-      {isFixed("fixed_impression") && !(hasImplantRetention(toothNumbers, retentionTypesMap, selectedProduct?.retention_options) && implantDetailCompleteByTooth[firstToothNumber] !== true) && (() => {
+      {isFixed("fixed_impression") && implantDetailReady && (() => {
         const addonsVal = isFixed("fixed_addons") ? (getFieldValue(arch, firstToothNumber, "fixed_addons") || "") : "";
         const addonItems = parseAddonDisplayItems(addonsVal);
         const borderClass = isFieldCompleted(arch, firstToothNumber, "fixed_addons") && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]";
@@ -1006,8 +1060,7 @@ export function FixedRestorationFields({
                 isFieldCompleted(arch, firstToothNumber, "fixed_impression") && !caseSubmitted ? "border-[#34a853]" : isFieldCompleted(arch, firstToothNumber, "fixed_impression") ? "border-[#b4b0b0]" : "border-[#CF0202]"
               }`}
               onClick={() => {
-                if (hasImplantRetention(toothNumbers, retentionTypesMap, selectedProduct?.retention_options) && implantDetailCompleteByTooth[firstToothNumber] !== true) return;
-                handleOpenImpressionModal(arch, selectedProduct?.id?.toString() || `fixed_${firstToothNumber}`, firstToothNumber);
+                handleOpenImpressionModal(arch, impressionProductId, firstToothNumber);
               }}
             >
               <legend className={`text-sm px-1 leading-none ${isFieldCompleted(arch, firstToothNumber, "fixed_impression") && !caseSubmitted ? "text-[#34a853]" : isFieldCompleted(arch, firstToothNumber, "fixed_impression") ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>
@@ -1015,7 +1068,7 @@ export function FixedRestorationFields({
               </legend>
               <div className="flex items-center gap-2 w-full">
                 <span className="text-[14px] sm:text-lg text-[#000000] break-words">
-                  {getImpressionDisplayText(selectedProduct?.id?.toString() || `fixed_${firstToothNumber}`, arch)}
+                  {getImpressionDisplayText(impressionProductId, arch)}
                 </span>
                 {isFieldCompleted(arch, firstToothNumber, "fixed_impression") && !caseSubmitted && (
                   <Check size={16} className="text-[#34a853] ml-auto" />

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
-import type { CaseDesignProps, Arch, RetentionType, ProductApiData } from "../types";
+import type { CaseDesignProps, Arch, RetentionType, ProductApiData, ProductExtraction } from "../types";
 import { productImpressionsToModalOptions } from "../types";
 import { mockImpressions } from "../constants";
 import { useToothSelection } from "./useToothSelection";
@@ -11,6 +11,7 @@ import { useProductManagement } from "./useProductManagement";
 import { useImplantState } from "./useImplantState";
 import { useToothFieldProgress, FIXED_SHADE_FIELD_TO_STEP } from "./useToothFieldProgress";
 import { hasRetentionOptions, isSingleStageNoStages } from "../utils/categoryHelpers";
+import { resolveRemovableOwnershipUpdate } from "../utils/removableOwnership.js";
 import { ProductApi } from "../../../lib/api-service";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
@@ -173,6 +174,14 @@ export function useCaseDesignState(props: CaseDesignProps) {
       // A new product was added — it is always prepended with expanded: true
       const newest = addedProducts[0];
       if (newest) {
+        if (props.onProductsChange) {
+          props.onProductsChange(
+            addedProducts.map((product, index) => ({
+              ...product,
+              expanded: index === 0,
+            }))
+          );
+        }
         setActiveProductCardId(newest.id);
         // Auto-show the panel for the arch of the newly added product so the tooth chart is always visible.
         // This ensures the eye icon stays on for Fixed Restoration, Removable Restoration, and Orthodontics.
@@ -680,6 +689,52 @@ export function useCaseDesignState(props: CaseDesignProps) {
     }
   };
 
+  const ensureRemovableToothOwnership = useCallback(
+    (arch: Arch, toothNumber: number) => {
+      const currentCardId = toothFieldProgress.getToothProductCard(arch, toothNumber);
+      const activeAddedProduct =
+        activeProductCardId !== 0
+          ? (props.addedProducts ?? []).find((p) => p.id === activeProductCardId)
+          : null;
+
+      const update = resolveRemovableOwnershipUpdate({
+        isActiveProductRemovables: isActiveProductRemovables(arch),
+        activeProductCardId,
+        activeArchMatches: activeAddedProduct?.arch === arch,
+        activeProductId: activeAddedProduct?.productId ?? null,
+        currentCardId,
+        selectedProductId: props.selectedProductId ?? null,
+      });
+
+      if (!update) return;
+
+      if (currentCardId !== update.targetCardId) {
+        toothFieldProgress.setToothProductCard(arch, toothNumber, update.targetCardId);
+      }
+
+      const assignedProduct = toothFieldProgress.getToothProduct(arch, toothNumber);
+      if (!assignedProduct || assignedProduct.id !== update.targetProductId) {
+        fetchAndAssignProduct(arch, toothNumber, update.targetProductId);
+      }
+    },
+    [
+      activeProductCardId,
+      fetchAndAssignProduct,
+      isActiveProductRemovables,
+      props.addedProducts,
+      props.selectedProductId,
+      toothFieldProgress,
+    ]
+  );
+
+  const handleToothExtractionToggle = useCallback(
+    (arch: Arch, toothNumber: number, extractionCode: string, extractions?: ProductExtraction[]) => {
+      ensureRemovableToothOwnership(arch, toothNumber);
+      teeth.handleToothExtractionToggle(arch, toothNumber, extractionCode, extractions);
+    },
+    [ensureRemovableToothOwnership, teeth]
+  );
+
   const handleMaxillaryToothClick = (toothNumber: number) => {
     const isAdding = !teeth.maxillaryTeeth.includes(toothNumber);
     teeth.handleMaxillaryToothClick(toothNumber);
@@ -964,6 +1019,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
     setShowDetails,
     // Composed hooks
     ...teeth,
+    handleToothExtractionToggle,
     handleMaxillaryToothClick, // Override: also fetch product for Removables on tooth add
     handleMandibularToothClick, // Override: also fetch product for Removables on tooth add
     handleSelectRetentionType, // Override with wrapped version

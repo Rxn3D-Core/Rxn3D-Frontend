@@ -14,6 +14,7 @@ import { CaseSummaryNotes } from "./CaseSummaryNotes";
 import { mockImpressions } from "../constants";
 import { hasRetentionOptions, isRemovableCategory, isFixedCategory } from "../utils/categoryHelpers";
 import { hasAdvanceField } from "./FixedRestorationFields";
+import { getCard0RepTooth, getRemovableRepTeeth } from "../utils/removableReadiness";
 
 export function CaseDesignCenter(props: CaseDesignProps) {
   const state = useCaseDesignState(props);
@@ -126,15 +127,14 @@ export function CaseDesignCenter(props: CaseDesignProps) {
 
   const getRemovablesRepTeeth = (arch: "maxillary" | "mandibular") => {
     const allTeeth = arch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
-    const cardToRepTooth = new Map<number, number>();
-    for (const tn of allTeeth) {
-      if (!state.getToothProduct(arch, tn)) continue;
-      const card = state.getToothProductCard(arch, tn);
-      if (card != null && !cardToRepTooth.has(card)) {
-        cardToRepTooth.set(card, tn);
-      }
-    }
-    return [...cardToRepTooth.values()];
+    const selectedTeeth = arch === "maxillary" ? state.maxillaryTeeth : state.mandibularTeeth;
+    return getRemovableRepTeeth({
+      allTeeth,
+      selectedTeeth,
+      getToothProduct: state.getToothProduct,
+      getToothProductCard: state.getToothProductCard,
+      arch,
+    });
   };
 
   const maxillaryRemovablesRepTeeth = maxillaryHasRemovablesTeeth ? getRemovablesRepTeeth("maxillary") : [];
@@ -153,11 +153,14 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   // the opposing product accordion from appearing.
   const getCard0RepTooth = (arch: "maxillary" | "mandibular"): number | null => {
     const allTeeth = arch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
-    for (const tn of allTeeth) {
-      if (!state.getToothProduct(arch, tn)) continue;
-      if (state.getToothProductCard(arch, tn) === 0) return tn;
-    }
-    return null;
+    const selectedTeeth = arch === "maxillary" ? state.maxillaryTeeth : state.mandibularTeeth;
+    return getCard0RepTooth({
+      allTeeth,
+      selectedTeeth,
+      getToothProduct: state.getToothProduct,
+      getToothProductCard: state.getToothProductCard,
+      arch,
+    });
   };
 
   const maxillaryRemovablesImpressionDone = (() => {

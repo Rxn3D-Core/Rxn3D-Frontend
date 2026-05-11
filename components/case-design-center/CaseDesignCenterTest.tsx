@@ -394,7 +394,6 @@ export default function Page() {
         // Fetch real product details so the accordion shows the correct name/image
         const details = addedProductId ? await fetchProductDetails(addedProductId) : null;
         const categoryName = details?.category_name || result.categoryName || "";
-        const isRemovable = isRemovableCategory(details);
         const newProduct: AddedProduct = {
           id: Date.now(),
           productId: addedProductId,
@@ -411,7 +410,7 @@ export default function Page() {
             image_url: details?.image_url || "",
           },
           arch: pendingProductArch,
-          expanded: !isRemovable,
+          expanded: true,
         };
         setAddedProducts((prev) => [newProduct, ...prev.map((p) => ({ ...p, expanded: false }))]);
         setWizardMode("initial");

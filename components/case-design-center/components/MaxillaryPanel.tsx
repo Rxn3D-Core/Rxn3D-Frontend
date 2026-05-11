@@ -45,6 +45,9 @@ import { resolveVariationDisplay } from "../utils/variationHelpers";
 import { parseAddonDisplayItems } from "../utils/addonDisplayHelpers";
 import { isSingleDefaultOnlyExtractionList } from "../utils/extractionHelpers";
 import { hasImplantRetention } from "../utils/implantHelpers";
+import { filterToothStateForActiveCard } from "../utils/activeRemovableCardState.js";
+import { getActiveProductPopoverContextToken } from "../utils/activeProductPopoverContext.js";
+import { shouldUseFixedRetentionMode } from "../utils/activeFixedPopoverMode";
 import { FixedRestorationFields } from "./FixedRestorationFields";
 import type { ImplantDetailData } from "./ImplantDetailSection";
 import { RemovableRestorationFields } from "./RemovableRestorationFields";
@@ -289,7 +292,7 @@ function AutoOpenShadeGuideIfEmpty({
     setShadeSelectionState({
       arch,
       productId,
-      fieldType: stumpShadeEmpty ? "stump_shade" : "tooth_shade",
+      fieldType: toothShadeEmpty ? "tooth_shade" : "stump_shade",
     });
   }, [caseSubmitted, isExpanded, isShadeSectionVisible, stumpShadeEmpty, toothShadeEmpty, arch, productId, setShadeSelectionState]);
   return null;
@@ -323,7 +326,15 @@ function AutoOpenImpressionIfEmpty({
       hasAutoOpenedRef.current = false;
       return;
     }
-    if (!isImpressionVisible || !isImpressionEmpty || hasAutoOpenedRef.current) return;
+    if (!isImpressionVisible || !isImpressionEmpty) {
+      hasAutoOpenedRef.current = false;
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      return;
+    }
+    if (hasAutoOpenedRef.current) return;
     hasAutoOpenedRef.current = true;
     // Clear any pending timer before starting a new one
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -789,6 +800,13 @@ export function MaxillaryPanel({
   const [opposingActiveExtractions, setOpposingActiveExtractions] = useState<import("../types").ProductExtraction[]>([]);
   /** Tracks which card 0 fixed product group is active (by product ID) for tooth chart sync */
   const [activeFixedGroupProductId, setActiveFixedGroupProductId] = useState<number | null>(null);
+  const activePopoverContextToken = getActiveProductPopoverContextToken({
+    arch: "maxillary",
+    activeProductCardId,
+    activeFixedGroupProductId,
+    activeProductIsRemovables,
+    hasOpposingProduct: !!opposingProductData,
+  });
   // Auto-collapse card 0 removables accordion when another maxillary product becomes active.
   // Only react to cards that belong to this (maxillary) arch — mandibular card activations
   // should not collapse the maxillary removable accordion.
@@ -803,6 +821,41 @@ export function MaxillaryPanel({
     }
     prevActiveCardRef.current = activeProductCardId;
   }, [activeProductCardId, addedProducts]);
+  const prevPopoverContextRef = useRef(activePopoverContextToken);
+  useEffect(() => {
+    if (prevPopoverContextRef.current !== activePopoverContextToken) {
+      setToothStatusPopoverTooth(null);
+      setToothStatusPopoverExtractions([]);
+      if (retentionPopoverState.arch === "maxillary") {
+        setRetentionPopoverState({ arch: null, toothNumber: null });
+      }
+    }
+    prevPopoverContextRef.current = activePopoverContextToken;
+  }, [activePopoverContextToken, retentionPopoverState.arch, setRetentionPopoverState]);
+  useEffect(() => {
+    const groupedByProduct: Record<string, number[]> = {};
+    for (const toothNumber of MAXILLARY_ALL_TEETH) {
+      if (getToothProductCard("maxillary", toothNumber) !== 0) continue;
+      const product = getToothProduct("maxillary", toothNumber);
+      if (!product || isRemovableCategory(product)) continue;
+      const groupKey = product.id ? String(product.id) : "no_product";
+      if (!groupedByProduct[groupKey]) groupedByProduct[groupKey] = [];
+      groupedByProduct[groupKey].push(toothNumber);
+    }
+    const slotIds = Object.keys(groupedByProduct).map((groupKey) => `fixed0_${groupKey}`);
+    if (slotIds.length === 0) return;
+    setExpandedCards((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const slotId of slotIds) {
+        if (!(slotId in next)) {
+          next[slotId] = true;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [getToothProduct, getToothProductCard, maxillaryRetentionTypes]);
   /** Panel-level gum shade picker state — shown above tooth status boxes */
   const [panelGumShadePicker, setPanelGumShadePicker] = useState<{ toothNumber: number; gumShades: { gum_shade_id: number; name: string; color_code_middle: string; brand: { id: number } }[]; selectedName?: string | null; stepOverride?: FieldStep } | null>(null);
   // Mutual exclusion: close gum shade picker when tooth shade picker opens for this arch
@@ -826,6 +879,16 @@ export function MaxillaryPanel({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAnyModalOpen]);
+  const safeOpenImpressionModal = useCallback((arch: Arch, productId: string, toothNumber?: number) => {
+    if (toothNumber != null) {
+      const product = getToothProduct(arch, toothNumber);
+      const needsImplantDetail =
+        (maxillaryRetentionTypes[toothNumber] || []).includes("Implant") ||
+        hasImplantRetention([toothNumber], maxillaryRetentionTypes, product?.retention_options);
+      if (needsImplantDetail && implantDetailCompleteByTooth[toothNumber] !== true) return;
+    }
+    handleOpenImpressionModal(arch, productId, toothNumber);
+  }, [getToothProduct, maxillaryRetentionTypes, implantDetailCompleteByTooth, handleOpenImpressionModal]);
   // Auto-select default grade for removable products when product loads
   const autoGradeApplied = useRef<Set<string>>(new Set());
   useEffect(() => {
@@ -947,8 +1010,7 @@ export function MaxillaryPanel({
       const activeAp = addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "maxillary");
       if (activeAp) {
         if (isRemovableCategory(activeAp.product)) {
-          // For removable products, always show all selected teeth (don't filter by card ownership)
-          return maxillaryTeeth;
+          return maxillaryTeeth.filter(tn => getToothProductCard("maxillary", tn) === activeProductCardId);
         }
       }
       // Non-removable added product card active — show only its teeth
@@ -964,6 +1026,38 @@ export function MaxillaryPanel({
     // No specific card active — show all teeth
     return maxillaryTeeth;
   })();
+
+  const activeMaxillarySvgState = (() => {
+    const activeAp = activeProductCardId !== 0
+      ? addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "maxillary")
+      : null;
+
+    if (!activeAp || !isRemovableCategory(activeAp.product)) {
+      return {
+        toothExtractionMap: opposingProductData ? opposingToothExtractionMap : maxillaryToothExtractionMap,
+        toothStatusByTooth: opposingProductData ? opposingToothExtractionMap : maxillaryToothExtractionMap,
+        claspTeeth: maxillaryClaspTeeth,
+        willExtractTeeth: [] as number[],
+      };
+    }
+
+    return filterToothStateForActiveCard({
+      activeProductCardId,
+      selectedTeeth: activeCardMaxillaryTeeth,
+      toothExtractionMap: maxillaryToothExtractionMap,
+      toothStatusByTooth: maxillaryToothExtractionMap,
+      claspTeeth: maxillaryClaspTeeth,
+      willExtractTeeth: [],
+      missingTeeth: [],
+      getToothProductCard,
+      arch: "maxillary",
+    });
+  })();
+  const useFixedRetentionMode = shouldUseFixedRetentionMode({
+    activeProductCardId,
+    activeProductIsRemovables,
+    activeFixedGroupProductId,
+  });
 
   return (
     <div className={`flex-1 min-w-0 px-0 md:px-16 order-1 lg:order-none`}>
@@ -1071,7 +1165,20 @@ export function MaxillaryPanel({
                       .filter(([, code]) => isWedCode(code))
                       .map(([tn]) => Number(tn))
                   : [];
-                return Array.from(new Set([...wedFromMain, ...wedFromOpposing]));
+                const allWed = Array.from(new Set([...wedFromMain, ...wedFromOpposing]));
+                return activeMaxillarySvgState.willExtractTeeth.length > 0 || (activeProductCardId !== 0 && activeProductIsRemovables)
+                  ? filterToothStateForActiveCard({
+                      activeProductCardId,
+                      selectedTeeth: [],
+                      toothExtractionMap: {},
+                      toothStatusByTooth: {},
+                      claspTeeth: [],
+                      willExtractTeeth: allWed,
+                      missingTeeth: [],
+                      getToothProductCard,
+                      arch: "maxillary",
+                    }).willExtractTeeth
+                  : allWed;
               })()}
               missingTeeth={(() => {
                 const isMissingCode = (code: string) => {
@@ -1103,7 +1210,20 @@ export function MaxillaryPanel({
                       .filter(([, code]) => isMissingCode(code))
                       .map(([tn]) => Number(tn))
                   : [];
-                return Array.from(new Set([...missingFromMain, ...missingFromOpposing]));
+                const allMissing = Array.from(new Set([...missingFromMain, ...missingFromOpposing]));
+                return activeProductCardId !== 0 && activeProductIsRemovables
+                  ? filterToothStateForActiveCard({
+                      activeProductCardId,
+                      selectedTeeth: [],
+                      toothExtractionMap: {},
+                      toothStatusByTooth: {},
+                      claspTeeth: [],
+                      willExtractTeeth: [],
+                      missingTeeth: allMissing,
+                      getToothProductCard,
+                      arch: "maxillary",
+                    }).missingTeeth
+                  : allMissing;
               })()}
               onToothClick={(toothNumber: number) => {
                 // When a Removable/Ortho card is active (card 0 or added), show tooth status popover.
@@ -1133,8 +1253,7 @@ export function MaxillaryPanel({
                 }
                 // When an added Fixed Restoration card is active, bypass opposingProductData routing
                 // so the user can assign teeth to the new product via the retention popover.
-                const addedFixedActive = activeProductCardId !== 0 && !activeProductIsRemovables;
-                if (opposingProductData && !addedFixedActive) {
+                if (opposingProductData && !useFixedRetentionMode) {
                   if (opposingActiveExtractionCode) {
                     const opposingExt = opposingProductData.opposite_extractions?.find((e) => e.code === opposingActiveExtractionCode);
                     const maxTeeth = opposingExt?.max_teeth && opposingExt.max_teeth > 0 ? opposingExt.max_teeth : null;
@@ -1168,7 +1287,7 @@ export function MaxillaryPanel({
                     setToothStatusPopoverTooth(toothNumber);
                     setToothStatusPopoverExtractions(exts);
                   }
-                } else if (activeExtractionCode && !addedFixedActive) {
+                } else if (activeExtractionCode && !useFixedRetentionMode) {
                   const activeExt = activeExtractions.find((e) => e.code === activeExtractionCode);
                   const maxTeeth = activeExt?.max_teeth && activeExt.max_teeth > 0 ? activeExt.max_teeth : null;
                   const currentCount = Object.values(maxillaryToothExtractionMap).filter((c) => c === activeExtractionCode).length;
@@ -1190,7 +1309,7 @@ export function MaxillaryPanel({
               showRetentionPopover={
                 retentionPopoverState.arch === "maxillary" && !activeProductIsRemovables &&
                 toothStatusPopoverTooth === null &&
-                (!opposingProductData || activeProductCardId !== 0)
+                (!opposingProductData || useFixedRetentionMode)
               }
               retentionPopoverTooth={retentionPopoverState.toothNumber}
               onSelectRetentionType={(tooth, type) =>
@@ -1204,15 +1323,15 @@ export function MaxillaryPanel({
               }
               onDeselectTooth={handleMaxillaryToothDeselect}
               retentionOptions={retentionOptions}
-              toothExtractionMap={opposingProductData ? opposingToothExtractionMap : maxillaryToothExtractionMap}
+              toothExtractionMap={activeMaxillarySvgState.toothExtractionMap}
               hideSelectionIndicators={(!!opposingProductData && activeProductCardId === 0) || activeProductIsRemovables}
               showCheckboxes={false}
               onCheckedTeethChange={handleMaxillaryCheckedTeethChange}
-              claspTeeth={maxillaryClaspTeeth}
+              claspTeeth={activeMaxillarySvgState.claspTeeth}
               getAddonValue={(toothNumber) => getFieldValue("maxillary", toothNumber, "addons")}
               showToothStatusPopover={(activeProductIsRemovables || (!!opposingProductData && activeProductCardId === 0)) && toothStatusPopoverTooth !== null}
               toothStatusPopoverTooth={toothStatusPopoverTooth}
-              toothStatusByTooth={opposingProductData ? opposingToothExtractionMap : maxillaryToothExtractionMap}
+              toothStatusByTooth={activeMaxillarySvgState.toothStatusByTooth}
               toothStatusOptions={toothStatusPopoverExtractions
                 .filter(e => e.status === "Active")
                 .sort((a, b) => a.sequence - b.sequence)
@@ -1322,7 +1441,9 @@ export function MaxillaryPanel({
             .filter(ap => ap.arch === "maxillary")
             .map((ap) => {
               const slotId = `added_${ap.id}`;
-              const isApRemovables = isRemovableCategory(ap.product);
+              const virtualProduct = getToothProduct("maxillary", -ap.id);
+              const initialResolvedProduct = virtualProduct ?? ap.product ?? null;
+              const isApRemovables = initialResolvedProduct ? !hasRetentionOptions(initialResolvedProduct) : false;
               const cardTeethSource = isApRemovables ? MAXILLARY_ALL_TEETH : maxillaryTeeth;
               const cardTeeth = cardTeethSource.filter(
                 tn => isApRemovables
@@ -1335,22 +1456,32 @@ export function MaxillaryPanel({
               const cardProduct = cardTeeth.length > 0
                 ? getToothProduct("maxillary", cardTeeth[0])
                 : null;
-              const apProduct = cardProduct ?? ap.product ?? null;
+              const apProduct = cardProduct ?? virtualProduct ?? ap.product ?? null;
               const apVariationDisplay = resolveVariationDisplay(apProduct, assignedTeeth.length);
               const cardProductName = apVariationDisplay.name || "Untitled Product";
               const cardProductImage = apVariationDisplay.imageUrl;
               const cardCategoryName = cardProduct?.subcategory?.category?.name || ap.product?.subcategory?.category?.name || ap.product?.category_name || "";
               const cardSubcategoryName = cardProduct?.subcategory?.name || ap.product?.subcategory?.name || ap.product?.subcategory_name || "";
               const apDisplayTeeth = isApRemovables
-                ? [...maxillaryTeeth].sort((a, b) => a - b)
+                ? assignedTeeth
                 : cardTeeth;
               const HEADER_EXTRACTION_CODES_AP = new Set(["MT", "WED", "WEOD", "FR", "CTS"]);
               const apFilteredTeeth = apDisplayTeeth.filter(tn => {
                 const code = maxillaryToothExtractionMap[tn];
                 return code && HEADER_EXTRACTION_CODES_AP.has(code);
               });
-              const apFinalTeeth = apFilteredTeeth.length > 0 ? apFilteredTeeth : cardTeeth;
+              const apFinalTeeth = apFilteredTeeth.length > 0 ? apFilteredTeeth : apDisplayTeeth;
               const cardToothDisplay = apFinalTeeth.length > 0 ? `#${apFinalTeeth.join(",")}` : "";
+              const removableDisplayTeeth = assignedTeeth;
+              const removableHasVariationMatch =
+                isApRemovables &&
+                !!apProduct &&
+                assignedTeeth.length > 0 &&
+                resolveVariationDisplay(apProduct, assignedTeeth.length).name === cardProductName;
+              const removableIsFullDenture = isApRemovables
+                ? isFullDentureProduct(apProduct?.extractions)
+                : false;
+              const removableCardExtractions = (apProduct?.extractions || []).filter((e) => e.status === "Active");
               const isActive = activeProductCardId === ap.id;
               const apRepTn = cardTeeth.length > 0 ? cardTeeth[0] : (isApRemovables ? -ap.id : 0);
               const apProductKey = `maxillary_prep_${apRepTn}`;
@@ -1366,16 +1497,17 @@ export function MaxillaryPanel({
               const apEstDaysText = apDays != null
                 ? `${apDays} work day${apDays === 1 ? "" : "s"} after submission`
                 : "10 work days after submission";
+              const isExpanded = ap.expanded;
 
               return (
                 <ProductAccordionCard
                   key={ap.id}
                   slotId={slotId}
                   arch="maxillary"
-                  isExpanded={isCardExpanded(slotId)}
+                  isExpanded={isExpanded}
                   onToggle={() => {
-                    toggleCard(slotId);
-                    setActiveProductCardId(isCardExpanded(slotId) ? 0 : ap.id);
+                    toggleAddedProductExpanded(ap.id);
+                    setActiveProductCardId(isExpanded ? 0 : ap.id);
                     setActiveFixedGroupProductId(null);
                     setActiveExtractionCode(null);
                   }}
@@ -1399,18 +1531,123 @@ export function MaxillaryPanel({
                     if (wasFixed && remainingAdded === 0 && !hasCard0) onBackToCategories?.("maxillary");
                   }}
                   caseSubmitted={caseSubmitted}
+                  customHeader={
+                    isApRemovables ? (
+                      <div
+                        className={`w-full flex flex-col transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] relative cursor-pointer ${hasRushedAp ? "bg-[#FCE4E4]" : "bg-white"}`}
+                        onClick={() => {
+                          toggleAddedProductExpanded(ap.id);
+                          setActiveProductCardId(isExpanded ? 0 : ap.id);
+                          setActiveFixedGroupProductId(null);
+                          setActiveExtractionCode(null);
+                        }}
+                      >
+                        <div className="absolute top-3 right-2 z-10">
+                          <ChevronDown
+                            size={21.6}
+                            className={`text-black transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                          />
+                        </div>
+                        <div className="flex items-stretch gap-[10px] px-[8px] py-[14px]" onClick={(e) => e.stopPropagation()}>
+                          <ProductImagePreview
+                            imageUrl={cardProductImage}
+                            altText={cardProductName}
+                            containerClassName="w-[162px] h-[152px] rounded-[6px] bg-white flex items-center justify-center flex-shrink-0 overflow-hidden shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]"
+                            imgClassName="w-full h-full object-contain"
+                            fallback={
+                              <div className="w-full h-full flex items-center justify-center">
+                                <span className="text-[10px] text-gray-400">No img</span>
+                              </div>
+                            }
+                          />
+                          <div className="flex-1 min-w-0 flex flex-col gap-[9.94px]">
+                            {(removableDisplayTeeth.length > 0 || caseSubmitted) && (
+                              <>
+                                <div className="flex items-center gap-[4px] flex-wrap">
+                                  {cardCategoryName && <AccordionBadge>{cardCategoryName}</AccordionBadge>}
+                                  {cardSubcategoryName && <AccordionBadge>{cardSubcategoryName}</AccordionBadge>}
+                                </div>
+                                <div className={`flex flex-col items-center text-center gap-[5px] border rounded-[7px] p-[10px] mr-8 ${confirmDetailsChecked ? "border-[#34C759]" : "border-[#F97316]"}`}>
+                                  <p className="font-[Inter] text-[20px] font-bold leading-[20px] tracking-[-0.02em] text-black">
+                                    {removableIsFullDenture
+                                      ? cardProductName
+                                      : removableHasVariationMatch
+                                        ? `${cardProductName} to replace`
+                                        : `${cardProductName} ${removableDisplayTeeth.length} ${removableDisplayTeeth.length === 1 ? "tooth" : "teeth"} to replace`}
+                                    {hasRushedAp && <RushIcon className="inline w-[14px] h-[14px] ml-1" />}
+                                  </p>
+                                  <p className="font-[Inter] text-[20px] font-normal leading-[20px] tracking-[-0.02em] text-black">
+                                    {cardToothDisplay}
+                                  </p>
+                                </div>
+                                {removableCardExtractions.length > 0 && !isSingleDefaultOnlyExtractionList(removableCardExtractions) && (
+                                  <ToothStatusBoxes
+                                    extractions={removableCardExtractions}
+                                    selectedTeeth={assignedTeeth}
+                                    allArchTeeth={MAXILLARY_ALL_TEETH}
+                                    toothExtractionMap={maxillaryToothExtractionMap}
+                                    claspTeeth={maxillaryClaspTeeth}
+                                    activeExtractionCode={activeExtractionCode}
+                                    onActiveExtractionChange={(code, exts) => { setActiveExtractionCode(code); if (exts) setActiveExtractions(exts); }}
+                                    onToothExtractionToggle={(tn, code, extractions) => handleToothExtractionToggle("maxillary", tn, code, extractions)}
+                                    onSelectAllTeeth={selectAllMaxillaryTeeth}
+                                    onRequiredValidationChange={onToothStatusValidationChange}
+                                    isRemovable={true}
+                                    submitted={caseSubmitted}
+                                    hideDefaultBox={true}
+                                    disableRequiredValidation={true}
+                                  />
+                                )}
+                                <div className="flex items-center gap-[4.97px] flex-wrap">
+                                  {apStageVal && !isSingleStageNoStages(apProduct) && (
+                                    <AccordionBadge>{apStageVal}</AccordionBadge>
+                                  )}
+                                  <EstDaysLabel rushed={!!hasRushedAp} text={hasRushedAp ? "5 work days after submission" : apEstDaysText} />
+                                  {!caseSubmitted && (
+                                    <span
+                                      role="button"
+                                      tabIndex={0}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const wasFixed = isFixedCategory(apProduct);
+                                        const remainingAdded = addedProducts.filter(p => p.arch === "maxillary").length - 1;
+                                        const hasCard0 = maxillaryHasFixedCard0 || maxillaryHasRemovablesCard0;
+                                        MAXILLARY_ALL_TEETH.filter(tn => getToothProductCard("maxillary", tn) === ap.id).forEach(tn => {
+                                          clearToothProgress("maxillary", tn);
+                                          handleMaxillaryToothDeselect(tn);
+                                        });
+                                        handleRemoveAddedProduct(ap.id);
+                                        if (wasFixed && remainingAdded === 0 && !hasCard0) onBackToCategories?.("maxillary");
+                                      }}
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter" || e.key === " ") e.currentTarget.click();
+                                      }}
+                                      className="inline-flex items-center justify-center flex-shrink-0 cursor-pointer hover:text-red-500 transition-colors"
+                                      title="Remove product"
+                                    >
+                                      <Trash2 size={18} className="text-[#999999] hover:text-red-500" />
+                                    </span>
+                                  )}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ) : undefined
+                  }
                 >
-                      {cardTeeth.length === 0 ? (
+                      {!isApRemovables && cardTeeth.length === 0 ? (
                         <p className="text-xs text-[#b4b0b0] text-center py-4">
                           Select teeth from the chart above to assign them to this product.
                         </p>
                       ) : (() => {
-                        const isCardRemovables = isApRemovables || isRemovableCategory(apProduct);
+                        const isCardRemovables = apProduct ? !hasRetentionOptions(apProduct) : isApRemovables;
                         // For removable cards with no teeth yet, use the virtual slot (-ap.id) where product data was pre-fetched
                         const repTn = cardTeeth.length > 0 ? cardTeeth[0] : (isCardRemovables ? -ap.id : 0);
                         const toothProduct = getToothProduct("maxillary", repTn);
                         const isFixed = hasRetentionOptions(toothProduct);
-                        const isRemovables = isCardRemovables || isRemovableCategory(toothProduct);
+                        const isRemovables = toothProduct ? !hasRetentionOptions(toothProduct) : isCardRemovables;
                         const fixedChain = isFixed ? getFixedFieldChain(toothProduct?.advance_fields, toothProduct) : undefined;
                         const removableChain = isRemovables ? getRemovableFieldChain(toothProduct) : undefined;
                         const advFields = toothProduct?.advance_fields;
@@ -1425,6 +1662,9 @@ export function MaxillaryPanel({
                           const productKey = `maxillary_prep_${repTn}`;
                           const impressionModalProductId = String(ap.id);
                           const apStageVal = fVal("stage") || selectedStages[productKey] || "";
+                          const removableImplantDetailReady =
+                            !cardTeeth.some((n) => (maxillaryRetentionTypes[n] || []).includes("Implant")) ||
+                            implantDetailCompleteByTooth[repTn] === true;
                           return (
                             <>
                             {!isSingleStageNoStages(toothProduct) && (
@@ -1432,7 +1672,7 @@ export function MaxillaryPanel({
                               productId={productKey}
                               arch="maxillary"
                               toothNumber={repTn}
-                              isExpanded={isCardExpanded(slotId)}
+                              isExpanded={isExpanded}
                               isStageVisible={hasAdvanceField("stage", advFields)}
                               isStageEmpty={!isFComplete("stage") && !(selectedStages[productKey])}
                               onOpenStage={handleOpenStageModal}
@@ -1440,10 +1680,10 @@ export function MaxillaryPanel({
                             />
                             )}
                             <AutoOpenImpressionIfEmpty
-                              isExpanded={isCardExpanded(slotId)}
-                              isImpressionVisible={isF("impression")}
+                              isExpanded={isExpanded}
+                              isImpressionVisible={isF("impression") && removableImplantDetailReady}
                               isImpressionEmpty={!isFieldCompleted("maxillary", repTn, "impression")}
-                              onOpenImpressionModal={handleOpenImpressionModal}
+                              onOpenImpressionModal={safeOpenImpressionModal}
                               arch="maxillary"
                               productId={impressionModalProductId}
                               toothNumber={repTn}
@@ -1521,7 +1761,7 @@ export function MaxillaryPanel({
                                         </div>
                                       </fieldset>
                                       )}
-                                      {isF("gum_shade") && isFComplete("teeth_shade") && isFComplete("gum_shade") && (
+                                      {isF("gum_shade") && isFComplete("teeth_shade") && (
                                       <fieldset
                                         className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${isFComplete("gum_shade") && !caseSubmitted ? "border-[#34a853]" : isFComplete("gum_shade") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
                                         onClick={() => {
@@ -1535,7 +1775,7 @@ export function MaxillaryPanel({
                                       >
                                         <legend className={`text-sm px-1 leading-none ${isFComplete("gum_shade") && !caseSubmitted ? "text-[#34a853]" : isFComplete("gum_shade") ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Gum Shade</legend>
                                         <div className="flex items-center gap-2 w-full">
-                                          {(() => {
+                                          {isFComplete("gum_shade") ? (() => {
                                             const raw = fVal("gum_shade");
                                             let displayName = raw;
                                             let color: string | null = null;
@@ -1547,12 +1787,14 @@ export function MaxillaryPanel({
                                                 <span className="text-[14px] sm:text-lg text-[#000000] truncate">{displayName}</span>
                                                 {color && (
                                                   <svg width="29" height="29" viewBox="0 0 29 29" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0 ml-auto">
-                                                    <rect width="28.0391" height="28.0391" rx="6" fill={color} />
-                                                  </svg>
-                                                )}
-                                              </>
-                                            );
-                                          })()}
+                                                <rect width="28.0391" height="28.0391" rx="6" fill={color} />
+                                              </svg>
+                                            )}
+                                          </>
+                                        );
+                                      })() : (
+                                            <span className="text-[#CF0202] text-base font-medium">Select Gum Shade</span>
+                                          )}
                                           {isFComplete("gum_shade") && !caseSubmitted && <Check size={16} className="text-[#34a853] flex-shrink-0" />}
                                         </div>
                                       </fieldset>
@@ -1563,10 +1805,10 @@ export function MaxillaryPanel({
                               })()}
 
                               {/* Row 4: Impression */}
-                              {isF("impression") && (
+                              {isF("impression") && removableImplantDetailReady && (
                                 <fieldset
                                   className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${isFComplete("impression") && !caseSubmitted ? "border-[#34a853]" : isFComplete("impression") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
-                                  onClick={() => handleOpenImpressionModal("maxillary", impressionModalProductId, repTn)}
+                                  onClick={() => safeOpenImpressionModal("maxillary", impressionModalProductId, repTn)}
                                 >
                                   <legend className={`text-sm px-1 leading-none ${isFComplete("impression") && !caseSubmitted ? "text-[#34a853]" : isFComplete("impression") ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Impression</legend>
                                   <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{fVal("impression") || getImpressionDisplayText(impressionModalProductId, "maxillary")}</span>
@@ -1614,11 +1856,15 @@ export function MaxillaryPanel({
                           isFieldVisible("maxillary", apFirstTn, step, apFixedChain);
                         const apFixedShadeProductId = `fixed_${apFirstTn}`;
                         const apNeedsStumpShade = apFixedChain.includes("fixed_stump_shade") &&
-                          (apToothProduct?.has_gum_shade === "Yes" || apToothProduct?.has_teeth_shade === "Yes" ||
-                           (apToothProduct?.advance_fields || []).some((f) => { const n = (f.name || "").toLowerCase(); return (n.includes("stump") || n.includes("teeth") || n.includes("tooth") || n.includes("gum")) && n.includes("shade"); }));
-                        const apNeedsToothShade = apFixedChain.includes("fixed_shade_trio") &&
-                          (apToothProduct?.has_teeth_shade === "Yes" ||
-                           (apToothProduct?.advance_fields || []).some((f) => { const n = (f.name || "").toLowerCase(); return (n.includes("cervical") || n.includes("incisal") || n.includes("body") || n.includes("crown") || (n.includes("tooth") && !n.includes("stump"))) && n.includes("shade"); }));
+                          (apToothProduct?.has_gum_shade === "Yes" ||
+                           (apToothProduct?.advance_fields || []).some((f) => { const n = (f.name || "").toLowerCase(); return (n.includes("stump") || n.includes("gum")) && n.includes("shade"); }));
+                        const apNeedsToothShade =
+                          (apFixedChain.includes("fixed_stump_shade") &&
+                           (apToothProduct?.has_teeth_shade === "Yes" ||
+                            (apToothProduct?.advance_fields || []).some((f) => { const n = (f.name || "").toLowerCase(); return (n.includes("teeth") || (n.includes("tooth") && !n.includes("stump") && !n.includes("gum"))) && n.includes("shade"); }))) ||
+                          (apFixedChain.includes("fixed_shade_trio") &&
+                           (apToothProduct?.has_teeth_shade === "Yes" ||
+                            (apToothProduct?.advance_fields || []).some((f) => { const n = (f.name || "").toLowerCase(); return (n.includes("cervical") || n.includes("incisal") || n.includes("body") || n.includes("crown") || (n.includes("tooth") && !n.includes("stump"))) && n.includes("shade"); })));
                         const apShadeRequired = apNeedsStumpShade || apNeedsToothShade;
                         const apFixedShadeIncomplete =
                           apShadeRequired &&
@@ -1637,7 +1883,7 @@ export function MaxillaryPanel({
                               productId={apGroupStageProductIdFixed}
                               arch="maxillary"
                               toothNumber={apFirstTn}
-                              isExpanded={isCardExpanded(slotId)}
+                              isExpanded={isExpanded}
                               isStageVisible={!apFixedShadeIncomplete && apIsFixed("fixed_stage")}
                               isStageEmpty={!isFieldCompleted("maxillary", apFirstTn, "fixed_stage") && !(selectedStages[apGroupStageProductIdFixed])}
                               onOpenStage={handleOpenStageModal}
@@ -1647,25 +1893,31 @@ export function MaxillaryPanel({
                             <AutoOpenShadeGuideIfEmpty
                               arch="maxillary"
                               productId={apFixedShadeProductId}
-                              isExpanded={isCardExpanded(slotId)}
+                              isExpanded={isExpanded}
                               isShadeSectionVisible={apIsFixed("fixed_stump_shade") || apIsFixed("fixed_shade_trio")}
-                              stumpShadeEmpty={!getSelectedShade(apFixedShadeProductId, "maxillary", "stump_shade")}
-                              toothShadeEmpty={!getSelectedShade(apFixedShadeProductId, "maxillary", "tooth_shade")}
+                              stumpShadeEmpty={apNeedsStumpShade && !getSelectedShade(apFixedShadeProductId, "maxillary", "stump_shade")}
+                              toothShadeEmpty={apNeedsToothShade && !getSelectedShade(apFixedShadeProductId, "maxillary", "tooth_shade")}
                               setShadeSelectionState={setShadeSelectionState}
                               caseSubmitted={caseSubmitted}
                             />
-                            <AutoOpenImpressionIfEmpty
-                              isExpanded={isCardExpanded(slotId)}
-                              isImpressionVisible={!apFixedShadeIncomplete && apIsFixed("fixed_impression") && !(hasImplantRetention(cardTeeth, maxillaryRetentionTypes, apToothProduct?.retention_options) && implantDetailCompleteByTooth[apFirstTn] !== true)}
-                              isImpressionEmpty={!isFieldCompleted("maxillary", apFirstTn, "fixed_impression")}
-                              onOpenImpressionModal={handleOpenImpressionModal}
-                              arch="maxillary"
-                              productId={apToothProduct?.id?.toString() || `fixed_${apFirstTn}`}
-                              toothNumber={apFirstTn}
-                              caseSubmitted={caseSubmitted}
+                            <AutoOpenGumShade
+                              visible={
+                                apNeedsStumpShade &&
+                                !!getSelectedShade(apFixedShadeProductId, "maxillary", "tooth_shade") &&
+                                !getSelectedShade(apFixedShadeProductId, "maxillary", "stump_shade")
+                              }
+                              hasValue={!!getSelectedShade(apFixedShadeProductId, "maxillary", "stump_shade")}
+                              onOpen={() =>
+                                setPanelGumShadePicker({
+                                  toothNumber: apFirstTn,
+                                  gumShades: apToothProduct?.gum_shades || [],
+                                  stepOverride: "fixed_stump_shade",
+                                })
+                              }
                             />
                             <FixedRestorationFields
                               arch="maxillary"
+                              isExpanded={isExpanded}
                               firstToothNumber={apFirstTn}
                               groupStageToothNumber={apFirstTn}
                               groupStageProductIdFixed={apGroupStageProductIdFixed}
@@ -1691,7 +1943,7 @@ export function MaxillaryPanel({
                               getSelectedShade={getSelectedShade as (productId: string, arch: string, shadeType: string) => any}
                               handleOpenStageModal={handleOpenStageModal}
                               handleShadeFieldClick={handleShadeFieldClick}
-                              handleOpenImpressionModal={handleOpenImpressionModal}
+                              handleOpenImpressionModal={safeOpenImpressionModal}
                               handleOpenAddOnsModal={handleOpenAddOnsModal}
                               getImpressionDisplayText={getImpressionDisplayText as (productId: string, arch: string) => string}
                               setPanelGumShadePicker={(s) => setPanelGumShadePicker({ ...s, stepOverride: "fixed_stump_shade" })}
@@ -1788,11 +2040,15 @@ export function MaxillaryPanel({
               // Gate: hide product fields while shade guide is open and incomplete for this product
               const _fixedShadeProductId = `fixed_${groupStageToothNumber}`;
               const _needsStumpShade = fixedChain.includes("fixed_stump_shade") &&
-                (selectedProduct?.has_gum_shade === "Yes" || selectedProduct?.has_teeth_shade === "Yes" ||
-                 (selectedProduct?.advance_fields || []).some((f) => { const n = (f.name || "").toLowerCase(); return (n.includes("stump") || n.includes("teeth") || n.includes("tooth") || n.includes("gum")) && n.includes("shade"); }));
-              const _needsToothShade = fixedChain.includes("fixed_shade_trio") &&
-                (selectedProduct?.has_teeth_shade === "Yes" ||
-                 (selectedProduct?.advance_fields || []).some((f) => { const n = (f.name || "").toLowerCase(); return (n.includes("cervical") || n.includes("incisal") || n.includes("body") || n.includes("crown") || (n.includes("tooth") && !n.includes("stump"))) && n.includes("shade"); }));
+                (selectedProduct?.has_gum_shade === "Yes" ||
+                 (selectedProduct?.advance_fields || []).some((f) => { const n = (f.name || "").toLowerCase(); return (n.includes("stump") || n.includes("gum")) && n.includes("shade"); }));
+              const _needsToothShade =
+                (fixedChain.includes("fixed_stump_shade") &&
+                 (selectedProduct?.has_teeth_shade === "Yes" ||
+                  (selectedProduct?.advance_fields || []).some((f) => { const n = (f.name || "").toLowerCase(); return (n.includes("teeth") || (n.includes("tooth") && !n.includes("stump") && !n.includes("gum"))) && n.includes("shade"); }))) ||
+                (fixedChain.includes("fixed_shade_trio") &&
+                 (selectedProduct?.has_teeth_shade === "Yes" ||
+                  (selectedProduct?.advance_fields || []).some((f) => { const n = (f.name || "").toLowerCase(); return (n.includes("cervical") || n.includes("incisal") || n.includes("body") || n.includes("crown") || (n.includes("tooth") && !n.includes("stump"))) && n.includes("shade"); })));
               const _shadeRequired = _needsStumpShade || _needsToothShade;
               const fixedShadeIncomplete =
                 _shadeRequired &&
@@ -1802,7 +2058,6 @@ export function MaxillaryPanel({
                   (!_needsStumpShade || getSelectedShade(_fixedShadeProductId, "maxillary", "stump_shade")) &&
                   (!_needsToothShade || getSelectedShade(_fixedShadeProductId, "maxillary", "tooth_shade"))
                 );
-
               const showFixedActions = isFixedCategory(selectedProduct) && isFieldCompleted("maxillary", groupStageToothNumber, "fixed_impression") && !caseSubmitted;
               const showPrepActions = !isFixedCategory(selectedProduct) && isFieldCompleted("maxillary", firstToothNumber, "addons") && !caseSubmitted;
               const showActions = showFixedActions || showPrepActions;
@@ -1863,20 +2118,25 @@ export function MaxillaryPanel({
                         productId={`fixed_${groupStageToothNumber}`}
                         isExpanded={true}
                         isShadeSectionVisible={isFixed("fixed_stump_shade") || isFixed("fixed_shade_trio")}
-                        stumpShadeEmpty={!getSelectedShade(`fixed_${groupStageToothNumber}`, "maxillary", "stump_shade")}
-                        toothShadeEmpty={!getSelectedShade(`fixed_${groupStageToothNumber}`, "maxillary", "tooth_shade")}
+                        stumpShadeEmpty={_needsStumpShade && !getSelectedShade(`fixed_${groupStageToothNumber}`, "maxillary", "stump_shade")}
+                        toothShadeEmpty={_needsToothShade && !getSelectedShade(`fixed_${groupStageToothNumber}`, "maxillary", "tooth_shade")}
                         setShadeSelectionState={setShadeSelectionState}
                         caseSubmitted={caseSubmitted}
                       />
-                      <AutoOpenImpressionIfEmpty
-                        isExpanded={isCardExpanded(slotId)}
-                        isImpressionVisible={!fixedShadeIncomplete && isFixed("fixed_impression") && !(hasImplantRetention(toothNumbers, maxillaryRetentionTypes, selectedProduct?.retention_options) && implantDetailCompleteByTooth[groupStageToothNumber] !== true)}
-                        isImpressionEmpty={!isFieldCompleted("maxillary", groupStageToothNumber, "fixed_impression")}
-                        onOpenImpressionModal={handleOpenImpressionModal}
-                        arch="maxillary"
-                        productId={selectedProduct?.id?.toString() || `fixed_${groupStageToothNumber}`}
-                        toothNumber={groupStageToothNumber}
-                        caseSubmitted={caseSubmitted}
+                      <AutoOpenGumShade
+                        visible={
+                          _needsStumpShade &&
+                          !!getSelectedShade(`fixed_${groupStageToothNumber}`, "maxillary", "tooth_shade") &&
+                          !getSelectedShade(`fixed_${groupStageToothNumber}`, "maxillary", "stump_shade")
+                        }
+                        hasValue={!!getSelectedShade(`fixed_${groupStageToothNumber}`, "maxillary", "stump_shade")}
+                        onOpen={() =>
+                          setPanelGumShadePicker({
+                            toothNumber: groupStageToothNumber,
+                            gumShades: selectedProduct?.gum_shades || [],
+                            stepOverride: "fixed_stump_shade",
+                          })
+                        }
                       />
                     </>
                   )}
@@ -1884,6 +2144,7 @@ export function MaxillaryPanel({
                   {isFixedCategory(selectedProduct) ? (
                     <FixedRestorationFields
                       arch="maxillary"
+                      isExpanded={isCardExpanded(slotId)}
                       firstToothNumber={groupStageToothNumber}
                       groupStageToothNumber={groupStageToothNumber}
                       groupStageProductIdFixed={groupStageProductIdFixed}
@@ -1909,7 +2170,7 @@ export function MaxillaryPanel({
                       getSelectedShade={getSelectedShade as (productId: string, arch: string, shadeType: string) => any}
                       handleOpenStageModal={handleOpenStageModal}
                       handleShadeFieldClick={handleShadeFieldClick}
-                      handleOpenImpressionModal={handleOpenImpressionModal}
+                      handleOpenImpressionModal={safeOpenImpressionModal}
                       handleOpenAddOnsModal={handleOpenAddOnsModal}
                       getImpressionDisplayText={getImpressionDisplayText as (productId: string, arch: string) => string}
                       setPanelGumShadePicker={(s) => setPanelGumShadePicker({ ...s, stepOverride: "fixed_stump_shade" })}
@@ -1933,7 +2194,7 @@ export function MaxillaryPanel({
                       uncompleteFieldStep={uncompleteFieldStep}
                       handleOpenStageModal={handleOpenStageModal}
                       handleShadeFieldClick={handleShadeFieldClick}
-                      handleOpenImpressionModal={handleOpenImpressionModal}
+                      handleOpenImpressionModal={safeOpenImpressionModal}
                       handleOpenAddOnsModal={handleOpenAddOnsModal}
                       setPanelGumShadePicker={setPanelGumShadePicker}
                       noOpposingNeeded={noOpposingNeeded}
@@ -2115,6 +2376,9 @@ export function MaxillaryPanel({
                       const impressionModalProductId = "0";
                       const stageVal = fVal("stage") || selectedStages[productKey] || "";
                       const singleStageSkip = isSingleStageNoStages(toothProduct);
+                      const removableImplantDetailReady =
+                        !cardTeeth.some((n) => (maxillaryRetentionTypes[n] || []).includes("Implant")) ||
+                        implantDetailCompleteByTooth[repTn] === true;
                       return (
                         <>
                         {!singleStageSkip && (
@@ -2131,9 +2395,9 @@ export function MaxillaryPanel({
                         )}
                         <AutoOpenImpressionIfEmpty
                           isExpanded={isCardExpanded(SLOT_ID)}
-                          isImpressionVisible={isF("impression")}
+                          isImpressionVisible={isF("impression") && removableImplantDetailReady}
                           isImpressionEmpty={!isFComplete("impression")}
-                          onOpenImpressionModal={handleOpenImpressionModal}
+                          onOpenImpressionModal={safeOpenImpressionModal}
                           arch="maxillary"
                           productId={impressionModalProductId}
                           toothNumber={repTn}
@@ -2217,7 +2481,7 @@ export function MaxillaryPanel({
                                     </div>
                                   </fieldset>
                                   )}
-                                  {isF("gum_shade") && isFComplete("teeth_shade") && isFComplete("gum_shade") && (
+                                  {isF("gum_shade") && isFComplete("teeth_shade") && (
                                   <fieldset
                                     className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${isFComplete("gum_shade") && !caseSubmitted ? "border-[#34a853]" : isFComplete("gum_shade") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
                                     onClick={() => {
@@ -2231,7 +2495,7 @@ export function MaxillaryPanel({
                                   >
                                     <legend className={`text-sm px-1 leading-none ${isFComplete("gum_shade") && !caseSubmitted ? "text-[#34a853]" : isFComplete("gum_shade") ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Gum Shade</legend>
                                     <div className="flex items-center gap-2 w-full">
-                                      {(() => {
+                                      {isFComplete("gum_shade") ? (() => {
                                         const raw = fVal("gum_shade");
                                         let displayName = raw;
                                         let color: string | null = null;
@@ -2243,12 +2507,14 @@ export function MaxillaryPanel({
                                             <span className="text-[14px] sm:text-lg text-[#000000] truncate">{displayName}</span>
                                             {color && (
                                               <svg width="29" height="29" viewBox="0 0 29 29" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0 ml-auto">
-                                                <rect width="28.0391" height="28.0391" rx="6" fill={color} />
-                                              </svg>
-                                            )}
-                                          </>
-                                        );
-                                      })()}
+                                            <rect width="28.0391" height="28.0391" rx="6" fill={color} />
+                                          </svg>
+                                        )}
+                                      </>
+                                    );
+                                  })() : (
+                                        <span className="text-[#CF0202] text-base font-medium">Select Gum Shade</span>
+                                      )}
                                       {isFComplete("gum_shade") && !caseSubmitted && <Check size={16} className="text-[#34a853] flex-shrink-0" />}
                                     </div>
                                   </fieldset>
@@ -2262,7 +2528,7 @@ export function MaxillaryPanel({
                           {isF("impression") && (
                             <fieldset
                               className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${isFComplete("impression") && !caseSubmitted ? "border-[#34a853]" : isFComplete("impression") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
-                              onClick={() => handleOpenImpressionModal("maxillary", impressionModalProductId, repTn)}
+                              onClick={() => safeOpenImpressionModal("maxillary", impressionModalProductId, repTn)}
                             >
                               <legend className={`text-sm px-1 leading-none ${isFComplete("impression") && !caseSubmitted ? "text-[#34a853]" : isFComplete("impression") ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Impression</legend>
                               <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{fVal("impression") || getImpressionDisplayText(impressionModalProductId, "maxillary")}</span>
@@ -2414,7 +2680,7 @@ export function MaxillaryPanel({
                         className={`border border-[#b4b0b0] rounded px-3 py-0 relative h-[42px] flex items-center ${caseSubmitted ? "" : "cursor-pointer hover:bg-gray-50"}`}
                         onClick={() => {
                           if (caseSubmitted) return;
-                          handleOpenImpressionModal("mandibular", "0", 17);
+                          safeOpenImpressionModal("mandibular", "0", 17);
                         }}
                       >
                         <legend className="text-sm px-1 leading-none text-[#7f7f7f]">Impression</legend>

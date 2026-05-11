@@ -173,6 +173,7 @@ export function ImplantDetailSection({
   const inclusionValue = inclusionField ? (dynamicFields[inclusionField.id] ?? "No inclusion") : inclusions;
   const row2Complete = row1Complete && !!inclusionValue.trim();
   const row3Visible = row2Complete;
+  const activeAbutmentFieldId = abutmentFields.find((f) => !(dynamicFields[f.id] ?? ""))?.id ?? null;
 
   const abutmentComplete = abutmentFields.length > 0
     ? abutmentFields.every((f) => !!(dynamicFields[f.id] ?? ""))
@@ -291,7 +292,9 @@ export function ImplantDetailSection({
 
               {row3Visible && abutmentFields.length > 0 && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                  {abutmentFields.map((f) => (
+                  {abutmentFields
+                    .filter((f) => !!(dynamicFields[f.id] ?? "") || f.id === activeAbutmentFieldId)
+                    .map((f) => (
                     <SelectField
                       key={f.id}
                       label={f.name}
@@ -318,7 +321,7 @@ export function ImplantDetailSection({
                 <CardGallery
                   options={brandItems}
                   value={brand}
-                  onChange={(v) => update({ brand: v, platform: "" })}
+                  onChange={(v) => update({ brand: v, platform: "", size: "" })}
                 />
               )}
 
@@ -326,7 +329,7 @@ export function ImplantDetailSection({
                 <CardGallery
                   options={platformList}
                   value={platform}
-                  onChange={(v) => update({ platform: v })}
+                  onChange={(v) => update({ platform: v, size: "" })}
                 />
               )}
 
@@ -374,16 +377,18 @@ export function ImplantDetailSection({
                     open={legacyAbutmentTypeOpen}
                     onOpenChange={setLegacyAbutmentTypeOpen}
                   />
-                  <SelectField
-                    label="Abutment Detail"
-                    emptyLabel="Select abutment detail"
-                    value={abutmentDetail}
-                    options={abutmentDetailOptions}
-                    caseSubmitted={caseSubmitted}
-                    onChange={(v) => { update({ abutmentDetail: v }); setLegacyAbutmentDetailOpen(false); }}
-                    open={legacyAbutmentDetailOpen}
-                    onOpenChange={setLegacyAbutmentDetailOpen}
-                  />
+                  {abutmentType && (
+                    <SelectField
+                      label="Abutment Detail"
+                      emptyLabel="Select abutment detail"
+                      value={abutmentDetail}
+                      options={abutmentDetailOptions}
+                      caseSubmitted={caseSubmitted}
+                      onChange={(v) => { update({ abutmentDetail: v }); setLegacyAbutmentDetailOpen(false); }}
+                      open={legacyAbutmentDetailOpen}
+                      onOpenChange={setLegacyAbutmentDetailOpen}
+                    />
+                  )}
                 </div>
               )}
             </>
