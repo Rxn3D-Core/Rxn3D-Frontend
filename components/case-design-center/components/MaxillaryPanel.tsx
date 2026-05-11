@@ -44,12 +44,14 @@ import { isRemovableCategory, isFixedCategory, hasRetentionOptions, isSingleStag
 import { resolveVariationDisplay } from "../utils/variationHelpers";
 import { parseAddonDisplayItems } from "../utils/addonDisplayHelpers";
 import { isSingleDefaultOnlyExtractionList } from "../utils/extractionHelpers";
+import { hasImplantRetention } from "../utils/implantHelpers";
 import { FixedRestorationFields } from "./FixedRestorationFields";
 import type { ImplantDetailData } from "./ImplantDetailSection";
 import { RemovableRestorationFields } from "./RemovableRestorationFields";
 
 import { AccordionBadge, EstDaysLabel } from "./AccordionBadge";
 import { ProductImagePreview } from "./ProductImagePreview";
+import { ProductAccordionCard } from "./ProductAccordionCard";
 import {
   getPreferredLabGumShade,
   getPreferredLabTeethShade,
@@ -477,9 +479,6 @@ interface MaxillaryPanelProps {
   // Expansion
   expandedLeft: boolean;
   setExpandedLeft: (v: boolean) => void;
-  isPrepPonticExpanded: (toothNumber: number) => boolean;
-  togglePrepPonticExpanded: (toothNumber: number) => void;
-
   // Rush
   rushedProducts: Record<string, any>;
 
@@ -700,8 +699,6 @@ export function MaxillaryPanel({
   handleShadeFieldClick,
   expandedLeft,
   setExpandedLeft,
-  isPrepPonticExpanded,
-  togglePrepPonticExpanded,
   rushedProducts,
   handleOpenImpressionModal,
   handleOpenAddOnsModal,
@@ -769,8 +766,22 @@ export function MaxillaryPanel({
       return next;
     });
   }, [onImplantDetailChange]);
-  /** Expand/collapse for initial (card 0) Removables product accordion */
-  const [initialRemovablesExpanded, setInitialRemovablesExpanded] = useState(true);
+  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({
+    removable0: true,
+  });
+
+  const isCardExpanded = (slotId: string): boolean => expandedCards[slotId] ?? false;
+
+  const toggleCard = (slotId: string) =>
+    setExpandedCards(prev => ({ ...prev, [slotId]: !prev[slotId] }));
+
+  const expandCard = (slotId: string) =>
+    setExpandedCards(prev => ({ ...prev, [slotId]: true }));
+
+  const collapseAllCards = () =>
+    setExpandedCards(prev =>
+      Object.fromEntries(Object.keys(prev).map(k => [k, false]))
+    );
   /** Expand/collapse for the opposing product accordion */
   const [opposingAccordionExpanded, setOpposingAccordionExpanded] = useState(true);
   /** Active extraction code selected in the opposing ToothStatusBoxes */
@@ -788,7 +799,7 @@ export function MaxillaryPanel({
       prevActiveCardRef.current !== activeProductCardId &&
       addedProducts.some(ap => ap.id === activeProductCardId && ap.arch === "maxillary")
     ) {
-      setInitialRemovablesExpanded(false);
+      collapseAllCards();
     }
     prevActiveCardRef.current = activeProductCardId;
   }, [activeProductCardId, addedProducts]);
@@ -1309,10 +1320,8 @@ export function MaxillaryPanel({
           {/* Added product accordions — full field workflow, teeth owned by each card */}
           {showDetails && addedProducts
             .filter(ap => ap.arch === "maxillary")
-            .map((ap, apIndex) => {
-              // For removable restoration products, use all arch teeth so accordion stays visible when teeth are marked missing
-              // Each added product is an independent slot — always show its accordion.
-              // Newly added Fixed products have no teeth yet and show an empty state until the user assigns teeth.
+            .map((ap) => {
+              const slotId = `added_${ap.id}`;
               const isApRemovables = isRemovableCategory(ap.product);
               const cardTeethSource = isApRemovables ? MAXILLARY_ALL_TEETH : maxillaryTeeth;
               const cardTeeth = cardTeethSource.filter(
@@ -1320,7 +1329,6 @@ export function MaxillaryPanel({
                   ? getToothProduct("maxillary", tn) && getToothProductCard("maxillary", tn) === ap.id
                   : getToothProductCard("maxillary", tn) === ap.id
               );
-              // All teeth directly assigned to this card, sorted ascending
               const assignedTeeth = isApRemovables
                 ? MAXILLARY_ALL_TEETH.filter(tn => getToothProductCard("maxillary", tn) === ap.id).sort((a, b) => a - b)
                 : cardTeeth;
@@ -1333,252 +1341,65 @@ export function MaxillaryPanel({
               const cardProductImage = apVariationDisplay.imageUrl;
               const cardCategoryName = cardProduct?.subcategory?.category?.name || ap.product?.subcategory?.category?.name || ap.product?.category_name || "";
               const cardSubcategoryName = cardProduct?.subcategory?.name || ap.product?.subcategory?.name || ap.product?.subcategory_name || "";
-              // For removable products, show all selected teeth from the chart
               const apDisplayTeeth = isApRemovables
                 ? [...maxillaryTeeth].sort((a, b) => a - b)
                 : cardTeeth;
-              // Filter to only show teeth with extraction statuses (MT, WED, WEOD, FR, CTS)
               const HEADER_EXTRACTION_CODES_AP = new Set(["MT", "WED", "WEOD", "FR", "CTS"]);
               const apFilteredTeeth = apDisplayTeeth.filter(tn => {
                 const code = maxillaryToothExtractionMap[tn];
                 return code && HEADER_EXTRACTION_CODES_AP.has(code);
               });
-              // Show filtered teeth if extraction codes exist, otherwise show all tooth numbers (match card 0 behavior)
               const apFinalTeeth = apFilteredTeeth.length > 0 ? apFilteredTeeth : cardTeeth;
               const cardToothDisplay = apFinalTeeth.length > 0 ? `#${apFinalTeeth.join(",")}` : "";
               const isActive = activeProductCardId === ap.id;
-              // For removable cards with no teeth yet, use a negative virtual slot (-ap.id) so each card
-              // has isolated product data fetched into it. Real teeth (1-32) are always positive.
               const apRepTn = cardTeeth.length > 0 ? cardTeeth[0] : (isApRemovables ? -ap.id : 0);
               const apProductKey = `maxillary_prep_${apRepTn}`;
               const hasRushedAp = rushedProducts[apProductKey];
-              const apStageVal = cardTeeth.length > 0 ? (selectedStages[apProductKey] || getFieldValue("maxillary", apRepTn, "stage")) : "";
-              const apRemStageObj = cardProduct?.stages?.find(s => s.name === apStageVal);
-              const apRemDays = apRemStageObj?.days_to_process;
-              const apRemEstDaysText = apRemDays != null
-                ? `${apRemDays} work day${apRemDays === 1 ? "" : "s"} after submission`
+              const apStageKey = isFixedCategory(apProduct)
+                ? `maxillary_fixed_${apRepTn}`
+                : `maxillary_prep_${apRepTn}`;
+              const apStageVal = apRepTn > 0
+                ? (selectedStages[apStageKey] || getFieldValue("maxillary", apRepTn, isFixedCategory(apProduct) ? "fixed_stage" : "stage"))
+                : "";
+              const apStageObj = cardProduct?.stages?.find(s => s.name === apStageVal);
+              const apDays = apStageObj?.days_to_process;
+              const apEstDaysText = apDays != null
+                ? `${apDays} work day${apDays === 1 ? "" : "s"} after submission`
                 : "10 work days after submission";
 
-              // For removable products, compute extractions for header display
-              // Use apRepTn (the representative slot where product data was loaded) to get extractions
-              const apExtractions = isApRemovables
-                ? (getToothProduct("maxillary", apRepTn)?.extractions ?? [])
-                : [];
-
-              // Full denture detection: only MT extraction, no TIM
-              const apIsFullDenture = isApRemovables && isFullDentureProduct(apExtractions);
-              const apImpressionDone = apRepTn !== 0 && (
-                isFieldCompleted("maxillary", apRepTn, "impression") ||
-                isFieldCompleted("maxillary", apRepTn, "fixed_impression")
-              );
-
               return (
-                <div key={ap.id} className="relative mt-2">
-                <div
-                  className={`rounded-lg bg-white overflow-hidden ${hasRushedAp ? "border-2 border-[#CF0202]" : "border border-[#d9d9d9]"}`}
+                <ProductAccordionCard
+                  key={ap.id}
+                  slotId={slotId}
+                  arch="maxillary"
+                  isExpanded={isCardExpanded(slotId)}
+                  onToggle={() => {
+                    toggleCard(slotId);
+                    setActiveProductCardId(isCardExpanded(slotId) ? 0 : ap.id);
+                    setActiveFixedGroupProductId(null);
+                    setActiveExtractionCode(null);
+                  }}
+                  productName={cardProductName}
+                  productImageUrl={cardProductImage}
+                  toothDisplay={cardToothDisplay}
+                  subcategoryName={cardSubcategoryName}
+                  stageName={apStageVal || undefined}
+                  estDaysText={apEstDaysText}
+                  hasRush={!!hasRushedAp}
+                  canDelete={true}
+                  onDelete={() => {
+                    const wasFixed = isFixedCategory(apProduct);
+                    const remainingAdded = addedProducts.filter(p => p.arch === "maxillary").length - 1;
+                    const hasCard0 = maxillaryHasFixedCard0 || maxillaryHasRemovablesCard0;
+                    MAXILLARY_ALL_TEETH.filter(tn => getToothProductCard("maxillary", tn) === ap.id).forEach(tn => {
+                      clearToothProgress("maxillary", tn);
+                      handleMaxillaryToothDeselect(tn);
+                    });
+                    handleRemoveAddedProduct(ap.id);
+                    if (wasFixed && remainingAdded === 0 && !hasCard0) onBackToCategories?.("maxillary");
+                  }}
+                  caseSubmitted={caseSubmitted}
                 >
-                  {isApRemovables ? (
-                    // Removable restoration: product name top, image+tooth-status-boxes in same row
-                    <div
-                      className={`w-full flex flex-col transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] relative ${hasRushedAp ? "bg-[#FCE4E4]" : "bg-white"}`}
-                      onClick={() => {
-                        toggleAddedProductExpanded(ap.id);
-                        setActiveProductCardId(isActive ? 0 : ap.id);
-                        setActiveFixedGroupProductId(null);
-                        setActiveExtractionCode(null);
-                      }}
-                      style={{ cursor: "pointer" }}
-                    >
-                      {/* Chevron top-right */}
-                      <div className="absolute top-3 right-2 z-10">
-                        <ChevronDown
-                          size={21.6}
-                          className={`text-black transition-transform ${ap.expanded ? "rotate-180" : ""}`}
-                        />
-                      </div>
-                      {/* Image left + product name, status boxes & badges right */}
-                      <div className="flex items-stretch gap-[10px] px-[8px] py-[14px]" onClick={(e) => e.stopPropagation()}>
-                        <ProductImagePreview
-                          imageUrl={cardProductImage}
-                          altText={cardProductName}
-                          containerClassName="w-[162px] h-[152px] rounded-[6px] bg-white flex items-center justify-center flex-shrink-0 overflow-hidden shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]"
-                          imgClassName="w-full h-full object-contain"
-                          fallback={
-                            <div className="w-full h-full flex items-center justify-center">
-                              <span className="text-[10px] text-gray-400">No img</span>
-                            </div>
-                          }
-                        />
-                        <div className="flex-1 min-w-0 flex flex-col gap-[6px]">
-                          {assignedTeeth.length > 0 ? (
-                            <>
-                              {/* Breadcrumb badges: category + subcategory at top */}
-                              <div className="flex items-center gap-[4px] flex-wrap">
-                                {cardCategoryName && <AccordionBadge>{cardCategoryName}</AccordionBadge>}
-                                {cardSubcategoryName && <AccordionBadge>{cardSubcategoryName}</AccordionBadge>}
-                              </div>
-                              {/* Title + tooth numbers in green-bordered box */}
-                              <div className={`flex flex-col items-center text-center gap-[5px] border rounded-[7px] p-[10px] mr-8 ${confirmDetailsChecked ? "border-[#34C759]" : "border-[#F97316]"}`}>
-                                <p className="font-[Inter] text-[20px] font-bold leading-[20px] tracking-[-0.02em] text-black">
-                                  {apIsFullDenture
-                                    ? cardProductName
-                                    : `${cardProductName} ${assignedTeeth.length} ${assignedTeeth.length === 1 ? "tooth" : "teeth"} to replace`}
-                                  {hasRushedAp && <RushIcon className="inline w-[14px] h-[14px] ml-1" />}
-                                </p>
-                                <p className="font-[Inter] text-[20px] font-normal leading-[20px] tracking-[-0.02em] text-black">
-                                  #{assignedTeeth.join(",")}
-                                </p>
-                              </div>
-                              {/* Tooth status boxes */}
-                              {apExtractions.length > 0 && !isSingleDefaultOnlyExtractionList(apExtractions) && (
-                                <ToothStatusBoxes
-                                  extractions={apExtractions}
-                                  selectedTeeth={maxillaryTeeth}
-                                  allArchTeeth={MAXILLARY_ALL_TEETH}
-                                  toothExtractionMap={maxillaryToothExtractionMap}
-                                  claspTeeth={maxillaryClaspTeeth}
-                                  activeExtractionCode={activeExtractionCode}
-                                  onActiveExtractionChange={(code, exts) => { setActiveExtractionCode(code); if (exts) setActiveExtractions(exts); }}
-                                  onToothExtractionToggle={(tn, code, extractions) => handleToothExtractionToggle("maxillary", tn, code, extractions)}
-                                  onSelectAllTeeth={selectAllMaxillaryTeeth}
-                                  onRequiredValidationChange={onToothStatusValidationChange}
-                                  isRemovable={true}
-                                  submitted={caseSubmitted}
-                                  hideDefaultBox={true}
-                                  disableRequiredValidation={true}
-                                />
-                              )}
-                              {/* Est days + delete button on same line */}
-                              <div className="flex items-center gap-[6px]">
-                                <EstDaysLabel rushed={hasRushedAp} text={hasRushedAp ? "5 work days after submission" : apRemEstDaysText} />
-                                {!caseSubmitted && (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      const remainingAdded = addedProducts.filter(p => p.arch === "maxillary").length - 1;
-                                      const hasCard0 = maxillaryHasFixedCard0 || maxillaryHasRemovablesCard0;
-                                      MAXILLARY_ALL_TEETH.filter(tn => getToothProductCard("maxillary", tn) === ap.id).forEach(tn => {
-                                        clearToothProgress("maxillary", tn);
-                                        handleMaxillaryToothDeselect(tn);
-                                      });
-                                      handleRemoveAddedProduct(ap.id);
-                                      if (remainingAdded === 0 && !hasCard0) onBackToCategories?.("maxillary");
-                                    }}
-                                    className="hover:text-red-500 transition-colors"
-                                    title="Remove product"
-                                  >
-                                    <Trash2 size={18} className="text-[#999999] hover:text-red-500" />
-                                  </button>
-                                )}
-                              </div>
-                            </>
-                          ) : (
-                            !caseSubmitted && (
-                              <div className="flex items-center">
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const remainingAdded = addedProducts.filter(p => p.arch === "maxillary").length - 1;
-                                    const hasCard0 = maxillaryHasFixedCard0 || maxillaryHasRemovablesCard0;
-                                    MAXILLARY_ALL_TEETH.filter(tn => getToothProductCard("maxillary", tn) === ap.id).forEach(tn => {
-                                      clearToothProgress("maxillary", tn);
-                                      handleMaxillaryToothDeselect(tn);
-                                    });
-                                    handleRemoveAddedProduct(ap.id);
-                                    if (remainingAdded === 0 && !hasCard0) onBackToCategories?.("maxillary");
-                                  }}
-                                  className="hover:text-red-500 transition-colors"
-                                  title="Remove product"
-                                >
-                                  <Trash2 size={18} className="text-[#999999] hover:text-red-500" />
-                                </button>
-                              </div>
-                            )
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    // Non-removable: original horizontal layout
-                  <button
-                    type="button"
-                    onClick={() => {
-                      toggleAddedProductExpanded(ap.id);
-                      setActiveProductCardId(isActive ? 0 : ap.id);
-                      setActiveFixedGroupProductId(null);
-                      setActiveExtractionCode(null);
-                    }}
-                    className={`w-full flex items-center py-[14px] px-2 gap-[10px] transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] ${hasRushedAp ? "bg-[#FCE4E4] hover:bg-[#f8d4d4]" : "bg-white hover:bg-gray-50"}`}
-                  >
-                    <ProductImagePreview
-                      imageUrl={cardProductImage}
-                      altText={cardProductName}
-                    />
-                    <div className="flex-1 min-w-0 text-left flex flex-col gap-0.5">
-                      <p className="font-[Verdana] text-[14px] sm:text-lg font-bold leading-tight tracking-[-0.02em] text-black flex items-center gap-1 truncate">
-                        {cardProductName}
-                        {cardToothDisplay && (
-                          <span className="font-normal text-[13px] sm:text-base text-black">{cardToothDisplay}</span>
-                        )}
-                        {hasRushedAp && <RushIcon className="w-[20px] h-[20px] flex-shrink-0" />}
-                      </p>
-                      <div className="flex items-center gap-[5px] flex-wrap">
-                        {cardSubcategoryName && (
-                          <AccordionBadge>{cardSubcategoryName}</AccordionBadge>
-                        )}
-                        {!isSingleStageNoStages(cardProduct) && (() => {
-                          const apStageKey = isFixedCategory(apProduct)
-                            ? `maxillary_fixed_${apRepTn}`
-                            : `maxillary_prep_${apRepTn}`;
-                          const apStageVal = apRepTn > 0 ? (selectedStages[apStageKey] || getFieldValue("maxillary", apRepTn, isFixedCategory(apProduct) ? "fixed_stage" : "stage")) : "";
-                          return apStageVal ? <AccordionBadge>{apStageVal}</AccordionBadge> : null;
-                        })()}
-                        {(() => {
-                          const apStageKey = isFixedCategory(apProduct)
-                            ? `maxillary_fixed_${apRepTn}`
-                            : `maxillary_prep_${apRepTn}`;
-                          const apStageValForDays = apRepTn > 0 ? (selectedStages[apStageKey] || getFieldValue("maxillary", apRepTn, isFixedCategory(apProduct) ? "fixed_stage" : "stage")) : "";
-                          const apStageObj = cardProduct?.stages?.find(s => s.name === apStageValForDays);
-                          const apDays = apStageObj?.days_to_process;
-                          const apEstDays = apDays != null
-                            ? `${apDays} work day${apDays === 1 ? "" : "s"} after submission`
-                            : "10 work days after submission";
-                          return <EstDaysLabel rushed={hasRushedAp} text={hasRushedAp ? "5 work days after submission" : apEstDays} />;
-                        })()}
-                        {!caseSubmitted && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const wasFixed = isFixedCategory(apProduct);
-                            const remainingAdded = addedProducts.filter(p => p.arch === "maxillary").length - 1;
-                            const hasCard0 = maxillaryHasFixedCard0 || maxillaryHasRemovablesCard0;
-                            MAXILLARY_ALL_TEETH.filter(tn => getToothProductCard("maxillary", tn) === ap.id).forEach(tn => {
-                              clearToothProgress("maxillary", tn);
-                              handleMaxillaryToothDeselect(tn);
-                            });
-                            handleRemoveAddedProduct(ap.id);
-                            if (wasFixed && remainingAdded === 0 && !hasCard0) onBackToCategories?.("maxillary");
-                          }}
-                          className="ml-1 hover:text-red-500 transition-colors"
-                          title="Remove product"
-                        >
-                          <Trash2 size={18} className="text-[#999999] hover:text-red-500" />
-                        </button>
-                        )}
-                      </div>
-                    </div>
-                    <ChevronDown
-                      size={21.6}
-                      className={`text-black flex-shrink-0 transition-transform ${ap.expanded ? "rotate-180" : ""}`}
-                    />
-                  </button>
-                  )}
-
-                  {ap.expanded && (
-                    <div className={`border-t border-[#d9d9d9] p-2.5 sm:p-4 bg-white space-y-3 max-h-[600px] overflow-y-auto scrollbar-blue${caseSubmitted ? " pointer-events-none select-none" : ""}`}>
                       {cardTeeth.length === 0 ? (
                         <p className="text-xs text-[#b4b0b0] text-center py-4">
                           Select teeth from the chart above to assign them to this product.
@@ -1611,7 +1432,7 @@ export function MaxillaryPanel({
                               productId={productKey}
                               arch="maxillary"
                               toothNumber={repTn}
-                              isExpanded={ap.expanded}
+                              isExpanded={isCardExpanded(slotId)}
                               isStageVisible={hasAdvanceField("stage", advFields)}
                               isStageEmpty={!isFComplete("stage") && !(selectedStages[productKey])}
                               onOpenStage={handleOpenStageModal}
@@ -1619,7 +1440,7 @@ export function MaxillaryPanel({
                             />
                             )}
                             <AutoOpenImpressionIfEmpty
-                              isExpanded={ap.expanded}
+                              isExpanded={isCardExpanded(slotId)}
                               isImpressionVisible={isF("impression")}
                               isImpressionEmpty={!isFieldCompleted("maxillary", repTn, "impression")}
                               onOpenImpressionModal={handleOpenImpressionModal}
@@ -1816,7 +1637,7 @@ export function MaxillaryPanel({
                               productId={apGroupStageProductIdFixed}
                               arch="maxillary"
                               toothNumber={apFirstTn}
-                              isExpanded={ap.expanded}
+                              isExpanded={isCardExpanded(slotId)}
                               isStageVisible={!apFixedShadeIncomplete && apIsFixed("fixed_stage")}
                               isStageEmpty={!isFieldCompleted("maxillary", apFirstTn, "fixed_stage") && !(selectedStages[apGroupStageProductIdFixed])}
                               onOpenStage={handleOpenStageModal}
@@ -1826,7 +1647,7 @@ export function MaxillaryPanel({
                             <AutoOpenShadeGuideIfEmpty
                               arch="maxillary"
                               productId={apFixedShadeProductId}
-                              isExpanded={ap.expanded}
+                              isExpanded={isCardExpanded(slotId)}
                               isShadeSectionVisible={apIsFixed("fixed_stump_shade") || apIsFixed("fixed_shade_trio")}
                               stumpShadeEmpty={!getSelectedShade(apFixedShadeProductId, "maxillary", "stump_shade")}
                               toothShadeEmpty={!getSelectedShade(apFixedShadeProductId, "maxillary", "tooth_shade")}
@@ -1834,8 +1655,8 @@ export function MaxillaryPanel({
                               caseSubmitted={caseSubmitted}
                             />
                             <AutoOpenImpressionIfEmpty
-                              isExpanded={ap.expanded}
-                              isImpressionVisible={!apFixedShadeIncomplete && apIsFixed("fixed_impression") && !(cardTeeth.some((n) => (maxillaryRetentionTypes[n] || []).includes("Implant")) && implantDetailCompleteByTooth[apFirstTn] !== true)}
+                              isExpanded={isCardExpanded(slotId)}
+                              isImpressionVisible={!apFixedShadeIncomplete && apIsFixed("fixed_impression") && !(hasImplantRetention(cardTeeth, maxillaryRetentionTypes, apToothProduct?.retention_options) && implantDetailCompleteByTooth[apFirstTn] !== true)}
                               isImpressionEmpty={!isFieldCompleted("maxillary", apFirstTn, "fixed_impression")}
                               onOpenImpressionModal={handleOpenImpressionModal}
                               arch="maxillary"
@@ -1880,13 +1701,10 @@ export function MaxillaryPanel({
                       })()}
 
                       <ScrollToBottom />
-                    </div>
-                  )}
-                </div>
-                </div>
+                </ProductAccordionCard>
               );
-            })
-          }
+            })}
+
           {/* Progressive field cards for Prep/Pontic teeth — grouped by product (card 0 only) */}
           {showDetails && maxillaryHasFixedCard0 && (() => {
             const prepPonticTeeth = Object.entries(maxillaryRetentionTypes)
@@ -1989,101 +1807,43 @@ export function MaxillaryPanel({
               const showPrepActions = !isFixedCategory(selectedProduct) && isFieldCompleted("maxillary", firstToothNumber, "addons") && !caseSubmitted;
               const showActions = showFixedActions || showPrepActions;
 
+              const slotId = `fixed0_${groupKey}`;
               return (
-              <div key={`prep-pontic-group-${groupKey}`} className="relative mt-4">
-              <div
-                className={`rounded-lg bg-white overflow-hidden ${
-                  hasRushed
-                    ? "border-2 border-[#CF0202]"
-                    : "border border-[#d9d9d9]"
-                }`}
-              >
-                {/* Accordion header */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    togglePrepPonticExpanded(firstToothNumber);
+                <ProductAccordionCard
+                  key={`prep-pontic-group-${groupKey}`}
+                  slotId={slotId}
+                  arch="maxillary"
+                  isExpanded={isCardExpanded(slotId)}
+                  onToggle={() => {
+                    toggleCard(slotId);
                     setActiveProductCardId(0);
                     setActiveFixedGroupProductId(selectedProduct?.id ?? null);
                   }}
-                  className={`w-full flex items-center py-[14px] px-2 gap-[10px] transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] ${
-                    hasRushed
-                      ? "bg-[#FCE4E4] hover:bg-[#f8d4d4]"
-                      : "bg-white hover:bg-gray-50"
-                  }`}
+                  productName={productName}
+                  productImageUrl={selectedProduct?.image_url ? productImage : null}
+                  toothDisplay={toothNumbersDisplay}
+                  subcategoryName={subcategoryName}
+                  stageName={
+                    !isSingleStageNoStages(selectedProduct)
+                      ? (selectedStages[`maxillary_prep_${firstToothNumber}`] || selectedStages[groupStageProductIdFixed] || undefined)
+                      : undefined
+                  }
+                  estDaysText={estDays}
+                  hasRush={hasRushed}
+                  canDelete={true}
+                  onDelete={() => {
+                    const noOtherProducts = addedProducts.filter(p => p.arch === "maxillary").length === 0;
+                    const teethToClear = MAXILLARY_ALL_TEETH.filter(
+                      (tn) => getToothProduct("maxillary", tn) && getToothProductCard("maxillary", tn) === 0
+                    );
+                    teethToClear.forEach((tn) => {
+                      clearToothProgress("maxillary", tn);
+                      handleMaxillaryToothDeselect(tn);
+                    });
+                    if (noOtherProducts) onBackToCategories?.("maxillary");
+                  }}
+                  caseSubmitted={caseSubmitted}
                 >
-                  <ProductImagePreview
-                    imageUrl={selectedProduct?.image_url ? productImage : null}
-                    altText={productName}
-                  />
-                  <div className="flex-1 min-w-0 text-left flex flex-col gap-0.5">
-                    <p className="font-[Verdana] text-[14px] sm:text-lg font-bold leading-tight tracking-[-0.02em] text-black flex items-center gap-1 truncate">
-                      {productName}
-                      {toothNumbersDisplay && (
-                        <span className="font-normal text-[13px] sm:text-base text-black">{toothNumbersDisplay}</span>
-                      )}
-                      {hasRushed && (
-                        <RushIcon className="w-[20px] h-[20px] flex-shrink-0" />
-                      )}
-                    </p>
-                    <div className="flex items-center gap-[5px] flex-wrap">
-                      {subcategoryName && (
-                        <AccordionBadge>{subcategoryName}</AccordionBadge>
-                      )}
-                      {!isSingleStageNoStages(selectedProduct) && (selectedStages[`maxillary_prep_${firstToothNumber}`] || selectedStages[groupStageProductIdFixed]) && (
-                        <AccordionBadge>{selectedStages[`maxillary_prep_${firstToothNumber}`] || selectedStages[groupStageProductIdFixed]}</AccordionBadge>
-                      )}
-                      <EstDaysLabel rushed={hasRushed} text={hasRushed ? "5 work days after submission" : estDays} />
-                      {!caseSubmitted && (
-                        <span
-                          role="button"
-                          tabIndex={0}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const noOtherProducts = addedProducts.filter(p => p.arch === "maxillary").length === 0;
-                            const teethToClear = MAXILLARY_ALL_TEETH.filter(
-                              (tn) => getToothProduct("maxillary", tn) && getToothProductCard("maxillary", tn) === 0
-                            );
-                            teethToClear.forEach((tn) => {
-                              clearToothProgress("maxillary", tn);
-                              handleMaxillaryToothDeselect(tn);
-                            });
-                            if (noOtherProducts) onBackToCategories?.("maxillary");
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              const noOtherProducts = addedProducts.filter(p => p.arch === "maxillary").length === 0;
-                              const teethToClear = MAXILLARY_ALL_TEETH.filter(
-                                (tn) => getToothProduct("maxillary", tn) && getToothProductCard("maxillary", tn) === 0
-                              );
-                              teethToClear.forEach((tn) => {
-                                clearToothProgress("maxillary", tn);
-                                handleMaxillaryToothDeselect(tn);
-                              });
-                              if (noOtherProducts) onBackToCategories?.("maxillary");
-                            }
-                          }}
-                          className="inline-flex items-center justify-center flex-shrink-0 cursor-pointer hover:text-red-500 transition-colors"
-                          title="Remove product"
-                        >
-                          <Trash2 size={18} className="text-[#999999] hover:text-red-500" />
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <ChevronDown
-                    size={21.6}
-                    className={`text-black flex-shrink-0 transition-transform ${
-                      isPrepPonticExpanded(firstToothNumber) ? "rotate-180" : ""
-                    }`}
-                  />
-                </button>
-
-                {/* Accordion body - single shared set of fields for the product group */}
-                {isPrepPonticExpanded(firstToothNumber) && (
-                <div className={`border-t border-[#d9d9d9] p-4 bg-white space-y-3 max-h-[600px] overflow-y-auto scrollbar-blue${caseSubmitted ? " pointer-events-none select-none" : ""}`}>
                   {!isSingleStageNoStages(selectedProduct) && (
                   <AutoOpenStageIfEmpty
                     productId={isFixedCategory(selectedProduct) ? groupStageProductIdFixed : `maxillary_prep_${firstToothNumber}`}
@@ -2109,8 +1869,8 @@ export function MaxillaryPanel({
                         caseSubmitted={caseSubmitted}
                       />
                       <AutoOpenImpressionIfEmpty
-                        isExpanded={isPrepPonticExpanded(firstToothNumber)}
-                        isImpressionVisible={!fixedShadeIncomplete && isFixed("fixed_impression") && !(toothNumbers.some((n) => (maxillaryRetentionTypes[n] || []).includes("Implant")) && implantDetailCompleteByTooth[groupStageToothNumber] !== true)}
+                        isExpanded={isCardExpanded(slotId)}
+                        isImpressionVisible={!fixedShadeIncomplete && isFixed("fixed_impression") && !(hasImplantRetention(toothNumbers, maxillaryRetentionTypes, selectedProduct?.retention_options) && implantDetailCompleteByTooth[groupStageToothNumber] !== true)}
                         isImpressionEmpty={!isFieldCompleted("maxillary", groupStageToothNumber, "fixed_impression")}
                         onOpenImpressionModal={handleOpenImpressionModal}
                         arch="maxillary"
@@ -2164,7 +1924,7 @@ export function MaxillaryPanel({
                       retentionTypesMap={maxillaryRetentionTypes}
                       implantDetailCompleteByTooth={implantDetailCompleteByTooth}
                       setImplantDetailCompleteByTooth={setImplantDetailCompleteByTooth}
-                      isExpanded={isPrepPonticExpanded(firstToothNumber)}
+                      isExpanded={isCardExpanded(slotId)}
                       isFieldVisible={isFieldVisible}
                       isFieldCompleted={isFieldCompleted}
                       getFieldValue={getFieldValue}
@@ -2180,16 +1940,14 @@ export function MaxillaryPanel({
                     />
                   )}
                   <ScrollToBottom />
-                </div>
-                )}
-              </div>
-              </div>
+                </ProductAccordionCard>
               );
             });
           })()}
 
           {/* Initial Removables product accordion — show fields when card 0 product is Removable/Ortho AND teeth are assigned to it */}
           {showDetails && maxillaryHasRemovablesCard0 && (() => {
+            const SLOT_ID = "removable0";
             // Use all arch teeth (not just selected) so the accordion stays visible when all teeth are marked missing
             const cardTeeth = MAXILLARY_ALL_TEETH.filter(tn => getToothProduct("maxillary", tn) && getToothProductCard("maxillary", tn) === 0);
             if (cardTeeth.length === 0) return null;
@@ -2238,123 +1996,115 @@ export function MaxillaryPanel({
             });
 
             return (
-              <div key="initial-removables-maxillary" className="relative mt-4">
-              <div className={`rounded-lg bg-white overflow-hidden ${hasRushedRemovables ? "border-2 border-[#CF0202]" : "border border-[#d9d9d9]"}`}>
-                <div
-                  className={`w-full flex flex-col transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] relative ${hasRushedRemovables ? "bg-[#FCE4E4]" : "bg-white"}`}
-                  onClick={() => {
-                    const willExpand = !initialRemovablesExpanded;
-                    setInitialRemovablesExpanded((e) => !e);
-                    if (willExpand) {
-                      setActiveProductCardId(0);
-                      collapseAllAddedProducts();
-                    }
-                  }}
-                  style={{ cursor: "pointer" }}
-                >
-                  {/* Chevron top-right */}
-                  <div className="absolute top-3 right-2 z-10">
-                    <ChevronDown
-                      size={21.6}
-                      className={`text-black transition-transform ${initialRemovablesExpanded ? "rotate-180" : ""}`}
-                    />
-                  </div>
-                  {/* Image left + product name, status boxes & badges right */}
-                  <div className="flex items-stretch gap-[10px] px-[8px] py-[14px]" onClick={(e) => e.stopPropagation()}>
-                    <ProductImagePreview
-                      imageUrl={cardProductImage}
-                      altText={cardProductName}
-                      containerClassName="w-[162px] h-[152px] rounded-[6px] bg-white flex items-center justify-center flex-shrink-0 overflow-hidden shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]"
-                      imgClassName="w-full h-full object-contain"
-                      fallback={
-                        <div className="w-full h-full flex items-center justify-center">
-                          <span className="text-[10px] text-gray-400">No img</span>
-                        </div>
+              <ProductAccordionCard
+                key="initial-removables-maxillary"
+                slotId={SLOT_ID}
+                arch="maxillary"
+                isExpanded={isCardExpanded(SLOT_ID)}
+                onToggle={() => {
+                  const willExpand = !isCardExpanded(SLOT_ID);
+                  toggleCard(SLOT_ID);
+                  if (willExpand) {
+                    setActiveProductCardId(0);
+                    collapseAllCards();
+                    expandCard(SLOT_ID);
+                  }
+                }}
+                productName={cardProductName}
+                productImageUrl={cardProductImage}
+                toothDisplay={cardToothDisplay}
+                stageName={stageVal || undefined}
+                estDaysText={estDays}
+                hasRush={!!hasRushedRemovables}
+                canDelete={false}
+                caseSubmitted={caseSubmitted}
+                customHeader={
+                  <div
+                    className={`w-full flex flex-col transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] relative cursor-pointer ${hasRushedRemovables ? "bg-[#FCE4E4]" : "bg-white"}`}
+                    onClick={() => {
+                      const willExpand = !isCardExpanded(SLOT_ID);
+                      toggleCard(SLOT_ID);
+                      if (willExpand) {
+                        setActiveProductCardId(0);
+                        collapseAllCards();
+                        expandCard(SLOT_ID);
                       }
-                    />
-                    <div className="flex-1 min-w-0 flex flex-col gap-[9.94px]">
-                      {/* Show header content only after user assigns a status via the popover, or case submitted */}
-                      {(displayTeeth.length > 0 || caseSubmitted) && (
-                        <>
-                          {/* Category badges above green box */}
-                          <div className="flex items-center gap-[4px] flex-wrap">
-                            {cardProduct?.subcategory?.category?.name && (
-                              <AccordionBadge>{cardProduct.subcategory.category.name}</AccordionBadge>
-                            )}
-                            {cardProduct?.subcategory?.name && (
-                              <AccordionBadge>{cardProduct.subcategory.name}</AccordionBadge>
-                            )}
+                    }}
+                  >
+                    <div className="absolute top-3 right-2 z-10">
+                      <ChevronDown
+                        size={21.6}
+                        className={`text-black transition-transform ${isCardExpanded(SLOT_ID) ? "rotate-180" : ""}`}
+                      />
+                    </div>
+                    <div className="flex items-stretch gap-[10px] px-[8px] py-[14px]" onClick={(e) => e.stopPropagation()}>
+                      <ProductImagePreview
+                        imageUrl={cardProductImage}
+                        altText={cardProductName}
+                        containerClassName="w-[162px] h-[152px] rounded-[6px] bg-white flex items-center justify-center flex-shrink-0 overflow-hidden shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]"
+                        imgClassName="w-full h-full object-contain"
+                        fallback={
+                          <div className="w-full h-full flex items-center justify-center">
+                            <span className="text-[10px] text-gray-400">No img</span>
                           </div>
-                          {/* Title + tooth numbers in green-bordered box */}
-                          <div className={`flex flex-col items-center text-center gap-[5px] border rounded-[7px] p-[10px] mr-8 ${confirmDetailsChecked ? "border-[#34C759]" : "border-[#F97316]"}`}>
-                            <p className="font-[Inter] text-[20px] font-bold leading-[20px] tracking-[-0.02em] text-black">
-                              {cardIsFullDenture
-                                ? cardProductName
-                                : hasVariationMatch
-                                  ? `${cardProductName} to replace`
-                                  : `${cardProductName} ${displayTeeth.length} ${displayTeeth.length === 1 ? "tooth" : "teeth"} to replace`}
-                              {hasRushedRemovables && <RushIcon className="inline w-[14px] h-[14px] ml-1" />}
-                            </p>
-                            <p className="font-[Inter] text-[20px] font-normal leading-[20px] tracking-[-0.02em] text-black">
-                              {cardToothDisplay}
-                            </p>
-                          </div>
-                          {cardExtractions.length > 0 && !isSingleDefaultOnlyExtractionList(cardExtractions) && (
-                            <ToothStatusBoxes
-                              extractions={cardExtractions}
-                              selectedTeeth={maxillaryTeeth}
-                              allArchTeeth={MAXILLARY_ALL_TEETH}
-                              toothExtractionMap={maxillaryToothExtractionMap}
-                              claspTeeth={maxillaryClaspTeeth}
-                              activeExtractionCode={activeExtractionCode}
-                              onActiveExtractionChange={(code, exts) => { setActiveExtractionCode(code); if (exts) setActiveExtractions(exts); }}
-                              onToothExtractionToggle={(tn, code, extractions) => handleToothExtractionToggle("maxillary", tn, code, extractions)}
-                              onSelectAllTeeth={selectAllMaxillaryTeeth}
-                              onRequiredValidationChange={onToothStatusValidationChange}
-                              isRemovable={true}
-                              submitted={caseSubmitted}
-                              hideDefaultBox={true}
-                              disableRequiredValidation={true}
-                            />
-                          )}
-                          {/* Est days + stage badge + trash below status boxes */}
-                          <div className="flex items-center gap-[4.97px] flex-wrap">
-                            {stageVal && !isSingleStageNoStages(cardProduct) && (
-                              <AccordionBadge>{stageVal}</AccordionBadge>
+                        }
+                      />
+                      <div className="flex-1 min-w-0 flex flex-col gap-[9.94px]">
+                        {(displayTeeth.length > 0 || caseSubmitted) && (
+                          <>
+                            <div className="flex items-center gap-[4px] flex-wrap">
+                              {cardProduct?.subcategory?.category?.name && (
+                                <AccordionBadge>{cardProduct.subcategory.category.name}</AccordionBadge>
+                              )}
+                              {cardProduct?.subcategory?.name && (
+                                <AccordionBadge>{cardProduct.subcategory.name}</AccordionBadge>
+                              )}
+                            </div>
+                            <div className={`flex flex-col items-center text-center gap-[5px] border rounded-[7px] p-[10px] mr-8 ${confirmDetailsChecked ? "border-[#34C759]" : "border-[#F97316]"}`}>
+                              <p className="font-[Inter] text-[20px] font-bold leading-[20px] tracking-[-0.02em] text-black">
+                                {cardIsFullDenture
+                                  ? cardProductName
+                                  : hasVariationMatch
+                                    ? `${cardProductName} to replace`
+                                    : `${cardProductName} ${displayTeeth.length} ${displayTeeth.length === 1 ? "tooth" : "teeth"} to replace`}
+                                {hasRushedRemovables && <RushIcon className="inline w-[14px] h-[14px] ml-1" />}
+                              </p>
+                              <p className="font-[Inter] text-[20px] font-normal leading-[20px] tracking-[-0.02em] text-black">
+                                {cardToothDisplay}
+                              </p>
+                            </div>
+                            {cardExtractions.length > 0 && !isSingleDefaultOnlyExtractionList(cardExtractions) && (
+                              <ToothStatusBoxes
+                                extractions={cardExtractions}
+                                selectedTeeth={maxillaryTeeth}
+                                allArchTeeth={MAXILLARY_ALL_TEETH}
+                                toothExtractionMap={maxillaryToothExtractionMap}
+                                claspTeeth={maxillaryClaspTeeth}
+                                activeExtractionCode={activeExtractionCode}
+                                onActiveExtractionChange={(code, exts) => { setActiveExtractionCode(code); if (exts) setActiveExtractions(exts); }}
+                                onToothExtractionToggle={(tn, code, extractions) => handleToothExtractionToggle("maxillary", tn, code, extractions)}
+                                onSelectAllTeeth={selectAllMaxillaryTeeth}
+                                onRequiredValidationChange={onToothStatusValidationChange}
+                                isRemovable={true}
+                                submitted={caseSubmitted}
+                                hideDefaultBox={true}
+                                disableRequiredValidation={true}
+                              />
                             )}
-                            <EstDaysLabel rushed={hasRushedRemovables} text={hasRushedRemovables ? "5 work days after submission" : estDays} />
-                            {!caseSubmitted && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const noOtherProducts = addedProducts.filter(p => p.arch === "maxillary").length === 0;
-                                  const teethToClear = MAXILLARY_ALL_TEETH.filter(
-                                    (tn) => getToothProduct("maxillary", tn) && getToothProductCard("maxillary", tn) === 0
-                                  );
-                                  teethToClear.forEach((tn) => {
-                                    clearToothProgress("maxillary", tn);
-                                    handleMaxillaryToothDeselect(tn);
-                                  });
-                                  setInitialRemovablesExpanded(false);
-                                  setActiveProductCardId(0);
-                                  if (noOtherProducts) onBackToCategories?.("maxillary");
-                                }}
-                                className="hover:text-red-500 transition-colors flex-shrink-0"
-                                title="Remove product"
-                              >
-                                <Trash2 size={18} className="text-[#999999] hover:text-red-500" />
-                              </button>
-                            )}
-                          </div>
-                        </>
-                      )}
+                            <div className="flex items-center gap-[4.97px] flex-wrap">
+                              {stageVal && !isSingleStageNoStages(cardProduct) && (
+                                <AccordionBadge>{stageVal}</AccordionBadge>
+                              )}
+                              <EstDaysLabel rushed={!!hasRushedRemovables} text={hasRushedRemovables ? "5 work days after submission" : estDays} />
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-
-                <div className={`border-t border-[#d9d9d9] p-2.5 sm:p-4 bg-white space-y-3 max-h-[600px] overflow-y-auto scrollbar-blue${initialRemovablesExpanded ? "" : " hidden"}${caseSubmitted ? " pointer-events-none select-none" : ""}`}>
-                    {(() => {
+                }
+              >
+                {(() => {
                       const repTn = cardTeeth[0];
                       const toothProduct = getToothProduct("maxillary", repTn);
                       const advFields = toothProduct?.advance_fields;
@@ -2372,7 +2122,7 @@ export function MaxillaryPanel({
                           productId={productKey}
                           arch="maxillary"
                           toothNumber={repTn}
-                          isExpanded={initialRemovablesExpanded}
+                          isExpanded={isCardExpanded(SLOT_ID)}
                           isStageVisible={isF("stage")}
                           isStageEmpty={!stageVal}
                           onOpenStage={handleOpenStageModal}
@@ -2380,7 +2130,7 @@ export function MaxillaryPanel({
                         />
                         )}
                         <AutoOpenImpressionIfEmpty
-                          isExpanded={initialRemovablesExpanded}
+                          isExpanded={isCardExpanded(SLOT_ID)}
                           isImpressionVisible={isF("impression")}
                           isImpressionEmpty={!isFComplete("impression")}
                           onOpenImpressionModal={handleOpenImpressionModal}
@@ -2550,9 +2300,7 @@ export function MaxillaryPanel({
                         </>
                       );
                     })()}
-                  </div>
-              </div>
-              </div>
+              </ProductAccordionCard>
             );
           })()}
 

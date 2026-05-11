@@ -717,8 +717,6 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           // Expansion
           expandedLeft={state.expandedLeft}
           setExpandedLeft={state.setExpandedLeft}
-          isPrepPonticExpanded={state.isPrepPonticExpanded}
-          togglePrepPonticExpanded={state.togglePrepPonticExpanded}
           // Rush
           rushedProducts={state.rushedProducts}
           // Modals
@@ -842,9 +840,6 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           getSelectedShade={state.getSelectedShade}
           handleShadeSelect={state.handleShadeSelect}
           handleShadeFieldClick={state.handleShadeFieldClick}
-          // Expansion
-          isPrepPonticExpanded={state.isPrepPonticExpanded}
-          togglePrepPonticExpanded={state.togglePrepPonticExpanded}
           // Rush
           rushedProducts={state.rushedProducts}
           // Modals

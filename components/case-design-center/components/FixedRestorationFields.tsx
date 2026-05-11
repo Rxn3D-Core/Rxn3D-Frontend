@@ -23,6 +23,7 @@ import type { FieldStep } from "../hooks/useToothFieldProgress";
 import { ImplantDetailSection, ImplantDetailData, defaultImplantDetailData } from "./ImplantDetailSection";
 import { isSingleStageNoStages } from "../utils/categoryHelpers";
 import { parseAddonDisplayItems } from "../utils/addonDisplayHelpers";
+import { hasImplantRetention } from "../utils/implantHelpers";
 
 /* ------------------------------------------------------------------ */
 /*  Articulator icon (Stage field)                                     */
@@ -992,7 +993,7 @@ export function FixedRestorationFields({
       })()}
 
       {/* Step 9: Impression / Add ons */}
-      {isFixed("fixed_impression") && !(toothNumbers.some((n) => (retentionTypesMap[n] || []).includes("Implant")) && implantDetailCompleteByTooth[firstToothNumber] !== true) && (() => {
+      {isFixed("fixed_impression") && !(hasImplantRetention(toothNumbers, retentionTypesMap, selectedProduct?.retention_options) && implantDetailCompleteByTooth[firstToothNumber] !== true) && (() => {
         const addonsVal = isFixed("fixed_addons") ? (getFieldValue(arch, firstToothNumber, "fixed_addons") || "") : "";
         const addonItems = parseAddonDisplayItems(addonsVal);
         const borderClass = isFieldCompleted(arch, firstToothNumber, "fixed_addons") && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]";
@@ -1005,8 +1006,7 @@ export function FixedRestorationFields({
                 isFieldCompleted(arch, firstToothNumber, "fixed_impression") && !caseSubmitted ? "border-[#34a853]" : isFieldCompleted(arch, firstToothNumber, "fixed_impression") ? "border-[#b4b0b0]" : "border-[#CF0202]"
               }`}
               onClick={() => {
-                const hasImplantForm = toothNumbers.some((n) => (retentionTypesMap[n] || []).includes("Implant"));
-                if (hasImplantForm && implantDetailCompleteByTooth[firstToothNumber] !== true) return;
+                if (hasImplantRetention(toothNumbers, retentionTypesMap, selectedProduct?.retention_options) && implantDetailCompleteByTooth[firstToothNumber] !== true) return;
                 handleOpenImpressionModal(arch, selectedProduct?.id?.toString() || `fixed_${firstToothNumber}`, firstToothNumber);
               }}
             >

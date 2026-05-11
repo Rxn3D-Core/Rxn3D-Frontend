@@ -46,18 +46,98 @@ export interface ProductImplant {
   platforms: ImplantPlatform[];
 }
 
+export interface AbutmentOption {
+  id: number;
+  abutment_type_id: number;
+  name: string;
+  image_url: string | null;
+  status: string;
+  is_default: string;
+  price: string | null;
+  sequence: number;
+}
+
+export interface ProductAbutment {
+  id: number;
+  type: string;
+  code: string;
+  description: string;
+  status: string;
+  image_url: string | null;
+  sequence: number;
+  customer_id: number;
+  options: AbutmentOption[];
+}
+
+// Module-level cache to avoid duplicate API calls per product+customer combo
+const _implantsCache = new Map<string, ProductImplant[]>();
+const _implantsInflight = new Map<string, Promise<ProductImplant[]>>();
+
 export async function fetchProductImplants(
   productId: number,
   customerId: number,
 ): Promise<ProductImplant[]> {
-  const url = new URL(`${API_BASE_URL}/product/implants`);
-  url.searchParams.set("product_id", String(productId));
-  url.searchParams.set("customer_id", String(customerId));
+  const key = `${productId}_${customerId}`;
+  const cached = _implantsCache.get(key);
+  if (cached) return cached;
 
-  const res = await fetch(url.toString(), { headers: getAuthHeaders() });
-  if (!res.ok) {
-    throw new Error(`Failed to fetch implants: ${res.statusText}`);
-  }
-  const json = await res.json();
-  return (json.data ?? json) as ProductImplant[];
+  const inflight = _implantsInflight.get(key);
+  if (inflight) return inflight;
+
+  const promise = (async () => {
+    try {
+      const url = new URL(`${API_BASE_URL}/slip/product/implants`);
+      url.searchParams.set("product_id", String(productId));
+      url.searchParams.set("customer_id", String(customerId));
+      const res = await fetch(url.toString(), { headers: getAuthHeaders() });
+      if (!res.ok) return [];
+      const json = await res.json();
+      const data = (json.data ?? json) as ProductImplant[];
+      _implantsCache.set(key, data);
+      return data;
+    } catch {
+      return [];
+    } finally {
+      _implantsInflight.delete(key);
+    }
+  })();
+
+  _implantsInflight.set(key, promise);
+  return promise;
+}
+
+const _abutmentsCache = new Map<string, ProductAbutment[]>();
+const _abutmentsInflight = new Map<string, Promise<ProductAbutment[]>>();
+
+export async function fetchProductAbutments(
+  productId: number,
+  customerId: number,
+): Promise<ProductAbutment[]> {
+  const key = `${productId}_${customerId}`;
+  const cached = _abutmentsCache.get(key);
+  if (cached) return cached;
+
+  const inflight = _abutmentsInflight.get(key);
+  if (inflight) return inflight;
+
+  const promise = (async () => {
+    try {
+      const url = new URL(`${API_BASE_URL}/slip/product/abutments`);
+      url.searchParams.set("product_id", String(productId));
+      url.searchParams.set("customer_id", String(customerId));
+      const res = await fetch(url.toString(), { headers: getAuthHeaders() });
+      if (!res.ok) return [];
+      const json = await res.json();
+      const data = (json.data ?? json) as ProductAbutment[];
+      _abutmentsCache.set(key, data);
+      return data;
+    } catch {
+      return [];
+    } finally {
+      _abutmentsInflight.delete(key);
+    }
+  })();
+
+  _abutmentsInflight.set(key, promise);
+  return promise;
 }
