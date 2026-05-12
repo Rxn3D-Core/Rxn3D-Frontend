@@ -2045,7 +2045,9 @@ export function AddProductModal({
       )}
 
       <Dialog open={isOpen} onOpenChange={handleClose}>
-        <DialogContent className={`p-0 gap-0 flex flex-col ${isMaximized ? "w-[90vw] h-[90vh] max-w-[90vw]" : "sm:max-w-[900px] max-h-[90vh]"} overflow-hidden bg-white`}>
+        <DialogContent
+          className={`p-0 gap-0 flex flex-col ${isMaximized ? "w-[90vw] h-[90vh] max-w-[90vw]" : "sm:max-w-[900px] max-h-[90vh]"} overflow-hidden bg-white`}
+        >
           <DialogHeader className="px-6 py-4 flex flex-row items-center justify-between border-b">
             <DialogTitle className="text-xl font-medium">
               {editingProduct

@@ -50,7 +50,7 @@ export function UserProfileModal({ isOpen, onClose, userData, isLoading }: UserP
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[700px] p-0 overflow-hidden max-h-[90vh]">
+      <DialogContent showCloseButton className="sm:max-w-[700px] p-0 overflow-hidden max-h-[90vh]">
         <DialogHeader className="px-6 py-5 border-b bg-gray-50">
           <DialogTitle className="text-2xl font-bold text-gray-800">User Profile</DialogTitle>
         </DialogHeader>

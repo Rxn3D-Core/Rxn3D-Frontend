@@ -357,7 +357,10 @@ export function ImpressionSelectionModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="w-[96vw] max-w-[1120px] max-h-[94dvh] overflow-hidden flex flex-col p-0 border-0 rounded-[10px]">
+      <DialogContent
+        showCloseButton
+        className="w-[96vw] max-w-[1120px] max-h-[94dvh] overflow-hidden flex flex-col p-0 border-0 rounded-[10px]"
+      >
         <div className="flex flex-col px-3 sm:px-5 md:px-8 lg:px-10 py-3 sm:py-5 md:py-6 gap-3 sm:gap-4 bg-white w-full min-h-0 overflow-y-auto max-h-[94dvh]">
 
           {modalHeading ? (

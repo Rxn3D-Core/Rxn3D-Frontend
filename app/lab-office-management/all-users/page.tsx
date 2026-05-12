@@ -31,6 +31,7 @@ interface StaffUser {
   }>
   customerNamesList?: string[]
   roleNamesList?: string[]
+  departmentsList?: string[]
   joinDate: string
   status: "Active" | "Inactive" | "Suspended" | "Archived"
   avatar?: string
@@ -104,14 +105,34 @@ export default function AllUsers() {
     const scoped = selectedCustomerId ? mapped.filter((item: any) => item.customerId === selectedCustomerId) : mapped
     const source = scoped.length > 0 ? scoped : mapped
 
-    const customerNames = Array.from(new Set(source.map((item: any) => item.customerName).filter(Boolean)))
-    const roleNames = Array.from(new Set(source.map((item: any) => item.roleName).filter(Boolean)))
+    const customerNames: string[] = Array.from(
+      new Set(
+        source
+          .map((item: any) => item.customerName)
+          .filter((name: unknown): name is string => typeof name === "string" && name.trim().length > 0)
+      )
+    )
+    const roleNames: string[] = Array.from(
+      new Set(
+        source
+          .map((item: any) => item.roleName)
+          .filter((name: unknown): name is string => typeof name === "string" && name.trim().length > 0)
+      )
+    )
+    const departmentNames: string[] = Array.from(
+      new Set(
+        source
+          .flatMap((item: any) => (Array.isArray(item.departments) ? item.departments : []))
+          .filter((name: unknown): name is string => typeof name === "string" && name.trim().length > 0)
+      )
+    )
 
     return {
       customerNameDisplay: formatFirstPlusCount(customerNames),
       roleDisplay: formatFirstPlusCount(roleNames),
       customerNamesList: customerNames,
       roleNamesList: roleNames,
+      departmentsList: departmentNames,
       customerRoles: mapped,
     }
   }
@@ -121,26 +142,38 @@ export default function AllUsers() {
       const token = localStorage.getItem("token") || localStorage.getItem("library_token")
       if (!token) return
       const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
-      const buildUrl = (type: "lab" | "office") =>
-        `${API_BASE_URL}/customers/search?${new URLSearchParams({
-          type,
-          per_page: "200",
-          order_by: "name",
-          sort_by: "asc",
-        }).toString()}`
-      const [labsRes, officesRes] = await Promise.all([
-        fetch(buildUrl("lab"), {
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        }),
-        fetch(buildUrl("office"), {
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        }),
+      const fetchAllCustomersByType = async (type: "lab" | "office") => {
+        const perPage = 100
+        let page = 1
+        let lastPage = 1
+        const items: any[] = []
+
+        do {
+          const url = `${API_BASE_URL}/customers/search?${new URLSearchParams({
+            type,
+            per_page: String(perPage),
+            order_by: "name",
+            sort_by: "asc",
+            page: String(page),
+          }).toString()}`
+          const res = await fetch(url, {
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          })
+          if (!res.ok) break
+          const json = await res.json()
+          items.push(...(json?.data || []))
+          lastPage = json?.pagination?.last_page || json?.meta?.last_page || 1
+          page += 1
+        } while (page <= lastPage)
+
+        return items
+      }
+
+      const [labs, offices] = await Promise.all([
+        fetchAllCustomersByType("lab"),
+        fetchAllCustomersByType("office"),
       ])
-      const [labsJson, officesJson] = await Promise.all([
-        labsRes.ok ? labsRes.json() : Promise.resolve({ data: [] }),
-        officesRes.ok ? officesRes.json() : Promise.resolve({ data: [] }),
-      ])
-      const combined = [...(labsJson?.data || []), ...(officesJson?.data || [])]
+      const combined = [...labs, ...offices]
       const uniqueById = new Map<number, CustomerOption>()
       combined.forEach((customer: any) => {
         if (customer?.id && customer?.name && !uniqueById.has(customer.id)) {
@@ -187,6 +220,7 @@ export default function AllUsers() {
           customerRoles: scopedRoleData.customerRoles,
           customerNamesList: scopedRoleData.customerNamesList,
           roleNamesList: scopedRoleData.roleNamesList,
+          departmentsList: scopedRoleData.departmentsList,
           joinDate: user.created_at ? new Date(user.created_at).toISOString().split("T")[0] : "",
           status: (user.status || "Inactive") as StaffUser["status"],
           avatarColor: avatarColors[index % avatarColors.length],
@@ -260,6 +294,7 @@ export default function AllUsers() {
         customerRoles: scopedRoleData.customerRoles,
         customerNamesList: scopedRoleData.customerNamesList,
         roleNamesList: scopedRoleData.roleNamesList,
+        departmentsList: scopedRoleData.departmentsList,
         joinDate: details.created_at ? new Date(details.created_at).toISOString().split("T")[0] : "",
         status: (details.status || "Inactive") as StaffUser["status"],
         avatarColor: user.avatarColor,
@@ -577,7 +612,14 @@ export default function AllUsers() {
                       {user.customerName}
                     </td>
                     <td className="px-4 py-4 text-gray-700" title={user.roleNamesList?.join(", ") || user.userType}>
-                      {user.userType}
+                      <div className="flex flex-col">
+                        <span>{user.userType}</span>
+                        {user.departmentsList && user.departmentsList.length > 0 && (
+                          <span className="text-xs text-gray-500" title={user.departmentsList.join(", ")}>
+                            Dept: {formatFirstPlusCount(user.departmentsList)}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-4 relative">
                       <div className="relative">

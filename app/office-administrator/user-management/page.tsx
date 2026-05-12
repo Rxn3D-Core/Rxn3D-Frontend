@@ -100,9 +100,20 @@ export default function UserOfficeManagement() {
       'pending': 'Inactive' // Default pending to Inactive
     }
 
-    // Extract role names from roles array
-    const roleNames = apiUser.roles?.map((role: any) => role.name) || []
-    const userType = roleNames.length > 0 ? roleNames.join(', ') : 'User'
+    const selectedCustomerId = Number(localStorage.getItem("customerId") || 0)
+    const customerUsers = Array.isArray(apiUser.customer_users) ? apiUser.customer_users : []
+    const scopedCustomerUsers = selectedCustomerId
+      ? customerUsers.filter((cu: any) => Number(cu?.customer_id || cu?.customer?.id) === selectedCustomerId)
+      : customerUsers
+    const sourceForRole = scopedCustomerUsers.length > 0 ? scopedCustomerUsers : customerUsers
+    const roleNames = Array.from(
+      new Set(
+        sourceForRole
+          .map((cu: any) => cu?.role?.name)
+          .filter(Boolean)
+      )
+    )
+    const userType = roleNames.length > 0 ? roleNames.join(", ") : "User"
 
     return {
       id: apiUser.id,

@@ -771,7 +771,7 @@ export function LinkRetentionModal({ isOpen, onClose, context = "global" }: Link
       >
         <DialogContent
           className={cn(
-            "flex w-[96vw] max-w-6xl flex-col gap-0 overflow-hidden p-0 sm:rounded-lg [&>button.absolute]:hidden",
+            "flex w-[96vw] max-w-6xl flex-col gap-0 overflow-hidden p-0 sm:rounded-lg",
             linkModalExpanded
               ? "fixed left-3 top-3 h-[calc(100dvh-24px)] max-h-none w-[calc(100vw-24px)] max-w-none translate-x-0 translate-y-0"
               : "h-[90vh] max-h-[90vh] translate-x-[-50%] translate-y-[-50%]",

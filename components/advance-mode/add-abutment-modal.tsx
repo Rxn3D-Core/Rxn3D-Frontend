@@ -11,15 +11,20 @@ import { Textarea } from "@/components/ui/textarea"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useTranslation } from "react-i18next"
+import type { Abutment } from "@/lib/api/advance-mode-query"
 
 interface AddAbutmentModalProps {
   isOpen: boolean
   onClose: () => void
   onSave?: (data: any) => Promise<void> | void
+  /** When provided, modal loads this abutment for editing and includes `id` in the save payload. */
+  initialAbutment?: Abutment | null
 }
 
 interface PlatformOption {
   id: string
+  /** Existing option id from API (for updates). */
+  serverId?: number
   image: string | null
   platformName: string
   isDefault: boolean
@@ -27,7 +32,20 @@ interface PlatformOption {
   price?: string
 }
 
-export function AddAbutmentModal({ isOpen, onClose, onSave }: AddAbutmentModalProps) {
+function abutmentToPlatformOptions(abutment: Abutment): PlatformOption[] {
+  const opts = abutment.options ?? abutment.platforms ?? []
+  return opts.map((opt, index) => ({
+    id: opt.id != null ? String(opt.id) : `tmp-${index}-${opt.sequence ?? index}`,
+    serverId: typeof opt.id === "number" ? opt.id : undefined,
+    image: opt.image_url ?? null,
+    platformName: opt.name ?? "",
+    isDefault: opt.is_default === "Yes",
+    status: opt.status === "Active",
+    price: opt.price != null ? String(opt.price) : "0.00",
+  }))
+}
+
+export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = null }: AddAbutmentModalProps) {
   const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState<"platform-options" | "platform-pricing">("platform-options")
   const [searchQuery, setSearchQuery] = useState("")
@@ -52,24 +70,39 @@ export function AddAbutmentModal({ isOpen, onClose, onSave }: AddAbutmentModalPr
   const itemsPerPage = 10
   const totalPages = Math.ceil(platforms.length / itemsPerPage)
 
-  // Reset all fields when modal opens
+  // Reset or hydrate when modal opens
   useEffect(() => {
-    if (isOpen) {
-      setActiveTab("platform-options")
-      setSearchQuery("")
+    if (!isOpen) return
+    setActiveTab("platform-options")
+    setSearchQuery("")
+    setCurrentPage(1)
+    if (initialAbutment) {
+      const chargeType =
+        initialAbutment.charge_type === "per_option" ? "per_option" : "once_per_abutment"
+      setFormData({
+        type: initialAbutment.type ?? "",
+        description: initialAbutment.description ?? "",
+        abutmentDetails: true,
+      })
+      setPricingData({
+        chargeType,
+        additionalCharge: String(initialAbutment.price ?? "0.00"),
+      })
+      const mapped = abutmentToPlatformOptions(initialAbutment)
+      setPlatforms(mapped.length > 0 ? mapped : [])
+    } else {
       setFormData({
         type: "",
         description: "",
         abutmentDetails: true,
       })
       setPricingData({
-        chargeType: "once_per_abutment" as "once_per_abutment" | "per_option",
+        chargeType: "once_per_abutment",
         additionalCharge: "0.00",
       })
       setPlatforms([])
-      setCurrentPage(1)
     }
-  }, [isOpen])
+  }, [isOpen, initialAbutment])
 
   if (!isOpen) return null
 
@@ -78,19 +111,45 @@ export function AddAbutmentModal({ isOpen, onClose, onSave }: AddAbutmentModalPr
       return
     }
 
-    const payload = {
+    const optionsPayload = platforms
+      .map((platform, index) => {
+        const row: {
+          id?: number
+          name: string
+          status: "Active" | "Inactive"
+          is_default: "Yes" | "No"
+          price: number | null
+          sequence: number
+        } = {
+          name: platform.platformName?.trim() ?? "",
+          status: platform.status ? "Active" : "Inactive",
+          is_default: platform.isDefault ? "Yes" : "No",
+          price: pricingData.chargeType === "per_option" ? (parseFloat(platform.price || "0") || 0) : null,
+          sequence: index + 1,
+        }
+        if (platform.serverId != null) {
+          row.id = platform.serverId
+        }
+        return row
+      })
+      .filter((option) => option.name)
+
+    const payload: Record<string, unknown> = {
       type: formData.type.trim(),
       description: formData.description?.trim() || undefined,
-      status: "Active" as const,
+      status: (initialAbutment?.status ?? "Active") as "Active" | "Inactive",
       charge_type: pricingData.chargeType,
       price: pricingData.chargeType === "once_per_abutment" ? (parseFloat(pricingData.additionalCharge) || 0) : null,
-      options: platforms.map((platform, index) => ({
-        name: platform.platformName?.trim(),
-        status: platform.status ? "Active" as const : "Inactive" as const,
-        is_default: platform.isDefault ? "Yes" as const : "No" as const,
-        price: pricingData.chargeType === "per_option" ? (parseFloat(platform.price || "0") || 0) : null,
-        sequence: index + 1,
-      })).filter((option) => option.name),
+      options: optionsPayload,
+    }
+
+    if (initialAbutment?.id != null) {
+      payload.id = initialAbutment.id
+      if (initialAbutment.code) {
+        payload.code = initialAbutment.code
+      }
+    } else {
+      payload.status = "Active"
     }
 
     try {
@@ -106,7 +165,8 @@ export function AddAbutmentModal({ isOpen, onClose, onSave }: AddAbutmentModalPr
 
   const handleAddOption = () => {
     const newPlatform: PlatformOption = {
-      id: String(platforms.length + 1),
+      id: `new-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      serverId: undefined,
       image: null,
       platformName: `Option ${platforms.length + 1}`,
       isDefault: false,
@@ -141,7 +201,8 @@ export function AddAbutmentModal({ isOpen, onClose, onSave }: AddAbutmentModalPr
     if (platform) {
       const newPlatform = {
         ...platform,
-        id: String(platforms.length + 1),
+        id: `copy-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        serverId: undefined,
         platformName: `${platform.platformName} (Copy)`,
         price: platform.price || "0.00",
       }
@@ -180,7 +241,9 @@ export function AddAbutmentModal({ isOpen, onClose, onSave }: AddAbutmentModalPr
       <div className="bg-white rounded-lg shadow-lg w-full max-w-5xl h-full max-h-[94vh] sm:h-auto sm:max-h-[88vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-4 sm:px-5 py-2.5 sm:py-3 border-b border-gray-200 flex-shrink-0">
-          <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Add Abutment</h2>
+          <h2 className="text-lg sm:text-xl font-semibold text-gray-900">
+            {initialAbutment ? "Edit Abutment" : "Add Abutment"}
+          </h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -549,7 +612,7 @@ export function AddAbutmentModal({ isOpen, onClose, onSave }: AddAbutmentModalPr
             disabled={isSaving || !formData.type.trim()}
             className="px-4 bg-[#1162a8] hover:bg-[#0f5497] text-white text-sm"
           >
-            {isSaving ? "Saving..." : "Save Changes"}
+            {isSaving ? "Saving..." : initialAbutment ? "Save changes" : "Add abutment"}
           </Button>
         </div>
       </div>
