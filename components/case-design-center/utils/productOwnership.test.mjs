@@ -1,10 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { resolveRemovableOwnershipUpdate } from "./removableOwnership.js";
+import { resolveProductOwnershipUpdate } from "./productOwnership.js";
 
-test("reassigns an already-selected tooth to the active added removable card", () => {
-  const result = resolveRemovableOwnershipUpdate({
+test("reassigns an already-selected tooth to the active added product card", () => {
+  const result = resolveProductOwnershipUpdate({
     isActiveProductRemovables: true,
     activeProductCardId: 12,
     activeArchMatches: true,
@@ -19,8 +19,8 @@ test("reassigns an already-selected tooth to the active added removable card", (
   });
 });
 
-test("keeps card 0 ownership when the initial removable product is active", () => {
-  const result = resolveRemovableOwnershipUpdate({
+test("keeps card 0 ownership when the initial product is active", () => {
+  const result = resolveProductOwnershipUpdate({
     isActiveProductRemovables: true,
     activeProductCardId: 0,
     activeArchMatches: true,
@@ -36,7 +36,7 @@ test("keeps card 0 ownership when the initial removable product is active", () =
 });
 
 test("does nothing when the active product is not removable", () => {
-  const result = resolveRemovableOwnershipUpdate({
+  const result = resolveProductOwnershipUpdate({
     isActiveProductRemovables: false,
     activeProductCardId: 9,
     activeArchMatches: true,

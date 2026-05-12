@@ -23,6 +23,7 @@ import type { FieldStep } from "../hooks/useToothFieldProgress";
 import { ImplantDetailSection, ImplantDetailData, defaultImplantDetailData } from "./ImplantDetailSection";
 import { isSingleStageNoStages } from "../utils/categoryHelpers";
 import { parseAddonDisplayItems } from "../utils/addonDisplayHelpers";
+import { getShadeGuideAdvanceFields, getShadeFieldType, isStumpLikeShadeField } from "../utils/shadeGuideAdvanceFields";
 
 /* ------------------------------------------------------------------ */
 /*  Articulator icon (Stage field)                                     */
@@ -280,9 +281,9 @@ interface FixedRestorationFieldsProps {
   storeFieldValue: (arch: Arch, toothNumber: number, step: FieldStep, value: string) => void;
   uncompleteFieldStep: (arch: Arch, toothNumber: number, step: FieldStep) => void;
   isFixed: (step: string) => boolean;
-  getSelectedShade: (productId: string, arch: string, shadeType: string) => any;
+  getSelectedShade: (productId: string, arch: string, shadeType: string, advanceFieldId?: number | null) => any;
   handleOpenStageModal: (productId: string, arch?: Arch, toothNumber?: number) => void;
-  handleShadeFieldClick: (arch: Arch, fieldType: ShadeFieldType, productId: string) => void;
+  handleShadeFieldClick: (arch: Arch, fieldType: ShadeFieldType, productId: string, options?: { advanceFieldId?: number | null; advanceFieldLabel?: string | null }) => void;
   handleOpenImpressionModal: (arch: Arch, productId: string, toothNumber?: number) => void;
   handleOpenAddOnsModal: (arch: Arch, productId: string, toothNumber?: number) => void;
   getImpressionDisplayText: (productId: string, arch: string) => string;
@@ -292,7 +293,7 @@ interface FixedRestorationFieldsProps {
 /* ------------------------------------------------------------------ */
 /*  FixedRestorationFields component                                   */
 /* ------------------------------------------------------------------ */
-export function FixedRestorationFields({
+export function RetentionProductFields({
   arch,
   isExpanded,
   firstToothNumber,
@@ -328,6 +329,10 @@ export function FixedRestorationFields({
   const hasImplantForm = toothNumbers.some((n) => (retentionTypesMap[n] || []).includes("Implant"));
   const implantDetailReady = !hasImplantForm || implantDetailCompleteByTooth[firstToothNumber] === true;
   const impressionProductId = selectedProduct?.id?.toString() || `fixed_${firstToothNumber}`;
+  const fixedShadeProductId = `fixed_${firstToothNumber}`;
+  const namedShadeGuideFields = getShadeGuideAdvanceFields(selectedProduct?.advance_fields);
+  const namedStumpShadeFields = namedShadeGuideFields.filter((field) => isStumpLikeShadeField(field));
+  const namedToothShadeFields = namedShadeGuideFields.filter((field) => !isStumpLikeShadeField(field));
   const impressionVisible = isFixed("fixed_impression") && implantDetailReady;
   const impressionEmpty = !isFieldCompleted(arch, firstToothNumber, "fixed_impression");
   const hasAutoOpenedImpressionRef = useRef(false);
@@ -448,6 +453,7 @@ export function FixedRestorationFields({
       {/* Step 1 & 2: Stage + shade fields driven by advance_fields with has_* flag fallback */}
       {(() => {
         const showStage = !isSingleStageNoStages(selectedProduct) && isFixed("fixed_stage");
+        const usesNamedShadeGuideFields = namedShadeGuideFields.length > 0;
 
         const af = selectedProduct?.advance_fields || [];
         const hasTeethFlag = selectedProduct?.has_teeth_shade === "Yes";
@@ -479,6 +485,62 @@ export function FixedRestorationFields({
             if (hasTeethFlag) stumpShadeFields.push({ label: "Teeth Shade", shadeType: "tooth_shade", isGumShade: false });
             if (hasGumFlag) stumpShadeFields.push({ label: "Gum Shade", shadeType: "stump_shade", isGumShade: true });
           }
+        }
+
+        if (usesNamedShadeGuideFields) {
+          const colCount = (showStage ? 1 : 0) + namedStumpShadeFields.length;
+          if (colCount === 0) return null;
+          const gridCols = colCount >= 3 ? "sm:grid-cols-3" : colCount === 2 ? "sm:grid-cols-2" : "";
+          return (
+            <div className={`grid grid-cols-1 ${gridCols} gap-3`}>
+              {showStage && (() => {
+                const fixedStageValue = selectedStages[groupStageProductIdFixed] || getFieldValue(arch, groupStageToothNumber, "fixed_stage");
+                const isStageComplete = isFieldCompleted(arch, groupStageToothNumber, "fixed_stage") || !!(fixedStageValue && fixedStageValue.trim());
+                const showStageGreen = isStageComplete && !caseSubmitted;
+                return (
+                  <fieldset
+                    className={`border rounded px-3 py-0 relative h-[42px] flex items-center pointer-events-auto cursor-pointer hover:bg-gray-50 transition-colors ${
+                      showStageGreen ? "border-[#34a853]" : isStageComplete ? "border-[#b4b0b0]" : "border-[#CF0202]"
+                    }`}
+                    onClick={() => {
+                      if (!caseSubmitted) handleOpenStageModal(groupStageProductIdFixed, arch, groupStageToothNumber);
+                    }}
+                  >
+                    <legend className={`text-sm px-1 leading-none ${showStageGreen ? "text-[#34a853]" : isStageComplete ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>
+                      Stage
+                    </legend>
+                    <div className="flex items-center gap-2 w-full">
+                      <span className="text-[14px] sm:text-lg text-[#000000]">
+                        {fixedStageValue}
+                      </span>
+                      {showStageGreen && (
+                        <Check size={16} className="text-[#34a853] ml-auto" />
+                      )}
+                      <div className={showStageGreen ? "" : "ml-auto"}>
+                        <ArticulatorIcon arch={arch} />
+                      </div>
+                    </div>
+                  </fieldset>
+                );
+              })()}
+              {namedStumpShadeFields.map((field) => (
+                <ShadeField
+                  key={field.id}
+                  label={field.name}
+                  value={getSelectedShade(fixedShadeProductId, arch, "stump_shade", field.id)}
+                  shade=""
+                  onClick={() =>
+                    handleShadeFieldClick(arch, "stump_shade", fixedShadeProductId, {
+                      advanceFieldId: field.id,
+                      advanceFieldLabel: field.name,
+                    })
+                  }
+                  submitted={caseSubmitted}
+                  required
+                />
+              ))}
+            </div>
+          );
         }
 
         if (!showStage && stumpShadeFields.length === 0) return null;
@@ -552,9 +614,9 @@ export function FixedRestorationFields({
               <ShadeField
                 key={label}
                 label={label}
-                value={selectedShadeGuide}
-                shade={getSelectedShade(`fixed_${firstToothNumber}`, arch, shadeType)}
-                onClick={() => handleShadeFieldClick(arch, shadeType, `fixed_${firstToothNumber}`)}
+                value={getSelectedShade(fixedShadeProductId, arch, shadeType)}
+                shade=""
+                onClick={() => handleShadeFieldClick(arch, shadeType, fixedShadeProductId)}
                 submitted={caseSubmitted}
                 required
               />
@@ -566,6 +628,29 @@ export function FixedRestorationFields({
 
       {/* Step 3: Shade trio fields driven entirely by advance_fields — no static fallback */}
       {isFixed("fixed_shade_trio") && hasAdvanceField("fixed_shade_trio", selectedProduct?.advance_fields, selectedProduct) && (() => {
+        if (namedToothShadeFields.length > 0) {
+          return (
+            <div className="grid grid-cols-2 gap-3">
+              {namedToothShadeFields.map((field) => (
+                <ShadeField
+                  key={field.id}
+                  label={field.name}
+                  value={getSelectedShade(fixedShadeProductId, arch, getShadeFieldType(field), field.id)}
+                  shade=""
+                  onClick={() =>
+                    handleShadeFieldClick(arch, getShadeFieldType(field), fixedShadeProductId, {
+                      advanceFieldId: field.id,
+                      advanceFieldLabel: field.name,
+                    })
+                  }
+                  submitted={caseSubmitted}
+                  required
+                />
+              ))}
+            </div>
+          );
+        }
+
         const af = selectedProduct?.advance_fields || [];
         const trioFields = af.filter((f) => {
           const n = (f.name || "").toLowerCase();
@@ -576,17 +661,16 @@ export function FixedRestorationFields({
           );
         });
         if (trioFields.length === 0) return null;
-        const colCount = Math.min(trioFields.length, 4);
         return (
-          <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${colCount}, minmax(0, 1fr))` }}>
+          <div className="grid grid-cols-2 gap-3">
             {trioFields.map(({ name }, idx) => (
               <ShadeField
                 key={name}
                 label={name}
-                value={selectedShadeGuide}
-                shade={getSelectedShade(`fixed_${firstToothNumber}`, arch, "tooth_shade")}
+                value={getSelectedShade(fixedShadeProductId, arch, "tooth_shade")}
+                shade=""
                 onClick={() => {
-                  handleShadeFieldClick(arch, "tooth_shade", `fixed_${firstToothNumber}`);
+                  handleShadeFieldClick(arch, "tooth_shade", fixedShadeProductId);
                   if (idx === 0 && !isFieldCompleted(arch, firstToothNumber, "fixed_shade_trio")) {
                     completeFieldStep(arch, firstToothNumber, "fixed_shade_trio", "selected");
                   }

@@ -5,21 +5,27 @@ export interface RetentionOptionItem {
   name: string
   image_url: string | null
   tooth_chart_type: string | null
+  has_implant?: 'Yes' | 'No'
+  selector_shape?: string | null
+  retention_option_id?: number
   status?: string
   sequence?: number
   lab_retention_option?: {
+    id?: number
     name?: string
     image_url?: string | null
     tooth_chart_type?: string | null
+    has_implant?: 'Yes' | 'No'
+    selector_shape?: string | null
   }
-}
-
-// Fallback static images keyed by normalized name
-const FALLBACK_IMAGES: Record<string, string> = {
-  Implant: '/images/retention-type/Implant.svg',
-  Prep: '/images/retention-type/prepped.svg',
-  Prepped: '/images/retention-type/prepped.svg',
-  Pontic: '/images/retention-type/pontic.svg',
+  retention_option?: {
+    id?: number
+    name?: string
+    image_url?: string | null
+    tooth_chart_type?: string | null
+    has_implant?: 'Yes' | 'No'
+    selector_shape?: string | null
+  }
 }
 
 // Map API retention option names to the internal RetentionType values used downstream
@@ -70,36 +76,52 @@ export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({
     }
   }, [onClose])
 
-  // Build the list of options to render from API data or fallback to hardcoded defaults
-  const options = React.useMemo(() => {
-    if (retentionOptions && retentionOptions.length > 0) {
-      const seen = new Set<string>()
-      return retentionOptions
-        .filter((opt) => {
-          const status = opt.status || 'Active'
-          return status === 'Active'
-        })
-        .map((opt) => {
-          const name = opt.name || opt.lab_retention_option?.name || 'Unknown'
-          // Map API name to internal retention type (e.g. "Prepped" → "Prep")
-          const retentionType = (NAME_TO_RETENTION_TYPE[name] || name) as 'Implant' | 'Prep' | 'Pontic'
-          const imageUrl = opt.image_url || opt.lab_retention_option?.image_url || FALLBACK_IMAGES[name] || null
-          return { toothChartType: retentionType, name, imageUrl }
-        })
-        .filter((opt) => {
-          // Deduplicate by mapped retention type
-          if (seen.has(opt.toothChartType)) return false
-          seen.add(opt.toothChartType)
-          return true
-        })
-    }
+  const getOptionName = (opt: RetentionOptionItem) =>
+    opt.name ||
+    opt.retention_option?.name ||
+    opt.lab_retention_option?.name ||
+    'Unknown'
 
-    // Fallback: hardcoded defaults
-    return [
-      { toothChartType: 'Implant' as const, name: 'Implant', imageUrl: FALLBACK_IMAGES.Implant },
-      { toothChartType: 'Prep' as const, name: 'Prep', imageUrl: FALLBACK_IMAGES.Prep },
-      { toothChartType: 'Pontic' as const, name: 'Pontic', imageUrl: FALLBACK_IMAGES.Pontic },
-    ]
+  const getOptionImageUrl = (opt: RetentionOptionItem) =>
+    opt.image_url ||
+    opt.retention_option?.image_url ||
+    opt.lab_retention_option?.image_url ||
+    null
+
+  const getRetentionType = (opt: RetentionOptionItem) => {
+    const rawType =
+      opt.tooth_chart_type ||
+      opt.retention_option?.tooth_chart_type ||
+      opt.lab_retention_option?.tooth_chart_type ||
+      getOptionName(opt)
+
+    return (NAME_TO_RETENTION_TYPE[rawType] || rawType) as 'Implant' | 'Prep' | 'Pontic'
+  }
+
+  // Build the list of options directly from product retention_options API data.
+  const options = React.useMemo(() => {
+    if (!retentionOptions?.length) return []
+
+    const seen = new Set<string>()
+
+    return [...retentionOptions]
+      .filter((opt) => (opt.status || 'Active') === 'Active')
+      .sort((a, b) => (a.sequence ?? Number.MAX_SAFE_INTEGER) - (b.sequence ?? Number.MAX_SAFE_INTEGER))
+      .map((opt) => {
+        const toothChartType = getRetentionType(opt)
+
+        return {
+          toothChartType,
+          name: getOptionName(opt),
+          imageUrl: getOptionImageUrl(opt),
+        }
+      })
+      .filter((opt) => {
+        if (!['Implant', 'Prep', 'Pontic'].includes(opt.toothChartType)) return false
+        if (seen.has(opt.toothChartType)) return false
+        seen.add(opt.toothChartType)
+        return true
+      })
   }, [retentionOptions])
 
   const showArrow = typeof arrowOffsetX === 'number'
@@ -152,6 +174,12 @@ export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({
           <span className="text-[10px] text-gray-600 mt-1 font-medium">{opt.name}</span>
         </button>
       ))}
+
+      {!options.length && (
+        <div className="flex items-center px-2 text-xs text-gray-500">
+          No retention options available
+        </div>
+      )}
 
       {/* Deselect Tooth Option - Remove tooth from selection */}
       {onDeselectTooth && (

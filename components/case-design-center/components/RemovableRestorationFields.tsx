@@ -15,7 +15,7 @@ import type {
   RetentionType,
 } from "../types";
 import type { FieldStep } from "../hooks/useToothFieldProgress";
-import { getRemovableFieldChain } from "../hooks/useToothFieldProgress";
+import { getSelectionFieldChain } from "../hooks/useToothFieldProgress";
 import { isSingleStageNoStages } from "../utils/categoryHelpers";
 import { hasVisibleAddonDisplay } from "../utils/addonDisplayHelpers";
 
@@ -282,7 +282,7 @@ interface RemovableRestorationFieldsProps {
 /* ------------------------------------------------------------------ */
 /*  RemovableRestorationFields component                               */
 /* ------------------------------------------------------------------ */
-export function RemovableRestorationFields({
+export function SelectionProductFields({
   arch,
   firstToothNumber,
   selectedProduct,
@@ -305,7 +305,7 @@ export function RemovableRestorationFields({
   setPanelGumShadePicker,
   noOpposingNeeded = {},
 }: RemovableRestorationFieldsProps) {
-  const removableChain = getRemovableFieldChain(selectedProduct);
+  const removableChain = getSelectionFieldChain(selectedProduct);
   const isVisible = (step: FieldStep): boolean => isFieldVisibleFn(arch, firstToothNumber, step, removableChain);
   const hasImplantForm = toothNumbers.some((n) => (retentionTypesMap[n] || []).includes("Implant"));
   const implantDetailReady = !hasImplantForm || implantDetailCompleteByTooth[firstToothNumber] === true;

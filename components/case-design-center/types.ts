@@ -185,7 +185,7 @@ export interface NotesProps {
   /** Get the value for a field step on a tooth */
   getFieldValue: (arch: Arch, toothNumber: number, step: any) => string;
   /** Get the selected shade for a product/arch/fieldType */
-  getSelectedShade: (productId: string, arch: Arch, fieldType: "tooth_shade" | "stump_shade") => string;
+  getSelectedShade: (productId: string, arch: Arch, fieldType: "tooth_shade" | "stump_shade", advanceFieldId?: number | null) => string;
   /** Selected stages keyed by product key (e.g. "fixed_4") */
   selectedStages: Record<string, string>;
   /** Get display text for impression */
@@ -218,6 +218,8 @@ export interface ShadeSelectionState {
   arch: Arch | null;
   fieldType: ShadeFieldType | null;
   productId: string | null;
+  advanceFieldId?: number | null;
+  advanceFieldLabel?: string | null;
 }
 
 export interface RetentionPopoverState {
@@ -461,12 +463,26 @@ export interface ProductApiData {
     name: string;
     image_url: string | null;
     tooth_chart_type: string | null;
+    has_implant?: "Yes" | "No";
+    selector_shape?: string | null;
+    retention_option_id?: number;
     status?: string;
     sequence?: number;
     lab_retention_option?: {
+      id?: number;
       name?: string;
       image_url?: string | null;
       tooth_chart_type?: string | null;
+      has_implant?: "Yes" | "No";
+      selector_shape?: string | null;
+    };
+    retention_option?: {
+      id?: number;
+      name?: string;
+      image_url?: string | null;
+      tooth_chart_type?: string | null;
+      has_implant?: "Yes" | "No";
+      selector_shape?: string | null;
     };
   }>;
   subcategory?: {

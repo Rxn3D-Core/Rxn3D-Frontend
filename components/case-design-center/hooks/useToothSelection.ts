@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { Arch, RetentionType, RetentionPopoverState, AddedProduct, ProductExtraction } from "../types";
 import { hasRetentionOptions } from "../utils/categoryHelpers";
 
-function isRemovablesArch(addedProducts: AddedProduct[], arch: Arch): boolean {
+function isSelectionOnlyArch(addedProducts: AddedProduct[], arch: Arch): boolean {
   return addedProducts
     .filter((ap) => ap.arch === arch)
     .some((ap) => !hasRetentionOptions(ap.product));
@@ -39,8 +39,8 @@ export function useToothSelection(
   const [maxillaryClaspTeeth, setMaxillaryClaspTeeth] = useState<number[]>([]);
   const [mandibularClaspTeeth, setMandibularClaspTeeth] = useState<number[]>([]);
 
-  const maxillaryIsRemovables = treatArchAsRemovables?.maxillary ?? isRemovablesArch(addedProducts, "maxillary");
-  const mandibularIsRemovables = treatArchAsRemovables?.mandibular ?? isRemovablesArch(addedProducts, "mandibular");
+  const maxillaryIsRemovables = treatArchAsRemovables?.maxillary ?? isSelectionOnlyArch(addedProducts, "maxillary");
+  const mandibularIsRemovables = treatArchAsRemovables?.mandibular ?? isSelectionOnlyArch(addedProducts, "mandibular");
 
   const handleMaxillaryToothClick = (toothNumber: number) => {
     if (maxillaryIsRemovables) {

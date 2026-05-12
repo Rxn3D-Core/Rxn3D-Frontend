@@ -1,9 +1,9 @@
 /**
- * Resolves which product card should own a tooth while a removable product is active.
- * This lets added removable cards reclaim a tooth even when that tooth was already
+ * Resolves which product card should own a tooth while a multi-tooth product is active.
+ * This lets added product cards reclaim a tooth even when that tooth was already
  * selected earlier under another card.
  */
-export function resolveRemovableOwnershipUpdate({
+export function resolveProductOwnershipUpdate({
   isActiveProductRemovables,
   activeProductCardId,
   activeArchMatches,

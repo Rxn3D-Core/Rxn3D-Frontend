@@ -22,7 +22,7 @@ function getCandidateTeeth({
     : allTeeth.filter((tooth) => !!getToothProduct(arch, tooth));
 }
 
-export function getRemovableRepTeeth({
+export function getRepresentativeTeethByCard({
   allTeeth,
   selectedTeeth,
   getToothProduct,
@@ -36,19 +36,19 @@ export function getRemovableRepTeeth({
   arch: Arch;
 }) {
   const candidateTeeth = getCandidateTeeth({ allTeeth, selectedTeeth, getToothProduct, arch });
-  const cardToRepTooth = new Map<number, number>();
+  const cardToRepresentativeTooth = new Map<number, number>();
 
   for (const tooth of candidateTeeth) {
     const card = getToothProductCard(arch, tooth);
-    if (card != null && !cardToRepTooth.has(card)) {
-      cardToRepTooth.set(card, tooth);
+    if (card != null && !cardToRepresentativeTooth.has(card)) {
+      cardToRepresentativeTooth.set(card, tooth);
     }
   }
 
-  return [...cardToRepTooth.values()];
+  return [...cardToRepresentativeTooth.values()];
 }
 
-export function getCard0RepTooth({
+export function getPrimaryCardRepresentativeTooth({
   allTeeth,
   selectedTeeth,
   getToothProduct,

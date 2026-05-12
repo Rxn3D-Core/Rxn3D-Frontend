@@ -11,7 +11,8 @@ import { useProductManagement } from "./useProductManagement";
 import { useImplantState } from "./useImplantState";
 import { useToothFieldProgress, FIXED_SHADE_FIELD_TO_STEP } from "./useToothFieldProgress";
 import { hasRetentionOptions, isSingleStageNoStages } from "../utils/categoryHelpers";
-import { resolveRemovableOwnershipUpdate } from "../utils/removableOwnership.js";
+import { resolveProductOwnershipUpdate } from "../utils/productOwnership.js";
+import { getShadeGuideAdvanceFields, getShadeFieldType } from "../utils/shadeGuideAdvanceFields";
 import { ProductApi } from "../../../lib/api-service";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
@@ -202,17 +203,10 @@ export function useCaseDesignState(props: CaseDesignProps) {
   }, [props.addedProducts]);
 
   // Fetch initial product details (for retention_options used by retention popover)
-  // Declared here so isActiveProductRemovables and getMirrorTargetArch can reference it.
+  // Declared here so isActiveNonRetentionProduct and getMirrorTargetArch can reference it.
   const [initialProductDetails, setInitialProductDetails] = useState<ProductApiData | null>(null);
 
-  // When active product is Removables (from addedProducts or initial selected product), treat arch as removables so tooth click only toggles (no retention popover)
-  const hasRemovablesInAddedProducts = (arch: Arch) =>
-    (props.addedProducts ?? []).some((ap) => {
-      if (ap.arch !== arch) return false;
-      return !hasRetentionOptions(ap.product);
-    });
-
-  const isActiveProductRemovables = (arch: Arch): boolean => {
+  const isActiveNonRetentionProduct = (arch: Arch): boolean => {
     if (activeProductCardId === 0) {
       // Still loading — don't assume removable; let the popover show once data arrives
       if (initialProductDetails === null) return false;
@@ -227,15 +221,15 @@ export function useCaseDesignState(props: CaseDesignProps) {
     return !hasRetentionOptions(ap.product);
   };
 
-  // Only treat the arch as removables when the ACTIVE product card is a removable product.
+  // Only treat the arch as selection-only when the ACTIVE product card has no retention options.
   // Previously this was true when ANY product in the arch was removable, which broke
   // tooth selection for non-removable products (e.g. Fixed Restoration) on the same arch.
-  const treatArchAsRemovables = {
-    maxillary: isActiveProductRemovables("maxillary"),
-    mandibular: isActiveProductRemovables("mandibular"),
+  const treatArchAsSelectionOnly = {
+    maxillary: isActiveNonRetentionProduct("maxillary"),
+    mandibular: isActiveNonRetentionProduct("mandibular"),
   };
 
-  const teeth = useToothSelection(props.addedProducts ?? [], treatArchAsRemovables);
+  const teeth = useToothSelection(props.addedProducts ?? [], treatArchAsSelectionOnly);
   const shades = useShadeSelection();
   const modals = useModalState();
   const products = useProductManagement(props.addedProducts, props.onProductsChange);
@@ -666,16 +660,10 @@ export function useCaseDesignState(props: CaseDesignProps) {
       : props.selectedProductId;
 
   // Helper: find the removables AddedProduct for a given arch (if any)
-  const getRemovablesProduct = (arch: Arch) =>
-    products.addedProducts.find((ap) => {
-      if (ap.arch !== arch) return false;
-      return !hasRetentionOptions(ap.product);
-    }) ?? null;
-
-  // Wrap tooth click handlers: for Removables arches, assign tooth to the ACTIVE product and fetch so fields/accordion show.
-  // Only auto-assigns when the currently active product card is a removable product.
-  const handleRemovableToothAdd = (arch: Arch, toothNumber: number) => {
-    if (!isActiveProductRemovables(arch)) return;
+  // Wrap tooth click handlers: for selection-only arches, assign the tooth to the ACTIVE product
+  // and fetch product details so the fields and accordion render immediately.
+  const handleSelectionOnlyToothAdd = (arch: Arch, toothNumber: number) => {
+    if (!isActiveNonRetentionProduct(arch)) return;
 
     if (activeProductCardId !== 0) {
       const ap = (props.addedProducts ?? []).find((p) => p.id === activeProductCardId);
@@ -689,7 +677,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
     }
   };
 
-  const ensureRemovableToothOwnership = useCallback(
+  const ensureSelectionOnlyToothOwnership = useCallback(
     (arch: Arch, toothNumber: number) => {
       const currentCardId = toothFieldProgress.getToothProductCard(arch, toothNumber);
       const activeAddedProduct =
@@ -697,8 +685,8 @@ export function useCaseDesignState(props: CaseDesignProps) {
           ? (props.addedProducts ?? []).find((p) => p.id === activeProductCardId)
           : null;
 
-      const update = resolveRemovableOwnershipUpdate({
-        isActiveProductRemovables: isActiveProductRemovables(arch),
+      const update = resolveProductOwnershipUpdate({
+        isActiveProductRemovables: isActiveNonRetentionProduct(arch),
         activeProductCardId,
         activeArchMatches: activeAddedProduct?.arch === arch,
         activeProductId: activeAddedProduct?.productId ?? null,
@@ -720,7 +708,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
     [
       activeProductCardId,
       fetchAndAssignProduct,
-      isActiveProductRemovables,
+      isActiveNonRetentionProduct,
       props.addedProducts,
       props.selectedProductId,
       toothFieldProgress,
@@ -729,17 +717,17 @@ export function useCaseDesignState(props: CaseDesignProps) {
 
   const handleToothExtractionToggle = useCallback(
     (arch: Arch, toothNumber: number, extractionCode: string, extractions?: ProductExtraction[]) => {
-      ensureRemovableToothOwnership(arch, toothNumber);
+      ensureSelectionOnlyToothOwnership(arch, toothNumber);
       teeth.handleToothExtractionToggle(arch, toothNumber, extractionCode, extractions);
     },
-    [ensureRemovableToothOwnership, teeth]
+    [ensureSelectionOnlyToothOwnership, teeth]
   );
 
   const handleMaxillaryToothClick = (toothNumber: number) => {
     const isAdding = !teeth.maxillaryTeeth.includes(toothNumber);
     teeth.handleMaxillaryToothClick(toothNumber);
     if (isAdding) {
-      handleRemovableToothAdd("maxillary", toothNumber);
+      handleSelectionOnlyToothAdd("maxillary", toothNumber);
     }
   };
 
@@ -747,7 +735,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
     const isAdding = !teeth.mandibularTeeth.includes(toothNumber);
     teeth.handleMandibularToothClick(toothNumber);
     if (isAdding) {
-      handleRemovableToothAdd("mandibular", toothNumber);
+      handleSelectionOnlyToothAdd("mandibular", toothNumber);
     }
   };
 
@@ -880,9 +868,48 @@ export function useCaseDesignState(props: CaseDesignProps) {
       const fixedMatch = productId.match(/^fixed_(\d+)$/);
       if (fixedMatch) {
         const toothNumber = parseInt(fixedMatch[1], 10);
-        const step = FIXED_SHADE_FIELD_TO_STEP[fieldType];
-        if (step) {
-          mirroredCompleteFieldStep(arch, toothNumber, step, shadeJson);
+        const product = toothFieldProgress.getToothProduct(arch, toothNumber);
+        const shadeGuideFields = getShadeGuideAdvanceFields(product?.advance_fields);
+        const selectedAdvanceFieldId = shades.shadeSelectionState.advanceFieldId ?? null;
+
+        if (selectedAdvanceFieldId != null && shadeGuideFields.length > 0) {
+          const step = FIXED_SHADE_FIELD_TO_STEP[fieldType];
+          if (step) {
+            const relevantFields = shadeGuideFields.filter(
+              (field) => getShadeFieldType(field) === fieldType
+            );
+            const currentRaw = toothFieldProgress.getFieldValue(arch, toothNumber, step);
+            let currentSelections: Record<string, { name: string; advanceFieldId: number; teeth_shade_id: number; brand_id: number }> = {};
+            try {
+              if (currentRaw && currentRaw.startsWith("{")) {
+                currentSelections = JSON.parse(currentRaw);
+              }
+            } catch {}
+
+            const updatedSelections = {
+              ...currentSelections,
+              [selectedAdvanceFieldId]: {
+                name: shade,
+                advanceFieldId: selectedAdvanceFieldId,
+                teeth_shade_id: matched?.teeth_shade_id ?? matched?.id ?? 0,
+                brand_id: matched?.brand?.id ?? 0,
+              },
+            };
+            const allFilled = relevantFields.every((field) => updatedSelections[field.id]);
+            const nextValue = JSON.stringify(updatedSelections);
+
+            if (allFilled) {
+              mirroredCompleteFieldStep(arch, toothNumber, step, nextValue);
+            } else {
+              mirroredStoreFieldValue(arch, toothNumber, step, nextValue);
+              mirroredUncompleteFieldStep(arch, toothNumber, step);
+            }
+          }
+        } else {
+          const step = FIXED_SHADE_FIELD_TO_STEP[fieldType];
+          if (step) {
+            mirroredCompleteFieldStep(arch, toothNumber, step, shadeJson);
+          }
         }
         return;
       }
@@ -916,7 +943,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
         }
       }
     },
-    [shades.shadeSelectionState, shades.handleShadeSelect, shades.selectedShadeGuide, shades.setSelectedShades, mirroredCompleteFieldStep, getMandibularCard0Teeth, getMaxillaryCard0Teeth, props.initialArch, initialProductDetails]
+    [shades.shadeSelectionState, shades.handleShadeSelect, shades.selectedShadeGuide, shades.setSelectedShades, mirroredCompleteFieldStep, mirroredStoreFieldValue, mirroredUncompleteFieldStep, toothFieldProgress, getMandibularCard0Teeth, getMaxillaryCard0Teeth, props.initialArch, initialProductDetails]
   );
 
   // Use product impressions from get product response when toothNumber provided; otherwise fall back to modal's mock-based resolution
@@ -1038,8 +1065,8 @@ export function useCaseDesignState(props: CaseDesignProps) {
     uncompleteFieldStep: mirroredUncompleteFieldStep, // Override: auto-copy maxillary→mandibular for removable "both arches"
     fetchAndAssignProduct,
     // Hide retention popover when active product is Removables (so panel can pass showRetentionPopover = false)
-    activeProductIsRemovablesMaxillary: treatArchAsRemovables.maxillary,
-    activeProductIsRemovablesMandibular: treatArchAsRemovables.mandibular,
+    activeProductIsRemovablesMaxillary: treatArchAsSelectionOnly.maxillary,
+    activeProductIsRemovablesMandibular: treatArchAsSelectionOnly.mandibular,
     // Initial product details (for retention_options used by retention popover)
     initialProductDetails,
     // Opposing arch extraction state

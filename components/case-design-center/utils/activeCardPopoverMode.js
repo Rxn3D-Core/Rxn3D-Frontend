@@ -1,11 +1,7 @@
-export function shouldUseFixedRetentionMode({
+export function shouldUseScopedRetentionMode({
   activeProductCardId,
   activeProductIsRemovables,
   activeFixedGroupProductId,
-}: {
-  activeProductCardId: number;
-  activeProductIsRemovables: boolean;
-  activeFixedGroupProductId: number | null;
 }) {
   if (activeProductIsRemovables) return false;
 

@@ -10,7 +10,7 @@ import {
   Maximize2,
 } from "lucide-react";
 import type { NotesProps, Arch, ProductApiData, RetentionType } from "../types";
-import { isRemovableCategory, isOrthodonticsCategory } from "../utils/categoryHelpers";
+import { isNonRetentionCategory, isOrthodonticsCategory } from "../utils/categoryHelpers";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -42,7 +42,7 @@ interface NoteGroup {
   note: string;
 }
 
-function buildFixedNote(
+function buildRetentionNote(
   arch: Arch,
   teeth: number[],
   product: ProductApiData | null,
@@ -90,7 +90,7 @@ function buildFixedNote(
   return note;
 }
 
-function buildRemovableNote(
+function buildSelectionNote(
   arch: Arch,
   _teeth: number[],
   product: ProductApiData | null,
@@ -205,7 +205,7 @@ function buildNoteGroups(props: NotesProps): NoteGroup[] {
       const implantPlatform = arch === "maxillary" ? props.right2Platform : props.right1Platform;
       const implantInclusion = arch === "maxillary" ? props.right2Inclusion : props.right1Inclusion;
 
-      const note = buildFixedNote(
+      const note = buildRetentionNote(
         arch, teeth, product, retentionType, props,
         implantBrand, implantPlatform, implantInclusion,
       );
@@ -259,11 +259,11 @@ function buildNoteGroups(props: NotesProps): NoteGroup[] {
           category: "Orthodontic",
           note: buildOrthoNote(arch, cardTeeth, product, repTooth, props),
         });
-      } else if (isRemovableCategory(product)) {
+      } else if (isNonRetentionCategory(product)) {
         groups.push({
           arch,
           category: "Removable",
-          note: buildRemovableNote(arch, cardTeeth, product, repTooth, props, allCardTeeth),
+          note: buildSelectionNote(arch, cardTeeth, product, repTooth, props, allCardTeeth),
         });
       }
     }

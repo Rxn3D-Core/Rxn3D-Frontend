@@ -1,10 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { getRemovableRepTeeth, getCard0RepTooth } from "./removableReadiness.ts";
+import {
+  getPrimaryCardRepresentativeTooth,
+  getRepresentativeTeethByCard,
+} from "./productSelectionReadiness.ts";
 
-test("ignores unselected sentinel teeth when resolving removable representative teeth", () => {
-  const repTeeth = getRemovableRepTeeth({
+test("ignores unselected sentinel teeth when resolving representative teeth", () => {
+  const representativeTeeth = getRepresentativeTeethByCard({
     allTeeth: [1, 8, 9],
     selectedTeeth: [8, 9],
     getToothProduct: (_arch, tooth) => (tooth === 1 || tooth === 8 || tooth === 9 ? { id: 10 } : null),
@@ -12,11 +15,11 @@ test("ignores unselected sentinel teeth when resolving removable representative 
     arch: "maxillary",
   });
 
-  assert.deepEqual(repTeeth, [8]);
+  assert.deepEqual(representativeTeeth, [8]);
 });
 
-test("falls back to any assigned tooth when no selected removable teeth exist yet", () => {
-  const repTeeth = getRemovableRepTeeth({
+test("falls back to any assigned tooth when no selected teeth exist yet", () => {
+  const representativeTeeth = getRepresentativeTeethByCard({
     allTeeth: [1],
     selectedTeeth: [],
     getToothProduct: (_arch, tooth) => (tooth === 1 ? { id: 10 } : null),
@@ -24,11 +27,11 @@ test("falls back to any assigned tooth when no selected removable teeth exist ye
     arch: "maxillary",
   });
 
-  assert.deepEqual(repTeeth, [1]);
+  assert.deepEqual(representativeTeeth, [1]);
 });
 
-test("card 0 rep tooth prefers a selected removable tooth over sentinel", () => {
-  const repTooth = getCard0RepTooth({
+test("primary card representative tooth prefers a selected tooth over sentinel", () => {
+  const representativeTooth = getPrimaryCardRepresentativeTooth({
     allTeeth: [1, 8, 9],
     selectedTeeth: [8, 9],
     getToothProduct: (_arch, tooth) => (tooth === 1 || tooth === 8 || tooth === 9 ? { id: 10 } : null),
@@ -36,5 +39,5 @@ test("card 0 rep tooth prefers a selected removable tooth over sentinel", () => 
     arch: "maxillary",
   });
 
-  assert.equal(repTooth, 8);
+  assert.equal(representativeTooth, 8);
 });

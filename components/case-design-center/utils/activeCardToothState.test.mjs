@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { filterToothStateForActiveCard } from "./activeRemovableCardState.js";
+import { filterToothStateForActiveCard } from "./activeCardToothState.js";
 
 test("filters removable tooth state to the active added card", () => {
   const result = filterToothStateForActiveCard({

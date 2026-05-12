@@ -38,19 +38,20 @@ import type {
   ProductExtraction,
 } from "../types";
 import type { FieldStep } from "../hooks/useToothFieldProgress";
-import { getFixedFieldChain, getRemovableFieldChain } from "../hooks/useToothFieldProgress";
+import { getRetentionFieldChain, getSelectionFieldChain } from "../hooks/useToothFieldProgress";
 import { shadeGuideOptions as defaultShadeGuideOptions } from "../constants";
-import { isRemovableCategory, isFixedCategory, hasRetentionOptions, isSingleStageNoStages } from "../utils/categoryHelpers";
+import { isNonRetentionCategory, hasRetentionOptions, isSingleStageNoStages } from "../utils/categoryHelpers";
 import { resolveVariationDisplay } from "../utils/variationHelpers";
 import { parseAddonDisplayItems } from "../utils/addonDisplayHelpers";
 import { isSingleDefaultOnlyExtractionList } from "../utils/extractionHelpers";
 import { hasImplantRetention } from "../utils/implantHelpers";
-import { filterToothStateForActiveCard } from "../utils/activeRemovableCardState.js";
+import { filterToothStateForActiveCard } from "../utils/activeCardToothState.js";
 import { getActiveProductPopoverContextToken } from "../utils/activeProductPopoverContext.js";
-import { shouldUseFixedRetentionMode } from "../utils/activeFixedPopoverMode";
-import { FixedRestorationFields } from "./FixedRestorationFields";
+import { shouldUseScopedRetentionMode } from "../utils/activeCardPopoverMode";
+import { getFirstMissingShadeGuideField, getShadeFieldType, getShadeGuideAdvanceFields } from "../utils/shadeGuideAdvanceFields";
+import { RetentionProductFields } from "./FixedRestorationFields";
 import type { ImplantDetailData } from "./ImplantDetailSection";
-import { RemovableRestorationFields } from "./RemovableRestorationFields";
+import { SelectionProductFields } from "./RemovableRestorationFields";
 
 import { AccordionBadge, EstDaysLabel } from "./AccordionBadge";
 import { ProductImagePreview } from "./ProductImagePreview";
@@ -268,6 +269,7 @@ function AutoOpenShadeGuideIfEmpty({
   isShadeSectionVisible,
   stumpShadeEmpty,
   toothShadeEmpty,
+  firstMissingShadeField,
   setShadeSelectionState,
   caseSubmitted = false,
 }: {
@@ -277,6 +279,7 @@ function AutoOpenShadeGuideIfEmpty({
   isShadeSectionVisible: boolean;
   stumpShadeEmpty: boolean;
   toothShadeEmpty: boolean;
+  firstMissingShadeField?: { id: number; name: string; fieldType: ShadeFieldType } | null;
   setShadeSelectionState: (state: ShadeSelectionState | ((prev: ShadeSelectionState) => ShadeSelectionState)) => void;
   caseSubmitted?: boolean;
 }) {
@@ -292,9 +295,11 @@ function AutoOpenShadeGuideIfEmpty({
     setShadeSelectionState({
       arch,
       productId,
-      fieldType: toothShadeEmpty ? "tooth_shade" : "stump_shade",
+      fieldType: firstMissingShadeField?.fieldType ?? (toothShadeEmpty ? "tooth_shade" : "stump_shade"),
+      advanceFieldId: firstMissingShadeField?.id ?? null,
+      advanceFieldLabel: firstMissingShadeField?.name ?? null,
     });
-  }, [caseSubmitted, isExpanded, isShadeSectionVisible, stumpShadeEmpty, toothShadeEmpty, arch, productId, setShadeSelectionState]);
+  }, [caseSubmitted, isExpanded, isShadeSectionVisible, stumpShadeEmpty, toothShadeEmpty, firstMissingShadeField, arch, productId, setShadeSelectionState]);
   return null;
 }
 
@@ -478,13 +483,15 @@ interface MaxillaryPanelProps {
   getSelectedShade: (
     productId: string,
     arch: Arch,
-    fieldType: ShadeFieldType
+    fieldType: ShadeFieldType,
+    advanceFieldId?: number | null
   ) => string;
   handleShadeSelect: (shade: string) => void;
   handleShadeFieldClick: (
     arch: Arch,
     fieldType: ShadeFieldType,
-    productId: string
+    productId: string,
+    options?: { advanceFieldId?: number | null; advanceFieldLabel?: string | null }
   ) => void;
 
   // Expansion
@@ -837,7 +844,7 @@ export function MaxillaryPanel({
     for (const toothNumber of MAXILLARY_ALL_TEETH) {
       if (getToothProductCard("maxillary", toothNumber) !== 0) continue;
       const product = getToothProduct("maxillary", toothNumber);
-      if (!product || isRemovableCategory(product)) continue;
+      if (!product || isNonRetentionCategory(product)) continue;
       const groupKey = product.id ? String(product.id) : "no_product";
       if (!groupedByProduct[groupKey]) groupedByProduct[groupKey] = [];
       groupedByProduct[groupKey].push(toothNumber);
@@ -970,7 +977,7 @@ export function MaxillaryPanel({
   useEffect(() => {
     for (const ap of addedProducts.filter(ap => ap.arch === "maxillary")) {
       if (!ap.productId) continue;
-      if (!isRemovableCategory(ap.product)) continue;
+      if (!isNonRetentionCategory(ap.product)) continue;
       const hasTeeth = MAXILLARY_ALL_TEETH.some(tn => getToothProductCard("maxillary", tn) === ap.id);
       if (hasTeeth) continue;
       const virtualSlot = -ap.id;
@@ -985,7 +992,7 @@ export function MaxillaryPanel({
   useEffect(() => {
     for (const ap of addedProducts.filter(ap => ap.arch === "maxillary")) {
       if (!ap.productId) continue;
-      if (!isFixedCategory(ap.product)) continue;
+      if (!hasRetentionOptions(ap.product)) continue;
       const assignedTeeth = MAXILLARY_ALL_TEETH.filter(tn => getToothProductCard("maxillary", tn) === ap.id);
       for (const tn of assignedTeeth) {
         if (getToothProduct("maxillary", tn)) continue;
@@ -1009,7 +1016,7 @@ export function MaxillaryPanel({
       // Check if the active added card is a removable product
       const activeAp = addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "maxillary");
       if (activeAp) {
-        if (isRemovableCategory(activeAp.product)) {
+        if (isNonRetentionCategory(activeAp.product)) {
           return maxillaryTeeth.filter(tn => getToothProductCard("maxillary", tn) === activeProductCardId);
         }
       }
@@ -1032,7 +1039,7 @@ export function MaxillaryPanel({
       ? addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "maxillary")
       : null;
 
-    if (!activeAp || !isRemovableCategory(activeAp.product)) {
+    if (!activeAp || !isNonRetentionCategory(activeAp.product)) {
       return {
         toothExtractionMap: opposingProductData ? opposingToothExtractionMap : maxillaryToothExtractionMap,
         toothStatusByTooth: opposingProductData ? opposingToothExtractionMap : maxillaryToothExtractionMap,
@@ -1053,7 +1060,7 @@ export function MaxillaryPanel({
       arch: "maxillary",
     });
   })();
-  const useFixedRetentionMode = shouldUseFixedRetentionMode({
+  const useScopedRetentionMode = shouldUseScopedRetentionMode({
     activeProductCardId,
     activeProductIsRemovables,
     activeFixedGroupProductId,
@@ -1253,7 +1260,7 @@ export function MaxillaryPanel({
                 }
                 // When an added Fixed Restoration card is active, bypass opposingProductData routing
                 // so the user can assign teeth to the new product via the retention popover.
-                if (opposingProductData && !useFixedRetentionMode) {
+                  if (opposingProductData && !useScopedRetentionMode) {
                   if (opposingActiveExtractionCode) {
                     const opposingExt = opposingProductData.opposite_extractions?.find((e) => e.code === opposingActiveExtractionCode);
                     const maxTeeth = opposingExt?.max_teeth && opposingExt.max_teeth > 0 ? opposingExt.max_teeth : null;
@@ -1287,7 +1294,7 @@ export function MaxillaryPanel({
                     setToothStatusPopoverTooth(toothNumber);
                     setToothStatusPopoverExtractions(exts);
                   }
-                } else if (activeExtractionCode && !useFixedRetentionMode) {
+                } else if (activeExtractionCode && !useScopedRetentionMode) {
                   const activeExt = activeExtractions.find((e) => e.code === activeExtractionCode);
                   const maxTeeth = activeExt?.max_teeth && activeExt.max_teeth > 0 ? activeExt.max_teeth : null;
                   const currentCount = Object.values(maxillaryToothExtractionMap).filter((c) => c === activeExtractionCode).length;
@@ -1309,7 +1316,7 @@ export function MaxillaryPanel({
               showRetentionPopover={
                 retentionPopoverState.arch === "maxillary" && !activeProductIsRemovables &&
                 toothStatusPopoverTooth === null &&
-                (!opposingProductData || useFixedRetentionMode)
+                (!opposingProductData || useScopedRetentionMode)
               }
               retentionPopoverTooth={retentionPopoverState.toothNumber}
               onSelectRetentionType={(tooth, type) =>
@@ -1486,11 +1493,11 @@ export function MaxillaryPanel({
               const apRepTn = cardTeeth.length > 0 ? cardTeeth[0] : (isApRemovables ? -ap.id : 0);
               const apProductKey = `maxillary_prep_${apRepTn}`;
               const hasRushedAp = rushedProducts[apProductKey];
-              const apStageKey = isFixedCategory(apProduct)
+              const apStageKey = hasRetentionOptions(apProduct)
                 ? `maxillary_fixed_${apRepTn}`
                 : `maxillary_prep_${apRepTn}`;
               const apStageVal = apRepTn > 0
-                ? (selectedStages[apStageKey] || getFieldValue("maxillary", apRepTn, isFixedCategory(apProduct) ? "fixed_stage" : "stage"))
+                ? (selectedStages[apStageKey] || getFieldValue("maxillary", apRepTn, hasRetentionOptions(apProduct) ? "fixed_stage" : "stage"))
                 : "";
               const apStageObj = cardProduct?.stages?.find(s => s.name === apStageVal);
               const apDays = apStageObj?.days_to_process;
@@ -1520,7 +1527,7 @@ export function MaxillaryPanel({
                   hasRush={!!hasRushedAp}
                   canDelete={true}
                   onDelete={() => {
-                    const wasFixed = isFixedCategory(apProduct);
+                    const wasFixed = hasRetentionOptions(apProduct);
                     const remainingAdded = addedProducts.filter(p => p.arch === "maxillary").length - 1;
                     const hasCard0 = maxillaryHasFixedCard0 || maxillaryHasRemovablesCard0;
                     MAXILLARY_ALL_TEETH.filter(tn => getToothProductCard("maxillary", tn) === ap.id).forEach(tn => {
@@ -1609,7 +1616,7 @@ export function MaxillaryPanel({
                                       tabIndex={0}
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        const wasFixed = isFixedCategory(apProduct);
+                                        const wasFixed = hasRetentionOptions(apProduct);
                                         const remainingAdded = addedProducts.filter(p => p.arch === "maxillary").length - 1;
                                         const hasCard0 = maxillaryHasFixedCard0 || maxillaryHasRemovablesCard0;
                                         MAXILLARY_ALL_TEETH.filter(tn => getToothProductCard("maxillary", tn) === ap.id).forEach(tn => {
@@ -1648,8 +1655,8 @@ export function MaxillaryPanel({
                         const toothProduct = getToothProduct("maxillary", repTn);
                         const isFixed = hasRetentionOptions(toothProduct);
                         const isRemovables = toothProduct ? !hasRetentionOptions(toothProduct) : isCardRemovables;
-                        const fixedChain = isFixed ? getFixedFieldChain(toothProduct?.advance_fields, toothProduct) : undefined;
-                        const removableChain = isRemovables ? getRemovableFieldChain(toothProduct) : undefined;
+                        const fixedChain = isFixed ? getRetentionFieldChain(toothProduct?.advance_fields, toothProduct) : undefined;
+                        const removableChain = isRemovables ? getSelectionFieldChain(toothProduct) : undefined;
                         const advFields = toothProduct?.advance_fields;
                         const isF = (step: string) => {
                           if (step === "impression") return toothProduct?.has_impression === "Yes" && isFieldVisible("maxillary", repTn, step as any, isFixed ? fixedChain : removableChain);
@@ -1850,30 +1857,48 @@ export function MaxillaryPanel({
                         // Fixed restoration added product — use same FixedRestorationFields as Card 0
                         const apFirstTn = cardTeeth.length > 0 ? Math.min(...cardTeeth) : 0;
                         const apToothProduct = getToothProduct("maxillary", apFirstTn);
-                        const apFixedChain = getFixedFieldChain(apToothProduct?.advance_fields, apToothProduct);
+                        const apFixedChain = getRetentionFieldChain(apToothProduct?.advance_fields, apToothProduct);
                         const apRetentionTypes = cardTeeth.flatMap(tn => maxillaryRetentionTypes[tn] || []);
                         const apIsFixed = (step: FieldStep) =>
                           isFieldVisible("maxillary", apFirstTn, step, apFixedChain);
                         const apFixedShadeProductId = `fixed_${apFirstTn}`;
-                        const apNeedsStumpShade = apFixedChain.includes("fixed_stump_shade") &&
-                          (apToothProduct?.has_gum_shade === "Yes" ||
-                           (apToothProduct?.advance_fields || []).some((f) => { const n = (f.name || "").toLowerCase(); return (n.includes("stump") || n.includes("gum")) && n.includes("shade"); }));
-                        const apNeedsToothShade =
-                          (apFixedChain.includes("fixed_stump_shade") &&
-                           (apToothProduct?.has_teeth_shade === "Yes" ||
-                            (apToothProduct?.advance_fields || []).some((f) => { const n = (f.name || "").toLowerCase(); return (n.includes("teeth") || (n.includes("tooth") && !n.includes("stump") && !n.includes("gum"))) && n.includes("shade"); }))) ||
-                          (apFixedChain.includes("fixed_shade_trio") &&
-                           (apToothProduct?.has_teeth_shade === "Yes" ||
-                            (apToothProduct?.advance_fields || []).some((f) => { const n = (f.name || "").toLowerCase(); return (n.includes("cervical") || n.includes("incisal") || n.includes("body") || n.includes("crown") || (n.includes("tooth") && !n.includes("stump"))) && n.includes("shade"); })));
-                        const apShadeRequired = apNeedsStumpShade || apNeedsToothShade;
+                        const apNamedShadeFields = getShadeGuideAdvanceFields(apToothProduct?.advance_fields);
+                        const apFirstMissingShadeField = getFirstMissingShadeGuideField(
+                          apToothProduct?.advance_fields,
+                          apFixedShadeProductId,
+                          "maxillary",
+                          getSelectedShade
+                        );
+                        const apNeedsStumpShade = apNamedShadeFields.length > 0
+                          ? apNamedShadeFields.some((field) => getShadeFieldType(field) === "stump_shade")
+                          : apFixedChain.includes("fixed_stump_shade") &&
+                            (apToothProduct?.has_gum_shade === "Yes" ||
+                             (apToothProduct?.advance_fields || []).some((f) => { const n = (f.name || "").toLowerCase(); return (n.includes("stump") || n.includes("gum")) && n.includes("shade"); }));
+                        const apHasLegacyToothShade = apToothProduct?.has_teeth_shade === "Yes" ||
+                          (apToothProduct?.advance_fields || []).some((f) => {
+                            const n = (f.name || "").toLowerCase();
+                            return (n.includes("teeth") || (n.includes("tooth") && !n.includes("stump") && !n.includes("gum"))) && n.includes("shade");
+                          });
+                        const apHasLegacyTrioShade = apToothProduct?.has_teeth_shade === "Yes" ||
+                          (apToothProduct?.advance_fields || []).some((f) => {
+                            const n = (f.name || "").toLowerCase();
+                            return (n.includes("cervical") || n.includes("incisal") || n.includes("body") || n.includes("crown") || (n.includes("tooth") && !n.includes("stump"))) && n.includes("shade");
+                          });
+                        const apNeedsToothShade = apNamedShadeFields.length > 0
+                          ? apNamedShadeFields.some((field) => getShadeFieldType(field) === "tooth_shade")
+                          : (apFixedChain.includes("fixed_stump_shade") && apHasLegacyToothShade) ||
+                            (apFixedChain.includes("fixed_shade_trio") && apHasLegacyTrioShade);
+                        const apShadeRequired = apNamedShadeFields.length > 0 ? !!apFirstMissingShadeField : (apNeedsStumpShade || apNeedsToothShade);
                         const apFixedShadeIncomplete =
                           apShadeRequired &&
                           shadeSelectionState.productId === apFixedShadeProductId &&
                           shadeSelectionState.arch === "maxillary" &&
-                          !(
-                            (!apNeedsStumpShade || getSelectedShade(apFixedShadeProductId, "maxillary", "stump_shade")) &&
-                            (!apNeedsToothShade || getSelectedShade(apFixedShadeProductId, "maxillary", "tooth_shade"))
-                          );
+                          (apNamedShadeFields.length > 0
+                            ? !!apFirstMissingShadeField
+                            : !(
+                                (!apNeedsStumpShade || getSelectedShade(apFixedShadeProductId, "maxillary", "stump_shade")) &&
+                                (!apNeedsToothShade || getSelectedShade(apFixedShadeProductId, "maxillary", "tooth_shade"))
+                              ));
                         const apGroupStageProductIdFixed = `maxillary_fixed_${apFirstTn}`;
 
                         return (
@@ -1897,11 +1922,13 @@ export function MaxillaryPanel({
                               isShadeSectionVisible={apIsFixed("fixed_stump_shade") || apIsFixed("fixed_shade_trio")}
                               stumpShadeEmpty={apNeedsStumpShade && !getSelectedShade(apFixedShadeProductId, "maxillary", "stump_shade")}
                               toothShadeEmpty={apNeedsToothShade && !getSelectedShade(apFixedShadeProductId, "maxillary", "tooth_shade")}
+                              firstMissingShadeField={apFirstMissingShadeField}
                               setShadeSelectionState={setShadeSelectionState}
                               caseSubmitted={caseSubmitted}
                             />
                             <AutoOpenGumShade
                               visible={
+                                apNamedShadeFields.length === 0 &&
                                 apNeedsStumpShade &&
                                 !!getSelectedShade(apFixedShadeProductId, "maxillary", "tooth_shade") &&
                                 !getSelectedShade(apFixedShadeProductId, "maxillary", "stump_shade")
@@ -1915,7 +1942,7 @@ export function MaxillaryPanel({
                                 })
                               }
                             />
-                            <FixedRestorationFields
+                            <RetentionProductFields
                               arch="maxillary"
                               isExpanded={isExpanded}
                               firstToothNumber={apFirstTn}
@@ -1991,7 +2018,7 @@ export function MaxillaryPanel({
               const subcategoryName = selectedProduct?.subcategory?.name || "";
 
               // Skip removables products — they have their own dedicated accordion section
-              if (isRemovableCategory(selectedProduct)) return null;
+              if (isNonRetentionCategory(selectedProduct)) return null;
               const fixedStageName = selectedStages[`maxillary_prep_${firstToothNumber}`] || selectedStages[`maxillary_fixed_${firstToothNumber}`] || "";
               const fixedStageObj = selectedProduct?.stages?.find(s => s.name === fixedStageName);
               const fixedDays = fixedStageObj?.days_to_process;
@@ -2031,7 +2058,7 @@ export function MaxillaryPanel({
               }
 
               // Build product-aware chain for Fixed Restoration fields
-              const fixedChain = getFixedFieldChain(selectedProduct?.advance_fields, selectedProduct);
+              const fixedChain = getRetentionFieldChain(selectedProduct?.advance_fields, selectedProduct);
               // Helper: check visibility within the product-specific fixed chain
               // Use groupStageToothNumber so all field progress keys are consistent
               const isFixed = (step: FieldStep) =>
@@ -2039,27 +2066,45 @@ export function MaxillaryPanel({
 
               // Gate: hide product fields while shade guide is open and incomplete for this product
               const _fixedShadeProductId = `fixed_${groupStageToothNumber}`;
-              const _needsStumpShade = fixedChain.includes("fixed_stump_shade") &&
-                (selectedProduct?.has_gum_shade === "Yes" ||
-                 (selectedProduct?.advance_fields || []).some((f) => { const n = (f.name || "").toLowerCase(); return (n.includes("stump") || n.includes("gum")) && n.includes("shade"); }));
-              const _needsToothShade =
-                (fixedChain.includes("fixed_stump_shade") &&
-                 (selectedProduct?.has_teeth_shade === "Yes" ||
-                  (selectedProduct?.advance_fields || []).some((f) => { const n = (f.name || "").toLowerCase(); return (n.includes("teeth") || (n.includes("tooth") && !n.includes("stump") && !n.includes("gum"))) && n.includes("shade"); }))) ||
-                (fixedChain.includes("fixed_shade_trio") &&
-                 (selectedProduct?.has_teeth_shade === "Yes" ||
-                  (selectedProduct?.advance_fields || []).some((f) => { const n = (f.name || "").toLowerCase(); return (n.includes("cervical") || n.includes("incisal") || n.includes("body") || n.includes("crown") || (n.includes("tooth") && !n.includes("stump"))) && n.includes("shade"); })));
-              const _shadeRequired = _needsStumpShade || _needsToothShade;
+              const namedShadeFields = getShadeGuideAdvanceFields(selectedProduct?.advance_fields);
+              const firstMissingShadeField = getFirstMissingShadeGuideField(
+                selectedProduct?.advance_fields,
+                _fixedShadeProductId,
+                "maxillary",
+                getSelectedShade
+              );
+              const _needsStumpShade = namedShadeFields.length > 0
+                ? namedShadeFields.some((field) => getShadeFieldType(field) === "stump_shade")
+                : fixedChain.includes("fixed_stump_shade") &&
+                  (selectedProduct?.has_gum_shade === "Yes" ||
+                   (selectedProduct?.advance_fields || []).some((f) => { const n = (f.name || "").toLowerCase(); return (n.includes("stump") || n.includes("gum")) && n.includes("shade"); }));
+              const hasLegacyToothShade = selectedProduct?.has_teeth_shade === "Yes" ||
+                (selectedProduct?.advance_fields || []).some((f) => {
+                  const n = (f.name || "").toLowerCase();
+                  return (n.includes("teeth") || (n.includes("tooth") && !n.includes("stump") && !n.includes("gum"))) && n.includes("shade");
+                });
+              const hasLegacyTrioShade = selectedProduct?.has_teeth_shade === "Yes" ||
+                (selectedProduct?.advance_fields || []).some((f) => {
+                  const n = (f.name || "").toLowerCase();
+                  return (n.includes("cervical") || n.includes("incisal") || n.includes("body") || n.includes("crown") || (n.includes("tooth") && !n.includes("stump"))) && n.includes("shade");
+                });
+              const _needsToothShade = namedShadeFields.length > 0
+                ? namedShadeFields.some((field) => getShadeFieldType(field) === "tooth_shade")
+                : (fixedChain.includes("fixed_stump_shade") && hasLegacyToothShade) ||
+                  (fixedChain.includes("fixed_shade_trio") && hasLegacyTrioShade);
+              const _shadeRequired = namedShadeFields.length > 0 ? !!firstMissingShadeField : (_needsStumpShade || _needsToothShade);
               const fixedShadeIncomplete =
                 _shadeRequired &&
                 shadeSelectionState.productId === _fixedShadeProductId &&
                 shadeSelectionState.arch === "maxillary" &&
-                !(
-                  (!_needsStumpShade || getSelectedShade(_fixedShadeProductId, "maxillary", "stump_shade")) &&
-                  (!_needsToothShade || getSelectedShade(_fixedShadeProductId, "maxillary", "tooth_shade"))
-                );
-              const showFixedActions = isFixedCategory(selectedProduct) && isFieldCompleted("maxillary", groupStageToothNumber, "fixed_impression") && !caseSubmitted;
-              const showPrepActions = !isFixedCategory(selectedProduct) && isFieldCompleted("maxillary", firstToothNumber, "addons") && !caseSubmitted;
+                (namedShadeFields.length > 0
+                  ? !!firstMissingShadeField
+                  : !(
+                      (!_needsStumpShade || getSelectedShade(_fixedShadeProductId, "maxillary", "stump_shade")) &&
+                      (!_needsToothShade || getSelectedShade(_fixedShadeProductId, "maxillary", "tooth_shade"))
+                    ));
+              const showFixedActions = hasRetentionOptions(selectedProduct) && isFieldCompleted("maxillary", groupStageToothNumber, "fixed_impression") && !caseSubmitted;
+              const showPrepActions = !hasRetentionOptions(selectedProduct) && isFieldCompleted("maxillary", firstToothNumber, "addons") && !caseSubmitted;
               const showActions = showFixedActions || showPrepActions;
 
               const slotId = `fixed0_${groupKey}`;
@@ -2101,17 +2146,17 @@ export function MaxillaryPanel({
                 >
                   {!isSingleStageNoStages(selectedProduct) && (
                   <AutoOpenStageIfEmpty
-                    productId={isFixedCategory(selectedProduct) ? groupStageProductIdFixed : `maxillary_prep_${firstToothNumber}`}
+                    productId={hasRetentionOptions(selectedProduct) ? groupStageProductIdFixed : `maxillary_prep_${firstToothNumber}`}
                     arch="maxillary"
-                    toothNumber={isFixedCategory(selectedProduct) ? groupStageToothNumber : firstToothNumber}
+                    toothNumber={hasRetentionOptions(selectedProduct) ? groupStageToothNumber : firstToothNumber}
                     isExpanded={true}
-                    isStageVisible={isFixedCategory(selectedProduct) ? isFixed("fixed_stage") : isFieldVisible("maxillary", firstToothNumber, "stage")}
-                    isStageEmpty={isFixedCategory(selectedProduct) ? !(selectedStages[groupStageProductIdFixed] || getFieldValue("maxillary", groupStageToothNumber, "fixed_stage")) : !(selectedStages[`maxillary_prep_${firstToothNumber}`] || getFieldValue("maxillary", firstToothNumber, "stage"))}
+                    isStageVisible={hasRetentionOptions(selectedProduct) ? isFixed("fixed_stage") : isFieldVisible("maxillary", firstToothNumber, "stage")}
+                    isStageEmpty={hasRetentionOptions(selectedProduct) ? !(selectedStages[groupStageProductIdFixed] || getFieldValue("maxillary", groupStageToothNumber, "fixed_stage")) : !(selectedStages[`maxillary_prep_${firstToothNumber}`] || getFieldValue("maxillary", firstToothNumber, "stage"))}
                     onOpenStage={handleOpenStageModal}
                     caseSubmitted={caseSubmitted}
                   />
                   )}
-                  {isFixedCategory(selectedProduct) && (
+                  {hasRetentionOptions(selectedProduct) && (
                     <>
                       <AutoOpenShadeGuideIfEmpty
                         arch="maxillary"
@@ -2120,11 +2165,13 @@ export function MaxillaryPanel({
                         isShadeSectionVisible={isFixed("fixed_stump_shade") || isFixed("fixed_shade_trio")}
                         stumpShadeEmpty={_needsStumpShade && !getSelectedShade(`fixed_${groupStageToothNumber}`, "maxillary", "stump_shade")}
                         toothShadeEmpty={_needsToothShade && !getSelectedShade(`fixed_${groupStageToothNumber}`, "maxillary", "tooth_shade")}
+                        firstMissingShadeField={firstMissingShadeField}
                         setShadeSelectionState={setShadeSelectionState}
                         caseSubmitted={caseSubmitted}
                       />
                       <AutoOpenGumShade
                         visible={
+                          namedShadeFields.length === 0 &&
                           _needsStumpShade &&
                           !!getSelectedShade(`fixed_${groupStageToothNumber}`, "maxillary", "tooth_shade") &&
                           !getSelectedShade(`fixed_${groupStageToothNumber}`, "maxillary", "stump_shade")
@@ -2141,8 +2188,8 @@ export function MaxillaryPanel({
                     </>
                   )}
 
-                  {isFixedCategory(selectedProduct) ? (
-                    <FixedRestorationFields
+                  {hasRetentionOptions(selectedProduct) ? (
+                    <RetentionProductFields
                       arch="maxillary"
                       isExpanded={isCardExpanded(slotId)}
                       firstToothNumber={groupStageToothNumber}
@@ -2176,7 +2223,7 @@ export function MaxillaryPanel({
                       setPanelGumShadePicker={(s) => setPanelGumShadePicker({ ...s, stepOverride: "fixed_stump_shade" })}
                     />
                   ) : (
-                    <RemovableRestorationFields
+                    <SelectionProductFields
                       arch="maxillary"
                       firstToothNumber={firstToothNumber}
                       selectedProduct={selectedProduct}
