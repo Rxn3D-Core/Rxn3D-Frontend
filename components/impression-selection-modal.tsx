@@ -418,7 +418,7 @@ export function ImpressionSelectionModal({
                 showDoneCheckmark={true}
                 onDone={handleDone}
               />
-              {!hideSkipOpposing && (
+              {!hideSkipOpposing && !hasBottomSelection && (
               <div className="flex justify-center mt-4">
                 <button
                   onClick={() => onSubmitNoOpposing ? onSubmitNoOpposing() : handleDone()}
