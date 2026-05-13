@@ -30,6 +30,7 @@ export default function AbutmentLibraryPage() {
   const [orderBy, setOrderBy] = useState('type')
   const [isAddAbutmentModalOpen, setIsAddAbutmentModalOpen] = useState(false)
   const [editingAbutment, setEditingAbutment] = useState<Abutment | null>(null)
+  const [isCopyingAbutment, setIsCopyingAbutment] = useState(false)
 
   // Fetch abutments from API
   const serverSortableFields = ["type", "code", "sequence", "created_at"]
@@ -90,6 +91,18 @@ export default function AbutmentLibraryPage() {
         })
       },
     })
+  }
+
+  const handleEdit = (abutment: Abutment) => {
+    setIsCopyingAbutment(false)
+    setEditingAbutment(abutment)
+    setIsAddAbutmentModalOpen(true)
+  }
+
+  const handleCopy = (abutment: Abutment) => {
+    setIsCopyingAbutment(true)
+    setEditingAbutment(abutment)
+    setIsAddAbutmentModalOpen(true)
   }
 
   const handleSort = (field: string) => {
@@ -175,6 +188,7 @@ export default function AbutmentLibraryPage() {
             <Button
               onClick={() => {
                 setEditingAbutment(null)
+                setIsCopyingAbutment(false)
                 setIsAddAbutmentModalOpen(true)
               }}
               className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
@@ -312,15 +326,15 @@ export default function AbutmentLibraryPage() {
                         <button
                           type="button"
                           className="text-gray-400 hover:text-[#1162a8] transition-colors p-0.5"
-                          onClick={() => {
-                            setEditingAbutment(item)
-                            setIsAddAbutmentModalOpen(true)
-                          }}
+                          onClick={() => handleEdit(item)}
                           aria-label={t("advanceMode.abutmentLibrary.editAbutment", "Edit abutment")}
                         >
                           <Edit className="h-3.5 w-3.5" />
                         </button>
-                        <button className="text-gray-400 hover:text-[#1162a8] transition-colors p-0.5">
+                        <button 
+                          className="text-gray-400 hover:text-[#1162a8] transition-colors p-0.5"
+                          onClick={() => handleCopy(item)}
+                        >
                           <Copy className="h-3.5 w-3.5" />
                         </button>
                         <button
@@ -399,9 +413,11 @@ export default function AbutmentLibraryPage() {
       <AddAbutmentModal
         isOpen={isAddAbutmentModalOpen}
         initialAbutment={editingAbutment}
+        isCopying={isCopyingAbutment}
         onClose={() => {
           setIsAddAbutmentModalOpen(false)
           setEditingAbutment(null)
+          setIsCopyingAbutment(false)
         }}
         onSave={async (data) => {
           const payload = { ...data } as Record<string, unknown> & { id?: number }
@@ -413,7 +429,7 @@ export default function AbutmentLibraryPage() {
           const { id, ...body } = payload
 
           await new Promise<void>((resolve, reject) => {
-            if (id != null) {
+            if (id != null && !isCopyingAbutment) {
               updateAbutmentMutation.mutate(
                 { id, ...(body as any) },
                 {
