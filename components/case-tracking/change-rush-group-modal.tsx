@@ -38,7 +38,7 @@ export function ChangeRushGroupModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px] p-0 gap-0">
+      <DialogContent showCloseButton className="sm:max-w-[500px] p-0 gap-0">
         <div className="p-8 flex flex-col items-center text-center">
           {/* Warning Icon */}
           <div className="mb-6">

@@ -1012,7 +1012,10 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
           if (!open) closeScanner()
         }}
       >
-        <DialogContent className="sm:max-w-[600px] lg:max-w-[700px] xl:max-w-[800px] 2xl:max-w-[900px] max-w-[95vw] w-full mx-auto overflow-hidden">
+        <DialogContent
+          showCloseButton={false}
+          className="sm:max-w-[600px] lg:max-w-[700px] xl:max-w-[800px] 2xl:max-w-[900px] max-w-[95vw] w-full mx-auto overflow-hidden"
+        >
           <DialogHeader>
             <DialogTitle className="flex justify-between items-center text-sm sm:text-base lg:text-lg xl:text-xl">
               <span>QR Code Scanner: Position QR code in the frame</span>

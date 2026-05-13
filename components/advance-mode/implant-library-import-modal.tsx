@@ -115,7 +115,10 @@ export function ImplantLibraryImportModal({ open, onOpenChange }: ImplantLibrary
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="flex max-h-[90vh] max-w-3xl flex-col gap-0 overflow-hidden p-0">
+      <DialogContent
+        showCloseButton
+        className="flex max-h-[90vh] max-w-3xl flex-col gap-0 overflow-hidden p-0"
+      >
         <DialogHeader className="flex-shrink-0 border-b px-6 py-4 pr-14 text-left">
           <DialogTitle className="text-lg">Import implants from CSV</DialogTitle>
           <DialogDescription className="text-sm text-gray-600">

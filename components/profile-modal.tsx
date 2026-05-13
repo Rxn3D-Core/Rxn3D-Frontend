@@ -106,7 +106,7 @@ export function ProfileModal({ isOpen, onClose, data, isLoading, onSave }: Profi
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[1100px] p-0 overflow-hidden max-h-[90vh]">
+      <DialogContent showCloseButton className="sm:max-w-[1100px] p-0 overflow-hidden max-h-[90vh]">
         <DialogHeader className="px-6 py-5 border-b bg-gray-50">
           <DialogTitle className="text-2xl font-bold text-gray-800">
             {profile?.type === "lab" ? "Lab Profile" : "Practice Profile"}

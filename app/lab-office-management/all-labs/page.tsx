@@ -204,21 +204,25 @@ export default function AllLabs() {
         holidays: "All Federal Holidays",
       }
       const pickupData = {
-        serviceArea: `${profileData?.city || ""}, ${profileData?.state?.name || ""} ${profileData?.country?.name || ""}`.trim(),
-        pickupDays: "Lab hours",
+        serviceArea:
+          profileData?.business_settings?.pickup_area ||
+          `${profileData?.city || ""}, ${profileData?.state?.name || ""} ${profileData?.country?.name || ""}`.trim(),
+        pickupDays: profileData?.business_settings?.pickup_days || "Lab hours",
         cutOffTime: profileData?.business_settings?.case_schedule?.default_pickup_time
           ? toDisplayTime(profileData.business_settings.case_schedule.default_pickup_time)
           : "",
-        frequency: "Daily",
-        window: "10:00 am - 2:00 pm",
+        frequency: profileData?.business_settings?.pickup_frequency || "Daily",
+        window: profileData?.business_settings?.pickup_window || "10:00 am - 2:00 pm",
       }
       const deliveryData = {
-        serviceArea: `${profileData?.city || ""}, ${profileData?.state?.name || ""} ${profileData?.country?.name || ""}`.trim(),
-        deliveryDays: "Lab hours",
+        serviceArea:
+          profileData?.business_settings?.delivery_area ||
+          `${profileData?.city || ""}, ${profileData?.state?.name || ""} ${profileData?.country?.name || ""}`.trim(),
+        deliveryDays: profileData?.business_settings?.delivery_days || "Lab hours",
         defaultTime: profileData?.business_settings?.case_schedule?.default_delivery_time
           ? toDisplayTime(profileData.business_settings.case_schedule.default_delivery_time)
           : "",
-        window: "3:00 pm - 6:00 pm",
+        window: profileData?.business_settings?.delivery_window || "3:00 pm - 6:00 pm",
       }
       const rushSettings = {
         enabled: !!profileData?.business_settings?.case_schedule?.enable_rush_cases,

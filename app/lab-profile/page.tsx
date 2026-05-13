@@ -137,8 +137,8 @@ export default function LabProfile() {
       holidays: "All Federal Holidays",
     },
     pickupData: {
-      serviceArea: `${customerProfile.city}, ${customerProfile.state?.name || ''} ${customerProfile.country?.name || ''}`,
-      pickupDays: "Lab hours",
+      serviceArea: customerProfile.business_settings?.pickup_area || `${customerProfile.city}, ${customerProfile.state?.name || ''} ${customerProfile.country?.name || ''}`,
+      pickupDays: customerProfile.business_settings?.pickup_days || "Lab hours",
       cutOffTime: customerProfile.business_settings?.case_schedule && customerProfile.business_settings.case_schedule.default_pickup_time
         ? new Date(customerProfile.business_settings.case_schedule.default_pickup_time).toString() !== "Invalid Date"
           ? new Date(customerProfile.business_settings.case_schedule.default_pickup_time).toLocaleTimeString("en-US", { 
@@ -148,12 +148,12 @@ export default function LabProfile() {
             })
           : ""
         : "10:30 am",
-      frequency: "Daily",
-      window: "10:00 am - 2:00 pm",
+      frequency: customerProfile.business_settings?.pickup_frequency || "Daily",
+      window: customerProfile.business_settings?.pickup_window || "10:00 am - 2:00 pm",
     },
     deliveryData: {
-      serviceArea: `${customerProfile.city}, ${customerProfile.state?.name || ''} ${customerProfile.country?.name || ''}`,
-      deliveryDays: "Lab hours",
+      serviceArea: customerProfile.business_settings?.delivery_area || `${customerProfile.city}, ${customerProfile.state?.name || ''} ${customerProfile.country?.name || ''}`,
+      deliveryDays: customerProfile.business_settings?.delivery_days || "Lab hours",
       defaultTime: customerProfile.business_settings?.case_schedule && customerProfile.business_settings.case_schedule.default_delivery_time
         ? new Date(customerProfile.business_settings.case_schedule.default_delivery_time).toString() !== "Invalid Date"
           ? new Date(customerProfile.business_settings.case_schedule.default_delivery_time).toLocaleTimeString("en-US", { 
@@ -163,7 +163,7 @@ export default function LabProfile() {
             })
           : ""
         : "4:00 pm",
-      window: "3:00 pm - 6:00 pm",
+      window: customerProfile.business_settings?.delivery_window || "3:00 pm - 6:00 pm",
     },
     rushSettings: {
       enabled: customerProfile.business_settings?.case_schedule?.enable_rush_cases || false,
