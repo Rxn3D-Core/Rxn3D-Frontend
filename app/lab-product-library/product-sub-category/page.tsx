@@ -203,12 +203,11 @@ export default function ProductSubCategoryPage() {
   }
 
   function handleEdit(id: number): void {
-    const subcategory = categories.find((cat) => cat.id === id)
     setEditSubCategoryId(id)
     setCopyingCategory(null)
     setIsCopying(false)
     setIsAddCategoryModalOpen(true)
-    setDisableAllFields(!isLabAdmin && (subcategory as any)?.is_custom === "No")
+    setDisableAllFields(false)
   }
 
   function handleCopyCategory(id: number): void {
@@ -225,17 +224,12 @@ export default function ProductSubCategoryPage() {
   function handleDelete(id: number): void {
     const subcategory = categories.find((cat) => cat.id === id)
     setDeleteTarget({ id, name: subcategory?.sub_name || subcategory?.name })
-    setIsCustomNo((subcategory as any)?.is_custom === "No")
+    setIsCustomNo(false)
     setDeleteModalOpen(true)
   }
 
   async function confirmDelete() {
     if (!deleteTarget) return
-    if (isCustomNo && !isLabAdmin) {
-      setDeleteModalOpen(false)
-      setDeleteTarget(null)
-      return
-    }
     setIsDeleting(true)
     await deleteCategory(deleteTarget.id, true) // true = subcategory
     setIsDeleting(false)
@@ -466,34 +460,14 @@ export default function ProductSubCategoryPage() {
                       <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-600 hover:text-[#1162a8] hover:bg-blue-50" onClick={() => handleEdit(subcategory.id)}>
                         <Edit className="h-4 w-4" />
                       </Button>
-                      {(subcategory as any)?.is_custom === "No" && !isLabAdmin ? (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0 text-gray-400 cursor-not-allowed"
-                                disabled
-                              >
-                                <TrashIcon className="h-4 w-4" />
-                              </Button>
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {t("This record is not custom and cannot be deleted.")}
-                          </TooltipContent>
-                        </Tooltip>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0 text-gray-600 hover:text-red-600 hover:bg-red-50"
-                          onClick={() => handleDelete(subcategory.id)}
-                        >
-                          <TrashIcon className="h-4 w-4" />
-                        </Button>
-                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-gray-600 hover:text-red-600 hover:bg-red-50"
+                        onClick={() => handleDelete(subcategory.id)}
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                      </Button>
                       <Button 
                         variant="ghost" 
                         size="sm" 
@@ -616,7 +590,7 @@ export default function ProductSubCategoryPage() {
         confirmText={t("Delete", { defaultValue: "Delete" })}
         cancelText={t("Cancel", { defaultValue: "Cancel" })}
         isLoading={isDeleting}
-        isCustomNo={isCustomNo && !isLabAdmin}
+        isCustomNo={false}
       />
       </TooltipProvider>
     </div>
