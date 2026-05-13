@@ -307,11 +307,11 @@ export const labAdminMenu: MenuItem[] = [
         title: "Generate Statements",
         path: "/billing/generate-statements",
       },
-      {
-        id: "integrations",
-        title: "Integrations",
-        path: "/billing/integrations",
-      },
+      // {
+      //   id: "integrations",
+      //   title: "Integrations",
+      //   path: "/billing/integrations",
+      // },
     ],
   },
   {
