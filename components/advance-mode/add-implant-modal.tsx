@@ -19,6 +19,7 @@ interface AddImplantModalProps {
   onSave?: (data: any) => void
   implant?: Implant | null
   isEditMode?: boolean
+  isCopying?: boolean
   isSaving?: boolean
 }
 
@@ -42,7 +43,7 @@ interface SizeOption {
   status: boolean
 }
 
-export function AddImplantModal({ isOpen, onClose, onSave, implant, isEditMode = false, isSaving: externalIsSaving = false }: AddImplantModalProps) {
+export function AddImplantModal({ isOpen, onClose, onSave, implant, isEditMode = false, isCopying = false, isSaving: externalIsSaving = false }: AddImplantModalProps) {
   const [activeTab, setActiveTab] = useState<"platform-options" | "additional-pricing">("platform-options")
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedPlatformId, setSelectedPlatformId] = useState<string | null>(null)
@@ -139,7 +140,66 @@ export function AddImplantModal({ isOpen, onClose, onSave, implant, isEditMode =
         setPlatforms([])
         setSelectedPlatformId(null)
       }
-    } else if (isOpen && !isEditMode) {
+    } else if (isOpen && isCopying && implant) {
+      setInternalIsSaving(false)
+      setIsCodeManuallyEdited(true)
+      setFormData({
+        brandName: implant.brand_name || "",
+        systemName: implant.system_name || "",
+        code: `${implant.code || ""}-copy`,
+        allowUserInput: implant.allow_user_input === "Yes",
+        description: implant.description || "",
+        implantDetails: true,
+      })
+
+      const apiChargeType = implant.charge_type as string | null | undefined
+      setPricingData({
+        canAddAdditionalCharges: implant.has_additional_pricing === "Yes",
+        chargeType:
+          apiChargeType === "per_size_option"
+            ? "per-size-option"
+            : apiChargeType === "per_platform_option"
+              ? "per-platform-option"
+              : "once-per-implant",
+        additionalCharge: implant.price?.toString() || "0.00",
+        chargeScope: implant.charge_scope || "per_case",
+      })
+
+      // Set image preview if implant has image
+      if (implant.image_url) {
+        setImagePreview(implant.image_url)
+        setImageBase64(null)
+      } else {
+        setImagePreview(null)
+        setImageBase64(null)
+      }
+
+      // Convert platforms to PlatformOption format
+      if (implant.platforms && implant.platforms.length > 0) {
+        const convertedPlatforms: PlatformOption[] = implant.platforms.map((platform: ImplantPlatform, index: number) => ({
+          id: `clone-${platform.id || index}-${Date.now()}`,
+          image: platform.image_url || null,
+          platformName: platform.name || "",
+          isDefault: platform.is_default === "Yes",
+          status: platform.status === "Active",
+          price: platform.price?.toString() || "0.00",
+          sizes: ((platform as any).sizes || []).map((size: any, sizeIndex: number) => ({
+            id: `clone-size-${size.id || sizeIndex}-${Date.now()}`,
+            isDefault: size.is_default === "Yes",
+            diameterMm: size.diameter_mm?.toString() || "",
+            lengthMm: size.length_mm?.toString() || "",
+            label: size.label || "",
+            price: size.price?.toString() || "0",
+            status: (size.status || "Active") === "Active",
+          })),
+        }))
+        setPlatforms(convertedPlatforms)
+        setSelectedPlatformId(convertedPlatforms[0]?.id ?? null)
+      } else {
+        setPlatforms([])
+        setSelectedPlatformId(null)
+      }
+    } else if (isOpen && !isEditMode && !isCopying) {
       // Reset all fields when modal opens in create mode
       setActiveTab("platform-options")
       setSearchQuery("")
@@ -165,7 +225,7 @@ export function AddImplantModal({ isOpen, onClose, onSave, implant, isEditMode =
       setImageBase64(null)
       setImagePreview(null)
     }
-  }, [isOpen, isEditMode, implant])
+  }, [isOpen, isEditMode, isCopying, implant])
 
   // Auto-generate code for new implants from brand + system.
   // Keep it user-editable by stopping auto-generation after manual code edit.
@@ -571,7 +631,7 @@ export function AddImplantModal({ isOpen, onClose, onSave, implant, isEditMode =
         {/* Header */}
         <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 flex-shrink-0">
           <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
-            {isEditMode ? "Edit Implant" : "Add Implant"}
+            {isEditMode ? "Edit Implant" : isCopying ? "Clone Implant" : "Add Implant"}
           </h2>
           <button
             onClick={onClose}

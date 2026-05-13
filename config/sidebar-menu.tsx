@@ -117,7 +117,7 @@ export const superadminMenu: MenuItem[] = [
       {
         id: "global-product-library",
         title: "Global Product Library",
-        path: "/global-product-library",
+        path: "/global-product-library/products",
       },
       {
         id: "global-workflow",

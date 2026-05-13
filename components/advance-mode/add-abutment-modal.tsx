@@ -19,6 +19,7 @@ interface AddAbutmentModalProps {
   onSave?: (data: any) => Promise<void> | void
   /** When provided, modal loads this abutment for editing and includes `id` in the save payload. */
   initialAbutment?: Abutment | null
+  isCopying?: boolean
 }
 
 interface PlatformOption {
@@ -45,7 +46,7 @@ function abutmentToPlatformOptions(abutment: Abutment): PlatformOption[] {
   }))
 }
 
-export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = null }: AddAbutmentModalProps) {
+export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = null, isCopying = false }: AddAbutmentModalProps) {
   const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState<"platform-options" | "platform-pricing">("platform-options")
   const [searchQuery, setSearchQuery] = useState("")
@@ -90,6 +91,24 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
       })
       const mapped = abutmentToPlatformOptions(initialAbutment)
       setPlatforms(mapped.length > 0 ? mapped : [])
+    } else if (isOpen && isCopying && initialAbutment) {
+      const chargeType =
+        initialAbutment.charge_type === "per_option" ? "per_option" : "once_per_abutment"
+      setFormData({
+        type: `${initialAbutment.type ?? ""} (Copy)`,
+        description: initialAbutment.description ?? "",
+        abutmentDetails: true,
+      })
+      setPricingData({
+        chargeType,
+        additionalCharge: String(initialAbutment.price ?? "0.00"),
+      })
+      const mapped = abutmentToPlatformOptions(initialAbutment).map(opt => ({
+        ...opt,
+        id: `clone-${opt.id}-${Date.now()}`,
+        serverId: undefined // Reset serverId for clone
+      }))
+      setPlatforms(mapped.length > 0 ? mapped : [])
     } else {
       setFormData({
         type: "",
@@ -102,7 +121,7 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
       })
       setPlatforms([])
     }
-  }, [isOpen, initialAbutment])
+  }, [isOpen, initialAbutment, isCopying])
 
   if (!isOpen) return null
 
@@ -242,7 +261,7 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
         {/* Header */}
         <div className="flex items-center justify-between px-4 sm:px-5 py-2.5 sm:py-3 border-b border-gray-200 flex-shrink-0">
           <h2 className="text-lg sm:text-xl font-semibold text-gray-900">
-            {initialAbutment ? "Edit Abutment" : "Add Abutment"}
+            {initialAbutment && !isCopying ? "Edit Abutment" : isCopying ? "Clone Abutment" : "Add Abutment"}
           </h2>
           <button
             onClick={onClose}
@@ -612,7 +631,7 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
             disabled={isSaving || !formData.type.trim()}
             className="px-4 bg-[#1162a8] hover:bg-[#0f5497] text-white text-sm"
           >
-            {isSaving ? "Saving..." : initialAbutment ? "Save changes" : "Add abutment"}
+            {isSaving ? "Saving..." : initialAbutment && !isCopying ? "Save changes" : isCopying ? "Clone abutment" : "Add abutment"}
           </Button>
         </div>
       </div>

@@ -6,7 +6,7 @@ export default function LabProductLibraryPage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.push("/lab-product-library/case-tracking");
+    router.push("/lab-product-library/products");
   }, [router]);
 
   return null;
