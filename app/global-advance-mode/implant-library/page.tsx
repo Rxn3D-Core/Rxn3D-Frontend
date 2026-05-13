@@ -25,6 +25,7 @@ export default function ImplantLibraryPage() {
   const [isLinkImplantModalOpen, setIsLinkImplantModalOpen] = useState(false)
   const [isImportCsvModalOpen, setIsImportCsvModalOpen] = useState(false)
   const [editingImplantId, setEditingImplantId] = useState<number | null>(null)
+  const [isCopyingImplant, setIsCopyingImplant] = useState(false)
   const [linkingImplantId, setLinkingImplantId] = useState<number | null>(null)
 
   // Debounce search query to reduce API calls
@@ -92,26 +93,15 @@ export default function ImplantLibraryPage() {
   }
 
   const handleEdit = (id: number) => {
+    setIsCopyingImplant(false)
     setEditingImplantId(id)
     setIsAddImplantModalOpen(true)
   }
 
   const handleCopy = (id: number) => {
-    duplicateImplantMutation.mutate(id, {
-      onSuccess: () => {
-        toast({
-          title: "Success",
-          description: "Implant duplicated successfully",
-        })
-      },
-      onError: (error: any) => {
-        toast({
-          title: "Error",
-          description: error.message || "Failed to duplicate implant",
-          variant: "destructive",
-        })
-      },
-    })
+    setIsCopyingImplant(true)
+    setEditingImplantId(id)
+    setIsAddImplantModalOpen(true)
   }
 
   const handleLinkProducts = (id: number) => {
@@ -176,7 +166,11 @@ export default function ImplantLibraryPage() {
 
           <div className="flex flex-col sm:flex-row gap-3 items-center">
             <Button
-              onClick={() => setIsAddImplantModalOpen(true)}
+              onClick={() => {
+                setIsCopyingImplant(false)
+                setEditingImplantId(null)
+                setIsAddImplantModalOpen(true)
+              }}
               className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
             >
               <Plus className="h-4 w-4 mr-2" />
@@ -422,12 +416,14 @@ export default function ImplantLibraryPage() {
         onClose={() => {
           setIsAddImplantModalOpen(false)
           setEditingImplantId(null)
+          setIsCopyingImplant(false)
         }}
         implant={editingImplantId && editingImplantData?.data ? editingImplantData.data : null}
-        isEditMode={!!editingImplantId}
+        isEditMode={!!editingImplantId && !isCopyingImplant}
+        isCopying={isCopyingImplant}
         isSaving={createImplantMutation.isPending || updateImplantMutation.isPending}
         onSave={(data) => {
-          if (editingImplantId) {
+          if (editingImplantId && !isCopyingImplant) {
             // Update existing implant
             updateImplantMutation.mutate(
               { id: editingImplantId, ...data },
