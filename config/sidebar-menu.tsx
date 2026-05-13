@@ -107,7 +107,23 @@ export const superadminMenu: MenuItem[] = [
     id: "billing-subscription",
     title: "Billing & Subscription Control",
     icon: <CreditCard className="h-5 w-5" />,
-    path: "/billing-subscription",
+    children: [
+      {
+        id: "billing-global-configurations",
+        title: "Global Configurations",
+        path: "/billing-subscription/billing-configuration",
+      },
+      {
+        id: "billing-tenant-management",
+        title: "Tenant Management",
+        path: "/billing-subscription/tenant-management",
+      },
+      {
+        id: "billing-settings",
+        title: "Settings",
+        path: "/billing-subscription/settings",
+      },
+    ],
   },
   {
     id: "platform-configuration",
