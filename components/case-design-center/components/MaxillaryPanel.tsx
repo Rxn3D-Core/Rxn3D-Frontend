@@ -1278,7 +1278,7 @@ export function MaxillaryPanel({
                 // toothStatusPopoverExtractions always wins (most specific)
                 allExts.push(...toothStatusPopoverExtractions);
                 return allExts.reduce<Record<string, { code: string; name: string; visibility_type?: string; color?: string | null }>>((acc, e) => {
-                  acc[e.code] = { code: e.code, name: e.name, visibility_type: e.visibility_type, color: e.color ?? null };
+                  acc[e.code] = { code: e.code, name: e.name, visibility_type: e.visibility_type, color: e.color ?? null, overlay: e.overlay };
                   return acc;
                 }, {});
               })()}
