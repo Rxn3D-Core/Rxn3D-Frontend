@@ -98,6 +98,9 @@ function ensureOneDefaultGrade(watchedGrades: WatchedGrade[]): WatchedGrade[] {
   const withDefault = watchedGrades.filter((g) => g.is_default === "Yes")
   if (withDefault.length === 1) return watchedGrades
   if (withDefault.length === 0) {
+    if (watchedGrades.length === 1) {
+      return [{ ...watchedGrades[0], is_default: "Yes" }]
+    }
     return watchedGrades
   }
   const keepId = withDefault[0].grade_id
@@ -245,6 +248,17 @@ export function GradesSection({
     }
   }, [teethGradeLock, firstToothAnchor, anchorGradeId, masterGradesFlat, setValue])
 
+  // Auto-select default grade if only one is selected
+  useEffect(() => {
+    if (watchedGrades.length === 1 && watchedGrades[0].is_default === "No") {
+      const updated = [{ ...watchedGrades[0], is_default: "Yes" as const }]
+      setValue("grades", updated as NonNullable<ProductCreateForm["grades"]>, {
+        shouldDirty: true,
+        shouldValidate: true,
+      })
+    }
+  }, [watchedGrades, setValue])
+
   // State for custom grade form
   const [showCustomGradeForm, setShowCustomGradeForm] = useState(false)
   const [customGradeName, setCustomGradeName] = useState("")
@@ -343,8 +357,10 @@ export function GradesSection({
       updated = [...watchedGrades, newGrade] as NonNullable<ProductCreateForm["grades"]>
     }
 
+    // Always ensure one default if only one grade exists
+    updated = ensureOneDefaultGrade(updated)
+
     if (teethGradeLock) {
-      updated = ensureOneDefaultGrade(updated)
       updated = syncTeethAnchorGradePrice(updated, firstToothAnchor, masterGradesFlat)
     }
 
@@ -379,8 +395,10 @@ export function GradesSection({
       }
       return { ...g, is_default: "No" as const }
     }) as NonNullable<ProductCreateForm["grades"]>
+    // Always ensure one default if only one grade exists
+    updated = ensureOneDefaultGrade(updated)
+
     if (teethGradeLock) {
-      updated = ensureOneDefaultGrade(updated)
       updated = syncTeethAnchorGradePrice(updated, firstToothAnchor, masterGradesFlat)
     }
     setValue("grades", updated, { shouldDirty: true, shouldValidate: true })
@@ -399,20 +417,22 @@ export function GradesSection({
       // Remove grade
       updated = watchedGrades.filter((g) => g.grade_id !== gradeId) as NonNullable<ProductCreateForm["grades"]>
     } else {
-      // Add grade: first selected grade becomes default (teeth + grade-based); otherwise no default until user sets
+      // Add grade: first selected grade becomes default
       const isFirstSelection = watchedGrades.length === 0
       updated = [
         ...watchedGrades,
         {
           grade_id: gradeId as number,
-          is_default:
-            teethGradeLock && isFirstSelection ? ("Yes" as const) : ("No" as const),
+          is_default: isFirstSelection ? ("Yes" as const) : ("No" as const),
           price: extra?.price !== undefined && extra?.price !== "" ? extra.price : "",
         },
       ] as NonNullable<ProductCreateForm["grades"]>
     }
+
+    // Always ensure one default if only one grade exists
+    updated = ensureOneDefaultGrade(updated)
+
     if (teethGradeLock) {
-      updated = ensureOneDefaultGrade(updated)
       updated = syncTeethAnchorGradePrice(updated, firstToothAnchor, masterGradesFlat)
     }
     setValue("grades", updated, { shouldDirty: true })
@@ -708,8 +728,10 @@ export function GradesSection({
                             onCheckedChange={() => {
                               // Remove custom grade
                               let updated = watchedGrades.filter((g) => g.grade_id !== customGradeId) as NonNullable<ProductCreateForm["grades"]>
+                              // Always ensure one default if only one grade exists
+                              updated = ensureOneDefaultGrade(updated)
+
                               if (teethGradeLock) {
-                                updated = ensureOneDefaultGrade(updated)
                                 updated = syncTeethAnchorGradePrice(updated, firstToothAnchor, masterGradesFlat)
                               }
                               setValue("grades", updated, { shouldDirty: true })

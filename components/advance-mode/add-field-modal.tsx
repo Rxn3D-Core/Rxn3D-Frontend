@@ -2080,7 +2080,7 @@ export function AddFieldModal({
     >
       <DialogContent
         className={cn(
-          "flex max-h-[92vh] w-[min(100vw-1rem,64rem)] max-w-5xl flex-col gap-0 overflow-hidden p-0 [&>button:last-child]:hidden",
+          "flex max-h-[92vh] w-[min(100vw-1rem,64rem)] max-w-5xl flex-col gap-0 overflow-hidden p-0",
         )}
       >
         {showFetchLoading ? (

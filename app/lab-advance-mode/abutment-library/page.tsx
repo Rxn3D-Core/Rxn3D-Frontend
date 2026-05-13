@@ -9,7 +9,14 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useTranslation } from "react-i18next"
 import { AddAbutmentModal } from "@/components/advance-mode"
-import { useAbutments, useCreateAbutment, useUpdateAbutmentStatus, useDeleteAbutment } from "@/lib/api/advance-mode-query"
+import {
+  useAbutments,
+  useCreateAbutment,
+  useUpdateAbutment,
+  useUpdateAbutmentStatus,
+  useDeleteAbutment,
+  type Abutment,
+} from "@/lib/api/advance-mode-query"
 import { useToast } from "@/hooks/use-toast"
 import { LoadingDots } from "@/components/ui/loading-dots"
 
@@ -22,6 +29,7 @@ export default function AbutmentLibraryPage() {
   const [sortBy, setSortBy] = useState<'asc' | 'desc'>('asc')
   const [orderBy, setOrderBy] = useState('type')
   const [isAddAbutmentModalOpen, setIsAddAbutmentModalOpen] = useState(false)
+  const [editingAbutment, setEditingAbutment] = useState<Abutment | null>(null)
 
   // Fetch abutments from API
   const serverSortableFields = ["type", "code", "sequence", "created_at"]
@@ -38,6 +46,7 @@ export default function AbutmentLibraryPage() {
   const updateStatusMutation = useUpdateAbutmentStatus()
   const deleteAbutmentMutation = useDeleteAbutment()
   const createAbutmentMutation = useCreateAbutment()
+  const updateAbutmentMutation = useUpdateAbutment()
 
   const handleStatusToggle = async (id: number, currentStatus: 'Active' | 'Inactive') => {
     const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active'
@@ -164,7 +173,10 @@ export default function AbutmentLibraryPage() {
 
           <div className="flex flex-col sm:flex-row gap-3 items-center">
             <Button
-              onClick={() => setIsAddAbutmentModalOpen(true)}
+              onClick={() => {
+                setEditingAbutment(null)
+                setIsAddAbutmentModalOpen(true)
+              }}
               className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
             >
               <Plus className="h-4 w-4 mr-2" />
@@ -297,7 +309,15 @@ export default function AbutmentLibraryPage() {
                       </div>
                       <span className="text-xs">{item.status}</span>
                       <div className="flex items-center gap-1 ml-2">
-                        <button className="text-gray-400 hover:text-[#1162a8] transition-colors p-0.5">
+                        <button
+                          type="button"
+                          className="text-gray-400 hover:text-[#1162a8] transition-colors p-0.5"
+                          onClick={() => {
+                            setEditingAbutment(item)
+                            setIsAddAbutmentModalOpen(true)
+                          }}
+                          aria-label={t("advanceMode.abutmentLibrary.editAbutment", "Edit abutment")}
+                        >
                           <Edit className="h-3.5 w-3.5" />
                         </button>
                         <button className="text-gray-400 hover:text-[#1162a8] transition-colors p-0.5">
@@ -378,29 +398,55 @@ export default function AbutmentLibraryPage() {
       {/* Add Abutment Modal */}
       <AddAbutmentModal
         isOpen={isAddAbutmentModalOpen}
-        onClose={() => setIsAddAbutmentModalOpen(false)}
+        initialAbutment={editingAbutment}
+        onClose={() => {
+          setIsAddAbutmentModalOpen(false)
+          setEditingAbutment(null)
+        }}
         onSave={async (data) => {
-          const payload = { ...data } as any
+          const payload = { ...data } as Record<string, unknown> & { id?: number }
           if (typeof window !== "undefined") {
             const customerId = localStorage.getItem("customerId")
             if (customerId) payload.customer_id = parseInt(customerId, 10)
           }
 
+          const { id, ...body } = payload
+
           await new Promise<void>((resolve, reject) => {
-            createAbutmentMutation.mutate(payload, {
-              onSuccess: () => {
-                toast({ title: "Success", description: "Abutment created successfully" })
-                resolve()
-              },
-              onError: (error: any) => {
-                toast({
-                  title: "Error",
-                  description: error?.message || "Failed to create abutment",
-                  variant: "destructive",
-                })
-                reject(error)
-              },
-            })
+            if (id != null) {
+              updateAbutmentMutation.mutate(
+                { id, ...(body as any) },
+                {
+                  onSuccess: () => {
+                    toast({ title: "Success", description: "Abutment updated successfully" })
+                    resolve()
+                  },
+                  onError: (error: any) => {
+                    toast({
+                      title: "Error",
+                      description: error?.message || "Failed to update abutment",
+                      variant: "destructive",
+                    })
+                    reject(error)
+                  },
+                },
+              )
+            } else {
+              createAbutmentMutation.mutate(payload as any, {
+                onSuccess: () => {
+                  toast({ title: "Success", description: "Abutment created successfully" })
+                  resolve()
+                },
+                onError: (error: any) => {
+                  toast({
+                    title: "Error",
+                    description: error?.message || "Failed to create abutment",
+                    variant: "destructive",
+                  })
+                  reject(error)
+                },
+              })
+            }
           })
         }}
       />

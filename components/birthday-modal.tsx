@@ -112,7 +112,7 @@ export function BirthdayModal({ isOpen, onClose, birthdayData, userId, onBirthda
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleCancel()}>
-      <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden">
+      <DialogContent showCloseButton className="sm:max-w-[500px] p-0 overflow-hidden">
         <DialogHeader className="px-6 py-5 border-b bg-gray-50">
           <DialogTitle className="text-2xl font-bold text-gray-800 flex items-center gap-2">
             <Cake className="w-6 h-6 text-[#1162a8]" />

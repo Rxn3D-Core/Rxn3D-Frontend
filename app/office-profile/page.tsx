@@ -5,7 +5,7 @@ import { useCustomer } from "@/contexts/customer-context"
 import { useAuth } from "@/contexts/auth-context"
 import OverviewTab from "@/components/office-administrator/office-profile-overview"
 import { OperatingHoursTab } from "@/components/office-administrator/office-profile-operating-hours"
-import ActivityLogTab from "@/components/office-administrator/office-profile-activity-log"
+import ActivityLogTab from "@/components/lab-administrator/lab-profile-activity-log"
 import { OfficeProfileSidebar } from "@/components/office-administrator/office-profile-sidebar"
 import OfficeProfileTabs from "@/components/office-administrator/office-profile-tabs"
 
@@ -13,34 +13,6 @@ const tabs = [
   { id: "overview", label: "Overview" },
   { id: "operating-hours", label: "Operating Hours" },
   { id: "activity-log", label: "Activity Log" },
-]
-
-// Mock activities data (replace with real API call when available)
-const activities = [
-  {
-    id: "1",
-    user: "James Cagney",
-    action: "Changed Location",
-    target: "Case #50029385",
-    details: '"On route to office" → To: "In office"',
-    timestamp: "2024-01-27, 11:42 AM",
-  },
-  {
-    id: "2",
-    user: "James Cagney",
-    action: "Updated Setting",
-    target: "Auto-Billing",
-    details: "Enabled for Full Denture Acrylic",
-    timestamp: "2024-01-27, 10:26 AM",
-  },
-  {
-    id: "3",
-    user: "System",
-    action: "Invoice Generated",
-    target: "Case #50029392",
-    details: "Total: $295.00 - Sent to: office@abc.com",
-    timestamp: "2024-01-27, 8:19 AM",
-  },
 ]
 
 export default function OfficeProfile() {
@@ -159,7 +131,7 @@ export default function OfficeProfile() {
           holidays: "All Federal Holidays"
         }} />
       case "activity-log":
-        return <ActivityLogTab activities={activities} />
+        return <ActivityLogTab customerId={customerProfile.id} />
       default:
         return <OverviewTab officeData={transformedOfficeData} />
     }
