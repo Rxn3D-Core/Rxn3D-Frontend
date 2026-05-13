@@ -1141,97 +1141,8 @@ export function MaxillaryPanel({
             })()}
             <MaxillaryTeethSVG
               selectedTeeth={activeCardMaxillaryTeeth}
-              willExtractTeeth={(() => {
-                const isWedCode = (code: string) => {
-                  if (code === "WED") return true;
-                  const sources: Array<{ code: string; name?: string | null }[]> = [];
-                  for (const tn of MAXILLARY_ALL_TEETH) {
-                    const p = getToothProduct("maxillary", tn);
-                    if (p?.extractions) sources.push(p.extractions);
-                  }
-                  for (const ap of addedProducts) {
-                    if (ap.arch === "maxillary" && (ap.product as any)?.extractions) {
-                      sources.push((ap.product as any).extractions);
-                    }
-                  }
-                  if (opposingProductData?.extractions) sources.push(opposingProductData.extractions);
-                  for (const exts of sources) {
-                    const match = exts.find((e) => e.code === code);
-                    if (match) {
-                      const n = (match.name ?? "").toLowerCase().trim();
-                      if (match.code === "WED" || n === "will extract on delivery") return true;
-                    }
-                  }
-                  return false;
-                };
-                const wedFromMain = Object.entries(maxillaryToothExtractionMap)
-                  .filter(([, code]) => isWedCode(code))
-                  .map(([tn]) => Number(tn));
-                const wedFromOpposing = opposingProductData
-                  ? Object.entries(opposingToothExtractionMap)
-                      .filter(([, code]) => isWedCode(code))
-                      .map(([tn]) => Number(tn))
-                  : [];
-                const allWed = Array.from(new Set([...wedFromMain, ...wedFromOpposing]));
-                return activeMaxillarySvgState.willExtractTeeth.length > 0 || (activeProductCardId !== 0 && activeProductIsRemovables)
-                  ? filterToothStateForActiveCard({
-                      activeProductCardId,
-                      selectedTeeth: [],
-                      toothExtractionMap: {},
-                      toothStatusByTooth: {},
-                      claspTeeth: [],
-                      willExtractTeeth: allWed,
-                      missingTeeth: [],
-                      getToothProductCard,
-                      arch: "maxillary",
-                    }).willExtractTeeth
-                  : allWed;
-              })()}
-              missingTeeth={(() => {
-                const isMissingCode = (code: string) => {
-                  const sources: Array<{ code: string; name?: string | null }[]> = [];
-                  for (const tn of MAXILLARY_ALL_TEETH) {
-                    const p = getToothProduct("maxillary", tn);
-                    if (p?.extractions) sources.push(p.extractions);
-                  }
-                  for (const ap of addedProducts) {
-                    if (ap.arch === "maxillary" && (ap.product as any)?.extractions) {
-                      sources.push((ap.product as any).extractions);
-                    }
-                  }
-                  if (opposingProductData?.extractions) sources.push(opposingProductData.extractions);
-                  for (const exts of sources) {
-                    const match = exts.find((e) => e.code === code);
-                    if (match) {
-                      const n = (match.name ?? "").toLowerCase().trim();
-                      if (n.includes("missing")) return true;
-                    }
-                  }
-                  return false;
-                };
-                const missingFromMain = Object.entries(maxillaryToothExtractionMap)
-                  .filter(([, code]) => isMissingCode(code))
-                  .map(([tn]) => Number(tn));
-                const missingFromOpposing = opposingProductData
-                  ? Object.entries(opposingToothExtractionMap)
-                      .filter(([, code]) => isMissingCode(code))
-                      .map(([tn]) => Number(tn))
-                  : [];
-                const allMissing = Array.from(new Set([...missingFromMain, ...missingFromOpposing]));
-                return activeProductCardId !== 0 && activeProductIsRemovables
-                  ? filterToothStateForActiveCard({
-                      activeProductCardId,
-                      selectedTeeth: [],
-                      toothExtractionMap: {},
-                      toothStatusByTooth: {},
-                      claspTeeth: [],
-                      willExtractTeeth: [],
-                      missingTeeth: allMissing,
-                      getToothProductCard,
-                      arch: "maxillary",
-                    }).missingTeeth
-                  : allMissing;
-              })()}
+              willExtractTeeth={[]}
+              missingTeeth={[]}
               onToothClick={(toothNumber: number) => {
                 // When a Removable/Ortho card is active (card 0 or added), show tooth status popover.
                 if (activeProductIsRemovables) {
@@ -1342,7 +1253,56 @@ export function MaxillaryPanel({
               toothStatusOptions={toothStatusPopoverExtractions
                 .filter(e => e.status === "Active")
                 .sort((a, b) => a.sequence - b.sequence)
-                .map(e => ({ code: e.code, name: e.name, color: e.color ?? "#aaa" }))}
+                .map(e => ({
+                  code: e.code,
+                  name: e.name,
+                  color: e.color ?? "#aaa",
+                  visibilityType: e.visibility_type,
+                  imagesByTooth: e.images?.length
+                    ? e.images.reduce<Record<number, string | null>>((m, img) => { m[img.tooth_number] = img.image_url; return m }, {})
+                    : undefined,
+                }))}
+              extractionsByCode={(() => {
+                // Collect all extractions from every source so the SVG can classify any tooth
+                const allExts: ProductExtraction[] = [];
+                for (const tn of MAXILLARY_ALL_TEETH) {
+                  const p = getToothProduct("maxillary", tn);
+                  if (p?.extractions) allExts.push(...p.extractions);
+                }
+                for (const ap of addedProducts) {
+                  if (ap.arch === "maxillary" && (ap.product as any)?.extractions) {
+                    allExts.push(...(ap.product as any).extractions as ProductExtraction[]);
+                  }
+                }
+                if (opposingProductData?.extractions) allExts.push(...opposingProductData.extractions);
+                // toothStatusPopoverExtractions always wins (most specific)
+                allExts.push(...toothStatusPopoverExtractions);
+                return allExts.reduce<Record<string, { code: string; name: string; visibility_type?: string; color?: string | null }>>((acc, e) => {
+                  acc[e.code] = { code: e.code, name: e.name, visibility_type: e.visibility_type, color: e.color ?? null };
+                  return acc;
+                }, {});
+              })()}
+              extractionImagesByCode={(() => {
+                // Build image map from all extractions that have per-tooth images
+                const allExts: ProductExtraction[] = [];
+                for (const tn of MAXILLARY_ALL_TEETH) {
+                  const p = getToothProduct("maxillary", tn);
+                  if (p?.extractions) allExts.push(...p.extractions);
+                }
+                for (const ap of addedProducts) {
+                  if (ap.arch === "maxillary" && (ap.product as any)?.extractions) {
+                    allExts.push(...(ap.product as any).extractions as ProductExtraction[]);
+                  }
+                }
+                if (opposingProductData?.extractions) allExts.push(...opposingProductData.extractions);
+                allExts.push(...toothStatusPopoverExtractions);
+                return allExts
+                  .filter(e => e.images?.length)
+                  .reduce<Record<string, Record<number, string | null>>>((acc, e) => {
+                    acc[e.code] = e.images.reduce<Record<number, string | null>>((m, img) => { m[img.tooth_number] = img.image_url; return m }, {});
+                    return acc;
+                  }, {});
+              })()}
               toothStatusProductName={(() => {
                 if (opposingProductData) return opposingProductData.name ?? null;
                 if (activeProductCardId !== 0) {
@@ -1374,7 +1334,6 @@ export function MaxillaryPanel({
                   setToothStatusPopoverTooth(null);
                   return;
                 }
-                // Only add the tooth if not already selected — avoid toggling it off
                 if (!maxillaryTeeth.includes(toothNumber)) {
                   handleMaxillaryToothClick(toothNumber);
                 }
@@ -1390,7 +1349,13 @@ export function MaxillaryPanel({
                   setToothStatusPopoverTooth(null);
                   return;
                 }
-                handleMaxillaryToothClick(toothNumber);
+                const currentCode = maxillaryToothExtractionMap[toothNumber];
+                if (currentCode) {
+                  handleToothExtractionToggle("maxillary", toothNumber, currentCode, toothStatusPopoverExtractions);
+                }
+                if (maxillaryTeeth.includes(toothNumber)) {
+                  handleMaxillaryToothClick(toothNumber);
+                }
                 setToothStatusPopoverTooth(null);
               }}
             />
@@ -1472,11 +1437,7 @@ export function MaxillaryPanel({
               const apDisplayTeeth = isApRemovables
                 ? assignedTeeth
                 : cardTeeth;
-              const HEADER_EXTRACTION_CODES_AP = new Set(["MT", "WED", "WEOD", "FR", "CTS"]);
-              const apFilteredTeeth = apDisplayTeeth.filter(tn => {
-                const code = maxillaryToothExtractionMap[tn];
-                return code && HEADER_EXTRACTION_CODES_AP.has(code);
-              });
+              const apFilteredTeeth = apDisplayTeeth.filter(tn => !!maxillaryToothExtractionMap[tn]);
               const apFinalTeeth = apFilteredTeeth.length > 0 ? apFilteredTeeth : apDisplayTeeth;
               const cardToothDisplay = apFinalTeeth.length > 0 ? `#${apFinalTeeth.join(",")}` : "";
               const removableDisplayTeeth = assignedTeeth;
@@ -2029,11 +1990,7 @@ export function MaxillaryPanel({
               // Stable key for stage so value is not lost when group order or implant section changes
               const groupStageToothNumber = Math.min(...toothNumbers);
               const groupStageProductIdFixed = `maxillary_fixed_${groupStageToothNumber}`;
-              const HEADER_EXTRACTION_CODES = new Set(["MT", "WED", "WEOD", "FR", "CTS"]);
-              const headerTeeth = toothNumbers.filter(tn => {
-                const code = maxillaryToothExtractionMap[tn];
-                return code && HEADER_EXTRACTION_CODES.has(code);
-              });
+              const headerTeeth = toothNumbers.filter(tn => !!maxillaryToothExtractionMap[tn]);
               // Show filtered teeth if extraction codes exist, otherwise show all tooth numbers
               const displayTeeth = headerTeeth.length > 0 ? headerTeeth : toothNumbers;
               const toothNumbersDisplay = displayTeeth.length > 0 ? `#${displayTeeth.join(",")}` : "";

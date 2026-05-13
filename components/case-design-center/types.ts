@@ -328,6 +328,11 @@ export interface ProductGumShade {
   color_code_bottom: string;
 }
 
+export interface ExtractionToothImage {
+  tooth_number: number;
+  image_url: string | null;
+}
+
 /** Extraction from the product API */
 export interface ProductExtraction {
   id: number;
@@ -343,6 +348,9 @@ export interface ProductExtraction {
   max_teeth: number | null;
   is_image_extraction: string;
   image_url: string | null;
+  overlay: 'Yes' | 'No' | string;
+  images: ExtractionToothImage[];
+  visibility_type: 'Image' | 'Color' | string;
   sequence: number;
   status: string;
   price: string | null;

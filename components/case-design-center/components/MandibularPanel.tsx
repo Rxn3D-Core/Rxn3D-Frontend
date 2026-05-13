@@ -1126,98 +1126,8 @@ export function MandibularPanel({
             })()}
             <MandibularTeethSVG
                 selectedTeeth={activeCardMandibularTeeth}
-                willExtractTeeth={(() => {
-                  const isWedCode = (code: string) => {
-                    if (code === "WED") return true;
-                    // Look up extraction in any source to match by name
-                    const sources: Array<{ code: string; name?: string | null }[]> = [];
-                    for (const tn of MANDIBULAR_ALL_TEETH) {
-                      const p = getToothProduct("mandibular", tn);
-                      if (p?.extractions) sources.push(p.extractions);
-                    }
-                    for (const ap of addedProducts) {
-                      if (ap.arch === "mandibular" && (ap.product as any)?.extractions) {
-                        sources.push((ap.product as any).extractions);
-                      }
-                    }
-                    if (opposingProductData?.extractions) sources.push(opposingProductData.extractions);
-                    for (const exts of sources) {
-                      const match = exts.find((e) => e.code === code);
-                      if (match) {
-                        const n = (match.name ?? "").toLowerCase().trim();
-                        if (match.code === "WED" || n === "will extract on delivery") return true;
-                      }
-                    }
-                    return false;
-                  };
-                  const wedFromMain = Object.entries(mandibularToothExtractionMap)
-                    .filter(([, code]) => isWedCode(code))
-                    .map(([tn]) => Number(tn));
-                  const wedFromOpposing = opposingProductData
-                    ? Object.entries(opposingToothExtractionMap)
-                        .filter(([, code]) => isWedCode(code))
-                        .map(([tn]) => Number(tn))
-                    : [];
-                  const allWed = Array.from(new Set([...wedFromMain, ...wedFromOpposing]));
-                  return activeProductCardId !== 0 && activeProductIsRemovables
-                    ? filterToothStateForActiveCard({
-                        activeProductCardId,
-                        selectedTeeth: [],
-                        toothExtractionMap: {},
-                        toothStatusByTooth: {},
-                        claspTeeth: [],
-                        willExtractTeeth: allWed,
-                        missingTeeth: [],
-                        getToothProductCard,
-                        arch: "mandibular",
-                      }).willExtractTeeth
-                    : allWed;
-                })()}
-                missingTeeth={(() => {
-                  const isMissingCode = (code: string) => {
-                    const sources: Array<{ code: string; name?: string | null }[]> = [];
-                    for (const tn of MANDIBULAR_ALL_TEETH) {
-                      const p = getToothProduct("mandibular", tn);
-                      if (p?.extractions) sources.push(p.extractions);
-                    }
-                    for (const ap of addedProducts) {
-                      if (ap.arch === "mandibular" && (ap.product as any)?.extractions) {
-                        sources.push((ap.product as any).extractions);
-                      }
-                    }
-                    if (opposingProductData?.extractions) sources.push(opposingProductData.extractions);
-                    for (const exts of sources) {
-                      const match = exts.find((e) => e.code === code);
-                      if (match) {
-                        const n = (match.name ?? "").toLowerCase().trim();
-                        if (n.includes("missing")) return true;
-                      }
-                    }
-                    return false;
-                  };
-                  const missingFromMain = Object.entries(mandibularToothExtractionMap)
-                    .filter(([, code]) => isMissingCode(code))
-                    .map(([tn]) => Number(tn));
-                  const missingFromOpposing = opposingProductData
-                    ? Object.entries(opposingToothExtractionMap)
-                        .filter(([, code]) => isMissingCode(code))
-                        .map(([tn]) => Number(tn))
-                    : [];
-                  const allMissing = Array.from(new Set([...missingFromMain, ...missingFromOpposing]));
-                  return activeProductCardId !== 0 && activeProductIsRemovables
-                    ? filterToothStateForActiveCard({
-                        activeProductCardId,
-                        selectedTeeth: [],
-                        toothExtractionMap: {},
-                        toothStatusByTooth: {},
-                        claspTeeth: [],
-                        willExtractTeeth: [],
-                        missingTeeth: allMissing,
-                        getToothProductCard,
-                        arch: "mandibular",
-                      }).missingTeeth
-                    : allMissing;
-                })()}
+                willExtractTeeth={[]}
+                missingTeeth={[]}
                 onToothClick={(toothNumber: number) => {
                   // When a Removable/Ortho card is active (card 0 or added), show tooth status popover.
                   if (activeProductIsRemovables) {
@@ -1324,7 +1234,53 @@ export function MandibularPanel({
                 toothStatusOptions={toothStatusPopoverExtractions
                   .filter(e => e.status === "Active")
                   .sort((a, b) => a.sequence - b.sequence)
-                  .map(e => ({ code: e.code, name: e.name, color: e.color ?? "#aaa" }))}
+                  .map(e => ({
+                    code: e.code,
+                    name: e.name,
+                    color: e.color ?? "#aaa",
+                    visibilityType: e.visibility_type,
+                    imagesByTooth: e.images?.length
+                      ? e.images.reduce<Record<number, string | null>>((m, img) => { m[img.tooth_number] = img.image_url; return m }, {})
+                      : undefined,
+                  }))}
+                extractionsByCode={(() => {
+                  const allExts: ProductExtraction[] = [];
+                  for (const tn of MANDIBULAR_ALL_TEETH) {
+                    const p = getToothProduct("mandibular", tn);
+                    if (p?.extractions) allExts.push(...p.extractions);
+                  }
+                  for (const ap of addedProducts) {
+                    if (ap.arch === "mandibular" && (ap.product as any)?.extractions) {
+                      allExts.push(...(ap.product as any).extractions as ProductExtraction[]);
+                    }
+                  }
+                  if (opposingProductData?.extractions) allExts.push(...opposingProductData.extractions);
+                  allExts.push(...toothStatusPopoverExtractions);
+                  return allExts.reduce<Record<string, { code: string; name: string; visibility_type?: string; color?: string | null }>>((acc, e) => {
+                    acc[e.code] = { code: e.code, name: e.name, visibility_type: e.visibility_type, color: e.color ?? null };
+                    return acc;
+                  }, {});
+                })()}
+                extractionImagesByCode={(() => {
+                  const allExts: ProductExtraction[] = [];
+                  for (const tn of MANDIBULAR_ALL_TEETH) {
+                    const p = getToothProduct("mandibular", tn);
+                    if (p?.extractions) allExts.push(...p.extractions);
+                  }
+                  for (const ap of addedProducts) {
+                    if (ap.arch === "mandibular" && (ap.product as any)?.extractions) {
+                      allExts.push(...(ap.product as any).extractions as ProductExtraction[]);
+                    }
+                  }
+                  if (opposingProductData?.extractions) allExts.push(...opposingProductData.extractions);
+                  allExts.push(...toothStatusPopoverExtractions);
+                  return allExts
+                    .filter(e => e.images?.length)
+                    .reduce<Record<string, Record<number, string | null>>>((acc, e) => {
+                      acc[e.code] = e.images.reduce<Record<number, string | null>>((m, img) => { m[img.tooth_number] = img.image_url; return m }, {});
+                      return acc;
+                    }, {});
+                })()}
                 toothStatusProductName={(() => {
                   if (opposingProductData) return opposingProductData.name ?? null;
                   if (activeProductCardId !== 0) {
@@ -1355,7 +1311,6 @@ export function MandibularPanel({
                     setToothStatusPopoverTooth(null);
                     return;
                   }
-                  // Only add the tooth if not already selected — avoid toggling it off
                   if (!mandibularTeeth.includes(toothNumber)) {
                     handleMandibularToothClick(toothNumber);
                   }
@@ -1371,7 +1326,13 @@ export function MandibularPanel({
                     setToothStatusPopoverTooth(null);
                     return;
                   }
-                  handleMandibularToothClick(toothNumber);
+                  const currentCode = mandibularToothExtractionMap[toothNumber];
+                  if (currentCode) {
+                    handleToothExtractionToggle("mandibular", toothNumber, currentCode, toothStatusPopoverExtractions);
+                  }
+                  if (mandibularTeeth.includes(toothNumber)) {
+                    handleMandibularToothClick(toothNumber);
+                  }
                   setToothStatusPopoverTooth(null);
                 }}
               />
@@ -1457,12 +1418,7 @@ export function MandibularPanel({
               const apDisplayTeeth = isApRemovables
                 ? assignedTeeth
                 : cardTeeth;
-              // Filter to only show teeth with extraction statuses (MT, WED, WEOD, FR, CTS)
-              const HEADER_EXTRACTION_CODES_AP = new Set(["MT", "WED", "WEOD", "FR", "CTS"]);
-              const apFilteredTeeth = apDisplayTeeth.filter(tn => {
-                const code = mandibularToothExtractionMap[tn];
-                return code && HEADER_EXTRACTION_CODES_AP.has(code);
-              });
+              const apFilteredTeeth = apDisplayTeeth.filter(tn => !!mandibularToothExtractionMap[tn]);
               // Show filtered teeth if extraction codes exist, otherwise show all tooth numbers (match card 0 behavior)
               const apFinalTeeth = apFilteredTeeth.length > 0 ? apFilteredTeeth : apDisplayTeeth;
               const cardToothDisplay = apFinalTeeth.length > 0 ? `#${apFinalTeeth.join(",")}` : "";
@@ -2023,11 +1979,7 @@ export function MandibularPanel({
                   // Stable key for stage so value is not lost when group order or implant section changes
                   const groupStageToothNumber = Math.min(...toothNumbers);
                   const groupStageProductIdFixed = `mandibular_fixed_${groupStageToothNumber}`;
-                  const HEADER_EXTRACTION_CODES = new Set(["MT", "WED", "WEOD", "FR", "CTS"]);
-                  const headerTeeth = toothNumbers.filter(tn => {
-                    const code = mandibularToothExtractionMap[tn];
-                    return code && HEADER_EXTRACTION_CODES.has(code);
-                  });
+                  const headerTeeth = toothNumbers.filter(tn => !!mandibularToothExtractionMap[tn]);
                   const displayTeeth = headerTeeth.length > 0 ? headerTeeth : toothNumbers;
                   const toothNumbersDisplay = displayTeeth.length > 0 ? `#${displayTeeth.join(",")}` : "";
                   const retentionTypes = [...new Set(teeth.map((t) => t.retentionType))];

@@ -8,10 +8,9 @@ import { ImplantInclusionsField } from "./fields/ImplantInclusionsField";
 import type { ProductAdvanceField } from "../types";
 import {
   fetchProductImplants,
-  fetchProductAbutments,
   type ProductImplant,
-  type ProductAbutment,
 } from "@/services/implant-api";
+import { getImplantDetailAbutmentOptions } from "../utils/implantDetailAbutmentOptions";
 
 export interface ImplantDetailData {
   brand: string;
@@ -95,12 +94,10 @@ export function ImplantDetailSection({
   };
 
   const [apiImplants, setApiImplants] = useState<ProductImplant[]>([]);
-  const [apiAbutments, setApiAbutments] = useState<ProductAbutment[]>([]);
 
   useEffect(() => {
     if (!productId || !customerId) return;
     fetchProductImplants(productId, customerId).then(setApiImplants).catch(() => setApiImplants([]));
-    fetchProductAbutments(productId, customerId).then(setApiAbutments).catch(() => setApiAbutments([]));
   }, [productId, customerId]);
 
   const hasAdvanceFields = advanceFields && advanceFields.length > 0;
@@ -156,13 +153,9 @@ export function ImplantDetailSection({
         .flatMap((p) => p.sizes.filter((s) => s.status === "Active").map((s) => s.label))
     : [];
 
-  // Abutment lists from API
-  const abutmentTypeOptions: string[] = apiAbutments.map((a) => a.type);
-  const abutmentDetailOptions: string[] = abutmentType
-    ? (apiAbutments.find((a) => a.type === abutmentType)?.options ?? [])
-        .filter((o) => o.status === "Active")
-        .map((o) => o.name)
-    : [];
+  const { abutmentTypeOptions, abutmentDetailOptions } = getImplantDetailAbutmentOptions({
+    advanceFields,
+  });
 
   // Progressive visibility
   const row1Complete = hasAdvanceFields
