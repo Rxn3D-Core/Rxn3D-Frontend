@@ -206,11 +206,10 @@ function StepDoctor({
             className="group flex flex-col items-center gap-3 p-2 sm:p-4 transition-all w-full max-w-[250px]"
           >
             <div
-              className={`w-full aspect-square max-w-[219.68px] rounded-full overflow-hidden flex-shrink-0 transition-all bg-[#eef1f4] ${
-                selected === doc.id
-                  ? "border-[4px] border-[#1162A8]"
-                  : "border-[4px] border-[#d9d9d9] group-hover:border-[#1162a8]/100"
-              }`}
+              className={`w-full aspect-square max-w-[219.68px] rounded-full overflow-hidden flex-shrink-0 transition-all bg-[#eef1f4] ${selected === doc.id
+                ? "border-[4px] border-[#1162A8]"
+                : "border-[4px] border-[#d9d9d9] group-hover:border-[#1162a8]/100"
+                }`}
             >
               <img
                 src={doc.img}
@@ -227,11 +226,10 @@ function StepDoctor({
               {doc.name}
             </span>
             <span
-              className={`text-[11px] text-[#7f7f7f] transition-opacity ${
-                selected === doc.id
-                  ? "opacity-100"
-                  : "opacity-0 group-hover:opacity-100"
-              }`}
+              className={`text-[11px] text-[#7f7f7f] transition-opacity ${selected === doc.id
+                ? "opacity-100"
+                : "opacity-0 group-hover:opacity-100"
+                }`}
             >
               Click and select
             </span>
@@ -350,7 +348,7 @@ function StepLab({
                 <img
                   src={lab.logo}
                   alt={`${lab.name} logo`}
-                  style={{ width: 126, height: 73, objectFit: "contain" }}
+                  style={{ width: "100%", objectFit: "contain" }}
                   className="rounded"
                 />
               ) : (
@@ -425,7 +423,7 @@ function StepPatientInfo({
         setCreatedByName(`${user.first_name || ""} ${user.last_name || ""}`.trim());
         if (user.image) setCreatedByImage(user.image);
       }
-    } catch {}
+    } catch { }
   }, []);
 
   useEffect(() => {
@@ -850,11 +848,10 @@ function StepCategory({
           <button
             key={cat.id}
             onClick={() => onSelect(cat.id)}
-            className={`group flex flex-col overflow-hidden rounded-[7px] border-[3px] w-[200px] sm:w-[250px] md:w-[300px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${
-              selected === cat.id
-                ? "border-[#1162A8] bg-[#1162A8]/5"
-                : "border-[#d9d9d9] bg-white"
-            }`}
+            className={`group flex flex-col overflow-hidden rounded-[7px] border-[3px] w-[200px] sm:w-[250px] md:w-[300px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${selected === cat.id
+              ? "border-[#1162A8] bg-[#1162A8]/5"
+              : "border-[#d9d9d9] bg-white"
+              }`}
           >
             <span
               className="text-[14px] font-normal text-black text-center self-stretch tracking-[-0.02em] leading-[15px] py-2 px-2"
@@ -986,11 +983,10 @@ function StepSubProduct({
                   onSelect(prod.id);
                 }
               }}
-              className={`group flex flex-col overflow-hidden rounded-[7px] border-[3px] w-[200px] sm:w-[250px] md:w-[300px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${
-                selected === prod.id
-                  ? "border-[#1162A8] bg-[#1162A8]/5"
-                  : "border-[#d9d9d9] bg-white"
-              }`}
+              className={`group flex flex-col overflow-hidden rounded-[7px] border-[3px] w-[200px] sm:w-[250px] md:w-[300px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${selected === prod.id
+                ? "border-[#1162A8] bg-[#1162A8]/5"
+                : "border-[#d9d9d9] bg-white"
+                }`}
             >
               <span
                 ref={(el) => { subLabelRefs.current[prod.id] = el; }}
@@ -1014,7 +1010,7 @@ function StepSubProduct({
         const fallbackImg = hoveredSub?.img ?? null;
         const archOptions = [
           { label: "Upper only", value: "maxillary" as const, img: useJawPhotos ? (jawPhotos.upper ?? fallbackImg) : fallbackImg },
-          { label: "Both",       value: "both"       as const, img: useJawPhotos ? (jawPhotos.both  ?? fallbackImg) : fallbackImg },
+          { label: "Both", value: "both" as const, img: useJawPhotos ? (jawPhotos.both ?? fallbackImg) : fallbackImg },
           { label: "Lower only", value: "mandibular" as const, img: useJawPhotos ? (jawPhotos.lower ?? fallbackImg) : fallbackImg },
         ];
         const border = 3;
@@ -1276,11 +1272,10 @@ function StepMaterial({
                       }
                     }
                   }}
-                  className={`group relative flex flex-col items-center overflow-hidden w-[200px] sm:w-[250px] md:w-[300px] rounded-[7px] border-[3px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${
-                    isSelected
-                      ? "border-[#1162A8] bg-[#1162A8]/5"
-                      : "border-[#d9d9d9] bg-white"
-                  }`}
+                  className={`group relative flex flex-col items-center overflow-hidden w-[200px] sm:w-[250px] md:w-[300px] rounded-[7px] border-[3px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${isSelected
+                    ? "border-[#1162A8] bg-[#1162A8]/5"
+                    : "border-[#d9d9d9] bg-white"
+                    }`}
                 >
                   <span
                     ref={(el) => { labelRefs.current[prodId] = el; }}
@@ -1305,7 +1300,7 @@ function StepMaterial({
         const useJawPhotos = hoveredProd?.show_jaw_photo === true;
         const archOptions = [
           { label: "Upper only", value: "maxillary" as const, img: useJawPhotos ? (jawPhotos.upper ?? hoveredProd?.img ?? null) : (archImages.maxillary ?? hoveredProd?.img ?? null) },
-          { label: "Both",       value: "both"       as const, img: useJawPhotos ? (jawPhotos.both  ?? hoveredProd?.img ?? null) : (archImages.both      ?? hoveredProd?.img ?? null) },
+          { label: "Both", value: "both" as const, img: useJawPhotos ? (jawPhotos.both ?? hoveredProd?.img ?? null) : (archImages.both ?? hoveredProd?.img ?? null) },
           { label: "Lower only", value: "mandibular" as const, img: useJawPhotos ? (jawPhotos.lower ?? hoveredProd?.img ?? null) : (archImages.mandibular ?? hoveredProd?.img ?? null) },
         ];
         const border = 3;
@@ -1416,7 +1411,7 @@ function PatientMiniHeader({
         setCreatedByName(`${user.first_name || ""} ${user.last_name || ""}`.trim());
         if (user.image) setCreatedByImage(user.image);
       }
-    } catch {}
+    } catch { }
   }, []);
 
   return (
