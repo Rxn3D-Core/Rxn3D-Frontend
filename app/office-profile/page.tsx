@@ -86,6 +86,7 @@ export default function OfficeProfile() {
       day: "numeric"
     }),
     position: customerProfile.users?.[0]?.role?.name?.replace('_', ' ') || "Office Admin",
+    logo_url: customerProfile.logo_url || "",
   } : null
 
   // Transform business hours data
@@ -123,7 +124,20 @@ export default function OfficeProfile() {
 
     switch (activeTab) {
       case "overview":
-        return <OverviewTab officeData={transformedOfficeData} />
+        return (
+          <OverviewTab 
+            officeData={transformedOfficeData}
+            onProfileUpdate={() => {
+              // Refresh customer profile after update
+              const storedCustomerId = localStorage.getItem("customerId")
+              const customerId = storedCustomerId ? parseInt(storedCustomerId, 10) : 
+                (user?.customers?.[0]?.id || user?.customer_id || null)
+              if (customerId) {
+                fetchCustomerProfile(customerId)
+              }
+            }}
+          />
+        )
       case "operating-hours":
         return <OperatingHoursTab hoursData={transformedHoursData || {
           workingDays: [],
