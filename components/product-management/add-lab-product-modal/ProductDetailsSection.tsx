@@ -399,7 +399,7 @@ function JawPhotoUpload({ label, jawType, value, onChange }: JawPhotoUploadProps
       <div className={boxClass} onClick={handleClick}>
         {value ? (
           <img
-            src={value}
+            src={value && value.startsWith("http") ? `${value}${value.includes("?") ? "&" : "?"}t=${new Date().getTime()}` : value || ""}
             alt={label}
             className="max-h-full max-w-full object-contain rounded-lg p-1"
           />
@@ -726,7 +726,13 @@ export function ProductDetailsSection({
     if (currentImageBase64) {
       setImagePreview(currentImageBase64)
     } else if (editingProduct?.image_url) {
-      setImagePreview(editingProduct.image_url)
+      const url = editingProduct.image_url
+      // Add cache buster if it's a URL
+      const buster = `t=${new Date().getTime()}`
+      const finalUrl = url.includes("?") ? `${url}&${buster}` : `${url}?${buster}`
+      setImagePreview(finalUrl)
+    } else {
+      setImagePreview(null)
     }
   }, [currentImageBase64, editingProduct?.image_url])
 

@@ -109,6 +109,7 @@ export const ProductSchema = z.object({
   description: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
+  image_url: z.string().nullable().optional(),
   subcategory: SubCategorySchema.optional(),
   grades: z.array(GradeSchema).optional(),
   stages: z.array(StageSchema).optional(),
