@@ -363,7 +363,7 @@ export function VariationSection({
                     >
                       {imageSrc ? (
                         <img
-                          src={imageSrc}
+                          src={imageSrc && imageSrc.startsWith("http") ? `${imageSrc}${imageSrc.includes("?") ? "&" : "?"}t=${new Date().getTime()}` : imageSrc}
                           alt="variation"
                           className="h-full w-full object-contain"
                         />

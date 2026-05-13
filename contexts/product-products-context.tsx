@@ -1216,7 +1216,7 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
     async (id: number, selectedLabId?: number): Promise<any | null> => {
       try {
         const token = getAuthToken()
-        let url = `${process.env.NEXT_PUBLIC_API_BASE_URL}/library/products/${id}?lang=${currentLanguage}`
+        let url = `${process.env.NEXT_PUBLIC_API_BASE_URL}/library/products/${id}?lang=${currentLanguage}&t=${new Date().getTime()}`
         
         // Get user role information
         const userRoles = user?.roles || (user?.role ? [user.role] : [])

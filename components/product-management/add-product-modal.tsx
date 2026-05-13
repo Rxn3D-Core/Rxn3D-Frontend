@@ -265,9 +265,9 @@ export function AddProductModal({
 
   const isLabScopedUser = Boolean(
     userRole === "lab_admin" ||
-      (Array.isArray(user?.roles) && user.roles.includes("lab_admin")) ||
-      (Array.isArray(user?.customers) &&
-        user.customers.some((c: { role?: string }) => c?.role === "lab_admin")),
+    (Array.isArray(user?.roles) && user.roles.includes("lab_admin")) ||
+    (Array.isArray(user?.customers) &&
+      user.customers.some((c: { role?: string }) => c?.role === "lab_admin")),
   )
   /** Lab library route or lab admin role: require base price and teeth pricing when applicable */
   const enforceLabPricing = pricingScope === "lab" || isLabScopedUser
@@ -780,8 +780,8 @@ export function AddProductModal({
             status: item.status || "Active",
             is_preferred:
               item.is_preferred === "Yes" ||
-              item.is_preferred === true ||
-              item.pivot?.is_preferred === "Yes"
+                item.is_preferred === true ||
+                item.pivot?.is_preferred === "Yes"
                 ? "Yes"
                 : "No",
           }
@@ -791,7 +791,7 @@ export function AddProductModal({
           sequence: item.sequence && item.sequence >= 1 ? item.sequence : idx + 1,
           status: item.status || (item.is_default === "Yes" ? "Active" : "Inactive"),
         }
-        
+
         // Add specific fields based on the type
         if (idKey === "grade_id") {
           return {
@@ -1533,19 +1533,19 @@ export function AddProductModal({
       const jawPhotoPayload: Record<string, string | null> = {}
       let hasJawPhotoChange = false
       const existingJawFromApi = jawPhotosStateFromProduct(editingProduct ?? null)
-      ;(["upper", "lower", "both"] as const).forEach((slot) => {
-        const val = jawPhotos[slot]
-        if (val && val.startsWith("data:image/")) {
-          jawPhotoPayload[slot] = val
-          hasJawPhotoChange = true
-        } else if (val === null) {
-          const existingUrl = existingJawFromApi[slot]
-          if (existingUrl) {
-            jawPhotoPayload[slot] = null
+        ; (["upper", "lower", "both"] as const).forEach((slot) => {
+          const val = jawPhotos[slot]
+          if (val && val.startsWith("data:image/")) {
+            jawPhotoPayload[slot] = val
             hasJawPhotoChange = true
+          } else if (val === null) {
+            const existingUrl = existingJawFromApi[slot]
+            if (existingUrl) {
+              jawPhotoPayload[slot] = null
+              hasJawPhotoChange = true
+            }
           }
-        }
-      })
+        })
       if (hasJawPhotoChange) {
         payload.jaw_photos = jawPhotoPayload
       }
@@ -1611,13 +1611,13 @@ export function AddProductModal({
       payload.show_jaw_photo = (data as any).show_jaw_photo === "Yes" ? "Yes" : "No"
       const createJawPhotos: Record<string, string | null> = {}
       let hasCreateJawPhotos = false
-      ;(["upper", "lower", "both"] as const).forEach((slot) => {
-        const val = jawPhotos[slot]
-        if (val && val.startsWith("data:image/")) {
-          createJawPhotos[slot] = val
-          hasCreateJawPhotos = true
-        }
-      })
+        ; (["upper", "lower", "both"] as const).forEach((slot) => {
+          const val = jawPhotos[slot]
+          if (val && val.startsWith("data:image/")) {
+            createJawPhotos[slot] = val
+            hasCreateJawPhotos = true
+          }
+        })
       if (hasCreateJawPhotos) {
         payload.jaw_photos = createJawPhotos
       }
