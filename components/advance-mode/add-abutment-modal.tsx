@@ -77,21 +77,7 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
     setActiveTab("platform-options")
     setSearchQuery("")
     setCurrentPage(1)
-    if (initialAbutment) {
-      const chargeType =
-        initialAbutment.charge_type === "per_option" ? "per_option" : "once_per_abutment"
-      setFormData({
-        type: initialAbutment.type ?? "",
-        description: initialAbutment.description ?? "",
-        abutmentDetails: true,
-      })
-      setPricingData({
-        chargeType,
-        additionalCharge: String(initialAbutment.price ?? "0.00"),
-      })
-      const mapped = abutmentToPlatformOptions(initialAbutment)
-      setPlatforms(mapped.length > 0 ? mapped : [])
-    } else if (isOpen && isCopying && initialAbutment) {
+    if (isOpen && isCopying && initialAbutment) {
       const chargeType =
         initialAbutment.charge_type === "per_option" ? "per_option" : "once_per_abutment"
       setFormData({
@@ -109,7 +95,21 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
         serverId: undefined // Reset serverId for clone
       }))
       setPlatforms(mapped.length > 0 ? mapped : [])
-    } else {
+    } else if (isOpen && initialAbutment) {
+      const chargeType =
+        initialAbutment.charge_type === "per_option" ? "per_option" : "once_per_abutment"
+      setFormData({
+        type: initialAbutment.type ?? "",
+        description: initialAbutment.description ?? "",
+        abutmentDetails: true,
+      })
+      setPricingData({
+        chargeType,
+        additionalCharge: String(initialAbutment.price ?? "0.00"),
+      })
+      const mapped = abutmentToPlatformOptions(initialAbutment)
+      setPlatforms(mapped.length > 0 ? mapped : [])
+    } else if (isOpen) {
       setFormData({
         type: "",
         description: "",
