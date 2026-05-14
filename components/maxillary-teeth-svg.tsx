@@ -205,8 +205,7 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
       }
     }
     let opacity = 1
-    if (isToothMissing(toothNumber)) opacity = 0.2
-    else if (isToothSelected(toothNumber)) opacity = 0.7
+    if (isToothSelected(toothNumber)) opacity = 0.4
     return { cursor: 'pointer', opacity, transition: 'all 0.2s ease' }
   }
 

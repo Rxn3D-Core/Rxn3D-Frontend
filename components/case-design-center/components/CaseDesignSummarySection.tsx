@@ -26,10 +26,18 @@ export function CaseDesignSummarySection({
   maxillaryHasRemovables,
   mandibularHasRemovables,
 }: CaseDesignSummarySectionProps) {
+  const hasAnyProducts =
+    Object.keys(state.maxillaryRetentionTypes).length > 0 ||
+    Object.keys(state.mandibularRetentionTypes || {}).length > 0 ||
+    state.maxillaryTeeth.length > 0 ||
+    state.mandibularTeeth.length > 0 ||
+    (state.addedProducts?.length ?? 0) > 0;
+
   const showCaseSummaryNotes = shouldShowCaseSummaryNotes({
     caseSubmitted,
     completedFixedAccordions,
     completedRemovableAccordions,
+    hasAnyProducts,
   });
 
   if (!showCaseSummaryNotes) return null;

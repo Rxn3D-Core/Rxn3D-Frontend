@@ -31,6 +31,17 @@ test("shows case summary notes after any one product accordion is complete", () 
   );
 });
 
+test("shows case summary notes as soon as any product exists", () => {
+  assert.equal(
+    shouldShowCaseSummaryNotes({
+      completedFixedAccordions: 0,
+      completedRemovableAccordions: 0,
+      hasAnyProducts: true,
+    }),
+    true,
+  );
+});
+
 test("shows case summary notes for submitted cases even without completed accordions", () => {
   assert.equal(
     shouldShowCaseSummaryNotes({

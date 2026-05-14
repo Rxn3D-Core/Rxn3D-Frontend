@@ -776,10 +776,49 @@ export function MandibularPanel({
   });
   const isCardExpanded = (slotId: string): boolean => expandedCards[slotId] ?? false;
   const toggleCard = (slotId: string) =>
-    setExpandedCards((prev) => ({ ...prev, [slotId]: !prev[slotId] }));
-  const expandCard = (slotId: string) =>
-    setExpandedCards((prev) => ({ ...prev, [slotId]: true }));
-  const collapseAllCards = () => setExpandedCards({});
+    setExpandedCards((prev) => {
+      const isExpanded = prev[slotId] ?? false;
+      const next = { ...prev };
+      if (isExpanded) {
+        let changed = false;
+        for (const key of Object.keys(next)) {
+          if (next[key]) {
+            next[key] = false;
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      }
+
+      let changed = !(next[slotId] ?? false);
+      for (const key of Object.keys(next)) {
+        if (key === slotId) {
+          next[key] = true;
+          continue;
+        }
+        if (next[key]) {
+          next[key] = false;
+          changed = true;
+        }
+      }
+      if (!(slotId in next)) {
+        next[slotId] = true;
+        changed = true;
+      }
+      return changed ? next : prev;
+    });
+  const collapseAllCards = useCallback(() =>
+    setExpandedCards((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const key of Object.keys(next)) {
+        if (next[key]) {
+          next[key] = false;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    }), []);
   /** Expand/collapse for the opposing product accordion */
   const [opposingAccordionExpanded, setOpposingAccordionExpanded] = useState(true);
   /** Active extraction code selected in the opposing ToothStatusBoxes */
@@ -834,15 +873,28 @@ export function MandibularPanel({
     setExpandedCards((prev) => {
       let changed = false;
       const next = { ...prev };
+      let hasExpandedCard = Object.values(next).some(Boolean);
+      const hasExpandedAddedProduct = addedProducts.some(
+        (product) => product.arch === "mandibular" && product.expanded
+      );
       for (const slotId of slotIds) {
         if (!(slotId in next)) {
-          next[slotId] = true;
+          next[slotId] = !hasExpandedCard && !hasExpandedAddedProduct;
+          hasExpandedCard = hasExpandedCard || next[slotId];
           changed = true;
         }
       }
       return changed ? next : prev;
     });
-  }, [getToothProduct, getToothProductCard, mandibularRetentionTypes]);
+  }, [addedProducts, getToothProduct, getToothProductCard, mandibularRetentionTypes]);
+  useEffect(() => {
+    const hasExpandedAddedProduct = addedProducts.some(
+      (product) => product.arch === "mandibular" && product.expanded
+    );
+    if (hasExpandedAddedProduct && Object.values(expandedCards).some(Boolean)) {
+      collapseAllCards();
+    }
+  }, [addedProducts, collapseAllCards, expandedCards]);
   /** Panel-level gum shade picker state — shown above tooth status boxes */
   const [panelGumShadePicker, setPanelGumShadePicker] = useState<{ toothNumber: number; gumShades: { gum_shade_id: number; name: string; color_code_middle: string; brand: { id: number } }[]; selectedName?: string | null; stepOverride?: import("@/types/field-steps").FieldStep } | null>(null);
   // Mutual exclusion: close gum shade picker when tooth shade picker opens for this arch
@@ -990,6 +1042,15 @@ export function MandibularPanel({
    * highlight only the teeth assigned to that card.
    * For card 0 fixed groups, filter by the active fixed group's product ID.
    */
+  const isActiveMandibularNonRetention = (() => {
+    if (activeProductCardId !== 0) {
+      const ap = addedProducts.find(p => p.id === activeProductCardId && p.arch === "mandibular");
+      return !hasRetentionOptions(ap?.product);
+    }
+    const card0Tn = MANDIBULAR_ALL_TEETH.find(tn => getToothProduct("mandibular", tn) && getToothProductCard("mandibular", tn) === 0) ?? -1;
+    return !hasRetentionOptions(getToothProduct("mandibular", card0Tn));
+  })();
+
   const activeCardMandibularTeeth = (() => {
     if (activeProductCardId !== 0) {
       // Check if the active added card is a removable product
@@ -1129,8 +1190,28 @@ export function MandibularPanel({
                 willExtractTeeth={[]}
                 missingTeeth={[]}
                 onToothClick={(toothNumber: number) => {
-                  // When a Removable/Ortho card is active (card 0 or added), show tooth status popover.
-                  if (activeProductIsRemovables) {
+                  // When a non-retention (removable/ortho) card is active, show tooth status popover.
+                  if (isActiveMandibularNonRetention) {
+                    // Rule 1: active box selected → assign directly, skip popover
+                    if (activeExtractionCode) {
+                      const activeExt = activeExtractions.find((e) => e.code === activeExtractionCode);
+                      const maxTeeth = activeExt?.max_teeth && activeExt.max_teeth > 0 ? activeExt.max_teeth : null;
+                      const currentCount = Object.values(mandibularToothExtractionMap).filter((c) => c === activeExtractionCode).length;
+                      const alreadyAssigned = mandibularToothExtractionMap[toothNumber] === activeExtractionCode;
+                      if (maxTeeth !== null && currentCount >= maxTeeth && !alreadyAssigned) return;
+                      if (
+                        !mandibularTeeth.includes(toothNumber) &&
+                        shouldAddToProductSelectionOnRemovableClick({
+                          activeProductIsRemovables: true,
+                          activeExtractionCode,
+                        })
+                      ) {
+                        handleMandibularToothClick(toothNumber);
+                      }
+                      handleToothExtractionToggle("mandibular", toothNumber, activeExtractionCode, activeExtractions);
+                      return;
+                    }
+                    // Rule 2: no active box → show popover so user can pick status
                     let exts: ProductExtraction[] = [];
                     if (activeProductCardId !== 0) {
                       const activeCard = addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "mandibular");
@@ -1214,7 +1295,7 @@ export function MandibularPanel({
                 className="w-full"
                 retentionTypesByTooth={mandibularRetentionTypes}
                 showRetentionPopover={
-                  retentionPopoverState.arch === "mandibular" && !activeProductIsRemovables &&
+                  retentionPopoverState.arch === "mandibular" && !isActiveMandibularNonRetention &&
                   (!opposingProductData || useScopedRetentionMode)
                 }
                 retentionPopoverTooth={retentionPopoverState.toothNumber}
@@ -1223,12 +1304,12 @@ export function MandibularPanel({
                 onDeselectTooth={handleMandibularToothDeselect}
                 retentionOptions={retentionOptions}
                 toothExtractionMap={activeMandibularSvgState.toothExtractionMap}
-                hideSelectionIndicators={(!!opposingProductData && activeProductCardId === 0) || activeProductIsRemovables}
+                hideSelectionIndicators={(!!opposingProductData && activeProductCardId === 0) || isActiveMandibularNonRetention}
                 showCheckboxes={false}
                 onCheckedTeethChange={handleMandibularCheckedTeethChange}
                 claspTeeth={activeMandibularSvgState.claspTeeth}
                 getAddonValue={(toothNumber) => getFieldValue("mandibular", toothNumber, "addons")}
-                showToothStatusPopover={(activeProductIsRemovables || (!!opposingProductData && activeProductCardId === 0)) && toothStatusPopoverTooth !== null}
+                showToothStatusPopover={(isActiveMandibularNonRetention || (!!opposingProductData && activeProductCardId === 0)) && toothStatusPopoverTooth !== null}
                 toothStatusPopoverTooth={toothStatusPopoverTooth}
                 toothStatusByTooth={activeMandibularSvgState.toothStatusByTooth}
                 toothStatusOptions={toothStatusPopoverExtractions
@@ -1304,8 +1385,8 @@ export function MandibularPanel({
                   return card0Teeth.length > 0 ? (getToothProduct("mandibular", card0Teeth[0])?.image_url ?? null) : null;
                 })()}
                 onSelectToothStatus={(toothNumber, code) => {
-                  // When an added removable card is active, route to that card instead of opposing
-                  const addedRemovableActive = activeProductIsRemovables && activeProductCardId !== 0;
+                  // When an added non-retention card is active, route to that card instead of opposing
+                  const addedRemovableActive = isActiveMandibularNonRetention && activeProductCardId !== 0;
                   if (opposingProductData && !addedRemovableActive) {
                     onOpposingExtractionToggle?.(toothNumber, code);
                     setToothStatusPopoverTooth(null);
@@ -1319,7 +1400,7 @@ export function MandibularPanel({
                 }}
                 onCloseToothStatusPopover={() => setToothStatusPopoverTooth(null)}
                 onRemoveToothStatus={(toothNumber) => {
-                  const addedRemovableActive = activeProductIsRemovables && activeProductCardId !== 0;
+                  const addedRemovableActive = isActiveMandibularNonRetention && activeProductCardId !== 0;
                   if (opposingProductData && !addedRemovableActive) {
                     const currentCode = opposingToothExtractionMap[toothNumber];
                     if (currentCode) onOpposingExtractionToggle?.(toothNumber, currentCode);
@@ -1418,9 +1499,7 @@ export function MandibularPanel({
               const apDisplayTeeth = isApRemovables
                 ? assignedTeeth
                 : cardTeeth;
-              const apFilteredTeeth = apDisplayTeeth.filter(tn => !!mandibularToothExtractionMap[tn]);
-              // Show filtered teeth if extraction codes exist, otherwise show all tooth numbers (match card 0 behavior)
-              const apFinalTeeth = apFilteredTeeth.length > 0 ? apFilteredTeeth : apDisplayTeeth;
+              const apFinalTeeth = apDisplayTeeth.filter(tn => !mandibularToothExtractionMap[tn]);
               const cardToothDisplay = apFinalTeeth.length > 0 ? `#${apFinalTeeth.join(",")}` : "";
               const isActive = activeProductCardId === ap.id;
               // For removable cards with no teeth yet, use a negative virtual slot (-ap.id) where product data was pre-fetched
@@ -1446,6 +1525,7 @@ export function MandibularPanel({
                 isFieldCompleted("mandibular", apRepTn, "impression") ||
                 isFieldCompleted("mandibular", apRepTn, "fixed_impression")
               );
+              const willExpand = !ap.expanded;
 
               return (
                 <ProductAccordionCard
@@ -1454,6 +1534,9 @@ export function MandibularPanel({
                   arch="mandibular"
                   isExpanded={ap.expanded}
                   onToggle={() => {
+                    if (willExpand) {
+                      collapseAllCards();
+                    }
                     toggleAddedProductExpanded(ap.id);
                     setActiveProductCardId(isActive ? 0 : ap.id);
                     setActiveFixedGroupProductId(null);
@@ -1502,6 +1585,9 @@ export function MandibularPanel({
                       <div
                         className={`w-full flex flex-col transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] relative cursor-pointer ${hasRushedAp ? "bg-[#FCE4E4]" : "bg-white"}`}
                         onClick={() => {
+                          if (willExpand) {
+                            collapseAllCards();
+                          }
                           toggleAddedProductExpanded(ap.id);
                           setActiveProductCardId(isActive ? 0 : ap.id);
                           setActiveFixedGroupProductId(null);
@@ -2061,6 +2147,9 @@ export function MandibularPanel({
                       arch="mandibular"
                       isExpanded={isCardExpanded(slotId)}
                       onToggle={() => {
+                        if (!isCardExpanded(slotId)) {
+                          collapseAllAddedProducts();
+                        }
                         toggleCard(slotId);
                         setActiveProductCardId(0);
                         setActiveFixedGroupProductId(selectedProduct?.id ?? null);
@@ -2201,22 +2290,16 @@ export function MandibularPanel({
             const cardTeeth = MANDIBULAR_ALL_TEETH.filter(tn => getToothProduct("mandibular", tn) && getToothProductCard("mandibular", tn) === 0);
             if (cardTeeth.length === 0) return null;
             const cardProduct = getToothProduct("mandibular", cardTeeth[0]);
-            // mandibularTeeth is auto-populated with all arch teeth by runMissingTeethAutoSelect, so use
-            // the extraction map directly — only teeth with explicit non-TIM codes were user-assigned.
+            const cardIsFullDenture = isFullDentureProduct(cardProduct?.extractions);
+            // All teeth with any non-TIM code assigned (used for variation/count logic)
             const allAssignedTeeth = MANDIBULAR_ALL_TEETH.filter(tn => {
               const code = mandibularToothExtractionMap[tn];
               return code && code !== "TIM";
             }).sort((a, b) => a - b);
-            // For full dentures, all assigned teeth are "missing" — no separate "to replace" count.
-            const cardIsFullDenture = isFullDentureProduct(cardProduct?.extractions);
-            // Replacing teeth: non-MT codes (WED, WEOD, FR, etc.) — what the patient will replace
-            const replacingTeeth = cardIsFullDenture
-              ? []
-              : allAssignedTeeth.filter(tn => {
-                  const code = mandibularToothExtractionMap[tn];
-                  return code && code !== "MT";
-                });
-            const displayTeeth = cardIsFullDenture ? allAssignedTeeth : replacingTeeth;
+            // Orange header always shows all selected teeth regardless of active box state
+            const displayTeeth = cardIsFullDenture
+              ? allAssignedTeeth
+              : [...mandibularTeeth].sort((a, b) => a - b);
             const variationDisplay = resolveVariationDisplay(cardProduct, displayTeeth.length);
             const cardProductName = variationDisplay.name;
             const cardProductImage = variationDisplay.imageUrl;
@@ -2253,10 +2336,12 @@ export function MandibularPanel({
                 isExpanded={isCardExpanded(SLOT_ID)}
                 onToggle={() => {
                   const willExpand = !isCardExpanded(SLOT_ID);
+                  if (willExpand) {
+                    collapseAllAddedProducts();
+                  }
                   toggleCard(SLOT_ID);
                   if (willExpand) {
                     setActiveProductCardId(0);
-                    collapseAllAddedProducts();
                   }
                 }}
                 productName={cardProductName}
@@ -2273,10 +2358,12 @@ export function MandibularPanel({
                     className={`w-full flex flex-col transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] relative cursor-pointer ${hasRushedRemovables ? "bg-[#FCE4E4]" : "bg-white"}`}
                     onClick={() => {
                       const willExpand = !isCardExpanded(SLOT_ID);
+                      if (willExpand) {
+                        collapseAllAddedProducts();
+                      }
                       toggleCard(SLOT_ID);
                       if (willExpand) {
                         setActiveProductCardId(0);
-                        collapseAllAddedProducts();
                       }
                     }}
                   >
@@ -2318,9 +2405,11 @@ export function MandibularPanel({
                                     : `${cardProductName} ${displayTeeth.length} ${displayTeeth.length === 1 ? "tooth" : "teeth"} to replace`}
                                 {hasRushedRemovables && <RushIcon className="inline w-[14px] h-[14px] ml-1" />}
                               </p>
-                              <p className="font-[Inter] text-[20px] font-normal leading-[20px] tracking-[-0.02em] text-black">
-                                {cardToothDisplay}
-                              </p>
+                              {cardToothDisplay && (
+                                <p className="font-[Inter] text-[20px] font-normal leading-[20px] tracking-[-0.02em] text-black">
+                                  {cardToothDisplay}
+                                </p>
+                              )}
                             </div>
                             {cardExtractions.length > 0 && !isSingleDefaultOnlyExtractionList(cardExtractions) && (
                               <ToothStatusBoxes

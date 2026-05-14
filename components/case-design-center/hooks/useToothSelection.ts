@@ -39,6 +39,10 @@ export function useToothSelection(
   const [maxillaryClaspTeeth, setMaxillaryClaspTeeth] = useState<number[]>([]);
   const [mandibularClaspTeeth, setMandibularClaspTeeth] = useState<number[]>([]);
 
+  // Teeth assigned via the no-active-box path (tooth status popover) — these appear in BOTH status box and orange box
+  const [maxillaryNoActiveBoxTeeth, setMaxillaryNoActiveBoxTeeth] = useState<number[]>([]);
+  const [mandibularNoActiveBoxTeeth, setMandibularNoActiveBoxTeeth] = useState<number[]>([]);
+
   const maxillaryIsRemovables = treatArchAsRemovables?.maxillary ?? isSelectionOnlyArch(addedProducts, "maxillary");
   const mandibularIsRemovables = treatArchAsRemovables?.mandibular ?? isSelectionOnlyArch(addedProducts, "mandibular");
 
@@ -182,9 +186,11 @@ export function useToothSelection(
     }
 
     const setter = arch === "maxillary" ? setMaxillaryToothExtractionMap : setMandibularToothExtractionMap;
+    const claspSetter = arch === "maxillary" ? setMaxillaryClaspTeeth : setMandibularClaspTeeth;
     setter((prev) => {
       if (prev[toothNumber] === extractionCode) {
-        // Already in this extraction → move back to default
+        // Already in this extraction → move back to default; also clear any clasp assignment
+        claspSetter((c) => c.filter((t) => t !== toothNumber));
         const { [toothNumber]: _, ...rest } = prev;
         return rest;
       }
@@ -196,6 +202,8 @@ export function useToothSelection(
           return prev; // At limit, block selection
         }
       }
+      // Clear any prior clasp assignment before reassigning to a new exclusive code
+      claspSetter((c) => c.filter((t) => t !== toothNumber));
       // Assign to this extraction
       return { ...prev, [toothNumber]: extractionCode };
     });
@@ -220,6 +228,7 @@ export function useToothSelection(
     setMaxillaryRetentionTypes({});
     setMaxillaryToothExtractionMap({});
     setMaxillaryClaspTeeth([]);
+    setMaxillaryNoActiveBoxTeeth([]);
   };
 
   const clearAllMandibularTeeth = () => {
@@ -227,6 +236,7 @@ export function useToothSelection(
     setMandibularRetentionTypes({});
     setMandibularToothExtractionMap({});
     setMandibularClaspTeeth([]);
+    setMandibularNoActiveBoxTeeth([]);
   };
 
   return {
@@ -257,5 +267,9 @@ export function useToothSelection(
     selectAllMandibularTeeth,
     clearAllMaxillaryTeeth,
     clearAllMandibularTeeth,
+    maxillaryNoActiveBoxTeeth,
+    mandibularNoActiveBoxTeeth,
+    setMaxillaryNoActiveBoxTeeth,
+    setMandibularNoActiveBoxTeeth,
   };
 }

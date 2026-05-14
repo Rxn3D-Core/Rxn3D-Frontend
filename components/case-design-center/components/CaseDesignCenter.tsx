@@ -204,6 +204,13 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     return IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("mandibular", card0Rep, step));
   })();
 
+  // Gate for showing the opposing panel/accordion: teeth selected is enough, no need to wait for impression.
+  const maxillaryTeethSelected = state.maxillaryTeeth.length > 0;
+  const mandibularTeethSelected = state.mandibularTeeth.length > 0;
+
+  // When both arches already have their own removables products, the opposing accordion is redundant.
+  const bothArchesHaveProducts = maxillaryHasRemovables && mandibularHasRemovables;
+
   // True when the initial product has an opposing section — either via opposite_impression flag
   // or via opposite_extractions being populated. Uses both signals so the panel shows even when
   // lab-specific opposite_extractions haven't been configured but the flag is set.
@@ -545,14 +552,14 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             showMaxillary={
               state.showMaxillary ||
               (props.caseSubmitted && (state.maxillaryTeeth.length > 0 || Object.keys(state.maxillaryRetentionTypes).length > 0)) ||
-              (initialProductHasOppositeSection && props.initialArch === "mandibular" && mandibularRemovablesImpressionDone)
+              (initialProductHasOppositeSection && props.initialArch === "mandibular" && mandibularTeethSelected)
             }
             setShowMaxillary={state.setShowMaxillary}
             showDetails={props.caseSubmitted ||
               maxillaryHasImpression || mandibularHasImpression || maxillaryHasRemovables || mandibularHasRemovables ||
               maxillaryHasFixedAdded || mandibularHasFixedAdded ||
               maxillaryHasFixedCard0 || mandibularHasFixedCard0 ||
-              (initialProductHasOppositeSection && props.initialArch === "mandibular" && mandibularRemovablesImpressionDone)
+              (initialProductHasOppositeSection && props.initialArch === "mandibular" && mandibularTeethSelected)
             }
           caseSubmitted={props.caseSubmitted}
           // Tooth selection
@@ -613,6 +620,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           fetchAndAssignProduct={state.fetchAndAssignProduct}
           maxillaryToothExtractionMap={state.maxillaryToothExtractionMap}
           maxillaryClaspTeeth={state.maxillaryClaspTeeth}
+          maxillaryNoActiveBoxTeeth={state.maxillaryNoActiveBoxTeeth}
+          setMaxillaryNoActiveBoxTeeth={state.setMaxillaryNoActiveBoxTeeth}
           handleToothExtractionToggle={state.handleToothExtractionToggle}
           selectAllMaxillaryTeeth={state.selectAllMaxillaryTeeth}
           onToothStatusValidationChange={props.onToothStatusValidationChange}
@@ -624,7 +633,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           opposingProductData={
             initialProductHasOppositeSection &&
             props.initialArch === "mandibular" &&
-            mandibularRemovablesImpressionDone
+            mandibularTeethSelected &&
+            !bothArchesHaveProducts
               ? state.initialProductDetails
               : null
           }
@@ -637,7 +647,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         />
 
         {/* CENTER NAVIGATION */}
-        {/* "Teeth in mouth" pill: visible only when removables are active and no extractions applied yet */}
+        {/* "Teeth in mouth" pill: visible when removables are active and no teeth selected in either arch (1-16 or 17-32) */}
         {(() => {
           const maxHasExtractions = Object.keys(state.maxillaryToothExtractionMap).length > 0;
           const manHasExtractions = Object.keys(state.mandibularToothExtractionMap).length > 0;
@@ -645,13 +655,13 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           const hasOpposing = initialProductHasOppositeSection;
           const hasRemovables = maxillaryHasRemovables || mandibularHasRemovables || hasOpposing;
           // Effective panel visibility accounts for force-shown opposing panel (only after primary impression done)
-          const effectiveShowMax = state.showMaxillary || (hasOpposing && props.initialArch === "mandibular" && mandibularRemovablesImpressionDone);
-          const effectiveShowMan = state.showMandibular || (hasOpposing && props.initialArch === "maxillary" && maxillaryRemovablesImpressionDone && !userHidMandibular);
+          const effectiveShowMax = state.showMaxillary || (hasOpposing && props.initialArch === "mandibular" && mandibularTeethSelected);
+          const effectiveShowMan = state.showMandibular || (hasOpposing && props.initialArch === "maxillary" && maxillaryTeethSelected && !userHidMandibular);
           // Show TIM only when at least one panel is visible and no extractions applied
           const showMaxArrow = effectiveShowMax && !maxHasExtractions && (props.initialArch !== "mandibular" || !opposingHasExtractions);
           const showManArrow = effectiveShowMan && !manHasExtractions && (props.initialArch !== "maxillary" || !opposingHasExtractions);
-          const initialProductHasExtractions = (state.initialProductDetails?.extractions?.length ?? 0) > 0;
-          const showTim = hasRemovables && (effectiveShowMax || effectiveShowMan) && initialProductHasExtractions;
+          const noTeethSelected = state.maxillaryTeeth.length === 0 && state.mandibularTeeth.length === 0;
+          const showTim = hasRemovables && (effectiveShowMax || effectiveShowMan) && noTeethSelected;
           return (
             <CenterNavigation
               showMaxillary={effectiveShowMax}
@@ -670,14 +680,14 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           showMandibular={
             state.showMandibular ||
             (props.caseSubmitted && (state.mandibularTeeth.length > 0 || Object.keys(state.mandibularRetentionTypes || {}).length > 0)) ||
-            (initialProductHasOppositeSection && props.initialArch === "maxillary" && maxillaryRemovablesImpressionDone && !userHidMandibular)
+            (initialProductHasOppositeSection && props.initialArch === "maxillary" && maxillaryTeethSelected && !userHidMandibular)
           }
           setShowMandibular={handleSetShowMandibular}
           showDetails={props.caseSubmitted ||
             maxillaryHasImpression || mandibularHasImpression || maxillaryHasRemovables || mandibularHasRemovables ||
             maxillaryHasFixedAdded || mandibularHasFixedAdded ||
             maxillaryHasFixedCard0 || mandibularHasFixedCard0 ||
-            (initialProductHasOppositeSection && props.initialArch === "maxillary" && maxillaryRemovablesImpressionDone)
+            (initialProductHasOppositeSection && props.initialArch === "maxillary" && maxillaryTeethSelected)
           }
           caseSubmitted={props.caseSubmitted}
           disabled={props.caseSubmitted ? false : maxillaryIncomplete}
@@ -747,7 +757,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           opposingProductData={
             initialProductHasOppositeSection &&
             props.initialArch === "maxillary" &&
-            maxillaryRemovablesImpressionDone
+            maxillaryTeethSelected &&
+            !bothArchesHaveProducts
               ? state.initialProductDetails
               : null
           }

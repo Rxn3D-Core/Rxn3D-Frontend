@@ -193,10 +193,13 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
   const getToothBaseRectStyle = (toothNumber: number): React.CSSProperties => {
     const ext = resolveExtraction(toothNumber)
     const s3Url = getS3UrlForTooth(toothNumber)
+    
     // Image overlay=No: hide the base rect
     if (ext?.visibility_type === 'Image' && ext.overlay === 'No' && s3Url) {
       return { cursor: 'pointer', opacity: 0, transition: 'all 0.2s ease' }
     }
+
+   
     // Color type without image: apply filter directly on rect
     if (ext?.visibility_type === 'Color' && !s3Url && ext.color) {
       const rgb = hexToRgb(ext.color)
