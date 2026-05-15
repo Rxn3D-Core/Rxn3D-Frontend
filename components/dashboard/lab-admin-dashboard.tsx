@@ -20,6 +20,7 @@ import { useFetchUsersQuery } from "@/hooks/use-users"
 import { useFetchUserInvitations } from "@/hooks/use-user-invitations"
 import { useDashboardSettings } from "@/hooks/use-dashboard-settings"
 import { WIDGET_IDS, getCustomerId } from "@/lib/dashboard-widgets"
+import { DashboardOfficeInviteModal } from "./dashboard-office-invite-modal"
 
 const getStatusBadgeClass = (status: string) => {
   const statusLower = status?.toLowerCase() || ""
@@ -113,6 +114,10 @@ export function LabAdminDashboard() {
   const [userSearchQuery, setUserSearchQuery] = useState("")
   const [debouncedUserSearchQuery, setDebouncedUserSearchQuery] = useState("")
   const [showUserForm, setShowUserForm] = useState(false)
+  
+  // Office invite modal states
+  const [hasCheckedInvitePopup, setHasCheckedInvitePopup] = useState(false)
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
 
   // Debounce user search query
   useEffect(() => {
@@ -126,6 +131,23 @@ export function LabAdminDashboard() {
   // Loading state combines both queries
   const isLoading = isLoadingConnections || isLoadingInvitations
   const error = connectionsError
+
+  const sentInvitations = useMemo(() => {
+    return Array.isArray(sent) ? sent : (sent?.data || [])
+  }, [sent])
+
+  // Check for office invite popup
+  useEffect(() => {
+    if (!isLoading && !hasCheckedInvitePopup) {
+      const practicesCount = practices.length
+      const invitationsCount = sentInvitations.filter((inv: any) => inv.type === "Office").length
+      
+      if (practicesCount === 0 && invitationsCount === 0) {
+        setIsInviteModalOpen(true)
+      }
+      setHasCheckedInvitePopup(true)
+    }
+  }, [isLoading, hasCheckedInvitePopup, practices.length, sentInvitations])
 
   // Filter practices based on tab
   const filteredPractices =
@@ -890,6 +912,14 @@ export function LabAdminDashboard() {
           </Button>
         </div>
       )}
+
+      {/* Office Invite Modal */}
+      <DashboardOfficeInviteModal
+        practicesCount={practices.length}
+        invitationsCount={sentInvitations.filter((inv: any) => inv.type === "Office").length}
+        isOpen={isInviteModalOpen}
+        onClose={() => setIsInviteModalOpen(false)}
+      />
 
       <ProfileModal
         isOpen={profileModalOpen}

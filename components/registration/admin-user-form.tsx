@@ -27,8 +27,9 @@ export function AdminUserForm({
         updateUser={updateUser}
         index={0}
         registrationType={registrationType}
-        isDoctor={adminUser?.role === "doctor" || adminUser?.role === "doctor_admin"}
-        isAdminForm={true} adminUser={undefined}      />
+        isDoctor={adminUser?.role === "doctor" || adminUser?.role === "doctor_admin" || adminUser?.is_doctor}
+        isAdminForm={true}
+      />
     </div>
   )
 }

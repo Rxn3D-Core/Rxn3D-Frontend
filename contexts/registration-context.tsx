@@ -17,6 +17,8 @@ export interface RegistrationUser {
   is_doctor?: boolean
   use_same_details?: boolean
   license_number?: string
+  password?: string
+  password_confirmation?: string
 }
 
 export interface RegistrationData {
@@ -102,6 +104,8 @@ const defaultRegistrationData: RegistrationData = {
       email: "",
       phone: "",
       work_number: "",
+      password: "",
+      password_confirmation: "",
     },
   ],
   logo: null,
@@ -123,7 +127,7 @@ export function RegistrationProvider({ children }: { children: React.ReactNode }
   const { toast } = useToast()
 
   const calculateProgress = () => {
-    const totalSteps = 3
+    const totalSteps = 2 // Both Lab and Office now have only 2 primary steps before success
     return Math.round(((activeStep + 1) / totalSteps) * 100)
   }
 

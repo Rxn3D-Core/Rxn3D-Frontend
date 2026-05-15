@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { useInvitation } from "@/contexts/invitation-context"
 import { EntityType } from "@/contexts/invitation-context"
 import { useCreateUserInvitation } from "@/hooks/use-user-invitations"
+import { useQueryClient } from "@tanstack/react-query"
 
 interface InvitationFormProps {
   type: "Office" | "Lab" | "User" | "Practice" | "Doctor"
@@ -43,6 +44,7 @@ export function InvitationForm({ type, onSuccess }: InvitationFormProps) {
   const { user } = useAuth()
   const { sendInvitation } = useInvitation()
   const { mutate: createUserInvitation } = useCreateUserInvitation()
+  const queryClient = useQueryClient()
 
   // Get customer type from selected location
   const selectedLocation = JSON.parse(localStorage.getItem("selectedLocation") || "null")
@@ -139,6 +141,10 @@ export function InvitationForm({ type, onSuccess }: InvitationFormProps) {
         invited_by: invitedBy,
         type: entityType,
       })
+
+      // Invalidate queries to refresh dashboard
+      queryClient.invalidateQueries({ queryKey: ["invitations"] })
+      queryClient.invalidateQueries({ queryKey: ["connections"] })
 
       toast({
         title: "Invitation Sent",

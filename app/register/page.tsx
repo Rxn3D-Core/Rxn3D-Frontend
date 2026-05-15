@@ -16,7 +16,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { Loader2 } from "lucide-react"
 
 export default function RegisterPage() {
-  const { user, isLoading } = useAuth()
+  const { user, isLoading, setAuthFromData } = useAuth()
   const router = useRouter()
 
   const [error, setError] = useState<string | null>(null)
@@ -156,6 +156,20 @@ export default function RegisterPage() {
       }
     }
 
+    // Clear validation error for the field being changed
+    setUserValidationErrors((prev) => {
+      const newErrors = { ...prev }
+      delete newErrors[name]
+      
+      // If password is changed, also clear password_confirmation error if it was a mismatch error
+      if (name === "password" || name === "password_confirmation") {
+        delete newErrors.password
+        delete newErrors.password_confirmation
+      }
+      
+      return newErrors
+    })
+
     updateUser(0, { [name]: value })
   }
 
@@ -232,7 +246,8 @@ export default function RegisterPage() {
         if (!validateAdminUserForm(registrationData.users[0], setUserValidationErrors)) {
           return
         }
-        goToNextStep()
+        // Both Lab and Office now skip additional users and go straight to completion
+        handleContinue()
         return
       }
     } else if (activeStep === 1) {
@@ -302,6 +317,24 @@ export default function RegisterPage() {
 
       const response = await submitRegistration(invitation_id)
       if (response.success) {
+        // Auto-login with the response data
+        // API structure is { data: { data: { auth: { ... } } } }
+        if (response.data && response.data.data && response.data.data.auth) {
+          const authData = response.data.data.auth
+          
+          // Ensure permissions exists at top level if required by AuthData type
+          if (!authData.permissions && authData.user?.permissions) {
+            authData.permissions = authData.user.permissions
+          }
+          
+          const success = setAuthFromData(authData)
+          if (success) {
+            // Redirect will be handled by setAuthFromData
+            return response
+          }
+        }
+        
+        // Fallback if auto-login fails or data is missing
         setIsSending(true)
       } else {
         if (response.validationErrors) {
@@ -320,6 +353,8 @@ export default function RegisterPage() {
             "users.0.work_number": "work_number",
             "users.0.license_number": "license_number",
             "users.0.signature": "signature",
+            "users.0.password": "password",
+            "users.0.password_confirmation": "password_confirmation",
           }
 
           const newValidationErrors = {}
@@ -454,21 +489,23 @@ export default function RegisterPage() {
                 {/* Navigation buttons */}
                 <div className="flex justify-between mt-8">
                   <div className="space-x-4">
-                    <button className="px-6 py-2 bg-[#f1f5f9] text-[#64748b] rounded">Continue Later</button>
                     <button className="px-6 py-2 bg-[#f1f5f9] text-[#64748b] rounded" onClick={handlePrevious}>
                       Previous
                     </button>
                   </div>
                   <button
-                    className="px-6 py-2 bg-white text-[#1162a8] border border-[#1162a8] rounded"
+                    className="px-6 py-2 bg-white text-[#1162a8] border border-[#1162a8] rounded disabled:opacity-50"
                     onClick={handleNext}
+                    disabled={isLoadingNext}
                   >
-                    Next
+                    {activeTab === "user" && registrationType === "Lab" 
+                      ? (isLoadingNext ? "Submitting..." : "Submit Registration") 
+                      : "Next"}
                   </button>
                 </div>
               </div>
-            ) : activeStep === 1 ? (
-              /* Step 2: Additional Users */
+            ) : (activeStep === 1 && registrationType === "Office") ? (
+              /* Step 2: Additional Users (Only for Office) */
               <div>
                 <div className="text-center mb-6">
                   <h1 className="text-2xl font-bold mb-2">Set Up User Profiles</h1>
@@ -493,10 +530,7 @@ export default function RegisterPage() {
                 />
 
                 {/* Navigation buttons */}
-                <div className="flex justify-between mt-8">
-                  <div className="space-x-4">
-                    <button className="px-6 py-2 bg-[#f1f5f9] text-[#64748b] rounded">Continue Later</button>
-                  </div>
+                <div className="flex justify-end mt-8">
                   <button
                     className="px-6 py-2 bg-white text-[#1162a8] border border-[#1162a8] rounded"
                     onClick={handleContinue}
@@ -513,7 +547,7 @@ export default function RegisterPage() {
                 />
               </div>
             ) : (
-              /* Step 3: Ready to Start */
+              /* Success Step: Ready to Start */
               <SuccessStep
                 users={registrationData.users}
                 isSubmitting={isSubmitting}

@@ -16,6 +16,8 @@ import { useBusinessSettings } from "@/contexts/business-settings-context"
 import { convertTo12Hour } from "@/utils/time-utils"
 import { useOnboardingStatus } from "@/hooks/use-onboarding-status"
 import { useAuth } from "@/contexts/auth-context"
+import { buildLabOnboardCompleteBody } from "@/lib/lab-onboard-complete-payload"
+import { postLabOnboardComplete } from "@/lib/api-lab-onboarding"
 
 export default function BusinessHoursPage() {
   const router = useRouter()
@@ -93,18 +95,64 @@ export default function BusinessHoursPage() {
     resetError,
   } = useBusinessSettings()
 
-  /** Office onboarding: finish after business settings (dashboard). Lab defers persistence to invite flow / `POST /labs/onboard-complete`. */
+  const [isCompleting, setIsCompleting] = useState(false)
+  const [loadingMessage, setLoadingMessage] = useState("Setting up your profile...")
+
+  // Loading messages sequence
+  useEffect(() => {
+    if (!isCompleting) return
+
+    const messages = [
+      "Setting up your profile...",
+      "Configuring library for you...",
+      "Finalizing business settings...",
+      "Almost there...",
+      "Ready to start!",
+    ]
+
+    let currentMessageIndex = 0
+    const interval = setInterval(() => {
+      currentMessageIndex = (currentMessageIndex + 1) % messages.length
+      setLoadingMessage(messages[currentMessageIndex])
+    }, 2000)
+
+    return () => clearInterval(interval)
+  }, [isCompleting])
+
+  /** Office onboarding: finish after business settings (dashboard). Lab: Complete all onboarding steps including business settings and case schedule, then redirect to dashboard. */
   const handleSubmit = async () => {
     if (!customerId) {
       return
     }
-    if (customerType.toLowerCase() !== "office") {
-      return
-    }
-    const result = await submitBusinessSettings(Number(customerId), customerType)
-    if (result) {
-      await refetchOnboardingStatus()
-      router.replace("/dashboard")
+
+    if (customerType.toLowerCase() === "office") {
+      const result = await submitBusinessSettings(Number(customerId), customerType)
+      if (result) {
+        await refetchOnboardingStatus()
+        router.replace("/dashboard")
+      }
+    } else if (customerType.toLowerCase() === "lab") {
+      setIsCompleting(true)
+      try {
+        // Build the complete body for lab onboarding
+        const body = buildLabOnboardCompleteBody(
+          Number(customerId),
+          [], // No office invitations for now
+          workingDays,
+          businessHours,
+          caseSchedule,
+        )
+        
+        // Submit the comprehensive onboarding complete request
+        await postLabOnboardComplete(body)
+        
+        // Refetch status and redirect
+        await refetchOnboardingStatus()
+        router.replace("/dashboard")
+      } catch (err) {
+        console.error("Lab onboarding completion failed:", err)
+        setIsCompleting(false)
+      }
     }
   }
 
@@ -114,7 +162,8 @@ export default function BusinessHoursPage() {
         setActiveTab("case-schedule")
         return
       }
-      router.push("/onboarding/invite-lab-team")
+      // router.push("/onboarding/invite-lab-team")
+      void handleSubmit()
       return
     }
     void handleSubmit()
@@ -131,14 +180,42 @@ export default function BusinessHoursPage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-[#f7fbff]">
+      {/* Informative Loader Overlay */}
+      {isCompleting && (
+        <div className="fixed inset-0 bg-white/90 backdrop-blur-sm z-[100] flex flex-col items-center justify-center animate-in fade-in duration-500">
+          <div className="max-w-md w-full px-6 text-center">
+            <div className="relative w-24 h-24 mx-auto mb-8">
+              <div className="absolute inset-0 border-4 border-[#1162a8]/20 rounded-full"></div>
+              <div className="absolute inset-0 border-4 border-t-[#1162a8] rounded-full animate-spin"></div>
+            </div>
+            <h2 className="text-2xl font-bold text-[#1162a8] mb-4">Setup in Progress</h2>
+            <p className="text-lg text-[#545f71] animate-pulse h-8">
+              {loadingMessage}
+            </p>
+            <div className="mt-12 w-full bg-[#1162a8]/10 h-1.5 rounded-full overflow-hidden">
+              <div className="bg-[#1162a8] h-full animate-progress-indeterminate"></div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <AuthHeader />
       {/* Progress bar */}
       <div className="px-6 py-4 bg-white border-b">
         <div className="relative h-1 bg-[#e4e6ef] rounded-full max-w-3xl mx-auto">
-          <div className="absolute h-1 w-2/5 bg-[#1162a8] rounded-full"></div>
+          <div
+            className="absolute h-1 bg-[#1162a8] rounded-full transition-all duration-500"
+            style={{
+              width: `${
+                customerType.toLowerCase() === "lab" ? (activeTab === "working-days" ? 40 : 80) : 40
+              }%`,
+            }}
+          ></div>
         </div>
-        <div className="text-right max-w-3xl mx-auto mt-1 text-sm">40% complete</div>
+        <div className="text-right max-w-3xl mx-auto mt-1 text-sm">
+          {customerType.toLowerCase() === "lab" ? (activeTab === "working-days" ? 40 : 80) : 40}% complete
+        </div>
       </div>
 
       {/* Main content */}
@@ -373,26 +450,26 @@ export default function BusinessHoursPage() {
 
           {/* Navigation buttons */}
           <div className="flex justify-end space-x-3">
-            <Button
+            {/* <Button
               variant="outline"
               className="bg-[#eef1f4] border-[#eef1f4] hover:bg-[#dfeefb] hover:border-[#dfeefb]"
               onClick={handleContinueLater}
               disabled={isLoading}
             >
               Continue Later
-            </Button>
+            </Button> */}
             <Button
               className="bg-[#1162a8] hover:bg-[#1162a8]/90 border border-[#1162a8]"
               onClick={handleFooterNext}
-              disabled={isLoading}
+              disabled={isLoading || isCompleting}
             >
-              {isLoading ? (
+              {isLoading || isCompleting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
+                  {isCompleting ? "Completing..." : "Saving..."}
                 </>
               ) : (
-                "Next"
+                customerType.toLowerCase() === "lab" && activeTab === "case-schedule" ? "Submit" : "Next"
               )}
             </Button>
           </div>

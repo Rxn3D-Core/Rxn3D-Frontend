@@ -125,10 +125,20 @@ export function UserListTable({ roleFilter, title, description }: UserListTableP
     try {
       // Get customer_id from localStorage and pass it explicitly
       const customerId = localStorage.getItem('customerId')
-      const params: { customer_id?: string } = {}
+      const params: { customer_id?: string; role?: string } = {}
       if (customerId) {
         params.customer_id = customerId
       }
+      
+      // Pass role as query parameter to utilize backend role grouping
+      if (roleFilter && roleFilter !== "all") {
+        if (roleFilter === "other") {
+          params.role = "office_user"
+        } else {
+          params.role = roleFilter
+        }
+      }
+      
       const result = await fetchUsers(params)
       
       let userData = null
@@ -148,19 +158,8 @@ export function UserListTable({ roleFilter, title, description }: UserListTableP
           transformApiUser(apiUser, index)
         )
         
-        // Filter users by role
-        const filteredUsers = transformedUsers.filter(user => {
-          if (roleFilter === "doctor") {
-            return user.role === "doctor"
-          } else if (roleFilter === "office_admin") {
-            return user.role === "office_admin"
-          } else if (roleFilter === "other") {
-            return user.role !== "doctor" && user.role !== "office_admin"
-          }
-          return true
-        })
-        
-        setStaffUsers(filteredUsers)
+        // No manual filtering needed here as backend handles it via query param
+        setStaffUsers(transformedUsers)
       } else {
         throw new Error('No user data received')
       }

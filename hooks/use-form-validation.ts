@@ -23,6 +23,8 @@ export function useFormValidation(registrationType: "Lab" | "Office" = "Lab") {
     role: "Position is required",
     license_number: "License number is required",
     signature: "Signature is required",
+    password: "Password is required",
+    password_confirmation: "Confirm password is required",
   }
 
   const validateWebsiteUrl = (url: string) => {
@@ -67,17 +69,22 @@ export function useFormValidation(registrationType: "Lab" | "Office" = "Lab") {
     return true
   }
 
-  const validateUserForm = (user, setUserValidationErrors, isDoctor = false) => {
-    const requiredUserFields = ["first_name", "last_name", "email", "phone", "work_number", "role"]
+  const validateUserForm = (user, setUserValidationErrors, isDoctor = false, requiresPassword = false) => {
+    const requiredUserFields = ["first_name", "last_name", "email", "phone", "role"]
 
     // Add license_number as required for doctors
-    if (isDoctor || user.role === "doctor" || user.role === "doctor_admin") {
+    if (isDoctor || user.role === "doctor" || user.role === "doctor_admin" || user.is_doctor === true || user.is_doctor === "true") {
       requiredUserFields.push("license_number")
     }
 
     // Add signature as required for office registration
-    if (isDoctor || user.role === "doctor" || user.role === "doctor_admin") {
+    if (isDoctor || user.role === "doctor" || user.role === "doctor_admin" || user.is_doctor === true || user.is_doctor === "true") {
       requiredUserFields.push("signature")
+    }
+
+    if (requiresPassword) {
+      requiredUserFields.push("password")
+      requiredUserFields.push("password_confirmation")
     }
 
     const missingUserFields = requiredUserFields.filter((field) => !user[field])
@@ -103,6 +110,22 @@ export function useFormValidation(registrationType: "Lab" | "Office" = "Lab") {
       return false
     }
 
+    if (user.password && user.password.length < 8) {
+      setUserValidationErrors((prev) => ({
+        ...prev,
+        password: "Password must be at least 8 characters long",
+      }))
+      return false
+    }
+
+    if (user.password !== user.password_confirmation) {
+      setUserValidationErrors((prev) => ({
+        ...prev,
+        password_confirmation: "Passwords do not match",
+      }))
+      return false
+    }
+
     setUserValidationErrors({})
     return true
   }
@@ -111,7 +134,8 @@ export function useFormValidation(registrationType: "Lab" | "Office" = "Lab") {
     return validateUserForm(
       adminUser,
       setUserValidationErrors,
-      adminUser.role === "doctor" || adminUser.role === "doctor_admin",
+      adminUser.role === "doctor" || adminUser.role === "doctor_admin" || adminUser.is_doctor === true || adminUser.is_doctor === "true",
+      true,
     )
   }
 
