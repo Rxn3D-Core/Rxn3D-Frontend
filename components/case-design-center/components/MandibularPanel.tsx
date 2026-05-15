@@ -53,6 +53,8 @@ import { getActiveProductPopoverContextToken } from "../utils/activeProductPopov
 import { shouldUseScopedRetentionMode } from "../utils/activeCardPopoverMode";
 import { getFirstMissingShadeGuideField, getShadeFieldType, getShadeGuideAdvanceFields } from "../utils/shadeGuideAdvanceFields";
 import { getRemovableHeaderTitle, shouldShowRemovableHeaderContent } from "../utils/removableHeaderLabel";
+import { shouldAddToProductSelectionOnRemovableClick } from "../utils/removableToothClickMode";
+import { getRemovableOrangeHeaderTeeth, getToothStatusBoxDisplayMap } from "../utils/removableToothDisplay";
 import { RetentionProductFields } from "./FixedRestorationFields";
 import { SelectionProductFields } from "./RemovableRestorationFields";
 import { ProductAccordionCard } from "./ProductAccordionCard";
@@ -613,6 +615,8 @@ interface MandibularPanelProps {
   fetchAndAssignProduct: (arch: Arch, toothNumber: number, productId: number) => Promise<void>;
   mandibularToothExtractionMap: Record<number, string>;
   mandibularClaspTeeth: number[];
+  mandibularNoActiveBoxTeeth?: number[];
+  setMandibularNoActiveBoxTeeth?: (teeth: number[] | ((prev: number[]) => number[])) => void;
   handleToothExtractionToggle: (arch: Arch, toothNumber: number, extractionCode: string, extractions?: import("../types").ProductExtraction[]) => void;
   selectAllMandibularTeeth: (teeth: number[]) => void;
   onToothStatusValidationChange?: (hasValidation: boolean) => void;
@@ -731,6 +735,8 @@ export function MandibularPanel({
   fetchAndAssignProduct,
   mandibularToothExtractionMap,
   mandibularClaspTeeth,
+  mandibularNoActiveBoxTeeth = [],
+  setMandibularNoActiveBoxTeeth,
   handleToothExtractionToggle,
   selectAllMandibularTeeth,
   onToothStatusValidationChange,
@@ -1242,6 +1248,14 @@ export function MandibularPanel({
                       const currentCount = Object.values(mandibularToothExtractionMap).filter((c) => c === activeExtractionCode).length;
                       const alreadyAssigned = mandibularToothExtractionMap[toothNumber] === activeExtractionCode;
                       if (maxTeeth !== null && currentCount >= maxTeeth && !alreadyAssigned) return;
+                      if (alreadyAssigned) {
+                        if (mandibularNoActiveBoxTeeth.includes(toothNumber)) {
+                          setMandibularNoActiveBoxTeeth?.((prev) => prev.filter((t) => t !== toothNumber));
+                        } else {
+                          handleMandibularToothDeselect(toothNumber);
+                        }
+                        return;
+                      }
                       if (
                         !mandibularTeeth.includes(toothNumber) &&
                         shouldAddToProductSelectionOnRemovableClick({
@@ -1249,9 +1263,10 @@ export function MandibularPanel({
                           activeExtractionCode,
                         })
                       ) {
-                        handleMandibularToothClick(toothNumber);
+                        selectAllMandibularTeeth([toothNumber]);
                       }
                       handleToothExtractionToggle("mandibular", toothNumber, activeExtractionCode, activeExtractions);
+                      setMandibularNoActiveBoxTeeth?.((prev) => prev.filter((t) => t !== toothNumber));
                       return;
                     }
                     // Rule 2: no active box → show popover so user can pick status
@@ -1330,6 +1345,7 @@ export function MandibularPanel({
                       handleMandibularToothClick(toothNumber);
                     }
                     handleToothExtractionToggle("mandibular", toothNumber, activeExtractionCode, activeExtractions);
+                    setMandibularNoActiveBoxTeeth?.((prev) => prev.filter((t) => t !== toothNumber));
                   } else {
                     handleMandibularToothClick(toothNumber);
                   }
@@ -1436,9 +1452,12 @@ export function MandibularPanel({
                     return;
                   }
                   if (!mandibularTeeth.includes(toothNumber)) {
-                    handleMandibularToothClick(toothNumber);
+                    selectAllMandibularTeeth([toothNumber]);
                   }
                   handleToothExtractionToggle("mandibular", toothNumber, code, toothStatusPopoverExtractions);
+                  setMandibularNoActiveBoxTeeth?.((prev) =>
+                    prev.includes(toothNumber) ? prev : [...prev, toothNumber]
+                  );
                   setToothStatusPopoverTooth(null);
                 }}
                 onCloseToothStatusPopover={() => setToothStatusPopoverTooth(null)}
@@ -1457,6 +1476,7 @@ export function MandibularPanel({
                   if (mandibularTeeth.includes(toothNumber)) {
                     handleMandibularToothClick(toothNumber);
                   }
+                  setMandibularNoActiveBoxTeeth?.((prev) => prev.filter((t) => t !== toothNumber));
                   setToothStatusPopoverTooth(null);
                 }}
               />
@@ -1538,12 +1558,6 @@ export function MandibularPanel({
               const cardProductImage = apVariationDisplay.imageUrl;
               const cardCategoryName = cardProduct?.subcategory?.category?.name || ap.product?.subcategory?.category?.name || ap.product?.category_name || "";
               const cardSubcategoryName = cardProduct?.subcategory?.name || ap.product?.subcategory?.name || ap.product?.subcategory_name || "";
-              // For removable products, show all selected teeth from the chart
-              const apDisplayTeeth = isApRemovables
-                ? assignedTeeth
-                : cardTeeth;
-              const apFinalTeeth = apDisplayTeeth.filter(tn => !mandibularToothExtractionMap[tn]);
-              const cardToothDisplay = apFinalTeeth.length > 0 ? `#${apFinalTeeth.join(",")}` : "";
               const isActive = activeProductCardId === ap.id;
               // For removable cards with no teeth yet, use a negative virtual slot (-ap.id) where product data was pre-fetched
               const apRepTn = cardTeeth.length > 0 ? cardTeeth[0] : (isApRemovables ? -ap.id : 0);
@@ -1564,6 +1578,15 @@ export function MandibularPanel({
 
               // Full denture detection: only MT extraction, no TIM
               const apIsFullDenture = isApRemovables && isFullDentureProduct(apExtractions);
+              const apDisplayTeeth = isApRemovables
+                ? getRemovableOrangeHeaderTeeth({
+                    selectedTeeth: assignedTeeth,
+                    toothExtractionMap: mandibularToothExtractionMap,
+                    noActiveBoxTeeth: mandibularNoActiveBoxTeeth,
+                    isFullDenture: apIsFullDenture,
+                  })
+                : cardTeeth.filter(tn => !mandibularToothExtractionMap[tn] || mandibularNoActiveBoxTeeth.includes(tn));
+              const cardToothDisplay = apDisplayTeeth.length > 0 ? `#${apDisplayTeeth.join(",")}` : "";
               const apImpressionDone = apRepTn !== 0 && (
                 isFieldCompleted("mandibular", apRepTn, "impression") ||
                 isFieldCompleted("mandibular", apRepTn, "fixed_impression")
@@ -1689,8 +1712,22 @@ export function MandibularPanel({
                                     allArchTeeth={MANDIBULAR_ALL_TEETH}
                                     toothExtractionMap={mandibularToothExtractionMap}
                                     claspTeeth={mandibularClaspTeeth}
+                                    displayTeethByCode={getToothStatusBoxDisplayMap({
+                                      extractions: apExtractions,
+                                      selectedTeeth: assignedTeeth,
+                                      toothExtractionMap: mandibularToothExtractionMap,
+                                      claspTeeth: mandibularClaspTeeth,
+                                    })}
                                     activeExtractionCode={activeExtractionCode}
-                                    onActiveExtractionChange={(code, exts) => { setActiveExtractionCode(code); if (exts) setActiveExtractions(exts); }}
+                                    onActiveExtractionChange={(code, exts) => {
+                                      setActiveExtractionCode(code);
+                                      if (exts) setActiveExtractions(exts);
+                                      if (code) {
+                                        setMandibularNoActiveBoxTeeth?.((prev) =>
+                                          prev.filter((tn) => mandibularToothExtractionMap[tn] !== code)
+                                        );
+                                      }
+                                    }}
                                     onToothExtractionToggle={(tn, code, extractions) => handleToothExtractionToggle("mandibular", tn, code, extractions)}
                                     onSelectAllTeeth={selectAllMandibularTeeth}
                                     onRequiredValidationChange={onToothStatusValidationChange}
@@ -2348,11 +2385,18 @@ export function MandibularPanel({
               const code = mandibularToothExtractionMap[tn];
               return code && code !== "TIM";
             }).sort((a, b) => a - b);
-            // Orange header always shows all selected teeth regardless of active box state
-            const displayTeeth = cardIsFullDenture
-              ? allAssignedTeeth
-              : [...mandibularTeeth].sort((a, b) => a - b);
-            const variationDisplay = resolveVariationDisplay(cardProduct, displayTeeth.length);
+            const displayTeeth = getRemovableOrangeHeaderTeeth({
+              selectedTeeth: cardIsFullDenture
+                ? MANDIBULAR_ALL_TEETH
+                : [...mandibularTeeth].sort((a, b) => a - b),
+              toothExtractionMap: mandibularToothExtractionMap,
+              noActiveBoxTeeth: mandibularNoActiveBoxTeeth,
+              isFullDenture: cardIsFullDenture,
+            });
+            const variationDisplay = resolveVariationDisplay(
+              cardProduct,
+              cardIsFullDenture ? allAssignedTeeth.length : mandibularTeeth.length
+            );
             const cardProductName = variationDisplay.name;
             const cardProductImage = variationDisplay.imageUrl;
             const hasVariationMatch = variationDisplay.matched;
@@ -2441,7 +2485,7 @@ export function MandibularPanel({
                         {shouldShowRemovableHeaderContent({
                           hasProduct: !!cardProduct,
                           hasVariation: cardProduct?.has_variation,
-                          teethCount: displayTeeth.length,
+                          teethCount: cardIsFullDenture ? allAssignedTeeth.length : mandibularTeeth.length,
                           caseSubmitted,
                         }) && (
                           <>
@@ -2458,7 +2502,7 @@ export function MandibularPanel({
                                 {getRemovableHeaderTitle({
                                   productName: cardProductName,
                                   hasVariation: cardProduct?.has_variation,
-                                  teethCount: displayTeeth.length,
+                                  teethCount: cardIsFullDenture ? allAssignedTeeth.length : mandibularTeeth.length,
                                   isFullDenture: cardIsFullDenture,
                                   hasVariationMatch,
                                 })}
@@ -2477,8 +2521,22 @@ export function MandibularPanel({
                                 allArchTeeth={MANDIBULAR_ALL_TEETH}
                                 toothExtractionMap={mandibularToothExtractionMap}
                                 claspTeeth={mandibularClaspTeeth}
+                                displayTeethByCode={getToothStatusBoxDisplayMap({
+                                  extractions: cardExtractions,
+                                  selectedTeeth: mandibularTeeth,
+                                  toothExtractionMap: mandibularToothExtractionMap,
+                                  claspTeeth: mandibularClaspTeeth,
+                                })}
                                 activeExtractionCode={activeExtractionCode}
-                                onActiveExtractionChange={(code, exts) => { setActiveExtractionCode(code); if (exts) setActiveExtractions(exts); }}
+                                onActiveExtractionChange={(code, exts) => {
+                                  setActiveExtractionCode(code);
+                                  if (exts) setActiveExtractions(exts);
+                                  if (code) {
+                                    setMandibularNoActiveBoxTeeth?.((prev) =>
+                                      prev.filter((tn) => mandibularToothExtractionMap[tn] !== code)
+                                    );
+                                  }
+                                }}
                                 onToothExtractionToggle={(tn, code, extractions) => handleToothExtractionToggle("mandibular", tn, code, extractions)}
                                 onSelectAllTeeth={selectAllMandibularTeeth}
                                 onRequiredValidationChange={onToothStatusValidationChange}
