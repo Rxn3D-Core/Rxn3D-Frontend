@@ -8,15 +8,24 @@
 type ProductForCategoryCheck = {
   retention_options?: unknown[];
   extractions?: unknown[];
+  has_retention?: string | boolean | null;
 } | null | undefined;
 
-type ProductWithRetention = { retention_options?: unknown[] } | null | undefined;
+type ProductWithRetention = { retention_options?: unknown[]; has_retention?: string | boolean | null } | null | undefined;
 
-type AnyProduct = { retention_options?: unknown[]; extractions?: unknown[] };
+type AnyProduct = { retention_options?: unknown[]; extractions?: unknown[]; has_retention?: string | boolean | null };
 
 export function hasRetentionOptions(product: ProductWithRetention | ProductForCategoryCheck): boolean {
   const p = product as AnyProduct | null | undefined;
   if (!p) return false;
+
+  if (p.has_retention === true || p.has_retention === "Yes" || p.has_retention === "yes") {
+    return true;
+  }
+  if (p.has_retention === false || p.has_retention === "No" || p.has_retention === "no") {
+    return false;
+  }
+
   return Array.isArray(p.retention_options) && p.retention_options.length > 0;
 }
 

@@ -11,6 +11,7 @@ import { useProductManagement } from "./useProductManagement";
 import { useImplantState } from "./useImplantState";
 import { useToothFieldProgress, FIXED_SHADE_FIELD_TO_STEP } from "./useToothFieldProgress";
 import { hasRetentionOptions, isSingleStageNoStages } from "../utils/categoryHelpers";
+import { shouldAutoSelectArchForDefaultExtraction } from "../utils/extractionHelpers";
 import { resolveProductOwnershipUpdate } from "../utils/productOwnership.js";
 import { getShadeGuideAdvanceFields, getShadeFieldType } from "../utils/shadeGuideAdvanceFields";
 import { ProductApi } from "../../../lib/api-service";
@@ -401,6 +402,8 @@ export function useCaseDesignState(props: CaseDesignProps) {
   const runMissingTeethAutoSelect = useCallback(
     (product: ProductApiData | null | undefined, arch: string | undefined) => {
       if (!product?.id || !arch) return;
+      if (!shouldAutoSelectArchForDefaultExtraction(product.extractions)) return;
+
       const matched = product.extractions?.find(
         (ext) =>
           String(ext?.is_default ?? "").trim().toLowerCase() === "yes"
@@ -440,9 +443,8 @@ export function useCaseDesignState(props: CaseDesignProps) {
           });
         }
 
-        // Always add the teeth to the arch selection so the accordion renders,
-        // status boxes show populated teethForBox, and the required-validation
-        // banner does not fire. User may still manually deselect individuals.
+        // Non-TIM defaults should preselect the arch so the default status box
+        // is populated immediately. TIM defaults intentionally do not do this.
         selectionSetter((prev) => [...new Set([...prev, ...archTeeth])]);
       }
     },

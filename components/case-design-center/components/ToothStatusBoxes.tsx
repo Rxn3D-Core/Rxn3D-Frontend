@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { ProductExtraction } from "../types";
 import { getStatusBoxTeeth } from "../utils/removableToothDisplay";
+import { shouldAutoSelectArchForDefaultExtraction } from "../utils/extractionHelpers";
 
 interface ToothStatusBoxesProps {
   extractions: ProductExtraction[];
@@ -155,13 +156,13 @@ export function ToothStatusBoxes({
   // Auto-select all arch teeth when a is_default extraction first appears (check unfiltered list)
   // Skip if teeth are already selected — prevents re-triggering on accordion collapse/expand remount
   const hasAutoSelected = useRef(false);
-  const hasDefault = allActiveExtractions.some((e) => isDefaultExtraction(e));
+  const shouldAutoSelectDefaultTeeth = shouldAutoSelectArchForDefaultExtraction(allActiveExtractions);
   useEffect(() => {
-    if (hasDefault && !hasAutoSelected.current && selectedTeeth.length === 0) {
+    if (shouldAutoSelectDefaultTeeth && !hasAutoSelected.current && selectedTeeth.length === 0) {
       hasAutoSelected.current = true;
       onSelectAllTeeth(allArchTeeth);
     }
-  }, [hasDefault, allArchTeeth, onSelectAllTeeth, selectedTeeth.length]);
+  }, [shouldAutoSelectDefaultTeeth, allArchTeeth, onSelectAllTeeth, selectedTeeth.length]);
 
   if (activeExtractions.length === 0) return null;
 

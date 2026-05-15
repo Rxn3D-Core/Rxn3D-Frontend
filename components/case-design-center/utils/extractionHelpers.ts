@@ -13,13 +13,41 @@ function isActiveExtractionRow(e: {
   return true;
 }
 
+type ExtractionLike = {
+  status?: string;
+  name?: string | null;
+  code?: string | null;
+  is_default?: string;
+  is_tim?: string;
+};
+
+function isTimExtraction(extraction: ExtractionLike): boolean {
+  return (
+    String(extraction.is_tim ?? "").trim().toLowerCase() === "yes" ||
+    String(extraction.code ?? "").trim().toLowerCase() === "tim" ||
+    String(extraction.name ?? "").trim().toLowerCase() === "teeth in mouth"
+  );
+}
+
 export function isSingleDefaultOnlyExtractionList(
   extractions:
-    | ReadonlyArray<{ status?: string; name?: string | null; code?: string | null; is_default?: string }>
+    | ReadonlyArray<ExtractionLike>
     | undefined
     | null
 ): boolean {
   const active = (extractions ?? []).filter(isActiveExtractionRow);
   if (active.length !== 1) return false;
   return String(active[0].is_default ?? "").trim().toLowerCase() === "yes";
+}
+
+export function shouldAutoSelectArchForDefaultExtraction(
+  extractions: ReadonlyArray<ExtractionLike> | undefined | null
+): boolean {
+  const active = (extractions ?? []).filter(isActiveExtractionRow);
+  const defaultExtraction = active.find(
+    (extraction) => String(extraction.is_default ?? "").trim().toLowerCase() === "yes"
+  );
+
+  if (!defaultExtraction) return false;
+  return !isTimExtraction(defaultExtraction);
 }
