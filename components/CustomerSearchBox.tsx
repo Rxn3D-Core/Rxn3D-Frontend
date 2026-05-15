@@ -10,6 +10,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { useInvitation } from "@/contexts/invitation-context"
 import { EntityType } from "@/contexts/invitation-context"
 import { useAuth } from "@/contexts/auth-context"
+import { useQueryClient } from "@tanstack/react-query"
 interface Customer {
   id: number
   name: string
@@ -30,6 +31,7 @@ interface CustomerSearchBoxProps {
     query: string
     setQuery: (query: string) => void
   }
+  onInviteSuccess?: (customer: Customer) => void
 }
 
 export function CustomerSearchBox({
@@ -39,6 +41,7 @@ export function CustomerSearchBox({
   isLoading = false,
   showProfile = true,
   searchState,
+  onInviteSuccess,
 }: CustomerSearchBoxProps) {
   const [showSearchResults, setShowSearchResults] = useState(false)
   const { searchQuery, setSearchQuery, searchResults, handleSearch, clearSearch } = useCustomer()
@@ -46,6 +49,7 @@ export function CustomerSearchBox({
   const { sendInvitation } = useInvitation()
   const { toast } = useToast()
   const { user } = useAuth()
+  const queryClient = useQueryClient()
 
   // Use local state if searchState is provided, otherwise use context
   const query = searchState?.query ?? searchQuery
@@ -112,10 +116,17 @@ export function CustomerSearchBox({
         type: entityType,
       })
   
+      // Invalidate queries to refresh dashboard
+      queryClient.invalidateQueries({ queryKey: ["invitations"] })
+      queryClient.invalidateQueries({ queryKey: ["connections"] })
+
       toast({
         title: "Invitation Sent",
         description: `Invitation sent to ${customer.name}`,
       })
+      if (onInviteSuccess) {
+        onInviteSuccess(customer)
+      }
     } catch (error) {
       console.error("Error sending invitation:", error)
       toast({

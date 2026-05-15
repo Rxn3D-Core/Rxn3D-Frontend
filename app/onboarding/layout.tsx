@@ -58,8 +58,11 @@ export default function OnboardingLayout({
     }
   }, [isLoading, user, isOnboardingComplete, onboardingStatus, error, router, pathname])
 
-  // Calculate progress based on current path
+  // Calculate progress based on current path and customer type
   const getProgress = () => {
+    const customerType = (onboardingStatus?.type || localStorage.getItem("customerType") || "").toLowerCase()
+    const isLab = customerType === "lab"
+
     switch (pathname) {
       case "/onboarding/welcome":
         return 0
@@ -67,7 +70,8 @@ export default function OnboardingLayout({
       case "/onboarding/user-profile":
         return 20
       case "/onboarding/business-hours":
-        return 40
+        // For labs, business-hours is the final step before completion
+        return isLab ? 80 : 40
       case "/onboarding/invite-lab-team":
         return 52
       case "/onboarding/services":

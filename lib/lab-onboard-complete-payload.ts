@@ -7,6 +7,7 @@ export interface LabOnboardCompleteBody {
   office_invitations?: { name: string; email: string }[]
   business_hours: BusinessHour[]
   case_schedule: CaseSchedulePayload
+  clone_full_global_catalog?: boolean
 }
 
 /**
@@ -49,5 +50,6 @@ export function buildLabOnboardCompleteBody(
     ...(officeInvitations.length > 0 ? { office_invitations: officeInvitations } : {}),
     business_hours,
     case_schedule,
+    clone_full_global_catalog: true,
   }
 }

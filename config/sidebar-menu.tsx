@@ -588,9 +588,8 @@ export function getMenuByRole(role: string): MenuItem[] {
     case "lab_admin":
       return labAdminMenu
     case "office_admin":
-      return officeAdminMenu
     case "doctor_admin":
-      return doctorAdminMenu
+      return officeAdminMenu
     case "doctor":
       return doctorAdminMenu
     case "lab_user":

@@ -133,10 +133,13 @@ export default function UserOfficeManagement() {
     try {
       // Get customer_id from localStorage and pass it explicitly
       const customerId = localStorage.getItem('customerId')
-      const params: { customer_id?: string } = {}
+      const params: { customer_id?: string; role?: string } = {}
       if (customerId) {
         params.customer_id = customerId
       }
+      
+      // Full listing - no role filter needed here as it's the main management page
+      
       const result = await fetchUsers(params)
       
       // Handle different response structures
