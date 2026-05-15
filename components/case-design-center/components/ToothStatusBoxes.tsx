@@ -31,6 +31,8 @@ interface ToothStatusBoxesProps {
   disableRequiredValidation?: boolean;
   /** When true, render boxes with gray border and gray text (used in accordion headers) */
   grayed?: boolean;
+  /** Optional UI-only display override keyed by extraction code. */
+  displayTeethByCode?: Record<string, number[]>;
 }
 
 /** Fallback color map keyed by extraction code — used only when API color is null */
@@ -140,6 +142,7 @@ export function ToothStatusBoxes({
   hideDefaultBox = false,
   disableRequiredValidation = false,
   grayed = false,
+  displayTeethByCode,
 }: ToothStatusBoxesProps) {
   const allActiveExtractions = extractions
     .filter((e) => e.status === "Active" && e.name != null && e.code != null)
@@ -219,17 +222,18 @@ export function ToothStatusBoxes({
         // Teeth shown in this box (sorted ascending)
         // Clasp is an overlay — uses its own set, not the exclusive extraction map
         const teethForBox = getTeethForBox(extraction);
+        const displayTeethForBox = displayTeethByCode?.[extraction.code] ?? teethForBox;
 
         const isEmpty = teethForBox.length === 0;
 
         // When submitted, hide empty boxes (no teeth assigned)
         if (submitted && isEmpty) return null;
 
-        const allSelected = isRemovable && isDefault && teethForBox.length === allArchTeeth.length && allArchTeeth.length > 0;
+        const allSelected = isRemovable && isDefault && displayTeethForBox.length === allArchTeeth.length && allArchTeeth.length > 0;
 
         let teethDisplay = "";
-        if (teethForBox.length > 0) {
-          teethDisplay = allSelected ? "All teeth selected" : `#${teethForBox.join(",")}`;
+        if (displayTeethForBox.length > 0) {
+          teethDisplay = allSelected ? "All teeth selected" : `#${displayTeethForBox.join(",")}`;
         }
 
         // Validation: is_required box needs teeth unless an is_optional box has teeth

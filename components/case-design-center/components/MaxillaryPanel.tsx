@@ -51,6 +51,7 @@ import { shouldUseScopedRetentionMode } from "../utils/activeCardPopoverMode";
 import { getFirstMissingShadeGuideField, getShadeFieldType, getShadeGuideAdvanceFields } from "../utils/shadeGuideAdvanceFields";
 import { shouldAddToProductSelectionOnRemovableClick } from "../utils/removableToothClickMode";
 import { getRemovableHeaderTitle, shouldShowRemovableHeaderContent } from "../utils/removableHeaderLabel";
+import { getRemovableOrangeHeaderTeeth, getToothStatusBoxDisplayMap } from "../utils/removableToothDisplay";
 import { RetentionProductFields } from "./FixedRestorationFields";
 import type { ImplantDetailData } from "./ImplantDetailSection";
 import { SelectionProductFields } from "./RemovableRestorationFields";
@@ -1576,9 +1577,17 @@ export function MaxillaryPanel({
               const cardProductImage = apVariationDisplay.imageUrl;
               const cardCategoryName = cardProduct?.subcategory?.category?.name || ap.product?.subcategory?.category?.name || ap.product?.category_name || "";
               const cardSubcategoryName = cardProduct?.subcategory?.name || ap.product?.subcategory?.name || ap.product?.subcategory_name || "";
+              const removableIsFullDenture = isApRemovables
+                ? isFullDentureProduct(apProduct?.extractions)
+                : false;
               // Orange box: show teeth with no extraction code (TIM/unassigned) OR teeth added via no-active-box path
               const apDisplayTeeth = isApRemovables
-                ? assignedTeeth.filter(tn => !maxillaryToothExtractionMap[tn] || maxillaryNoActiveBoxTeeth.includes(tn))
+                ? getRemovableOrangeHeaderTeeth({
+                    selectedTeeth: assignedTeeth,
+                    toothExtractionMap: maxillaryToothExtractionMap,
+                    noActiveBoxTeeth: maxillaryNoActiveBoxTeeth,
+                    isFullDenture: removableIsFullDenture,
+                  })
                 : cardTeeth.filter(tn => !maxillaryToothExtractionMap[tn] || maxillaryNoActiveBoxTeeth.includes(tn));
               const cardToothDisplay = apDisplayTeeth.length > 0 ? `#${apDisplayTeeth.join(",")}` : "";
               const removableHasVariationMatch =
@@ -1586,9 +1595,6 @@ export function MaxillaryPanel({
                 !!apProduct &&
                 assignedTeeth.length > 0 &&
                 resolveVariationDisplay(apProduct, assignedTeeth.length).name === cardProductName;
-              const removableIsFullDenture = isApRemovables
-                ? isFullDentureProduct(apProduct?.extractions)
-                : false;
               const removableCardExtractions = (apProduct?.extractions || []).filter((e) => e.status === "Active");
               const isActive = activeProductCardId === ap.id;
               const apRepTn = cardTeeth.length > 0 ? cardTeeth[0] : (isApRemovables ? -ap.id : 0);
@@ -1679,7 +1685,7 @@ export function MaxillaryPanel({
                             {shouldShowRemovableHeaderContent({
                               hasProduct: !!apProduct,
                               hasVariation: apProduct?.has_variation,
-                              teethCount: apDisplayTeeth.length,
+                              teethCount: assignedTeeth.length,
                               caseSubmitted,
                             }) && (
                               <>
@@ -1692,7 +1698,7 @@ export function MaxillaryPanel({
                                     {getRemovableHeaderTitle({
                                       productName: cardProductName,
                                       hasVariation: apProduct?.has_variation,
-                                      teethCount: apDisplayTeeth.length,
+                                      teethCount: assignedTeeth.length,
                                       isFullDenture: removableIsFullDenture,
                                       hasVariationMatch: removableHasVariationMatch,
                                     })}
@@ -1709,6 +1715,12 @@ export function MaxillaryPanel({
                                     allArchTeeth={MAXILLARY_ALL_TEETH}
                                     toothExtractionMap={maxillaryToothExtractionMap}
                                     claspTeeth={maxillaryClaspTeeth}
+                                    displayTeethByCode={getToothStatusBoxDisplayMap({
+                                      extractions: removableCardExtractions,
+                                      selectedTeeth: assignedTeeth,
+                                      toothExtractionMap: maxillaryToothExtractionMap,
+                                      claspTeeth: maxillaryClaspTeeth,
+                                    })}
                                     activeExtractionCode={activeExtractionCode}
                                     onActiveExtractionChange={(code, exts) => {
                                       setActiveExtractionCode(code);
@@ -2384,16 +2396,22 @@ export function MaxillaryPanel({
             if (cardTeeth.length === 0) return null;
             const cardProduct = getToothProduct("maxillary", cardTeeth[0]);
             const cardIsFullDenture = isFullDentureProduct(cardProduct?.extractions);
-            // All teeth with any non-TIM code assigned (used for variation/count logic)
             const allAssignedTeeth = MAXILLARY_ALL_TEETH.filter(tn => {
               const code = maxillaryToothExtractionMap[tn];
               return code && code !== "TIM";
             }).sort((a, b) => a - b);
-            // Orange header always shows all selected teeth regardless of active box state
-            const displayTeeth = cardIsFullDenture
-              ? allAssignedTeeth
-              : [...maxillaryTeeth].sort((a, b) => a - b);
-            const variationDisplay = resolveVariationDisplay(cardProduct, displayTeeth.length);
+            const displayTeeth = getRemovableOrangeHeaderTeeth({
+              selectedTeeth: cardIsFullDenture
+                ? MAXILLARY_ALL_TEETH
+                : [...maxillaryTeeth].sort((a, b) => a - b),
+              toothExtractionMap: maxillaryToothExtractionMap,
+              noActiveBoxTeeth: maxillaryNoActiveBoxTeeth,
+              isFullDenture: cardIsFullDenture,
+            });
+            const variationDisplay = resolveVariationDisplay(
+              cardProduct,
+              cardIsFullDenture ? allAssignedTeeth.length : maxillaryTeeth.length
+            );
             const cardProductName = variationDisplay.name;
             const cardProductImage = variationDisplay.imageUrl;
             const hasVariationMatch = variationDisplay.matched;
@@ -2480,7 +2498,7 @@ export function MaxillaryPanel({
                         {shouldShowRemovableHeaderContent({
                           hasProduct: !!cardProduct,
                           hasVariation: cardProduct?.has_variation,
-                          teethCount: displayTeeth.length,
+                          teethCount: cardIsFullDenture ? allAssignedTeeth.length : maxillaryTeeth.length,
                           caseSubmitted,
                         }) && (
                           <>
@@ -2497,7 +2515,7 @@ export function MaxillaryPanel({
                                 {getRemovableHeaderTitle({
                                   productName: cardProductName,
                                   hasVariation: cardProduct?.has_variation,
-                                  teethCount: displayTeeth.length,
+                                  teethCount: cardIsFullDenture ? allAssignedTeeth.length : maxillaryTeeth.length,
                                   isFullDenture: cardIsFullDenture,
                                   hasVariationMatch,
                                 })}
@@ -2516,6 +2534,12 @@ export function MaxillaryPanel({
                                 allArchTeeth={MAXILLARY_ALL_TEETH}
                                 toothExtractionMap={maxillaryToothExtractionMap}
                                 claspTeeth={maxillaryClaspTeeth}
+                                displayTeethByCode={getToothStatusBoxDisplayMap({
+                                  extractions: cardExtractions,
+                                  selectedTeeth: maxillaryTeeth,
+                                  toothExtractionMap: maxillaryToothExtractionMap,
+                                  claspTeeth: maxillaryClaspTeeth,
+                                })}
                                 activeExtractionCode={activeExtractionCode}
                                 onActiveExtractionChange={(code, exts) => {
                                   setActiveExtractionCode(code);
