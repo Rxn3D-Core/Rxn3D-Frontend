@@ -15,7 +15,7 @@ import type {
   RetentionType,
 } from "../types";
 import type { FieldStep } from "../hooks/useToothFieldProgress";
-import { getRemovableFieldChain } from "../hooks/useToothFieldProgress";
+import { getSelectionFieldChain } from "../hooks/useToothFieldProgress";
 import { isSingleStageNoStages } from "../utils/categoryHelpers";
 import { hasVisibleAddonDisplay } from "../utils/addonDisplayHelpers";
 
@@ -189,7 +189,15 @@ export function AutoOpenImpressionIfEmpty({
       hasAutoOpenedRef.current = false;
       return;
     }
-    if (!isImpressionVisible || !isImpressionEmpty || hasAutoOpenedRef.current) return;
+    if (!isImpressionVisible || !isImpressionEmpty) {
+      hasAutoOpenedRef.current = false;
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      return;
+    }
+    if (hasAutoOpenedRef.current) return;
     hasAutoOpenedRef.current = true;
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
@@ -274,7 +282,7 @@ interface RemovableRestorationFieldsProps {
 /* ------------------------------------------------------------------ */
 /*  RemovableRestorationFields component                               */
 /* ------------------------------------------------------------------ */
-export function RemovableRestorationFields({
+export function SelectionProductFields({
   arch,
   firstToothNumber,
   selectedProduct,
@@ -297,18 +305,18 @@ export function RemovableRestorationFields({
   setPanelGumShadePicker,
   noOpposingNeeded = {},
 }: RemovableRestorationFieldsProps) {
-  const removableChain = getRemovableFieldChain(selectedProduct);
+  const removableChain = getSelectionFieldChain(selectedProduct);
   const isVisible = (step: FieldStep): boolean => isFieldVisibleFn(arch, firstToothNumber, step, removableChain);
+  const hasImplantForm = toothNumbers.some((n) => (retentionTypesMap[n] || []).includes("Implant"));
+  const implantDetailReady = !hasImplantForm || implantDetailCompleteByTooth[firstToothNumber] === true;
 
   return (
     <>
       <AutoOpenImpressionIfEmpty
         isExpanded={isExpanded}
-        isImpressionVisible={isVisible("impression")}
+        isImpressionVisible={isVisible("impression") && implantDetailReady}
         isImpressionEmpty={!isFieldCompletedFn(arch, firstToothNumber, "impression")}
         onOpenImpressionModal={(a, productId, toothNum) => {
-          const hasImplantForm = toothNumbers.some((n) => (retentionTypesMap[n] || []).includes("Implant"));
-          if (hasImplantForm && implantDetailCompleteByTooth[firstToothNumber] !== true) return;
           handleOpenImpressionModal(a, productId, toothNum);
         }}
         arch={arch}
@@ -534,7 +542,7 @@ export function RemovableRestorationFields({
       })()}
 
       {/* Step 3: Impression / Add ons */}
-      {isVisible("impression") && (() => {
+      {isVisible("impression") && implantDetailReady && (() => {
         const showAddons = isVisible("addons");
         return (
         <div className="flex flex-col gap-3 mt-3">
@@ -547,8 +555,6 @@ export function RemovableRestorationFields({
                   : "border-[#CF0202]"
             }`}
             onClick={() => {
-              const hasImplantForm = toothNumbers.some((n) => (retentionTypesMap[n] || []).includes("Implant"));
-              if (hasImplantForm && implantDetailCompleteByTooth[firstToothNumber] !== true) return;
               handleOpenImpressionModal(arch, selectedProduct?.id?.toString() || `prep_${firstToothNumber}`, firstToothNumber);
             }}
           >

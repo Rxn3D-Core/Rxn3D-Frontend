@@ -76,7 +76,7 @@ const FIXED_STEP_ADVANCE_FIELD_PATTERNS: Record<string, (name: string) => boolea
  * Shade steps (fixed_stump_shade, fixed_shade_trio) are also included when the
  * product's has_teeth_shade or has_gum_shade flag is "Yes", regardless of advance_fields.
  */
-export function getFixedFieldChain(
+export function getRetentionFieldChain(
   advanceFields: ProductAdvanceField[] | undefined,
   product?: Pick<ProductApiData, "has_teeth_shade" | "has_gum_shade"> | null
 ): readonly (typeof FIXED_FIELD_STEPS)[number][] {
@@ -111,7 +111,7 @@ export function getFixedFieldChain(
  * corresponding has_* flag is explicitly "No".
  * Steps with no flag configured are always included.
  */
-export function getRemovableFieldChain(
+export function getSelectionFieldChain(
   product: ProductApiData | null | undefined
 ): readonly (typeof FIELD_STEPS)[number][] {
   if (!product) return FIELD_STEPS;
@@ -259,7 +259,7 @@ export function useToothFieldProgress() {
 
   /** Check if a field step should be visible (based on previous steps being completed).
    *  Automatically selects the correct chain (prep/pontic vs fixed restoration).
-   *  Pass a custom fixedChain (from getFixedFieldChain) to filter steps by product advance_fields. */
+   *  Pass a custom retentionChain (from getRetentionFieldChain) to filter steps by product advance_fields. */
   const isFieldVisible = useCallback(
     (arch: Arch, toothNumber: number, step: FieldStep, customChain?: readonly string[]): boolean => {
       const isFixedStep = (FIXED_FIELD_STEPS as readonly string[]).includes(step);

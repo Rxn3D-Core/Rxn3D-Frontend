@@ -64,21 +64,23 @@ function ImpressionGrid({
 }) {
   const [showSTLModal, setShowSTLModal] = useState(false)
   const [selectedSTLImpression, setSelectedSTLImpression] = useState<ImpressionOption | null>(null)
+  const getImpressionLabel = (impression: ImpressionOption) =>
+    impression.name ?? impression.code ?? impression.value ?? "Impression"
   const [lastTouchedKey, setLastTouchedKey] = useState<string | null>(() => {
     // On mount, restore check to the last impression in the list that already has qty > 0
-    const buildKey = (imp: ImpressionOption) => `${productId}_${arch}_${imp.value || imp.name}`
+    const buildKey = (imp: ImpressionOption) => `${productId}_${arch}_${imp.value || getImpressionLabel(imp)}`
     const preSelected = [...impressions].reverse().find(imp => (selectedImpressions[buildKey(imp)] || 0) > 0)
     return preSelected ? buildKey(preSelected) : null
   })
 
   const getKey = (impression: ImpressionOption) =>
-    `${productId}_${arch}_${impression.value || impression.name}`
+    `${productId}_${arch}_${impression.value || getImpressionLabel(impression)}`
 
   const getQty = (impression: ImpressionOption) =>
     selectedImpressions[getKey(impression)] || 0
 
   const isSTL = (impression: ImpressionOption) => {
-    const name = impression.name.toLowerCase()
+    const name = (impression.name ?? "").toLowerCase()
     const code = impression.code?.toLowerCase() || ""
     return name.includes("stl") || code === "stl" || name === "stl file"
   }
@@ -161,9 +163,9 @@ function ImpressionGrid({
         {/* Image */}
         <div className="w-full aspect-square rounded-[8px] overflow-hidden flex items-center justify-center bg-gray-50 flex-shrink-0">
           {impression.image_url ? (
-            <img
+              <img
               src={impression.image_url}
-              alt={impression.name}
+              alt={getImpressionLabel(impression)}
               className="w-full h-full object-contain"
               onError={(e) => {
                 const el = e.target as HTMLImageElement
@@ -186,7 +188,7 @@ function ImpressionGrid({
 
         {/* Name */}
         <span className={cn("font-['Verdana'] font-normal text-black text-center mt-1.5 w-full flex-1 flex items-end justify-center pb-1", nameSize)}>
-          {impression.name}
+          {getImpressionLabel(impression)}
         </span>
 
         {/* Controls — always pinned to bottom */}
@@ -281,7 +283,7 @@ function ImpressionGrid({
           onConfirm={handleSTLConfirmed}
           productId={productId}
           arch={arch}
-          impressionName={selectedSTLImpression.name}
+          impressionName={getImpressionLabel(selectedSTLImpression)}
           existingFiles={stlFilesByImpression[getKey(selectedSTLImpression)] || []}
         />
       )}
