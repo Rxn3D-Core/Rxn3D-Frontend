@@ -746,6 +746,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           fetchAndAssignProduct={state.fetchAndAssignProduct}
           mandibularToothExtractionMap={state.mandibularToothExtractionMap}
           mandibularClaspTeeth={state.mandibularClaspTeeth}
+          mandibularNoActiveBoxTeeth={state.mandibularNoActiveBoxTeeth}
+          setMandibularNoActiveBoxTeeth={state.setMandibularNoActiveBoxTeeth}
           handleToothExtractionToggle={state.handleToothExtractionToggle}
           selectAllMandibularTeeth={state.selectAllMandibularTeeth}
           onToothStatusValidationChange={props.onToothStatusValidationChange}
