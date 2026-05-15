@@ -52,6 +52,7 @@ import { filterToothStateForActiveCard } from "../utils/activeCardToothState.js"
 import { getActiveProductPopoverContextToken } from "../utils/activeProductPopoverContext.js";
 import { shouldUseScopedRetentionMode } from "../utils/activeCardPopoverMode";
 import { getFirstMissingShadeGuideField, getShadeFieldType, getShadeGuideAdvanceFields } from "../utils/shadeGuideAdvanceFields";
+import { getRemovableHeaderTitle, shouldShowRemovableHeaderContent } from "../utils/removableHeaderLabel";
 import { RetentionProductFields } from "./FixedRestorationFields";
 import { SelectionProductFields } from "./RemovableRestorationFields";
 import { ProductAccordionCard } from "./ProductAccordionCard";
@@ -1044,11 +1045,23 @@ export function MandibularPanel({
    */
   const isActiveMandibularNonRetention = (() => {
     if (activeProductCardId !== 0) {
-      const ap = addedProducts.find(p => p.id === activeProductCardId && p.arch === "mandibular");
-      return !hasRetentionOptions(ap?.product);
+      const activeAp = addedProducts.find((p) => p.id === activeProductCardId && p.arch === "mandibular");
+      if (!activeAp) return false;
+      const assignedTooth = MANDIBULAR_ALL_TEETH.find(
+        (tn) => getToothProductCard("mandibular", tn) === activeProductCardId && !!getToothProduct("mandibular", tn)
+      );
+      const resolvedProduct =
+        (assignedTooth ? getToothProduct("mandibular", assignedTooth) : null) ??
+        activeAp.product ??
+        null;
+      if (resolvedProduct) return !hasRetentionOptions(resolvedProduct);
+      return !!activeProductIsRemovables;
     }
+    if (activeFixedGroupProductId !== null) return false;
     const card0Tn = MANDIBULAR_ALL_TEETH.find(tn => getToothProduct("mandibular", tn) && getToothProductCard("mandibular", tn) === 0) ?? -1;
-    return !hasRetentionOptions(getToothProduct("mandibular", card0Tn));
+    const resolvedProduct = getToothProduct("mandibular", card0Tn);
+    if (resolvedProduct) return !hasRetentionOptions(resolvedProduct);
+    return !!activeProductIsRemovables;
   })();
 
   const activeCardMandibularTeeth = (() => {
@@ -1102,6 +1115,36 @@ export function MandibularPanel({
     activeProductIsRemovables,
     activeFixedGroupProductId,
   });
+
+  const activeMandibularRetentionOptions = (() => {
+    if (activeProductCardId !== 0) {
+      const activeAp = addedProducts.find((ap) => ap.id === activeProductCardId && ap.arch === "mandibular");
+      const assignedTooth = MANDIBULAR_ALL_TEETH.find(
+        (tn) => getToothProductCard("mandibular", tn) === activeProductCardId && !!getToothProduct("mandibular", tn)
+      );
+      return (
+        (assignedTooth ? getToothProduct("mandibular", assignedTooth)?.retention_options : undefined) ??
+        activeAp?.product?.retention_options ??
+        []
+      );
+    }
+
+    if (activeFixedGroupProductId !== null) {
+      const groupedTooth = MANDIBULAR_ALL_TEETH.find(
+        (tn) =>
+          getToothProductCard("mandibular", tn) === 0 &&
+          getToothProduct("mandibular", tn)?.id === activeFixedGroupProductId
+      );
+      return groupedTooth ? (getToothProduct("mandibular", groupedTooth)?.retention_options ?? []) : [];
+    }
+
+    const card0Tooth = MANDIBULAR_ALL_TEETH.find(
+      (tn) => getToothProduct("mandibular", tn) && getToothProductCard("mandibular", tn) === 0
+    );
+    return card0Tooth
+      ? (getToothProduct("mandibular", card0Tooth)?.retention_options ?? retentionOptions ?? [])
+      : (retentionOptions ?? []);
+  })();
 
   return (
     <div className={`flex-1 min-w-0 px-0 md:px-16 order-3 lg:order-none relative`}>
@@ -1302,7 +1345,7 @@ export function MandibularPanel({
                 onSelectRetentionType={(tooth, type) => handleSelectRetentionType('mandibular', tooth, type)}
                 onClosePopover={() => setRetentionPopoverState({ arch: null, toothNumber: null })}
                 onDeselectTooth={handleMandibularToothDeselect}
-                retentionOptions={retentionOptions}
+                retentionOptions={activeMandibularRetentionOptions}
                 toothExtractionMap={activeMandibularSvgState.toothExtractionMap}
                 hideSelectionIndicators={(!!opposingProductData && activeProductCardId === 0) || isActiveMandibularNonRetention}
                 showCheckboxes={false}
@@ -1613,7 +1656,12 @@ export function MandibularPanel({
                             }
                           />
                           <div className="flex-1 min-w-0 flex flex-col gap-[9.94px]">
-                            {(assignedTeeth.length > 0 || caseSubmitted) && (
+                            {shouldShowRemovableHeaderContent({
+                              hasProduct: !!apProduct,
+                              hasVariation: apProduct?.has_variation,
+                              teethCount: assignedTeeth.length,
+                              caseSubmitted,
+                            }) && (
                               <>
                                 <div className="flex items-center gap-[4px] flex-wrap">
                                   {cardCategoryName && <AccordionBadge>{cardCategoryName}</AccordionBadge>}
@@ -1621,9 +1669,13 @@ export function MandibularPanel({
                                 </div>
                                 <div className={`flex flex-col items-center text-center gap-[5px] border rounded-[7px] p-[10px] mr-8 ${confirmDetailsChecked ? "border-[#34C759]" : "border-[#F97316]"}`}>
                                   <p className="font-[Inter] text-[20px] font-bold leading-[20px] tracking-[-0.02em] text-black">
-                                    {apIsFullDenture
-                                      ? cardProductName
-                                      : `${cardProductName} ${assignedTeeth.length} ${assignedTeeth.length === 1 ? "tooth" : "teeth"} to replace`}
+                                    {getRemovableHeaderTitle({
+                                      productName: cardProductName,
+                                      hasVariation: apProduct?.has_variation,
+                                      teethCount: assignedTeeth.length,
+                                      isFullDenture: apIsFullDenture,
+                                      hasVariationMatch: apVariationDisplay.matched,
+                                    })}
                                     {hasRushedAp && <RushIcon className="inline w-[14px] h-[14px] ml-1" />}
                                   </p>
                                   <p className="font-[Inter] text-[20px] font-normal leading-[20px] tracking-[-0.02em] text-black">
@@ -2386,7 +2438,12 @@ export function MandibularPanel({
                         }
                       />
                       <div className="flex-1 min-w-0 flex flex-col gap-[9.94px]">
-                        {(displayTeeth.length > 0 || caseSubmitted) && (
+                        {shouldShowRemovableHeaderContent({
+                          hasProduct: !!cardProduct,
+                          hasVariation: cardProduct?.has_variation,
+                          teethCount: displayTeeth.length,
+                          caseSubmitted,
+                        }) && (
                           <>
                             <div className="flex items-center gap-[4px] flex-wrap">
                               {cardProduct?.subcategory?.category?.name && (
@@ -2398,11 +2455,13 @@ export function MandibularPanel({
                             </div>
                             <div className={`flex flex-col items-center text-center gap-[5px] border rounded-[7px] p-[10px] mr-8 ${confirmDetailsChecked ? "border-[#34C759]" : "border-[#F97316]"}`}>
                               <p className="font-[Inter] text-[20px] font-bold leading-[20px] tracking-[-0.02em] text-black">
-                                {cardIsFullDenture
-                                  ? cardProductName
-                                  : hasVariationMatch
-                                    ? `${cardProductName} to replace`
-                                    : `${cardProductName} ${displayTeeth.length} ${displayTeeth.length === 1 ? "tooth" : "teeth"} to replace`}
+                                {getRemovableHeaderTitle({
+                                  productName: cardProductName,
+                                  hasVariation: cardProduct?.has_variation,
+                                  teethCount: displayTeeth.length,
+                                  isFullDenture: cardIsFullDenture,
+                                  hasVariationMatch,
+                                })}
                                 {hasRushedRemovables && <RushIcon className="inline w-[14px] h-[14px] ml-1" />}
                               </p>
                               {cardToothDisplay && (

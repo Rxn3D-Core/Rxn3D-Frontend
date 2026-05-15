@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { FieldInput, SelectField } from "@/components/case-design-center/components/fields";
+import { getJawSelectionPopoverInsets } from "@/components/case-design-center/utils/jawSelectionPopoverLayout";
 
 /* ------------------------------------------------------------------ */
 /*  Role / auth helpers (client-only)                                  */
@@ -910,8 +911,7 @@ function StepSubProduct({
   onArchPickForSingle?: (subcatId: number, arch: "maxillary" | "mandibular" | "both") => void;
 }) {
   const [accordionOpen, setAccordionOpen] = useState(false);
-  const [subPopoverRect, setSubPopoverRect] = useState<DOMRect | null>(null);
-  const [subLabelHeight, setSubLabelHeight] = useState(0);
+  const [activeSubLabelHeight, setActiveSubLabelHeight] = useState(0);
   const subCardRefs = useRef<Record<number, HTMLButtonElement | null>>({});
   const subLabelRefs = useRef<Record<number, HTMLSpanElement | null>>({});
   const subPopoverRef = useRef<HTMLDivElement | null>(null);
@@ -923,12 +923,34 @@ function StepSubProduct({
         const cardEl = subCardRefs.current[archPopoverSubId];
         if (cardEl && cardEl.contains(e.target as Node)) return;
         setArchPopoverSubId(null);
-        setSubPopoverRect(null);
       }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [archPopoverSubId]);
+
+  useEffect(() => {
+    if (archPopoverSubId === null) {
+      setActiveSubLabelHeight(0);
+      return;
+    }
+
+    const labelEl = subLabelRefs.current[archPopoverSubId];
+    if (!labelEl) return;
+
+    const updateLabelHeight = () => {
+      setActiveSubLabelHeight(labelEl.getBoundingClientRect().height);
+    };
+
+    updateLabelHeight();
+
+    if (typeof ResizeObserver === "undefined") return;
+
+    const observer = new ResizeObserver(updateLabelHeight);
+    observer.observe(labelEl);
+
+    return () => observer.disconnect();
+  }, [archPopoverSubId, subProducts]);
 
   return (
     <div className="flex-1 flex flex-col px-6 py-4">
@@ -971,12 +993,8 @@ function StepSubProduct({
                 if (onArchPickForSingle && isSingle) {
                   if (archPopoverSubId === prod.id) {
                     setArchPopoverSubId(null);
-                    setSubPopoverRect(null);
                   } else {
-                    const rect = subCardRefs.current[prod.id]?.getBoundingClientRect();
-                    if (rect) setSubPopoverRect(rect);
-                    const lh = subLabelRefs.current[prod.id]?.getBoundingClientRect().height ?? 0;
-                    setSubLabelHeight(lh);
+                    setActiveSubLabelHeight(subLabelRefs.current[prod.id]?.getBoundingClientRect().height ?? 0);
                     setArchPopoverSubId(prod.id);
                   }
                 } else {
@@ -997,73 +1015,59 @@ function StepSubProduct({
               </span>
               <ProductImageWithFallback src={prod.img} alt={prod.name} name={prod.name} className="rounded-none" bgClassName="" />
             </button>
+            {archPopoverSubId === prod.id && onArchPickForSingle && (() => {
+              const singleProduct = subcategoryProducts?.[prod.id]?.[0];
+              const useJawPhotos = singleProduct?.show_jaw_photo === "Yes";
+              const jawPhotos = singleProduct?.jaw_photos ?? {};
+              const fallbackImg = prod.img ?? null;
+              const archOptions = [
+                { label: "Upper only", value: "maxillary" as const, img: useJawPhotos ? (jawPhotos.upper ?? fallbackImg) : fallbackImg },
+                { label: "Both", value: "both" as const, img: useJawPhotos ? (jawPhotos.both ?? fallbackImg) : fallbackImg },
+                { label: "Lower only", value: "mandibular" as const, img: useJawPhotos ? (jawPhotos.lower ?? fallbackImg) : fallbackImg },
+              ];
+              const popoverInsets = getJawSelectionPopoverInsets(activeSubLabelHeight);
+              return (
+                <div
+                  ref={subPopoverRef}
+                  className="absolute z-20 overflow-hidden rounded-b-[7px] bg-black"
+                  style={popoverInsets}
+                >
+                  <div className="flex h-full flex-col">
+                    {archOptions.map((option, i) => (
+                      <button
+                        key={option.value}
+                        className={`group flex min-h-0 flex-1 flex-row overflow-hidden ${i < archOptions.length - 1 ? "border-b border-gray-700" : ""}`}
+                        onClick={() => {
+                          setArchPopoverSubId(null);
+                          onArchPickForSingle(prod.id, option.value);
+                        }}
+                      >
+                        <div className="h-full w-[55%] flex-shrink-0 overflow-hidden">
+                          {option.img ? (
+                            <img src={option.img} alt={option.label} className="block h-full w-full object-cover" />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center bg-[#111]">
+                              <span className="text-xl font-bold text-gray-600">{prod.name.charAt(0).toUpperCase()}</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex flex-1 items-center justify-center bg-black px-2 transition-colors group-hover:bg-[#1162A8]">
+                          <span
+                            style={{ fontFamily: "Verdana, sans-serif", fontSize: 12 }}
+                            className="text-center font-semibold text-white"
+                          >
+                            {option.label}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         ))}
       </div>
-
-      {/* Arch hover popover for subcategory — fixed, centered over the card */}
-      {archPopoverSubId !== null && subPopoverRect && onArchPickForSingle && (() => {
-        const hoveredSub = subProducts.find((p) => p.id === archPopoverSubId);
-        const singleProduct = subcategoryProducts?.[archPopoverSubId]?.[0];
-        const useJawPhotos = singleProduct?.show_jaw_photo === "Yes";
-        const jawPhotos = singleProduct?.jaw_photos ?? {};
-        const fallbackImg = hoveredSub?.img ?? null;
-        const archOptions = [
-          { label: "Upper only", value: "maxillary" as const, img: useJawPhotos ? (jawPhotos.upper ?? fallbackImg) : fallbackImg },
-          { label: "Both", value: "both" as const, img: useJawPhotos ? (jawPhotos.both ?? fallbackImg) : fallbackImg },
-          { label: "Lower only", value: "mandibular" as const, img: useJawPhotos ? (jawPhotos.lower ?? fallbackImg) : fallbackImg },
-        ];
-        const border = 3;
-        const offsetTop = border + subLabelHeight;
-        const availableHeight = subPopoverRect.height - border - subLabelHeight;
-        const rowHeight = Math.floor(availableHeight / 3);
-        return (
-          <div
-            ref={subPopoverRef}
-            className="fixed z-50 rounded-b-[7px] overflow-hidden bg-black"
-            style={{
-              top: subPopoverRect.top + offsetTop,
-              left: subPopoverRect.left + border,
-              width: subPopoverRect.width - border * 2,
-              height: rowHeight * 3,
-            }}
-          >
-            {archOptions.map((option, i) => (
-              <button
-                key={option.value}
-                className={`flex flex-row w-full group overflow-hidden ${i < archOptions.length - 1 ? "border-b border-gray-700" : ""}`}
-                style={{ height: rowHeight, padding: 0 }}
-                onClick={() => {
-                  const subcatId = archPopoverSubId!;
-                  setArchPopoverSubId(null);
-                  setSubPopoverRect(null);
-                  onArchPickForSingle(subcatId, option.value);
-                }}
-              >
-                {/* Arch image — left 55% */}
-                <div className="flex-shrink-0 overflow-hidden" style={{ width: "55%", height: rowHeight }}>
-                  {option.img ? (
-                    <img src={option.img} alt={option.label} className="w-full h-full object-cover block" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-[#111]">
-                      <span className="text-gray-600 text-xl font-bold">{hoveredSub?.name?.charAt(0).toUpperCase()}</span>
-                    </div>
-                  )}
-                </div>
-                {/* Label — right 45% */}
-                <div className="flex-1 flex items-center justify-center bg-black group-hover:bg-[#1162A8] transition-colors px-2" style={{ height: rowHeight }}>
-                  <span
-                    style={{ fontFamily: "Verdana, sans-serif", fontSize: 12 }}
-                    className="text-white font-semibold whitespace-nowrap"
-                  >
-                    {option.label}
-                  </span>
-                </div>
-              </button>
-            ))}
-          </div>
-        );
-      })()}
 
       {/* Category accordion */}
       <div className="max-w-[600px] mx-auto w-full">
@@ -1126,8 +1130,7 @@ function StepMaterial({
   onAgeChange?: (value: string) => void;
 }) {
   const [archPopoverProductId, setArchPopoverProductId] = useState<string | null>(null);
-  const [popoverRect, setPopoverRect] = useState<DOMRect | null>(null);
-  const [labelHeight, setLabelHeight] = useState(0);
+  const [activeProductLabelHeight, setActiveProductLabelHeight] = useState(0);
   const cardRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const labelRefs = useRef<Record<string, HTMLSpanElement | null>>({});
   const prodPopoverRef = useRef<HTMLDivElement | null>(null);
@@ -1139,12 +1142,34 @@ function StepMaterial({
         const cardEl = cardRefs.current[archPopoverProductId];
         if (cardEl && cardEl.contains(e.target as Node)) return;
         setArchPopoverProductId(null);
-        setPopoverRect(null);
       }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [archPopoverProductId]);
+
+  useEffect(() => {
+    if (archPopoverProductId === null) {
+      setActiveProductLabelHeight(0);
+      return;
+    }
+
+    const labelEl = labelRefs.current[archPopoverProductId];
+    if (!labelEl) return;
+
+    const updateLabelHeight = () => {
+      setActiveProductLabelHeight(labelEl.getBoundingClientRect().height);
+    };
+
+    updateLabelHeight();
+
+    if (typeof ResizeObserver === "undefined") return;
+
+    const observer = new ResizeObserver(updateLabelHeight);
+    observer.observe(labelEl);
+
+    return () => observer.disconnect();
+  }, [archPopoverProductId, products]);
 
   useEffect(() => {
     if (
@@ -1262,12 +1287,8 @@ function StepMaterial({
                     } else {
                       if (archPopoverProductId === prodId) {
                         setArchPopoverProductId(null);
-                        setPopoverRect(null);
                       } else {
-                        const rect = cardRefs.current[prodId]?.getBoundingClientRect();
-                        if (rect) setPopoverRect(rect);
-                        const lh = labelRefs.current[prodId]?.getBoundingClientRect().height ?? 0;
-                        setLabelHeight(lh);
+                        setActiveProductLabelHeight(labelRefs.current[prodId]?.getBoundingClientRect().height ?? 0);
                         setArchPopoverProductId(prodId);
                       }
                     }
@@ -1286,75 +1307,61 @@ function StepMaterial({
                   </span>
                   <ProductImageWithFallback src={prod.img} alt={prod.name} name={prod.name} className="rounded-none" bgClassName="bg-[#080808]" textClassName="text-[#b4b0b0]" />
                 </button>
+                  {archPopoverProductId === prodId && (() => {
+                    const archImages = prod.arch_images ?? {};
+                    const jawPhotos = prod.jaw_photos ?? {};
+                    const useJawPhotos = prod.show_jaw_photo === true;
+                    const archOptions = [
+                      { label: "Upper only", value: "maxillary" as const, img: useJawPhotos ? (jawPhotos.upper ?? prod.img ?? null) : (archImages.maxillary ?? prod.img ?? null) },
+                      { label: "Both", value: "both" as const, img: useJawPhotos ? (jawPhotos.both ?? prod.img ?? null) : (archImages.both ?? prod.img ?? null) },
+                      { label: "Lower only", value: "mandibular" as const, img: useJawPhotos ? (jawPhotos.lower ?? prod.img ?? null) : (archImages.mandibular ?? prod.img ?? null) },
+                    ];
+                    const popoverInsets = getJawSelectionPopoverInsets(activeProductLabelHeight);
+                    return (
+                      <div
+                        ref={prodPopoverRef}
+                        className="absolute z-20 overflow-hidden rounded-b-[7px] bg-black"
+                        style={popoverInsets}
+                      >
+                        <div className="flex h-full flex-col">
+                          {archOptions.map((option, i) => (
+                            <button
+                              key={option.value}
+                              className={`group flex min-h-0 flex-1 flex-row overflow-hidden ${i < archOptions.length - 1 ? "border-b border-gray-700" : ""}`}
+                              onClick={() => {
+                                setArchPopoverProductId(null);
+                                onSelect(prodId, option.value);
+                              }}
+                            >
+                              <div className="h-full w-[55%] flex-shrink-0 overflow-hidden">
+                                {option.img ? (
+                                  <img src={option.img} alt={option.label} className="block h-full w-full object-cover" />
+                                ) : (
+                                  <div className="flex h-full w-full items-center justify-center bg-[#111]">
+                                    <span className="text-xl font-bold text-gray-600">{prod.name.charAt(0).toUpperCase()}</span>
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="flex flex-1 items-center justify-center bg-black px-2 transition-colors group-hover:bg-[#1162A8]">
+                                <span
+                                  style={{ fontFamily: "Verdana, sans-serif", fontSize: 12 }}
+                                  className="text-center font-semibold text-white"
+                                >
+                                  {option.label}
+                                </span>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
               </div>
             );
           })}
         </div>
       )}
-
-      {/* Arch hover popover — fixed, centered over the card */}
-      {archPopoverProductId && popoverRect && (() => {
-        const hoveredProd = products.find((p) => String(p.id) === archPopoverProductId);
-        const archImages = hoveredProd?.arch_images ?? {};
-        const jawPhotos = hoveredProd?.jaw_photos ?? {};
-        const useJawPhotos = hoveredProd?.show_jaw_photo === true;
-        const archOptions = [
-          { label: "Upper only", value: "maxillary" as const, img: useJawPhotos ? (jawPhotos.upper ?? hoveredProd?.img ?? null) : (archImages.maxillary ?? hoveredProd?.img ?? null) },
-          { label: "Both", value: "both" as const, img: useJawPhotos ? (jawPhotos.both ?? hoveredProd?.img ?? null) : (archImages.both ?? hoveredProd?.img ?? null) },
-          { label: "Lower only", value: "mandibular" as const, img: useJawPhotos ? (jawPhotos.lower ?? hoveredProd?.img ?? null) : (archImages.mandibular ?? hoveredProd?.img ?? null) },
-        ];
-        const border = 3;
-        const offsetTop = border + labelHeight;
-        const availableHeight = popoverRect.height - border - labelHeight;
-        const rowHeight = Math.floor(availableHeight / 3);
-        return (
-          <div
-            ref={prodPopoverRef}
-            className="fixed z-50 rounded-b-[7px] overflow-hidden bg-black"
-            style={{
-              top: popoverRect.top + offsetTop,
-              left: popoverRect.left + border,
-              width: popoverRect.width - border * 2,
-              height: rowHeight * 3,
-            }}
-          >
-            {archOptions.map((option, i) => (
-              <button
-                key={option.value}
-                className={`flex flex-row w-full group overflow-hidden ${i < archOptions.length - 1 ? "border-b border-gray-700" : ""}`}
-                style={{ height: rowHeight, padding: 0 }}
-                onClick={() => {
-                  const prodId = archPopoverProductId;
-                  setArchPopoverProductId(null);
-                  setPopoverRect(null);
-                  onSelect(prodId, option.value);
-                }}
-              >
-                {/* Arch image — left 55% */}
-                <div className="flex-shrink-0 overflow-hidden" style={{ width: "55%", height: rowHeight }}>
-                  {option.img ? (
-                    <img src={option.img} alt={option.label} className="w-full h-full object-cover block" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-[#111]">
-                      <span className="text-gray-600 text-xl font-bold">{hoveredProd?.name?.charAt(0).toUpperCase()}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Label — right 45% */}
-                <div className="flex-1 flex items-center justify-center bg-black group-hover:bg-[#1162A8] transition-colors px-2" style={{ height: rowHeight }}>
-                  <span
-                    style={{ fontFamily: "Verdana, sans-serif", fontSize: 12 }}
-                    className="text-white font-semibold whitespace-nowrap"
-                  >
-                    {option.label}
-                  </span>
-                </div>
-              </button>
-            ))}
-          </div>
-        );
-      })()}
 
       {/* Arch hint when adding product to a specific arch */}
       {forceArch && (

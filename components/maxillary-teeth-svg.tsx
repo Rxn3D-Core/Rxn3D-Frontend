@@ -2,6 +2,7 @@ import React, { useLayoutEffect, useRef, useState } from 'react'
 import ReactDOM from 'react-dom'
 import { RetentionTypePopover, RetentionOptionItem } from './retention-type-popover'
 import { ToothStatusPopover, ToothStatusOption } from './tooth-status-popover'
+import { getClaspOverlayImageUrl } from './case-design-center/utils/claspOverlayImage'
 
 // Wrapper that positions children above a target point, clamped to container bounds.
 // When `renderChildren` is provided, it receives the arrow offset (x within the popover
@@ -205,7 +206,7 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
       }
     }
     let opacity = 1
-    if (isToothSelected(toothNumber)) opacity = 0.4
+    if (isToothSelected(toothNumber)) opacity = 1
     return { cursor: 'pointer', opacity, transition: 'all 0.2s ease' }
   }
 
@@ -335,6 +336,29 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
 
   const renderClaspOverlay = (toothNumber: number, x: number, width: number, yOffset: number = 0) => {
     if (!claspTeeth.includes(toothNumber)) return null
+    const dynamicUrl = getClaspOverlayImageUrl({
+      toothNumber,
+      claspTeeth,
+      toothExtractionMap,
+      extractionImagesByCode,
+      extractionsByCode,
+    })
+    if (dynamicUrl) {
+      const claspW = Math.max(width, 20)
+      const claspH = Math.round(claspW * (17 / 41))
+      return (
+        <image
+          key={`clasp-${toothNumber}`}
+          href={dynamicUrl}
+          x={x}
+          y={yOffset}
+          width={claspW}
+          height={claspH}
+          preserveAspectRatio="none"
+          style={{ pointerEvents: 'none' }}
+        />
+      )
+    }
     const acrylic = hasAnyAcrylicClasp
     const claspW = Math.max(width, 20)
     const claspH = Math.round(claspW * (17 / 41))
