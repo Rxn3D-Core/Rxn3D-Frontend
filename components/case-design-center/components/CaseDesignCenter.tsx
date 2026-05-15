@@ -661,7 +661,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           const showMaxArrow = effectiveShowMax && !maxHasExtractions && (props.initialArch !== "mandibular" || !opposingHasExtractions);
           const showManArrow = effectiveShowMan && !manHasExtractions && (props.initialArch !== "maxillary" || !opposingHasExtractions);
           const noTeethSelected = state.maxillaryTeeth.length === 0 && state.mandibularTeeth.length === 0;
-          const showTim = hasRemovables && (effectiveShowMax || effectiveShowMan) && noTeethSelected;
+          const showTim = hasRemovables && (effectiveShowMax || effectiveShowMan) && noTeethSelected && !activeProductIsFixed;
           return (
             <CenterNavigation
               showMaxillary={effectiveShowMax}
