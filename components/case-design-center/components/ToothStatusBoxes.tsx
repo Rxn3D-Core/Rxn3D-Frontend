@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { ProductExtraction } from "../types";
+import { getStatusBoxTeeth } from "../utils/removableToothDisplay";
 
 interface ToothStatusBoxesProps {
   extractions: ProductExtraction[];
@@ -167,22 +168,25 @@ export function ToothStatusBoxes({
   // Teeth in the default (TIM) box = selected teeth NOT assigned to any extraction
   const defaultTeeth = selectedTeeth.filter((tn) => !toothExtractionMap[tn]);
 
+  const getTeethForBox = (extraction: ProductExtraction): number[] =>
+    getStatusBoxTeeth({
+      selectedTeeth,
+      toothExtractionMap,
+      claspTeeth,
+      extractionCode: extraction.code,
+      isDefault: isDefaultExtraction(extraction),
+      isClasp: isClaspExtraction(extraction),
+    });
+
   // Check if any optional extraction has teeth assigned (used for required validation)
   const anyOptionalHasTeeth = activeExtractions
     .filter((e) => isOptionalExtraction(e))
-    .some((e) =>
-      isClaspExtraction(e)
-        ? claspTeeth.some((tn) => selectedTeeth.includes(tn))
-        : selectedTeeth.some((tn) => toothExtractionMap[tn] === e.code)
-    );
+    .some((e) => getTeethForBox(e).length > 0);
 
   // Compute whether any required box is showing a validation error
   const hasRequiredValidation = !disableRequiredValidation && activeExtractions.some((e) => {
     if (!isRequiredExtraction(e)) return false;
-    const isClasp = isClaspExtraction(e);
-    const teethForBox = isClasp
-      ? claspTeeth.filter((tn) => selectedTeeth.includes(tn))
-      : selectedTeeth.filter((tn) => toothExtractionMap[tn] === e.code);
+    const teethForBox = getTeethForBox(e);
     return teethForBox.length === 0 && !anyOptionalHasTeeth;
   });
 
@@ -196,13 +200,7 @@ export function ToothStatusBoxes({
   // Pre-compute which boxes have teeth (for submitted filtering)
   const boxesWithTeeth = submitted
     ? activeExtractions.filter((extraction) => {
-        const isDefault = isDefaultExtraction(extraction);
-        const isClasp = isClaspExtraction(extraction);
-        const teethForBox = isDefault
-          ? defaultTeeth
-          : isClasp
-          ? claspTeeth.filter((tn) => selectedTeeth.includes(tn))
-          : selectedTeeth.filter((tn) => toothExtractionMap[tn] === extraction.code);
+        const teethForBox = getTeethForBox(extraction);
         return teethForBox.length > 0;
       })
     : activeExtractions;
@@ -219,12 +217,7 @@ export function ToothStatusBoxes({
 
         // Teeth shown in this box (sorted ascending)
         // Clasp is an overlay — uses its own set, not the exclusive extraction map
-        const teethForBox = (isDefault
-          ? defaultTeeth
-          : isClasp
-          ? claspTeeth.filter((tn) => selectedTeeth.includes(tn))
-          : selectedTeeth.filter((tn) => toothExtractionMap[tn] === extraction.code)
-        ).slice().sort((a, b) => a - b);
+        const teethForBox = getTeethForBox(extraction);
 
         const isEmpty = teethForBox.length === 0;
 

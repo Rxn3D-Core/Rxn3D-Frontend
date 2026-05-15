@@ -4,6 +4,8 @@ export interface ToothStatusOption {
   code: string
   name: string
   color: string
+  visibilityType?: 'Image' | 'Color' | string
+  imagesByTooth?: Record<number, string | null>
 }
 
 interface ToothStatusPopoverProps {
@@ -160,7 +162,11 @@ export const ToothStatusPopover: React.FC<ToothStatusPopoverProps> = ({
               key={opt.code}
               type="button"
               onClick={() => {
-                onSelect(opt.code)
+                if (isSelected && onRemove) {
+                  onRemove()
+                } else {
+                  onSelect(opt.code)
+                }
                 onClose?.()
               }}
               className={`flex flex-col items-center gap-0 p-2 rounded-xl border-2 transition-all w-[90px] hover:shadow-sm ${
@@ -170,7 +176,16 @@ export const ToothStatusPopover: React.FC<ToothStatusPopoverProps> = ({
               }`}
             >
               {/* Tooth image */}
-              {isMissing ? (
+              {(opt.visibilityType === 'Image' || (opt.visibilityType === 'Color' && opt.imagesByTooth?.[toothNumber])) && opt.imagesByTooth?.[toothNumber] ? (
+                <div className="w-full h-[90px] flex items-center justify-center">
+                  <img
+                    src={opt.imagesByTooth[toothNumber]!}
+                    alt={label}
+                    className="w-full h-full object-contain"
+                    onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0' }}
+                  />
+                </div>
+              ) : isMissing ? (
                 <MissingToothDisplay toothNumber={toothNumber} />
               ) : willExtract ? (
                 <WillExtractToothDisplay toothNumber={toothNumber} />

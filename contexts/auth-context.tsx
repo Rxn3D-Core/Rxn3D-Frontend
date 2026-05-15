@@ -352,12 +352,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const setAuthFromData = (authData: AuthData, identifier?: string): boolean => {
     try {
       setToken(authData.access_token)
-      // Only block navigation when the backend explicitly marks email as not verified.
-      if (authData.user.is_email_verified === false) {
-        const errorMsg = "Your email address has not been verified yet. Please check your inbox."
-        setError(errorMsg)
-        return false
-      }
+      // Navigation is no longer blocked for unverified emails to support auto-login flows.
+      // Verification status can be handled via UI banners if needed.
 
       // Set customerId from multiple possible sources for newly onboarded users
       let customerIdToStore: number | null = null

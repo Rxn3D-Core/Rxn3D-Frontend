@@ -2,7 +2,7 @@
 
 import React from "react"
 
-import { useState, useEffect, useRef, useMemo } from "react"
+import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { Search, Info, Eye, MoreHorizontal, Plus, Mail, Trash2, CirclePause, EllipsisVertical, CircleOff } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -22,6 +22,8 @@ import { useFetchUserInvitations } from "@/hooks/use-user-invitations"
 import { useQueryClient } from "@tanstack/react-query"
 import { useDashboardSettings } from "@/hooks/use-dashboard-settings"
 import { WIDGET_IDS, getCustomerId } from "@/lib/dashboard-widgets"
+import { DashboardLabInviteModal } from "@/components/dashboard/dashboard-lab-invite-modal"
+import { DashboardDoctorInviteModal } from "@/components/dashboard/dashboard-doctor-invite-modal"
 interface StatusCardProps {
   title: string
   count: number
@@ -71,6 +73,9 @@ export function OfficeAdminDashboard() {
   const [activeTabPractices, setActiveTabPractices] = useState("connected")
   const [activeTabLabs, setActiveTabLabs] = useState("connected")
   const [showUserForm, setShowUserForm] = useState(false)
+  const [hasCheckedInvitePopup, setHasCheckedInvitePopup] = useState(false)
+  const [isLabInviteModalOpen, setIsLabInviteModalOpen] = useState(false)
+  const [isDoctorInviteModalOpen, setIsDoctorInviteModalOpen] = useState(false)
 
   // Fetch real user data
   const { data: usersData, isLoading: isLoadingUsers, error: usersError, refetch: refetchUsers } = useFetchUsersQuery()
@@ -101,6 +106,69 @@ export function OfficeAdminDashboard() {
       hasFetchedRef.current = true
     }
   }, [invitedBy, fetchConnections, fetchAllInvitations])
+
+  // Transform API user data to match UI format
+  const transformUsers = useCallback((): Array<{ id: number; name: string; role: string; status: string; email: string }> => {
+    if (!usersData || typeof usersData !== 'object' || !('data' in usersData) || !Array.isArray(usersData.data)) {
+      return []
+    }
+
+    return usersData.data.map((apiUser: any) => {
+      // Get the primary customer or first customer to determine role
+      const primaryCustomer = apiUser.customers?.find((c: any) => c.is_primary === 1) || apiUser.customers?.[0]
+      
+      // Safely extract role name - handle both object and string formats
+      let roleName = "N/A"
+      const roleObj = primaryCustomer?.role || primaryCustomer?.pivot?.role
+      if (roleObj) {
+        roleName = typeof roleObj === "string" ? roleObj : (roleObj?.name || "N/A")
+      } else if (apiUser.role) {
+        roleName = typeof apiUser.role === "string" ? apiUser.role : (apiUser.role?.name || "N/A")
+      }
+      
+      // Format role name for display (replace underscores with spaces and capitalize)
+      const formattedRole = roleName
+        .split('_')
+        .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ')
+
+      // Map status - API might return "Active" but UI expects "connected"
+      const status = apiUser.status?.toLowerCase() === "active" ? "connected" : apiUser.status?.toLowerCase() || "connected"
+
+      return {
+        id: apiUser.id,
+        name: `${apiUser.first_name || ""} ${apiUser.last_name || ""}`.trim() || apiUser.email,
+        role: formattedRole,
+        status: status,
+        email: apiUser.email,
+      }
+    })
+  }, [usersData])
+
+  const users = useMemo(() => transformUsers(), [transformUsers])
+
+  // Check for invite popups
+  useEffect(() => {
+    if (!isLoading && !isLoadingUsers && !isLoadingInvitations && !hasCheckedInvitePopup) {
+      const activeLabsCount = labs.filter(l => l.status?.toLowerCase() === "active").length
+      const sentLabInvitationsCount = (sent?.data || []).filter(l => l.type === "Lab").length
+      
+      const doctorsCount = users.filter(u => 
+        u.role?.toLowerCase().includes("doctor")
+      ).length
+      
+      // Check for doctors first as they are critical for office operations
+      if (doctorsCount === 0) {
+        setIsDoctorInviteModalOpen(true)
+      } 
+      // Then check for labs if no doctors needed
+      else if (activeLabsCount === 0 && sentLabInvitationsCount === 0) {
+        setIsLabInviteModalOpen(true)
+      }
+      
+      setHasCheckedInvitePopup(true)
+    }
+  }, [isLoading, isLoadingUsers, isLoadingInvitations, hasCheckedInvitePopup, labs, sent, users])
 
   // Note: We don't need a query cache subscription here since we're already
   // invalidating queries in the onSuccess callback of the invitation form
@@ -165,43 +233,6 @@ export function OfficeAdminDashboard() {
     }
   }
 
-  // Transform API user data to match UI format
-  const transformUsers = (): Array<{ id: number; name: string; role: string; status: string; email: string }> => {
-    if (!usersData || typeof usersData !== 'object' || !('data' in usersData) || !Array.isArray(usersData.data)) {
-      return []
-    }
-
-    return usersData.data.map((apiUser: any) => {
-      // Get the primary customer or first customer to determine role
-      const primaryCustomer = apiUser.customers?.find((c: any) => c.is_primary === 1) || apiUser.customers?.[0]
-      
-      // Safely extract role name - handle both object and string formats
-      let roleName = "N/A"
-      const roleObj = primaryCustomer?.role || primaryCustomer?.pivot?.role
-      if (roleObj) {
-        roleName = typeof roleObj === "string" ? roleObj : (roleObj?.name || "N/A")
-      } else if (apiUser.role) {
-        roleName = typeof apiUser.role === "string" ? apiUser.role : (apiUser.role?.name || "N/A")
-      }
-      
-      // Format role name for display (replace underscores with spaces and capitalize)
-      const formattedRole = roleName
-        .split('_')
-        .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(' ')
-
-      // Map status - API might return "Active" but UI expects "connected"
-      const status = apiUser.status?.toLowerCase() === "active" ? "connected" : apiUser.status?.toLowerCase() || "connected"
-
-      return {
-        id: apiUser.id,
-        name: `${apiUser.first_name || ""} ${apiUser.last_name || ""}`.trim() || apiUser.email,
-        role: formattedRole,
-        status: status,
-        email: apiUser.email,
-      }
-    })
-  }
 
   // Transform user invitations to match UI format
   const transformInvitations = () => {
@@ -230,7 +261,6 @@ export function OfficeAdminDashboard() {
       })
   }
 
-  const users = transformUsers()
   const invitations = transformInvitations()
 
   // Combine users and invitations based on active tab
@@ -897,6 +927,21 @@ export function OfficeAdminDashboard() {
       )}
 
       </div>
+
+      {/* Lab Invite Modal */}
+      <DashboardLabInviteModal
+        labsCount={labs.filter(l => l.status?.toLowerCase() === "active").length}
+        invitationsCount={(sent?.data || []).filter(l => l.type === "Lab").length}
+        isOpen={isLabInviteModalOpen}
+        onClose={() => setIsLabInviteModalOpen(false)}
+      />
+
+      {/* Doctor Invite Modal */}
+      <DashboardDoctorInviteModal
+        doctorsCount={users.filter(u => u.role?.toLowerCase().includes("doctor")).length}
+        isOpen={isDoctorInviteModalOpen}
+        onClose={() => setIsDoctorInviteModalOpen(false)}
+      />
 
       <ProfileModal
         isOpen={profileModalOpen}

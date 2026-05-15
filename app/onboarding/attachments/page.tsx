@@ -423,17 +423,6 @@ export default function AttachmentsPage() {
             <Button
               variant="outline"
               className="bg-[#eef1f4] border-[#eef1f4] hover:bg-[#dfeefb] hover:border-[#dfeefb]"
-              onClick={() => {
-                setTimeout(() => {
-                  logout()
-                }, 0)
-              }}
-            >
-              Continue Later
-            </Button>
-            <Button
-              variant="outline"
-              className="bg-[#eef1f4] border-[#eef1f4] hover:bg-[#dfeefb] hover:border-[#dfeefb]"
               onClick={() => router.replace("/onboarding/product-grades")}
             >
               Previous

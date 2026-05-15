@@ -62,6 +62,7 @@ export function UserForm({
         : [
           { value: "office_admin", label: "Admin" },
           { value: "doctor", label: "Doctor" },
+          { value: "doctor_admin", label: "Admin" },
           { value: "office_user", label: "User" },
         ]
 
@@ -89,7 +90,7 @@ export function UserForm({
     }
   }, [user?.role, registrationType, isAdminForm, index, isDoctor])
 
-  const isDoctorRole = isDoctor || user?.role === "doctor" || user?.role === "office_admin" && useSameDetailsChecked || user?.role === "office_admin"
+  const isDoctorRole = isDoctor || user?.role === "doctor" || user?.role === "doctor_admin" || (user?.role === "office_admin" && useSameDetailsChecked) || user?.is_doctor
   const isAdmin = user?.role?.includes("admin")
   const handleUseSameDetails = (checked: boolean) => {
     setUseSameDetailsChecked(checked)
@@ -105,6 +106,21 @@ export function UserForm({
         },
         index,
       )
+      
+      // Update role to doctor_admin if same as doctor profile is checked
+      updateUser(index, { role: "doctor_admin" })
+    } else if (!checked && isAdminForm) {
+       handleUserFormChange(
+        {
+          target: {
+            name: "is_doctor",
+            value: checked,
+          },
+        },
+        index,
+      )
+      // Revert role to office_admin if unchecked
+      updateUser(index, { role: "office_admin" })
     }
   }
 
@@ -224,7 +240,7 @@ export function UserForm({
       <div className={`border ${userValidationErrors.signature ? "border-red-500" : "border-[#d9d9d9]"} rounded`}>
         <div className="p-2 border-b border-[#d9d9d9] bg-gray-50 flex justify-between items-center">
           <div className="flex items-center">
-            <span className="text-sm font-medium">Signature{isDoctorRole ? "" : "*"}</span>
+            <span className="text-sm font-medium">Signature{isDoctorRole ? "*" : ""}</span>
             {hasSignature && (
               <span className="ml-2 text-xs text-[#6BB56B] flex items-center">
                 <Check className="h-3 w-3 mr-1" />
@@ -383,12 +399,18 @@ export function UserForm({
         )}
       </div>
 
+      {/* Password & Confirm Password - Only for Admin */}
+      {isAdminForm && (
+        <div className="grid grid-cols-2 gap-4">
+          {renderInputField("password", "Password", "password")}
+          {renderInputField("password_confirmation", "Confirm Password", "password")}
+        </div>
+      )}
+
       {/* License & Signature - Doctor/Admin or checkbox */}
-      {(
-        user?.role === "doctor" ||
-        user?.role === "office_admin" && useSameDetailsChecked || !isAdminForm && user?.role === "doctor") && (
+      {isDoctorRole && (
           <>
-            {renderInputField("license_number", "License Number")}
+            {renderInputField("license_number", `License Number${isDoctorRole ? "*" : ""}`)}
             {renderSignatureSection()}
           </>
         )}

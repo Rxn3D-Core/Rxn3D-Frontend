@@ -99,6 +99,10 @@ interface MandibularTeethSVGProps {
   toothStatusProductImageUrl?: string | null
   /** When true, disables all tooth interactions (pointer-events-none + dimmed). */
   disabled?: boolean
+  /** Map of extraction code → per-tooth image URL map. Used when visibility_type === "Image". */
+  extractionImagesByCode?: Record<string, Record<number, string | null>>
+  /** Full extraction metadata keyed by code. Used to resolve visibility_type and color. */
+  extractionsByCode?: Record<string, { code: string; name: string; visibility_type?: string; color?: string | null; overlay?: string }>
 }
 
 export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
@@ -130,6 +134,8 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
   toothStatusProductName,
   toothStatusProductImageUrl,
   disabled = false,
+  extractionImagesByCode = {},
+  extractionsByCode = {},
 }) => {
   const svgRef = React.useRef<SVGSVGElement>(null)
   const [hoveredTooth, setHoveredTooth] = React.useState<number | null>(null)
@@ -140,15 +146,94 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
   }, [checkedTeeth, onCheckedTeethChange])
 
   const isToothSelected = (toothNumber: number) => selectedTeeth.includes(toothNumber)
-  const isToothMissing = (toothNumber: number) => toothExtractionMap[toothNumber] === 'MT' || missingTeeth.includes(toothNumber)
 
-  const getToothOpacity = (toothNumber: number) => {
-    if (isToothMissing(toothNumber)) return 0.2
-    if (isToothSelected(toothNumber)) return 0.7
-    return 1
+  const resolveExtraction = (toothNumber: number): { code: string; name: string; visibility_type?: string; color?: string | null; overlay?: string } | null => {
+    const code = toothExtractionMap[toothNumber]
+    if (!code) return null
+    return extractionsByCode[code] ?? null
+  }
+
+  const getS3UrlForTooth = (toothNumber: number): string | null | undefined => {
+    const code = toothExtractionMap[toothNumber]
+    return code ? extractionImagesByCode[code]?.[toothNumber] : undefined
+  }
+
+  const isToothMissing = (toothNumber: number): boolean => {
+    const ext = resolveExtraction(toothNumber)
+    if (ext) return ext.visibility_type === 'Image' && !getS3UrlForTooth(toothNumber)
+    return missingTeeth.includes(toothNumber)
+  }
+
+  // True when we should render the S3 image in place of the tooth — covers both Image and Color types when an image URL exists
+  const isToothShowingS3Image = (toothNumber: number): boolean => {
+    return !!getS3UrlForTooth(toothNumber)
+  }
+
+  const isToothWillExtract = (toothNumber: number): boolean => {
+    const ext = resolveExtraction(toothNumber)
+    if (ext) return ext.visibility_type === 'Image' && !!getS3UrlForTooth(toothNumber)
+    return willExtractTeeth.includes(toothNumber)
+  }
+
+  const isToothColorType = (toothNumber: number): boolean => {
+    const ext = resolveExtraction(toothNumber)
+    return ext?.visibility_type === 'Color'
   }
 
   const isToothClasp = (toothNumber: number) => claspTeeth.includes(toothNumber)
+
+  const hexToRgb = (hex: string): string => {
+    const clean = hex.replace('#', '')
+    const r = parseInt(clean.substring(0, 2), 16)
+    const g = parseInt(clean.substring(2, 4), 16)
+    const b = parseInt(clean.substring(4, 6), 16)
+    return `${r},${g},${b}`
+  }
+
+  const getToothBaseRectStyle = (toothNumber: number): React.CSSProperties => {
+    const ext = resolveExtraction(toothNumber)
+    const s3Url = getS3UrlForTooth(toothNumber)
+    
+    // Image overlay=No: hide the base rect
+    if (ext?.visibility_type === 'Image' && ext.overlay === 'No' && s3Url) {
+      return { cursor: 'pointer', opacity: 0, transition: 'all 0.2s ease' }
+    }
+
+   
+    // Color type without image: apply filter directly on rect
+    if (ext?.visibility_type === 'Color' && !s3Url && ext.color) {
+      const rgb = hexToRgb(ext.color)
+      return {
+        cursor: 'pointer',
+        opacity: 1,
+        transition: 'all 0.2s ease',
+        filter: `opacity(0.35) drop-shadow(rgb(${rgb}) 0px 0px 0px)`,
+      }
+    }
+    let opacity = 1
+    if (isToothMissing(toothNumber)) opacity = 0.2
+    else if (isToothSelected(toothNumber)) opacity = 0.7
+    return { cursor: 'pointer', opacity, transition: 'all 0.2s ease' }
+  }
+
+  const renderExtractionImageOverlay = (toothNumber: number, x: number, width: number, toothHeight: number = 135) => {
+    const code = toothExtractionMap[toothNumber]
+    if (!code) return null
+    const url = extractionImagesByCode[code]?.[toothNumber]
+    if (!url) return null
+    return (
+      <image
+        key={`extraction-img-${toothNumber}`}
+        href={url}
+        x={x}
+        y={0}
+        width={width}
+        height={toothHeight}
+        preserveAspectRatio="xMidYMid meet"
+        style={{ pointerEvents: 'none' }}
+      />
+    )
+  }
 
   const hasAnyAcrylicClasp = (() => {
     if (!getAddonValue || claspTeeth.length === 0) return false
@@ -511,11 +596,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
         onClick={() => handleToothClick(toothNumber)}
         onMouseEnter={() => setHoveredTooth(toothNumber)}
         onMouseLeave={() => setHoveredTooth(null)}
-        style={{
-          cursor: 'pointer',
-          opacity: getToothOpacity(toothNumber),
-          transition: 'all 0.2s ease'
-        }}
+        style={{ ...getToothBaseRectStyle(toothNumber) }}
       >
         <svg width="23" height="85" viewBox="0 0 23 85" fill="none" xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink">
           <rect width="22.3702" height="84.3867" fill="url(#pattern0_197_4830)" />
@@ -650,7 +731,17 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           <ToothStatusPopover
             toothNumber={toothStatusPopoverTooth}
             options={toothStatusOptions}
-            currentCode={toothStatusByTooth[toothStatusPopoverTooth] ?? null}
+            currentCode={(() => {
+                  const mapped = toothStatusByTooth[toothStatusPopoverTooth]
+                  if (mapped) return mapped
+                  if (claspTeeth.includes(toothStatusPopoverTooth)) {
+                    const claspOpt = toothStatusOptions.find(o =>
+                      o.code.toUpperCase().includes('CLASP') || o.name.toLowerCase().trim() === 'clasps' || o.name.toLowerCase().trim() === 'clasp'
+                    )
+                    return claspOpt?.code ?? null
+                  }
+                  return null
+                })()}
             onSelect={(code) => onSelectToothStatus(toothStatusPopoverTooth, code)}
             onRemove={onRemoveToothStatus ? () => onRemoveToothStatus(toothStatusPopoverTooth) : undefined}
             onClose={onCloseToothStatusPopover}
@@ -683,9 +774,14 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <g>
               <g>
-              <rect width="43" height="135" fill="url(#pattern0_197_3840_flipped)" onClick={() => handleToothClick(32)} onMouseEnter={() => setHoveredTooth(32)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(32), transition: 'all 0.2s ease' }} />
+                <rect width="43" height="135" fill="url(#pattern0_197_3840_flipped)" onClick={() => handleToothClick(32)} onMouseEnter={() => setHoveredTooth(32)} onMouseLeave={() => setHoveredTooth(null)} style={{ ...getToothBaseRectStyle(32) }} />
+              {isToothShowingS3Image(32) && (
+                <image href={getS3UrlForTooth(32)!} x={0} y={0} width={43} height={135} preserveAspectRatio="xMidYMid meet" onClick={() => handleToothClick(32)} onMouseEnter={() => setHoveredTooth(32)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }} />
+              )}
+              {}
+              {!isToothShowingS3Image(32) && renderExtractionImageOverlay(32, 0, 43)}
               {renderClaspOverlay(32, 0, 43, 42)}
-              {renderWillExtractOverlay(32, 0, 43)}
+              {!getS3UrlForTooth(32) && renderWillExtractOverlay(32, 0, 43)}
               {renderCheckbox(32, 0, 43)}
               {renderMissingToothImage(32, 0, 43)}
             </g>
@@ -707,9 +803,14 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <g>
               <g>
-              <rect x="256" width="31" height="135" fill="url(#pattern1_197_3840_flipped)" onClick={() => handleToothClick(26)} onMouseEnter={() => setHoveredTooth(26)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(26), transition: 'all 0.2s ease' }} />
+                <rect x="256" width="31" height="135" fill="url(#pattern1_197_3840_flipped)" onClick={() => handleToothClick(26)} onMouseEnter={() => setHoveredTooth(26)} onMouseLeave={() => setHoveredTooth(null)} style={{ ...getToothBaseRectStyle(26) }} />
+              {isToothShowingS3Image(26) && (
+                <image href={getS3UrlForTooth(26)!} x={256} y={0} width={31} height={135} preserveAspectRatio="xMidYMid meet" onClick={() => handleToothClick(26)} onMouseEnter={() => setHoveredTooth(26)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }} />
+              )}
+              {}
+              {!isToothShowingS3Image(26) && renderExtractionImageOverlay(26, 256, 31)}
               {renderClaspOverlay(26, 256, 31, 42)}
-              {renderWillExtractOverlay(26, 256, 31)}
+              {!getS3UrlForTooth(26) && renderWillExtractOverlay(26, 256, 31)}
               {renderCheckbox(26, 256, 31)}
               {renderMissingToothImage(26, 256, 31)}
             </g>
@@ -731,9 +832,14 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <g>
               <g>
-              <rect x="148" width="38" height="135" fill="url(#pattern2_197_3840_flipped)" onClick={() => handleToothClick(29)} onMouseEnter={() => setHoveredTooth(29)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(29), transition: 'all 0.2s ease' }} />
+                <rect x="148" width="38" height="135" fill="url(#pattern2_197_3840_flipped)" onClick={() => handleToothClick(29)} onMouseEnter={() => setHoveredTooth(29)} onMouseLeave={() => setHoveredTooth(null)} style={{ ...getToothBaseRectStyle(29) }} />
+              {isToothShowingS3Image(29) && (
+                <image href={getS3UrlForTooth(29)!} x={148} y={0} width={38} height={135} preserveAspectRatio="xMidYMid meet" onClick={() => handleToothClick(29)} onMouseEnter={() => setHoveredTooth(29)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }} />
+              )}
+              {}
+              {!isToothShowingS3Image(29) && renderExtractionImageOverlay(29, 148, 38)}
               {renderClaspOverlay(29, 148, 38, 42)}
-              {renderWillExtractOverlay(29, 148, 38)}
+              {!getS3UrlForTooth(29) && renderWillExtractOverlay(29, 148, 38)}
               {renderCheckbox(29, 148, 38)}
               {renderMissingToothImage(29, 148, 38)}
             </g>
@@ -755,9 +861,14 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <g>
               <g>
-              <rect x="339" width="30" height="135" fill="url(#pattern3_197_3840)" onClick={() => handleToothClick(23)} onMouseEnter={() => setHoveredTooth(23)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(23), transition: 'all 0.2s ease' }} />
+                <rect x="339" width="30" height="135" fill="url(#pattern3_197_3840)" onClick={() => handleToothClick(23)} onMouseEnter={() => setHoveredTooth(23)} onMouseLeave={() => setHoveredTooth(null)} style={{ ...getToothBaseRectStyle(23) }} />
+              {isToothShowingS3Image(23) && (
+                <image href={getS3UrlForTooth(23)!} x={339} y={0} width={30} height={135} preserveAspectRatio="xMidYMid meet" onClick={() => handleToothClick(23)} onMouseEnter={() => setHoveredTooth(23)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }} />
+              )}
+              {}
+              {!isToothShowingS3Image(23) && renderExtractionImageOverlay(23, 339, 30)}
               {renderClaspOverlay(23, 339, 30, 42)}
-              {renderWillExtractOverlay(23, 339, 30)}
+              {!getS3UrlForTooth(23) && renderWillExtractOverlay(23, 339, 30)}
               {renderCheckbox(23, 339, 30)}
               {renderMissingToothImage(23, 339, 30)}
             </g>
@@ -779,9 +890,14 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <g>
               <g>
-              <rect x="43" width="51" height="135" fill="url(#pattern4_197_3840_flipped)" onClick={() => handleToothClick(31)} onMouseEnter={() => setHoveredTooth(31)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(31), transition: 'all 0.2s ease' }} />
+                <rect x="43" width="51" height="135" fill="url(#pattern4_197_3840_flipped)" onClick={() => handleToothClick(31)} onMouseEnter={() => setHoveredTooth(31)} onMouseLeave={() => setHoveredTooth(null)} style={{ ...getToothBaseRectStyle(31) }} />
+              {isToothShowingS3Image(31) && (
+                <image href={getS3UrlForTooth(31)!} x={43} y={0} width={51} height={135} preserveAspectRatio="xMidYMid meet" onClick={() => handleToothClick(31)} onMouseEnter={() => setHoveredTooth(31)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }} />
+              )}
+              {}
+              {!isToothShowingS3Image(31) && renderExtractionImageOverlay(31, 43, 51)}
               {renderClaspOverlay(31, 43, 51, 42)}
-              {renderWillExtractOverlay(31, 43, 51)}
+              {!getS3UrlForTooth(31) && renderWillExtractOverlay(31, 43, 51)}
               {renderCheckbox(31, 43, 51)}
               {renderMissingToothImage(31, 43, 51)}
             </g>
@@ -803,9 +919,14 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <g>
               <g>
-              <rect x="287" width="26" height="135" fill="url(#pattern5_197_3840_flipped)" onClick={() => handleToothClick(25)} onMouseEnter={() => setHoveredTooth(25)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(25), transition: 'all 0.2s ease' }} />
+                <rect x="287" width="26" height="135" fill="url(#pattern5_197_3840_flipped)" onClick={() => handleToothClick(25)} onMouseEnter={() => setHoveredTooth(25)} onMouseLeave={() => setHoveredTooth(null)} style={{ ...getToothBaseRectStyle(25) }} />
+              {isToothShowingS3Image(25) && (
+                <image href={getS3UrlForTooth(25)!} x={287} y={0} width={26} height={135} preserveAspectRatio="xMidYMid meet" onClick={() => handleToothClick(25)} onMouseEnter={() => setHoveredTooth(25)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }} />
+              )}
+              {}
+              {!isToothShowingS3Image(25) && renderExtractionImageOverlay(25, 287, 26)}
               {renderClaspOverlay(25, 287, 26, 42)}
-              {renderWillExtractOverlay(25, 287, 26)}
+              {!getS3UrlForTooth(25) && renderWillExtractOverlay(25, 287, 26)}
               {renderCheckbox(25, 287, 26)}
               {renderMissingToothImage(25, 287, 26)}
             </g>
@@ -827,9 +948,14 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <g>
               <g>
-              <rect x="186" width="36" height="135" fill="url(#pattern6_197_3840_flipped)" onClick={() => handleToothClick(28)} onMouseEnter={() => setHoveredTooth(28)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(28), transition: 'all 0.2s ease' }} />
+                <rect x="186" width="36" height="135" fill="url(#pattern6_197_3840_flipped)" onClick={() => handleToothClick(28)} onMouseEnter={() => setHoveredTooth(28)} onMouseLeave={() => setHoveredTooth(null)} style={{ ...getToothBaseRectStyle(28) }} />
+              {isToothShowingS3Image(28) && (
+                <image href={getS3UrlForTooth(28)!} x={186} y={0} width={36} height={135} preserveAspectRatio="xMidYMid meet" onClick={() => handleToothClick(28)} onMouseEnter={() => setHoveredTooth(28)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }} />
+              )}
+              {}
+              {!isToothShowingS3Image(28) && renderExtractionImageOverlay(28, 186, 36)}
               {renderClaspOverlay(28, 186, 36, 42)}
-              {renderWillExtractOverlay(28, 186, 36)}
+              {!getS3UrlForTooth(28) && renderWillExtractOverlay(28, 186, 36)}
               {renderCheckbox(28, 186, 36)}
               {renderMissingToothImage(28, 186, 36)}
             </g>
@@ -849,9 +975,14 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <>
               <g>
-              <rect x="369" width="34" height="135" fill="url(#pattern7_197_3840)" onClick={() => handleToothClick(22)} onMouseEnter={() => setHoveredTooth(22)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(22), transition: 'all 0.2s ease' }} />
+                <rect x="369" width="34" height="135" fill="url(#pattern7_197_3840)" onClick={() => handleToothClick(22)} onMouseEnter={() => setHoveredTooth(22)} onMouseLeave={() => setHoveredTooth(null)} style={{ ...getToothBaseRectStyle(22) }} />
+              {isToothShowingS3Image(22) && (
+                <image href={getS3UrlForTooth(22)!} x={369} y={0} width={34} height={135} preserveAspectRatio="xMidYMid meet" onClick={() => handleToothClick(22)} onMouseEnter={() => setHoveredTooth(22)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }} />
+              )}
+              {}
+              {!isToothShowingS3Image(22) && renderExtractionImageOverlay(22, 369, 34)}
               {renderClaspOverlay(22, 369, 34, 42)}
-              {renderWillExtractOverlay(22, 369, 34)}
+              {!getS3UrlForTooth(22) && renderWillExtractOverlay(22, 369, 34)}
               {renderCheckbox(22, 369, 34)}
               {renderMissingToothImage(22, 369, 34)}
             </g>
@@ -871,9 +1002,14 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <>
               <g>
-              <rect x="530" width="51" height="135" fill="url(#pattern8_197_3840)" onClick={() => handleToothClick(18)} onMouseEnter={() => setHoveredTooth(18)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(18), transition: 'all 0.2s ease' }} />
+                <rect x="530" width="51" height="135" fill="url(#pattern8_197_3840)" onClick={() => handleToothClick(18)} onMouseEnter={() => setHoveredTooth(18)} onMouseLeave={() => setHoveredTooth(null)} style={{ ...getToothBaseRectStyle(18) }} />
+              {isToothShowingS3Image(18) && (
+                <image href={getS3UrlForTooth(18)!} x={530} y={0} width={51} height={135} preserveAspectRatio="xMidYMid meet" onClick={() => handleToothClick(18)} onMouseEnter={() => setHoveredTooth(18)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }} />
+              )}
+              {}
+              {!isToothShowingS3Image(18) && renderExtractionImageOverlay(18, 530, 51)}
               {renderClaspOverlay(18, 530, 51, 42)}
-              {renderWillExtractOverlay(18, 530, 51)}
+              {!getS3UrlForTooth(18) && renderWillExtractOverlay(18, 530, 51)}
               {renderCheckbox(18, 530, 51)}
               {renderMissingToothImage(18, 530, 51)}
             </g>
@@ -893,9 +1029,14 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <>
               <g>
-              <rect x="439" width="38" height="135" fill="url(#pattern9_197_3840)" onClick={() => handleToothClick(20)} onMouseEnter={() => setHoveredTooth(20)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(20), transition: 'all 0.2s ease' }} />
+                <rect x="439" width="38" height="135" fill="url(#pattern9_197_3840)" onClick={() => handleToothClick(20)} onMouseEnter={() => setHoveredTooth(20)} onMouseLeave={() => setHoveredTooth(null)} style={{ ...getToothBaseRectStyle(20) }} />
+              {isToothShowingS3Image(20) && (
+                <image href={getS3UrlForTooth(20)!} x={439} y={0} width={38} height={135} preserveAspectRatio="xMidYMid meet" onClick={() => handleToothClick(20)} onMouseEnter={() => setHoveredTooth(20)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }} />
+              )}
+              {}
+              {!isToothShowingS3Image(20) && renderExtractionImageOverlay(20, 439, 38)}
               {renderClaspOverlay(20, 439, 38, 42)}
-              {renderWillExtractOverlay(20, 439, 38)}
+              {!getS3UrlForTooth(20) && renderWillExtractOverlay(20, 439, 38)}
               {renderCheckbox(20, 439, 38)}
               {renderMissingToothImage(20, 439, 38)}
             </g>
@@ -917,9 +1058,14 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <g>
               <g>
-              <rect x="94" width="54" height="135" fill="url(#pattern10_197_3840_flipped)" onClick={() => handleToothClick(30)} onMouseEnter={() => setHoveredTooth(30)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(30), transition: 'all 0.2s ease' }} />
+                <rect x="94" width="54" height="135" fill="url(#pattern10_197_3840_flipped)" onClick={() => handleToothClick(30)} onMouseEnter={() => setHoveredTooth(30)} onMouseLeave={() => setHoveredTooth(null)} style={{ ...getToothBaseRectStyle(30) }} />
+              {isToothShowingS3Image(30) && (
+                <image href={getS3UrlForTooth(30)!} x={94} y={0} width={54} height={135} preserveAspectRatio="xMidYMid meet" onClick={() => handleToothClick(30)} onMouseEnter={() => setHoveredTooth(30)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }} />
+              )}
+              {}
+              {!isToothShowingS3Image(30) && renderExtractionImageOverlay(30, 94, 54)}
               {renderClaspOverlay(30, 94, 54, 42)}
-              {renderWillExtractOverlay(30, 94, 54)}
+              {!getS3UrlForTooth(30) && renderWillExtractOverlay(30, 94, 54)}
               {renderCheckbox(30, 94, 54)}
               {renderMissingToothImage(30, 94, 54)}
             </g>
@@ -939,9 +1085,14 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <>
               <g>
-              <rect x="313" width="26" height="135" fill="url(#pattern11_197_3840)" onClick={() => handleToothClick(24)} onMouseEnter={() => setHoveredTooth(24)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(24), transition: 'all 0.2s ease' }} />
+                <rect x="313" width="26" height="135" fill="url(#pattern11_197_3840)" onClick={() => handleToothClick(24)} onMouseEnter={() => setHoveredTooth(24)} onMouseLeave={() => setHoveredTooth(null)} style={{ ...getToothBaseRectStyle(24) }} />
+              {isToothShowingS3Image(24) && (
+                <image href={getS3UrlForTooth(24)!} x={313} y={0} width={26} height={135} preserveAspectRatio="xMidYMid meet" onClick={() => handleToothClick(24)} onMouseEnter={() => setHoveredTooth(24)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }} />
+              )}
+              {}
+              {!isToothShowingS3Image(24) && renderExtractionImageOverlay(24, 313, 26)}
               {renderClaspOverlay(24, 313, 26, 42)}
-              {renderWillExtractOverlay(24, 313, 26)}
+              {!getS3UrlForTooth(24) && renderWillExtractOverlay(24, 313, 26)}
               {renderCheckbox(24, 313, 26)}
               {renderMissingToothImage(24, 313, 26)}
             </g>
@@ -963,9 +1114,14 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <g>
               <g>
-              <rect x="222" width="34" height="135" fill="url(#pattern12_197_3840_flipped)" onClick={() => handleToothClick(27)} onMouseEnter={() => setHoveredTooth(27)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(27), transition: 'all 0.2s ease' }} />
+                <rect x="222" width="34" height="135" fill="url(#pattern12_197_3840_flipped)" onClick={() => handleToothClick(27)} onMouseEnter={() => setHoveredTooth(27)} onMouseLeave={() => setHoveredTooth(null)} style={{ ...getToothBaseRectStyle(27) }} />
+              {isToothShowingS3Image(27) && (
+                <image href={getS3UrlForTooth(27)!} x={222} y={0} width={34} height={135} preserveAspectRatio="xMidYMid meet" onClick={() => handleToothClick(27)} onMouseEnter={() => setHoveredTooth(27)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }} />
+              )}
+              {}
+              {!isToothShowingS3Image(27) && renderExtractionImageOverlay(27, 222, 34)}
               {renderClaspOverlay(27, 222, 34, 42)}
-              {renderWillExtractOverlay(27, 222, 34)}
+              {!getS3UrlForTooth(27) && renderWillExtractOverlay(27, 222, 34)}
               {renderCheckbox(27, 222, 34)}
               {renderMissingToothImage(27, 222, 34)}
             </g>
@@ -985,9 +1141,14 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <>
               <g>
-              <rect x="477" width="53" height="135" fill="url(#pattern13_197_3840)" onClick={() => handleToothClick(19)} onMouseEnter={() => setHoveredTooth(19)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(19), transition: 'all 0.2s ease' }} />
+                <rect x="477" width="53" height="135" fill="url(#pattern13_197_3840)" onClick={() => handleToothClick(19)} onMouseEnter={() => setHoveredTooth(19)} onMouseLeave={() => setHoveredTooth(null)} style={{ ...getToothBaseRectStyle(19) }} />
+              {isToothShowingS3Image(19) && (
+                <image href={getS3UrlForTooth(19)!} x={477} y={0} width={53} height={135} preserveAspectRatio="xMidYMid meet" onClick={() => handleToothClick(19)} onMouseEnter={() => setHoveredTooth(19)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }} />
+              )}
+              {}
+              {!isToothShowingS3Image(19) && renderExtractionImageOverlay(19, 477, 53)}
               {renderClaspOverlay(19, 477, 53, 42)}
-              {renderWillExtractOverlay(19, 477, 53)}
+              {!getS3UrlForTooth(19) && renderWillExtractOverlay(19, 477, 53)}
               {renderCheckbox(19, 477, 53)}
               {renderMissingToothImage(19, 477, 53)}
             </g>
@@ -1007,9 +1168,14 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <>
               <g>
-              <rect x="403" width="36" height="135" fill="url(#pattern14_197_3840)" onClick={() => handleToothClick(21)} onMouseEnter={() => setHoveredTooth(21)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(21), transition: 'all 0.2s ease' }} />
+                <rect x="403" width="36" height="135" fill="url(#pattern14_197_3840)" onClick={() => handleToothClick(21)} onMouseEnter={() => setHoveredTooth(21)} onMouseLeave={() => setHoveredTooth(null)} style={{ ...getToothBaseRectStyle(21) }} />
+              {isToothShowingS3Image(21) && (
+                <image href={getS3UrlForTooth(21)!} x={403} y={0} width={36} height={135} preserveAspectRatio="xMidYMid meet" onClick={() => handleToothClick(21)} onMouseEnter={() => setHoveredTooth(21)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }} />
+              )}
+              {}
+              {!isToothShowingS3Image(21) && renderExtractionImageOverlay(21, 403, 36)}
               {renderClaspOverlay(21, 403, 36, 42)}
-              {renderWillExtractOverlay(21, 403, 36)}
+              {!getS3UrlForTooth(21) && renderWillExtractOverlay(21, 403, 36)}
               {renderCheckbox(21, 403, 36)}
               {renderMissingToothImage(21, 403, 36)}
             </g>
@@ -1029,9 +1195,14 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           ) : (
             <>
               <g>
-              <rect x="581" width="43" height="135" fill="url(#pattern15_197_3840)" onClick={() => handleToothClick(17)} onMouseEnter={() => setHoveredTooth(17)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', opacity: getToothOpacity(17), transition: 'all 0.2s ease' }} />
+                <rect x="581" width="43" height="135" fill="url(#pattern15_197_3840)" onClick={() => handleToothClick(17)} onMouseEnter={() => setHoveredTooth(17)} onMouseLeave={() => setHoveredTooth(null)} style={{ ...getToothBaseRectStyle(17) }} />
+              {isToothShowingS3Image(17) && (
+                <image href={getS3UrlForTooth(17)!} x={581} y={0} width={43} height={135} preserveAspectRatio="xMidYMid meet" onClick={() => handleToothClick(17)} onMouseEnter={() => setHoveredTooth(17)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }} />
+              )}
+              {}
+              {!isToothShowingS3Image(17) && renderExtractionImageOverlay(17, 581, 43)}
               {renderClaspOverlay(17, 581, 43, 42)}
-              {renderWillExtractOverlay(17, 581, 43)}
+              {!getS3UrlForTooth(17) && renderWillExtractOverlay(17, 581, 43)}
               {renderCheckbox(17, 581, 43)}
               {renderMissingToothImage(17, 581, 43)}
             </g>

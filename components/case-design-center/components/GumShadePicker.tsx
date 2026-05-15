@@ -45,6 +45,21 @@ export function GumShadePicker({ selected, onSelect, gumShades }: GumShadePicker
     return gumShades.filter((s) => s.brand.id === selectedBrandId);
   }, [gumShades, selectedBrandId]);
 
+  useEffect(() => {
+    setLocalSelected(selected ?? null);
+  }, [selected]);
+
+  useEffect(() => {
+    if (filteredShades.length !== 1) return;
+
+    const [onlyShade] = filteredShades;
+    if (!onlyShade) return;
+    if (localSelected === onlyShade.name && selected === onlyShade.name) return;
+
+    setLocalSelected(onlyShade.name);
+    onSelect(onlyShade);
+  }, [filteredShades, localSelected, onSelect, selected]);
+
   const totalPages = Math.ceil(filteredShades.length / ITEMS_PER_PAGE);
   const safePageIndex = Math.min(pageIndex, Math.max(0, totalPages - 1));
   const pagedShades = filteredShades.slice(safePageIndex * ITEMS_PER_PAGE, (safePageIndex + 1) * ITEMS_PER_PAGE);
