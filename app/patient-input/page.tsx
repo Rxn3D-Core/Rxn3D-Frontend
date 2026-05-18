@@ -9,6 +9,7 @@ import { SlipCreationHeader } from "@/components/slip-creation-header"
 import { clearSlipCreationStorage } from "@/utils/slip-creation-storage"
 import { SlipCreationStepFooter } from "@/components/slip-creation-step-footer"
 import { Dialog, DialogContent, DialogOverlay, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { isValidPatientName } from "@/lib/patient-name-validation"
 
 interface Doctor {
   id: number
@@ -84,7 +85,7 @@ export default function PatientInputPage() {
 
   // Auto-navigate to case design center when both fields are filled
   useEffect(() => {
-    if (patientName.trim() && gender) {
+    if (isValidPatientName(patientName) && gender) {
       // Small delay to ensure user has finished typing/selecting
       const timer = setTimeout(() => {
         // Store patient data
@@ -148,10 +149,10 @@ export default function PatientInputPage() {
 
 
   const handleContinue = () => {
-    if (!patientName.trim()) {
+    if (!isValidPatientName(patientName)) {
       toast({
         title: "Validation Error",
-        description: "Please enter a patient name",
+        description: "Enter the patient's first and last name (at least 2 letters each; middle initials are OK)",
         variant: "destructive",
       })
       return

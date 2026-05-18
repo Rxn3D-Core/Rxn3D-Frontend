@@ -2,17 +2,30 @@
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import type { CaseDesignProps, Arch, RetentionType, ProductApiData, ProductExtraction } from "../types";
-import { productImpressionsToModalOptions } from "../types";
 import { mockImpressions } from "../constants";
 import { useToothSelection } from "./useToothSelection";
 import { useShadeSelection } from "./useShadeSelection";
 import { useModalState } from "./useModalState";
 import { useProductManagement } from "./useProductManagement";
 import { useImplantState } from "./useImplantState";
-import { useToothFieldProgress, FIXED_SHADE_FIELD_TO_STEP } from "./useToothFieldProgress";
-import { hasRetentionOptions, isSingleStageNoStages } from "../utils/categoryHelpers";
-import { shouldAutoSelectArchForDefaultExtraction } from "../utils/extractionHelpers";
+import { useToothFieldProgress, FIXED_SHADE_FIELD_TO_STEP, type FieldStep } from "./useToothFieldProgress";
+import { hasRetentionOptions, getResolvedStageName, resolveStageSelection } from "../utils/categoryHelpers";
+import {
+  isSingleDefaultOnlyExtractionList,
+  shouldAutoSelectArchForDefaultExtraction,
+} from "../utils/extractionHelpers";
+import {
+  getOpposingArchTeeth,
+  mapOppositeExtractionsToProductExtractions,
+  toggleOpposingToothExtraction,
+} from "../utils/opposingExtractionHelpers";
 import { resolveProductOwnershipUpdate } from "../utils/productOwnership.js";
+import {
+  buildImpressionDisplayText,
+  getImpressionOptionsForProduct,
+  resolveImpressionName,
+  resolveProductForImpression,
+} from "../utils/impressionFieldSync";
 import { getShadeGuideAdvanceFields, getShadeFieldType } from "../utils/shadeGuideAdvanceFields";
 import { ProductApi } from "../../../lib/api-service";
 
@@ -154,18 +167,32 @@ export function useCaseDesignState(props: CaseDesignProps) {
 
   // Opposing arch extraction map: toothNumber → extractionCode
   const [opposingToothExtractionMap, setOpposingToothExtractionMap] = useState<Record<number, string>>({});
+  const [opposingClaspTeeth, setOpposingClaspTeeth] = useState<number[]>([]);
+  const [opposingNoActiveBoxTeeth, setOpposingNoActiveBoxTeeth] = useState<number[]>([]);
+  const [opposingSelectedTeeth, setOpposingSelectedTeeth] = useState<number[]>([]);
 
   // Structured addon selections: keyed as `${arch}_${toothNumber}` → [{addon_id, qty}]
   const [selectedAddonsByTooth, setSelectedAddonsByTooth] = useState<Record<string, Array<{ addon_id: number; qty: number }>>>({});
 
-  const handleOpposingExtractionToggle = useCallback((toothNumber: number, extractionCode: string) => {
-    setOpposingToothExtractionMap((prev) => {
-      if (prev[toothNumber] === extractionCode) {
-        const { [toothNumber]: _, ...rest } = prev;
-        return rest;
-      }
-      return { ...prev, [toothNumber]: extractionCode };
-    });
+  const handleOpposingExtractionToggle = useCallback(
+    (toothNumber: number, extractionCode: string, extractions?: ProductExtraction[]) => {
+      setOpposingSelectedTeeth((prev) =>
+        prev.includes(toothNumber) ? prev : [...prev, toothNumber]
+      );
+      toggleOpposingToothExtraction({
+        toothNumber,
+        extractionCode,
+        extractions,
+        toothExtractionMap: opposingToothExtractionMap,
+        setToothExtractionMap: setOpposingToothExtractionMap,
+        setClaspTeeth: setOpposingClaspTeeth,
+      });
+    },
+    [opposingToothExtractionMap]
+  );
+
+  const selectAllOpposingTeeth = useCallback((teeth: number[]) => {
+    setOpposingSelectedTeeth((prev) => [...new Set([...prev, ...teeth])]);
   }, []);
 
   // Auto-activate newly added product cards; reset to 0 when active card is removed
@@ -206,6 +233,9 @@ export function useCaseDesignState(props: CaseDesignProps) {
   // Fetch initial product details (for retention_options used by retention popover)
   // Declared here so isActiveNonRetentionProduct and getMirrorTargetArch can reference it.
   const [initialProductDetails, setInitialProductDetails] = useState<ProductApiData | null>(null);
+  const [initialProductDetailsPending, setInitialProductDetailsPending] = useState(
+    () => !!props.selectedProductId
+  );
 
   const isActiveNonRetentionProduct = (arch: Arch): boolean => {
     if (activeProductCardId === 0) {
@@ -358,27 +388,60 @@ export function useCaseDesignState(props: CaseDesignProps) {
   // Fetch initial product details (for retention_options used by retention popover)
   // Debounced by 300ms to prevent duplicate calls when selectedProductId changes rapidly
   useEffect(() => {
-    if (!props.selectedProductId) return;
+    if (!props.selectedProductId) {
+      setInitialProductDetails(null);
+      setInitialProductDetailsPending(false);
+      return;
+    }
+    setInitialProductDetailsPending(true);
+    setInitialProductDetails(null);
     const role = localStorage.getItem("role");
     const customerId = Number(
       role === "office_admin" || role === "doctor"
         ? localStorage.getItem("selectedLabId")
         : localStorage.getItem("customerId")
     );
-    if (!customerId) return;
+    if (!customerId) {
+      setInitialProductDetailsPending(false);
+      return;
+    }
     const timer = setTimeout(() => {
-      fetchProductDetails(props.selectedProductId!, customerId).then((data) => {
-        if (data) {
-          setInitialProductDetails(data);
-          cachedProductRef.current.set(props.selectedProductId!, data);
-        }
-      });
+      fetchProductDetails(props.selectedProductId!, customerId)
+        .then((data) => {
+          if (data) {
+            setInitialProductDetails(data);
+            cachedProductRef.current.set(props.selectedProductId!, data);
+          }
+        })
+        .finally(() => {
+          setInitialProductDetailsPending(false);
+        });
     }, 300);
     return () => clearTimeout(timer);
   }, [props.selectedProductId]);
 
-  // Teeth shade catalog — fetched lazily on first shade selection (not on mount)
+  // Teeth shade catalog — prefetched when shade picker opens; enriched after optimistic complete
   const teethShadeCatalogRef = useRef<TeethShadeEntry[]>([]);
+
+  const prefetchTeethShadeCatalog = useCallback(() => {
+    if (teethShadeCatalogRef.current.length > 0) return;
+    void fetchTeethShadeCatalog().then((catalog) => {
+      teethShadeCatalogRef.current = catalog;
+    });
+  }, []);
+
+  const handleShadeFieldClick = useCallback(
+    (
+      arch: Arch,
+      fieldType: import("../types").ShadeFieldType,
+      productId: string,
+      options?: { advanceFieldId?: number | null; advanceFieldLabel?: string | null }
+    ) => {
+      prefetchTeethShadeCatalog();
+      shades.handleShadeFieldClick(arch, fieldType, productId, options);
+    },
+    [prefetchTeethShadeCatalog, shades.handleShadeFieldClick]
+  );
 
   /**
    * Auto-select all teeth on an arch when a product has an extraction
@@ -402,7 +465,10 @@ export function useCaseDesignState(props: CaseDesignProps) {
   const runMissingTeethAutoSelect = useCallback(
     (product: ProductApiData | null | undefined, arch: string | undefined) => {
       if (!product?.id || !arch) return;
-      if (!shouldAutoSelectArchForDefaultExtraction(product.extractions)) return;
+
+      const isSingleDefaultOnly = isSingleDefaultOnlyExtractionList(product.extractions);
+      const shouldAutoDefault = shouldAutoSelectArchForDefaultExtraction(product.extractions);
+      if (!isSingleDefaultOnly && !shouldAutoDefault) return;
 
       const matched = product.extractions?.find(
         (ext) =>
@@ -443,9 +509,11 @@ export function useCaseDesignState(props: CaseDesignProps) {
           });
         }
 
-        // Non-TIM defaults should preselect the arch so the default status box
-        // is populated immediately. TIM defaults intentionally do not do this.
-        selectionSetter((prev) => [...new Set([...prev, ...archTeeth])]);
+        // Preselect the full arch when there is only one default status (no
+        // other tooth-status choice) or a non-TIM default requires it.
+        if (isSingleDefaultOnly || shouldAutoDefault) {
+          selectionSetter((prev) => [...new Set([...prev, ...archTeeth])]);
+        }
       }
     },
     [
@@ -456,11 +524,67 @@ export function useCaseDesignState(props: CaseDesignProps) {
     ]
   );
 
+  const opposingAutoSelectedRef = useRef(false);
+  const runOpposingExtractionsAutoSelect = useCallback(
+    (product: ProductApiData | null | undefined, primaryArch: string | undefined) => {
+      if (!product?.id || !primaryArch || primaryArch === "both") return;
+
+      const opposingExts = mapOppositeExtractionsToProductExtractions(
+        product.opposite_extractions,
+        product.extractions
+      );
+      if (opposingExts.length === 0) return;
+
+      const isSingleDefaultOnly = isSingleDefaultOnlyExtractionList(opposingExts);
+      const shouldAutoDefault = shouldAutoSelectArchForDefaultExtraction(opposingExts);
+      if (!isSingleDefaultOnly && !shouldAutoDefault) return;
+      if (opposingAutoSelectedRef.current) return;
+      opposingAutoSelectedRef.current = true;
+
+      const archTeeth = getOpposingArchTeeth(primaryArch as "maxillary" | "mandibular");
+      if (archTeeth.length === 0) return;
+
+      const matched = opposingExts.find(
+        (ext) => String(ext?.is_default ?? "").trim().toLowerCase() === "yes"
+      );
+      if (!matched?.code) return;
+
+      const extractionCode = matched.code;
+      const isTeethInMouthDefault =
+        extractionCode === "TIM" ||
+        (matched.name ?? "").toLowerCase().trim() === "teeth in mouth";
+
+      if (!isTeethInMouthDefault) {
+        setOpposingToothExtractionMap((prev) => {
+          const next = { ...prev };
+          for (const tn of archTeeth) {
+            if (next[tn] === undefined) next[tn] = extractionCode;
+          }
+          return next;
+        });
+      }
+
+      if (isSingleDefaultOnly || shouldAutoDefault) {
+        setOpposingSelectedTeeth((prev) => [...new Set([...prev, ...archTeeth])]);
+      }
+    },
+    []
+  );
+
   // Initial product
   useEffect(() => {
     if (!initialProductDetails || props.caseSubmitted) return;
     runMissingTeethAutoSelect(initialProductDetails, props.initialArch);
-  }, [initialProductDetails, props.initialArch, props.caseSubmitted, runMissingTeethAutoSelect]);
+    if ((initialProductDetails.opposite_extractions?.length ?? 0) > 0) {
+      runOpposingExtractionsAutoSelect(initialProductDetails, props.initialArch);
+    }
+  }, [
+    initialProductDetails,
+    props.initialArch,
+    props.caseSubmitted,
+    runMissingTeethAutoSelect,
+    runOpposingExtractionsAutoSelect,
+  ]);
 
   // Added products — fetch detail and apply, honoring the (productId, arch) guard
   useEffect(() => {
@@ -558,21 +682,80 @@ export function useCaseDesignState(props: CaseDesignProps) {
     }
   }, [shadeGuideOptions, shades.selectedShadeGuide, shades.shadeSelectionState, toothFieldProgress.getToothProduct, shades.setSelectedShadeGuide]);
 
-  // Auto-complete stage step when product is single-stage with no stage options
-  const autoCompleteSingleStage = useCallback(
-    (arch: Arch, toothNumber: number, product: ProductApiData) => {
-      if (!isSingleStageNoStages(product)) return;
+  const buildStageSelectionKey = useCallback(
+    (arch: Arch, toothNumber: number, isFixed: boolean) =>
+      isFixed ? `${arch}_fixed_${toothNumber}` : `${arch}_prep_${toothNumber}`,
+    []
+  );
+
+  /** Apply skip/auto stage rules so the field chain advances without blocking the user. */
+  const applyResolvedStage = useCallback(
+    (arch: Arch, toothNumber: number, product: ProductApiData, stageKeyOverride?: string) => {
+      const stageName = getResolvedStageName(product);
+      if (!stageName) return false;
+
       const isFixed = hasRetentionOptions(product);
-      const stageStep = isFixed ? "fixed_stage" as const : "stage" as const;
-      // Auto-complete the stage field so the chain advances past it
-      toothFieldProgress.completeFieldStep(arch, toothNumber, stageStep, "Single Stage");
-      // Also set the selectedStages value so the badge/display shows correctly
-      const stageKey = isFixed
-        ? `${arch}_fixed_${toothNumber}`
-        : `${arch}_prep_${toothNumber}`;
-      modals.setSelectedStages((prev: Record<string, string>) => ({ ...prev, [stageKey]: "Single Stage" }));
+      const stageStep = isFixed ? ("fixed_stage" as const) : ("stage" as const);
+      toothFieldProgress.completeFieldStep(arch, toothNumber, stageStep, stageName);
+      const stageKey = stageKeyOverride ?? buildStageSelectionKey(arch, toothNumber, isFixed);
+      modals.setSelectedStages((prev: Record<string, string>) => ({ ...prev, [stageKey]: stageName }));
+      return true;
     },
-    [toothFieldProgress, modals]
+    [buildStageSelectionKey, toothFieldProgress, modals]
+  );
+
+  const resolveStageToothNumber = useCallback(
+    (productId: string, toothNumber?: number): number | null => {
+      if (toothNumber != null) return toothNumber;
+      const prepMatch = productId.match(/prep_(-?\d+)$/);
+      if (prepMatch) return parseInt(prepMatch[1], 10);
+      const fixedMatch = productId.match(/(?:^|_)fixed_(-?\d+)$/);
+      if (fixedMatch) return parseInt(fixedMatch[1], 10);
+      return null;
+    },
+    []
+  );
+
+  const handleOpenStageModal = useCallback(
+    (productId: string, arch?: Arch, toothNumber?: number) => {
+      const resolvedArch = arch ?? "maxillary";
+      const resolvedTooth = resolveStageToothNumber(productId, toothNumber);
+      if (resolvedTooth != null) {
+        const product = toothFieldProgress.getToothProduct(resolvedArch, resolvedTooth);
+        if (product) {
+          const resolution = resolveStageSelection(product);
+          if (resolution.kind === "skip") {
+            applyResolvedStage(resolvedArch, resolvedTooth, product, productId);
+            return;
+          }
+          // Default stage is applied silently on product load; opening the picker
+          // (user click or explicit open) must allow changing among multiple stages.
+          if (resolution.kind === "auto") {
+            const isFixed = hasRetentionOptions(product);
+            const stageStep = isFixed ? ("fixed_stage" as const) : ("stage" as const);
+            const stageKey =
+              productId.includes("_prep_") || productId.includes("_fixed_")
+                ? productId
+                : buildStageSelectionKey(resolvedArch, resolvedTooth, isFixed);
+            const alreadyHasStage =
+              toothFieldProgress.isFieldCompleted(resolvedArch, resolvedTooth, stageStep) ||
+              Boolean(modals.selectedStages?.[stageKey]);
+            if (!alreadyHasStage) {
+              applyResolvedStage(resolvedArch, resolvedTooth, product, productId);
+              return;
+            }
+          }
+        }
+      }
+      modals.handleOpenStageModal(productId, arch, toothNumber);
+    },
+    [
+      applyResolvedStage,
+      buildStageSelectionKey,
+      modals,
+      resolveStageToothNumber,
+      toothFieldProgress,
+    ]
   );
 
   // Auto-populate addon field with product's is_default addons when field not yet set
@@ -604,7 +787,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
       const cached = cachedProductRef.current.get(productId);
       if (cached) {
         toothFieldProgress.setToothProduct(arch, toothNumber, cached);
-        autoCompleteSingleStage(arch, toothNumber, cached);
+        applyResolvedStage(arch, toothNumber, cached);
         autoPopulateDefaultAddons(arch, toothNumber, cached);
         return;
       }
@@ -629,12 +812,12 @@ export function useCaseDesignState(props: CaseDesignProps) {
         }
         cachedProductRef.current.set(productId, enrichedProduct);
         toothFieldProgress.setToothProduct(arch, toothNumber, enrichedProduct);
-        autoCompleteSingleStage(arch, toothNumber, enrichedProduct);
+        applyResolvedStage(arch, toothNumber, enrichedProduct);
         autoPopulateDefaultAddons(arch, toothNumber, enrichedProduct);
       }
       toothFieldProgress.setProductLoading(arch, toothNumber, false);
     },
-    [toothFieldProgress, autoCompleteSingleStage, autoPopulateDefaultAddons]
+    [toothFieldProgress, applyResolvedStage, autoPopulateDefaultAddons]
   );
 
   // Auto-assign initial non-fixed product (Removable/Orthodontics) to all teeth when initialArch === "both".
@@ -848,23 +1031,40 @@ export function useCaseDesignState(props: CaseDesignProps) {
 
   // When user selects a shade, mark the corresponding advance-field step completed so the next field shows
   // Also store JSON { teeth_shade_id, brand_id, name } so IDs are available at submit time without extra API calls
+  const buildTeethShadeJson = useCallback((shadeName: string, matched?: TeethShadeEntry | null) => {
+    return JSON.stringify({
+      teeth_shade_id: matched?.teeth_shade_id ?? matched?.id ?? 0,
+      brand_id: matched?.brand?.id ?? 0,
+      name: shadeName,
+    });
+  }, []);
+
+  const enrichTeethShadeFieldValue = useCallback(
+    (arch: Arch, toothNumber: number, step: FieldStep, shadeName: string) => {
+      void (async () => {
+        if (teethShadeCatalogRef.current.length === 0) {
+          teethShadeCatalogRef.current = await fetchTeethShadeCatalog();
+        }
+        const matched = teethShadeCatalogRef.current.find((s) => s.name === shadeName);
+        if (!matched) return;
+        const enriched = buildTeethShadeJson(shadeName, matched);
+        if (toothFieldProgress.getFieldValue(arch, toothNumber, step)) {
+          mirroredStoreFieldValue(arch, toothNumber, step, enriched);
+        }
+      })();
+    },
+    [buildTeethShadeJson, mirroredStoreFieldValue, toothFieldProgress]
+  );
+
   const handleShadeSelect = useCallback(
-    async (shade: string) => {
+    (shade: string) => {
       const { arch, fieldType, productId } = shades.shadeSelectionState;
       shades.handleShadeSelect(shade);
       if (!arch || !productId || !fieldType) return;
 
-      // Resolve shade ID from catalog — lazy-fetch on first use
-      if (teethShadeCatalogRef.current.length === 0) {
-        teethShadeCatalogRef.current = await fetchTeethShadeCatalog();
-      }
-      const catalog = teethShadeCatalogRef.current;
-      const matched = catalog.find((s) => s.name === shade);
-      const shadeJson = JSON.stringify({
-        teeth_shade_id: matched?.teeth_shade_id ?? matched?.id ?? 0,
-        brand_id: matched?.brand?.id ?? 0,
-        name: shade,
-      });
+      // Complete immediately so the next step (e.g. gum shade) opens without waiting on the catalog API
+      const shadeJson = buildTeethShadeJson(shade, null);
+      prefetchTeethShadeCatalog();
 
       // Fixed products: fixed_NN
       const fixedMatch = productId.match(/^fixed_(\d+)$/);
@@ -893,8 +1093,8 @@ export function useCaseDesignState(props: CaseDesignProps) {
               [selectedAdvanceFieldId]: {
                 name: shade,
                 advanceFieldId: selectedAdvanceFieldId,
-                teeth_shade_id: matched?.teeth_shade_id ?? matched?.id ?? 0,
-                brand_id: matched?.brand?.id ?? 0,
+                teeth_shade_id: 0,
+                brand_id: 0,
               },
             };
             const allFilled = relevantFields.every((field) => updatedSelections[field.id]);
@@ -911,6 +1111,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
           const step = FIXED_SHADE_FIELD_TO_STEP[fieldType];
           if (step) {
             mirroredCompleteFieldStep(arch, toothNumber, step, shadeJson);
+            enrichTeethShadeFieldValue(arch, toothNumber, step, shade);
           }
         }
         return;
@@ -922,6 +1123,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
         const toothNumber = parseInt(prepMatch[1], 10);
         if (fieldType === "tooth_shade") {
           mirroredCompleteFieldStep(arch, toothNumber, "teeth_shade", shadeJson);
+          enrichTeethShadeFieldValue(arch, toothNumber, "teeth_shade", shade);
         }
       }
 
@@ -945,29 +1147,49 @@ export function useCaseDesignState(props: CaseDesignProps) {
         }
       }
     },
-    [shades.shadeSelectionState, shades.handleShadeSelect, shades.selectedShadeGuide, shades.setSelectedShades, mirroredCompleteFieldStep, mirroredStoreFieldValue, mirroredUncompleteFieldStep, toothFieldProgress, getMandibularCard0Teeth, getMaxillaryCard0Teeth, props.initialArch, initialProductDetails]
+    [
+      shades.shadeSelectionState,
+      shades.handleShadeSelect,
+      shades.selectedShadeGuide,
+      shades.setSelectedShades,
+      buildTeethShadeJson,
+      prefetchTeethShadeCatalog,
+      enrichTeethShadeFieldValue,
+      mirroredCompleteFieldStep,
+      mirroredStoreFieldValue,
+      mirroredUncompleteFieldStep,
+      toothFieldProgress,
+      getMandibularCard0Teeth,
+      getMaxillaryCard0Teeth,
+      props.initialArch,
+      initialProductDetails,
+    ]
   );
 
   // Use product impressions from get product response when toothNumber provided; otherwise fall back to modal's mock-based resolution
   const getImpressionDisplayText = useCallback(
     (productId: string, arch: Arch, toothNumber?: number) => {
-      const product = toothNumber != null ? toothFieldProgress.getToothProduct(arch, toothNumber) : null;
-      const options = productImpressionsToModalOptions(product?.impressions);
-      const list = options.length > 0 ? options : mockImpressions;
-      const prefix = `${productId}_${arch}_`;
-      const entries = Object.entries(modals.selectedImpressions).filter(
-        ([key, qty]) => key.startsWith(prefix) && qty > 0
+      const product = resolveProductForImpression(
+        arch,
+        productId,
+        toothFieldProgress.getToothProduct,
+        initialProductDetails,
+        toothNumber
       );
-      if (entries.length === 0) return "";
-      return entries
-        .map(([key, qty]) => {
-          const identifier = key.replace(prefix, "");
-          const impression = list.find((i) => i.value === identifier);
-          return `${qty}x ${impression?.name || identifier}`;
-        })
-        .join(", ");
+      const options = getImpressionOptionsForProduct(product);
+      const list = options.length > 0 ? options : mockImpressions;
+      return buildImpressionDisplayText(
+        modals.selectedImpressions,
+        productId,
+        arch,
+        (code) => resolveImpressionName(code, list)
+      );
     },
-    [toothFieldProgress, modals.selectedImpressions]
+    [
+      toothFieldProgress.getToothProduct,
+      initialProductDetails,
+      modals.selectedImpressions,
+    ]
   );
 
   // ── Virtual slip read-only hydration ──────────────────────────────────────
@@ -1055,9 +1277,11 @@ export function useCaseDesignState(props: CaseDesignProps) {
     handleMaxillaryToothDeselect, // Override: migrate Fixed Restoration stage key before deselect
     handleMandibularToothDeselect, // Override: migrate Fixed Restoration stage key before deselect
     ...shades,
+    handleShadeFieldClick, // Override: prefetch teeth-shade catalog when picker opens
     shadeGuideOptions, // Override: derived from the active tooth's product.teeth_shades brand.system_name
-    handleShadeSelect, // Override: mark fixed_stump_shade completed when shade is selected so next fields show
+    handleShadeSelect, // Override: mark shade steps completed immediately (catalog IDs enriched in background)
     ...modals,
+    handleOpenStageModal, // Override: skip modal when product has no selectable stages
     getImpressionDisplayText, // Override: use product impressions when toothNumber provided
     ...products,
     ...implants,
@@ -1071,9 +1295,15 @@ export function useCaseDesignState(props: CaseDesignProps) {
     activeProductIsRemovablesMandibular: treatArchAsSelectionOnly.mandibular,
     // Initial product details (for retention_options used by retention popover)
     initialProductDetails,
+    initialProductDetailsPending,
     // Opposing arch extraction state
     opposingToothExtractionMap,
+    opposingClaspTeeth,
+    opposingNoActiveBoxTeeth,
+    setOpposingNoActiveBoxTeeth,
+    opposingSelectedTeeth,
     handleOpposingExtractionToggle,
+    selectAllOpposingTeeth,
     // Structured addon selections per tooth
     selectedAddonsByTooth,
     setSelectedAddonsByTooth,

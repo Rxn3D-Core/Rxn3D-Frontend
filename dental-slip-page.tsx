@@ -31,6 +31,7 @@ import { AddDoctorModal } from "@/components/add-doctor-modal"
 import LoadingOverlay from "@/components/ui/loading-overlay"
 import { useArchSelectionStore } from "@/stores/arch-selection-store"
 import { CustomerLogo } from "@/components/customer-logo"
+import { isValidPatientName } from "@/lib/patient-name-validation"
 
 // Dynamic Showing Results Component
 interface ShowingResultsProps {
@@ -3094,25 +3095,25 @@ export function DentalSlipPageContent({
                         <label
                           htmlFor="patient-input"
                           className={`absolute -top-2 left-2 sm:left-3 bg-white px-1 text-[10px] sm:text-xs transition-all max-w-[calc(100%-1rem)] sm:max-w-none ${
-                            addSlipFormData.patient.trim().split(/\s+/).length >= 2 && addSlipFormData.patient.trim().split(/\s+/).every(word => word.length > 0) && addSlipFormData.patient.trim().split(/\s+/)[1].length >= 2
+                            isValidPatientName(addSlipFormData.patient)
                               ? 'text-green-600'
-                              : addSlipFormData.patient.trim().split(/\s+/).length === 1 && addSlipFormData.patient.trim().split(/\s+/)[0].length > 0
+                              : addSlipFormData.patient.trim() && !isValidPatientName(addSlipFormData.patient)
                               ? 'text-red-600'
                               : 'text-gray-500'
                           }`}
                         >
                           <span className="block sm:hidden">
-                            {addSlipFormData.patient.trim().split(/\s+/).length >= 2 && addSlipFormData.patient.trim().split(/\s+/).every(word => word.length > 0) && addSlipFormData.patient.trim().split(/\s+/)[1].length >= 2
+                            {isValidPatientName(addSlipFormData.patient)
                               ? 'Press enter when done'
-                              : addSlipFormData.patient.trim().split(/\s+/).length === 1 && addSlipFormData.patient.trim().split(/\s+/)[0].length > 0
+                              : addSlipFormData.patient.trim() && !isValidPatientName(addSlipFormData.patient)
                               ? "Enter last name"
                               : 'Enter patient full name'
                             }
                           </span>
                           <span className="hidden sm:block">
-                            {addSlipFormData.patient.trim().split(/\s+/).length >= 2 && addSlipFormData.patient.trim().split(/\s+/).every(word => word.length > 0) && addSlipFormData.patient.trim().split(/\s+/)[1].length >= 2
+                            {isValidPatientName(addSlipFormData.patient)
                               ? 'Hit enter button after you are finished entering patient name'
-                              : addSlipFormData.patient.trim().split(/\s+/).length === 1 && addSlipFormData.patient.trim().split(/\s+/)[0].length > 0
+                              : addSlipFormData.patient.trim() && !isValidPatientName(addSlipFormData.patient)
                               ? "Please enter patient's last name"
                               : 'Enter patient full name'
                             }
@@ -3128,14 +3129,14 @@ export function DentalSlipPageContent({
                         onFocus={() => setIsPatientNameInputFocused(true)}
                         onBlur={() => setIsPatientNameInputFocused(false)}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter' && addSlipFormData.patient.trim().split(/\s+/).length >= 2 && addSlipFormData.patient.trim().split(/\s+/).every(word => word.length > 0) && addSlipFormData.patient.trim().split(/\s+/)[1].length >= 2) {
+                          if (e.key === 'Enter' && isValidPatientName(addSlipFormData.patient)) {
                             setStep(4)
                           }
                         }}
                         className={`text-base sm:text-lg py-2.5 sm:py-3 px-3 sm:px-4 border-2 rounded-md w-full transition-colors bg-white ${
-                          addSlipFormData.patient.trim().split(/\s+/).length >= 2 && addSlipFormData.patient.trim().split(/\s+/).every(word => word.length > 0) && addSlipFormData.patient.trim().split(/\s+/)[1].length >= 2
+                          isValidPatientName(addSlipFormData.patient)
                             ? 'border-green-400 focus:border-green-500 focus:ring-2 focus:ring-green-100'
-                            : addSlipFormData.patient.trim().split(/\s+/).length === 1 && addSlipFormData.patient.trim().split(/\s+/)[0].length > 0
+                            : addSlipFormData.patient.trim() && !isValidPatientName(addSlipFormData.patient)
                             ? 'border-red-400 focus:border-red-500 focus:ring-2 focus:ring-red-100'
                             : 'border-gray-300 focus:border-orange-400 focus:ring-2 focus:ring-orange-100'
                         }`}
@@ -4250,13 +4251,13 @@ export function DentalSlipPageContent({
                   Back
                 </Button>
               )}
-              {!(step === 3 && (!addSlipFormData.patient?.trim() || addSlipFormData.patient.trim().split(/\s+/).length < 2 || addSlipFormData.patient.trim().split(/\s+/).length === 2 && addSlipFormData.patient.trim().split(/\s+/)[1].length < 2)) && (
+              {!(step === 3 && !isValidPatientName(addSlipFormData.patient ?? "")) && (
                 <Button
                   onClick={handleContinueModal}
                   disabled={
                     (step === 1 && !selectedDoctorId) ||
                     (step === 2 && !selectedLab) ||
-                    (step === 3 && (!addSlipFormData.patient?.trim() || addSlipFormData.patient.trim().split(/\s+/).length < 2 || addSlipFormData.patient.trim().split(/\s+/).length === 2 && addSlipFormData.patient.trim().split(/\s+/)[1].length < 2)) ||
+                    (step === 3 && !isValidPatientName(addSlipFormData.patient ?? "")) ||
                     (step === 4 && !productCategory) ||
                     (step === 5 && !selectedSubCategory) ||
                     (step === 6 && !selectedProductInModal) ||

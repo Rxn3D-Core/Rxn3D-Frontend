@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { ImpressionSelectionModal } from "@/components/impression-selection-modal";
 import AddOnsModal from "@/components/add-ons-modal";
 import FileAttachmentModalContent from "@/components/file-attachment-modal-content";
@@ -13,8 +12,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { StageSelectionModal } from "./StageSelectionModal";
-import type { Arch, ImpressionOptionForModal } from "../types";
+import type { Arch, ImpressionOptionForModal, ProductApiData } from "../types";
 import type { AddOnsProduct } from "@/components/add-ons-modal";
+import { getResolvedStageName, SKIPPED_STAGE_LABEL } from "../utils/categoryHelpers";
+import {
+  buildImpressionDisplayText,
+  getDualModalArches,
+  parseImpressionKey,
+} from "../utils/impressionFieldSync";
 
 interface ModalOrchestratorProps {
   // Impression
@@ -83,10 +88,38 @@ interface ModalOrchestratorProps {
   currentStageArch: Arch;
   currentStageToothNumber: number | null;
   currentStageOptions: { name: string; letter: string; is_default?: string }[] | null;
+  /** Product for the current stage step — used to resolve skip/auto when options are empty */
+  currentStageProduct?: ProductApiData | null;
   handleStageSelect: (stageName: string) => void;
   onStageConfirm: (stageName: string) => void;
   /** When true (virtual slip / read-only view), all modals are suppressed */
   caseSubmitted?: boolean;
+}
+
+/** When no stages are configured, auto-complete and close — never show a blocking error. */
+function AutoSkipEmptyStages({
+  isOpen,
+  onSkip,
+  onClose,
+}: {
+  isOpen: boolean;
+  onSkip: () => void;
+  onClose: () => void;
+}) {
+  const didSkipRef = useRef(false);
+
+  useEffect(() => {
+    if (!isOpen) {
+      didSkipRef.current = false;
+      return;
+    }
+    if (didSkipRef.current) return;
+    didSkipRef.current = true;
+    onSkip();
+    onClose();
+  }, [isOpen, onSkip, onClose]);
+
+  return null;
 }
 
 /** When only 1 stage is available or a default stage exists, auto-selects it and closes — skipping the modal entirely. */
@@ -175,13 +208,30 @@ export function ModalOrchestrator({
   currentStageArch,
   currentStageToothNumber,
   currentStageOptions,
+  currentStageProduct = null,
   handleStageSelect,
   onStageConfirm,
   caseSubmitted = false,
 }: ModalOrchestratorProps) {
-  const router = useRouter();
   const [attachViewerOpen, setAttachViewerOpen] = useState(false)
   const handleViewerToggle = useCallback((isOpen: boolean) => setAttachViewerOpen(isOpen), [])
+  /** Arches the user edited in this modal session — avoids clearing an arch that was never touched on close. */
+  const touchedArchesRef = useRef<Set<Arch>>(new Set());
+
+  useEffect(() => {
+    if (!showImpressionModal) return;
+    const touched = new Set<Arch>();
+    for (const key of Object.keys(selectedImpressions)) {
+      const parsed = parseImpressionKey(key);
+      if (parsed) touched.add(parsed.arch);
+    }
+    touchedArchesRef.current = touched;
+  }, [showImpressionModal]);
+
+  const markArchTouchedFromKey = (key: string) => {
+    const parsed = parseImpressionKey(key);
+    if (parsed) touchedArchesRef.current.add(parsed.arch);
+  };
 
   const impressionLookupForCommit = [
     ...impressionOptions,
@@ -190,32 +240,41 @@ export function ModalOrchestrator({
     ),
   ];
 
-  const commitImpressionSelections = () => {
-    const arches: Arch[] =
-      currentImpressionOppositeImpression === "Yes"
-        ? [
-            currentImpressionArch,
-            (currentImpressionArch === "maxillary" ? "mandibular" : "maxillary") as Arch,
-          ]
-        : [currentImpressionArch];
+  const resolveImpressionLabel = (identifier: string) => {
+    const impression = impressionLookupForCommit.find(
+      (i) =>
+        i.value === identifier ||
+        i.name === identifier ||
+        i.code === identifier
+    );
+    return impression?.name || identifier;
+  };
 
-    for (const archToProcess of [...new Set(arches)]) {
-      const prefix = `${currentImpressionProductId}_${archToProcess}_`;
-      const entries = Object.entries(selectedImpressions).filter(
-        ([key, qty]) => key.startsWith(prefix) && qty > 0
+  const commitImpressionForArch = (archToProcess: Arch) => {
+    const hasSelections = Object.entries(selectedImpressions).some(
+      ([key, qty]) =>
+        key.startsWith(`${currentImpressionProductId}_${archToProcess}_`) && qty > 0
+    );
+    if (hasSelections) {
+      const displayText = buildImpressionDisplayText(
+        selectedImpressions,
+        currentImpressionProductId,
+        archToProcess,
+        resolveImpressionLabel
       );
-      if (entries.length > 0) {
-        const displayText = entries
-          .map(([key, qty]) => {
-            const identifier = key.replace(prefix, "");
-            const impression = impressionLookupForCommit.find((i) => i.value === identifier);
-            return `${qty}x ${impression?.name || identifier}`;
-          })
-          .join(", ");
-        onImpressionConfirm(displayText, archToProcess);
-      } else {
-        onImpressionClear?.(archToProcess);
-      }
+      onImpressionConfirm(displayText, archToProcess);
+    } else if (touchedArchesRef.current.has(archToProcess)) {
+      onImpressionClear?.(archToProcess);
+    }
+  };
+
+  const commitImpressionSelections = () => {
+    const arches = getDualModalArches(
+      currentImpressionOppositeImpression,
+      currentImpressionArch
+    );
+    for (const archToProcess of arches) {
+      commitImpressionForArch(archToProcess);
     }
   };
 
@@ -231,11 +290,13 @@ export function ModalOrchestrator({
           commitImpressionSelections();
           setShowImpressionModal(false);
         }}
+        onSaveArchSelection={commitImpressionForArch}
         impressions={impressionOptions}
         oppositeImpression={currentImpressionOppositeImpression}
         oppositeImpressions={oppositeImpressions}
         selectedImpressions={selectedImpressions}
         onUpdateQuantity={(key, qty) => {
+          markArchTouchedFromKey(key);
           setSelectedImpressions((prev) => {
             const next = { ...prev };
             if (qty === 0) delete next[key];
@@ -244,6 +305,7 @@ export function ModalOrchestrator({
           });
         }}
         onRemoveImpression={(key) => {
+          markArchTouchedFromKey(key);
           setSelectedImpressions((prev) => {
             const updated = { ...prev };
             delete updated[key];
@@ -313,36 +375,19 @@ export function ModalOrchestrator({
         </AutoSelectSingleStage>
       )}
 
-      {/* Stage not configured error dialog */}
+      {/* No stages configured — skip selection and advance the field chain */}
       {isStageModalOpen && (!currentStageOptions || currentStageOptions.length === 0) && (
-        <Dialog open onOpenChange={() => setIsStageModalOpen(false)}>
-          <DialogContent className="max-w-[400px] w-[90vw]">
-            <DialogHeader>
-              <DialogTitle>Stage Not Configured</DialogTitle>
-            </DialogHeader>
-            <p className="text-sm text-gray-600 py-2">
-              Stage is not configured for this product. Please configure stages in Product Management.
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setIsStageModalOpen(false)}
-                className="px-4 py-2 border border-gray-300 text-sm rounded-md hover:bg-gray-50 cursor-pointer"
-              >
-                OK
-              </button>
-              <button
-                onClick={() => {
-                  setIsStageModalOpen(false);
-                  router.push("/lab-product-library/products");
-                }}
-                className="px-4 py-2 bg-[#1162A8] text-white text-sm rounded-md hover:bg-[#0d4a85] cursor-pointer"
-              >
-                Go to Product Management
-              </button>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <AutoSkipEmptyStages
+          isOpen={isStageModalOpen}
+          onSkip={() => {
+            const stageName = getResolvedStageName(currentStageProduct) ?? SKIPPED_STAGE_LABEL;
+            handleStageSelect(stageName);
+            onStageConfirm(stageName);
+          }}
+          onClose={() => setIsStageModalOpen(false)}
+        />
       )}
+
 
       {/* File Attachment Modal */}
       <Dialog open={showAttachModal} onOpenChange={setShowAttachModal}>

@@ -146,6 +146,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
     onCheckedTeethChange?.(Array.from(checkedTeeth).sort((a, b) => a - b))
   }, [checkedTeeth, onCheckedTeethChange])
 
+  React.useEffect(() => {
+    if (disabled) setHoveredTooth(null)
+  }, [disabled])
+
   const isToothSelected = (toothNumber: number) => selectedTeeth.includes(toothNumber)
 
   const resolveExtraction = (toothNumber: number): { code: string; name: string; visibility_type?: string; color?: string | null; overlay?: string } | null => {
@@ -1427,7 +1431,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           </defs>
 
           {/* Show gear icon and orange circle on hover (for all teeth, rendered on top) */}
-          {hoveredTooth !== null && !isToothSelected(hoveredTooth) && !hideSelectionIndicators && (
+          {hoveredTooth !== null && !disabled && !isToothSelected(hoveredTooth) && !hideSelectionIndicators && (
             <>
               {renderSelectionIndicator(hoveredTooth)}
               {renderGearIcon(hoveredTooth)}

@@ -21,7 +21,7 @@ import type {
 } from "../types";
 import type { FieldStep } from "../hooks/useToothFieldProgress";
 import { ImplantDetailSection, ImplantDetailData, defaultImplantDetailData } from "./ImplantDetailSection";
-import { isSingleStageNoStages } from "../utils/categoryHelpers";
+import { shouldSkipStageSelection } from "../utils/categoryHelpers";
 import { parseAddonDisplayItems } from "../utils/addonDisplayHelpers";
 import { getShadeGuideAdvanceFields, getShadeFieldType, isStumpLikeShadeField } from "../utils/shadeGuideAdvanceFields";
 
@@ -85,6 +85,9 @@ export function hasAdvanceField(
   advanceFields: Array<{ name: string; field_type: string }> | undefined,
   product?: ProductShadeFlags | null
 ): boolean {
+  if ((step === "stage" || step === "fixed_stage") && shouldSkipStageSelection(product)) {
+    return false;
+  }
   const alwaysShow = ["fixed_stage", "fixed_impression", "fixed_addons", "stage", "impression", "addons"];
   if (alwaysShow.includes(step)) return true;
 
@@ -447,12 +450,27 @@ export function RetentionProductFields({
         />
       </div>
 
+      {/* Selected Teeth Parameter */}
+      <fieldset
+        className="border border-[#b4b0b0] rounded px-3 py-0 relative h-[42px] flex items-center mt-3 bg-[#F8F9FA]"
+      >
+        <legend className="text-sm px-1 leading-none text-[#7f7f7f]">
+          Selected teeth
+        </legend>
+        <div className="flex items-center gap-2 w-full">
+          <span className="text-[14px] sm:text-lg text-[#000000] font-medium">
+            {toothNumbers.length === 16 ? "All teeth selected" : toothNumbers.sort((a, b) => a - b).join(", ")}
+          </span>
+          <Check size={16} className="text-[#34a853] ml-auto" />
+        </div>
+      </fieldset>
+
       {/* All remaining fields hidden until both shades are selected */}
       {!fixedShadeIncomplete && <>
 
       {/* Step 1 & 2: Stage + shade fields driven by advance_fields with has_* flag fallback */}
       {(() => {
-        const showStage = !isSingleStageNoStages(selectedProduct) && isFixed("fixed_stage");
+        const showStage = !shouldSkipStageSelection(selectedProduct) && isFixed("fixed_stage");
         const usesNamedShadeGuideFields = namedShadeGuideFields.length > 0;
 
         const af = selectedProduct?.advance_fields || [];
@@ -1152,7 +1170,7 @@ export function RetentionProductFields({
               </legend>
               <div className="flex items-center gap-2 w-full">
                 <span className="text-[14px] sm:text-lg text-[#000000] break-words">
-                  {getImpressionDisplayText(impressionProductId, arch)}
+                  {getImpressionDisplayText(impressionProductId, arch, firstToothNumber)}
                 </span>
                 {isFieldCompleted(arch, firstToothNumber, "fixed_impression") && !caseSubmitted && (
                   <Check size={16} className="text-[#34a853] ml-auto" />

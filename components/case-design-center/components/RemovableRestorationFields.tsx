@@ -173,6 +173,7 @@ export function AutoOpenImpressionIfEmpty({
   arch,
   productId,
   toothNumber,
+  blockAutoOpen = false,
 }: {
   isExpanded: boolean;
   isImpressionVisible: boolean;
@@ -181,16 +182,24 @@ export function AutoOpenImpressionIfEmpty({
   arch: Arch;
   productId: string;
   toothNumber: number;
+  /** When true (e.g. impression modal already open), skip auto-open */
+  blockAutoOpen?: boolean;
 }) {
   const hasAutoOpenedRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
+    if (blockAutoOpen) {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      return;
+    }
     if (!isExpanded) {
       hasAutoOpenedRef.current = false;
       return;
     }
     if (!isImpressionVisible || !isImpressionEmpty) {
-      hasAutoOpenedRef.current = false;
       if (timerRef.current) {
         clearTimeout(timerRef.current);
         timerRef.current = null;
@@ -204,7 +213,7 @@ export function AutoOpenImpressionIfEmpty({
       timerRef.current = null;
       onOpenImpressionModal(arch, productId, toothNumber);
     }, 350);
-  }, [isExpanded, isImpressionVisible, isImpressionEmpty, onOpenImpressionModal, arch, productId, toothNumber]);
+  }, [isExpanded, isImpressionVisible, isImpressionEmpty, onOpenImpressionModal, arch, productId, toothNumber, blockAutoOpen]);
   useEffect(() => {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
@@ -277,6 +286,8 @@ interface RemovableRestorationFieldsProps {
   setPanelGumShadePicker: (state: { toothNumber: number; gumShades: any[]; selectedName?: string | null }) => void;
   /** Product+arch combos where user chose "Submit, no opposing needed" */
   noOpposingNeeded?: Record<string, boolean>;
+  /** When false, hides progressive fields until user acknowledges extractions (multi-status removables). */
+  showProgressiveFields?: boolean;
 }
 
 /* ------------------------------------------------------------------ */
@@ -304,7 +315,10 @@ export function SelectionProductFields({
   handleOpenAddOnsModal,
   setPanelGumShadePicker,
   noOpposingNeeded = {},
+  showProgressiveFields = true,
 }: RemovableRestorationFieldsProps) {
+  if (!showProgressiveFields) return null;
+
   const removableChain = getSelectionFieldChain(selectedProduct);
   const isVisible = (step: FieldStep): boolean => isFieldVisibleFn(arch, firstToothNumber, step, removableChain);
   const hasImplantForm = toothNumbers.some((n) => (retentionTypesMap[n] || []).includes("Implant"));
@@ -613,6 +627,21 @@ export function SelectionProductFields({
         </div>
         );
       })()}
+
+      {/* Selected Teeth Parameter */}
+      <fieldset
+        className="border border-[#b4b0b0] rounded px-3 py-0 relative h-[42px] flex items-center mt-3 bg-[#F8F9FA]"
+      >
+        <legend className="text-sm px-1 leading-none text-[#7f7f7f]">
+          Selected teeth
+        </legend>
+        <div className="flex items-center gap-2 w-full">
+          <span className="text-[14px] sm:text-lg text-[#000000] font-medium">
+            {toothNumbers.length === 16 ? "All teeth selected" : toothNumbers.sort((a, b) => a - b).join(", ")}
+          </span>
+          <Check size={16} className="text-[#34a853] ml-auto" />
+        </div>
+      </fieldset>
     </>
   );
 }

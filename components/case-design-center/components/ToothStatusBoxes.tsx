@@ -1,7 +1,11 @@
 import { useEffect, useRef } from "react";
 import type { ProductExtraction } from "../types";
 import { getStatusBoxTeeth } from "../utils/removableToothDisplay";
-import { shouldAutoSelectArchForDefaultExtraction } from "../utils/extractionHelpers";
+import {
+  isOverlayExtractionByFlag,
+  isTimExtractionByFlag,
+  shouldAutoSelectArchForDefaultExtraction,
+} from "../utils/extractionHelpers";
 
 interface ToothStatusBoxesProps {
   extractions: ProductExtraction[];
@@ -33,74 +37,21 @@ interface ToothStatusBoxesProps {
   grayed?: boolean;
   /** Optional UI-only display override keyed by extraction code. */
   displayTeethByCode?: Record<string, number[]>;
+  /**
+   * Hint below status boxes (removable accordion). Defaults to true when
+   * `hideDefaultBox && isRemovable`.
+   */
+  showStatusReferenceHint?: boolean;
 }
 
-/** Fallback color map keyed by extraction code — used only when API color is null */
-const EXTRACTION_COLOR_MAP: Record<string, { bg: string; textClass: string }> = {
-  TIM:   { bg: "#F3EBD7", textClass: "text-black" },           // Teeth in mouth
-  MT:    { bg: "#D3D3D3", textClass: "text-black" },           // Missing teeth
-  WEOD:  { bg: "#FF0513", textClass: "text-white font-bold" }, // Will extract on delivery
-  WED:   { bg: "#FF0513", textClass: "text-white font-bold" }, // Will extract on delivery (legacy)
-  FR:    { bg: "#A0F69A", textClass: "text-black" },           // Fix/Repair
-  CLASP: { bg: "#FFD1F9", textClass: "text-black" },           // Clasp
-  CTS:   { bg: "#0CE7C6", textClass: "text-black" },           // Custom tooth status
-};
+const STATUS_REFERENCE_HINT_LEAD =
+  "Use the boxes above to mark teeth status for reference.";
+const STATUS_REFERENCE_HINT_EMPHASIS =
+  "Selection will not be included in the partial.";
 
-/** Fallback color map keyed by normalized extraction name — used only when API color and code map are null */
-const EXTRACTION_NAME_COLOR_MAP: Record<string, { bg: string; textClass: string }> = {
-  "teeth in mouth":           { bg: "#F3EBD7", textClass: "text-black" },
-  "missing teeth":            { bg: "#D3D3D3", textClass: "text-black" },
-  "will extract on delivery": { bg: "#FF0513", textClass: "text-white font-bold" },
-  "fix/repair":               { bg: "#A0F69A", textClass: "text-black" },
-  "clasps":                   { bg: "#FFD1F9", textClass: "text-black" },
-  "clasp":                    { bg: "#FFD1F9", textClass: "text-black" },
-};
-
-/** Determine text class from a hex background color (dark bg → white text) */
-function textClassFromColor(hex: string): string {
-  const h = hex.replace("#", "");
-  if (h.length < 6) return "text-black";
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance < 0.5 ? "text-white font-bold" : "text-black";
-}
-
-function resolveStyle(extraction: { code: string; name: string; color: string | null }): { bg: string; textClass: string } {
-  // Priority: 1. API color → 2. code fallback → 3. name fallback → 4. default
-  if (extraction.color && extraction.color.trim()) {
-    const bg = extraction.color.trim();
-    return { bg, textClass: textClassFromColor(bg) };
-  }
-  // 2. Match by code
-  if (EXTRACTION_COLOR_MAP[extraction.code]) {
-    return EXTRACTION_COLOR_MAP[extraction.code];
-  }
-  // 3. Match by normalized name
-  const nameLower = (extraction.name ?? "").toLowerCase().trim();
-  if (EXTRACTION_NAME_COLOR_MAP[nameLower]) {
-    return EXTRACTION_NAME_COLOR_MAP[nameLower];
-  }
-  // 4. Default
-  return { bg: "#F3EBD7", textClass: "text-black" };
-}
-
-/**
- * Returns true if this extraction is the "Teeth in mouth" bucket — the box that
- * holds teeth that have NOT been assigned to any other extraction code.
- *
- * Note: this is intentionally NOT keyed on `is_default === "Yes"`. Products may
- * legitimately mark another extraction (e.g. "Missing teeth" on full dentures)
- * as the product default; those behave as regular, code-keyed status boxes and
- * must still contain teeth explicitly mapped to them. Only TIM / "Teeth in
- * mouth" represents the "unassigned" bucket this predicate cares about.
- */
+/** Unassigned teeth (not in toothExtractionMap) belong to the is_tim extraction bucket. */
 function isDefaultExtraction(extraction: ProductExtraction): boolean {
-  return (
-    extraction.code === "TIM" ||
-    (extraction.name ?? "").toLowerCase().trim() === "teeth in mouth"
-  );
+  return isTimExtractionByFlag(extraction);
 }
 
 /** Returns true if this extraction is required (is_required: "Yes", e.g. "Missing teeth") */
@@ -117,13 +68,9 @@ function isOptionalExtraction(extraction: ProductExtraction): boolean {
   return extraction.is_optional === "Yes";
 }
 
-/** Returns true if this extraction is an overlay type (Clasp) — teeth can coexist with other statuses */
+/** Overlay extractions (API overlay === Yes) — teeth can coexist with TIM base status only. */
 function isClaspExtraction(extraction: ProductExtraction): boolean {
-  return (
-    extraction.code === "CLASP" ||
-    (extraction.name ?? "").toLowerCase().trim() === "clasps" ||
-    (extraction.name ?? "").toLowerCase().trim() === "clasp"
-  );
+  return isOverlayExtractionByFlag(extraction);
 }
 
 export function ToothStatusBoxes({
@@ -143,7 +90,9 @@ export function ToothStatusBoxes({
   disableRequiredValidation = false,
   grayed = false,
   displayTeethByCode,
+  showStatusReferenceHint,
 }: ToothStatusBoxesProps) {
+  const showHint = showStatusReferenceHint ?? (hideDefaultBox && isRemovable);
   const allActiveExtractions = extractions
     .filter((e) => e.status === "Active" && e.name != null && e.code != null)
     .sort((a, b) => a.sequence - b.sequence);
@@ -153,7 +102,7 @@ export function ToothStatusBoxes({
   // only matches TIM, so product-specific defaults (e.g. "Missing teeth" on
   // full dentures) still render as regular status boxes.
   const activeExtractions = hideDefaultBox
-    ? allActiveExtractions.filter((e) => !isDefaultExtraction(e))
+    ? allActiveExtractions.filter((e) => !isTimExtractionByFlag(e))
     : allActiveExtractions;
 
   // Auto-select all arch teeth when a is_default extraction first appears (check unfiltered list)
@@ -204,14 +153,15 @@ export function ToothStatusBoxes({
   // Pre-compute which boxes have teeth (for submitted filtering)
   const boxesWithTeeth = submitted
     ? activeExtractions.filter((extraction) => {
-        const teethForBox = getTeethForBox(extraction);
-        return teethForBox.length > 0;
-      })
+      const teethForBox = getTeethForBox(extraction);
+      return teethForBox.length > 0;
+    })
     : activeExtractions;
   const onlyOneBoxWithTeeth = submitted && boxesWithTeeth.length === 1;
 
   return (
-    <div className="flex flex-wrap gap-[9.94px]">
+    <div className="flex flex-col gap-2 w-full">
+      <div className="flex flex-wrap gap-[9.94px]">
       {activeExtractions.map((extraction) => {
         const isActive = !submitted && activeExtractionCode === extraction.code;
         const isDefault = isDefaultExtraction(extraction);
@@ -245,11 +195,18 @@ export function ToothStatusBoxes({
         const hasMaxLimit = maxTeeth !== null && maxTeeth !== undefined && maxTeeth > 0;
         const isAtMax = hasMaxLimit && teethForBox.length >= maxTeeth!;
 
-        const style = resolveStyle(extraction);
         const isInteractive = !submitted && !grayed;
 
         // Compact (no teeth) vs normal size — only for removable context
         const isCompact = isRemovable && isEmpty;
+
+        const boxOutline = grayed
+          ? "1.5px solid #B4B0B0"
+          : isActive
+            ? "3px solid #1162A8"
+            : showRequiredValidation
+              ? "2px solid #CF0202"
+              : "1.5px solid #B4B0B0";
 
         return (
           <div
@@ -260,20 +217,14 @@ export function ToothStatusBoxes({
               onActiveExtractionChange(isActive ? null : extraction.code, extractions);
             }}
             style={{
-              backgroundColor: grayed ? "white" : submitted ? style.bg : "white",
-              outline: grayed
-                ? "1.5px solid #B4B0B0"
-                : isActive
-                ? "3px solid #1162A8"
-                : showRequiredValidation
-                ? "2px solid #CF0202"
-                : "none",
+              backgroundColor: "white",
+              outline: boxOutline,
               outlineOffset: grayed ? "0px" : isActive ? "2px" : showRequiredValidation ? "1px" : "0px",
               ...(onlyOneBoxWithTeeth ? { flex: "1 1 100%" } : {}),
             }}
           >
             <p
-              className={`font-[Verdana] font-normal tracking-[0.05em] text-center break-words max-w-full ${grayed ? "text-[#9B9B9B]" : submitted ? style.textClass : 'text-black'} text-[16px] leading-tight`}
+              className={`font-[Verdana] font-normal tracking-[0.05em] text-center break-words max-w-full ${grayed ? "text-[#9B9B9B]" : "text-black"} text-[16px] leading-tight`}
             >
               {extraction.name}
               {teethDisplay && (
@@ -284,18 +235,25 @@ export function ToothStatusBoxes({
               )}
             </p>
             {showRequiredValidation && (
-              <p className={`text-[10px] sm:text-xs text-center font-[Verdana] ${style.textClass.includes("text-white") ? "text-white" : "text-[#CF0202]"}`}>
+              <p className="text-[10px] sm:text-xs text-center font-[Verdana] text-[#CF0202]">
                 Required: select at least {minTeeth} tooth
               </p>
             )}
             {!isDefault && isAtMax && !isEmpty && (
-              <p className={`text-[10px] sm:text-xs text-center font-[Verdana] ${style.textClass.includes("text-white") ? "text-white/70" : "text-gray-500"}`}>
+              <p className="text-[10px] sm:text-xs text-center font-[Verdana] text-gray-500">
                 Max: {maxTeeth} tooth{maxTeeth! > 1 ? "" : ""}
               </p>
             )}
           </div>
         );
       })}
+      </div>
+      {showHint && (
+        <p className="font-[Verdana] text-[13px] sm:text-[14px] leading-relaxed px-0.5">
+          <span className="text-[#5C3D00]">{STATUS_REFERENCE_HINT_LEAD} </span>
+          <span className="font-bold text-[#C2410C]">{STATUS_REFERENCE_HINT_EMPHASIS}</span>
+        </p>
+      )}
     </div>
   );
 }

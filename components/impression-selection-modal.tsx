@@ -6,7 +6,7 @@ import {
   Dialog,
   DialogContent,
 } from "@/components/ui/dialog"
-import { useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { STLFileSelectionModal } from "./stl-file-selection-modal"
 import type { ImpressionOptionForModal as ImpressionOption } from "@/components/case-design-center/types"
 
@@ -31,6 +31,8 @@ interface ImpressionSelectionModalProps {
   oppositeImpression?: "Yes" | "No"
   oppositeImpressions?: ImpressionOption[]
   onSubmitNoOpposing?: () => void
+  /** Saves impression selections for one arch without closing the modal (green check on a card). */
+  onSaveArchSelection?: (arch: "maxillary" | "mandibular") => void
   /** When true, hides the 'Skip Opposing' button (used when both arches have their own products) */
   hideSkipOpposing?: boolean
   /** Optional title shown once above all arch sections (e.g. "Impressions") */
@@ -49,8 +51,12 @@ function ImpressionGrid({
   productId,
   arch,
   stlFilesByImpression = {},
-  showDoneCheckmark,
-  onDone,
+  lastTouchedKey,
+  onRegisterTouch,
+  onKeyRemoved,
+  onSaveArchSelection,
+  isValidationComplete,
+  onConfirmAllAndClose,
 }: {
   impressions: ImpressionOption[]
   selectedImpressions: Record<string, number>
@@ -59,19 +65,22 @@ function ImpressionGrid({
   productId: string
   arch: "maxillary" | "mandibular"
   stlFilesByImpression?: Record<string, STLFile[]>
-  showDoneCheckmark: boolean
-  onDone?: () => void
+  /** Single key across the whole modal — only this card shows the green check */
+  lastTouchedKey: string | null
+  onRegisterTouch: (key: string) => void
+  onKeyRemoved: (key: string) => void
+  /** Saves one arch when validation is not yet complete */
+  onSaveArchSelection?: (arch: "maxillary" | "mandibular") => void
+  /** When true, green check saves all arches and closes the modal */
+  isValidationComplete: boolean
+  onConfirmAllAndClose: () => void
 }) {
   const [showSTLModal, setShowSTLModal] = useState(false)
   const [selectedSTLImpression, setSelectedSTLImpression] = useState<ImpressionOption | null>(null)
   const getImpressionLabel = (impression: ImpressionOption) =>
     impression.name ?? impression.code ?? impression.value ?? "Impression"
-  const [lastTouchedKey, setLastTouchedKey] = useState<string | null>(() => {
-    // On mount, restore check to the last impression in the list that already has qty > 0
-    const buildKey = (imp: ImpressionOption) => `${productId}_${arch}_${imp.value || getImpressionLabel(imp)}`
-    const preSelected = [...impressions].reverse().find(imp => (selectedImpressions[buildKey(imp)] || 0) > 0)
-    return preSelected ? buildKey(preSelected) : null
-  })
+
+  const touchKey = (key: string) => onRegisterTouch(key)
 
   const getKey = (impression: ImpressionOption) =>
     `${productId}_${arch}_${impression.value || getImpressionLabel(impression)}`
@@ -93,7 +102,7 @@ function ImpressionGrid({
       setShowSTLModal(true)
     } else {
       onUpdateQuantity(key, 1)
-      setLastTouchedKey(key)
+      touchKey(key)
     }
   }
 
@@ -105,7 +114,7 @@ function ImpressionGrid({
       setShowSTLModal(true)
     } else {
       onUpdateQuantity(key, getQty(impression) + 1)
-      setLastTouchedKey(key)
+      touchKey(key)
     }
   }
 
@@ -115,7 +124,7 @@ function ImpressionGrid({
     const qty = getQty(impression)
     if (qty > 1) {
       onUpdateQuantity(key, qty - 1)
-      setLastTouchedKey(key)
+      touchKey(key)
     }
   }
 
@@ -123,7 +132,7 @@ function ImpressionGrid({
     e.stopPropagation()
     const key = getKey(impression)
     onUpdateQuantity(key, 0)
-    if (lastTouchedKey === key) setLastTouchedKey(null)
+    onKeyRemoved(key)
   }
 
   const handleSTLConfirmed = (files: STLFile[]) => {
@@ -131,7 +140,7 @@ function ImpressionGrid({
     const key = getKey(selectedSTLImpression)
     onUpdateQuantity(key, files.length)
     onSTLFilesAttached(files, key)
-    setLastTouchedKey(key)
+    touchKey(key)
     setShowSTLModal(false)
     setSelectedSTLImpression(null)
   }
@@ -139,8 +148,8 @@ function ImpressionGrid({
   const renderCard = (impression: ImpressionOption, compact: boolean) => {
     const qty = getQty(impression)
     const isSelected = qty > 0
-    // Check shows only on the last card touched in this grid
-    const showCheck = showDoneCheckmark && qty >= 1 && getKey(impression) === lastTouchedKey
+    // Green check only on the single last-touched card across both arch sections
+    const showCheck = qty >= 1 && getKey(impression) === lastTouchedKey
 
     const imgSize = compact ? "text-2xl" : "text-3xl lg:text-4xl"
     const nameSize = compact ? "text-xs" : "text-sm lg:text-base"
@@ -236,16 +245,26 @@ function ImpressionGrid({
                 <Plus className={cn("text-[#1D1B20]", iconSize)} strokeWidth={1.83} />
               </button>
 
-              {/* Green checkmark — click to confirm done */}
               {showCheck && (
                 <button
+                  type="button"
                   className={cn(
-                    "flex items-center justify-center flex-shrink-0 rounded-full transition-all duration-200",
-                    "hover:scale-125 hover:bg-green-50",
+                    "flex items-center justify-center flex-shrink-0 rounded hover:bg-green-50",
                     controlSize
                   )}
-                  onClick={(e) => { e.stopPropagation(); onDone?.() }}
-                  title="Done — save and close"
+                  title={
+                    isValidationComplete
+                      ? "Save all impressions and close"
+                      : "Save impression for this arch"
+                  }
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (isValidationComplete) {
+                      onConfirmAllAndClose()
+                    } else {
+                      onSaveArchSelection?.(arch)
+                    }
+                  }}
                 >
                   <Check className={cn("text-[#22c55e]", iconSize)} strokeWidth={2.5} />
                 </button>
@@ -306,6 +325,7 @@ export function ImpressionSelectionModal({
   oppositeImpression = "No",
   oppositeImpressions,
   onSubmitNoOpposing,
+  onSaveArchSelection,
   hideSkipOpposing = false,
   modalHeading,
   dualImpressionPrimaryArch = "maxillary",
@@ -344,8 +364,50 @@ export function ImpressionSelectionModal({
   const bottomArchLabel = bottomArch === "maxillary" ? "Maxillary" : "Mandibular"
   const showBottomSection = !!bottomArch && (!isDualArch || hasTopSelection)
 
+  const isValidationComplete =
+    hasTopSelection && (!showBottomSection || hasBottomSelection)
+
+  const [lastTouchedKey, setLastTouchedKey] = useState<string | null>(null)
+  const touchHistoryRef = useRef<string[]>([])
+
+  const registerTouch = useCallback((key: string) => {
+    touchHistoryRef.current = [
+      ...touchHistoryRef.current.filter((k) => k !== key),
+      key,
+    ]
+    setLastTouchedKey(key)
+  }, [])
+
+  const handleKeyRemoved = useCallback(
+    (removedKey: string) => {
+      const without = touchHistoryRef.current.filter((k) => k !== removedKey)
+      touchHistoryRef.current = without
+      setLastTouchedKey((current) => {
+        if (current !== removedKey) return current
+        return (
+          [...without]
+            .reverse()
+            .find((k) => (selectedImpressions[k] ?? 0) > 0) ?? null
+        )
+      })
+    },
+    [selectedImpressions]
+  )
+
+  useEffect(() => {
+    if (!isOpen) return
+    const activeKeys = Object.entries(selectedImpressions)
+      .filter(([, qty]) => qty > 0)
+      .map(([key]) => key)
+    touchHistoryRef.current = activeKeys
+    setLastTouchedKey((prev) => {
+      if (prev && activeKeys.includes(prev)) return prev
+      return activeKeys.length > 0 ? activeKeys[activeKeys.length - 1] : null
+    })
+  }, [isOpen])
+
   const handleDone = () => {
-    // Single close path avoids double-commit when parent uses the same logic in onClose and onConfirm.
+    if (!isValidationComplete) return
     onClose()
   }
 
@@ -355,10 +417,20 @@ export function ImpressionSelectionModal({
     onRemoveImpression,
     onSTLFilesAttached,
     stlFilesByImpression,
+    lastTouchedKey,
+    onRegisterTouch: registerTouch,
+    onKeyRemoved: handleKeyRemoved,
+    onSaveArchSelection,
+    isValidationComplete,
+    onConfirmAllAndClose: onClose,
+  }
+
+  const handleOpenChange = (open: boolean) => {
+    if (!open) onClose()
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent
         showCloseButton
         className="w-[96vw] max-w-[1120px] max-h-[94dvh] overflow-hidden flex flex-col p-0 border-0 rounded-[10px]"
@@ -391,8 +463,6 @@ export function ImpressionSelectionModal({
               impressions={topList}
               productId={productId}
               arch={topArch}
-              showDoneCheckmark
-              onDone={handleDone}
             />
           </div>
 
@@ -417,8 +487,6 @@ export function ImpressionSelectionModal({
                 impressions={bottomList}
                 productId={productId}
                 arch={bottomArch}
-                showDoneCheckmark={true}
-                onDone={handleDone}
               />
               {!hideSkipOpposing && !hasBottomSelection && (
               <div className="flex justify-center mt-4">
@@ -445,14 +513,23 @@ export function ImpressionSelectionModal({
             </div>
           )}
 
-          {/* Cancel */}
-          <div className="flex justify-start">
+          <div className="flex justify-between items-center gap-4 pt-1">
             <button
+              type="button"
               onClick={onClose}
               className="px-8 py-2.5 bg-[#CF0202] hover:bg-[#910202] text-white rounded-[6px] font-['Verdana'] font-bold text-sm transition-colors"
             >
               Cancel
             </button>
+            {isValidationComplete ? (
+              <button
+                type="button"
+                onClick={handleDone}
+                className="px-8 py-2.5 bg-[#1162A8] hover:bg-[#0d4d85] text-white rounded-[6px] font-['Verdana'] font-bold text-sm transition-colors"
+              >
+                Done
+              </button>
+            ) : null}
           </div>
 
         </div>
