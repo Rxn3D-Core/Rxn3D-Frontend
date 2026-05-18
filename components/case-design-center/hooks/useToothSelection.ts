@@ -3,6 +3,10 @@
 import { useState } from "react";
 import type { Arch, RetentionType, RetentionPopoverState, AddedProduct, ProductExtraction } from "../types";
 import { hasRetentionOptions } from "../utils/categoryHelpers";
+import {
+  isOverlayExtractionCode,
+  toothHasTimBaseExtraction,
+} from "../utils/extractionHelpers";
 
 function isSelectionOnlyArch(addedProducts: AddedProduct[], arch: Arch): boolean {
   return addedProducts
@@ -137,28 +141,15 @@ export function useToothSelection(
     setRetentionPopoverState({ arch: null, toothNumber: null });
   };
 
-  /** Codes that act as overlays — tooth stays in its current status AND appears in this box */
-  const OVERLAY_CODES = new Set(["CLASP"]);
-
-  /**
-   * Check if a code is a clasp/overlay extraction.
-   * First checks exact code match, then falls back to name-based check
-   * (mirrors ToothStatusBoxes.isClaspExtraction for robustness against API code variants like "CLASP_L1_G2").
-   */
-  const isOverlayExtraction = (code: string, exts?: ProductExtraction[]): boolean => {
-    if (OVERLAY_CODES.has(code.toUpperCase())) return true;
-    if (!exts) return false;
-    const match = exts.find((e) => e.code === code);
-    const name = (match?.name ?? "").toLowerCase().trim();
-    return name === "clasp" || name === "clasps";
-  };
-
   /**
    * Toggle a tooth into a non-default extraction box.
-   * - Overlay extractions (CLASP): toggle independently, tooth keeps its other status
+   * - Overlay extractions (overlay Yes): only on TIM base teeth; toggle independently of exclusive status
    * - Exclusive extractions: if already in that extraction → move back to default; otherwise assign
    */
   const handleToothExtractionToggle = (arch: Arch, toothNumber: number, extractionCode: string, extractions?: ProductExtraction[]) => {
+    const toothExtractionMap =
+      arch === "maxillary" ? maxillaryToothExtractionMap : mandibularToothExtractionMap;
+
     /** Look up max_teeth for the given extraction code (0 or negative = no limit) */
     const getMaxTeeth = (): number | null => {
       if (!extractions) return null;
@@ -167,18 +158,19 @@ export function useToothSelection(
       return max !== null && max > 0 ? max : null;
     };
 
-    if (isOverlayExtraction(extractionCode, extractions)) {
-      // Overlay: toggle tooth in/out of the clasp set without affecting other status
+    if (isOverlayExtractionCode(extractionCode, extractions)) {
+      // Overlay: only on teeth whose base status is TIM (teeth in mouth / is_tim Yes)
       const setter = arch === "maxillary" ? setMaxillaryClaspTeeth : setMandibularClaspTeeth;
       setter((prev) => {
         if (prev.includes(toothNumber)) {
-          // Deselecting — always allowed
           return prev.filter((t) => t !== toothNumber);
         }
-        // Adding — check max_teeth
+        if (!toothHasTimBaseExtraction(toothNumber, toothExtractionMap, extractions)) {
+          return prev;
+        }
         const maxTeeth = getMaxTeeth();
         if (maxTeeth !== null && prev.length >= maxTeeth) {
-          return prev; // At limit, block selection
+          return prev;
         }
         return [...prev, toothNumber];
       });

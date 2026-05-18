@@ -23,7 +23,11 @@ export function CenterNavigation({
   showMandibularArrow = false,
 }: CenterNavigationProps) {
   return (
-    <div className="flex flex-col items-center justify-start pt-6 flex-shrink-0 w-16 order-2 lg:order-none gap-1">
+    <div
+      className={`flex flex-col items-center justify-start pt-6 flex-shrink-0 order-2 lg:order-none gap-1 ${
+        showTeethInMouth ? "w-auto" : "w-0 overflow-hidden"
+      }`}
+    >
       {/* "Teeth in mouth" pill — visible only on initial load before any extraction is applied */}
       {showTeethInMouth && (
         <div className="flex items-center gap-0 mb-2">

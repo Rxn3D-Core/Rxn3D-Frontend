@@ -16,7 +16,6 @@ export function GumShadePicker({ selected, onSelect, gumShades }: GumShadePicker
   const [pageIndex, setPageIndex] = useState(0);
   const [showBrandDropdown, setShowBrandDropdown] = useState(false);
   const [localSelected, setLocalSelected] = useState<string | null>(selected ?? null);
-  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Get unique brands for the dropdown
   const brands = useMemo(() => {
@@ -169,15 +168,16 @@ export function GumShadePicker({ selected, onSelect, gumShades }: GumShadePicker
                 type="button"
                 onClick={() => {
                   setLocalSelected(shade.name);
-                  if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
-                  closeTimerRef.current = setTimeout(() => onSelect(shade), 500);
+                  onSelect(shade);
                 }}
-                className="flex flex-col items-center justify-center flex-1 min-w-0 py-[7px] gap-[7px]"
+                className="group flex flex-col items-center justify-center flex-1 min-w-0 py-[7px] gap-[7px] cursor-pointer rounded-lg transition-transform duration-200 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8] focus-visible:ring-offset-2"
               >
                 <div className="relative flex-shrink-0" style={{ width: "63px", height: "63px" }}>
                   <div
-                    className={`absolute inset-0 rounded-full ${
-                      isSelected ? "border-[2px] border-[#1162A8]" : "border-[1.4px] border-[#D9D9D9]"
+                    className={`absolute inset-0 rounded-full transition-all duration-200 ${
+                      isSelected
+                        ? "border-[2px] border-[#1162A8] shadow-sm"
+                        : "border-[1.4px] border-[#D9D9D9] group-hover:border-[2px] group-hover:border-[#1162A8] group-hover:shadow-md"
                     }`}
                   />
                   <div
@@ -192,7 +192,7 @@ export function GumShadePicker({ selected, onSelect, gumShades }: GumShadePicker
                   />
                 </div>
                 <span
-                  className="text-center text-black tracking-[-0.02em] leading-[15px] w-full px-1"
+                  className="text-center text-black tracking-[-0.02em] leading-[15px] w-full px-1 transition-colors duration-200 group-hover:text-[#1162A8] group-hover:font-medium"
                   style={{
                     fontFamily: "Verdana, sans-serif",
                     fontSize: "11px",

@@ -40,12 +40,34 @@ export function getRepresentativeTeethByCard({
 
   for (const tooth of candidateTeeth) {
     const card = getToothProductCard(arch, tooth);
-    if (card != null && !cardToRepresentativeTooth.has(card)) {
+    if (card == null) continue;
+    const existing = cardToRepresentativeTooth.get(card);
+    if (existing === undefined || tooth < existing) {
       cardToRepresentativeTooth.set(card, tooth);
     }
   }
 
   return [...cardToRepresentativeTooth.values()];
+}
+
+/** Lowest tooth number on a product card — matches panel `cardTeeth[0]` ordering. */
+export function getCardRepresentativeTooth({
+  allTeeth,
+  cardId,
+  getToothProduct,
+  getToothProductCard,
+  arch,
+}: {
+  allTeeth: number[];
+  cardId: number;
+  getToothProduct: GetToothProduct;
+  getToothProductCard: GetToothProductCard;
+  arch: Arch;
+}) {
+  const cardTeeth = allTeeth.filter(
+    (tooth) => !!getToothProduct(arch, tooth) && getToothProductCard(arch, tooth) === cardId
+  );
+  return cardTeeth.length > 0 ? cardTeeth[0] : null;
 }
 
 export function getPrimaryCardRepresentativeTooth({
@@ -62,6 +84,6 @@ export function getPrimaryCardRepresentativeTooth({
   arch: Arch;
 }) {
   const candidateTeeth = getCandidateTeeth({ allTeeth, selectedTeeth, getToothProduct, arch });
-  const found = candidateTeeth.find((tooth) => getToothProductCard(arch, tooth) === 0);
-  return found ?? null;
+  const card0Teeth = candidateTeeth.filter((tooth) => getToothProductCard(arch, tooth) === 0);
+  return card0Teeth.length > 0 ? Math.min(...card0Teeth) : null;
 }

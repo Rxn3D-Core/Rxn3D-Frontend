@@ -20,7 +20,7 @@ export function CaseDesignHeaderActions({
   disableMandibularProduct,
 }: CaseDesignHeaderActionsProps) {
   return (
-    <div className="relative flex items-center mb-1 md:mb-2 px-4 sm:px-16 md:px-32 lg:px-64">
+    <div className="relative flex items-center mb-1 md:mb-2 px-2 md:px-4">
       {onBackToProducts && !caseSubmitted && (
         <button
           onClick={!hasIncompleteAccordion ? onBackToProducts : undefined}

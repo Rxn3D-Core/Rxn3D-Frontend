@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import type React from "react";
 import type { Arch, RetentionType, ProductApiData, ProductAdvanceField } from "../types";
+import { shouldSkipStageSelection } from "../utils/categoryHelpers";
 
 /**
  * The sequential fields shown one by one when Prep or Pontic is selected.
@@ -88,6 +89,7 @@ export function getRetentionFieldChain(
     // impression, addons. Exclude gated fields that require specific advance_field entries
     // (characterization, contact_icons, margin, metal, proximal_contact).
     return FIXED_FIELD_STEPS.filter((step) => {
+      if (step === "fixed_stage" && shouldSkipStageSelection(product)) return false;
       if (step === "fixed_stump_shade") return hasTeethShadeFlag || hasGumShadeFlag;
       if (step === "fixed_shade_trio") return hasTeethShadeFlag;
       return !FIXED_STEP_ADVANCE_FIELD_PATTERNS[step];
@@ -97,6 +99,7 @@ export function getRetentionFieldChain(
   const normalizedNames = advanceFields.map((f) => (f.name ?? "").toLowerCase().trim());
 
   return FIXED_FIELD_STEPS.filter((step) => {
+    if (step === "fixed_stage" && shouldSkipStageSelection(product)) return false;
     const pattern = FIXED_STEP_ADVANCE_FIELD_PATTERNS[step];
     if (!pattern) return true; // no gate — always show (stage, impression, addons, notes)
     // Shade steps: include if advance_fields match OR has_* flag is set
@@ -126,6 +129,7 @@ export function getSelectionFieldChain(
   };
 
   return FIELD_STEPS.filter((step) => {
+    if (step === "stage" && shouldSkipStageSelection(product)) return false;
     const flagKey = stepFlagMap[step];
     if (!flagKey) return true;
     const val = product[flagKey];

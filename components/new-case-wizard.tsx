@@ -17,6 +17,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { FieldInput, SelectField } from "@/components/case-design-center/components/fields";
 import { getJawSelectionPopoverInsets } from "@/components/case-design-center/utils/jawSelectionPopoverLayout";
+import {
+  getPatientNameFieldLabel,
+  isValidPatientName,
+  shouldAutoOpenPatientGender,
+  shouldShowPatientGenderField,
+} from "@/lib/patient-name-validation";
 
 /* ------------------------------------------------------------------ */
 /*  Role / auth helpers (client-only)                                  */
@@ -447,31 +453,14 @@ function StepPatientInfo({
   };
 
   const name = patientName ?? "";
-  const showGenderField = (() => {
-    const nameParts = name.trim().split(/\s+/).filter((part) => part.length > 0);
-    if (nameParts.length < 2) return false;
-    // Keep visibility criteria aligned with submit/name validation:
-    // first and last name must be at least 2 chars; middle words may be initials.
-    const lastPart = nameParts[nameParts.length - 1];
-    return nameParts[0].length >= 2 && lastPart.length >= 2;
-  })();
-
-  const shouldAutoOpenGender = (inputName: string, inputGender: string): boolean => {
-    if (inputGender.trim() !== "") return false;
-    const nameParts = inputName.trim().split(/\s+/).filter((part) => part.length > 0);
-    if (nameParts.length >= 2) {
-      const lastWord = nameParts[nameParts.length - 1];
-      return lastWord.length === 2;
-    }
-    return false;
-  };
+  const showGenderField = shouldShowPatientGenderField(name);
 
   const handleNameChange = (value: string) => {
     setPatientName(value);
     if (refocusTimerRef.current) {
       clearTimeout(refocusTimerRef.current);
     }
-    const shouldOpen = shouldAutoOpenGender(value, gender);
+    const shouldOpen = shouldAutoOpenPatientGender(value, gender);
     if (shouldOpen && !isGenderFocused) {
       setIsGenderFocused(true);
       refocusTimerRef.current = setTimeout(() => focusPatientInput(), 50);
@@ -487,14 +476,7 @@ function StepPatientInfo({
 
   const hasNameValue = name.trim() !== "";
   const hasGenderValue = gender.trim() !== "";
-  const isValidName = () => {
-    if (!hasNameValue) return false;
-    const nameParts = name.trim().split(/\s+/).filter((part) => part.length > 0);
-    if (nameParts.length < 2) return false;
-    const lastPart = nameParts[nameParts.length - 1];
-    return nameParts[0].length >= 2 && lastPart.length >= 2;
-  };
-  const isNameValid = isValidName();
+  const isNameValid = hasNameValue && isValidPatientName(name);
   const isGenderValid = hasGenderValue;
 
   const getNameBorderColor = () => {
@@ -519,16 +501,7 @@ function StepPatientInfo({
     if (isGenderFocused) return "text-[#1162A8]";
     return "text-[#7F7F7F]";
   };
-  const getNameLabel = () => {
-    const trimmed = name.trim();
-    const parts = trimmed.split(/\s+/).filter((p) => p.length > 0);
-    const firstWord = parts[0] ?? "";
-    const secondWord = parts[1] ?? "";
-    if (firstWord.length === 0) return "Patient name";
-    if (secondWord.length >= 3) return "Patient name";
-    if (firstWord.length >= 3) return "Enter patient's last name";
-    return "Enter patient's full name";
-  };
+  const getNameLabel = () => getPatientNameFieldLabel(name);
 
   const getNameRingEffect = () => {
     if (isNameValid) return "ring-2 ring-[#119933] ring-opacity-20 shadow-[0_0_0_4px_rgba(17,153,51,0.15)]";
@@ -1755,13 +1728,8 @@ export default function NewCaseWizard({
         return isStepDoctor(1) ? selectedDoctor !== null : selectedLab !== null;
       case 2:
         return isStepDoctor(2) ? selectedDoctor !== null : selectedLab !== null;
-      case 3: {
-        const p = patientName.trim();
-        if (!p || !gender) return false;
-        const parts = p.split(/\s+/).filter(Boolean);
-        if (parts.length < 2) return false;
-        return parts[0].length >= 2 && parts[parts.length - 1].length >= 2;
-      }
+      case 3:
+        return isValidPatientName(patientName) && Boolean(gender);
       case 4:
         return selectedCategory !== null;
       case 5:

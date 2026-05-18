@@ -38,6 +38,15 @@ function isTeethInMouthCode(_code: string, name: string): boolean {
   return n.includes('teeth in mouth') || n.includes('in mouth')
 }
 
+function hexToRgb(hex: string): string {
+  const clean = hex.replace('#', '')
+  if (clean.length < 6) return '170,170,170'
+  const r = parseInt(clean.substring(0, 2), 16)
+  const g = parseInt(clean.substring(2, 4), 16)
+  const b = parseInt(clean.substring(4, 6), 16)
+  return `${r},${g},${b}`
+}
+
 function ToothImage({ toothNumber, style, className }: { toothNumber: number; style?: React.CSSProperties; className?: string }) {
   const arch = toothNumber <= 16 ? 'maxillary' : 'mandibular'
   return (
@@ -191,7 +200,16 @@ export const ToothStatusPopover: React.FC<ToothStatusPopoverProps> = ({
                 <WillExtractToothDisplay toothNumber={toothNumber} />
               ) : (
                 <div className="w-full h-[90px]">
-                  <ToothImage toothNumber={toothNumber} />
+                  <ToothImage
+                    toothNumber={toothNumber}
+                    style={
+                      opt.visibilityType === 'Color' && opt.color
+                        ? {
+                            filter: `opacity(0.35) drop-shadow(rgb(${hexToRgb(opt.color)}) 0px 0px 0px)`,
+                          }
+                        : undefined
+                    }
+                  />
                 </div>
               )}
               {/* Label */}

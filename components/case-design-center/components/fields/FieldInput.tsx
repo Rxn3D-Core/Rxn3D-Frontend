@@ -2,25 +2,7 @@
 
 import { Check } from "lucide-react";
 import { useState } from "react";
-
-/** Derives the dynamic hint text for the patient name field based on typed value. */
-function getPatientNameHint(value: string, baseLabel: string): string {
-  const trimmed = value.trimStart();
-  const words = trimmed.split(/\s+/);
-  const firstWord = words[0] ?? "";
-  const secondWord = words[1] ?? "";
-
-  // 3rd letter of 2nd word → back to base label
-  if (secondWord.length >= 3) return baseLabel;
-
-  // 3rd letter of first word → prompt for last name
-  if (firstWord.length >= 3) return "Enter patient's last name";
-
-  // 1st letter of first word → prompt for full name
-  if (firstWord.length >= 1) return "Enter patient's full name";
-
-  return baseLabel;
-}
+import { getPatientNameFieldLabel } from "@/lib/patient-name-validation";
 
 export function FieldInput({
   label,
@@ -50,7 +32,7 @@ export function FieldInput({
 
   // The legend (floating label) updates dynamically when smartPatientLabel is active
   const legendLabel = smartPatientLabel && !submitted
-    ? getPatientNameHint(value, label)
+    ? getPatientNameFieldLabel(value, label)
     : label;
 
   return (

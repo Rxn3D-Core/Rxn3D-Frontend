@@ -348,6 +348,7 @@ export interface ProductExtraction {
   max_teeth: number | null;
   is_image_extraction: string;
   image_url: string | null;
+  is_tim?: 'Yes' | 'No' | string;
   overlay: 'Yes' | 'No' | string;
   images: ExtractionToothImage[];
   visibility_type: 'Image' | 'Color' | string;
