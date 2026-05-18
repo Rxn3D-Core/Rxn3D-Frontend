@@ -1,5 +1,21 @@
+import { isOverlayExtractionByFlag, isTimExtractionByFlag } from "./extractionHelpers";
+
 function getSortedUniqueTeeth(teeth: number[]): number[] {
   return [...new Set(teeth)].sort((a, b) => a - b);
+}
+
+/** True when this tooth has an overlay extraction (e.g. Clasps) — never counts toward the orange header. */
+export function toothHasOverlayAssignment(
+  toothNumber: number,
+  toothExtractionMap: Record<number, string>,
+  claspTeeth: number[],
+  extractions?: ReadonlyArray<{ code?: string | null; overlay?: string }> | null
+): boolean {
+  if (claspTeeth.includes(toothNumber)) return true;
+  const code = toothExtractionMap[toothNumber];
+  if (!code || !extractions?.length) return false;
+  const match = extractions.find((e) => e.code === code);
+  return match ? isOverlayExtractionByFlag(match) : false;
 }
 
 export function getCardScopedSelectedTeeth({
@@ -73,4 +89,75 @@ export function getStatusBoxTeeth({
       .filter(([, code]) => code === extractionCode)
       .map(([toothNumber]) => Number(toothNumber))
   );
+}
+
+export function getRemovableOrangeHeaderTeeth({
+  selectedTeeth,
+  toothExtractionMap,
+  claspTeeth = [],
+  noActiveBoxTeeth,
+  extractions,
+  isFullDenture,
+  isSingleDefaultOnly = false,
+}: {
+  selectedTeeth: number[];
+  toothExtractionMap: Record<number, string>;
+  /** Teeth with overlay === Yes (clasps) — excluded from orange header entirely */
+  claspTeeth?: number[];
+  noActiveBoxTeeth: number[];
+  extractions?: ReadonlyArray<{ code?: string | null; overlay?: string }>;
+  isFullDenture: boolean;
+  /** When true, product has only one default status — show all scoped teeth in the orange box. */
+  isSingleDefaultOnly?: boolean;
+}): number[] {
+  const withoutOverlay = (teeth: number[]) =>
+    teeth.filter(
+      (toothNumber) =>
+        !toothHasOverlayAssignment(toothNumber, toothExtractionMap, claspTeeth, extractions)
+    );
+
+  const scopedTeeth = withoutOverlay(
+    isFullDenture
+      ? selectedTeeth.filter((toothNumber) => {
+          const code = toothExtractionMap[toothNumber];
+          return !!code && code !== "TIM";
+        })
+      : selectedTeeth
+  );
+
+  if (isSingleDefaultOnly) {
+    return getSortedUniqueTeeth(scopedTeeth);
+  }
+
+  return getSortedUniqueTeeth(
+    scopedTeeth.filter(
+      (toothNumber) =>
+        !toothExtractionMap[toothNumber] ||
+        noActiveBoxTeeth.includes(toothNumber)
+    )
+  );
+}
+
+export function getToothStatusBoxDisplayMap({
+  extractions,
+  selectedTeeth,
+  toothExtractionMap,
+  claspTeeth,
+}: {
+  extractions: Array<{ code: string; is_tim?: string; overlay?: string }>;
+  selectedTeeth: number[];
+  toothExtractionMap: Record<number, string>;
+  claspTeeth: number[];
+}): Record<string, number[]> {
+  return extractions.reduce<Record<string, number[]>>((acc, extraction) => {
+    acc[extraction.code] = getStatusBoxTeeth({
+      selectedTeeth,
+      toothExtractionMap,
+      claspTeeth,
+      extractionCode: extraction.code,
+      isDefault: isTimExtractionByFlag(extraction),
+      isClasp: isOverlayExtractionByFlag(extraction),
+    });
+    return acc;
+  }, {});
 }

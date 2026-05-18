@@ -2,6 +2,7 @@ import React, { useLayoutEffect, useRef, useState } from 'react'
 import ReactDOM from 'react-dom'
 import { RetentionTypePopover, RetentionOptionItem } from './retention-type-popover'
 import { ToothStatusPopover, ToothStatusOption } from './tooth-status-popover'
+import { getClaspOverlayImageUrl } from './case-design-center/utils/claspOverlayImage'
 
 // Wrapper that positions children above a target point, clamped to container bounds.
 // When `renderChildren` is provided, it receives the arrow offset (x within the popover
@@ -145,6 +146,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
     onCheckedTeethChange?.(Array.from(checkedTeeth).sort((a, b) => a - b))
   }, [checkedTeeth, onCheckedTeethChange])
 
+  React.useEffect(() => {
+    if (disabled) setHoveredTooth(null)
+  }, [disabled])
+
   const isToothSelected = (toothNumber: number) => selectedTeeth.includes(toothNumber)
 
   const resolveExtraction = (toothNumber: number): { code: string; name: string; visibility_type?: string; color?: string | null; overlay?: string } | null => {
@@ -247,6 +252,29 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
 
   const renderClaspOverlay = (toothNumber: number, x: number, width: number, yOffset: number = 0) => {
     if (!isToothClasp(toothNumber)) return null
+    const dynamicUrl = getClaspOverlayImageUrl({
+      toothNumber,
+      claspTeeth,
+      toothExtractionMap,
+      extractionImagesByCode,
+      extractionsByCode,
+    })
+    if (dynamicUrl) {
+      const claspW = Math.max(width, 20)
+      const claspH = Math.round(claspW * (17 / 41))
+      return (
+        <image
+          key={`clasp-${toothNumber}`}
+          href={dynamicUrl}
+          x={x}
+          y={yOffset}
+          width={claspW}
+          height={claspH}
+          preserveAspectRatio="none"
+          style={{ pointerEvents: 'none' }}
+        />
+      )
+    }
     const acrylic = hasAnyAcrylicClasp
     const claspW = Math.max(width, 20)
     const claspH = Math.round(claspW * (17 / 41))
@@ -1403,7 +1431,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
           </defs>
 
           {/* Show gear icon and orange circle on hover (for all teeth, rendered on top) */}
-          {hoveredTooth !== null && !isToothSelected(hoveredTooth) && !hideSelectionIndicators && (
+          {hoveredTooth !== null && !disabled && !isToothSelected(hoveredTooth) && !hideSelectionIndicators && (
             <>
               {renderSelectionIndicator(hoveredTooth)}
               {renderGearIcon(hoveredTooth)}
