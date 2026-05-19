@@ -71,6 +71,8 @@ import { mapOppositeExtractionsToProductExtractions } from "../utils/opposingExt
 import { RetentionProductFields } from "./FixedRestorationFields";
 import { SelectionProductFields } from "./RemovableRestorationFields";
 import { ProductAccordionCard } from "./ProductAccordionCard";
+import { OpposingRemovableAccordion } from "./OpposingRemovableAccordion";
+import { MAXILLARY_SENTINEL } from "../utils/opposingImpressionReadiness";
 
 import { AccordionBadge, EstDaysLabel } from "./AccordionBadge";
 import { ProductImagePreview } from "./ProductImagePreview";
@@ -871,8 +873,6 @@ export function MandibularPanel({
       }
       return changed ? next : prev;
     }), []);
-  /** Expand/collapse for the opposing product accordion */
-  const [opposingAccordionExpanded, setOpposingAccordionExpanded] = useState(true);
   /** Active extraction code selected in the opposing ToothStatusBoxes */
   const [opposingActiveExtractionCode, setOpposingActiveExtractionCode] = useState<string | null>(null);
   const [opposingActiveExtractions, setOpposingActiveExtractions] = useState<import("../types").ProductExtraction[]>([]);
@@ -1470,6 +1470,10 @@ export function MandibularPanel({
                   onClosePopover={() => setRetentionPopoverState({ arch: null, toothNumber: null })}
                   onDeselectTooth={handleMandibularToothDeselect}
                   retentionOptions={activeMandibularRetentionOptions}
+                  getRetentionOptionsForTooth={(toothNumber) =>
+                    getToothProduct("mandibular", toothNumber)?.retention_options ??
+                    activeMandibularRetentionOptions
+                  }
                   toothExtractionMap={activeMandibularSvgState.toothExtractionMap}
                   hideSelectionIndicators={
                     isActiveMandibularProductDetailPending ||
@@ -3063,125 +3067,43 @@ export function MandibularPanel({
                   return `${qty}x ${productImpression?.name || afterMandibular}`;
                 }).join(", ");
               })();
-              // Map ProductOppositeExtraction to ProductExtraction shape for ToothStatusBoxes
-              const opposingExtractions = mapOppositeExtractionsToProductExtractions(
-                opposingProductData.opposite_extractions,
-                opposingProductData.extractions
-              );
-              const opposingIsSingleDefaultOnly = isSingleDefaultOnlyExtractionList(opposingExtractions);
-
-              // Mandibular opposing (teeth 17–32) when slip is max-primary — see CaseDesignCenter opposingProductData.
-              const OPPOSING_ARCH_TEETH = [17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
-              const opposingAssignedTeeth = getRemovableOrangeHeaderTeeth({
-                selectedTeeth:
-                  opposingSelectedTeeth.length > 0
-                    ? opposingSelectedTeeth
-                    : Object.keys(opposingToothExtractionMap).map(Number),
-                toothExtractionMap: opposingToothExtractionMap,
-                claspTeeth: opposingClaspTeeth,
-                noActiveBoxTeeth: opposingNoActiveBoxTeeth,
-                extractions: opposingExtractions,
-                isFullDenture: false,
-                isSingleDefaultOnly: opposingIsSingleDefaultOnly,
-              });
-
               return (
-                <div key="opposing-accordion" className="relative mt-4">
-                  <div className="rounded-lg bg-white overflow-hidden border border-[#d9d9d9]">
-                    {/* Header — matches MaxillaryPanel card-0 removable style: white bg, category pills on top, green-bordered title box */}
-                    <div
-                      className="w-full flex flex-col transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] relative bg-white cursor-pointer"
-                      onClick={() => setOpposingAccordionExpanded(e => !e)}
-                    >
-                      <div className="absolute top-3 right-2 z-10">
-                        <ChevronDown
-                          size={21.6}
-                          className={`text-black transition-transform ${opposingAccordionExpanded ? "rotate-180" : ""}`}
-                        />
-                      </div>
-                      {/* Product info */}
-                      <div className="flex items-stretch gap-[10px] px-[8px] py-[14px]" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex-1 min-w-0 flex flex-col gap-[9.94px]">
-                          {/* Category + subcategory badges at the top */}
-                          <div className="flex items-center gap-[4px] flex-wrap">
-                            {opposingProductData.subcategory?.category?.name && (
-                              <AccordionBadge>{opposingProductData.subcategory.category.name}</AccordionBadge>
-                            )}
-                            {opposingProductData.subcategory?.name && (
-                              <AccordionBadge>{opposingProductData.subcategory.name}</AccordionBadge>
-                            )}
-                          </div>
-                          {/* Tooth status boxes */}
-                          {!opposingIsSingleDefaultOnly && (
-                            <div onClick={(e) => e.stopPropagation()}>
-                              <ToothStatusBoxes
-                                extractions={opposingExtractions}
-                                selectedTeeth={
-                                  opposingSelectedTeeth.length > 0
-                                    ? opposingSelectedTeeth
-                                    : Object.keys(opposingToothExtractionMap).map(Number)
-                                }
-                                allArchTeeth={OPPOSING_ARCH_TEETH}
-                                toothExtractionMap={opposingToothExtractionMap}
-                                claspTeeth={opposingClaspTeeth}
-                                displayTeethByCode={getToothStatusBoxDisplayMap({
-                                  extractions: opposingExtractions,
-                                  selectedTeeth:
-                                    opposingSelectedTeeth.length > 0
-                                      ? opposingSelectedTeeth
-                                      : Object.keys(opposingToothExtractionMap).map(Number),
-                                  toothExtractionMap: opposingToothExtractionMap,
-                                  claspTeeth: opposingClaspTeeth,
-                                })}
-                                activeExtractionCode={opposingActiveExtractionCode}
-                                onActiveExtractionChange={(code, exts) => {
-                                  setOpposingActiveExtractionCode(code);
-                                  if (exts) setOpposingActiveExtractions(exts);
-                                }}
-                                onToothExtractionToggle={(tn, code, exts) =>
-                                  onOpposingExtractionToggle?.(tn, code, exts ?? opposingExtractions)
-                                }
-                                onSelectAllTeeth={(teeth) => onSelectAllOpposingTeeth?.(teeth)}
-                                onRequiredValidationChange={onToothStatusValidationChange}
-                                isRemovable={true}
-                                submitted={caseSubmitted}
-                                hideDefaultBox={true}
-                                disableRequiredValidation={true}
-                              />
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    {/* Body */}
-                    {opposingAccordionExpanded && (
-                      <div className="px-[14px] py-[14px] flex flex-col gap-[10px]">
-                        <fieldset
-                          className={`border border-[#b4b0b0] rounded px-3 py-0 relative h-[42px] flex items-center ${caseSubmitted ? "" : "cursor-pointer hover:bg-gray-50"}`}
-                          onClick={() => {
-                            if (caseSubmitted) return;
-                            safeOpenImpressionModal(
-                              "mandibular",
-                              opposingProductData.id?.toString() ?? "0",
-                              opposingSelectedTeeth.length > 0
-                                ? Math.min(...opposingSelectedTeeth)
-                                : 17
-                            );
-                          }}
-                        >
-                          <legend className="text-sm px-1 leading-none text-[#7f7f7f]">Impression</legend>
-                          <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{opposingImpressionText || "No Opposing"}</span>
-                        </fieldset>
-                        {!opposingImpressionText && (
-                          <p className="font-['Verdana'] text-sm text-black">
-                            No impression will be sent on this appointment.{" "}
-                            Please note that opposing scan is <span className="text-[#CF0202] font-bold">required</span> for this impression.
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <OpposingRemovableAccordion
+                  key="opposing-accordion"
+                  opposingArch="mandibular"
+                  fieldArch="maxillary"
+                  fieldRepTn={MAXILLARY_SENTINEL}
+                  opposingProductData={opposingProductData}
+                  opposingArchTeeth={[17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32]}
+                  opposingToothExtractionMap={opposingToothExtractionMap}
+                  opposingClaspTeeth={opposingClaspTeeth}
+                  opposingNoActiveBoxTeeth={opposingNoActiveBoxTeeth}
+                  opposingSelectedTeeth={opposingSelectedTeeth}
+                  selectedImpressions={selectedImpressions}
+                  opposingImpressionText={opposingImpressionText}
+                  confirmDetailsChecked={confirmDetailsChecked}
+                  caseSubmitted={caseSubmitted}
+                  selectedStages={selectedStages}
+                  rushedProducts={rushedProducts}
+                  isFieldVisible={isFieldVisible}
+                  isFieldCompleted={isFieldCompleted}
+                  completeFieldStep={completeFieldStep}
+                  getFieldValue={getFieldValue}
+                  handleOpenStageModal={handleOpenStageModal}
+                  handleShadeFieldClick={handleShadeFieldClick}
+                  handleOpenImpressionModal={safeOpenImpressionModal}
+                  handleOpenAddOnsModal={handleOpenAddOnsModal}
+                  getImpressionDisplayText={
+                    getImpressionDisplayText as (productId: string, arch: Arch) => string
+                  }
+                  setPanelGumShadePicker={setPanelGumShadePicker}
+                  opposingActiveExtractionCode={opposingActiveExtractionCode}
+                  setOpposingActiveExtractionCode={setOpposingActiveExtractionCode}
+                  setOpposingActiveExtractions={setOpposingActiveExtractions}
+                  onOpposingExtractionToggle={onOpposingExtractionToggle}
+                  onSelectAllOpposingTeeth={onSelectAllOpposingTeeth}
+                  onToothStatusValidationChange={onToothStatusValidationChange}
+                />
               );
             })()}
 

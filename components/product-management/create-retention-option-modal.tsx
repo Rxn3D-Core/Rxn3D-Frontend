@@ -21,6 +21,12 @@ import {
     type RetentionOptionPayload,
     type RetentionOptionUpdatePayload,
 } from "@/services/retention-options-api"
+import {
+    RETENTION_SELECTOR_SHAPES,
+    getShapeApiName,
+    getShapeIdFromApiName,
+} from "@/components/retention-option-selector-shapes"
+import { RetentionSelectorShapeImage } from "@/components/RetentionSelectorShapeImage"
 
 interface CreateRetentionOptionModalProps {
     isOpen: boolean
@@ -35,86 +41,6 @@ interface CreateRetentionOptionModalProps {
     scopedCustomerId?: number | null
     /** Global product library: edit mode shows a tab for per-tooth catalog images (teeth 1–32). */
     globalToothImageLibrary?: boolean
-}
-
-// Shape definitions with SVG paths - returns icon with dynamic color
-const SHAPES = [
-    {
-        id: 'incomplete-circle', name: 'Incomplete Circle', apiName: 'Keyhole', getIcon: (color: string) => (
-            <svg width="38" height="38" viewBox="0 0 55 55" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M21.5155 49.1895C16.245 47.7353 11.6842 44.4117 8.68566 39.8398C5.68708 35.2679 4.45583 29.7606 5.22202 24.347C5.9882 18.9334 8.69938 13.9841 12.8489 10.4238C16.9984 6.86361 22.3023 4.93614 27.7695 5.00161C33.2366 5.06709 38.4928 7.12104 42.5559 10.7796C46.6189 14.4382 49.2108 19.4511 49.8471 24.8815C50.4834 30.3118 49.1206 35.7881 46.0134 40.2869C42.9062 44.7856 38.2672 47.9991 32.9633 49.3266L30.2316 38.4133C32.8836 37.7495 35.2031 36.1428 36.7567 33.8934C38.3103 31.644 38.9917 28.9059 38.6736 26.1907C38.3554 23.4755 37.0595 20.9691 35.0279 19.1398C32.9964 17.3105 30.3683 16.2835 27.6347 16.2508C24.9012 16.2181 22.2492 17.1818 20.1744 18.9619C18.0997 20.742 16.7441 23.2167 16.361 25.9235C15.9779 28.6303 16.5935 31.3839 18.0928 33.6699C19.5921 35.9558 21.8725 37.6177 24.5078 38.3448L21.5155 49.1895Z" fill={color} />
-            </svg>
-        )
-    },
-    {
-        id: 'crescent', name: 'Crescent', apiName: 'Moon', getIcon: (color: string) => (
-            <svg width="31" height="42" viewBox="0 0 44 60" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M30 5C33.115 5 36.0963 5.57142 38.8467 6.6123C29.4054 10.1848 22.6924 19.3084 22.6924 30.001C22.6924 40.6927 29.4047 49.8146 38.8447 53.3877C36.0949 54.4282 33.1143 55 30 55C16.193 54.9999 5.00007 43.807 5 30C5 16.193 16.193 5.00007 30 5Z" fill={color} />
-            </svg>
-        )
-    },
-    {
-        id: 'diamond', name: 'Diamond', apiName: 'Diamond', getIcon: (color: string) => (
-            <svg width="42" height="42" viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M30 5L55 30L30 55L5 30L30 5Z" fill={color} />
-            </svg>
-        )
-    },
-    {
-        id: 'square', name: 'Square', apiName: 'Square', getIcon: (color: string) => (
-            <svg width="42" height="42" viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect x="12.5" y="12.5" width="35" height="35" fill={color} />
-            </svg>
-        )
-    },
-    {
-        id: 'octagon', name: 'Octagon', apiName: 'Octagon', getIcon: (color: string) => (
-            <svg width="42" height="42" viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M30 5L47.6777 12.3223L55 30L47.6777 47.6777L30 55L12.3223 47.6777L5 30L12.3223 12.3223L30 5Z" fill={color} />
-            </svg>
-        )
-    },
-    {
-        id: 'triangle', name: 'Triangle', apiName: 'Triangle', getIcon: (color: string) => (
-            <svg width="38" height="42" viewBox="0 0 55 60" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M27.5 10.5L46.9856 44.25H8.01443L27.5 10.5Z" fill={color} />
-            </svg>
-        )
-    },
-    {
-        id: 'star', name: 'Star', apiName: 'Star', getIcon: (color: string) => (
-            <svg width="42" height="42" viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M30 5.5L35.6129 22.7746H53.7764L39.0818 33.4508L44.6946 50.7254L30 40.0491L15.3054 50.7254L20.9182 33.4508L6.22359 22.7746H24.3871L30 5.5Z" fill={color} />
-            </svg>
-        )
-    },
-    {
-        id: 'pentagon', name: 'Pentagon', apiName: 'Pentagon', getIcon: (color: string) => (
-            <svg width="42" height="42" viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M30 6L53.7764 23.2746L44.6946 51.2254H15.3054L6.22359 23.2746L30 6Z" fill={color} />
-            </svg>
-        )
-    },
-    {
-        id: 'starburst', name: 'Starburst', apiName: 'Burst', getIcon: (color: string) => (
-            <svg width="42" height="42" viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M30 5L34.1432 21.3965L49.5458 14.4128L39.3097 27.8751L54.3732 35.563L37.4658 35.9538L40.8471 52.5242L30 39.5491L19.1529 52.5242L22.5342 35.9538L5.6268 35.563L20.6903 27.8751L10.4542 14.4128L25.8568 21.3965L30 5Z" fill={color} />
-            </svg>
-        )
-    },
-]
-
-// Helper function to map shape ID to API shape name
-const getShapeApiName = (shapeId: string): string | null => {
-    const shape = SHAPES.find(s => s.id === shapeId)
-    return shape?.apiName || null
-}
-
-// Helper function to map API shape name to shape ID
-const getShapeIdFromApiName = (apiName: string | null): string => {
-    if (!apiName) return ""
-    const shape = SHAPES.find(s => s.apiName === apiName)
-    return shape?.id || ""
 }
 
 export function CreateRetentionOptionModal({
@@ -858,20 +784,26 @@ export function CreateRetentionOptionModal({
                                         </TooltipProvider>
                                     </div>
 
-                                    <div className="flex flex-nowrap gap-1.5 justify-center">
-                                        {SHAPES.map((shape) => {
+                                    <div className="flex flex-wrap gap-1.5 justify-center">
+                                        {RETENTION_SELECTOR_SHAPES.map((shape) => {
                                             const isSelected = selectedShape === shape.id
-                                            const fillColor = isSelected ? "#1162A8" : "#D9D9D9"
                                             return (
                                                 <button
                                                     key={shape.id}
                                                     type="button"
                                                     onClick={() => { setSelectedShape(shape.id); setHasChanges(true) }}
-                                                    className="p-1.5 rounded-lg transition-all hover:bg-gray-50"
+                                                    className={cn(
+                                                        "p-1.5 rounded-lg transition-all hover:bg-gray-50",
+                                                        isSelected && "ring-2 ring-[#1162A8] ring-offset-1 bg-blue-50/50"
+                                                    )}
                                                     disabled={!detailsEnabled}
+                                                    title={shape.name}
                                                 >
                                                     <div className="flex items-center justify-center">
-                                                        {shape.getIcon(fillColor)}
+                                                        <RetentionSelectorShapeImage
+                                                            apiName={shape.apiName}
+                                                            selected={isSelected}
+                                                        />
                                                     </div>
                                                 </button>
                                             )

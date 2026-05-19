@@ -477,6 +477,14 @@ export interface ProductApiData {
     retention_option_id?: number;
     status?: string;
     sequence?: number;
+    images?: ExtractionToothImage[];
+    global_connection?: {
+      sample_image_url?: string | null;
+      global_retention_option_id?: number;
+      global_retention_option_name?: string;
+      is_connected_to_global?: boolean;
+      [key: string]: unknown;
+    } | null;
     lab_retention_option?: {
       id?: number;
       name?: string;
