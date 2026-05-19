@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { ChevronDown } from "lucide-react";
 import { CardGallery, type CardGalleryItem } from "./fields/CardGallery";
 import { CardSelectorField } from "./fields/CardSelectorField";
 import { SelectField } from "./fields/SelectField";
@@ -8,23 +9,30 @@ import { ImplantInclusionsField } from "./fields/ImplantInclusionsField";
 import type { ProductAdvanceField } from "../types";
 import {
   fetchProductImplants,
+  type ProductAbutment,
   type ProductImplant,
 } from "@/services/implant-api";
 import { getImplantDetailAbutmentOptions } from "../utils/implantDetailAbutmentOptions";
+import { getImplantDetailFieldLabels } from "../utils/implantDetailFieldLabels";
 
 export interface ImplantDetailData {
   brand: string;
+  /** Implant system name (paired with brand in field 1). */
+  systemName: string;
   platform: string;
   size: string;
   inclusions: string;
   inclusionQty: number;
-  abutmentDetail: string;
+  /** Abutment category, e.g. Office Provided. */
   abutmentType: string;
+  /** Specific abutment type, e.g. Stock Abutment. */
+  abutmentDetail: string;
   dynamicFields: Record<number, string>;
 }
 
 export const defaultImplantDetailData = (): ImplantDetailData => ({
   brand: "",
+  systemName: "",
   platform: "",
   size: "",
   inclusions: "No inclusion",
@@ -43,26 +51,14 @@ interface ImplantDetailSectionProps {
   advanceFields?: ProductAdvanceField[];
   productId?: number;
   customerId?: number;
+  /** From product details payload (`abutments`); no separate API call. */
+  productAbutments?: ProductAbutment[];
+  defaultCollapsed?: boolean;
 }
 
 function getActiveOptions(field: ProductAdvanceField): Array<{ id: number; name: string }> {
   return (field.options || []).filter(
-    (o: any) => !o.status || o.status === "Active"
-  );
-}
-
-function isImplantLibraryField(f: ProductAdvanceField) {
-  return f.field_type === "implant_library";
-}
-
-function isAbutmentField(f: ProductAdvanceField) {
-  return f.field_type === "dropdown" && f.advance_subcategory_id === 27;
-}
-
-function isInclusionField(f: ProductAdvanceField) {
-  return (
-    f.field_type === "dropdown" &&
-    (f.name || "").toLowerCase().includes("inclusion")
+    (o: { status?: string }) => !o.status || o.status === "Active"
   );
 }
 
@@ -75,8 +71,11 @@ export function ImplantDetailSection({
   advanceFields,
   productId,
   customerId,
+  productAbutments = [],
+  defaultCollapsed = true,
 }: ImplantDetailSectionProps) {
-  const [localData, setLocalData] = useState<ImplantDetailData>(defaultImplantDetailData);
+  const [isExpanded, setIsExpanded] = useState(!defaultCollapsed);
+  const [localData, setLocalData] = useState(defaultImplantDetailData());
   const isControlled = value !== undefined && onChange !== undefined;
   const data = isControlled ? value : localData;
 
@@ -88,11 +87,6 @@ export function ImplantDetailSection({
     }
   };
 
-  const updateDynamic = (fieldId: number, val: string) => {
-    const dynamicFields = { ...(data.dynamicFields ?? {}), [fieldId]: val };
-    update({ dynamicFields });
-  };
-
   const [apiImplants, setApiImplants] = useState<ProductImplant[]>([]);
 
   useEffect(() => {
@@ -100,102 +94,97 @@ export function ImplantDetailSection({
     fetchProductImplants(productId, customerId).then(setApiImplants).catch(() => setApiImplants([]));
   }, [productId, customerId]);
 
-  const hasAdvanceFields = advanceFields && advanceFields.length > 0;
+  const labels = useMemo(() => getImplantDetailFieldLabels(advanceFields), [advanceFields]);
+  const { inclusionField } = labels;
 
-  const implantLibFields = hasAdvanceFields
-    ? advanceFields!.filter(isImplantLibraryField).sort((a, b) => (a.link_sequence ?? a.sequence ?? 0) - (b.link_sequence ?? b.sequence ?? 0))
-    : [];
+  const abutmentConfig = useMemo(
+    () => getImplantDetailAbutmentOptions({ advanceFields, productAbutments }),
+    [advanceFields, productAbutments]
+  );
 
-  const abutmentFields = hasAdvanceFields
-    ? advanceFields!.filter(isAbutmentField).sort((a, b) => (a.link_sequence ?? a.sequence ?? 0) - (b.link_sequence ?? b.sequence ?? 0))
-    : [];
-
-  const inclusionField = hasAdvanceFields ? advanceFields!.find(isInclusionField) ?? null : null;
-
-  const implantSizeFallback = ["3.5mm", "4mm", "4.5mm", "5mm", "5.5mm", "6mm"];
-
-  const brandField = implantLibFields[0] ?? null;
-  const systemField = implantLibFields[1] ?? null;
-  const sizeField = implantLibFields[2] ?? null;
-
+  const [platformDropdownOpen, setPlatformDropdownOpen] = useState(false);
   const [sizeDropdownOpen, setSizeDropdownOpen] = useState(false);
-  const [abutmentDropdownOpen, setAbutmentDropdownOpen] = useState<Record<number, boolean>>({});
-  const [legacyAbutmentDetailOpen, setLegacyAbutmentDetailOpen] = useState(false);
-  const [legacyAbutmentTypeOpen, setLegacyAbutmentTypeOpen] = useState(false);
+  const [abutmentCategoryOpen, setAbutmentCategoryOpen] = useState(false);
+  const [abutmentTypeOpen, setAbutmentTypeOpen] = useState(false);
 
   const brand = data.brand;
+  const systemName = data.systemName;
   const platform = data.platform;
   const size = data.size;
   const inclusions = data.inclusions;
   const inclusionQty = data.inclusionQty;
-  const abutmentDetail = data.abutmentDetail;
-  const abutmentType = data.abutmentType;
+  const abutmentCategory = data.abutmentType;
+  const abutmentSpecificType = data.abutmentDetail;
   const dynamicFields = data.dynamicFields ?? {};
 
-  // Derive brand items with image and system name for rich cards
-  const brandItems: CardGalleryItem[] = apiImplants.map((i) => ({
-    value: i.brand_name,
+  const selectedImplant = useMemo(
+    () =>
+      apiImplants.find(
+        (i) => i.brand_name === brand && i.system_name === (systemName || i.system_name)
+      ) ?? null,
+    [apiImplants, brand, systemName]
+  );
+
+  useEffect(() => {
+    if (!brand || systemName || !apiImplants.length) return;
+    const match = apiImplants.find((i) => i.brand_name === brand);
+    if (match?.system_name) update({ systemName: match.system_name });
+  }, [brand, systemName, apiImplants]);
+
+  const brandSystemItems: CardGalleryItem[] = apiImplants.map((i) => ({
+    value: String(i.id),
     label: i.brand_name,
     subtitle: i.system_name,
     imageUrl: i.image_url,
   }));
 
-
-  const platformList: string[] = brand
-    ? (apiImplants.find((i) => i.brand_name === brand)?.platforms ?? [])
+  const platformOptions: string[] = selectedImplant
+    ? (selectedImplant.platforms ?? [])
         .filter((p) => p.status === "Active")
         .map((p) => p.name)
     : [];
 
-  const apiSizesForPlatform: string[] = brand && platform
-    ? (apiImplants.find((i) => i.brand_name === brand)?.platforms ?? [])
-        .filter((p) => p.status === "Active" && p.name === platform)
-        .flatMap((p) => p.sizes.filter((s) => s.status === "Active").map((s) => s.label))
+  const sizeOptions: string[] =
+    brand && platform
+      ? (selectedImplant?.platforms ?? [])
+          .filter((p) => p.status === "Active" && p.name === platform)
+          .flatMap((p) => p.sizes.filter((s) => s.status === "Active").map((s) => s.label))
+      : [];
+
+  const implantSizeFallback = ["3.5mm", "4mm", "4.5mm", "5mm", "5.5mm", "6mm"];
+
+  const brandSystemComplete = !!brand && !!(systemName || selectedImplant);
+  const platformComplete = brandSystemComplete && !!platform;
+  const sizeComplete = platformComplete && !!size;
+  const inclusionValue = inclusionField
+    ? (dynamicFields[inclusionField.id] ?? "No inclusion")
+    : inclusions;
+  const inclusionComplete = sizeComplete && !!inclusionValue.trim();
+  const abutmentCategoryComplete = inclusionComplete && !!abutmentCategory;
+  const abutmentTypeComplete =
+    abutmentCategoryComplete && !!abutmentSpecificType;
+
+  const isComplete = abutmentTypeComplete;
+
+  const abutmentTypeOptions = abutmentCategory
+    ? abutmentConfig.getAbutmentTypeOptions(abutmentCategory)
     : [];
 
-  const { abutmentTypeOptions, abutmentDetailOptions } = getImplantDetailAbutmentOptions({
-    advanceFields,
-  });
-
-  // Progressive visibility
-  const row1Complete = hasAdvanceFields
-    ? (implantLibFields.length === 0 || (!!brand && !!platform && !!size))
-    : (!!brand && !!platform && !!size);
-
-  const row2Visible = row1Complete;
-  const inclusionValue = inclusionField ? (dynamicFields[inclusionField.id] ?? "No inclusion") : inclusions;
-  const row2Complete = row1Complete && !!inclusionValue.trim();
-  const row3Visible = row2Complete;
-  const activeAbutmentFieldId = abutmentFields.find((f) => !(dynamicFields[f.id] ?? ""))?.id ?? null;
-
-  const abutmentComplete = abutmentFields.length > 0
-    ? abutmentFields.every((f) => !!(dynamicFields[f.id] ?? ""))
-    : !!abutmentDetail && !!abutmentType;
-
-  const isComplete = row2Complete && abutmentComplete;
+  useEffect(() => {
+    if (brandSystemComplete && !platform) setPlatformDropdownOpen(true);
+  }, [brandSystemComplete, platform]);
 
   useEffect(() => {
-    if (brand && platform && !size) setSizeDropdownOpen(true);
-  }, [brand, platform, size]);
+    if (platformComplete && !size) setSizeDropdownOpen(true);
+  }, [platformComplete, size]);
 
   useEffect(() => {
-    if (!hasAdvanceFields && row2Complete && !abutmentType) setLegacyAbutmentTypeOpen(true);
-  }, [hasAdvanceFields, row2Complete, abutmentType]);
+    if (inclusionComplete && !abutmentCategory) setAbutmentCategoryOpen(true);
+  }, [inclusionComplete, abutmentCategory]);
 
   useEffect(() => {
-    if (!hasAdvanceFields && row2Complete && abutmentType && !abutmentDetail) setLegacyAbutmentDetailOpen(true);
-  }, [hasAdvanceFields, row2Complete, abutmentType, abutmentDetail]);
-
-  useEffect(() => {
-    if (!hasAdvanceFields || !row3Visible) return;
-    for (const f of abutmentFields) {
-      if (!(dynamicFields[f.id] ?? "")) {
-        setAbutmentDropdownOpen((prev) => ({ ...prev, [f.id]: true }));
-        break;
-      }
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [row3Visible, JSON.stringify(dynamicFields)]);
+    if (abutmentCategoryComplete && !abutmentSpecificType) setAbutmentTypeOpen(true);
+  }, [abutmentCategoryComplete, abutmentSpecificType]);
 
   const onCompleteChangeRef = useRef(onCompleteChange);
   onCompleteChangeRef.current = onCompleteChange;
@@ -203,191 +192,218 @@ export function ImplantDetailSection({
     onCompleteChangeRef.current?.(isComplete);
   }, [isComplete]);
 
-  const borderColor = isComplete && !caseSubmitted ? "border-[#34a853]" : isComplete ? "border-[#b4b0b0]" : "border-[#CF0202]";
-  const legendColor = isComplete && !caseSubmitted ? "text-[#34a853]" : isComplete ? "text-[#7f7f7f]" : "text-[#CF0202]";
+  const borderColor =
+    isComplete && !caseSubmitted
+      ? "border-[#34a853]"
+      : isComplete
+        ? "border-[#b4b0b0]"
+        : "border-[#CF0202]";
+  const legendColor =
+    isComplete && !caseSubmitted
+      ? "text-[#34a853]"
+      : isComplete
+        ? "text-[#7f7f7f]"
+        : "text-[#CF0202]";
 
-  const legendLabel = !brand && implantLibFields.length > 0
-    ? `Select ${brandField?.name ?? "implant brand"}`
-    : !platform && systemField
-    ? `Select ${systemField?.name ?? "implant system"}`
-    : "Implant Detail";
+  const headerTitle = `Implant Detail #${toothNumber}`;
+  const brandSystemDisplay =
+    brand && (systemName || selectedImplant?.system_name)
+      ? `${brand} - ${systemName || selectedImplant?.system_name}`
+      : "";
+
+  const selectBrandSystem = (implantId: string) => {
+    const implant = apiImplants.find((i) => String(i.id) === implantId);
+    if (!implant) return;
+    update({
+      brand: implant.brand_name,
+      systemName: implant.system_name,
+      platform: "",
+      size: "",
+    });
+  };
 
   return (
-    <fieldset className={`border rounded-[7.7px] p-0 bg-white ${borderColor}`}>
-      <legend className={`text-[12.8px] px-1 leading-none ml-2 ${legendColor}`}>
-        {legendLabel}
-      </legend>
-      <div className="flex flex-col sm:flex-row">
-        <div className="flex justify-center items-center sm:w-[90px] shrink-0 py-2 sm:py-0">
-          <span className="text-xl text-[#7f7f7f] text-center">#{toothNumber}</span>
-        </div>
+    <div className={`rounded-[7.7px] bg-white overflow-hidden border ${borderColor}`}>
+      <button
+        type="button"
+        onClick={() => setIsExpanded((prev) => !prev)}
+        className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left hover:bg-gray-50/80 transition-colors"
+        aria-expanded={isExpanded}
+      >
+        <span className={`text-[12.8px] font-normal leading-none ${legendColor}`}>
+          {headerTitle}
+        </span>
+        <ChevronDown
+          size={18}
+          className={`text-[#7f7f7f] flex-shrink-0 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+        />
+      </button>
 
-        <div className="flex flex-col p-2.5 sm:pl-0 sm:pr-2.5 sm:py-2.5 gap-3 flex-1 min-w-0">
+      {isExpanded && (
+        <div
+          className={`border-t ${borderColor} flex flex-col sm:flex-row${caseSubmitted ? " pointer-events-none select-none" : ""}`}
+        >
+          <div className="flex justify-center items-center sm:w-[90px] shrink-0 py-2 sm:py-0">
+            <span className="text-xl text-[#7f7f7f] text-center">#{toothNumber}</span>
+          </div>
 
-          {hasAdvanceFields ? (
-            <>
-              {brandField && !brand && (
-                <CardGallery
-                  options={brandItems}
-                  value={brand}
-                  onChange={(v) => update({ brand: v, platform: "", size: "" })}
-                />
-              )}
+          <div className="flex flex-col p-2.5 sm:pl-0 sm:pr-2.5 sm:py-2.5 gap-3 flex-1 min-w-0">
+            {/* —— Implant (4 fields) —— */}
+            {!brandSystemComplete && (
+              <CardGallery
+                options={brandSystemItems}
+                value={selectedImplant ? String(selectedImplant.id) : ""}
+                onChange={selectBrandSystem}
+              />
+            )}
 
-              {systemField && brand && !platform && (
-                <CardGallery
-                  options={platformList}
-                  value={platform}
-                  onChange={(v) => update({ platform: v, size: "" })}
-                />
-              )}
-
-              {brand && platform && (
-                <div className={`grid gap-3 ${sizeField ? "grid-cols-2" : "grid-cols-1"}`}>
-                  <CardSelectorField
-                    label={`${brandField?.name ?? "Implant Brand"} - ${systemField?.name ?? "System"}`}
-                    value={`${brand} - ${platform}`}
-                    caseSubmitted={caseSubmitted}
-                    onClick={() => update({ brand: "", platform: "", size: "" })}
-                  />
-                  {sizeField && (
-                    <SelectField
-                      label={sizeField.name}
-                      value={size}
-                      options={
-                        apiSizesForPlatform.length > 0
-                          ? apiSizesForPlatform
-                          : getActiveOptions(sizeField).map((o) => o.name).length > 0
-                          ? getActiveOptions(sizeField).map((o) => o.name)
-                          : implantSizeFallback
-                      }
-                      caseSubmitted={caseSubmitted}
-                      onChange={(v) => { update({ size: v }); setSizeDropdownOpen(false); }}
-                      open={sizeDropdownOpen}
-                      onOpenChange={setSizeDropdownOpen}
-                    />
-                  )}
-                </div>
-              )}
-
-              {row2Visible && inclusionField && (
-                <ImplantInclusionsField
-                  label={inclusionField.name}
-                  value={dynamicFields[inclusionField.id] ?? "No inclusion"}
-                  quantity={inclusionQty}
-                  options={getActiveOptions(inclusionField).map((o) => o.name)}
-                  onChange={(v) => updateDynamic(inclusionField.id, v)}
-                  onQuantityChange={(q) => update({ inclusionQty: q })}
-                  autoOpenWhenVisible
+            {brandSystemComplete && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <CardSelectorField
+                  label={labels.brandSystem}
+                  value={brandSystemDisplay}
                   caseSubmitted={caseSubmitted}
+                  onClick={() =>
+                    update({ brand: "", systemName: "", platform: "", size: "" })
+                  }
                 />
-              )}
-
-              {row3Visible && abutmentFields.length > 0 && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                  {abutmentFields
-                    .filter((f) => !!(dynamicFields[f.id] ?? "") || f.id === activeAbutmentFieldId)
-                    .map((f) => (
-                    <SelectField
-                      key={f.id}
-                      label={f.name}
-                      emptyLabel={`Select ${f.name.toLowerCase()}`}
-                      value={dynamicFields[f.id] ?? ""}
-                      options={getActiveOptions(f).map((o) => o.name)}
-                      caseSubmitted={caseSubmitted}
-                      onChange={(v) => {
-                        updateDynamic(f.id, v);
-                        setAbutmentDropdownOpen((prev) => ({ ...prev, [f.id]: false }));
-                      }}
-                      open={abutmentDropdownOpen[f.id] ?? false}
-                      onOpenChange={(open) => setAbutmentDropdownOpen((prev) => ({ ...prev, [f.id]: open }))}
-                    />
-                  ))}
-                </div>
-              )}
-            </>
-          ) : (
-            <>
-              {/* Legacy mode — no advance_fields, use API data */}
-
-              {!brand && (
-                <CardGallery
-                  options={brandItems}
-                  value={brand}
-                  onChange={(v) => update({ brand: v, platform: "", size: "" })}
-                />
-              )}
-
-              {brand && !platform && (
-                <CardGallery
-                  options={platformList}
-                  value={platform}
-                  onChange={(v) => update({ platform: v, size: "" })}
-                />
-              )}
-
-              {brand && platform && (
-                <div className="grid grid-cols-2 gap-3">
+                {platformComplete ? (
                   <CardSelectorField
-                    label="Implant Brand - Platform"
-                    value={`${brand} - ${platform}`}
+                    label={labels.platform}
+                    value={platform}
                     caseSubmitted={caseSubmitted}
-                    onClick={() => update({ brand: "", platform: "", size: "" })}
+                    onClick={() => update({ platform: "", size: "" })}
                   />
+                ) : (
                   <SelectField
-                    label="Implant Size"
-                    value={size}
-                    options={apiSizesForPlatform.length > 0 ? apiSizesForPlatform : implantSizeFallback}
+                    label={labels.platform}
+                    emptyLabel={`Select ${labels.platform.toLowerCase()}`}
+                    value={platform}
+                    options={platformOptions}
                     caseSubmitted={caseSubmitted}
-                    onChange={(v) => { update({ size: v }); setSizeDropdownOpen(false); }}
+                    onChange={(v) => {
+                      update({ platform: v, size: "" });
+                      setPlatformDropdownOpen(false);
+                    }}
+                    open={platformDropdownOpen}
+                    onOpenChange={setPlatformDropdownOpen}
+                  />
+                )}
+              </div>
+            )}
+
+            {platformComplete && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {sizeComplete ? (
+                  <CardSelectorField
+                    label={labels.size}
+                    value={size}
+                    caseSubmitted={caseSubmitted}
+                    onClick={() => update({ size: "" })}
+                  />
+                ) : (
+                  <SelectField
+                    label={labels.size}
+                    emptyLabel={`Select ${labels.size.toLowerCase()}`}
+                    value={size}
+                    options={
+                      sizeOptions.length > 0 ? sizeOptions : implantSizeFallback
+                    }
+                    caseSubmitted={caseSubmitted}
+                    onChange={(v) => {
+                      update({ size: v });
+                      setSizeDropdownOpen(false);
+                    }}
                     open={sizeDropdownOpen}
                     onOpenChange={setSizeDropdownOpen}
                   />
-                </div>
-              )}
-
-              {row2Visible && (
-                <ImplantInclusionsField
-                  label="Implant inclusions"
-                  value={inclusions}
-                  quantity={inclusionQty}
-                  onChange={(v) => update({ inclusions: v })}
-                  onQuantityChange={(q) => update({ inclusionQty: q })}
-                  autoOpenWhenVisible
-                  caseSubmitted={caseSubmitted}
-                />
-              )}
-
-              {row3Visible && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                  <SelectField
-                    label="Abutment Type"
-                    emptyLabel="Select abutment type"
-                    value={abutmentType}
-                    options={abutmentTypeOptions}
-                    caseSubmitted={caseSubmitted}
-                    onChange={(v) => { update({ abutmentType: v, abutmentDetail: "" }); setLegacyAbutmentTypeOpen(false); }}
-                    open={legacyAbutmentTypeOpen}
-                    onOpenChange={setLegacyAbutmentTypeOpen}
-                  />
-                  {abutmentType && (
-                    <SelectField
-                      label="Abutment Detail"
-                      emptyLabel="Select abutment detail"
-                      value={abutmentDetail}
-                      options={abutmentDetailOptions}
+                )}
+                {sizeComplete &&
+                  (inclusionField ? (
+                    <ImplantInclusionsField
+                      label={labels.inclusion}
+                      value={dynamicFields[inclusionField.id] ?? "No inclusion"}
+                      quantity={inclusionQty}
+                      options={getActiveOptions(inclusionField).map((o) => o.name)}
+                      onChange={(v) =>
+                        update({
+                          dynamicFields: { ...dynamicFields, [inclusionField.id]: v },
+                          inclusions: v,
+                        })
+                      }
+                      onQuantityChange={(q) => update({ inclusionQty: q })}
+                      autoOpenWhenVisible
                       caseSubmitted={caseSubmitted}
-                      onChange={(v) => { update({ abutmentDetail: v }); setLegacyAbutmentDetailOpen(false); }}
-                      open={legacyAbutmentDetailOpen}
-                      onOpenChange={setLegacyAbutmentDetailOpen}
                     />
-                  )}
-                </div>
-              )}
-            </>
-          )}
+                  ) : (
+                    <ImplantInclusionsField
+                      label={labels.inclusion}
+                      value={inclusions}
+                      quantity={inclusionQty}
+                      onChange={(v) => update({ inclusions: v })}
+                      onQuantityChange={(q) => update({ inclusionQty: q })}
+                      autoOpenWhenVisible
+                      caseSubmitted={caseSubmitted}
+                    />
+                  ))}
+              </div>
+            )}
+
+            {/* —— Abutment (2 fields) —— */}
+            {inclusionComplete && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {abutmentCategoryComplete ? (
+                  <CardSelectorField
+                    label={labels.abutment}
+                    value={abutmentCategory}
+                    caseSubmitted={caseSubmitted}
+                    onClick={() =>
+                      update({ abutmentType: "", abutmentDetail: "" })
+                    }
+                  />
+                ) : (
+                  <SelectField
+                    label={labels.abutment}
+                    emptyLabel={`Select ${labels.abutment.toLowerCase()}`}
+                    value={abutmentCategory}
+                    options={abutmentConfig.abutmentCategoryOptions}
+                    caseSubmitted={caseSubmitted}
+                    onChange={(v) => {
+                      update({ abutmentType: v, abutmentDetail: "" });
+                      setAbutmentCategoryOpen(false);
+                    }}
+                    open={abutmentCategoryOpen}
+                    onOpenChange={setAbutmentCategoryOpen}
+                  />
+                )}
+                {abutmentCategoryComplete &&
+                  (abutmentTypeComplete ? (
+                    <CardSelectorField
+                      label={labels.abutmentType}
+                      value={abutmentSpecificType}
+                      caseSubmitted={caseSubmitted}
+                      onClick={() => update({ abutmentDetail: "" })}
+                    />
+                  ) : (
+                    <SelectField
+                      label={labels.abutmentType}
+                      emptyLabel={`Select ${labels.abutmentType.toLowerCase()}`}
+                      value={abutmentSpecificType}
+                      options={abutmentTypeOptions}
+                      caseSubmitted={caseSubmitted}
+                      onChange={(v) => {
+                        update({ abutmentDetail: v });
+                        setAbutmentTypeOpen(false);
+                      }}
+                      open={abutmentTypeOpen}
+                      onOpenChange={setAbutmentTypeOpen}
+                    />
+                  ))}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
-    </fieldset>
+      )}
+    </div>
   );
 }

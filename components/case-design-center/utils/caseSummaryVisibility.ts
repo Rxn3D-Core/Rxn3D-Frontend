@@ -1,16 +1,14 @@
+/**
+ * Case summary notes and center action icons appear only after every assigned
+ * product on the slip has completed its required fields (including impressions).
+ */
 export function shouldShowCaseSummaryNotes({
   caseSubmitted = false,
-  completedFixedAccordions = 0,
-  completedRemovableAccordions = 0,
-  hasAnyProducts = false,
+  allProductsComplete = false,
 }: {
   caseSubmitted?: boolean;
-  completedFixedAccordions?: number;
-  completedRemovableAccordions?: number;
-  hasAnyProducts?: boolean;
+  allProductsComplete?: boolean;
 }) {
   if (caseSubmitted) return true;
-  if (hasAnyProducts) return true;
-
-  return completedFixedAccordions + completedRemovableAccordions > 0;
+  return allProductsComplete;
 }

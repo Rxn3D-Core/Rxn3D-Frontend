@@ -10,6 +10,7 @@ export function ShadeField({
   onClick,
   submitted = false,
   required = false,
+  isActive = false,
 }: {
   label: string;
   value: string;
@@ -17,24 +18,42 @@ export function ShadeField({
   onClick?: () => void;
   submitted?: boolean;
   required?: boolean;
+  /** Highlight when this field is the one open in the shade picker */
+  isActive?: boolean;
 }) {
   const id = useId();
-  const displayShade = shade || '';
+  const displayShade = shade || "";
   const hasValue = value.trim().length > 0 || displayShade.trim().length > 0;
-  const showGreen = hasValue && !submitted;
-  const showRed = required && !hasValue && !submitted;
-  const borderColor = showGreen ? "border-[#34a853]" : showRed ? "border-[#CF0202]" : "border-[#b4b0b0]";
-  const legendColor = showGreen ? "text-[#34a853]" : showRed ? "text-[#CF0202]" : "text-[#7f7f7f]";
+  const showGreen = hasValue && !submitted && !isActive;
+  const showRed = required && !hasValue && !submitted && !isActive;
+  const borderColor = isActive
+    ? "border-[#1162A8] border-2 shadow-[0_0_0_2px_rgba(17,98,168,0.2)] bg-[#f0f7fc]"
+    : showGreen
+      ? "border-[#34a853]"
+      : showRed
+        ? "border-[#CF0202]"
+        : "border-[#b4b0b0]";
+  const legendColor = isActive
+    ? "text-[#1162A8] font-semibold"
+    : showGreen
+      ? "text-[#34a853]"
+      : showRed
+        ? "text-[#CF0202]"
+        : "text-[#7f7f7f]";
   return (
     <fieldset
-      className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${borderColor} ${onClick ? "cursor-pointer hover:bg-gray-50 transition-colors" : ""}`}
+      className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${borderColor} ${onClick ? "cursor-pointer hover:bg-gray-50 transition-colors" : ""} ${isActive ? "hover:bg-[#f0f7fc]" : ""}`}
       onClick={onClick}
+      aria-current={isActive ? "true" : undefined}
     >
       <legend className={`text-sm px-1 leading-none ${legendColor}`}>
-        {label}
+        {isActive ? `${label} — selecting` : label}
       </legend>
       <div className="flex items-center gap-2 w-full">
-        <span className="text-lg text-[#000000]">{value}{displayShade ? ` - ${displayShade}` : ''}</span>
+        <span className={`text-lg ${isActive ? "text-[#1162A8] font-medium" : "text-[#000000]"}`}>
+          {value}
+          {displayShade ? ` - ${displayShade}` : ""}
+        </span>
         <svg width="38" height="37" viewBox="0 5 38 37" fill="none" xmlns="http://www.w3.org/2000/svg">
           <g clipPath={`url(#clip_${id})`}>
             <g filter={`url(#filter_${id})`}>
@@ -54,7 +73,7 @@ export function ShadeField({
               fontWeight="bold"
               fontFamily="Arial, sans-serif"
             >
-              {displayShade}
+              {displayShade || value}
             </text>
           </g>
           <defs>

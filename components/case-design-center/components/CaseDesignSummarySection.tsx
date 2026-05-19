@@ -11,8 +11,7 @@ interface CaseDesignSummarySectionProps {
   state: CaseDesignState;
   caseSubmitted?: boolean;
   rushCasesEnabled?: boolean;
-  completedFixedAccordions: number;
-  completedRemovableAccordions: number;
+  allProductsComplete: boolean;
   maxillaryHasRemovables: boolean;
   mandibularHasRemovables: boolean;
 }
@@ -21,23 +20,13 @@ export function CaseDesignSummarySection({
   state,
   caseSubmitted,
   rushCasesEnabled,
-  completedFixedAccordions,
-  completedRemovableAccordions,
+  allProductsComplete,
   maxillaryHasRemovables,
   mandibularHasRemovables,
 }: CaseDesignSummarySectionProps) {
-  const hasAnyProducts =
-    Object.keys(state.maxillaryRetentionTypes).length > 0 ||
-    Object.keys(state.mandibularRetentionTypes || {}).length > 0 ||
-    state.maxillaryTeeth.length > 0 ||
-    state.mandibularTeeth.length > 0 ||
-    (state.addedProducts?.length ?? 0) > 0;
-
   const showCaseSummaryNotes = shouldShowCaseSummaryNotes({
     caseSubmitted,
-    completedFixedAccordions,
-    completedRemovableAccordions,
-    hasAnyProducts,
+    allProductsComplete,
   });
 
   if (!showCaseSummaryNotes) return null;
@@ -45,11 +34,11 @@ export function CaseDesignSummarySection({
   const showIcons = !caseSubmitted;
 
   return (
-    <div className="relative">
+    <div className="relative mt-4">
       {showIcons && (
-        <div className="absolute -top-6 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
+        <div className="absolute -top-5 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 inline-flex">
           <CenterActionIcons
-            visible={true}
+            visible={showCaseSummaryNotes}
             onEdit={() => {}}
             onAddProduct={() => {
               const maxTeeth = Object.keys(state.maxillaryRetentionTypes).map(Number);
