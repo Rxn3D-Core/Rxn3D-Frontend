@@ -1,5 +1,6 @@
 import type React from "react";
 import type { ImplantDetailData } from "./components/ImplantDetailSection";
+import type { ProductAbutment } from "@/services/implant-api";
 
 /** Snapshot of per-product design data collected at submit time */
 export interface SlipProductSnapshot {
@@ -214,12 +215,18 @@ export type Arch = "maxillary" | "mandibular";
 export type RetentionType = "Implant" | "Prep" | "Pontic";
 export type ShadeFieldType = "tooth_shade" | "stump_shade";
 
+export type ShadeSelectionFillMode = "sequence" | "edit";
+
 export interface ShadeSelectionState {
   arch: Arch | null;
   fieldType: ShadeFieldType | null;
   productId: string | null;
   advanceFieldId?: number | null;
   advanceFieldLabel?: string | null;
+  /** sequence = first-time walkthrough; edit = change one field only */
+  fillMode?: ShadeSelectionFillMode | null;
+  /** Tooth used for fixed restoration field-step storage (fixed_NN product ids). */
+  storageToothNumber?: number | null;
 }
 
 export interface RetentionPopoverState {
@@ -464,6 +471,8 @@ export interface ProductApiData {
   extractions?: ProductExtraction[];
   addons?: ProductAddon[];
   advance_fields?: ProductAdvanceField[];
+  /** Linked abutment types from product details (Office Provided → Stock Abutment, etc.). */
+  abutments?: ProductAbutment[];
   teeth_shades?: ProductTeethShade[];
   opposite_impression?: "Yes" | "No";
   opposite_extractions?: ProductOppositeExtraction[];
@@ -501,6 +510,12 @@ export interface ProductApiData {
       has_implant?: "Yes" | "No";
       selector_shape?: string | null;
     };
+    retentions?: Array<{
+      id?: number;
+      name?: string;
+      code?: string | null;
+      status?: string | null;
+    }>;
   }>;
   subcategory?: {
     id: number;

@@ -26,7 +26,15 @@ import {
   resolveImpressionName,
   resolveProductForImpression,
 } from "../utils/impressionFieldSync";
-import { getShadeGuideAdvanceFields, getShadeFieldType } from "../utils/shadeGuideAdvanceFields";
+import {
+  buildFixedShadeProductId,
+  getDefaultShadeGuideFromProduct,
+  getShadeGuideAdvanceFields,
+  getShadeFieldType,
+  getShadeGuideOptionsFromProduct,
+  resolveProductForShadeStorageId,
+  shouldUseAccordionOnlyFixedShades,
+} from "../utils/shadeGuideAdvanceFields";
 import { ProductApi } from "../../../lib/api-service";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
@@ -435,7 +443,12 @@ export function useCaseDesignState(props: CaseDesignProps) {
       arch: Arch,
       fieldType: import("../types").ShadeFieldType,
       productId: string,
-      options?: { advanceFieldId?: number | null; advanceFieldLabel?: string | null }
+      options?: {
+        advanceFieldId?: number | null;
+        advanceFieldLabel?: string | null;
+        fillMode?: import("../types").ShadeSelectionFillMode;
+        storageToothNumber?: number | null;
+      }
     ) => {
       prefetchTeethShadeCatalog();
       shades.handleShadeFieldClick(arch, fieldType, productId, options);
@@ -630,57 +643,58 @@ export function useCaseDesignState(props: CaseDesignProps) {
    * Falls back to an empty array when no product is resolvable (UI then shows no options).
    */
   const shadeGuideOptions = useMemo<string[]>(() => {
-    const { arch, productId } = shades.shadeSelectionState;
+    const { arch, productId, storageToothNumber } = shades.shadeSelectionState;
     if (!arch || !productId) return [];
 
-    const fixedMatch = productId.match(/^fixed_(\d+)$/);
-    const prepMatch = productId.match(/^prep_(-?\d+)$/);
-    const toothNumber = fixedMatch
-      ? parseInt(fixedMatch[1], 10)
-      : prepMatch
-        ? parseInt(prepMatch[1], 10)
-        : null;
-    if (toothNumber == null) return [];
+    const archToothNumbers =
+      arch === "maxillary"
+        ? Object.keys(teeth.maxillaryRetentionTypes).map(Number)
+        : Object.keys(teeth.mandibularRetentionTypes).map(Number);
 
-    const product = toothFieldProgress.getToothProduct(arch, toothNumber);
-    const teethShades = product?.teeth_shades;
-    if (!teethShades || teethShades.length === 0) return [];
-
-    const systemNames: string[] = [];
-    const seen = new Set<string>();
-    for (const shade of teethShades) {
-      const systemName = shade.brand?.system_name;
-      if (systemName && !seen.has(systemName)) {
-        seen.add(systemName);
-        systemNames.push(systemName);
-      }
-    }
-    return systemNames;
-  }, [shades.shadeSelectionState, toothFieldProgress.getToothProduct]);
+    const product = resolveProductForShadeStorageId(
+      productId,
+      arch,
+      toothFieldProgress.getToothProduct,
+      { storageToothNumber, archToothNumbers }
+    );
+    return getShadeGuideOptionsFromProduct(product);
+  }, [
+    shades.shadeSelectionState,
+    teeth.maxillaryRetentionTypes,
+    teeth.mandibularRetentionTypes,
+    toothFieldProgress.getToothProduct,
+  ]);
 
   // Auto-select the default shade guide when options load
   useEffect(() => {
     if (!shadeGuideOptions.length || shades.selectedShadeGuide) return;
-    const { arch, productId } = shades.shadeSelectionState;
+    const { arch, productId, storageToothNumber } = shades.shadeSelectionState;
     if (!arch || !productId) return;
-    const fixedMatch = productId.match(/^fixed_(\d+)$/);
-    const prepMatch = productId.match(/^prep_(-?\d+)$/);
-    const toothNumber = fixedMatch
-      ? parseInt(fixedMatch[1], 10)
-      : prepMatch
-        ? parseInt(prepMatch[1], 10)
-        : null;
-    if (toothNumber == null) return;
-    const product = toothFieldProgress.getToothProduct(arch, toothNumber);
-    const teethShades = product?.teeth_shades;
-    if (!teethShades) return;
-    const defaultShade = teethShades.find(
-      (s) => String(s.brand?.default ?? "").trim().toLowerCase() === "yes"
+
+    const archToothNumbers =
+      arch === "maxillary"
+        ? Object.keys(teeth.maxillaryRetentionTypes).map(Number)
+        : Object.keys(teeth.mandibularRetentionTypes).map(Number);
+
+    const product = resolveProductForShadeStorageId(
+      productId,
+      arch,
+      toothFieldProgress.getToothProduct,
+      { storageToothNumber, archToothNumbers }
     );
-    if (defaultShade?.brand?.system_name) {
-      shades.setSelectedShadeGuide(defaultShade.brand.system_name);
+    const defaultGuide = getDefaultShadeGuideFromProduct(product);
+    if (defaultGuide) {
+      shades.setSelectedShadeGuide(defaultGuide);
     }
-  }, [shadeGuideOptions, shades.selectedShadeGuide, shades.shadeSelectionState, toothFieldProgress.getToothProduct, shades.setSelectedShadeGuide]);
+  }, [
+    shadeGuideOptions,
+    shades.selectedShadeGuide,
+    shades.shadeSelectionState,
+    teeth.maxillaryRetentionTypes,
+    teeth.mandibularRetentionTypes,
+    toothFieldProgress.getToothProduct,
+    shades.setSelectedShadeGuide,
+  ]);
 
   const buildStageSelectionKey = useCallback(
     (arch: Arch, toothNumber: number, isFixed: boolean) =>
@@ -961,12 +975,19 @@ export function useCaseDesignState(props: CaseDesignProps) {
               return p?.id === targetProduct.id;
             });
           if (siblingTeeth.length > 0) {
-            const oldMin = Math.min(...siblingTeeth);
-            const newMin = Math.min(toothNumber, ...siblingTeeth);
-            if (newMin !== oldMin) {
-              const prefix = `${arch}_fixed_`;
-              modals.migrateStageKey(`${prefix}${oldMin}`, `${prefix}${newMin}`);
-              toothFieldProgress.migrateToothProgress(arch, oldMin, newMin);
+            const stableShadeId = buildFixedShadeProductId(targetProduct.id);
+            for (const tn of siblingTeeth) {
+              shades.migrateFixedShadeProductId(`fixed_${tn}`, stableShadeId, arch);
+            }
+            const priorSiblings = siblingTeeth.filter((tn) => tn !== toothNumber);
+            if (priorSiblings.length > 0) {
+              const oldMin = Math.min(...priorSiblings);
+              const newMin = Math.min(...siblingTeeth);
+              if (newMin !== oldMin) {
+                const prefix = `${arch}_fixed_`;
+                modals.migrateStageKey(`${prefix}${oldMin}`, `${prefix}${newMin}`);
+                toothFieldProgress.migrateToothProgress(arch, oldMin, newMin);
+              }
             }
           }
         }
@@ -1005,6 +1026,9 @@ export function useCaseDesignState(props: CaseDesignProps) {
         const prefix = `${arch}_fixed_`;
         modals.migrateStageKey(`${prefix}${oldMin}`, `${prefix}${newMin}`);
         toothFieldProgress.migrateToothProgress(arch, oldMin, newMin);
+        const stableShadeId = buildFixedShadeProductId(product.id);
+        shades.migrateFixedShadeProductId(`fixed_${oldMin}`, stableShadeId, arch);
+        shades.migrateFixedShadeProductId(`fixed_${newMin}`, stableShadeId, arch);
       }
     },
     [teeth.maxillaryRetentionTypes, teeth.mandibularRetentionTypes, toothFieldProgress, modals]
@@ -1066,10 +1090,14 @@ export function useCaseDesignState(props: CaseDesignProps) {
       const shadeJson = buildTeethShadeJson(shade, null);
       prefetchTeethShadeCatalog();
 
-      // Fixed products: fixed_NN
-      const fixedMatch = productId.match(/^fixed_(\d+)$/);
-      if (fixedMatch) {
-        const toothNumber = parseInt(fixedMatch[1], 10);
+      // Fixed products: fixed_p_{productId} or legacy fixed_NN
+      const fixedProductMatch = productId.match(/^fixed_p_(\d+)$/);
+      const fixedLegacyMatch = productId.match(/^fixed_(\d+)$/);
+      if (fixedProductMatch || fixedLegacyMatch) {
+        const toothNumber =
+          shades.shadeSelectionState.storageToothNumber ??
+          (fixedLegacyMatch ? parseInt(fixedLegacyMatch[1], 10) : null);
+        if (toothNumber == null) return;
         const product = toothFieldProgress.getToothProduct(arch, toothNumber);
         const shadeGuideFields = getShadeGuideAdvanceFields(product?.advance_fields);
         const selectedAdvanceFieldId = shades.shadeSelectionState.advanceFieldId ?? null;
@@ -1112,6 +1140,47 @@ export function useCaseDesignState(props: CaseDesignProps) {
           if (step) {
             mirroredCompleteFieldStep(arch, toothNumber, step, shadeJson);
             enrichTeethShadeFieldValue(arch, toothNumber, step, shade);
+          }
+        }
+
+        if (
+          shouldUseAccordionOnlyFixedShades(product?.advance_fields) &&
+          selectedAdvanceFieldId != null
+        ) {
+          const emptyState = {
+            arch: null,
+            fieldType: null,
+            productId: null,
+            advanceFieldId: null,
+            advanceFieldLabel: null,
+            fillMode: null,
+            storageToothNumber: null,
+          } as const;
+
+          if (shades.shadeSelectionState.fillMode === "edit") {
+            shades.setShadeSelectionState(emptyState);
+          } else {
+            const nextMissing = shadeGuideFields.find((field) => {
+              const ft = getShadeFieldType(field);
+              const val =
+                field.id === selectedAdvanceFieldId
+                  ? shade
+                  : shades.getSelectedShade(productId, arch, ft, field.id);
+              return !val;
+            });
+            if (nextMissing) {
+              shades.setShadeSelectionState({
+                arch,
+                productId,
+                fieldType: getShadeFieldType(nextMissing),
+                advanceFieldId: nextMissing.id,
+                advanceFieldLabel: nextMissing.name,
+                fillMode: "sequence",
+                storageToothNumber: toothNumber,
+              });
+            } else {
+              shades.setShadeSelectionState(emptyState);
+            }
           }
         }
         return;

@@ -111,7 +111,7 @@ export function ProductAccordionCard({
         {/* Body */}
         {isExpanded && children && (
           <div
-            className={`border-t border-[#d9d9d9] p-2.5 sm:p-4 bg-white space-y-3 max-h-[600px] overflow-y-auto scrollbar-blue${caseSubmitted ? " pointer-events-none select-none" : ""}`}
+            className={`border-t border-[#d9d9d9] p-2.5 sm:p-4 bg-white space-y-3 min-w-0 overflow-x-hidden${caseSubmitted ? " pointer-events-none select-none" : ""}`}
           >
             {children}
           </div>

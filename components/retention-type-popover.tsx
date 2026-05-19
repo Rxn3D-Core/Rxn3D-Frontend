@@ -41,6 +41,12 @@ export interface RetentionOptionItem {
     has_implant?: 'Yes' | 'No'
     selector_shape?: string | null
   }
+  retentions?: Array<{
+    id?: number
+    name?: string
+    code?: string | null
+    status?: string | null
+  }>
 }
 
 type RetentionChartType = 'Implant' | 'Prep' | 'Pontic'

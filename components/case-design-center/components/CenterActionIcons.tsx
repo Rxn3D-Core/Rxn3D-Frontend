@@ -156,11 +156,11 @@ export function CenterActionIcons({
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="flex items-center justify-center gap-[16px] py-1">
+      <div className="inline-flex items-center justify-center gap-2 py-0">
         {onEdit && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <button type="button" onClick={onEdit} className="w-[48px] h-[48px] flex items-center justify-center rounded-[36px] transition-transform duration-200 ease-out hover:scale-[2] cursor-pointer">
+              <button type="button" onClick={onEdit} className="w-9 h-9 shrink-0 flex items-center justify-center rounded-full transition-transform duration-200 ease-out hover:scale-[2] cursor-pointer [&_svg]:h-8 [&_svg]:w-8">
                 <PenIcon />
               </button>
             </TooltipTrigger>
@@ -170,7 +170,7 @@ export function CenterActionIcons({
         {onAddProduct && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <button type="button" onClick={onAddProduct} className="w-[48px] h-[48px] flex items-center justify-center rounded-[36px] transition-transform duration-200 ease-out hover:scale-[2] cursor-pointer">
+              <button type="button" onClick={onAddProduct} className="w-9 h-9 shrink-0 flex items-center justify-center rounded-full transition-transform duration-200 ease-out hover:scale-[2] cursor-pointer [&_svg]:h-8 [&_svg]:w-8">
                 <PlusIcon />
               </button>
             </TooltipTrigger>
@@ -180,7 +180,7 @@ export function CenterActionIcons({
         {onRush && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <button type="button" onClick={onRush} className="w-[48px] h-[48px] flex items-center justify-center rounded-[36px] transition-transform duration-200 ease-out hover:scale-[2] cursor-pointer">
+              <button type="button" onClick={onRush} className="w-9 h-9 shrink-0 flex items-center justify-center rounded-full transition-transform duration-200 ease-out hover:scale-[2] cursor-pointer [&_svg]:h-8 [&_svg]:w-8">
                 <RushIcon />
               </button>
             </TooltipTrigger>
@@ -190,7 +190,7 @@ export function CenterActionIcons({
         {onAttach && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <button type="button" onClick={onAttach} className="w-[48px] h-[48px] flex items-center justify-center rounded-[36px] transition-transform duration-200 ease-out hover:scale-[2] cursor-pointer">
+              <button type="button" onClick={onAttach} className="w-9 h-9 shrink-0 flex items-center justify-center rounded-full transition-transform duration-200 ease-out hover:scale-[2] cursor-pointer [&_svg]:h-8 [&_svg]:w-8">
                 <AttachClipIcon />
               </button>
             </TooltipTrigger>
@@ -200,7 +200,7 @@ export function CenterActionIcons({
         {onPhoto && hasPhotos && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <button type="button" onClick={onPhoto} className="w-[48px] h-[48px] flex items-center justify-center rounded-[36px] transition-transform duration-200 ease-out hover:scale-[2] cursor-pointer">
+              <button type="button" onClick={onPhoto} className="w-9 h-9 shrink-0 flex items-center justify-center rounded-full transition-transform duration-200 ease-out hover:scale-[2] cursor-pointer [&_svg]:h-8 [&_svg]:w-8">
                 <PhotoIcon />
               </button>
             </TooltipTrigger>
@@ -210,7 +210,7 @@ export function CenterActionIcons({
         {onStlFile && hasStlFiles && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <button type="button" onClick={onStlFile} className="w-[48px] h-[48px] flex items-center justify-center rounded-[36px] transition-transform duration-200 ease-out hover:scale-[2] cursor-pointer">
+              <button type="button" onClick={onStlFile} className="w-9 h-9 shrink-0 flex items-center justify-center rounded-full transition-transform duration-200 ease-out hover:scale-[2] cursor-pointer [&_svg]:h-8 [&_svg]:w-8">
                 <StlFileIcon />
               </button>
             </TooltipTrigger>

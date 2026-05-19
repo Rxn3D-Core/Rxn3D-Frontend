@@ -601,8 +601,9 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         const teethInGroup = allArchTeeth.filter(
           (t) => t.arch === arch && (state.getToothProduct(t.arch, t.toothNum)?.id ?? t.toothNum) === productKey
         ).map((t) => t.toothNum);
-        const firstToothInGroup = Math.min(...teethInGroup);
-        const shadeProductId = `fixed_${firstToothInGroup}`;
+        const shadeProductId = product?.id
+          ? `fixed_p_${product.id}`
+          : `fixed_${Math.min(...teethInGroup)}`;
         const missingShadeField = getMissingFixedShadeField(product, shadeProductId, arch);
         if (missingShadeField) return missingShadeField;
       }
@@ -648,14 +649,15 @@ export function CaseDesignCenter(props: CaseDesignProps) {
       const product = state.getToothProduct("maxillary", n);
       if (hasRetentionOptions(product)) {
         const productKey = String(product?.id ?? n);
-        const firstToothInGroup = Math.min(
-          ...maxillaryTeeth.filter(
-            (t) => String(state.getToothProduct("maxillary", t)?.id ?? t) === productKey
-          )
-        );
         if (!processedShadeGroups.has(productKey)) {
           processedShadeGroups.add(productKey);
-          const shadeId = `fixed_${firstToothInGroup}`;
+          const shadeId = product?.id
+            ? `fixed_p_${product.id}`
+            : `fixed_${Math.min(
+                ...maxillaryTeeth.filter(
+                  (t) => String(state.getToothProduct("maxillary", t)?.id ?? t) === productKey
+                )
+              )}`;
           if (getMissingFixedShadeField(product, shadeId, "maxillary")) return true;
         }
       }
@@ -672,14 +674,15 @@ export function CaseDesignCenter(props: CaseDesignProps) {
       const product = state.getToothProduct("mandibular", n);
       if (hasRetentionOptions(product)) {
         const productKey = String(product?.id ?? n);
-        const firstToothInGroup = Math.min(
-          ...mandibularTeeth.filter(
-            (t) => String(state.getToothProduct("mandibular", t)?.id ?? t) === productKey
-          )
-        );
         if (!processedShadeGroups.has(productKey)) {
           processedShadeGroups.add(productKey);
-          const shadeId = `fixed_${firstToothInGroup}`;
+          const shadeId = product?.id
+            ? `fixed_p_${product.id}`
+            : `fixed_${Math.min(
+                ...mandibularTeeth.filter(
+                  (t) => String(state.getToothProduct("mandibular", t)?.id ?? t) === productKey
+                )
+              )}`;
           if (getMissingFixedShadeField(product, shadeId, "mandibular")) return true;
         }
       }
@@ -712,52 +715,6 @@ export function CaseDesignCenter(props: CaseDesignProps) {
       return IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted("mandibular", n, step));
     }) &&
     allMandibularRemovablesComplete;
-
-  const completedFixedAccordions = (() => {
-    const allArchTeeth: Array<{ arch: "maxillary" | "mandibular"; toothNum: number }> = [
-      ...Object.keys(state.maxillaryRetentionTypes).map((t) => ({ arch: "maxillary" as const, toothNum: Number(t) })),
-      ...Object.keys(state.mandibularRetentionTypes || {}).map((t) => ({ arch: "mandibular" as const, toothNum: Number(t) })),
-    ];
-    const processedGroups = new Set<string>();
-    let count = 0;
-
-    for (const { arch, toothNum } of allArchTeeth) {
-      const product = state.getToothProduct(arch, toothNum);
-      if (!hasRetentionOptions(product)) continue;
-
-      const cardId = state.getToothProductCard(arch, toothNum);
-      const productKey = String(product?.id ?? toothNum);
-      const groupKey = `${arch}_${cardId}_${productKey}`;
-      if (processedGroups.has(groupKey)) continue;
-      processedGroups.add(groupKey);
-
-      const firstToothInGroup = Math.min(
-        ...allArchTeeth
-          .filter(
-            (entry) =>
-              entry.arch === arch &&
-              state.getToothProductCard(arch, entry.toothNum) === cardId &&
-              String(state.getToothProduct(arch, entry.toothNum)?.id ?? entry.toothNum) === productKey
-          )
-          .map((entry) => entry.toothNum)
-      );
-
-      const shadeId = `fixed_${firstToothInGroup}`;
-      const hasMissingFixedShade = !!getMissingFixedShadeField(product, shadeId, arch);
-      const impressionOwner = getImpressionOwnerTooth(arch, toothNum);
-      const hasImpression = IMPRESSION_STEP_NAMES.some((step) => state.isFieldCompleted(arch, impressionOwner, step));
-
-      if (!hasMissingFixedShade && hasImpression) {
-        count++;
-      }
-    }
-
-    return count;
-  })();
-
-  const completedRemovableAccordions =
-    maxillaryRepresentativeTeeth.filter((tn) => state.isFieldCompleted("maxillary", tn, "impression")).length +
-    mandibularRepresentativeTeeth.filter((tn) => state.isFieldCompleted("mandibular", tn, "impression")).length;
 
   // ── Removable restoration: pre-assign sentinel tooth so accordion shows immediately ──
   // When a removables product is active and no teeth have been assigned yet, assign the
@@ -880,6 +837,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           getSelectedShade={state.getSelectedShade}
           handleShadeSelect={state.handleShadeSelect}
           handleShadeFieldClick={state.handleShadeFieldClick}
+          migrateFixedShadeProductId={state.migrateFixedShadeProductId}
           // Expansion
           expandedLeft={state.expandedLeft}
           setExpandedLeft={state.setExpandedLeft}
@@ -1020,6 +978,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           getSelectedShade={state.getSelectedShade}
           handleShadeSelect={state.handleShadeSelect}
           handleShadeFieldClick={state.handleShadeFieldClick}
+          migrateFixedShadeProductId={state.migrateFixedShadeProductId}
           // Rush
           rushedProducts={state.rushedProducts}
           // Modals
@@ -1097,8 +1056,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         state={state}
         caseSubmitted={props.caseSubmitted}
         rushCasesEnabled={props.rushCasesEnabled}
-        completedFixedAccordions={completedFixedAccordions}
-        completedRemovableAccordions={completedRemovableAccordions}
+        allProductsComplete={allTeethImpressionComplete}
         maxillaryHasRemovables={maxillaryHasRemovables}
         mandibularHasRemovables={mandibularHasRemovables}
       />
