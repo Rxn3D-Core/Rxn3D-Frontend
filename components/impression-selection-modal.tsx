@@ -364,8 +364,8 @@ export function ImpressionSelectionModal({
   const bottomArchLabel = bottomArch === "maxillary" ? "Maxillary" : "Mandibular"
   const showBottomSection = !!bottomArch && (!isDualArch || hasTopSelection)
 
-  const isValidationComplete =
-    hasTopSelection && (!showBottomSection || hasBottomSelection)
+  // Primary arch selections are required; opposing arch is always optional.
+  const isValidationComplete = hasTopSelection
 
   const [lastTouchedKey, setLastTouchedKey] = useState<string | null>(null)
   const touchHistoryRef = useRef<string[]>([])
@@ -407,9 +407,9 @@ export function ImpressionSelectionModal({
   }, [isOpen])
 
   const handleDone = () => {
-    if (!isValidationComplete) return
-    onClose()
-  }
+    if (!isValidationComplete) return;
+    onClose();
+  };
 
   const sharedGridProps = {
     selectedImpressions,
@@ -423,11 +423,11 @@ export function ImpressionSelectionModal({
     onSaveArchSelection,
     isValidationComplete,
     onConfirmAllAndClose: onClose,
-  }
+  };
 
   const handleOpenChange = (open: boolean) => {
-    if (!open) onClose()
-  }
+    if (!open) onClose();
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>

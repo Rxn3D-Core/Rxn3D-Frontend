@@ -217,9 +217,13 @@ export function ModalOrchestrator({
   const handleViewerToggle = useCallback((isOpen: boolean) => setAttachViewerOpen(isOpen), [])
   /** Arches the user edited in this modal session — avoids clearing an arch that was never touched on close. */
   const touchedArchesRef = useRef<Set<Arch>>(new Set());
+  const impressionCloseInFlightRef = useRef(false);
 
   useEffect(() => {
-    if (!showImpressionModal) return;
+    if (!showImpressionModal) {
+      impressionCloseInFlightRef.current = false;
+      return;
+    }
     const touched = new Set<Arch>();
     for (const key of Object.keys(selectedImpressions)) {
       const parsed = parseImpressionKey(key);
@@ -268,7 +272,7 @@ export function ModalOrchestrator({
     }
   };
 
-  const commitImpressionSelections = () => {
+  const commitImpressionSelections = useCallback(() => {
     const arches = getDualModalArches(
       currentImpressionOppositeImpression,
       currentImpressionArch
@@ -276,7 +280,25 @@ export function ModalOrchestrator({
     for (const archToProcess of arches) {
       commitImpressionForArch(archToProcess);
     }
-  };
+  }, [
+    currentImpressionOppositeImpression,
+    currentImpressionArch,
+    selectedImpressions,
+    currentImpressionProductId,
+    onImpressionConfirm,
+    onImpressionClear,
+  ]);
+
+  const handleImpressionModalClose = useCallback(() => {
+    if (impressionCloseInFlightRef.current) return;
+    impressionCloseInFlightRef.current = true;
+    try {
+      commitImpressionSelections();
+    } finally {
+      setShowImpressionModal(false);
+      impressionCloseInFlightRef.current = false;
+    }
+  }, [commitImpressionSelections, setShowImpressionModal]);
 
   // In read-only (virtual slip) mode, suppress all modals
   if (caseSubmitted) return null;
@@ -286,10 +308,7 @@ export function ModalOrchestrator({
       {/* Impression Selection Modal */}
       <ImpressionSelectionModal
         isOpen={showImpressionModal}
-        onClose={() => {
-          commitImpressionSelections();
-          setShowImpressionModal(false);
-        }}
+        onClose={handleImpressionModalClose}
         onSaveArchSelection={commitImpressionForArch}
         impressions={impressionOptions}
         oppositeImpression={currentImpressionOppositeImpression}
@@ -331,6 +350,7 @@ export function ModalOrchestrator({
             onImpressionConfirm(displayText, currentImpressionArch);
           }
           onSubmitNoOpposing?.();
+          impressionCloseInFlightRef.current = true;
           setShowImpressionModal(false);
         }}
         hideSkipOpposing={hideSkipOpposing}

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Pencil } from "lucide-react";
 import { FieldInput, SelectField } from "./fields";
 import type { SlipCreationResponse } from "@/services/slip-creation-service";
+import { caseDesignInter } from "../case-design-inter-font";
 
 export interface PatientHeaderProps {
   /** Selected doctor image URL (from wizard). Falls back to placeholder when not provided. */
@@ -28,7 +29,7 @@ export interface PatientHeaderProps {
   onGenderChange?: (value: string) => void;
   /** Called when the user edits the age inline. */
   onAgeChange?: (value: string) => void;
-  /** When true, show Patient name + Gender in one row (for removable restoration / orthodontics with products). */
+  /** When true, show Patient name + Gender + Age in one row and compact Created By (during product field selection). */
   compactLayout?: boolean;
   /** Override the "Created By" name shown after submission (falls back to localStorage). */
   createdByName?: string | null;
@@ -107,10 +108,64 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
 
   const createdByName = createdByNameProp ?? createdByNameLocal;
   const createdByImage = createdByImageUrlProp ?? createdByImageLocal;
+  const showCreatedBy = caseSubmitted || (compactLayout && !caseSubmitted);
+  const createdByCompact = compactLayout && !caseSubmitted;
+
+  const createdBySection = showCreatedBy ? (
+    <div
+      className={`flex flex-col justify-center items-center flex-shrink-0 ${
+        createdByCompact
+          ? "gap-1 w-auto max-w-[140px] ml-auto"
+          : "gap-[15px] w-[160px] min-w-[160px] ml-2 lg:ml-4 border-l border-[#d9d9d9] pl-4"
+      }`}
+    >
+      <div
+        className={`rounded-full overflow-hidden flex-shrink-0 bg-gray-200 flex items-center justify-center ${
+          createdByCompact ? "w-[40px] h-[40px] sm:w-[50px] sm:h-[50px]" : "w-[60px] h-[60px] sm:w-[72px] sm:h-[72px]"
+        }`}
+      >
+        {createdByImage ? (
+          <img
+            src={createdByImage}
+            onError={(e) => {
+              e.currentTarget.onerror = null;
+              e.currentTarget.src = "/images/created-by.png";
+            }}
+            alt="Creator"
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <span className={`font-medium text-gray-500 ${createdByCompact ? "text-sm" : "text-xl font-bold"}`}>
+            {createdByName.split(" ").map((n) => n[0]).join("").toUpperCase()}
+          </span>
+        )}
+      </div>
+      {createdByCompact ? (
+        <p className="text-sm leading-[18px] text-[#1d1d1b] text-center truncate max-w-full px-0.5">
+          {createdByName || "—"}
+        </p>
+      ) : (
+        <fieldset className="w-full border border-[#7f7f7f] rounded-[7px] bg-white flex items-center overflow-hidden h-[38px] px-[11.2px] py-0">
+          <legend className="text-[#7f7f7f] px-1 leading-none text-sm leading-[15px]">
+            Created By
+          </legend>
+          <span className="text-[#000000] truncate text-base leading-[20px]">
+            {createdByName || "—"}
+          </span>
+        </fieldset>
+      )}
+    </div>
+  ) : null;
 
   return (
-    <div className={`bg-[#fdfdfd] border-b border-[#d9d9d9] px-4 sm:px-6 ${compactLayout && !caseSubmitted ? "py-1" : "py-2"}`}>
-      <div className={`flex flex-col lg:flex-row items-center min-w-0 overflow-hidden ${compactLayout && !caseSubmitted ? "gap-2 lg:gap-4" : "lg:items-start gap-4 lg:gap-6"}`}>
+    <div className={`${caseDesignInter.className} bg-[#fdfdfd] border-b border-[#d9d9d9] px-4 sm:px-6 ${compactLayout && !caseSubmitted ? "py-1" : "py-2"}`}>
+      <div
+        className={`flex min-w-0 w-full ${
+          compactLayout && !caseSubmitted
+            ? "flex-row flex-wrap items-start gap-2 sm:gap-3"
+            : "flex-col lg:flex-row items-center lg:items-start gap-4 lg:gap-6"
+        }`}
+      >
         {/* Doctor photo + name */}
         <div className="flex flex-col items-center gap-1 flex-shrink-0">
           <div className={`${caseSubmitted ? "w-[90px] h-[90px] sm:w-[130px] sm:h-[130px]" : compactLayout ? "w-[40px] h-[40px] sm:w-[50px] sm:h-[50px] hover:w-[70px] hover:h-[70px] sm:hover:w-[100px] sm:hover:h-[100px] transition-all duration-300 ease-in-out cursor-pointer" : "w-[70px] h-[70px] sm:w-[100px] sm:h-[100px]"} rounded-full overflow-hidden bg-gray-200 flex items-center justify-center relative`}>
@@ -142,17 +197,21 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
         </div>
 
         {/* Form fields */}
-        <div className="flex-1 min-w-0 w-full lg:w-auto flex flex-col gap-3 justify-center lg:justify-start">
+        <div
+          className={`min-w-0 flex flex-col gap-3 justify-center lg:justify-start ${
+            compactLayout && !caseSubmitted ? "flex-1 basis-0" : "flex-1 w-full lg:w-auto"
+          }`}
+        >
           {!caseSubmitted ? (
             compactLayout ? (
-              /* Compact: Patient name + Gender + Age in one row (removable/orthodontics with products) */
-              <div className="flex gap-3 sm:gap-4 items-start justify-center lg:justify-start">
+              /* Compact: Patient name + Gender + Age in one row (product fields selection) */
+              <div className="flex flex-wrap gap-2 sm:gap-3 items-start justify-start">
                 <FieldInput
                   label="Patient name"
                   value={displayPatientName}
                   submitted={false}
                   onChange={onPatientNameChange}
-                  className="w-[330px]"
+                  className="w-full min-w-[200px] max-w-[330px] flex-1"
                   smartPatientLabel
                 />
                 {onGenderChange ? (
@@ -162,17 +221,17 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
                     options={["Male", "Female"]}
                     onChange={onGenderChange}
                     caseSubmitted={false}
-                    className="w-[155px]"
+                    className="w-[130px] sm:w-[155px] flex-shrink-0"
                   />
                 ) : (
-                  <FieldInput label="Gender" value={displayGender} submitted={false} className="w-[155px]" />
+                  <FieldInput label="Gender" value={displayGender} submitted={false} className="w-[130px] sm:w-[155px] flex-shrink-0" />
                 )}
                 <FieldInput
                   label="Age"
                   value={displayAge}
                   submitted={false}
                   onChange={onAgeChange}
-                  className="w-[155px]"
+                  className="w-[100px] sm:w-[155px] flex-shrink-0"
                   type="number"
                 />
               </div>
@@ -263,36 +322,7 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
           )}
         </div>
 
-        {/* Created By - only show after submission */}
-        {caseSubmitted && (
-          <div className="flex flex-col justify-center items-center gap-[15px] w-[160px] min-w-[160px] flex-shrink-0 ml-2 lg:ml-4 border-l border-[#d9d9d9] pl-4">
-            <div className="w-[60px] h-[60px] sm:w-[72px] sm:h-[72px] rounded-full overflow-hidden flex-shrink-0 bg-gray-200 flex items-center justify-center">
-              {createdByImage ? (
-                <img
-                  src={createdByImage}
-                  onError={(e) => {
-                    e.currentTarget.onerror = null;
-                    e.currentTarget.src = "/images/created-by.png";
-                  }}
-                  alt="Creator"
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <span className="text-xl font-bold text-gray-500">
-                  {createdByName.split(" ").map(n => n[0]).join("").toUpperCase()}
-                </span>
-              )}
-            </div>
-            <fieldset className="w-full h-[38px] border border-[#7f7f7f] rounded-[7px] bg-white px-[11.2px] py-0 flex items-center overflow-hidden">
-              <legend className="text-sm text-[#7f7f7f] px-1 leading-[15px]">
-                Created By
-              </legend>
-              <span className="text-base leading-[20px] text-[#000000] truncate">
-                {createdByName || "—"}
-              </span>
-            </fieldset>
-          </div>
-        )}
+        {createdBySection}
       </div>
     </div>
   );

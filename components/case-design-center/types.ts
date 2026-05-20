@@ -103,6 +103,8 @@ export interface CaseDesignProps {
   onAnyModalOpenChange?: (isOpen: boolean) => void;
   /** When false, the Rush Case button is hidden. Defaults to true (visible). */
   rushCasesEnabled?: boolean;
+  /** Fired when product field accordions are visible (compact slip header should be used). */
+  onSlipHeaderCompactChange?: (compact: boolean) => void;
 }
 
 export interface AddedProduct {

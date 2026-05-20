@@ -143,8 +143,10 @@ export function ToothStatusBoxes({
     return teethForBox.length === 0 && !anyOptionalHasTeeth;
   });
 
-  // Notify parent whenever validation state changes
+  const prevRequiredValidationRef = useRef<boolean | null>(null);
   useEffect(() => {
+    if (prevRequiredValidationRef.current === hasRequiredValidation) return;
+    prevRequiredValidationRef.current = hasRequiredValidation;
     onRequiredValidationChange?.(hasRequiredValidation);
   }, [hasRequiredValidation, onRequiredValidationChange]);
 
