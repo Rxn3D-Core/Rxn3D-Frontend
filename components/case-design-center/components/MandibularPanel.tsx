@@ -62,6 +62,7 @@ import { hasImplantRetention } from "../utils/implantHelpers";
 import {
   areAllImplantDetailsComplete,
   getImplantTeethInGroup,
+  resolveGroupStageToothNumber,
 } from "../utils/implantDetailHelpers";
 import { filterToothStateForActiveCard } from "../utils/activeCardToothState.js";
 import { getActiveProductPopoverContextToken } from "../utils/activeProductPopoverContext.js";
@@ -2454,9 +2455,6 @@ export function MandibularPanel({
                   variationDisplay.imageUrl ||
                   selectedProduct?.image_url ||
                   "/placeholder.svg?height=48&width=48&query=dental+crown+implant+tooth";
-                // Stable key for stage so value is not lost when group order or implant section changes
-                const groupStageToothNumber = Math.min(...toothNumbers);
-                const groupStageProductIdFixed = `mandibular_fixed_${groupStageToothNumber}`;
                 const headerTeeth = toothNumbers.filter(tn => !!mandibularToothExtractionMap[tn]);
                 const toothNumbersDisplay = toothNumbers.length > 0 ? `#${toothNumbers.join(",")}` : "";
                 const retentionTypes = [...new Set(teeth.map((t) => t.retentionType))];
@@ -2481,8 +2479,16 @@ export function MandibularPanel({
 
                 // Build product-aware chain for Fixed Restoration fields
                 const fixedChain = getRetentionFieldChain(selectedProduct?.advance_fields, selectedProduct);
+                // Stable key: keep the tooth that already has field progress when a lower tooth joins
+                const groupStageToothNumber = resolveGroupStageToothNumber(
+                  toothNumbers,
+                  "mandibular",
+                  fixedChain,
+                  isFieldCompleted,
+                  getFieldValue
+                );
+                const groupStageProductIdFixed = `mandibular_fixed_${groupStageToothNumber}`;
                 // Helper: check visibility within the product-specific fixed chain
-                // Use groupStageToothNumber so all field progress keys are consistent
                 const isFixed = (step: FieldStep) =>
                   isFieldVisible("mandibular", groupStageToothNumber, step, fixedChain);
 

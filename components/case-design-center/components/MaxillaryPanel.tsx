@@ -59,6 +59,7 @@ import { hasImplantRetention } from "../utils/implantHelpers";
 import {
   areAllImplantDetailsComplete,
   getImplantTeethInGroup,
+  resolveGroupStageToothNumber,
 } from "../utils/implantDetailHelpers";
 import { filterToothStateForActiveCard } from "../utils/activeCardToothState.js";
 import { getActiveProductPopoverContextToken } from "../utils/activeProductPopoverContext.js";
@@ -2473,9 +2474,6 @@ export function MaxillaryPanel({
                   variationDisplay.imageUrl ||
                   selectedProduct?.image_url ||
                   "/placeholder.svg?height=48&width=48&query=dental+crown+tooth";
-                // Stable key for stage so value is not lost when group order or implant section changes
-                const groupStageToothNumber = Math.min(...toothNumbers);
-                const groupStageProductIdFixed = `maxillary_fixed_${groupStageToothNumber}`;
                 const headerTeeth = toothNumbers.filter(tn => !!maxillaryToothExtractionMap[tn]);
                 // Show filtered teeth if extraction codes exist, otherwise show all tooth numbers
                 const toothNumbersDisplay = toothNumbers.length > 0 ? `#${toothNumbers.join(",")}` : "";
@@ -2501,8 +2499,15 @@ export function MaxillaryPanel({
 
                 // Build product-aware chain for Fixed Restoration fields
                 const fixedChain = getRetentionFieldChain(selectedProduct?.advance_fields, selectedProduct);
-                // Helper: check visibility within the product-specific fixed chain
-                // Use groupStageToothNumber so all field progress keys are consistent
+                // Stable key: keep the tooth that already has field progress when a lower tooth joins
+                const groupStageToothNumber = resolveGroupStageToothNumber(
+                  toothNumbers,
+                  "maxillary",
+                  fixedChain,
+                  isFieldCompleted,
+                  getFieldValue
+                );
+                const groupStageProductIdFixed = `maxillary_fixed_${groupStageToothNumber}`;
                 const isFixed = (step: FieldStep) =>
                   isFieldVisible("maxillary", groupStageToothNumber, step, fixedChain);
 

@@ -34,13 +34,15 @@ export function ImplantDetailBoxes({
   productId,
   productAbutments,
 }: ImplantDetailBoxesProps) {
-  const { implantTeeth, visibleImplantTeeth, getImplantDetailValue } = useSequentialImplantDetails({
-    toothNumbers,
-    retentionTypesMap,
-    implantDetailByTooth,
-    setImplantDetailByTooth,
-    implantDetailCompleteByTooth,
-  });
+  const { visibleImplantTeeth, getImplantDetailValue, activeImplantTooth } =
+    useSequentialImplantDetails({
+      toothNumbers,
+      retentionTypesMap,
+      implantDetailByTooth,
+      setImplantDetailByTooth,
+      implantDetailCompleteByTooth,
+      setImplantDetailCompleteByTooth,
+    });
 
   const implantCustomerId = useMemo(() => {
     if (typeof window === "undefined") return undefined;
@@ -54,15 +56,13 @@ export function ImplantDetailBoxes({
 
   if (visibleImplantTeeth.length === 0) return null;
 
-  const primaryImplantTooth = implantTeeth[0];
-
   return (
     <div className="flex flex-col gap-3">
       {visibleImplantTeeth.map((implantToothNumber) => (
         <ImplantDetailSection
           key={implantToothNumber}
           toothNumber={implantToothNumber}
-          defaultCollapsed={implantToothNumber !== primaryImplantTooth}
+          defaultCollapsed={implantToothNumber !== activeImplantTooth}
           value={getImplantDetailValue(implantToothNumber)}
           onChange={(data) =>
             setImplantDetailByTooth((prev) => ({ ...prev, [implantToothNumber]: data }))

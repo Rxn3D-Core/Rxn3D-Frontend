@@ -4,7 +4,8 @@ import { useEffect, useCallback, useMemo, useRef, useState } from "react";
 import type { CaseDesignProps } from "../types";
 import { productImpressionsToModalOptions } from "../types";
 import { useCaseDesignState } from "../hooks/useCaseDesignState";
-import { IMPRESSION_STEP_NAMES } from "../hooks/useToothFieldProgress";
+import { IMPRESSION_STEP_NAMES, getRetentionFieldChain } from "../hooks/useToothFieldProgress";
+import { resolveGroupStageToothNumber } from "../utils/implantDetailHelpers";
 import { MaxillaryPanel } from "./MaxillaryPanel";
 import { MandibularPanel } from "./MandibularPanel";
 import { CenterNavigation } from "./CenterNavigation";
@@ -291,11 +292,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
       )
     );
 
-  // For Fixed Restoration, impression is stored under the first tooth of the
-  // product group. This helper resolves the effective tooth number to check
-  // for impression completion. It scopes the group to the same product-card
-  // (AP.id or 0 for initial) so impressions on one card don't leak into
-  // another AP that happens to share the same product.id.
+  // For Fixed Restoration, impression is stored under a stable tooth in the product
+  // group (the tooth that already has field progress, not always the lowest number).
   const getImpressionOwnerTooth = (arch: "maxillary" | "mandibular", toothNum: number): number => {
     const product = state.getToothProduct(arch, toothNum);
     const isFixed = hasRetentionOptions(product);
@@ -309,7 +307,15 @@ export function CaseDesignCenter(props: CaseDesignProps) {
       if (state.getToothProductCard(arch, t) !== currentCard) return false;
       return (state.getToothProduct(arch, t)?.id ?? t) === productKey;
     });
-    return groupTeeth.length > 0 ? Math.min(...groupTeeth) : toothNum;
+    if (groupTeeth.length === 0) return toothNum;
+    const fixedChain = getRetentionFieldChain(product?.advance_fields, product);
+    return resolveGroupStageToothNumber(
+      groupTeeth,
+      arch,
+      fixedChain,
+      state.isFieldCompleted,
+      state.getFieldValue
+    );
   };
 
   const applyImpressionCompletion = useCallback(

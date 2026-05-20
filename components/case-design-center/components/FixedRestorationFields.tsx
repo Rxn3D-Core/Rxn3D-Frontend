@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useState, useMemo } from "react";
+import { useRef, useEffect, useState, useMemo, useCallback } from "react";
 import { Check } from "lucide-react";
 import {
   FieldInput,
@@ -34,6 +34,8 @@ import { ImplantDetailBoxes } from "./ImplantDetailBoxes";
 import {
   areAllImplantDetailsComplete,
   getImplantTeethInGroup,
+  hasPostImplantFixedFieldProgress,
+  POST_IMPLANT_FIXED_FIELD_STEPS,
 } from "../utils/implantDetailHelpers";
 import { shouldSkipStageSelection } from "../utils/categoryHelpers";
 import { parseAddonDisplayItems } from "../utils/addonDisplayHelpers";
@@ -389,6 +391,44 @@ export function RetentionProductFields({
     implantTeeth,
     implantDetailCompleteByTooth
   );
+  const hasPostImplantProgress = useMemo(
+    () =>
+      toothNumbers.some((tn) =>
+        hasPostImplantFixedFieldProgress(arch, tn, isFieldCompleted, getFieldValue)
+      ),
+    [arch, toothNumbers, isFieldCompleted, getFieldValue]
+  );
+  /**
+   * Post-implant steps (characterization → impression) require implant detail when the
+   * group has implant teeth — unless the user already progressed (e.g. added a new implant).
+   */
+  const showPostImplantFields =
+    implantTeeth.length === 0 || implantDetailReady || hasPostImplantProgress;
+  const showImpressionAndAddons = showPostImplantFields;
+  const isFixedAfterImplant = useCallback(
+    (step: string): boolean => {
+      const isPostImplantStep = (POST_IMPLANT_FIXED_FIELD_STEPS as readonly string[]).includes(
+        step
+      );
+      if (isPostImplantStep && !showPostImplantFields) return false;
+      if (isFixed(step)) return true;
+      if (!hasPostImplantProgress || !isPostImplantStep) return false;
+      const fieldStep = step as FieldStep;
+      return (
+        isFieldCompleted(arch, firstToothNumber, fieldStep) ||
+        !!getFieldValue(arch, firstToothNumber, fieldStep)?.trim()
+      );
+    },
+    [
+      arch,
+      firstToothNumber,
+      isFixed,
+      hasPostImplantProgress,
+      showPostImplantFields,
+      isFieldCompleted,
+      getFieldValue,
+    ]
+  );
   const impressionProductId = selectedProduct?.id?.toString() || `fixed_${firstToothNumber}`;
   const fixedShadeProductId = resolveFixedShadeProductId(
     selectedProduct?.id,
@@ -454,7 +494,8 @@ export function RetentionProductFields({
       : getShadeGuideOptionsFromProduct(selectedProduct);
   const showFixedStage =
     !shouldSkipStageSelection(selectedProduct) && isFixed("fixed_stage");
-  const impressionVisible = isFixed("fixed_impression") && implantDetailReady;
+  const impressionVisible =
+    isFixedAfterImplant("fixed_impression") && showImpressionAndAddons;
   const impressionEmpty = !isFieldCompleted(arch, firstToothNumber, "fixed_impression");
   const hasAutoOpenedImpressionRef = useRef(false);
   const impressionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -532,49 +573,54 @@ export function RetentionProductFields({
 
   // Auto-complete steps whose advance_fields are empty — must be in useEffect, not inline during render
   useEffect(() => {
+    if (!showPostImplantFields) return;
     if (!isFixed("fixed_characterization")) return;
     if (!hasAdvanceField("fixed_characterization", selectedProduct?.advance_fields)) return;
     const fields = getAdvanceFieldsForStep("fixed_characterization", selectedProduct?.advance_fields);
     if (fields.length === 0 && !isFieldCompleted(arch, firstToothNumber, "fixed_characterization")) {
       completeFieldStep(arch, firstToothNumber, "fixed_characterization", "auto");
     }
-  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep]);
+  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep, showPostImplantFields]);
 
   useEffect(() => {
+    if (!showPostImplantFields) return;
     if (!isFixed("fixed_margin")) return;
     if (!hasAdvanceField("fixed_margin", selectedProduct?.advance_fields)) return;
     const fields = getAdvanceFieldsForStep("fixed_margin", selectedProduct?.advance_fields);
     if (fields.length === 0 && !isFieldCompleted(arch, firstToothNumber, "fixed_margin")) {
       completeFieldStep(arch, firstToothNumber, "fixed_margin", "auto");
     }
-  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep]);
+  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep, showPostImplantFields]);
 
   useEffect(() => {
+    if (!showPostImplantFields) return;
     if (!isFixed("fixed_metal")) return;
     if (!hasAdvanceField("fixed_metal", selectedProduct?.advance_fields)) return;
     const fields = getAdvanceFieldsForStep("fixed_metal", selectedProduct?.advance_fields);
     if (fields.length === 0 && !isFieldCompleted(arch, firstToothNumber, "fixed_metal")) {
       completeFieldStep(arch, firstToothNumber, "fixed_metal", "auto");
     }
-  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep]);
+  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep, showPostImplantFields]);
 
   useEffect(() => {
+    if (!showPostImplantFields) return;
     if (!isFixed("fixed_contact_icons")) return;
     if (!hasAdvanceField("fixed_contact_icons", selectedProduct?.advance_fields)) return;
     const fields = getAdvanceFieldsForStep("fixed_contact_icons", selectedProduct?.advance_fields);
     if (fields.length === 0 && !isFieldCompleted(arch, firstToothNumber, "fixed_contact_icons")) {
       completeFieldStep(arch, firstToothNumber, "fixed_contact_icons", "auto");
     }
-  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep]);
+  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep, showPostImplantFields]);
 
   useEffect(() => {
+    if (!showPostImplantFields) return;
     if (!isFixed("fixed_proximal_contact")) return;
     if (!hasAdvanceField("fixed_proximal_contact", selectedProduct?.advance_fields)) return;
     const fields = getAdvanceFieldsForStep("fixed_proximal_contact", selectedProduct?.advance_fields);
     if (fields.length === 0 && !isFieldCompleted(arch, firstToothNumber, "fixed_proximal_contact")) {
       completeFieldStep(arch, firstToothNumber, "fixed_proximal_contact", "auto");
     }
-  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep]);
+  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep, showPostImplantFields]);
 
   const toothNumbersKey = useMemo(
     () => [...toothNumbers].sort((a, b) => a - b).join(","),
@@ -928,7 +974,7 @@ export function RetentionProductFields({
       />
 
       {/* Step 4: Dynamic characterization advance fields */}
-      {isFixed("fixed_characterization") && hasAdvanceField("fixed_characterization", selectedProduct?.advance_fields) && (() => {
+      {isFixedAfterImplant("fixed_characterization") && hasAdvanceField("fixed_characterization", selectedProduct?.advance_fields) && (() => {
         const charFields = getAdvanceFieldsForStep("fixed_characterization", selectedProduct?.advance_fields);
         if (charFields.length === 0) return null;
         const fieldVal = getFieldValue(arch, firstToothNumber, "fixed_characterization");
@@ -1012,7 +1058,7 @@ export function RetentionProductFields({
       })()}
 
       {/* Step 5: Dynamic advance fields — progressive: show one by one, auto-open dropdown */}
-      {isFixed("fixed_contact_icons") && hasAdvanceField("fixed_contact_icons", selectedProduct?.advance_fields) && (() => {
+      {isFixedAfterImplant("fixed_contact_icons") && hasAdvanceField("fixed_contact_icons", selectedProduct?.advance_fields) && (() => {
         const contactFields = getAdvanceFieldsForStep("fixed_contact_icons", selectedProduct?.advance_fields);
         if (contactFields.length === 0) {
           // No matching fields — auto-complete handled in useEffect above
@@ -1099,7 +1145,7 @@ export function RetentionProductFields({
       })()}
 
       {/* Step 6: Dynamic margin advance fields */}
-      {isFixed("fixed_margin") && hasAdvanceField("fixed_margin", selectedProduct?.advance_fields) && (() => {
+      {isFixedAfterImplant("fixed_margin") && hasAdvanceField("fixed_margin", selectedProduct?.advance_fields) && (() => {
         const marginFields = getAdvanceFieldsForStep("fixed_margin", selectedProduct?.advance_fields);
         if (marginFields.length === 0) return null;
         const fieldVal = getFieldValue(arch, firstToothNumber, "fixed_margin");
@@ -1183,7 +1229,7 @@ export function RetentionProductFields({
       })()}
 
       {/* Step 7: Dynamic metal advance fields */}
-      {isFixed("fixed_metal") && hasAdvanceField("fixed_metal", selectedProduct?.advance_fields) && (() => {
+      {isFixedAfterImplant("fixed_metal") && hasAdvanceField("fixed_metal", selectedProduct?.advance_fields) && (() => {
         const metalFields = getAdvanceFieldsForStep("fixed_metal", selectedProduct?.advance_fields);
         if (metalFields.length === 0) return null;
         const fieldVal = getFieldValue(arch, firstToothNumber, "fixed_metal");
@@ -1267,7 +1313,7 @@ export function RetentionProductFields({
       })()}
 
       {/* Step 8: Dynamic advance fields — progressive: show one by one, auto-open dropdown */}
-      {isFixed("fixed_proximal_contact") && hasAdvanceField("fixed_proximal_contact", selectedProduct?.advance_fields) && (() => {
+      {isFixedAfterImplant("fixed_proximal_contact") && hasAdvanceField("fixed_proximal_contact", selectedProduct?.advance_fields) && (() => {
         const proximalFields = getAdvanceFieldsForStep("fixed_proximal_contact", selectedProduct?.advance_fields);
         if (proximalFields.length === 0) {
           // No matching fields — auto-complete handled in useEffect above
@@ -1354,8 +1400,8 @@ export function RetentionProductFields({
       })()}
 
       {/* Step 9: Impression / Add ons */}
-      {isFixed("fixed_impression") && implantDetailReady && (() => {
-        const addonsVal = isFixed("fixed_addons") ? (getFieldValue(arch, firstToothNumber, "fixed_addons") || "") : "";
+      {isFixedAfterImplant("fixed_impression") && showImpressionAndAddons && (() => {
+        const addonsVal = isFixedAfterImplant("fixed_addons") ? (getFieldValue(arch, firstToothNumber, "fixed_addons") || "") : "";
         const addonItems = parseAddonDisplayItems(addonsVal);
         const borderClass = isFieldCompleted(arch, firstToothNumber, "fixed_addons") && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]";
         const legendClass = isFieldCompleted(arch, firstToothNumber, "fixed_addons") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]";
@@ -1383,7 +1429,7 @@ export function RetentionProductFields({
               </div>
             </fieldset>
 
-            {isFixed("fixed_addons") && addonItems.length > 0 &&
+            {isFixedAfterImplant("fixed_addons") && addonItems.length > 0 &&
                 addonItems.map((item: string, idx: number) => (
                   <fieldset key={idx} className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors flex-1 min-w-[200px] ${borderClass}`} onClick={onClickAddon}>
                     <legend className={`text-sm px-1 leading-none ${legendClass}`}>Add on</legend>
