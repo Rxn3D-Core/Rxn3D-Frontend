@@ -8,7 +8,22 @@ import { useShadeSelection } from "./useShadeSelection";
 import { useModalState } from "./useModalState";
 import { useProductManagement } from "./useProductManagement";
 import { useImplantState } from "./useImplantState";
-import { useToothFieldProgress, FIXED_SHADE_FIELD_TO_STEP, type FieldStep } from "./useToothFieldProgress";
+import {
+  useToothFieldProgress,
+  FIXED_SHADE_FIELD_TO_STEP,
+  getRetentionFieldChain,
+  type FieldStep,
+} from "./useToothFieldProgress";
+import {
+  findArchTeethForProductId,
+  FIXED_MIRROR_STEPS,
+  isFixedMirrorStep,
+  mirrorFixedShadeSelections,
+  mirrorFixedStageKey,
+  mirrorImpressionSelections,
+  resolveFixedGroupRepTooth,
+  resolveFixedMirrorTarget,
+} from "../utils/fixedArchMirror";
 import { hasRetentionOptions, getResolvedStageName, resolveStageSelection } from "../utils/categoryHelpers";
 import {
   isSingleDefaultOnlyExtractionList,
@@ -327,52 +342,253 @@ export function useCaseDesignState(props: CaseDesignProps) {
     [getMandibularCard0Teeth, getMaxillaryCard0Teeth]
   );
 
-  /** Wrapped completeFieldStep: auto-copies removable fields to the other arch */
+  const mirrorFixedAuxiliaryState = useCallback(
+    (
+      sourceArch: Arch,
+      sourceRepTooth: number,
+      targetArch: Arch,
+      targetRepTooth: number,
+      productApiId: number,
+      impressionProductId?: string
+    ) => {
+      const sourceRetentionTypes =
+        sourceArch === "maxillary" ? teeth.maxillaryRetentionTypes : teeth.mandibularRetentionTypes;
+
+      const nextStages = mirrorFixedStageKey(
+        sourceArch,
+        sourceRepTooth,
+        targetArch,
+        targetRepTooth,
+        modals.selectedStages
+      );
+      if (nextStages) modals.setSelectedStages(nextStages);
+
+      const impressionId =
+        impressionProductId ?? productApiId.toString();
+      const nextImpressions = mirrorImpressionSelections(
+        impressionId,
+        sourceArch,
+        targetArch,
+        modals.selectedImpressions
+      );
+      if (nextImpressions) modals.setSelectedImpressions(nextImpressions);
+
+      const sourceAddonKey = `${sourceArch}_${sourceRepTooth}`;
+      const targetAddonKey = `${targetArch}_${targetRepTooth}`;
+      if (
+        selectedAddonsByTooth[sourceAddonKey]?.length &&
+        !selectedAddonsByTooth[targetAddonKey]?.length
+      ) {
+        setSelectedAddonsByTooth((prev) => ({
+          ...prev,
+          [targetAddonKey]: [...(prev[sourceAddonKey] ?? [])],
+        }));
+      }
+
+      const nextShades = mirrorFixedShadeSelections(
+        productApiId,
+        sourceArch,
+        targetArch,
+        shades.selectedShades
+      );
+      if (nextShades) shades.setSelectedShades(nextShades);
+    },
+    [
+      teeth.maxillaryRetentionTypes,
+      teeth.mandibularRetentionTypes,
+      modals.selectedStages,
+      modals.setSelectedStages,
+      modals.selectedImpressions,
+      modals.setSelectedImpressions,
+      selectedAddonsByTooth,
+      setSelectedAddonsByTooth,
+      shades.selectedShades,
+      shades.setSelectedShades,
+    ]
+  );
+
+  /** Bulk-copy existing fixed field progress from the opposite arch (same product id). */
+  const mirrorAllExistingFixedProgress = useCallback(
+    (targetArch: Arch, targetRepTooth: number, productApiId: number) => {
+      const sourceArch: Arch = targetArch === "maxillary" ? "mandibular" : "maxillary";
+      const sourceRetentionTypes =
+        sourceArch === "maxillary" ? teeth.maxillaryRetentionTypes : teeth.mandibularRetentionTypes;
+      const sourceTeeth = findArchTeethForProductId(
+        sourceArch,
+        productApiId,
+        sourceRetentionTypes,
+        toothFieldProgress.getToothProduct
+      );
+      if (sourceTeeth.length === 0) return;
+
+      const sourceRepTooth = resolveFixedGroupRepTooth(
+        sourceArch,
+        sourceTeeth,
+        toothFieldProgress.getToothProduct,
+        toothFieldProgress.isFieldCompleted,
+        toothFieldProgress.getFieldValue
+      );
+      if (sourceRepTooth == null) return;
+
+      for (const step of FIXED_MIRROR_STEPS) {
+        const fieldStep = step as FieldStep;
+        if (
+          toothFieldProgress.isFieldCompleted(sourceArch, sourceRepTooth, fieldStep) &&
+          !toothFieldProgress.isFieldCompleted(targetArch, targetRepTooth, fieldStep)
+        ) {
+          const value =
+            toothFieldProgress.getFieldValue(sourceArch, sourceRepTooth, fieldStep) || "";
+          toothFieldProgress.completeFieldStep(targetArch, targetRepTooth, fieldStep, value);
+        }
+      }
+
+      mirrorFixedAuxiliaryState(
+        sourceArch,
+        sourceRepTooth,
+        targetArch,
+        targetRepTooth,
+        productApiId
+      );
+    },
+    [
+      teeth.maxillaryRetentionTypes,
+      teeth.mandibularRetentionTypes,
+      toothFieldProgress,
+      mirrorFixedAuxiliaryState,
+    ]
+  );
+
+  const applyCrossArchFieldMirror = useCallback(
+    (
+      sourceArch: Arch,
+      sourceTooth: number,
+      step: FieldStep,
+      apply: (targetArch: Arch, targetTooth: number) => void
+    ) => {
+      const removableTarget = getMirrorTargetArch(sourceArch, sourceTooth, step);
+      if (removableTarget) {
+        for (const tn of getCard0TeethForArch(removableTarget)) {
+          if (!toothFieldProgress.isFieldCompleted(removableTarget, tn, step)) {
+            apply(removableTarget, tn);
+          }
+        }
+        return;
+      }
+
+      if (!isFixedMirrorStep(step)) return;
+
+      const mirrorTarget = resolveFixedMirrorTarget(
+        sourceArch,
+        sourceTooth,
+        teeth.maxillaryRetentionTypes,
+        teeth.mandibularRetentionTypes,
+        toothFieldProgress.getToothProduct,
+        toothFieldProgress.isFieldCompleted,
+        toothFieldProgress.getFieldValue
+      );
+      if (!mirrorTarget) return;
+
+      const { targetArch, targetRepTooth, productApiId } = mirrorTarget;
+      if (!toothFieldProgress.isFieldCompleted(targetArch, targetRepTooth, step)) {
+        apply(targetArch, targetRepTooth);
+      }
+
+      const sourceRetentionTypes =
+        sourceArch === "maxillary" ? teeth.maxillaryRetentionTypes : teeth.mandibularRetentionTypes;
+      const sourceTeeth = findArchTeethForProductId(
+        sourceArch,
+        productApiId,
+        sourceRetentionTypes,
+        toothFieldProgress.getToothProduct
+      );
+      const sourceRepTooth = resolveFixedGroupRepTooth(
+        sourceArch,
+        sourceTeeth,
+        toothFieldProgress.getToothProduct,
+        toothFieldProgress.isFieldCompleted,
+        toothFieldProgress.getFieldValue
+      );
+      if (sourceRepTooth != null) {
+        mirrorFixedAuxiliaryState(
+          sourceArch,
+          sourceRepTooth,
+          targetArch,
+          targetRepTooth,
+          productApiId
+        );
+      }
+    },
+    [
+      getMirrorTargetArch,
+      getCard0TeethForArch,
+      toothFieldProgress,
+      teeth.maxillaryRetentionTypes,
+      teeth.mandibularRetentionTypes,
+      mirrorFixedAuxiliaryState,
+    ]
+  );
+
+  /** Wrapped completeFieldStep: auto-copies removable + fixed fields to the other arch */
   const mirroredCompleteFieldStep = useCallback(
-    (arch: "maxillary" | "mandibular", toothNumber: number, step: any, value: string) => {
+    (arch: Arch, toothNumber: number, step: FieldStep, value: string) => {
       toothFieldProgress.completeFieldStep(arch, toothNumber, step, value);
-      const targetArch = getMirrorTargetArch(arch, toothNumber, step);
-      if (targetArch) {
-        for (const tn of getCard0TeethForArch(targetArch)) {
-          // Only copy if the field on the target arch is NOT already completed (first time only)
-          if (!toothFieldProgress.isFieldCompleted(targetArch, tn, step)) {
-            toothFieldProgress.completeFieldStep(targetArch, tn, step, value);
-          }
-        }
-      }
+      applyCrossArchFieldMirror(arch, toothNumber, step, (targetArch, targetTooth) => {
+        toothFieldProgress.completeFieldStep(targetArch, targetTooth, step, value);
+      });
     },
-    [toothFieldProgress.completeFieldStep, toothFieldProgress.isFieldCompleted, getMirrorTargetArch, getCard0TeethForArch]
+    [toothFieldProgress.completeFieldStep, applyCrossArchFieldMirror]
   );
 
-  /** Wrapped storeFieldValue: auto-copies removable fields to the other arch */
+  /** Wrapped storeFieldValue: auto-copies removable + fixed fields to the other arch */
   const mirroredStoreFieldValue = useCallback(
-    (arch: "maxillary" | "mandibular", toothNumber: number, step: any, value: string) => {
+    (arch: Arch, toothNumber: number, step: FieldStep, value: string) => {
       toothFieldProgress.storeFieldValue(arch, toothNumber, step, value);
-      const targetArch = getMirrorTargetArch(arch, toothNumber, step);
-      if (targetArch) {
-        for (const tn of getCard0TeethForArch(targetArch)) {
-          // Only copy if the field on the target arch is NOT already completed (first time only)
-          if (!toothFieldProgress.isFieldCompleted(targetArch, tn, step)) {
-            toothFieldProgress.storeFieldValue(targetArch, tn, step, value);
-          }
-        }
-      }
+      applyCrossArchFieldMirror(arch, toothNumber, step, (targetArch, targetTooth) => {
+        toothFieldProgress.storeFieldValue(targetArch, targetTooth, step, value);
+      });
     },
-    [toothFieldProgress.storeFieldValue, toothFieldProgress.isFieldCompleted, getMirrorTargetArch, getCard0TeethForArch]
+    [toothFieldProgress.storeFieldValue, applyCrossArchFieldMirror]
   );
 
-  /** Wrapped uncompleteFieldStep: auto-copies removable uncomplete to the other arch */
+  /** Wrapped uncompleteFieldStep: auto-copies removable + fixed uncomplete to the other arch */
   const mirroredUncompleteFieldStep = useCallback(
-    (arch: "maxillary" | "mandibular", toothNumber: number, step: any) => {
+    (arch: Arch, toothNumber: number, step: FieldStep) => {
       toothFieldProgress.uncompleteFieldStep(arch, toothNumber, step);
-      const targetArch = getMirrorTargetArch(arch, toothNumber, step);
-      if (targetArch) {
-        for (const tn of getCard0TeethForArch(targetArch)) {
-          toothFieldProgress.uncompleteFieldStep(targetArch, tn, step);
+      const removableTarget = getMirrorTargetArch(arch, toothNumber, step);
+      if (removableTarget) {
+        for (const tn of getCard0TeethForArch(removableTarget)) {
+          toothFieldProgress.uncompleteFieldStep(removableTarget, tn, step);
         }
+        return;
+      }
+      if (!isFixedMirrorStep(step)) return;
+      const mirrorTarget = resolveFixedMirrorTarget(
+        arch,
+        toothNumber,
+        teeth.maxillaryRetentionTypes,
+        teeth.mandibularRetentionTypes,
+        toothFieldProgress.getToothProduct,
+        toothFieldProgress.isFieldCompleted,
+        toothFieldProgress.getFieldValue
+      );
+      if (mirrorTarget) {
+        toothFieldProgress.uncompleteFieldStep(
+          mirrorTarget.targetArch,
+          mirrorTarget.targetRepTooth,
+          step
+        );
       }
     },
-    [toothFieldProgress.uncompleteFieldStep, getMirrorTargetArch, getCard0TeethForArch]
+    [
+      toothFieldProgress.uncompleteFieldStep,
+      getMirrorTargetArch,
+      getCard0TeethForArch,
+      teeth.maxillaryRetentionTypes,
+      teeth.mandibularRetentionTypes,
+      toothFieldProgress.getToothProduct,
+      toothFieldProgress.isFieldCompleted,
+      toothFieldProgress.getFieldValue,
+    ]
   );
 
   // Auto-activate the newest added product so teeth clicks assign to it.
@@ -794,6 +1010,36 @@ export function useCaseDesignState(props: CaseDesignProps) {
     [toothFieldProgress, setSelectedAddonsByTooth]
   );
 
+  const maybeMirrorFixedProgressFromOpposite = useCallback(
+    (targetArch: Arch, product: ProductApiData) => {
+      if (!hasRetentionOptions(product) || product.id == null) return;
+      const targetRetentionTypes =
+        targetArch === "maxillary" ? teeth.maxillaryRetentionTypes : teeth.mandibularRetentionTypes;
+      const targetTeeth = findArchTeethForProductId(
+        targetArch,
+        product.id,
+        targetRetentionTypes,
+        toothFieldProgress.getToothProduct
+      );
+      if (targetTeeth.length === 0) return;
+      const targetRepTooth = resolveFixedGroupRepTooth(
+        targetArch,
+        targetTeeth,
+        toothFieldProgress.getToothProduct,
+        toothFieldProgress.isFieldCompleted,
+        toothFieldProgress.getFieldValue
+      );
+      if (targetRepTooth == null) return;
+      mirrorAllExistingFixedProgress(targetArch, targetRepTooth, product.id);
+    },
+    [
+      teeth.maxillaryRetentionTypes,
+      teeth.mandibularRetentionTypes,
+      toothFieldProgress,
+      mirrorAllExistingFixedProgress,
+    ]
+  );
+
   // Fetch and assign product details when retention type is selected
   const fetchAndAssignProduct = useCallback(
     async (arch: Arch, toothNumber: number, productId: number) => {
@@ -803,6 +1049,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
         toothFieldProgress.setToothProduct(arch, toothNumber, cached);
         applyResolvedStage(arch, toothNumber, cached);
         autoPopulateDefaultAddons(arch, toothNumber, cached);
+        maybeMirrorFixedProgressFromOpposite(arch, cached);
         return;
       }
 
@@ -828,10 +1075,16 @@ export function useCaseDesignState(props: CaseDesignProps) {
         toothFieldProgress.setToothProduct(arch, toothNumber, enrichedProduct);
         applyResolvedStage(arch, toothNumber, enrichedProduct);
         autoPopulateDefaultAddons(arch, toothNumber, enrichedProduct);
+        maybeMirrorFixedProgressFromOpposite(arch, enrichedProduct);
       }
       toothFieldProgress.setProductLoading(arch, toothNumber, false);
     },
-    [toothFieldProgress, applyResolvedStage, autoPopulateDefaultAddons]
+    [
+      toothFieldProgress,
+      applyResolvedStage,
+      autoPopulateDefaultAddons,
+      maybeMirrorFixedProgressFromOpposite,
+    ]
   );
 
   // Auto-assign initial non-fixed product (Removable/Orthodontics) to all teeth when initialArch === "both".
@@ -1181,6 +1434,27 @@ export function useCaseDesignState(props: CaseDesignProps) {
             } else {
               shades.setShadeSelectionState(emptyState);
             }
+          }
+        }
+
+        if (product?.id) {
+          const mirrorTarget = resolveFixedMirrorTarget(
+            arch,
+            toothNumber,
+            teeth.maxillaryRetentionTypes,
+            teeth.mandibularRetentionTypes,
+            toothFieldProgress.getToothProduct,
+            toothFieldProgress.isFieldCompleted,
+            toothFieldProgress.getFieldValue
+          );
+          if (mirrorTarget) {
+            const nextShades = mirrorFixedShadeSelections(
+              product.id,
+              arch,
+              mirrorTarget.targetArch,
+              shades.selectedShades
+            );
+            if (nextShades) shades.setSelectedShades(nextShades);
           }
         }
         return;

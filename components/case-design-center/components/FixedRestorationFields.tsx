@@ -37,6 +37,7 @@ import {
   hasPostImplantFixedFieldProgress,
   POST_IMPLANT_FIXED_FIELD_STEPS,
 } from "../utils/implantDetailHelpers";
+import { useCrossArchImplantMirror } from "../hooks/useCrossArchImplantMirror";
 import { shouldSkipStageSelection } from "../utils/categoryHelpers";
 import { parseAddonDisplayItems } from "../utils/addonDisplayHelpers";
 import {
@@ -336,6 +337,8 @@ interface FixedRestorationFieldsProps {
   getImpressionDisplayText: (productId: string, arch: string) => string;
   setPanelGumShadePicker: (state: { toothNumber: number; gumShades: any[]; selectedName?: string | null }) => void;
   migrateFixedShadeProductId?: (fromProductId: string, toProductId: string, arch: Arch) => void;
+  /** Implant details from the opposite arch (same product) for cross-arch mirroring. */
+  peerImplantDetailByTooth?: Record<number, ImplantDetailData>;
 }
 
 /* ------------------------------------------------------------------ */
@@ -382,11 +385,25 @@ export function RetentionProductFields({
   getImpressionDisplayText,
   setPanelGumShadePicker,
   migrateFixedShadeProductId,
+  peerImplantDetailByTooth,
 }: FixedRestorationFieldsProps) {
   const implantTeeth = useMemo(
     () => getImplantTeethInGroup(toothNumbers, retentionTypesMap),
     [toothNumbers, retentionTypesMap]
   );
+
+  useCrossArchImplantMirror({
+    arch,
+    implantTeeth,
+    retentionTypesMap,
+    retentionOptions: selectedProduct?.retention_options,
+    peerImplantDetailByTooth,
+    implantDetailByTooth,
+    setImplantDetailByTooth,
+    implantDetailCompleteByTooth,
+    setImplantDetailCompleteByTooth,
+    caseSubmitted,
+  });
   const implantDetailReady = areAllImplantDetailsComplete(
     implantTeeth,
     implantDetailCompleteByTooth

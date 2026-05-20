@@ -2,6 +2,7 @@
 
 import { useEffect, useCallback, useMemo, useRef, useState } from "react";
 import type { CaseDesignProps } from "../types";
+import type { ImplantDetailData } from "./ImplantDetailSection";
 import { productImpressionsToModalOptions } from "../types";
 import { useCaseDesignState } from "../hooks/useCaseDesignState";
 import { IMPRESSION_STEP_NAMES, getRetentionFieldChain } from "../hooks/useToothFieldProgress";
@@ -37,8 +38,14 @@ import {
 
 export function CaseDesignCenter(props: CaseDesignProps) {
   const state = useCaseDesignState(props);
-  const maxillaryImplantDetailRef = useRef<Record<number, import("./ImplantDetailSection").ImplantDetailData>>({});
-  const mandibularImplantDetailRef = useRef<Record<number, import("./ImplantDetailSection").ImplantDetailData>>({});
+  const maxillaryImplantDetailRef = useRef<Record<number, ImplantDetailData>>({});
+  const mandibularImplantDetailRef = useRef<Record<number, ImplantDetailData>>({});
+  const [maxillaryImplantDetailPeer, setMaxillaryImplantDetailPeer] = useState<
+    Record<number, ImplantDetailData>
+  >({});
+  const [mandibularImplantDetailPeer, setMandibularImplantDetailPeer] = useState<
+    Record<number, ImplantDetailData>
+  >({});
   // Tracks when the user explicitly hides the mandibular panel while it's force-shown by the opposing condition.
   const [userHidMandibular, setUserHidMandibular] = useState(false);
   const getMissingFixedShadeField = useCallback(
@@ -956,7 +963,11 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           opposingSelectedTeeth={state.opposingSelectedTeeth}
           onOpposingExtractionToggle={state.handleOpposingExtractionToggle}
           selectAllOpposingTeeth={state.selectAllOpposingTeeth}
-          onImplantDetailChange={(detail) => { maxillaryImplantDetailRef.current = detail; }}
+          onImplantDetailChange={(detail) => {
+            maxillaryImplantDetailRef.current = detail;
+            setMaxillaryImplantDetailPeer(detail);
+          }}
+          peerImplantDetailByTooth={mandibularImplantDetailPeer}
           onBackToCategories={props.onBackToCategories}
           confirmDetailsChecked={props.confirmDetailsChecked}
           isAnyModalOpen={state.showImpressionModal || state.isStageModalOpen}
@@ -1090,7 +1101,11 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           opposingSelectedTeeth={state.opposingSelectedTeeth}
           onOpposingExtractionToggle={state.handleOpposingExtractionToggle}
           selectAllOpposingTeeth={state.selectAllOpposingTeeth}
-          onImplantDetailChange={(detail) => { mandibularImplantDetailRef.current = detail; }}
+          onImplantDetailChange={(detail) => {
+            mandibularImplantDetailRef.current = detail;
+            setMandibularImplantDetailPeer(detail);
+          }}
+          peerImplantDetailByTooth={maxillaryImplantDetailPeer}
           onBackToCategories={props.onBackToCategories}
           confirmDetailsChecked={props.confirmDetailsChecked}
           isAnyModalOpen={state.showImpressionModal || state.isStageModalOpen}

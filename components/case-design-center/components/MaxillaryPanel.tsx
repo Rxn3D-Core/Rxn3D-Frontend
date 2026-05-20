@@ -635,6 +635,8 @@ interface MaxillaryPanelProps {
   onCheckedTeethChange?: (teeth: number[]) => void;
   /** Called whenever implant detail data changes for any tooth (so CaseDesignCenter can include it in the slip snapshot). */
   onImplantDetailChange?: (implantDetailByTooth: Record<number, ImplantDetailData>) => void;
+  /** Opposite-arch implant details for mirroring when the same product is on both sides. */
+  peerImplantDetailByTooth?: Record<number, ImplantDetailData>;
   /** Navigate back to category selection in the new-case wizard. Invoked after deleting a Fixed Restoration accordion. */
   onBackToCategories?: (arch?: "maxillary" | "mandibular") => void;
   /** When true the footer acknowledgement checkbox is checked — accordion header borders turn green; orange when false. */
@@ -852,6 +854,7 @@ export function MaxillaryPanel({
   selectAllOpposingTeeth,
   onCheckedTeethChange,
   onImplantDetailChange,
+  peerImplantDetailByTooth,
   onBackToCategories,
   confirmDetailsChecked = false,
   isAnyModalOpen = false,
@@ -2418,6 +2421,7 @@ export function MaxillaryPanel({
                             handleOpenAddOnsModal={handleOpenAddOnsModal}
                             getImpressionDisplayText={getImpressionDisplayText as (productId: string, arch: string) => string}
                             setPanelGumShadePicker={(s) => setPanelGumShadePicker({ ...s, stepOverride: "fixed_stump_shade" })}
+                            peerImplantDetailByTooth={peerImplantDetailByTooth}
                           />
                         </>
                       );
@@ -2689,6 +2693,7 @@ export function MaxillaryPanel({
                         handleOpenAddOnsModal={handleOpenAddOnsModal}
                         getImpressionDisplayText={getImpressionDisplayText as (productId: string, arch: string) => string}
                         setPanelGumShadePicker={(s) => setPanelGumShadePicker({ ...s, stepOverride: "fixed_stump_shade" })}
+                        peerImplantDetailByTooth={peerImplantDetailByTooth}
                       />
                     ) : (
                       <SelectionProductFields
@@ -2720,6 +2725,7 @@ export function MaxillaryPanel({
                           0,
                           caseSubmitted
                         )}
+                        peerImplantDetailByTooth={peerImplantDetailByTooth}
                       />
                     )}
                     <ScrollToBottom />

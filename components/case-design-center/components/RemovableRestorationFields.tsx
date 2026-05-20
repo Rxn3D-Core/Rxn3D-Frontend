@@ -12,6 +12,7 @@ import {
   areAllImplantDetailsComplete,
   getImplantTeethInGroup,
 } from "../utils/implantDetailHelpers";
+import { useCrossArchImplantMirror } from "../hooks/useCrossArchImplantMirror";
 import type {
   Arch,
   ShadeFieldType,
@@ -295,6 +296,8 @@ interface RemovableRestorationFieldsProps {
   noOpposingNeeded?: Record<string, boolean>;
   /** When false, hides progressive fields until user acknowledges extractions (multi-status removables). */
   showProgressiveFields?: boolean;
+  /** Implant details from the opposite arch for cross-arch mirroring. */
+  peerImplantDetailByTooth?: Record<number, ImplantDetailData>;
 }
 
 /* ------------------------------------------------------------------ */
@@ -325,15 +328,30 @@ export function SelectionProductFields({
   setPanelGumShadePicker,
   noOpposingNeeded = {},
   showProgressiveFields = true,
+  peerImplantDetailByTooth,
 }: RemovableRestorationFieldsProps) {
-  if (!showProgressiveFields) return null;
-
   const removableChain = getSelectionFieldChain(selectedProduct);
-  const isVisible = (step: FieldStep): boolean => isFieldVisibleFn(arch, firstToothNumber, step, removableChain);
   const implantTeeth = useMemo(
     () => getImplantTeethInGroup(toothNumbers, retentionTypesMap),
     [toothNumbers, retentionTypesMap]
   );
+
+  useCrossArchImplantMirror({
+    arch,
+    implantTeeth,
+    retentionTypesMap,
+    retentionOptions: selectedProduct?.retention_options,
+    peerImplantDetailByTooth,
+    implantDetailByTooth,
+    setImplantDetailByTooth,
+    implantDetailCompleteByTooth,
+    setImplantDetailCompleteByTooth,
+    caseSubmitted,
+  });
+
+  if (!showProgressiveFields) return null;
+
+  const isVisible = (step: FieldStep): boolean => isFieldVisibleFn(arch, firstToothNumber, step, removableChain);
   const implantDetailReady = areAllImplantDetailsComplete(
     implantTeeth,
     implantDetailCompleteByTooth
