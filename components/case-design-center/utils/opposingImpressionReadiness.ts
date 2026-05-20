@@ -55,20 +55,11 @@ export function getOpposingImpressionRequirement({
   noOpposingNeeded: Record<string, boolean>;
   getCard0TeethForArch: (arch: Arch) => number[];
 }): { required: boolean; arch: Arch | null; tooth: number | null } {
-  const opposingArch = getOpposingArch(initialArch);
-  if (
-    !hasOppositeSection ||
-    !oppositeImpressionEnabled ||
-    !opposingArch ||
-    hasSkippedOpposing(noOpposingNeeded, initialArch)
-  ) {
-    return { required: false, arch: null, tooth: null };
-  }
-
-  const card0Teeth = getCard0TeethForArch(opposingArch);
-  return {
-    required: true,
-    arch: opposingArch,
-    tooth: resolveOpposingImpressionTooth(opposingArch, card0Teeth),
-  };
+  // Opposing impressions are always optional — never block slip readiness.
+  void hasOppositeSection;
+  void oppositeImpressionEnabled;
+  void noOpposingNeeded;
+  void getCard0TeethForArch;
+  void initialArch;
+  return { required: false, arch: null, tooth: null };
 }

@@ -5,6 +5,7 @@ import { ChevronDown, Trash2 } from "lucide-react";
 import { AccordionBadge, EstDaysLabel } from "./AccordionBadge";
 import { ProductImagePreview } from "./ProductImagePreview";
 import { RushIcon } from "./CenterActionIcons";
+import { caseDesignInter, productAccordionTitleClass, productAccordionToothClass } from "../case-design-inter-font";
 
 export interface ProductAccordionCardProps {
   slotId: string;
@@ -64,7 +65,7 @@ export function ProductAccordionCard({
           <button
             type="button"
             onClick={onToggle}
-            className={`w-full flex items-center py-[14px] px-2 gap-[10px] transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] ${
+            className={`${caseDesignInter.className} w-full flex items-center py-[14px] px-2 gap-[10px] transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] ${
               hasRush ? "bg-[#FCE4E4] hover:bg-[#f8d4d4]" : "bg-white hover:bg-gray-50"
             }`}
           >
@@ -73,10 +74,10 @@ export function ProductAccordionCard({
               altText={productName}
             />
             <div className="flex-1 min-w-0 text-left flex flex-col gap-0.5">
-              <p className="font-[Verdana] text-[14px] sm:text-lg font-bold leading-tight tracking-[-0.02em] text-black flex items-center gap-1 truncate">
-                {productName}
+              <p className="flex items-center gap-1 truncate min-w-0">
+                <span className={`${productAccordionTitleClass} truncate`}>{productName}</span>
                 {toothDisplay && (
-                  <span className="font-normal text-[13px] sm:text-base text-black">{toothDisplay}</span>
+                  <span className={`${productAccordionToothClass} flex-shrink-0`}>{toothDisplay}</span>
                 )}
                 {hasRush && <RushIcon className="w-[20px] h-[20px] flex-shrink-0" />}
               </p>

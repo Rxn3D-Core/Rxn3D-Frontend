@@ -12,7 +12,7 @@ test("opposing arch for maxillary-primary slip is mandibular", () => {
   assert.equal(getOpposingArch("maxillary"), "mandibular");
 });
 
-test("requires opposing impression when opposite_impression is enabled", () => {
+test("opposing impression is never required", () => {
   const requirement = getOpposingImpressionRequirement({
     initialArch: "maxillary",
     hasOppositeSection: true,
@@ -21,21 +21,9 @@ test("requires opposing impression when opposite_impression is enabled", () => {
     getCard0TeethForArch: () => [],
   });
 
-  assert.equal(requirement.required, true);
-  assert.equal(requirement.arch, "mandibular");
-  assert.equal(requirement.tooth, 17);
-});
-
-test("skip opposing clears requirement", () => {
-  const requirement = getOpposingImpressionRequirement({
-    initialArch: "maxillary",
-    hasOppositeSection: true,
-    oppositeImpressionEnabled: true,
-    noOpposingNeeded: { "0_mandibular_17": true },
-    getCard0TeethForArch: () => [],
-  });
-
   assert.equal(requirement.required, false);
+  assert.equal(requirement.arch, null);
+  assert.equal(requirement.tooth, null);
 });
 
 test("resolveOpposingImpressionTooth prefers lowest card-0 tooth", () => {

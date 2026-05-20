@@ -11,6 +11,11 @@ import { RushIcon } from "./CenterActionIcons";
 import { parseAddonDisplayItems } from "../utils/addonDisplayHelpers";
 import { isSingleDefaultOnlyExtractionList } from "../utils/extractionHelpers";
 import { mapOppositeExtractionsToProductExtractions } from "../utils/opposingExtractionHelpers";
+import {
+  caseDesignInter,
+  removableHeaderTitleClass,
+  removableHeaderToothClass,
+} from "../case-design-inter-font";
 import { getRemovableHeaderTitle, shouldShowRemovableHeaderContent } from "../utils/removableHeaderLabel";
 import { getRemovableOrangeHeaderTeeth, getToothStatusBoxDisplayMap } from "../utils/removableToothDisplay";
 import { resolveVariationDisplay } from "../utils/variationHelpers";
@@ -216,6 +221,11 @@ export type OpposingRemovableAccordionProps = {
   ) => void;
   onSelectAllOpposingTeeth?: (teeth: number[]) => void;
   onToothStatusValidationChange?: (hasValidation: boolean) => void;
+  /**
+   * Single-arch slip: hide primary product (image, name, grade, shades).
+   * Only opposing extractions and impression when configured on the product.
+   */
+  opposingOnlyLayout?: boolean;
 };
 
 export function OpposingRemovableAccordion({
@@ -223,6 +233,7 @@ export function OpposingRemovableAccordion({
   fieldArch,
   fieldRepTn,
   opposingProductData,
+  opposingOnlyLayout = false,
   opposingArchTeeth,
   opposingToothExtractionMap,
   opposingClaspTeeth,
@@ -309,6 +320,13 @@ export function OpposingRemovableAccordion({
     (!!impressionDisplay &&
       archHasActiveImpressionSelections(selectedImpressions, impressionModalProductId, opposingArch));
 
+  const hasOpposingExtractionsConfigured = (opposingProductData.opposite_extractions?.length ?? 0) > 0;
+  const hasOpposingImpressionConfigured = opposingProductData.opposite_impression === "Yes";
+  const showOpposingExtractions =
+    hasOpposingExtractionsConfigured && opposingExtractions.length > 0 && !opposingIsSingleDefaultOnly;
+  const showOpposingImpressionField =
+    hasOpposingImpressionConfigured && (opposingOnlyLayout ? true : isF("impression"));
+
   return (
     <PanelDiv className="relative mt-4">
       <PanelDiv className="rounded-lg bg-white overflow-hidden border border-[#d9d9d9]">
@@ -322,54 +340,27 @@ export function OpposingRemovableAccordion({
               className={`text-black transition-transform ${expanded ? "rotate-180" : ""}`}
             />
           </PanelDiv>
-          <PanelDiv className="flex items-stretch gap-[10px] px-[8px] py-[14px]" onClick={(e) => e.stopPropagation()}>
-            <ProductImagePreview
-              imageUrl={productImage}
-              altText={productName}
-              containerClassName="w-[162px] h-[152px] rounded-[6px] bg-white flex items-center justify-center flex-shrink-0 overflow-hidden shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]"
-              imgClassName="w-full h-full object-contain"
-              fallback={
-                <PanelDiv className="w-full h-full flex items-center justify-center">
-                  <span className="text-[10px] text-gray-400">No img</span>
-                </PanelDiv>
-              }
-            />
-            <PanelDiv className="flex-1 min-w-0 flex flex-col gap-[9.94px]">
-              {shouldShowRemovableHeaderContent({
-                hasProduct: true,
-                hasVariation: opposingProductData.has_variation,
-                teethCount: displayTeeth.length,
-                caseSubmitted,
-              }) && (
+          <PanelDiv
+            className={`flex flex-col gap-[9.94px] px-[8px] py-[14px] ${opposingOnlyLayout ? "w-full" : "flex items-stretch gap-[10px]"}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {!opposingOnlyLayout && (
+              <ProductImagePreview
+                imageUrl={productImage}
+                altText={productName}
+                containerClassName="w-[162px] h-[152px] rounded-[6px] bg-white flex items-center justify-center flex-shrink-0 overflow-hidden shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]"
+                imgClassName="w-full h-full object-contain"
+                fallback={
+                  <PanelDiv className="w-full h-full flex items-center justify-center">
+                    <span className="text-[10px] text-gray-400">No img</span>
+                  </PanelDiv>
+                }
+              />
+            )}
+            <PanelDiv className={`min-w-0 flex flex-col gap-[9.94px] ${opposingOnlyLayout ? "w-full" : "flex-1"}`}>
+              {opposingOnlyLayout ? (
                 <>
-                  <PanelDiv className="flex items-center gap-[4px] flex-wrap">
-                    {opposingProductData.subcategory?.category?.name && (
-                      <AccordionBadge>{opposingProductData.subcategory.category.name}</AccordionBadge>
-                    )}
-                    {opposingProductData.subcategory?.name && (
-                      <AccordionBadge>{opposingProductData.subcategory.name}</AccordionBadge>
-                    )}
-                  </PanelDiv>
-                  <PanelDiv
-                    className={`flex flex-col items-center text-center gap-[5px] border rounded-[7px] p-[10px] mr-8 ${confirmDetailsChecked ? "border-[#34C759]" : "border-[#F97316]"}`}
-                  >
-                    <p className="font-[Inter] text-[20px] font-bold leading-[20px] tracking-[-0.02em] text-black">
-                      {getRemovableHeaderTitle({
-                        productName,
-                        hasVariation: opposingProductData.has_variation,
-                        teethCount: displayTeeth.length,
-                        isFullDenture: cardIsFullDenture,
-                        hasVariationMatch,
-                      })}
-                      {hasRushed && <RushIcon className="inline w-[14px] h-[14px] ml-1" />}
-                    </p>
-                    {cardToothDisplay && (
-                      <p className="font-[Inter] text-[20px] font-normal leading-[20px] tracking-[-0.02em] text-black">
-                        {cardToothDisplay}
-                      </p>
-                    )}
-                  </PanelDiv>
-                  {opposingExtractions.length > 0 && !opposingIsSingleDefaultOnly && (
+                  {showOpposingExtractions && (
                     <ToothStatusBoxes
                       extractions={opposingExtractions}
                       selectedTeeth={
@@ -403,25 +394,132 @@ export function OpposingRemovableAccordion({
                       submitted={caseSubmitted}
                       hideDefaultBox
                       disableRequiredValidation
+                      showStatusReferenceHint={!opposingOnlyLayout}
                     />
                   )}
-                  <PanelDiv className="flex items-center gap-[4.97px] flex-wrap">
-                    {stageVal && !singleStageSkip && <AccordionBadge>{stageVal}</AccordionBadge>}
-                    <EstDaysLabel
-                      rushed={hasRushed}
-                      text={hasRushed ? "5 work days after submission" : estDays}
-                    />
-                  </PanelDiv>
+                  {showOpposingImpressionField && (
+                    <fieldset
+                      className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${caseSubmitted ? "" : "cursor-pointer hover:bg-gray-50"} ${impressionComplete && !caseSubmitted ? "border-[#34a853]" : impressionComplete ? "border-[#b4b0b0]" : impressionDisplay ? "border-[#CF0202]" : "border-[#d9d9d9]"}`}
+                      onClick={() => {
+                        if (caseSubmitted) return;
+                        handleOpenImpressionModal(
+                          opposingArch,
+                          impressionModalProductId,
+                          opposingRepTn
+                        );
+                      }}
+                    >
+                      <legend
+                        className={`text-sm px-1 leading-none ${impressionComplete && !caseSubmitted ? "text-[#34a853]" : impressionComplete ? "text-[#7f7f7f]" : impressionDisplay ? "text-[#CF0202]" : "text-[#7f7f7f]"}`}
+                      >
+                        Impression
+                      </legend>
+                      <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">
+                        {impressionDisplay || "No Opposing"}
+                      </span>
+                      {impressionComplete && !caseSubmitted && (
+                        <Check size={14} className="text-[#34a853] flex-shrink-0" />
+                      )}
+                    </fieldset>
+                  )}
                 </>
+              ) : (
+                shouldShowRemovableHeaderContent({
+                  hasProduct: true,
+                  hasVariation: opposingProductData.has_variation,
+                  teethCount: displayTeeth.length,
+                  caseSubmitted,
+                }) && (
+                  <>
+                    <PanelDiv className="flex items-center gap-[4px] flex-wrap">
+                      {opposingProductData.subcategory?.category?.name && (
+                        <AccordionBadge>{opposingProductData.subcategory.category.name}</AccordionBadge>
+                      )}
+                      {opposingProductData.subcategory?.name && (
+                        <AccordionBadge>{opposingProductData.subcategory.name}</AccordionBadge>
+                      )}
+                    </PanelDiv>
+                    <PanelDiv
+                      className={`${caseDesignInter.className} flex flex-col items-center text-center gap-[5px] border rounded-[7px] p-[10px] mr-8 ${confirmDetailsChecked ? "border-[#34C759]" : "border-[#F97316]"}`}
+                    >
+                      <p className={`${removableHeaderTitleClass} text-black`}>
+                        {getRemovableHeaderTitle({
+                          productName,
+                          hasVariation: opposingProductData.has_variation,
+                          teethCount: displayTeeth.length,
+                          isFullDenture: cardIsFullDenture,
+                          hasVariationMatch,
+                        })}
+                        {hasRushed && <RushIcon className="inline w-[14px] h-[14px] ml-1" />}
+                      </p>
+                      {cardToothDisplay && (
+                        <p className={`${removableHeaderToothClass} text-black`}>
+                          {cardToothDisplay}
+                        </p>
+                      )}
+                    </PanelDiv>
+                    {showOpposingExtractions && (
+                      <ToothStatusBoxes
+                        extractions={opposingExtractions}
+                        selectedTeeth={
+                          opposingSelectedTeeth.length > 0
+                            ? opposingSelectedTeeth
+                            : Object.keys(opposingToothExtractionMap).map(Number)
+                        }
+                        allArchTeeth={opposingArchTeeth}
+                        toothExtractionMap={opposingToothExtractionMap}
+                        claspTeeth={opposingClaspTeeth}
+                        displayTeethByCode={getToothStatusBoxDisplayMap({
+                          extractions: opposingExtractions,
+                          selectedTeeth:
+                            opposingSelectedTeeth.length > 0
+                              ? opposingSelectedTeeth
+                              : Object.keys(opposingToothExtractionMap).map(Number),
+                          toothExtractionMap: opposingToothExtractionMap,
+                          claspTeeth: opposingClaspTeeth,
+                        })}
+                        activeExtractionCode={opposingActiveExtractionCode}
+                        onActiveExtractionChange={(code, exts) => {
+                          setOpposingActiveExtractionCode(code);
+                          if (exts) setOpposingActiveExtractions(exts);
+                        }}
+                        onToothExtractionToggle={(tn, code, exts) =>
+                          onOpposingExtractionToggle?.(tn, code, exts ?? opposingExtractions)
+                        }
+                        onSelectAllTeeth={(teeth) => onSelectAllOpposingTeeth?.(teeth)}
+                        onRequiredValidationChange={onToothStatusValidationChange}
+                        isRemovable
+                        submitted={caseSubmitted}
+                        hideDefaultBox
+                        disableRequiredValidation
+                        showStatusReferenceHint={!opposingOnlyLayout}
+                      />
+                    )}
+                    <PanelDiv className="flex items-center gap-[4.97px] flex-wrap">
+                      {stageVal && !singleStageSkip && <AccordionBadge>{stageVal}</AccordionBadge>}
+                      <EstDaysLabel
+                        rushed={hasRushed}
+                        text={hasRushed ? "5 work days after submission" : estDays}
+                      />
+                    </PanelDiv>
+                  </>
+                )
               )}
             </PanelDiv>
           </PanelDiv>
         </PanelDiv>
 
-        {expanded && (
+        {expanded &&
+          ((showOpposingImpressionField && !opposingOnlyLayout) ||
+            (!opposingOnlyLayout &&
+              (isF("grade") ||
+                isF("stage") ||
+                isF("teeth_shade") ||
+                isF("gum_shade") ||
+                isF("addons")))) && (
           <PanelDiv className="px-[14px] py-[14px] flex flex-col gap-[10px]">
             <PanelDiv className="rounded-lg p-3 space-y-3">
-              {(isF("grade") || (isF("stage") && !singleStageSkip)) && (() => {
+              {!opposingOnlyLayout && (isF("grade") || (isF("stage") && !singleStageSkip)) && (() => {
                 const gradeProducts = getActiveGrades(opposingProductData.grades);
                 const hasGradesRow = gradeProducts.length > 0;
                 return (
@@ -488,7 +586,7 @@ export function OpposingRemovableAccordion({
                 );
               })()}
 
-              {(isF("teeth_shade") || isF("gum_shade")) && (
+              {!opposingOnlyLayout && (isF("teeth_shade") || isF("gum_shade")) && (
                 <PanelDiv className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {isF("teeth_shade") && isFComplete("teeth_shade") && (
                     <fieldset
@@ -592,20 +690,20 @@ export function OpposingRemovableAccordion({
                 </PanelDiv>
               )}
 
-              {isF("impression") && (
+              {showOpposingImpressionField && (
                 <fieldset
-                  className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${caseSubmitted ? "" : "cursor-pointer hover:bg-gray-50"} ${impressionComplete && !caseSubmitted ? "border-[#34a853]" : impressionComplete ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
+                  className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${caseSubmitted ? "" : "cursor-pointer hover:bg-gray-50"} ${impressionComplete && !caseSubmitted ? "border-[#34a853]" : impressionComplete ? "border-[#b4b0b0]" : impressionDisplay ? "border-[#CF0202]" : "border-[#d9d9d9]"}`}
                   onClick={() => {
                     if (caseSubmitted) return;
                     handleOpenImpressionModal(
                       opposingArch,
-                      opposingProductData.id?.toString() ?? "0",
+                      impressionModalProductId,
                       opposingRepTn
                     );
                   }}
                 >
                   <legend
-                    className={`text-sm px-1 leading-none ${impressionComplete && !caseSubmitted ? "text-[#34a853]" : impressionComplete ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}
+                    className={`text-sm px-1 leading-none ${impressionComplete && !caseSubmitted ? "text-[#34a853]" : impressionComplete ? "text-[#7f7f7f]" : impressionDisplay ? "text-[#CF0202]" : "text-[#7f7f7f]"}`}
                   >
                     Impression
                   </legend>
@@ -617,14 +715,13 @@ export function OpposingRemovableAccordion({
                   )}
                 </fieldset>
               )}
-              {!impressionDisplay && isF("impression") && (
-                <p className="font-['Verdana'] text-sm text-black">
-                  No impression will be sent on this appointment. Please note that opposing scan is{" "}
-                  <span className="text-[#CF0202] font-bold">required</span> for this impression.
+              {!impressionDisplay && showOpposingImpressionField && (
+                <p className="font-['Verdana'] text-sm text-[#7f7f7f]">
+                  Opposing impression is optional for this product.
                 </p>
               )}
 
-              {isF("addons") && (() => {
+              {!opposingOnlyLayout && isF("addons") && (() => {
                 const addonsVal = fVal("addons") || "";
                 const addonItems = parseAddonDisplayItems(addonsVal);
                 const borderClass =

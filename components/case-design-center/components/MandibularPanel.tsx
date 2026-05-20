@@ -75,6 +75,11 @@ import {
   resolveFixedShadeProductId,
   shouldUseAccordionOnlyFixedShades,
 } from "../utils/shadeGuideAdvanceFields";
+import {
+  caseDesignInter,
+  removableHeaderTitleClass,
+  removableHeaderToothClass,
+} from "../case-design-inter-font";
 import { getRemovableHeaderTitle, shouldShowRemovableHeaderContent } from "../utils/removableHeaderLabel";
 import { shouldAddToProductSelectionOnRemovableClick } from "../utils/removableToothClickMode";
 import { getRemovableOrangeHeaderTeeth, getToothStatusBoxDisplayMap } from "../utils/removableToothDisplay";
@@ -721,6 +726,8 @@ interface MandibularPanelProps {
   /** When true, suppresses auto-open helpers (shade, gum shade, impression) on this panel.
    *  Used when initialArch='both' so the upper side is configured first. */
   suppressAutoOpen?: boolean;
+  /** Single-arch slip: opposing accordion shows extractions/impression only, not primary product. */
+  opposingOnlyLayout?: boolean;
 }
 
 /** Auto-opens the shade picker when this component mounts (i.e. shade field becomes visible) and the field has no value */
@@ -830,6 +837,7 @@ export function MandibularPanel({
   confirmDetailsChecked = false,
   isAnyModalOpen = false,
   suppressAutoOpen = false,
+  opposingOnlyLayout = false,
 }: MandibularPanelProps) {
   const MANDIBULAR_ALL_TEETH = [17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
   const MANDIBULAR_PRODUCT_SENTINEL = 17;
@@ -1931,11 +1939,11 @@ export function MandibularPanel({
 
                                       return (
                                         <div
-                                          className={`flex flex-col items-center text-center gap-[5px] border rounded-[7px] p-[10px] mr-8 transition-colors ${confirmDetailsChecked ? "border-[#34C759]" : "border-[#F97316]"
+                                          className={`${caseDesignInter.className} flex flex-col items-center text-center gap-[5px] border rounded-[7px] p-[10px] mr-8 transition-colors ${confirmDetailsChecked ? "border-[#34C759]" : "border-[#F97316]"
                                             }`}
                                           style={{ backgroundColor: headerBg }}
                                         >
-                                          <p className={`font-[Inter] text-[20px] font-bold leading-[20px] tracking-[-0.02em] flex items-center gap-1 ${headerTextClass}`}>
+                                          <p className={`${removableHeaderTitleClass} flex items-center gap-1 ${headerTextClass}`}>
                                             {getRemovableHeaderTitle({
                                               productName: cardProductName,
                                               hasVariation: apProduct?.has_variation,
@@ -1945,7 +1953,7 @@ export function MandibularPanel({
                                             })}
                                             {hasRushedAp && <RushIcon className={`inline w-[14px] h-[14px] ml-1 ${isLight ? "text-[#CF0202]" : "text-white"}`} />}
                                           </p>
-                                          <p className={`font-[Inter] text-[20px] font-normal leading-[20px] tracking-[-0.02em] ${headerTextClass}`}>
+                                          <p className={`${removableHeaderToothClass} ${headerTextClass}`}>
                                             {cardToothDisplay}
                                           </p>
                                         </div>
@@ -2815,8 +2823,8 @@ export function MandibularPanel({
                                     <AccordionBadge>{cardProduct.subcategory.name}</AccordionBadge>
                                   )}
                                 </div>
-                                <div className={`flex flex-col items-center text-center gap-[5px] border rounded-[7px] p-[10px] mr-8 ${confirmDetailsChecked ? "border-[#34C759]" : "border-[#F97316]"}`}>
-                                  <p className="font-[Inter] text-[20px] font-bold leading-[20px] tracking-[-0.02em] text-black">
+                                <div className={`${caseDesignInter.className} flex flex-col items-center text-center gap-[5px] border rounded-[7px] p-[10px] mr-8 ${confirmDetailsChecked ? "border-[#34C759]" : "border-[#F97316]"}`}>
+                                  <p className={`${removableHeaderTitleClass} text-black`}>
                                     {getRemovableHeaderTitle({
                                       productName: cardProductName,
                                       hasVariation: cardProduct?.has_variation,
@@ -2827,7 +2835,7 @@ export function MandibularPanel({
                                     {hasRushedRemovables && <RushIcon className="inline w-[14px] h-[14px] ml-1" />}
                                   </p>
                                   {cardToothDisplay && (
-                                    <p className="font-[Inter] text-[20px] font-normal leading-[20px] tracking-[-0.02em] text-black">
+                                    <p className={`${removableHeaderToothClass} text-black`}>
                                       {cardToothDisplay}
                                     </p>
                                   )}
@@ -3212,6 +3220,7 @@ export function MandibularPanel({
                   onOpposingExtractionToggle={onOpposingExtractionToggle}
                   onSelectAllOpposingTeeth={onSelectAllOpposingTeeth}
                   onToothStatusValidationChange={onToothStatusValidationChange}
+                  opposingOnlyLayout={opposingOnlyLayout}
                 />
               );
             })()}

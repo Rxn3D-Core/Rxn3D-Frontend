@@ -73,6 +73,11 @@ import {
   shouldUseAccordionOnlyFixedShades,
 } from "../utils/shadeGuideAdvanceFields";
 import { shouldAddToProductSelectionOnRemovableClick } from "../utils/removableToothClickMode";
+import {
+  caseDesignInter,
+  removableHeaderTitleClass,
+  removableHeaderToothClass,
+} from "../case-design-inter-font";
 import { getRemovableHeaderTitle, shouldShowRemovableHeaderContent } from "../utils/removableHeaderLabel";
 import { getRemovableOrangeHeaderTeeth, getToothStatusBoxDisplayMap } from "../utils/removableToothDisplay";
 import { archHasActiveImpressionSelections } from "../utils/impressionFieldSync";
@@ -635,6 +640,8 @@ interface MaxillaryPanelProps {
   confirmDetailsChecked?: boolean;
   /** When true (stage or impression modal is open), disables the teeth SVG. */
   isAnyModalOpen?: boolean;
+  /** Single-arch slip: opposing accordion shows extractions/impression only, not primary product. */
+  opposingOnlyLayout?: boolean;
 }
 
 /** Returns true if the product is a full-denture type: no TIM extraction, only "Missing teeth" extraction. */
@@ -847,6 +854,7 @@ export function MaxillaryPanel({
   onBackToCategories,
   confirmDetailsChecked = false,
   isAnyModalOpen = false,
+  opposingOnlyLayout = false,
 }: MaxillaryPanelProps) {
   const MAXILLARY_ALL_TEETH = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
   const MAXILLARY_PRODUCT_SENTINEL = 1;
@@ -1943,11 +1951,11 @@ export function MaxillaryPanel({
 
                                       return (
                                         <div
-                                          className={`flex flex-col items-center text-center gap-[5px] border rounded-[7px] p-[10px] mr-8 transition-colors ${confirmDetailsChecked ? "border-[#34C759]" : "border-[#F97316]"
+                                          className={`${caseDesignInter.className} flex flex-col items-center text-center gap-[5px] border rounded-[7px] p-[10px] mr-8 transition-colors ${confirmDetailsChecked ? "border-[#34C759]" : "border-[#F97316]"
                                             }`}
                                           style={{ backgroundColor: headerBg }}
                                         >
-                                          <p className={`font-[Inter] text-[20px] font-bold leading-[20px] tracking-[-0.02em] flex items-center gap-1 ${headerTextClass}`}>
+                                          <p className={`${removableHeaderTitleClass} flex items-center gap-1 ${headerTextClass}`}>
                                             {getRemovableHeaderTitle({
                                               productName: cardProductName,
                                               hasVariation: apProduct?.has_variation,
@@ -1957,7 +1965,7 @@ export function MaxillaryPanel({
                                             })}
                                             {hasRushedAp && <RushIcon className={`inline w-[14px] h-[14px] ml-1 ${isLight ? "text-[#CF0202]" : "text-white"}`} />}
                                           </p>
-                                          <p className={`font-[Inter] text-[20px] font-normal leading-[20px] tracking-[-0.02em] ${headerTextClass}`}>
+                                          <p className={`${removableHeaderToothClass} ${headerTextClass}`}>
                                             {cardToothDisplay}
                                           </p>
                                         </div>
@@ -2837,8 +2845,8 @@ export function MaxillaryPanel({
                                     <AccordionBadge>{cardProduct.subcategory.name}</AccordionBadge>
                                   )}
                                 </div>
-                                <div className={`flex flex-col items-center text-center gap-[5px] border rounded-[7px] p-[10px] mr-8 ${confirmDetailsChecked ? "border-[#34C759]" : "border-[#F97316]"}`}>
-                                  <p className="font-[Inter] text-[20px] font-bold leading-[20px] tracking-[-0.02em] text-black">
+                                <div className={`${caseDesignInter.className} flex flex-col items-center text-center gap-[5px] border rounded-[7px] p-[10px] mr-8 ${confirmDetailsChecked ? "border-[#34C759]" : "border-[#F97316]"}`}>
+                                  <p className={`${removableHeaderTitleClass} text-black`}>
                                     {getRemovableHeaderTitle({
                                       productName: cardProductName,
                                       hasVariation: cardProduct?.has_variation,
@@ -2849,7 +2857,7 @@ export function MaxillaryPanel({
                                     {hasRushedRemovables && <RushIcon className="inline w-[14px] h-[14px] ml-1" />}
                                   </p>
                                   {cardToothDisplay && (
-                                    <p className="font-[Inter] text-[20px] font-normal leading-[20px] tracking-[-0.02em] text-black">
+                                    <p className={`${removableHeaderToothClass} text-black`}>
                                       {cardToothDisplay}
                                     </p>
                                   )}
@@ -3202,6 +3210,7 @@ export function MaxillaryPanel({
                   onOpposingExtractionToggle={onOpposingExtractionToggle}
                   onSelectAllOpposingTeeth={selectAllOpposingTeeth}
                   onToothStatusValidationChange={onToothStatusValidationChange}
+                  opposingOnlyLayout={opposingOnlyLayout}
                 />
               );
             })()}
