@@ -1,4 +1,8 @@
 import type { Arch, ProductApiData } from "../types";
+import {
+  mirrorImpressionArch,
+  type SlipImpressionSelections,
+} from "./impressionStorage";
 import type { FieldStep } from "../hooks/useToothFieldProgress";
 import { FIXED_FIELD_STEPS, getRetentionFieldChain } from "../hooks/useToothFieldProgress";
 import { resolveGroupStageToothNumber } from "./implantDetailHelpers";
@@ -105,27 +109,15 @@ export function mirrorFixedStageKey(
   return { ...selectedStages, [targetKey]: value };
 }
 
-/** Copy impression qty keys for a product from one arch to the other. */
+/** Copy arch-level impression list from one jaw to the other when target is empty. */
 export function mirrorImpressionSelections(
-  impressionProductId: string,
+  _impressionProductId: string,
   sourceArch: Arch,
   targetArch: Arch,
-  selectedImpressions: Record<string, number>
-): Record<string, number> | null {
-  const prefix = `${impressionProductId}_${sourceArch}_`;
-  const targetPrefix = `${impressionProductId}_${targetArch}_`;
-  let changed = false;
-  const next = { ...selectedImpressions };
-  for (const [key, qty] of Object.entries(selectedImpressions)) {
-    if (!key.startsWith(prefix) || qty <= 0) continue;
-    const suffix = key.slice(prefix.length);
-    const targetKey = `${targetPrefix}${suffix}`;
-    if (!next[targetKey] || next[targetKey] <= 0) {
-      next[targetKey] = qty;
-      changed = true;
-    }
-  }
-  return changed ? next : null;
+  selectedImpressions: SlipImpressionSelections
+): SlipImpressionSelections | null {
+  void _impressionProductId;
+  return mirrorImpressionArch(selectedImpressions, sourceArch, targetArch);
 }
 
 /** Copy all shade keys for a fixed product from source arch to target arch. */

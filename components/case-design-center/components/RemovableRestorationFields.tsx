@@ -22,7 +22,13 @@ import type {
 } from "../types";
 import type { FieldStep } from "../hooks/useToothFieldProgress";
 import { getSelectionFieldChain } from "../hooks/useToothFieldProgress";
-import { isSingleStageNoStages } from "../utils/categoryHelpers";
+import { shouldSkipStageSelection } from "../utils/categoryHelpers";
+import {
+  productHasGrades,
+  resolveProductGradesForDisplay,
+  parseGradeDisplayName,
+  isGradeStepCompleteForDisplay,
+} from "../utils/gradeHelpers";
 import { hasVisibleAddonDisplay } from "../utils/addonDisplayHelpers";
 
 /* ------------------------------------------------------------------ */
@@ -393,15 +399,19 @@ export function SelectionProductFields({
         const stageCfg = selectedStageObj?.stage_configurations;
 
         const gradeRaw = getFieldValueFn(arch, firstToothNumber, "grade") || "";
-        let gradeVal = gradeRaw;
-        try { const p = JSON.parse(gradeRaw); gradeVal = p.name ?? gradeRaw; } catch {}
-        const isGradeComplete = isFieldCompletedFn(arch, firstToothNumber, "grade");
+        const gradeVal = parseGradeDisplayName(gradeRaw);
+        const isGradeComplete = isGradeStepCompleteForDisplay(
+          gradeRaw,
+          isFieldCompletedFn(arch, firstToothNumber, "grade"),
+          selectedProduct
+        );
         const showGradeGreen = isGradeComplete && !caseSubmitted;
-        const productGrades = getActiveGrades(selectedProduct?.grades);
+        const productGrades = resolveProductGradesForDisplay(selectedProduct);
         // Hide grade if stage_configurations.grade === "No"
         const gradeAllowedByStage = !stageCfg || stageCfg.grade !== "No";
-        const hasGrades = productGrades.length > 0 && gradeAllowedByStage;
-        const showStage = isVisible("stage") && !isSingleStageNoStages(selectedProduct);
+        const hasGrades =
+          (productGrades.length > 0 || productHasGrades(selectedProduct)) && gradeAllowedByStage;
+        const showStage = isVisible("stage") && !shouldSkipStageSelection(selectedProduct);
         const showTwoCols = hasGrades && showStage;
         return (
         <div className={`grid grid-cols-1 ${showTwoCols ? "sm:grid-cols-2" : ""} gap-3`}>

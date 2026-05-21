@@ -4,6 +4,12 @@ function getSortedUniqueTeeth(teeth: number[]): number[] {
   return [...new Set(teeth)].sort((a, b) => a - b);
 }
 
+function looksLikeMissingCode(code: string): boolean {
+  const normalized = code.trim().toUpperCase();
+  if (!normalized) return false;
+  return normalized === "MT" || normalized.startsWith("MT_") || normalized.includes("MISSING");
+}
+
 /** True when this tooth has an overlay extraction (e.g. Clasps) — never counts toward the orange header. */
 export function toothHasOverlayAssignment(
   toothNumber: number,
@@ -74,6 +80,9 @@ export function getStatusBoxTeeth({
   isDefault: boolean;
   isClasp: boolean;
 }): number[] {
+  const selectedSet = new Set(selectedTeeth);
+  const includeAcrossProducts = looksLikeMissingCode(extractionCode);
+
   if (isDefault) {
     return getSortedUniqueTeeth(
       selectedTeeth.filter((toothNumber) => toothExtractionMap[toothNumber] === undefined)
@@ -81,12 +90,16 @@ export function getStatusBoxTeeth({
   }
 
   if (isClasp) {
-    return getSortedUniqueTeeth(claspTeeth);
+    return getSortedUniqueTeeth(claspTeeth.filter((toothNumber) => selectedSet.has(toothNumber)));
   }
 
   return getSortedUniqueTeeth(
     Object.entries(toothExtractionMap)
-      .filter(([, code]) => code === extractionCode)
+      .filter(
+        ([toothNumber, code]) =>
+          (code === extractionCode || (includeAcrossProducts && looksLikeMissingCode(code))) &&
+          (includeAcrossProducts || selectedSet.has(Number(toothNumber)))
+      )
       .map(([toothNumber]) => Number(toothNumber))
   );
 }

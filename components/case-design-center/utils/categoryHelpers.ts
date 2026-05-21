@@ -52,39 +52,57 @@ export type ProductStageOption = { name: string; is_default?: string };
 
 export type ProductForStageSelection = {
   is_single_stage?: string | boolean;
+  has_stage?: string | boolean | null;
   stages?: ProductStageOption[];
 };
 
+/** Legacy label — do not show or persist in the stage field UI. */
 export const SKIPPED_STAGE_LABEL = "Single Stage";
 
 /**
- * Stage selection rules:
- * - is_single_stage Yes → skip (no picker)
- * - is_single_stage No → if stages[] empty, skip; if 1 stage, auto-select it;
- *   if 2+ stages, auto-select the one with is_default Yes; otherwise prompt user
+ * Show the stage field only when the product has one or more stages in stages[] and
+ * flags allow stage selection (not has_stage No, not is_single_stage Yes).
  */
+export function productHasStageField(
+  product: ProductForStageSelection | null | undefined
+): boolean {
+  if (!product) return false;
+  if (normalizeYesNo(product.has_stage) === "No") return false;
+  if (normalizeYesNo(product.is_single_stage) === "Yes") return false;
+  if (!Array.isArray(product.stages) || product.stages.length === 0) return false;
+  return true;
+}
+
+/** True when the stage field / picker must not be shown. */
+export function shouldSkipStageSelection(
+  product: ProductForStageSelection | null | undefined
+): boolean {
+  return !productHasStageField(product);
+}
+
+/** Stage value safe to show in accordion badges and fieldsets (never the skip placeholder). */
+export function isDisplayableStageValue(value: string | undefined | null): boolean {
+  const v = value?.trim();
+  return !!v && v !== SKIPPED_STAGE_LABEL;
+}
+
 export type StageSelectionResolution =
-  | { kind: "skip"; stageLabel: string }
+  | { kind: "skip" }
   | { kind: "auto"; stageName: string }
   | { kind: "prompt" };
 
+/** Resolve auto-select vs user prompt when the stage field is shown. */
 export function resolveStageSelection(
   product: ProductForStageSelection | null | undefined
 ): StageSelectionResolution {
-  if (!product) return { kind: "prompt" };
-
-  if (normalizeYesNo(product.is_single_stage) === "Yes") {
-    return { kind: "skip", stageLabel: SKIPPED_STAGE_LABEL };
+  if (!productHasStageField(product)) {
+    return { kind: "skip" };
   }
 
-  const stages = Array.isArray(product.stages) ? product.stages : [];
-  if (stages.length === 0) {
-    return { kind: "skip", stageLabel: SKIPPED_STAGE_LABEL };
-  }
-
+  const stages = product!.stages!;
   if (stages.length === 1) {
     const name = stages[0]?.name?.trim();
-    return name ? { kind: "auto", stageName: name } : { kind: "skip", stageLabel: SKIPPED_STAGE_LABEL };
+    return name ? { kind: "auto", stageName: name } : { kind: "skip" };
   }
 
   const defaultStage = stages.find((s) => normalizeYesNo(s.is_default) === "Yes");
@@ -96,19 +114,18 @@ export function resolveStageSelection(
   return { kind: "prompt" };
 }
 
-/** True when the stage picker must not be shown (single-stage or no stages configured). */
-export function shouldSkipStageSelection(
+/** True when the user can open the stage picker to choose among multiple stages. */
+export function productHasSelectableStages(
   product: ProductForStageSelection | null | undefined
 ): boolean {
-  return resolveStageSelection(product).kind === "skip";
+  return Array.isArray(product?.stages) && product.stages.length > 1;
 }
 
-/** Stage name to apply without opening the modal, or null when the user must choose. */
+/** Stage name to apply without opening the modal, or null when the user must choose or field is hidden. */
 export function getResolvedStageName(
   product: ProductForStageSelection | null | undefined
 ): string | null {
   const resolution = resolveStageSelection(product);
-  if (resolution.kind === "skip") return resolution.stageLabel;
   if (resolution.kind === "auto") return resolution.stageName;
   return null;
 }

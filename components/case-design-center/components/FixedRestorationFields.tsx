@@ -39,6 +39,7 @@ import {
 } from "../utils/implantDetailHelpers";
 import { useCrossArchImplantMirror } from "../hooks/useCrossArchImplantMirror";
 import { shouldSkipStageSelection } from "../utils/categoryHelpers";
+import { productHasGrades } from "../utils/gradeHelpers";
 import { parseAddonDisplayItems } from "../utils/addonDisplayHelpers";
 import {
   getShadeGuideAdvanceFields,
@@ -166,7 +167,7 @@ export function hasAdvanceField(
       return names.some((n) => n.includes("add") && (n.includes("on") || n.includes("addon")));
     // Removable restoration steps
     case "grade":
-      return names.some((n) => n.includes("grade"));
+      return productHasGrades(product as ProductApiData) || names.some((n) => n.includes("grade"));
     case "teeth_shade":
       return names.some((n) => n.includes("teeth") && n.includes("shade"));
     case "gum_shade":
