@@ -906,15 +906,42 @@ export function MandibularPanel({
   const MANDIBULAR_PRODUCT_SENTINEL = 17;
   const [activeExtractionCode, setActiveExtractionCode] = useState<string | null>(null);
 
-  // Auto-select single default extraction for removable products
+  // Auto-select single default extraction for removable products (card 0 and added cards)
   useEffect(() => {
-    if (activeProductIsRemovables && isSingleDefaultOnlyExtractionList(card0Extractions)) {
-      const active = (card0Extractions || []).filter(e => e.status === "Active" && e.name != null && e.code != null);
-      if (active.length === 1 && activeExtractionCode === null) {
-        setActiveExtractionCode(active[0].code);
-      }
+    if (!activeProductIsRemovables) return;
+    let exts: ProductExtraction[] = [];
+    if (activeProductCardId === 0) {
+      exts = card0Extractions ?? [];
+    } else {
+      const ap = addedProducts.find(
+        (p) => p.id === activeProductCardId && p.arch === "mandibular"
+      );
+      if (!ap) return;
+      const cardTeeth = MANDIBULAR_ALL_TEETH.filter(
+        (tn) => getToothProductCard("mandibular", tn) === ap.id
+      );
+      const repTn =
+        cardTeeth.length > 0 ? cardTeeth[0] : -ap.id;
+      exts =
+        getToothProduct("mandibular", repTn)?.extractions ??
+        (ap.product as ProductApiData | undefined)?.extractions ??
+        [];
     }
-  }, [activeProductIsRemovables, card0Extractions, activeExtractionCode]);
+    if (!isSingleDefaultOnlyExtractionList(exts)) return;
+    const active = exts.filter(
+      (e) => e.status === "Active" && e.name != null && e.code != null
+    );
+    if (active.length === 1) {
+      setActiveExtractionCode(active[0].code!);
+    }
+  }, [
+    activeProductIsRemovables,
+    activeProductCardId,
+    card0Extractions,
+    addedProducts,
+    getToothProduct,
+    getToothProductCard,
+  ]);
   const [activeExtractions, setActiveExtractions] = useState<import("../types").ProductExtraction[]>([]);
   const { isExtractionsSetupComplete, setExtractionsSetupComplete } = useExtractionsAcknowledged("mandibular");
   const [toothStatusPopoverTooth, setToothStatusPopoverTooth] = useState<number | null>(null);
@@ -2022,12 +2049,7 @@ export function MandibularPanel({
                                       (useMandibularArchSharedRemovable
                                         ? mandibularMergedExtractions
                                         : apExtractions
-                                      ).length > 0 &&
-                                      !isSingleDefaultOnlyExtractionList(
-                                        useMandibularArchSharedRemovable
-                                          ? mandibularMergedExtractions
-                                          : apExtractions
-                                      ) && (
+                                      ).length > 0 && (
                                       <ToothStatusBoxes
                                         extractions={
                                           useMandibularArchSharedRemovable
@@ -2035,9 +2057,11 @@ export function MandibularPanel({
                                             : apExtractions
                                         }
                                         selectedTeeth={
-                                          useMandibularArchSharedRemovable
+                                          apIsSingleDefaultOnly
                                             ? mandibularTeeth
-                                            : assignedTeeth
+                                            : useMandibularArchSharedRemovable
+                                              ? mandibularTeeth
+                                              : assignedTeeth
                                         }
                                         allArchTeeth={MANDIBULAR_ALL_TEETH}
                                         toothExtractionMap={mandibularToothExtractionMap}
@@ -2046,9 +2070,11 @@ export function MandibularPanel({
                                           extractions: useMandibularArchSharedRemovable
                                             ? mandibularMergedExtractions
                                             : apExtractions,
-                                          selectedTeeth: useMandibularArchSharedRemovable
+                                          selectedTeeth: apIsSingleDefaultOnly
                                             ? mandibularTeeth
-                                            : assignedTeeth,
+                                            : useMandibularArchSharedRemovable
+                                              ? mandibularTeeth
+                                              : assignedTeeth,
                                           toothExtractionMap: mandibularToothExtractionMap,
                                           claspTeeth: mandibularClaspTeeth,
                                         })}
@@ -2077,7 +2103,10 @@ export function MandibularPanel({
                                         submitted={caseSubmitted}
                                         hideDefaultBox={true}
                                         disableRequiredValidation={true}
-                                        grayed={isActiveMandibularProductDetailPending}
+                                        grayed={
+                                          isActiveMandibularProductDetailPending ||
+                                          apIsSingleDefaultOnly
+                                        }
                                       />
                                     )}
                                     <div className="flex items-center gap-[4.97px] flex-wrap">

@@ -925,15 +925,42 @@ export function MaxillaryPanel({
   const MAXILLARY_PRODUCT_SENTINEL = 1;
   const [activeExtractionCode, setActiveExtractionCode] = useState<string | null>(null);
 
-  // Auto-select single default extraction for removable products
+  // Auto-select single default extraction for removable products (card 0 and added cards)
   useEffect(() => {
-    if (activeProductIsRemovables && isSingleDefaultOnlyExtractionList(card0Extractions)) {
-      const active = (card0Extractions || []).filter(e => e.status === "Active" && e.name != null && e.code != null);
-      if (active.length === 1 && activeExtractionCode === null) {
-        setActiveExtractionCode(active[0].code);
-      }
+    if (!activeProductIsRemovables) return;
+    let exts: ProductExtraction[] = [];
+    if (activeProductCardId === 0) {
+      exts = card0Extractions ?? [];
+    } else {
+      const ap = addedProducts.find(
+        (p) => p.id === activeProductCardId && p.arch === "maxillary"
+      );
+      if (!ap) return;
+      const cardTeeth = MAXILLARY_ALL_TEETH.filter(
+        (tn) => getToothProductCard("maxillary", tn) === ap.id
+      );
+      const repTn =
+        cardTeeth.length > 0 ? cardTeeth[0] : -ap.id;
+      exts =
+        getToothProduct("maxillary", repTn)?.extractions ??
+        (ap.product as import("../types").ProductApiData | undefined)?.extractions ??
+        [];
     }
-  }, [activeProductIsRemovables, card0Extractions, activeExtractionCode]);
+    if (!isSingleDefaultOnlyExtractionList(exts)) return;
+    const active = exts.filter(
+      (e) => e.status === "Active" && e.name != null && e.code != null
+    );
+    if (active.length === 1) {
+      setActiveExtractionCode(active[0].code!);
+    }
+  }, [
+    activeProductIsRemovables,
+    activeProductCardId,
+    card0Extractions,
+    addedProducts,
+    getToothProduct,
+    getToothProductCard,
+  ]);
   const [activeExtractions, setActiveExtractions] = useState<import("../types").ProductExtraction[]>([]);
   const { isExtractionsSetupComplete, setExtractionsSetupComplete } = useExtractionsAcknowledged("maxillary");
   const [toothStatusPopoverTooth, setToothStatusPopoverTooth] = useState<number | null>(null);
@@ -2027,12 +2054,7 @@ export function MaxillaryPanel({
                                       (useMaxillaryArchSharedRemovable
                                         ? maxillaryMergedExtractions
                                         : removableCardExtractions
-                                      ).length > 0 &&
-                                      !isSingleDefaultOnlyExtractionList(
-                                        useMaxillaryArchSharedRemovable
-                                          ? maxillaryMergedExtractions
-                                          : removableCardExtractions
-                                      ) && (
+                                      ).length > 0 && (
                                       <ToothStatusBoxes
                                         extractions={
                                           useMaxillaryArchSharedRemovable
@@ -2040,9 +2062,11 @@ export function MaxillaryPanel({
                                             : removableCardExtractions
                                         }
                                         selectedTeeth={
-                                          useMaxillaryArchSharedRemovable
+                                          apIsSingleDefaultOnly
                                             ? maxillaryTeeth
-                                            : assignedTeeth
+                                            : useMaxillaryArchSharedRemovable
+                                              ? maxillaryTeeth
+                                              : assignedTeeth
                                         }
                                         allArchTeeth={MAXILLARY_ALL_TEETH}
                                         toothExtractionMap={maxillaryToothExtractionMap}
@@ -2051,9 +2075,11 @@ export function MaxillaryPanel({
                                           extractions: useMaxillaryArchSharedRemovable
                                             ? maxillaryMergedExtractions
                                             : removableCardExtractions,
-                                          selectedTeeth: useMaxillaryArchSharedRemovable
+                                          selectedTeeth: apIsSingleDefaultOnly
                                             ? maxillaryTeeth
-                                            : assignedTeeth,
+                                            : useMaxillaryArchSharedRemovable
+                                              ? maxillaryTeeth
+                                              : assignedTeeth,
                                           toothExtractionMap: maxillaryToothExtractionMap,
                                           claspTeeth: maxillaryClaspTeeth,
                                         })}
@@ -2082,7 +2108,10 @@ export function MaxillaryPanel({
                                         submitted={caseSubmitted}
                                         hideDefaultBox={true}
                                         disableRequiredValidation={true}
-                                        grayed={isActiveMaxillaryProductDetailPending}
+                                        grayed={
+                                          isActiveMaxillaryProductDetailPending ||
+                                          apIsSingleDefaultOnly
+                                        }
                                       />
                                     )}
                                     <div className="flex items-center gap-[4.97px] flex-wrap">
