@@ -8,7 +8,10 @@ import {
 } from "@/components/ui/dialog"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { STLFileSelectionModal } from "./stl-file-selection-modal"
-import type { ImpressionOptionForModal as ImpressionOption } from "@/components/case-design-center/types"
+import type {
+  ArchImpressionSelections,
+  ImpressionOptionForModal as ImpressionOption,
+} from "@/components/case-design-center/types"
 
 interface STLFile {
   file: File
@@ -22,6 +25,7 @@ interface ImpressionSelectionModalProps {
   onConfirm?: () => void
   impressions: ImpressionOption[]
   selectedImpressions: Record<string, number>
+  selectedImpressionsByArch?: ArchImpressionSelections
   onUpdateQuantity: (impressionKey: string, quantity: number) => void
   onRemoveImpression: (impressionKey: string) => void
   onSTLFilesAttached?: (files: STLFile[], impressionKey: string) => void
@@ -316,6 +320,7 @@ export function ImpressionSelectionModal({
   onConfirm,
   impressions,
   selectedImpressions,
+  selectedImpressionsByArch,
   onUpdateQuantity,
   onRemoveImpression,
   onSTLFilesAttached,
@@ -351,18 +356,24 @@ export function ImpressionSelectionModal({
     : (oppositeImpressions ?? impressions)
 
   const topPrefix = `${productId}_${topArch}_`
-  const hasTopSelection = Object.entries(selectedImpressions).some(
-    ([key, qty]) => key.startsWith(topPrefix) && qty > 0
-  )
+  const hasTopSelection = selectedImpressionsByArch
+    ? selectedImpressionsByArch[topArch].length > 0
+    : Object.entries(selectedImpressions).some(
+        ([key, qty]) => key.startsWith(topPrefix) && qty > 0
+      )
 
   const bottomPrefix = bottomArch ? `${productId}_${bottomArch}_` : ""
-  const hasBottomSelection = bottomArch ? Object.entries(selectedImpressions).some(
-    ([key, qty]) => key.startsWith(bottomPrefix) && qty > 0
-  ) : false
+  const hasBottomSelection = bottomArch
+    ? selectedImpressionsByArch
+      ? selectedImpressionsByArch[bottomArch].length > 0
+      : Object.entries(selectedImpressions).some(
+          ([key, qty]) => key.startsWith(bottomPrefix) && qty > 0
+        )
+    : false
 
   const topArchLabel = topArch === "maxillary" ? "Maxillary" : "Mandibular"
   const bottomArchLabel = bottomArch === "maxillary" ? "Maxillary" : "Mandibular"
-  const showBottomSection = !!bottomArch && (!isDualArch || hasTopSelection)
+  const showBottomSection = !!bottomArch
 
   // Primary arch selections are required; opposing arch is always optional.
   const isValidationComplete = hasTopSelection
@@ -498,12 +509,6 @@ export function ImpressionSelectionModal({
                 </button>
               </div>
               )}
-            </div>
-          )}
-
-          {isDualArch && bottomArch && !hasTopSelection && (
-            <div className="text-center text-sm text-[#7F7F7F] font-['Verdana']">
-              Select at least one {topArchLabel.toLowerCase()} impression to continue.
             </div>
           )}
 

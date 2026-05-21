@@ -2,11 +2,44 @@ import { useEffect, useRef, useState } from "react";
 import type { WizardDoctorShape, WizardLabShape } from "@/components/new-case-wizard";
 import type { AddedProduct } from "../types";
 import type { CaseDesignProductDetails } from "../utils/caseDesignProductDetails";
+import { isArchAtProductLimit } from "../utils/archProductLimits";
 
 type WizardMode = "initial" | "addProduct" | "backToProducts";
 
 interface UseCaseWizardSessionParams {
   fetchProductDetails: (productId: number) => Promise<CaseDesignProductDetails | null>;
+}
+
+function buildAddedProductStub(
+  details: CaseDesignProductDetails | null,
+  fallback: {
+    name: string;
+    categoryName: string;
+    subcategoryName?: string;
+    subcategoryId?: number;
+    imageUrl?: string;
+  }
+): AddedProduct["product"] {
+  const categoryName = details?.category_name || fallback.categoryName;
+  const subcategoryName = details?.subcategory_name || fallback.subcategoryName || "";
+  return {
+    id: details?.id,
+    name: details?.name || fallback.name,
+    category_name: categoryName,
+    subcategory_name: subcategoryName,
+    subcategory: {
+      id: details?.subcategory_id ?? fallback.subcategoryId,
+      name: subcategoryName,
+      category: { name: categoryName },
+    },
+    code: "",
+    image_url: details?.image_url || fallback.imageUrl || "",
+    retention_options: details?.retention_options,
+    extractions: details?.extractions,
+    has_retention: details?.has_retention,
+    has_variation: details?.has_variation,
+    variations: details?.variations,
+  };
 }
 
 export function useCaseWizardSession({ fetchProductDetails }: UseCaseWizardSessionParams) {
@@ -22,6 +55,9 @@ export function useCaseWizardSession({ fetchProductDetails }: UseCaseWizardSessi
   const [wizardKey, setWizardKey] = useState(0);
   const [wizardMode, setWizardMode] = useState<WizardMode>("initial");
   const [pendingProductArch, setPendingProductArch] = useState<"maxillary" | "mandibular">("maxillary");
+  const [inlineAddProductArch, setInlineAddProductArch] = useState<
+    "maxillary" | "mandibular" | null
+  >(null);
   const [selectedProductId, setSelectedProductId] = useState<number | undefined>(undefined);
   const [selectedProductName, setSelectedProductName] = useState<string | undefined>(undefined);
   const [selectedProductCategoryName, setSelectedProductCategoryName] = useState<string | undefined>(undefined);
@@ -52,17 +88,13 @@ export function useCaseWizardSession({ fetchProductDetails }: UseCaseWizardSessi
         const newProduct: AddedProduct = {
           id: Date.now(),
           productId: addedProductId,
-          product: {
-            name: details?.name || result.product || "Untitled Product",
-            category_name: categoryName,
-            subcategory_name: details?.subcategory_name || "",
-            subcategory: {
-              name: details?.subcategory_name || "",
-              category: { name: categoryName },
-            },
-            code: "",
-            image_url: details?.image_url || "",
-          },
+          product: buildAddedProductStub(details, {
+            name: result.product || "Untitled Product",
+            categoryName,
+            subcategoryName: details?.subcategory_name,
+            subcategoryId: Number(result.product) || undefined,
+            imageUrl: details?.image_url ?? undefined,
+          }),
           arch: pendingProductArch,
           expanded: true,
         };
@@ -95,9 +127,16 @@ export function useCaseWizardSession({ fetchProductDetails }: UseCaseWizardSessi
   };
 
   const handleAddProduct = (arch: "maxillary" | "mandibular") => {
-    setPendingProductArch(arch);
-    setWizardMode("addProduct");
-    setWizardComplete(false);
+    if (
+      isArchAtProductLimit(arch, {
+        initialArch,
+        selectedProductId,
+        addedProducts,
+      })
+    ) {
+      return;
+    }
+    setInlineAddProductArch(arch);
   };
 
   const handleBackToProducts = () => {
@@ -111,6 +150,51 @@ export function useCaseWizardSession({ fetchProductDetails }: UseCaseWizardSessi
     setLastSelectedSubProduct(null);
     setWizardMode("addProduct");
     setWizardComplete(false);
+  };
+
+  const completeInlineAddProduct = async (result: {
+    category?: string;
+    categoryName?: string;
+    product?: string;
+    material: string;
+    materialName?: string;
+    arch: "maxillary" | "mandibular";
+  }) => {
+    if (wizardCompletingRef.current) return;
+    wizardCompletingRef.current = true;
+    try {
+      if (result.category) setLastSelectedCategory(Number(result.category) || null);
+      if (result.product) setLastSelectedSubProduct(Number(result.product) || null);
+
+      const addedProductId = Number(result.material) || undefined;
+      const details = addedProductId ? await fetchProductDetails(addedProductId) : null;
+      const categoryName = details?.category_name || result.categoryName || "";
+      const arch = result.arch;
+      const newProduct: AddedProduct = {
+        id: Date.now(),
+        productId: addedProductId,
+        product: buildAddedProductStub(details, {
+          name: result.materialName || "Untitled Product",
+          categoryName,
+          subcategoryName: details?.subcategory_name,
+          subcategoryId: Number(result.product) || undefined,
+          imageUrl: details?.image_url ?? undefined,
+        }),
+        arch,
+        expanded: true,
+      };
+      setAddedProducts((prev) => [
+        newProduct,
+        ...prev.map((product) => ({ ...product, expanded: false })),
+      ]);
+      setInlineAddProductArch(null);
+    } finally {
+      wizardCompletingRef.current = false;
+    }
+  };
+
+  const cancelInlineAddProduct = () => {
+    setInlineAddProductArch(null);
   };
 
   const handleTopBarEditLab = () => {
@@ -156,6 +240,7 @@ export function useCaseWizardSession({ fetchProductDetails }: UseCaseWizardSessi
     wizardKey,
     wizardMode,
     pendingProductArch,
+    inlineAddProductArch,
     selectedProductId,
     selectedProductName,
     selectedProductCategoryName,
@@ -174,6 +259,8 @@ export function useCaseWizardSession({ fetchProductDetails }: UseCaseWizardSessi
     setAddedProducts,
     handleWizardComplete,
     handleAddProduct,
+    completeInlineAddProduct,
+    cancelInlineAddProduct,
     handleBackToProducts,
     handleBackToCategories,
     handleTopBarEditLab,

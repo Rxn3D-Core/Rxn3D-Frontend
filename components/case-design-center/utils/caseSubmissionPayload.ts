@@ -27,7 +27,11 @@ function buildProductNote(
 
   const gradeRaw = snap.fieldValues["grade"] ?? "";
   let gradeName = gradeRaw;
-  try { const p = JSON.parse(gradeRaw); gradeName = p.name ?? gradeRaw; } catch {}
+  try {
+    const p = JSON.parse(gradeRaw);
+    if (p?.skipped === true) gradeName = "";
+    else gradeName = p.name ?? gradeRaw;
+  } catch {}
 
   const teethShadeRaw = snap.fieldValues["teeth_shade"] ?? "";
   let teethShade = teethShadeRaw;

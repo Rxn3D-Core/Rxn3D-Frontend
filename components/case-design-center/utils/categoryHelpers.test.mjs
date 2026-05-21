@@ -5,7 +5,9 @@ import {
   hasRetentionOptions,
   resolveStageSelection,
   shouldSkipStageSelection,
+  productHasStageField,
   getResolvedStageName,
+  isDisplayableStageValue,
   SKIPPED_STAGE_LABEL,
 } from "./categoryHelpers.ts";
 
@@ -21,18 +23,39 @@ test("falls back to retention_options array when has_retention is absent", () =>
   assert.equal(hasRetentionOptions({ retention_options: [{ id: 1 }] }), true);
 });
 
-test("resolveStageSelection skips when is_single_stage is Yes", () => {
-  const r = resolveStageSelection({ is_single_stage: "Yes", stages: [{ name: "Finish" }] });
-  assert.equal(r.kind, "skip");
-  assert.equal(r.stageLabel, SKIPPED_STAGE_LABEL);
+test("productHasStageField is false when has_stage is No", () => {
+  assert.equal(
+    productHasStageField({
+      has_stage: "No",
+      stages: [{ name: "Custom Trays" }],
+    }),
+    false
+  );
 });
 
-test("resolveStageSelection skips when is_single_stage is No and stages array is empty", () => {
-  const r = resolveStageSelection({ is_single_stage: "No", stages: [] });
-  assert.equal(r.kind, "skip");
+test("productHasStageField is false when is_single_stage is Yes", () => {
+  assert.equal(
+    productHasStageField({ is_single_stage: "Yes", stages: [{ name: "Finish" }] }),
+    false
+  );
 });
 
-test("resolveStageSelection auto-selects the only stage when is_single_stage is No", () => {
+test("productHasStageField is false when stages array is empty or missing", () => {
+  assert.equal(productHasStageField({ is_single_stage: "No", stages: [] }), false);
+  assert.equal(productHasStageField({ is_single_stage: "No" }), false);
+});
+
+test("productHasStageField is true when stages has one or more entries", () => {
+  assert.equal(
+    productHasStageField({
+      is_single_stage: "No",
+      stages: [{ name: "Custom Trays" }],
+    }),
+    true
+  );
+});
+
+test("resolveStageSelection auto-selects the only stage when field is shown", () => {
   const r = resolveStageSelection({
     is_single_stage: "No",
     stages: [{ name: "Bite Block", is_default: "No" }],
@@ -86,4 +109,9 @@ test("getResolvedStageName returns null when prompt is required", () => {
     }),
     null
   );
+});
+
+test("isDisplayableStageValue rejects skip placeholder", () => {
+  assert.equal(isDisplayableStageValue(SKIPPED_STAGE_LABEL), false);
+  assert.equal(isDisplayableStageValue("Custom Trays"), true);
 });

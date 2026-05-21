@@ -61,6 +61,24 @@ test("status box teeth include teeth assigned only through extraction map", () =
   assert.deepEqual(teeth, [4, 10]);
 });
 
+test("missing box includes alternate missing-like codes across products", () => {
+  const teeth = getStatusBoxTeeth({
+    selectedTeeth: [3, 4],
+    toothExtractionMap: {
+      3: "MT",
+      4: "MISSING_DELIVERY",
+      7: "MT",
+      8: "MISSING_CUSTOM",
+    },
+    claspTeeth: [],
+    extractionCode: "MT",
+    isDefault: false,
+    isClasp: false,
+  });
+
+  assert.deepEqual(teeth, [3, 4, 7, 8]);
+});
+
 test("orange header excludes teeth assigned via active status box", () => {
   const teeth = getRemovableOrangeHeaderTeeth({
     selectedTeeth: [7, 8, 9, 10],

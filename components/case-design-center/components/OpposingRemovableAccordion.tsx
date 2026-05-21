@@ -20,7 +20,16 @@ import { getRemovableHeaderTitle, shouldShowRemovableHeaderContent } from "../ut
 import { getRemovableOrangeHeaderTeeth, getToothStatusBoxDisplayMap } from "../utils/removableToothDisplay";
 import { resolveVariationDisplay } from "../utils/variationHelpers";
 import { isSingleStageNoStages, shouldSkipStageSelection } from "../utils/categoryHelpers";
-import { archHasActiveImpressionSelections } from "../utils/impressionFieldSync";
+import {
+  productHasGrades,
+  resolveProductGradesForDisplay,
+  parseGradeDisplayName,
+  isGradeStepCompleteForDisplay,
+} from "../utils/gradeHelpers";
+import {
+  archHasOpposingImpressionSelections,
+  resolveOpposingImpressionProductId,
+} from "../utils/opposingImpressionReadiness";
 
 function isFullDentureProduct(
   extractions: Array<{ code: string; name: string; status: string }> | undefined
@@ -65,7 +74,9 @@ function hasAdvanceField(
   const names = advanceFields.map((f) => (f.name || "").toLowerCase());
   switch (step) {
     case "grade":
-      return names.some((n) => n.includes("grade"));
+      return (
+        productHasGrades(product as ProductApiData) || names.some((n) => n.includes("grade"))
+      );
     case "teeth_shade":
       return product?.has_teeth_shade === "Yes" || names.some((n) => n.includes("teeth") && n.includes("shade"));
     case "gum_shade":
@@ -306,7 +317,11 @@ export function OpposingRemovableAccordion({
     isFieldVisible(fieldArch, fieldRepTn, step as FieldStep);
   const isFComplete = (step: string) => isFieldCompleted(fieldArch, fieldRepTn, step as FieldStep);
   const fVal = (step: string) => getFieldValue(fieldArch, fieldRepTn, step as FieldStep);
-  const impressionModalProductId = "0";
+  const impressionModalProductId = resolveOpposingImpressionProductId(
+    opposingProductData,
+    selectedImpressions,
+    opposingArch
+  );
   const singleStageSkip = isSingleStageNoStages(opposingProductData);
   const opposingRepTn =
     opposingSelectedTeeth.length > 0 ? Math.min(...opposingSelectedTeeth) : opposingArchTeeth[0];
@@ -318,7 +333,7 @@ export function OpposingRemovableAccordion({
   const impressionComplete =
     isFComplete("impression") ||
     (!!impressionDisplay &&
-      archHasActiveImpressionSelections(selectedImpressions, impressionModalProductId, opposingArch));
+      archHasOpposingImpressionSelections(selectedImpressions, opposingArch));
 
   const hasOpposingExtractionsConfigured = (opposingProductData.opposite_extractions?.length ?? 0) > 0;
   const hasOpposingImpressionConfigured = opposingProductData.opposite_impression === "Yes";
@@ -520,20 +535,21 @@ export function OpposingRemovableAccordion({
           <PanelDiv className="px-[14px] py-[14px] flex flex-col gap-[10px]">
             <PanelDiv className="rounded-lg p-3 space-y-3">
               {!opposingOnlyLayout && (isF("grade") || (isF("stage") && !singleStageSkip)) && (() => {
-                const gradeProducts = getActiveGrades(opposingProductData.grades);
-                const hasGradesRow = gradeProducts.length > 0;
+                const gradeProducts = resolveProductGradesForDisplay(opposingProductData);
+                const hasGradesRow =
+                  gradeProducts.length > 0 || (isF("grade") && productHasGrades(opposingProductData));
                 return (
                   <PanelDiv className={`grid grid-cols-1 ${hasGradesRow ? "sm:grid-cols-2" : ""} gap-3`}>
-                    {isF("grade") && gradeProducts.length > 0 && (() => {
+                    {isF("grade") &&
+                      (gradeProducts.length > 0 || productHasGrades(opposingProductData)) &&
+                      (() => {
                       const gradeRaw = fVal("grade") || "";
-                      let gradeVal = gradeRaw;
-                      try {
-                        const p = JSON.parse(gradeRaw);
-                        gradeVal = p.name ?? gradeRaw;
-                      } catch {
-                        /* plain string */
-                      }
-                      const isGradeComplete = isFComplete("grade") || !!(gradeVal && gradeVal.trim());
+                      const gradeVal = parseGradeDisplayName(gradeRaw);
+                      const isGradeComplete = isGradeStepCompleteForDisplay(
+                        gradeRaw,
+                        isFComplete("grade"),
+                        opposingProductData
+                      );
                       const showGradeGreen = isGradeComplete && !caseSubmitted;
                       return (
                         <fieldset
@@ -728,20 +744,30 @@ export function OpposingRemovableAccordion({
                   isFComplete("addons") && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]";
                 const legendClass =
                   isFComplete("addons") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]";
-                if (addonItems.length === 0) return null;
+                const onClickAddon = () =>
+                  handleOpenAddOnsModal(
+                    fieldArch,
+                    opposingProductData.id?.toString() || `prep_${fieldRepTn}`,
+                    fieldRepTn
+                  );
+                if (addonItems.length === 0) {
+                  return (
+                    <fieldset
+                      className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${borderClass}`}
+                      onClick={onClickAddon}
+                    >
+                      <legend className={`text-sm px-1 leading-none ${legendClass}`}>Add ons</legend>
+                      <span className="text-[14px] sm:text-lg text-[#000000]">Select add ons</span>
+                    </fieldset>
+                  );
+                }
                 return (
                   <PanelDiv className="flex flex-wrap gap-3">
                     {addonItems.map((item: string, idx: number) => (
                       <fieldset
                         key={idx}
                         className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 flex-1 min-w-[200px] ${borderClass}`}
-                        onClick={() =>
-                          handleOpenAddOnsModal(
-                            fieldArch,
-                            opposingProductData.id?.toString() || productKey,
-                            fieldRepTn
-                          )
-                        }
+                        onClick={onClickAddon}
                       >
                         <legend className={`text-sm px-1 leading-none ${legendClass}`}>Add on</legend>
                         <span className="text-[14px] sm:text-lg text-[#000000] truncate">{item}</span>

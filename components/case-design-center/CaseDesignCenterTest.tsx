@@ -13,6 +13,7 @@ import { useRouter } from "next/navigation";
 import { getBusinessSettings } from "@/lib/api-business-settings";
 import { fetchCaseDesignProductDetails } from "./utils/caseDesignProductDetails";
 import { useCaseWizardSession } from "./hooks/useCaseWizardSession";
+import { resolveLibraryCustomerId } from "./utils/libraryCustomerId";
 import { useCaseSubmissionFlow } from "./hooks/useCaseSubmissionFlow";
 import { CaseSubmissionOverlays } from "./components/CaseSubmissionOverlays";
 import { caseDesignInter } from "./case-design-inter-font";
@@ -51,6 +52,9 @@ export default function Page() {
     setAddedProducts,
     handleWizardComplete,
     handleAddProduct,
+    inlineAddProductArch,
+    completeInlineAddProduct,
+    cancelInlineAddProduct,
     handleBackToProducts,
     handleBackToCategories,
     handleTopBarEditLab,
@@ -163,6 +167,10 @@ export default function Page() {
               right2Platform={right2Platform}
               setRight2Platform={setRight2Platform}
               onAddProduct={handleAddProduct}
+              inlineAddProductArch={inlineAddProductArch}
+              onInlineAddProductComplete={completeInlineAddProduct}
+              onInlineAddProductCancel={cancelInlineAddProduct}
+              labCustomerId={resolveLibraryCustomerId(completedLab?.id) ?? null}
               onBackToProducts={handleBackToProducts}
               onBackToCategories={handleBackToCategories}
               selectedProductId={selectedProductId}

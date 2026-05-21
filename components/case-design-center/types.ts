@@ -58,6 +58,19 @@ export interface CaseDesignProps {
   right2Platform: string;
   setRight2Platform: (v: string) => void;
   onAddProduct?: (arch: "maxillary" | "mandibular") => void;
+  /** When set, the matching arch panel shows an inline category/product picker. */
+  inlineAddProductArch?: "maxillary" | "mandibular" | null;
+  onInlineAddProductComplete?: (result: {
+    category: string;
+    categoryName: string;
+    product: string;
+    material: string;
+    materialName: string;
+    arch: "maxillary" | "mandibular";
+  }) => void | Promise<void>;
+  onInlineAddProductCancel?: () => void;
+  /** Lab customer id for library API calls in the inline add-product picker. */
+  labCustomerId?: number | null;
   onBackToProducts?: () => void;
   /**
    * Navigate back to the category-selection step of the new-case wizard.
@@ -79,6 +92,8 @@ export interface CaseDesignProps {
   onIncompleteFieldChange?: (label: string | null) => void;
   /** Called whenever any tooth-status required-validation error appears or clears. */
   onToothStatusValidationChange?: (hasValidation: boolean) => void;
+  /** Shown when the user tries to use a tooth already assigned to another product on the same arch. */
+  onToothOwnershipConflict?: (message: string) => void;
   /** Externally controlled list of added products (from page-level state) */
   addedProducts?: AddedProduct[];
   /** Called when addedProducts changes internally (toggle expand, remove) */
@@ -293,6 +308,17 @@ export interface ImpressionOptionForModal {
   image_url?: string | null;
   value: string;
   label: string;
+}
+
+export interface ArchImpressionSelection {
+  id: string;
+  name: string;
+  qty: number;
+}
+
+export interface ArchImpressionSelections {
+  maxillary: ArchImpressionSelection[];
+  mandibular: ArchImpressionSelection[];
 }
 
 /** Convert product API impressions to modal options; uses code as value for stable keys. */

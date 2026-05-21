@@ -50,32 +50,52 @@ interface AccordionHeaderActionsProps {
   showExtractionsDone?: boolean;
   extractionsAcknowledged?: boolean;
   onExtractionsAcknowledgedChange?: (value: boolean) => void;
+  /** Expand/collapse accordion and activate this product for tooth-status selection. */
+  onToggleExpand?: () => void;
+  /** When false, chevron cannot switch accordion focus. */
+  expandEnabled?: boolean;
 }
 
-/** Top-right header: optional extractions Done/check, then expand chevron. */
+/** Top-right header: extractions Done/check (tooth selection complete), then expand chevron. */
 export function AccordionHeaderActions({
   isExpanded,
   caseSubmitted = false,
   showExtractionsDone = false,
   extractionsAcknowledged = false,
   onExtractionsAcknowledgedChange,
+  onToggleExpand,
+  expandEnabled = true,
 }: AccordionHeaderActionsProps) {
   return (
-    <div
-      className="absolute top-3 right-2 z-10 flex items-center gap-2"
-      onClick={(e) => e.stopPropagation()}
-    >
+    <div className="absolute top-3 right-2 z-10 flex items-center gap-2">
       {showExtractionsDone && onExtractionsAcknowledgedChange && (
-        <ExtractionsDoneAcknowledgement
-          acknowledged={extractionsAcknowledged}
-          onAcknowledgedChange={onExtractionsAcknowledgedChange}
-          caseSubmitted={caseSubmitted}
-        />
+        <div onClick={(e) => e.stopPropagation()}>
+          <ExtractionsDoneAcknowledgement
+            acknowledged={extractionsAcknowledged}
+            onAcknowledgedChange={onExtractionsAcknowledgedChange}
+            caseSubmitted={caseSubmitted}
+          />
+        </div>
       )}
-      <ChevronDown
-        size={21.6}
-        className={`text-black transition-transform ${isExpanded ? "rotate-180" : ""}`}
-      />
+      <button
+        type="button"
+        disabled={!expandEnabled}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (expandEnabled) onToggleExpand?.();
+        }}
+        className={`flex items-center justify-center w-8 h-8 rounded-full transition-colors ${
+          expandEnabled ? "hover:bg-gray-100" : "cursor-not-allowed opacity-40"
+        }`}
+        title={isExpanded ? "Collapse product" : "Expand product"}
+        aria-expanded={isExpanded}
+        aria-label={isExpanded ? "Collapse product" : "Expand product"}
+      >
+        <ChevronDown
+          size={21.6}
+          className={`text-black transition-transform ${isExpanded ? "rotate-180" : ""}`}
+        />
+      </button>
     </div>
   );
 }

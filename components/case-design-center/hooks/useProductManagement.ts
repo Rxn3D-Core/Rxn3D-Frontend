@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { AddedProduct } from "../types";
+import type { AddedProduct, Arch } from "../types";
 
 export function useProductManagement(
   externalProducts?: AddedProduct[],
@@ -40,11 +40,23 @@ export function useProductManagement(
     persistAddedProducts(addedProducts.map(p => ({ ...p, expanded: false })));
   };
 
+  /** Expand at most one added product (optional arch filter). */
+  const setOnlyExpandedAddedProduct = (arch: Arch | null, productId: number | null) => {
+    persistAddedProducts(
+      addedProducts.map((p) => ({
+        ...p,
+        expanded:
+          arch != null && productId != null && p.arch === arch && p.id === productId,
+      }))
+    );
+  };
+
   return {
     addedProducts,
     persistAddedProducts,
     handleRemoveAddedProduct,
     toggleAddedProductExpanded,
     collapseAllAddedProducts,
+    setOnlyExpandedAddedProduct,
   };
 }

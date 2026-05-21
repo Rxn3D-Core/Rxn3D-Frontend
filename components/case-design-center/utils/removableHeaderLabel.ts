@@ -22,10 +22,6 @@ export function getRemovableHeaderTitle({
     return productName;
   }
 
-  if (teethCount === 0) {
-    return "";
-  }
-
   return productName;
 }
 
@@ -46,7 +42,7 @@ export function shouldShowRemovableHeaderContent({
     hasVariation === "yes";
 
   if (variationEnabled) {
-    return teethCount > 0 || !!caseSubmitted;
+    return hasProduct || teethCount > 0 || !!caseSubmitted;
   }
 
   return hasProduct || !!caseSubmitted;

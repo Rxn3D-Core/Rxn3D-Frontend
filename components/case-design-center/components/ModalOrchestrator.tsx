@@ -12,9 +12,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { StageSelectionModal } from "./StageSelectionModal";
-import type { Arch, ImpressionOptionForModal, ProductApiData } from "../types";
+import type { Arch, ArchImpressionSelections, ImpressionOptionForModal, ProductApiData } from "../types";
 import type { AddOnsProduct } from "@/components/add-ons-modal";
-import { getResolvedStageName, SKIPPED_STAGE_LABEL } from "../utils/categoryHelpers";
+import { getResolvedStageName } from "../utils/categoryHelpers";
 import {
   buildImpressionDisplayText,
   getDualModalArches,
@@ -35,6 +35,7 @@ interface ModalOrchestratorProps {
   /** Second grid options when dual-arch (defaults to primary list if omitted) */
   oppositeImpressions?: ImpressionOptionForModal[];
   selectedImpressions: Record<string, number>;
+  selectedImpressionsByArch?: ArchImpressionSelections;
   setSelectedImpressions: React.Dispatch<
     React.SetStateAction<Record<string, number>>
   >;
@@ -169,6 +170,7 @@ export function ModalOrchestrator({
   currentImpressionOppositeImpression,
   oppositeImpressions,
   selectedImpressions,
+  selectedImpressionsByArch,
   setSelectedImpressions,
   onImpressionConfirm,
   onImpressionClear,
@@ -255,17 +257,11 @@ export function ModalOrchestrator({
   };
 
   const commitImpressionForArch = (archToProcess: Arch) => {
-    const hasSelections = Object.entries(selectedImpressions).some(
-      ([key, qty]) =>
-        key.startsWith(`${currentImpressionProductId}_${archToProcess}_`) && qty > 0
-    );
+    const hasSelections = (selectedImpressionsByArch?.[archToProcess]?.length ?? 0) > 0;
     if (hasSelections) {
-      const displayText = buildImpressionDisplayText(
-        selectedImpressions,
-        currentImpressionProductId,
-        archToProcess,
-        resolveImpressionLabel
-      );
+      const displayText = (selectedImpressionsByArch?.[archToProcess] ?? [])
+        .map((entry) => `${entry.qty}x ${resolveImpressionLabel(entry.id)}`)
+        .join(", ");
       onImpressionConfirm(displayText, archToProcess);
     } else if (touchedArchesRef.current.has(archToProcess)) {
       onImpressionClear?.(archToProcess);
@@ -314,6 +310,7 @@ export function ModalOrchestrator({
         oppositeImpression={currentImpressionOppositeImpression}
         oppositeImpressions={oppositeImpressions}
         selectedImpressions={selectedImpressions}
+        selectedImpressionsByArch={selectedImpressionsByArch}
         onUpdateQuantity={(key, qty) => {
           markArchTouchedFromKey(key);
           setSelectedImpressions((prev) => {
@@ -400,9 +397,11 @@ export function ModalOrchestrator({
         <AutoSkipEmptyStages
           isOpen={isStageModalOpen}
           onSkip={() => {
-            const stageName = getResolvedStageName(currentStageProduct) ?? SKIPPED_STAGE_LABEL;
-            handleStageSelect(stageName);
-            onStageConfirm(stageName);
+            const stageName = getResolvedStageName(currentStageProduct);
+            if (stageName) {
+              handleStageSelect(stageName);
+              onStageConfirm(stageName);
+            }
           }}
           onClose={() => setIsStageModalOpen(false)}
         />

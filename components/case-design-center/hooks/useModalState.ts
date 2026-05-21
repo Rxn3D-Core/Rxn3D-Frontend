@@ -1,15 +1,68 @@
 "use client";
 
-import { useState } from "react";
-import type { Arch } from "../types";
+import { useCallback, useState, type SetStateAction } from "react";
+import type { Arch, ArchImpressionSelections } from "../types";
 import { mockImpressions } from "../constants";
+
+const IMPRESSION_KEY_RE = /^([^_]+)_(maxillary|mandibular)_(.+)$/;
+
+function deriveArchImpressionSelections(
+  selectedImpressions: Record<string, number>
+): ArchImpressionSelections {
+  const next: ArchImpressionSelections = {
+    maxillary: [],
+    mandibular: [],
+  };
+  const byArchCode = {
+    maxillary: new Map<string, number>(),
+    mandibular: new Map<string, number>(),
+  };
+
+  for (const [key, qty] of Object.entries(selectedImpressions)) {
+    if (qty <= 0) continue;
+    const match = key.match(IMPRESSION_KEY_RE);
+    if (!match) continue;
+    const arch = match[2] as Arch;
+    const code = match[3];
+    const prev = byArchCode[arch].get(code) ?? 0;
+    byArchCode[arch].set(code, Math.max(prev, qty));
+  }
+
+  for (const arch of ["maxillary", "mandibular"] as const) {
+    next[arch] = [...byArchCode[arch].entries()].map(([id, qty]) => ({
+      id,
+      name: mockImpressions.find((i) => i.value === id)?.name || id,
+      qty,
+    }));
+  }
+
+  return next;
+}
 
 export function useModalState() {
   // Impression modal state
   const [showImpressionModal, setShowImpressionModal] = useState(false);
   const [currentImpressionArch, setCurrentImpressionArch] = useState<Arch>("maxillary");
   const [currentImpressionProductId, setCurrentImpressionProductId] = useState("");
-  const [selectedImpressions, setSelectedImpressions] = useState<Record<string, number>>({});
+  const [selectedImpressions, setSelectedImpressionsState] = useState<Record<string, number>>({});
+  const [selectedImpressionsByArch, setSelectedImpressionsByArch] = useState<ArchImpressionSelections>({
+    maxillary: [],
+    mandibular: [],
+  });
+
+  const setSelectedImpressions = useCallback(
+    (updater: SetStateAction<Record<string, number>>) => {
+      setSelectedImpressionsState((prev) => {
+        const next =
+          typeof updater === "function"
+            ? (updater as (p: Record<string, number>) => Record<string, number>)(prev)
+            : updater;
+        setSelectedImpressionsByArch(deriveArchImpressionSelections(next));
+        return next;
+      });
+    },
+    []
+  );
 
   // Add-ons modal state
   const [showAddOnsModal, setShowAddOnsModal] = useState(false);
@@ -120,15 +173,11 @@ export function useModalState() {
   };
 
   const getImpressionDisplayText = (productId: string, arch: Arch) => {
-    const entries = Object.entries(selectedImpressions).filter(
-      ([key, qty]) => key.startsWith(`${productId}_${arch}_`) && qty > 0
-    );
-    if (entries.length === 0) return "";
+    void productId;
+    const entries = selectedImpressionsByArch[arch];
     return entries
-      .map(([key, qty]) => {
-        const identifier = key.replace(`${productId}_${arch}_`, "");
-        const impression = mockImpressions.find((i) => i.value === identifier);
-        return `${qty}x ${impression?.name || identifier}`;
+      .map(({ name, qty }) => {
+        return `${qty}x ${name}`;
       })
       .join(", ");
   };
@@ -138,9 +187,13 @@ export function useModalState() {
     showImpressionModal,
     setShowImpressionModal,
     currentImpressionArch,
+    setCurrentImpressionArch,
     currentImpressionProductId,
+    setCurrentImpressionProductId,
     currentImpressionToothNumber,
+    setCurrentImpressionToothNumber,
     selectedImpressions,
+    selectedImpressionsByArch,
     setSelectedImpressions,
     handleOpenImpressionModal,
     getImpressionDisplayText,

@@ -1,8 +1,30 @@
+import type { Arch } from "../types";
+
 export const MAXILLARY_SENTINEL = 1;
 export const MANDIBULAR_SENTINEL = 17;
 
-type Arch = "maxillary" | "mandibular";
 type InitialArch = Arch | "both";
+
+const IMPRESSION_KEY_RE = /^([^_]+)_(maxillary|mandibular)_(.+)$/;
+
+function parseImpressionKeyLocal(
+  key: string
+): { productId: string; arch: Arch; code: string } | null {
+  const match = key.match(IMPRESSION_KEY_RE);
+  if (!match) return null;
+  return { productId: match[1], arch: match[2] as Arch, code: match[3] };
+}
+
+function archHasActiveSelections(
+  selectedImpressions: Record<string, number>,
+  productId: string,
+  arch: Arch
+): boolean {
+  const prefix = `${productId}_${arch}_`;
+  return Object.entries(selectedImpressions).some(
+    ([key, qty]) => key.startsWith(prefix) && qty > 0
+  );
+}
 
 export function isOppositeImpressionEnabled(
   product: { opposite_impression?: unknown } | null | undefined
@@ -22,6 +44,58 @@ export function resolveOpposingImpressionTooth(
 ): number {
   if (card0Teeth.length > 0) return Math.min(...card0Teeth);
   return opposingArch === "maxillary" ? MAXILLARY_SENTINEL : MANDIBULAR_SENTINEL;
+}
+
+/** Where opposing impression field progress is stored on a single-arch removable slip. */
+export function resolveOpposingFieldStorage(initialArch: InitialArch): {
+  fieldArch: Arch;
+  fieldTooth: number;
+} | null {
+  if (initialArch === "both") return null;
+  if (initialArch === "maxillary") {
+    return { fieldArch: "maxillary", fieldTooth: MAXILLARY_SENTINEL };
+  }
+  return { fieldArch: "mandibular", fieldTooth: MANDIBULAR_SENTINEL };
+}
+
+/** Product id prefix used in selectedImpressions keys for the opposing arch. */
+export function resolveOpposingImpressionProductId(
+  product: { id?: number } | null | undefined,
+  selectedImpressions: Record<string, number>,
+  opposingArch: Arch
+): string {
+  const fromProduct = product?.id?.toString();
+  if (
+    fromProduct &&
+    archHasActiveSelections(selectedImpressions, fromProduct, opposingArch)
+  ) {
+    return fromProduct;
+  }
+  if (archHasActiveSelections(selectedImpressions, "0", opposingArch)) {
+    return "0";
+  }
+  for (const key of Object.keys(selectedImpressions)) {
+    const parsed = parseImpressionKeyLocal(key);
+    if (parsed?.arch === opposingArch && (selectedImpressions[key] ?? 0) > 0) {
+      return parsed.productId;
+    }
+  }
+  return fromProduct ?? "0";
+}
+
+/** True when any product has opposing-arch impression qty > 0. */
+export function archHasOpposingImpressionSelections(
+  selectedImpressions: Record<string, number>,
+  opposingArch: Arch,
+  productId?: string
+): boolean {
+  if (productId) {
+    return archHasActiveSelections(selectedImpressions, productId, opposingArch);
+  }
+  return Object.entries(selectedImpressions).some(([key, qty]) => {
+    const parsed = parseImpressionKeyLocal(key);
+    return parsed?.arch === opposingArch && qty > 0;
+  });
 }
 
 export function hasSkippedOpposing(

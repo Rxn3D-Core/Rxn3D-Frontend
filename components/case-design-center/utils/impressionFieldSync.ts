@@ -3,6 +3,9 @@ import { productImpressionsToModalOptions } from "../types";
 
 const IMPRESSION_KEY_RE = /^([^_]+)_(maxillary|mandibular)_(.+)$/;
 
+/** One impression selection per arch (card 0 product id in modal keys). */
+export const ARCH_IMPRESSION_PRODUCT_ID = "0";
+
 export function parseImpressionKey(
   key: string
 ): { productId: string; arch: Arch; code: string } | null {

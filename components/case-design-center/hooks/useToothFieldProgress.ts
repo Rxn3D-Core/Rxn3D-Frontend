@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import type React from "react";
 import type { Arch, RetentionType, ProductApiData, ProductAdvanceField } from "../types";
 import { shouldSkipStageSelection } from "../utils/categoryHelpers";
+import { productHasGrades } from "../utils/gradeHelpers";
 
 /**
  * The sequential fields shown one by one when Prep or Pontic is selected.
@@ -136,6 +137,7 @@ export function getSelectionFieldChain(
 
   return FIELD_STEPS.filter((step) => {
     if (step === "stage" && shouldSkipStageSelection(product)) return false;
+    if (step === "grade" && productHasGrades(product)) return true;
     const flagKey = stepFlagMap[step];
     if (!flagKey) return true;
     const val = product[flagKey];

@@ -35,6 +35,12 @@ export interface ProductAccordionCardProps {
    */
   customHeader?: React.ReactNode;
 
+  /** Highlights this accordion as the product receiving chart / tooth-status input. */
+  isCurrentlyActive?: boolean;
+
+  /** When false, accordion is dimmed and cannot be expanded (another arch/product is active). */
+  interactionEnabled?: boolean;
+
   children?: React.ReactNode;
 }
 
@@ -53,20 +59,31 @@ export function ProductAccordionCard({
   onDelete,
   caseSubmitted = false,
   customHeader,
+  isCurrentlyActive = false,
+  interactionEnabled = true,
   children,
 }: ProductAccordionCardProps) {
+  const outerBorderClass = isCurrentlyActive
+    ? "border-2 border-[#1162A8] ring-2 ring-[#1162A8]/15"
+    : hasRush
+      ? "border-2 border-[#CF0202]"
+      : "border border-[#d9d9d9]";
+
   return (
-    <div className="relative mt-2">
-      <div
-        className={`rounded-lg bg-white overflow-hidden ${hasRush ? "border-2 border-[#CF0202]" : "border border-[#d9d9d9]"}`}
-      >
+    <div className={`relative mt-2 ${!interactionEnabled ? "opacity-45 pointer-events-none" : ""}`}>
+      <div className={`rounded-lg bg-white overflow-hidden ${outerBorderClass}`}>
         {customHeader ?? (
           /* Default compact header — fixed restoration style */
           <button
             type="button"
-            onClick={onToggle}
+            disabled={!interactionEnabled}
+            onClick={interactionEnabled ? onToggle : undefined}
             className={`${caseDesignInter.className} w-full flex items-center py-[14px] px-2 gap-[10px] transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] ${
-              hasRush ? "bg-[#FCE4E4] hover:bg-[#f8d4d4]" : "bg-white hover:bg-gray-50"
+              !interactionEnabled
+                ? "cursor-not-allowed bg-white"
+                : hasRush
+                  ? "bg-[#FCE4E4] hover:bg-[#f8d4d4]"
+                  : "bg-white hover:bg-gray-50"
             }`}
           >
             <ProductImagePreview
