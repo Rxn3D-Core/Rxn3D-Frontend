@@ -8,7 +8,31 @@
  */
 
 import type { AddedProduct, VirtualSlipInitialState } from "@/components/case-design-center/types";
-import type { RetentionType } from "@/components/case-design-center/types";
+import type { Arch, RetentionType } from "@/components/case-design-center/types";
+import {
+  emptyImpressionSelections,
+  type ArchImpressionEntry,
+  type SlipImpressionSelections,
+} from "@/components/case-design-center/utils/impressionStorage";
+
+function upsertArchImpression(
+  selections: SlipImpressionSelections,
+  arch: Arch,
+  entry: ArchImpressionEntry
+) {
+  const list = selections[arch];
+  const idx = list.findIndex((e) => e.code === entry.code);
+  if (idx >= 0) {
+    list[idx] = {
+      ...list[idx],
+      qty: Math.max(list[idx].qty, entry.qty),
+      name: entry.name || list[idx].name,
+      impression_id: entry.impression_id || list[idx].impression_id,
+    };
+  } else {
+    list.push(entry);
+  }
+}
 
 /** Parse a comma-separated teeth_selection string into an array of tooth numbers. */
 function parseTeethSelection(teethSelection: string | null | undefined): number[] {
@@ -77,7 +101,7 @@ export function buildVirtualSlipInitialState(apiProducts: unknown[]): VirtualSli
       toothProductCards: {},
       selectedShades: {},
       selectedStages: {},
-      selectedImpressions: {},
+      selectedImpressions: emptyImpressionSelections(),
       completedFields: {},
       fieldValues: {},
     };
@@ -91,7 +115,7 @@ export function buildVirtualSlipInitialState(apiProducts: unknown[]): VirtualSli
   const toothProductCards: Record<string, number> = {};
   const selectedShades: Record<string, string> = {};
   const selectedStages: Record<string, string> = {};
-  const selectedImpressions: Record<string, number> = {};
+  const selectedImpressions = emptyImpressionSelections();
   const completedFields: Record<string, string[]> = {};
   const fieldValues: Record<string, Record<string, string>> = {};
 
@@ -266,20 +290,22 @@ export function buildVirtualSlipInitialState(apiProducts: unknown[]): VirtualSli
       }
     }
 
-    // ── Impression quantities ──────────────────────────────────────────────
-    // Key format: `${productId}_${arch}_${impressionCode}`
-    // Use card-based product ID key to match how impressions are stored during interactive use
+    // ── Impression selections (one list per jaw, shared across products) ───
     if (Array.isArray(apiProduct.impressions)) {
-      const productIdKey = repTooth !== null
-        ? (isRemovable ? `prep_${repTooth}` : `fixed_${repTooth}`)
-        : `card_${cardId}`;
-
       for (const imp of apiProduct.impressions) {
         const code = imp.impression?.code ?? imp.code ?? String(imp.impression_id ?? "");
         const quantity = imp.quantity ?? 1;
-        if (code) {
-          selectedImpressions[`${productIdKey}_${arch}_${code}`] = quantity;
-        }
+        if (!code || quantity <= 0) continue;
+        const name =
+          imp.impression?.name ?? imp.name ?? code;
+        const impression_id =
+          imp.impression_id ?? imp.impression?.id ?? 0;
+        upsertArchImpression(selectedImpressions, arch, {
+          impression_id,
+          code,
+          name,
+          qty: quantity,
+        });
       }
     }
 

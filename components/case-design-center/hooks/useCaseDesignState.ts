@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo, type SetStateAction } from "react";
 import type { CaseDesignProps, Arch, RetentionType, ProductApiData, ProductExtraction } from "../types";
 import { mockImpressions } from "../constants";
 import { useToothSelection } from "./useToothSelection";
@@ -8,25 +8,84 @@ import { useShadeSelection } from "./useShadeSelection";
 import { useModalState } from "./useModalState";
 import { useProductManagement } from "./useProductManagement";
 import { useImplantState } from "./useImplantState";
-import { useToothFieldProgress, FIXED_SHADE_FIELD_TO_STEP, type FieldStep } from "./useToothFieldProgress";
-import { hasRetentionOptions, getResolvedStageName, resolveStageSelection } from "../utils/categoryHelpers";
+import {
+  useToothFieldProgress,
+  FIXED_SHADE_FIELD_TO_STEP,
+  getRetentionFieldChain,
+  type FieldStep,
+} from "./useToothFieldProgress";
+import {
+  findArchTeethForProductId,
+  FIXED_MIRROR_STEPS,
+  isFixedMirrorStep,
+  mirrorFixedShadeSelections,
+  mirrorFixedStageKey,
+  mirrorImpressionSelections,
+  resolveFixedGroupRepTooth,
+  resolveFixedMirrorTarget,
+} from "../utils/fixedArchMirror";
+import {
+  hasRetentionOptions,
+  getResolvedStageName,
+  resolveStageSelection,
+  shouldSkipStageSelection,
+  SKIPPED_STAGE_LABEL,
+  productHasSelectableStages,
+} from "../utils/categoryHelpers";
 import {
   isSingleDefaultOnlyExtractionList,
   shouldAutoSelectArchForDefaultExtraction,
 } from "../utils/extractionHelpers";
 import {
+  getRepToothForRemovableCard,
+  listRemovableCardIdsOnArch,
+} from "../utils/archSharedRemovable";
+import {
+  findArchProductDonor,
+  findOppositeArchProductDonor,
+  getActiveGrades,
+  isGradeFieldValueSkipped,
+  mergeEnrichedProductFromDonor,
+  productHasGrades,
+} from "../utils/gradeHelpers";
+import {
+  addedProductSlotId,
+  defaultActiveAccordionKey,
+  productAccordionKey,
+} from "../utils/productAccordionFocus";
+import { buildShadeSelectionKey } from "../utils/shadeGuideAdvanceFields";
+import {
   getOpposingArchTeeth,
   mapOppositeExtractionsToProductExtractions,
   toggleOpposingToothExtraction,
 } from "../utils/opposingExtractionHelpers";
-import { resolveProductOwnershipUpdate } from "../utils/productOwnership.js";
+import {
+  buildToothOwnershipConflictMessage,
+  filterTeethAvailableForActiveProduct,
+  isToothLockedByAnotherProduct,
+  resolveProductCardDisplayName,
+} from "../utils/archToothOwnership";
 import {
   buildImpressionDisplayText,
   getImpressionOptionsForProduct,
+  reconcileArchSelectionsWithCatalog,
   resolveImpressionName,
   resolveProductForImpression,
 } from "../utils/impressionFieldSync";
-import { getShadeGuideAdvanceFields, getShadeFieldType } from "../utils/shadeGuideAdvanceFields";
+import {
+  emptyImpressionSelections,
+  isSlipImpressionSelections,
+  migrateLegacyFlatImpressions,
+} from "../utils/impressionStorage";
+import {
+  buildFixedShadeProductId,
+  getDefaultShadeGuideFromProduct,
+  getShadeGuideAdvanceFields,
+  getShadeFieldType,
+  getShadeGuideOptionsFromProduct,
+  resolveProductForShadeStorageId,
+  shouldUseAccordionOnlyFixedShades,
+} from "../utils/shadeGuideAdvanceFields";
 import { ProductApi } from "../../../lib/api-service";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
@@ -195,41 +254,6 @@ export function useCaseDesignState(props: CaseDesignProps) {
     setOpposingSelectedTeeth((prev) => [...new Set([...prev, ...teeth])]);
   }, []);
 
-  // Auto-activate newly added product cards; reset to 0 when active card is removed
-  const prevAddedProductsLengthRef = useRef((props.addedProducts ?? []).length);
-  useEffect(() => {
-    const addedProducts = props.addedProducts ?? [];
-    if (addedProducts.length > prevAddedProductsLengthRef.current) {
-      // A new product was added — it is always prepended with expanded: true
-      const newest = addedProducts[0];
-      if (newest) {
-        if (props.onProductsChange) {
-          props.onProductsChange(
-            addedProducts.map((product, index) => ({
-              ...product,
-              expanded: index === 0,
-            }))
-          );
-        }
-        setActiveProductCardId(newest.id);
-        // Auto-show the panel for the arch of the newly added product so the tooth chart is always visible.
-        // This ensures the eye icon stays on for Fixed Restoration, Removable Restoration, and Orthodontics.
-        if (newest.arch === "maxillary") {
-          setShowMaxillary(true);
-        } else if (newest.arch === "mandibular") {
-          setShowMandibular(true);
-        }
-      }
-    } else if (addedProducts.length < prevAddedProductsLengthRef.current) {
-      // A product was removed — if it was active, reset to card 0
-      setActiveProductCardId((prev) => {
-        const stillExists = addedProducts.some((ap) => ap.id === prev);
-        return stillExists ? prev : 0;
-      });
-    }
-    prevAddedProductsLengthRef.current = addedProducts.length;
-  }, [props.addedProducts]);
-
   // Fetch initial product details (for retention_options used by retention popover)
   // Declared here so isActiveNonRetentionProduct and getMirrorTargetArch can reference it.
   const [initialProductDetails, setInitialProductDetails] = useState<ProductApiData | null>(null);
@@ -249,7 +273,21 @@ export function useCaseDesignState(props: CaseDesignProps) {
     }
     const ap = (props.addedProducts ?? []).find((p) => p.id === activeProductCardId);
     if (!ap || ap.arch !== arch) return false;
-    return !hasRetentionOptions(ap.product);
+    const apHasRetention = hasRetentionOptions(ap.product);
+    // If details are not fully hydrated yet for an added product (e.g. network timing),
+    // do NOT assume removable. Conservative fallback avoids opening removable-only flows
+    // for fixed products like single crowns.
+    if (
+      !apHasRetention &&
+      ap.productId &&
+      !ap.product?.retention_options &&
+      ap.product?.has_retention == null
+    ) {
+      const cached = cachedProductRef.current.get(ap.productId);
+      if (!cached) return false;
+      return !hasRetentionOptions(cached);
+    }
+    return !apHasRetention;
   };
 
   // Only treat the arch as selection-only when the ACTIVE product card has no retention options.
@@ -264,6 +302,83 @@ export function useCaseDesignState(props: CaseDesignProps) {
   const shades = useShadeSelection();
   const modals = useModalState();
   const products = useProductManagement(props.addedProducts, props.onProductsChange);
+
+  /** Only one product accordion (upper or lower) is expanded and interactive at a time. */
+  const [activeAccordionKey, setActiveAccordionKey] = useState<string>(() =>
+    defaultActiveAccordionKey(props.initialArch)
+  );
+
+  const syncAddedExpanded = useCallback(
+    (arch: Arch | null, productId: number | null) => {
+      products.setOnlyExpandedAddedProduct(arch, productId);
+    },
+    [products.setOnlyExpandedAddedProduct]
+  );
+
+  const focusAccordion = useCallback(
+    (arch: Arch, slotId: string, cardId?: number) => {
+      setActiveAccordionKey(productAccordionKey(arch, slotId));
+      if (cardId !== undefined) {
+        setActiveProductCardId(cardId);
+      } else if (slotId === "removable0") {
+        setActiveProductCardId(0);
+      } else if (slotId.startsWith("added:")) {
+        const id = Number(slotId.slice(6));
+        if (!Number.isNaN(id)) setActiveProductCardId(id);
+      }
+      if (slotId.startsWith("added:")) {
+        const id = Number(slotId.slice(6));
+        syncAddedExpanded(arch, id);
+      } else {
+        syncAddedExpanded(null, null);
+      }
+      if (arch === "maxillary") setShowMaxillary(true);
+      else setShowMandibular(true);
+    },
+    [syncAddedExpanded]
+  );
+
+  const toggleAccordionFocus = useCallback(
+    (arch: Arch, slotId: string, cardId?: number) => {
+      const key = productAccordionKey(arch, slotId);
+      if (activeAccordionKey === key) {
+        setActiveAccordionKey("");
+        syncAddedExpanded(null, null);
+        return;
+      }
+      focusAccordion(arch, slotId, cardId);
+    },
+    [activeAccordionKey, focusAccordion, syncAddedExpanded]
+  );
+
+  const isAccordionExpanded = useCallback(
+    (arch: Arch, slotId: string) => activeAccordionKey === productAccordionKey(arch, slotId),
+    [activeAccordionKey]
+  );
+
+  const isAccordionEnabled = useCallback(
+    (arch: Arch, slotId: string) =>
+      !activeAccordionKey || activeAccordionKey === productAccordionKey(arch, slotId),
+    [activeAccordionKey]
+  );
+
+  const prevAddedProductsLengthRef = useRef((props.addedProducts ?? []).length);
+  useEffect(() => {
+    const addedProducts = props.addedProducts ?? [];
+    if (addedProducts.length > prevAddedProductsLengthRef.current) {
+      const newest = addedProducts[0];
+      if (newest) {
+        focusAccordion(newest.arch as Arch, addedProductSlotId(newest.id), newest.id);
+      }
+    } else if (addedProducts.length < prevAddedProductsLengthRef.current) {
+      setActiveProductCardId((prev) => {
+        const stillExists = addedProducts.some((ap) => ap.id === prev);
+        return stillExists ? prev : 0;
+      });
+    }
+    prevAddedProductsLengthRef.current = addedProducts.length;
+  }, [props.addedProducts, focusAccordion]);
+
   const implants = useImplantState();
   const toothFieldProgress = useToothFieldProgress();
 
@@ -274,7 +389,136 @@ export function useCaseDesignState(props: CaseDesignProps) {
   // and manual mandibular-first edits.
 
   /** Removable field steps that should be mirrored when both arches are selected */
-  const REMOVABLE_MIRROR_STEPS = new Set<string>(["grade", "stage", "teeth_shade", "gum_shade", "addons"]);
+  const REMOVABLE_MIRROR_STEPS = new Set<string>([
+    "grade",
+    "stage",
+    "teeth_shade",
+    "gum_shade",
+    "impression",
+    "addons",
+  ]);
+
+  const MAXILLARY_ALL = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+  const MANDIBULAR_ALL = [17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
+
+  const isCard0RemovableOnArch = useCallback(
+    (arch: Arch): boolean => {
+      if (!initialProductDetails || hasRetentionOptions(initialProductDetails)) return false;
+      if (props.initialArch === "maxillary" && arch === "mandibular") return false;
+      if (props.initialArch === "mandibular" && arch === "maxillary") return false;
+      return true;
+    },
+    [initialProductDetails, props.initialArch]
+  );
+
+  const enrichProductWithGrades = useCallback(
+    (arch: Arch, product: ProductApiData): ProductApiData => {
+      const oppositeTeeth = arch === "maxillary" ? MANDIBULAR_ALL : MAXILLARY_ALL;
+      const archTeeth = arch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
+      const donor =
+        findOppositeArchProductDonor(
+          arch,
+          product.id,
+          toothFieldProgress.getToothProduct,
+          oppositeTeeth
+        ) ??
+        findArchProductDonor(arch, product.id, toothFieldProgress.getToothProduct, archTeeth);
+      if (donor) return mergeEnrichedProductFromDonor(product, donor);
+      for (const cached of cachedProductRef.current.values()) {
+        if (cached.id === product.id) {
+          return mergeEnrichedProductFromDonor(product, cached);
+        }
+      }
+      if (initialProductDetails?.id === product.id) {
+        return mergeEnrichedProductFromDonor(product, initialProductDetails);
+      }
+      return product;
+    },
+    [initialProductDetails, toothFieldProgress.getToothProduct]
+  );
+
+  const handleOpenImpressionModal = useCallback(
+    (arch: Arch, productId: string, toothNumber?: number) => {
+      modals.handleOpenImpressionModal(arch, productId, toothNumber);
+    },
+    [modals.handleOpenImpressionModal]
+  );
+
+  /** Mirror grade / stage / shades / addons to other removable products on the same arch. */
+  const applySameArchRemovableMirror = useCallback(
+    (
+      sourceArch: Arch,
+      sourceTooth: number,
+      step: FieldStep,
+      apply: (targetArch: Arch, targetTooth: number) => void
+    ) => {
+      if (!REMOVABLE_MIRROR_STEPS.has(step)) return;
+      const sourceProduct = toothFieldProgress.getToothProduct(sourceArch, sourceTooth);
+      if (sourceProduct && hasRetentionOptions(sourceProduct)) return;
+
+      const sourceCardId = toothFieldProgress.getToothProductCard(sourceArch, sourceTooth) ?? 0;
+      const allTeeth = sourceArch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
+      const cardIds = listRemovableCardIdsOnArch(
+        sourceArch,
+        props.addedProducts ?? [],
+        isCard0RemovableOnArch(sourceArch)
+      );
+      if (cardIds.length <= 1) return;
+
+      if (step === "grade") {
+        const sourceGradeVal = toothFieldProgress.getFieldValue(sourceArch, sourceTooth, step);
+        if (isGradeFieldValueSkipped(sourceGradeVal)) return;
+      }
+
+      for (const cardId of cardIds) {
+        if (cardId === sourceCardId) continue;
+        const repTooth = getRepToothForRemovableCard(
+          sourceArch,
+          cardId,
+          allTeeth,
+          toothFieldProgress.getToothProductCard,
+          toothFieldProgress.getToothProduct
+        );
+        if (repTooth === sourceTooth) continue;
+        if (!toothFieldProgress.isFieldCompleted(sourceArch, sourceTooth, step)) continue;
+        if (!toothFieldProgress.isFieldCompleted(sourceArch, repTooth, step)) {
+          apply(sourceArch, repTooth);
+        }
+      }
+
+      if (step === "stage") {
+        const sourceKey = `${sourceArch}_prep_${sourceTooth}`;
+        const stageVal = modals.selectedStages[sourceKey];
+        if (!stageVal) return;
+        modals.setSelectedStages((prev) => {
+          let next = prev;
+          for (const cardId of cardIds) {
+            if (cardId === sourceCardId) continue;
+            const repTooth = getRepToothForRemovableCard(
+              sourceArch,
+              cardId,
+              allTeeth,
+              toothFieldProgress.getToothProductCard,
+              toothFieldProgress.getToothProduct
+            );
+            const targetKey = `${sourceArch}_prep_${repTooth}`;
+            if (!next[targetKey]) {
+              next = { ...next, [targetKey]: stageVal };
+            }
+          }
+          return next;
+        });
+      }
+
+    },
+    [
+      props.addedProducts,
+      isCard0RemovableOnArch,
+      toothFieldProgress,
+      modals.selectedStages,
+      modals.setSelectedStages,
+    ]
+  );
 
   /** Returns all mandibular tooth numbers that belong to card 0 */
   const getMandibularCard0Teeth = useCallback((): number[] => {
@@ -319,52 +563,255 @@ export function useCaseDesignState(props: CaseDesignProps) {
     [getMandibularCard0Teeth, getMaxillaryCard0Teeth]
   );
 
-  /** Wrapped completeFieldStep: auto-copies removable fields to the other arch */
+  const mirrorFixedAuxiliaryState = useCallback(
+    (
+      sourceArch: Arch,
+      sourceRepTooth: number,
+      targetArch: Arch,
+      targetRepTooth: number,
+      productApiId: number,
+      impressionProductId?: string
+    ) => {
+      const sourceRetentionTypes =
+        sourceArch === "maxillary" ? teeth.maxillaryRetentionTypes : teeth.mandibularRetentionTypes;
+
+      const nextStages = mirrorFixedStageKey(
+        sourceArch,
+        sourceRepTooth,
+        targetArch,
+        targetRepTooth,
+        modals.selectedStages
+      );
+      if (nextStages) modals.setSelectedStages(nextStages);
+
+      const impressionId =
+        impressionProductId ?? productApiId.toString();
+      const nextImpressions = mirrorImpressionSelections(
+        impressionId,
+        sourceArch,
+        targetArch,
+        modals.selectedImpressions
+      );
+      if (nextImpressions) modals.setSelectedImpressions(nextImpressions);
+
+      const sourceAddonKey = `${sourceArch}_${sourceRepTooth}`;
+      const targetAddonKey = `${targetArch}_${targetRepTooth}`;
+      if (
+        selectedAddonsByTooth[sourceAddonKey]?.length &&
+        !selectedAddonsByTooth[targetAddonKey]?.length
+      ) {
+        setSelectedAddonsByTooth((prev) => ({
+          ...prev,
+          [targetAddonKey]: [...(prev[sourceAddonKey] ?? [])],
+        }));
+      }
+
+      const nextShades = mirrorFixedShadeSelections(
+        productApiId,
+        sourceArch,
+        targetArch,
+        shades.selectedShades
+      );
+      if (nextShades) shades.setSelectedShades(nextShades);
+    },
+    [
+      teeth.maxillaryRetentionTypes,
+      teeth.mandibularRetentionTypes,
+      modals.selectedStages,
+      modals.setSelectedStages,
+      modals.selectedImpressions,
+      modals.setSelectedImpressions,
+      selectedAddonsByTooth,
+      setSelectedAddonsByTooth,
+      shades.selectedShades,
+      shades.setSelectedShades,
+    ]
+  );
+
+  /** Bulk-copy existing fixed field progress from the opposite arch (same product id). */
+  const mirrorAllExistingFixedProgress = useCallback(
+    (targetArch: Arch, targetRepTooth: number, productApiId: number) => {
+      const sourceArch: Arch = targetArch === "maxillary" ? "mandibular" : "maxillary";
+      const sourceRetentionTypes =
+        sourceArch === "maxillary" ? teeth.maxillaryRetentionTypes : teeth.mandibularRetentionTypes;
+      const sourceTeeth = findArchTeethForProductId(
+        sourceArch,
+        productApiId,
+        sourceRetentionTypes,
+        toothFieldProgress.getToothProduct
+      );
+      if (sourceTeeth.length === 0) return;
+
+      const sourceRepTooth = resolveFixedGroupRepTooth(
+        sourceArch,
+        sourceTeeth,
+        toothFieldProgress.getToothProduct,
+        toothFieldProgress.isFieldCompleted,
+        toothFieldProgress.getFieldValue
+      );
+      if (sourceRepTooth == null) return;
+
+      for (const step of FIXED_MIRROR_STEPS) {
+        const fieldStep = step as FieldStep;
+        if (
+          toothFieldProgress.isFieldCompleted(sourceArch, sourceRepTooth, fieldStep) &&
+          !toothFieldProgress.isFieldCompleted(targetArch, targetRepTooth, fieldStep)
+        ) {
+          const value =
+            toothFieldProgress.getFieldValue(sourceArch, sourceRepTooth, fieldStep) || "";
+          toothFieldProgress.completeFieldStep(targetArch, targetRepTooth, fieldStep, value);
+        }
+      }
+
+      mirrorFixedAuxiliaryState(
+        sourceArch,
+        sourceRepTooth,
+        targetArch,
+        targetRepTooth,
+        productApiId
+      );
+    },
+    [
+      teeth.maxillaryRetentionTypes,
+      teeth.mandibularRetentionTypes,
+      toothFieldProgress,
+      mirrorFixedAuxiliaryState,
+    ]
+  );
+
+  const applyCrossArchFieldMirror = useCallback(
+    (
+      sourceArch: Arch,
+      sourceTooth: number,
+      step: FieldStep,
+      apply: (targetArch: Arch, targetTooth: number) => void
+    ) => {
+      const removableTarget = getMirrorTargetArch(sourceArch, sourceTooth, step);
+      if (removableTarget) {
+        for (const tn of getCard0TeethForArch(removableTarget)) {
+          if (!toothFieldProgress.isFieldCompleted(removableTarget, tn, step)) {
+            apply(removableTarget, tn);
+          }
+        }
+        return;
+      }
+
+      if (!isFixedMirrorStep(step)) return;
+
+      const mirrorTarget = resolveFixedMirrorTarget(
+        sourceArch,
+        sourceTooth,
+        teeth.maxillaryRetentionTypes,
+        teeth.mandibularRetentionTypes,
+        toothFieldProgress.getToothProduct,
+        toothFieldProgress.isFieldCompleted,
+        toothFieldProgress.getFieldValue
+      );
+      if (!mirrorTarget) return;
+
+      const { targetArch, targetRepTooth, productApiId } = mirrorTarget;
+      if (!toothFieldProgress.isFieldCompleted(targetArch, targetRepTooth, step)) {
+        apply(targetArch, targetRepTooth);
+      }
+
+      const sourceRetentionTypes =
+        sourceArch === "maxillary" ? teeth.maxillaryRetentionTypes : teeth.mandibularRetentionTypes;
+      const sourceTeeth = findArchTeethForProductId(
+        sourceArch,
+        productApiId,
+        sourceRetentionTypes,
+        toothFieldProgress.getToothProduct
+      );
+      const sourceRepTooth = resolveFixedGroupRepTooth(
+        sourceArch,
+        sourceTeeth,
+        toothFieldProgress.getToothProduct,
+        toothFieldProgress.isFieldCompleted,
+        toothFieldProgress.getFieldValue
+      );
+      if (sourceRepTooth != null) {
+        mirrorFixedAuxiliaryState(
+          sourceArch,
+          sourceRepTooth,
+          targetArch,
+          targetRepTooth,
+          productApiId
+        );
+      }
+    },
+    [
+      getMirrorTargetArch,
+      getCard0TeethForArch,
+      toothFieldProgress,
+      teeth.maxillaryRetentionTypes,
+      teeth.mandibularRetentionTypes,
+      mirrorFixedAuxiliaryState,
+    ]
+  );
+
+  /** Wrapped completeFieldStep: cross-arch copy for card-0 "both arches" only (not same-arch multi-product). */
   const mirroredCompleteFieldStep = useCallback(
-    (arch: "maxillary" | "mandibular", toothNumber: number, step: any, value: string) => {
+    (arch: Arch, toothNumber: number, step: FieldStep, value: string) => {
       toothFieldProgress.completeFieldStep(arch, toothNumber, step, value);
-      const targetArch = getMirrorTargetArch(arch, toothNumber, step);
-      if (targetArch) {
-        for (const tn of getCard0TeethForArch(targetArch)) {
-          // Only copy if the field on the target arch is NOT already completed (first time only)
-          if (!toothFieldProgress.isFieldCompleted(targetArch, tn, step)) {
-            toothFieldProgress.completeFieldStep(targetArch, tn, step, value);
-          }
-        }
-      }
+      const skipGradeMirror = step === "grade" && isGradeFieldValueSkipped(value);
+      if (skipGradeMirror) return;
+      applyCrossArchFieldMirror(arch, toothNumber, step, (targetArch, targetTooth) => {
+        toothFieldProgress.completeFieldStep(targetArch, targetTooth, step, value);
+      });
     },
-    [toothFieldProgress.completeFieldStep, toothFieldProgress.isFieldCompleted, getMirrorTargetArch, getCard0TeethForArch]
+    [toothFieldProgress.completeFieldStep, applyCrossArchFieldMirror]
   );
 
-  /** Wrapped storeFieldValue: auto-copies removable fields to the other arch */
+  /** Wrapped storeFieldValue: cross-arch copy for card-0 "both arches" only. */
   const mirroredStoreFieldValue = useCallback(
-    (arch: "maxillary" | "mandibular", toothNumber: number, step: any, value: string) => {
+    (arch: Arch, toothNumber: number, step: FieldStep, value: string) => {
       toothFieldProgress.storeFieldValue(arch, toothNumber, step, value);
-      const targetArch = getMirrorTargetArch(arch, toothNumber, step);
-      if (targetArch) {
-        for (const tn of getCard0TeethForArch(targetArch)) {
-          // Only copy if the field on the target arch is NOT already completed (first time only)
-          if (!toothFieldProgress.isFieldCompleted(targetArch, tn, step)) {
-            toothFieldProgress.storeFieldValue(targetArch, tn, step, value);
-          }
-        }
-      }
+      applyCrossArchFieldMirror(arch, toothNumber, step, (targetArch, targetTooth) => {
+        toothFieldProgress.storeFieldValue(targetArch, targetTooth, step, value);
+      });
     },
-    [toothFieldProgress.storeFieldValue, toothFieldProgress.isFieldCompleted, getMirrorTargetArch, getCard0TeethForArch]
+    [toothFieldProgress.storeFieldValue, applyCrossArchFieldMirror]
   );
 
-  /** Wrapped uncompleteFieldStep: auto-copies removable uncomplete to the other arch */
+  /** Wrapped uncompleteFieldStep: auto-copies removable + fixed uncomplete to the other arch */
   const mirroredUncompleteFieldStep = useCallback(
-    (arch: "maxillary" | "mandibular", toothNumber: number, step: any) => {
+    (arch: Arch, toothNumber: number, step: FieldStep) => {
       toothFieldProgress.uncompleteFieldStep(arch, toothNumber, step);
-      const targetArch = getMirrorTargetArch(arch, toothNumber, step);
-      if (targetArch) {
-        for (const tn of getCard0TeethForArch(targetArch)) {
-          toothFieldProgress.uncompleteFieldStep(targetArch, tn, step);
+      const removableTarget = getMirrorTargetArch(arch, toothNumber, step);
+      if (removableTarget) {
+        for (const tn of getCard0TeethForArch(removableTarget)) {
+          toothFieldProgress.uncompleteFieldStep(removableTarget, tn, step);
         }
+        return;
+      }
+      if (!isFixedMirrorStep(step)) return;
+      const mirrorTarget = resolveFixedMirrorTarget(
+        arch,
+        toothNumber,
+        teeth.maxillaryRetentionTypes,
+        teeth.mandibularRetentionTypes,
+        toothFieldProgress.getToothProduct,
+        toothFieldProgress.isFieldCompleted,
+        toothFieldProgress.getFieldValue
+      );
+      if (mirrorTarget) {
+        toothFieldProgress.uncompleteFieldStep(
+          mirrorTarget.targetArch,
+          mirrorTarget.targetRepTooth,
+          step
+        );
       }
     },
-    [toothFieldProgress.uncompleteFieldStep, getMirrorTargetArch, getCard0TeethForArch]
+    [
+      toothFieldProgress.uncompleteFieldStep,
+      getMirrorTargetArch,
+      getCard0TeethForArch,
+      teeth.maxillaryRetentionTypes,
+      teeth.mandibularRetentionTypes,
+      toothFieldProgress.getToothProduct,
+      toothFieldProgress.isFieldCompleted,
+      toothFieldProgress.getFieldValue,
+    ]
   );
 
   // Auto-activate the newest added product so teeth clicks assign to it.
@@ -435,7 +882,12 @@ export function useCaseDesignState(props: CaseDesignProps) {
       arch: Arch,
       fieldType: import("../types").ShadeFieldType,
       productId: string,
-      options?: { advanceFieldId?: number | null; advanceFieldLabel?: string | null }
+      options?: {
+        advanceFieldId?: number | null;
+        advanceFieldLabel?: string | null;
+        fillMode?: import("../types").ShadeSelectionFillMode;
+        storageToothNumber?: number | null;
+      }
     ) => {
       prefetchTeethShadeCatalog();
       shades.handleShadeFieldClick(arch, fieldType, productId, options);
@@ -452,8 +904,6 @@ export function useCaseDesignState(props: CaseDesignProps) {
    * fires after `initialProductDetails` resolves. Guarded per (productId, arch)
    * so the user can manually deselect without the effect re-overriding them.
    */
-  const MAXILLARY_ALL = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
-  const MANDIBULAR_ALL = [17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
   const autoSelectedArchKeysRef = useRef<Set<string>>(new Set());
   const {
     setMaxillaryToothExtractionMap,
@@ -586,7 +1036,9 @@ export function useCaseDesignState(props: CaseDesignProps) {
     runOpposingExtractionsAutoSelect,
   ]);
 
-  // Added products — fetch detail and apply, honoring the (productId, arch) guard
+  // Added products — cache detail only.
+  // Do NOT auto-select or auto-stamp arch teeth here; each added product must keep
+  // its tooth ownership independent from other products on the same arch.
   useEffect(() => {
     if (props.caseSubmitted) return;
     const list = props.addedProducts ?? [];
@@ -598,14 +1050,14 @@ export function useCaseDesignState(props: CaseDesignProps) {
       const embedded = (ap.product && (ap.product as ProductApiData).extractions)
         ? (ap.product as ProductApiData)
         : null;
-      if (embedded) {
-        runMissingTeethAutoSelect(embedded, ap.arch);
+      if (embedded && (ap.arch === "maxillary" || ap.arch === "mandibular")) {
+        const merged = enrichProductWithGrades(ap.arch as Arch, embedded);
+        cachedProductRef.current.set(ap.productId, merged);
         continue;
       }
 
       const cached = cachedProductRef.current.get(ap.productId);
       if (cached) {
-        runMissingTeethAutoSelect(cached, ap.arch);
         continue;
       }
 
@@ -618,11 +1070,24 @@ export function useCaseDesignState(props: CaseDesignProps) {
 
       fetchProductDetails(ap.productId, customerId).then((product) => {
         if (!product || !ap.productId) return;
-        cachedProductRef.current.set(ap.productId, product);
-        runMissingTeethAutoSelect(product, ap.arch);
+        if (ap.arch !== "maxillary" && ap.arch !== "mandibular") return;
+        const arch = ap.arch as Arch;
+        const merged = enrichProductWithGrades(arch, product);
+        cachedProductRef.current.set(ap.productId, merged);
+        const catalog = getImpressionOptionsForProduct(merged);
+        if (catalog.length > 0) {
+          modals.setSelectedImpressions((prev) =>
+            reconcileArchSelectionsWithCatalog(prev, arch, catalog)
+          );
+        }
       });
     }
-  }, [props.addedProducts, props.caseSubmitted, runMissingTeethAutoSelect]);
+  }, [
+    props.addedProducts,
+    props.caseSubmitted,
+    enrichProductWithGrades,
+    modals.setSelectedImpressions,
+  ]);
 
   /**
    * Shade-guide dropdown options derived from the active tooth's product detail.
@@ -630,57 +1095,58 @@ export function useCaseDesignState(props: CaseDesignProps) {
    * Falls back to an empty array when no product is resolvable (UI then shows no options).
    */
   const shadeGuideOptions = useMemo<string[]>(() => {
-    const { arch, productId } = shades.shadeSelectionState;
+    const { arch, productId, storageToothNumber } = shades.shadeSelectionState;
     if (!arch || !productId) return [];
 
-    const fixedMatch = productId.match(/^fixed_(\d+)$/);
-    const prepMatch = productId.match(/^prep_(-?\d+)$/);
-    const toothNumber = fixedMatch
-      ? parseInt(fixedMatch[1], 10)
-      : prepMatch
-        ? parseInt(prepMatch[1], 10)
-        : null;
-    if (toothNumber == null) return [];
+    const archToothNumbers =
+      arch === "maxillary"
+        ? Object.keys(teeth.maxillaryRetentionTypes).map(Number)
+        : Object.keys(teeth.mandibularRetentionTypes).map(Number);
 
-    const product = toothFieldProgress.getToothProduct(arch, toothNumber);
-    const teethShades = product?.teeth_shades;
-    if (!teethShades || teethShades.length === 0) return [];
-
-    const systemNames: string[] = [];
-    const seen = new Set<string>();
-    for (const shade of teethShades) {
-      const systemName = shade.brand?.system_name;
-      if (systemName && !seen.has(systemName)) {
-        seen.add(systemName);
-        systemNames.push(systemName);
-      }
-    }
-    return systemNames;
-  }, [shades.shadeSelectionState, toothFieldProgress.getToothProduct]);
+    const product = resolveProductForShadeStorageId(
+      productId,
+      arch,
+      toothFieldProgress.getToothProduct,
+      { storageToothNumber, archToothNumbers }
+    );
+    return getShadeGuideOptionsFromProduct(product);
+  }, [
+    shades.shadeSelectionState,
+    teeth.maxillaryRetentionTypes,
+    teeth.mandibularRetentionTypes,
+    toothFieldProgress.getToothProduct,
+  ]);
 
   // Auto-select the default shade guide when options load
   useEffect(() => {
     if (!shadeGuideOptions.length || shades.selectedShadeGuide) return;
-    const { arch, productId } = shades.shadeSelectionState;
+    const { arch, productId, storageToothNumber } = shades.shadeSelectionState;
     if (!arch || !productId) return;
-    const fixedMatch = productId.match(/^fixed_(\d+)$/);
-    const prepMatch = productId.match(/^prep_(-?\d+)$/);
-    const toothNumber = fixedMatch
-      ? parseInt(fixedMatch[1], 10)
-      : prepMatch
-        ? parseInt(prepMatch[1], 10)
-        : null;
-    if (toothNumber == null) return;
-    const product = toothFieldProgress.getToothProduct(arch, toothNumber);
-    const teethShades = product?.teeth_shades;
-    if (!teethShades) return;
-    const defaultShade = teethShades.find(
-      (s) => String(s.brand?.default ?? "").trim().toLowerCase() === "yes"
+
+    const archToothNumbers =
+      arch === "maxillary"
+        ? Object.keys(teeth.maxillaryRetentionTypes).map(Number)
+        : Object.keys(teeth.mandibularRetentionTypes).map(Number);
+
+    const product = resolveProductForShadeStorageId(
+      productId,
+      arch,
+      toothFieldProgress.getToothProduct,
+      { storageToothNumber, archToothNumbers }
     );
-    if (defaultShade?.brand?.system_name) {
-      shades.setSelectedShadeGuide(defaultShade.brand.system_name);
+    const defaultGuide = getDefaultShadeGuideFromProduct(product);
+    if (defaultGuide) {
+      shades.setSelectedShadeGuide(defaultGuide);
     }
-  }, [shadeGuideOptions, shades.selectedShadeGuide, shades.shadeSelectionState, toothFieldProgress.getToothProduct, shades.setSelectedShadeGuide]);
+  }, [
+    shadeGuideOptions,
+    shades.selectedShadeGuide,
+    shades.shadeSelectionState,
+    teeth.maxillaryRetentionTypes,
+    teeth.mandibularRetentionTypes,
+    toothFieldProgress.getToothProduct,
+    shades.setSelectedShadeGuide,
+  ]);
 
   const buildStageSelectionKey = useCallback(
     (arch: Arch, toothNumber: number, isFixed: boolean) =>
@@ -691,6 +1157,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
   /** Apply skip/auto stage rules so the field chain advances without blocking the user. */
   const applyResolvedStage = useCallback(
     (arch: Arch, toothNumber: number, product: ProductApiData, stageKeyOverride?: string) => {
+      if (shouldSkipStageSelection(product)) return false;
       const stageName = getResolvedStageName(product);
       if (!stageName) return false;
 
@@ -723,27 +1190,37 @@ export function useCaseDesignState(props: CaseDesignProps) {
       if (resolvedTooth != null) {
         const product = toothFieldProgress.getToothProduct(resolvedArch, resolvedTooth);
         if (product) {
+          const isFixed = hasRetentionOptions(product);
+          const stageStep = isFixed ? ("fixed_stage" as const) : ("stage" as const);
+          const stageKey =
+            productId.includes("_prep_") || productId.includes("_fixed_")
+              ? productId
+              : buildStageSelectionKey(resolvedArch, resolvedTooth, isFixed);
+          const hasExistingStage =
+            toothFieldProgress.isFieldCompleted(resolvedArch, resolvedTooth, stageStep) ||
+            Boolean(modals.selectedStages?.[stageKey]) ||
+            Boolean(modals.selectedStages?.[productId]);
+
+          // Stage already set — open picker only when this product supports multiple stages.
+          if (hasExistingStage) {
+            if (!shouldSkipStageSelection(product)) {
+              modals.handleOpenStageModal(productId, arch, toothNumber);
+            }
+            return;
+          }
+
+          if (productHasSelectableStages(product)) {
+            modals.handleOpenStageModal(productId, arch, toothNumber);
+            return;
+          }
           const resolution = resolveStageSelection(product);
           if (resolution.kind === "skip") {
             applyResolvedStage(resolvedArch, resolvedTooth, product, productId);
             return;
           }
-          // Default stage is applied silently on product load; opening the picker
-          // (user click or explicit open) must allow changing among multiple stages.
           if (resolution.kind === "auto") {
-            const isFixed = hasRetentionOptions(product);
-            const stageStep = isFixed ? ("fixed_stage" as const) : ("stage" as const);
-            const stageKey =
-              productId.includes("_prep_") || productId.includes("_fixed_")
-                ? productId
-                : buildStageSelectionKey(resolvedArch, resolvedTooth, isFixed);
-            const alreadyHasStage =
-              toothFieldProgress.isFieldCompleted(resolvedArch, resolvedTooth, stageStep) ||
-              Boolean(modals.selectedStages?.[stageKey]);
-            if (!alreadyHasStage) {
-              applyResolvedStage(resolvedArch, resolvedTooth, product, productId);
-              return;
-            }
+            applyResolvedStage(resolvedArch, resolvedTooth, product, productId);
+            return;
           }
         }
       }
@@ -780,15 +1257,56 @@ export function useCaseDesignState(props: CaseDesignProps) {
     [toothFieldProgress, setSelectedAddonsByTooth]
   );
 
+  const maybeMirrorFixedProgressFromOpposite = useCallback(
+    (targetArch: Arch, product: ProductApiData) => {
+      if (!hasRetentionOptions(product) || product.id == null) return;
+      const targetRetentionTypes =
+        targetArch === "maxillary" ? teeth.maxillaryRetentionTypes : teeth.mandibularRetentionTypes;
+      const targetTeeth = findArchTeethForProductId(
+        targetArch,
+        product.id,
+        targetRetentionTypes,
+        toothFieldProgress.getToothProduct
+      );
+      if (targetTeeth.length === 0) return;
+      const targetRepTooth = resolveFixedGroupRepTooth(
+        targetArch,
+        targetTeeth,
+        toothFieldProgress.getToothProduct,
+        toothFieldProgress.isFieldCompleted,
+        toothFieldProgress.getFieldValue
+      );
+      if (targetRepTooth == null) return;
+      mirrorAllExistingFixedProgress(targetArch, targetRepTooth, product.id);
+    },
+    [
+      teeth.maxillaryRetentionTypes,
+      teeth.mandibularRetentionTypes,
+      toothFieldProgress,
+      mirrorAllExistingFixedProgress,
+    ]
+  );
+
   // Fetch and assign product details when retention type is selected
   const fetchAndAssignProduct = useCallback(
     async (arch: Arch, toothNumber: number, productId: number) => {
       // If we already fetched this product, reuse the cached data
       const cached = cachedProductRef.current.get(productId);
       if (cached) {
-        toothFieldProgress.setToothProduct(arch, toothNumber, cached);
-        applyResolvedStage(arch, toothNumber, cached);
-        autoPopulateDefaultAddons(arch, toothNumber, cached);
+        const merged = enrichProductWithGrades(arch, cached);
+        if (merged !== cached) {
+          cachedProductRef.current.set(productId, merged);
+        }
+        toothFieldProgress.setToothProduct(arch, toothNumber, merged);
+        applyResolvedStage(arch, toothNumber, merged);
+        autoPopulateDefaultAddons(arch, toothNumber, merged);
+        maybeMirrorFixedProgressFromOpposite(arch, merged);
+        const catalog = getImpressionOptionsForProduct(merged);
+        if (catalog.length > 0) {
+          modals.setSelectedImpressions((prev) =>
+            reconcileArchSelectionsWithCatalog(prev, arch, catalog)
+          );
+        }
         return;
       }
 
@@ -810,14 +1328,29 @@ export function useCaseDesignState(props: CaseDesignProps) {
             enrichedProduct = { ...product, impressions: impressions as unknown as ProductApiData["impressions"] };
           }
         }
-        cachedProductRef.current.set(productId, enrichedProduct);
-        toothFieldProgress.setToothProduct(arch, toothNumber, enrichedProduct);
-        applyResolvedStage(arch, toothNumber, enrichedProduct);
-        autoPopulateDefaultAddons(arch, toothNumber, enrichedProduct);
+        const merged = enrichProductWithGrades(arch, enrichedProduct);
+        cachedProductRef.current.set(productId, merged);
+        toothFieldProgress.setToothProduct(arch, toothNumber, merged);
+        applyResolvedStage(arch, toothNumber, merged);
+        autoPopulateDefaultAddons(arch, toothNumber, merged);
+        maybeMirrorFixedProgressFromOpposite(arch, merged);
+        const catalog = getImpressionOptionsForProduct(merged);
+        if (catalog.length > 0) {
+          modals.setSelectedImpressions((prev) =>
+            reconcileArchSelectionsWithCatalog(prev, arch, catalog)
+          );
+        }
       }
       toothFieldProgress.setProductLoading(arch, toothNumber, false);
     },
-    [toothFieldProgress, applyResolvedStage, autoPopulateDefaultAddons]
+    [
+      toothFieldProgress,
+      applyResolvedStage,
+      autoPopulateDefaultAddons,
+      maybeMirrorFixedProgressFromOpposite,
+      enrichProductWithGrades,
+      modals.setSelectedImpressions,
+    ]
   );
 
   // Auto-assign initial non-fixed product (Removable/Orthodontics) to all teeth when initialArch === "both".
@@ -844,56 +1377,333 @@ export function useCaseDesignState(props: CaseDesignProps) {
       ? products.addedProducts.find((ap) => ap.id === activeProductCardId)?.productId
       : props.selectedProductId;
 
-  // Helper: find the removables AddedProduct for a given arch (if any)
-  // Wrap tooth click handlers: for selection-only arches, assign the tooth to the ACTIVE product
-  // and fetch product details so the fields and accordion render immediately.
-  const handleSelectionOnlyToothAdd = (arch: Arch, toothNumber: number) => {
-    if (!isActiveNonRetentionProduct(arch)) return;
+  const toothOwnershipContext = useCallback(
+    () => ({
+      activeProductCardId,
+      getToothProductCard: toothFieldProgress.getToothProductCard,
+      maxillaryTeeth: teeth.maxillaryTeeth,
+      mandibularTeeth: teeth.mandibularTeeth,
+    }),
+    [
+      activeProductCardId,
+      teeth.maxillaryTeeth,
+      teeth.mandibularTeeth,
+      toothFieldProgress.getToothProductCard,
+    ]
+  );
 
-    if (activeProductCardId !== 0) {
-      const ap = (props.addedProducts ?? []).find((p) => p.id === activeProductCardId);
-      if (ap?.productId && ap.arch === arch) {
-        toothFieldProgress.setToothProductCard(arch, toothNumber, activeProductCardId);
-        fetchAndAssignProduct(arch, toothNumber, ap.productId);
-      }
-    } else if (props.selectedProductId) {
-      toothFieldProgress.setToothProductCard(arch, toothNumber, 0);
-      fetchAndAssignProduct(arch, toothNumber, props.selectedProductId);
-    }
-  };
-
-  const ensureSelectionOnlyToothOwnership = useCallback(
+  const notifyToothOwnershipConflict = useCallback(
     (arch: Arch, toothNumber: number) => {
-      const currentCardId = toothFieldProgress.getToothProductCard(arch, toothNumber);
-      const activeAddedProduct =
-        activeProductCardId !== 0
-          ? (props.addedProducts ?? []).find((p) => p.id === activeProductCardId)
-          : null;
-
-      const update = resolveProductOwnershipUpdate({
-        isActiveProductRemovables: isActiveNonRetentionProduct(arch),
-        activeProductCardId,
-        activeArchMatches: activeAddedProduct?.arch === arch,
-        activeProductId: activeAddedProduct?.productId ?? null,
-        currentCardId,
-        selectedProductId: props.selectedProductId ?? null,
+      const ownerCardId = toothFieldProgress.getToothProductCard(arch, toothNumber);
+      const ownerName = resolveProductCardDisplayName({
+        cardId: ownerCardId,
+        arch,
+        addedProducts: props.addedProducts ?? [],
+        selectedProductName: props.selectedProductName,
       });
+      const message = buildToothOwnershipConflictMessage(toothNumber, ownerName);
+      if (props.onToothOwnershipConflict) {
+        props.onToothOwnershipConflict(message);
+      } else if (typeof window !== "undefined") {
+        window.alert(message);
+      }
+    },
+    [
+      props.addedProducts,
+      props.onToothOwnershipConflict,
+      props.selectedProductName,
+      toothFieldProgress,
+    ]
+  );
 
-      if (!update) return;
+  const canModifyToothForActiveProduct = useCallback(
+    (arch: Arch, toothNumber: number): boolean => {
+      if (
+        !isToothLockedByAnotherProduct({
+          arch,
+          toothNumber,
+          ...toothOwnershipContext(),
+        })
+      ) {
+        return true;
+      }
+      notifyToothOwnershipConflict(arch, toothNumber);
+      return false;
+    },
+    [notifyToothOwnershipConflict, toothOwnershipContext]
+  );
 
-      if (currentCardId !== update.targetCardId) {
-        toothFieldProgress.setToothProductCard(arch, toothNumber, update.targetCardId);
+  /**
+   * When a removable added product had values mirrored while still on virtual slot (-cardId),
+   * copy those values to its first real tooth as soon as the user assigns one.
+   * Keeps "derive from previous product" behavior even when product 2 is added later.
+   */
+  const migrateRemovableVirtualProgressToTooth = useCallback(
+    (arch: Arch, cardId: number, targetTooth: number) => {
+      if (cardId === 0) return;
+      const virtualTooth = -cardId;
+      if (virtualTooth === targetTooth) return;
+
+      for (const step of REMOVABLE_MIRROR_STEPS) {
+        const fieldStep = step as FieldStep;
+        const sourceValue = toothFieldProgress.getFieldValue(arch, virtualTooth, fieldStep);
+        const sourceCompleted = toothFieldProgress.isFieldCompleted(arch, virtualTooth, fieldStep);
+        const targetValue = toothFieldProgress.getFieldValue(arch, targetTooth, fieldStep);
+        const targetCompleted = toothFieldProgress.isFieldCompleted(arch, targetTooth, fieldStep);
+
+        if (sourceCompleted && !targetCompleted) {
+          toothFieldProgress.completeFieldStep(arch, targetTooth, fieldStep, sourceValue || "");
+          continue;
+        }
+        if (sourceValue && !targetValue) {
+          toothFieldProgress.storeFieldValue(arch, targetTooth, fieldStep, sourceValue);
+        }
       }
 
-      const assignedProduct = toothFieldProgress.getToothProduct(arch, toothNumber);
-      if (!assignedProduct || assignedProduct.id !== update.targetProductId) {
-        fetchAndAssignProduct(arch, toothNumber, update.targetProductId);
+      const sourceStageKey = `${arch}_prep_${virtualTooth}`;
+      const targetStageKey = `${arch}_prep_${targetTooth}`;
+      const sourceStage = modals.selectedStages[sourceStageKey];
+      if (sourceStage && !modals.selectedStages[targetStageKey]) {
+        modals.setSelectedStages((prev) => ({ ...prev, [targetStageKey]: sourceStage }));
+      }
+    },
+    [modals.selectedStages, modals.setSelectedStages, toothFieldProgress]
+  );
+
+  /** Whether a backfill step should copy from donor → target (addons use API defaults only). */
+  const shouldBackfillRemovableStep = useCallback(
+    (
+      step: FieldStep,
+      donorValue: string,
+      targetProduct: ProductApiData | null | undefined
+    ): boolean => {
+      if (step === "addons" || step === "impression") return false;
+      if (step === "stage" && shouldSkipStageSelection(targetProduct)) return false;
+      if (
+        step === "grade" &&
+        isGradeFieldValueSkipped(donorValue) &&
+        productHasGrades(targetProduct)
+      ) {
+        return false;
+      }
+      return true;
+    },
+    []
+  );
+
+  /**
+   * Backfill removable fields for a newly-added product from an already-configured
+   * removable product on the same arch (derive defaults; target can still override).
+   */
+  const backfillRemovableFromExistingCard = useCallback(
+    (arch: Arch, targetCardId: number, targetTooth: number) => {
+      if (targetCardId === 0) return;
+      const allTeeth = arch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
+      const cardIds = listRemovableCardIdsOnArch(
+        arch,
+        props.addedProducts ?? [],
+        isCard0RemovableOnArch(arch)
+      ).filter((id) => id !== targetCardId);
+      if (cardIds.length === 0) return;
+
+      const targetStageKey = `${arch}_prep_${targetTooth}`;
+
+      for (const donorCardId of cardIds) {
+        const donorTooth = getRepToothForRemovableCard(
+          arch,
+          donorCardId,
+          allTeeth,
+          toothFieldProgress.getToothProductCard,
+          toothFieldProgress.getToothProduct
+        );
+
+        for (const step of REMOVABLE_MIRROR_STEPS) {
+          const fieldStep = step as FieldStep;
+          const targetCompleted = toothFieldProgress.isFieldCompleted(arch, targetTooth, fieldStep);
+          const targetValue = toothFieldProgress.getFieldValue(arch, targetTooth, fieldStep);
+          if (targetCompleted || targetValue) continue;
+
+          const donorCompleted = toothFieldProgress.isFieldCompleted(arch, donorTooth, fieldStep);
+          const donorValue = toothFieldProgress.getFieldValue(arch, donorTooth, fieldStep);
+          if (!donorCompleted && !donorValue) continue;
+          const targetProduct = toothFieldProgress.getToothProduct(arch, targetTooth);
+          if (!shouldBackfillRemovableStep(fieldStep, donorValue || "", targetProduct)) {
+            continue;
+          }
+
+          if (donorCompleted) {
+            toothFieldProgress.completeFieldStep(arch, targetTooth, fieldStep, donorValue || "");
+          } else if (donorValue) {
+            toothFieldProgress.storeFieldValue(arch, targetTooth, fieldStep, donorValue);
+          }
+        }
+
+        const donorStageKey = `${arch}_prep_${donorTooth}`;
+        const donorStage = modals.selectedStages[donorStageKey];
+        const targetProduct = toothFieldProgress.getToothProduct(arch, targetTooth);
+        if (
+          donorStage &&
+          donorStage !== SKIPPED_STAGE_LABEL &&
+          !modals.selectedStages[targetStageKey] &&
+          !shouldSkipStageSelection(targetProduct)
+        ) {
+          modals.setSelectedStages((prev) => ({ ...prev, [targetStageKey]: donorStage }));
+        }
+
+      }
+    },
+    [
+      MANDIBULAR_ALL,
+      MAXILLARY_ALL,
+      REMOVABLE_MIRROR_STEPS,
+      isCard0RemovableOnArch,
+      modals.selectedStages,
+      modals.setSelectedStages,
+      props.addedProducts,
+      toothFieldProgress,
+      shouldBackfillRemovableStep,
+    ]
+  );
+
+  /**
+   * Backfill removable fields from the opposite arch (upper <-> lower) for both-arch cases.
+   * This keeps teeth/gum shade (and related removable defaults) mirrored when adding products later.
+   */
+  const backfillRemovableFromOppositeArch = useCallback(
+    (arch: Arch, targetTooth: number) => {
+      const oppositeArch: Arch = arch === "maxillary" ? "mandibular" : "maxillary";
+      const sourceAllTeeth = oppositeArch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
+      const sourceCardIds = listRemovableCardIdsOnArch(
+        oppositeArch,
+        props.addedProducts ?? [],
+        isCard0RemovableOnArch(oppositeArch)
+      );
+      if (sourceCardIds.length === 0) return;
+
+      for (const sourceCardId of sourceCardIds) {
+        const sourceTooth = getRepToothForRemovableCard(
+          oppositeArch,
+          sourceCardId,
+          sourceAllTeeth,
+          toothFieldProgress.getToothProductCard,
+          toothFieldProgress.getToothProduct
+        );
+        if (sourceTooth == null) continue;
+
+        for (const step of REMOVABLE_MIRROR_STEPS) {
+          const fieldStep = step as FieldStep;
+          const targetCompleted = toothFieldProgress.isFieldCompleted(arch, targetTooth, fieldStep);
+          const targetValue = toothFieldProgress.getFieldValue(arch, targetTooth, fieldStep);
+          if (targetCompleted || targetValue) continue;
+
+          const sourceCompleted = toothFieldProgress.isFieldCompleted(oppositeArch, sourceTooth, fieldStep);
+          const sourceValue = toothFieldProgress.getFieldValue(oppositeArch, sourceTooth, fieldStep);
+          if (!sourceCompleted && !sourceValue) continue;
+          const targetProduct = toothFieldProgress.getToothProduct(arch, targetTooth);
+          if (!shouldBackfillRemovableStep(fieldStep, sourceValue || "", targetProduct)) {
+            continue;
+          }
+
+          if (sourceCompleted) {
+            toothFieldProgress.completeFieldStep(arch, targetTooth, fieldStep, sourceValue || "");
+          } else if (sourceValue) {
+            toothFieldProgress.storeFieldValue(arch, targetTooth, fieldStep, sourceValue);
+          }
+        }
+
+        const sourceStageKey = `${oppositeArch}_prep_${sourceTooth}`;
+        const targetStageKey = `${arch}_prep_${targetTooth}`;
+        const sourceStage = modals.selectedStages[sourceStageKey];
+        const targetProduct = toothFieldProgress.getToothProduct(arch, targetTooth);
+        if (
+          sourceStage &&
+          sourceStage !== SKIPPED_STAGE_LABEL &&
+          !modals.selectedStages[targetStageKey] &&
+          !shouldSkipStageSelection(targetProduct)
+        ) {
+          modals.setSelectedStages((prev) => ({ ...prev, [targetStageKey]: sourceStage }));
+        }
+
+      }
+    },
+    [
+      props.initialArch,
+      props.addedProducts,
+      MAXILLARY_ALL,
+      MANDIBULAR_ALL,
+      REMOVABLE_MIRROR_STEPS,
+      isCard0RemovableOnArch,
+      activeProductCardId,
+      toothFieldProgress,
+      shouldBackfillRemovableStep,
+    ]
+  );
+
+  /** Seed defaults onto virtual slot when an added removable card is created (before teeth assigned). */
+  const seededRemovableVirtualRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (props.caseSubmitted) return;
+    for (const ap of props.addedProducts ?? []) {
+      if (!ap.productId || (ap.arch !== "maxillary" && ap.arch !== "mandibular")) continue;
+      if (ap.product && hasRetentionOptions(ap.product)) continue;
+      const arch = ap.arch as Arch;
+      const seedKey = `${arch}_${ap.id}`;
+      if (seededRemovableVirtualRef.current.has(seedKey)) continue;
+
+      const allTeeth = arch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
+      const hasAssignedTeeth = allTeeth.some(
+        (tn) => (toothFieldProgress.getToothProductCard(arch, tn) ?? 0) === ap.id
+      );
+      if (hasAssignedTeeth) {
+        seededRemovableVirtualRef.current.add(seedKey);
+        continue;
+      }
+
+      const virtualTooth = -ap.id;
+      const hasVirtualProduct = Boolean(toothFieldProgress.getToothProduct(arch, virtualTooth));
+      if (!hasVirtualProduct) continue;
+
+      seededRemovableVirtualRef.current.add(seedKey);
+      backfillRemovableFromExistingCard(arch, ap.id, virtualTooth);
+      backfillRemovableFromOppositeArch(arch, virtualTooth);
+    }
+  }, [
+    props.addedProducts,
+    props.caseSubmitted,
+    backfillRemovableFromExistingCard,
+    backfillRemovableFromOppositeArch,
+    toothFieldProgress.toothProducts,
+    toothFieldProgress.getToothProductCard,
+  ]);
+
+  const assignToothToActiveProduct = useCallback(
+    (arch: Arch, toothNumber: number) => {
+      if (!isActiveNonRetentionProduct(arch)) return;
+
+      if (activeProductCardId !== 0) {
+        const ap = (props.addedProducts ?? []).find((p) => p.id === activeProductCardId);
+        if (ap?.productId && ap.arch === arch) {
+          toothFieldProgress.setToothProductCard(arch, toothNumber, activeProductCardId);
+          migrateRemovableVirtualProgressToTooth(arch, activeProductCardId, toothNumber);
+          void fetchAndAssignProduct(arch, toothNumber, ap.productId).then(() => {
+            backfillRemovableFromExistingCard(arch, activeProductCardId, toothNumber);
+            backfillRemovableFromOppositeArch(arch, toothNumber);
+          });
+        }
+      } else if (props.selectedProductId) {
+        toothFieldProgress.setToothProductCard(arch, toothNumber, 0);
+        void fetchAndAssignProduct(arch, toothNumber, props.selectedProductId).then(() => {
+          backfillRemovableFromOppositeArch(arch, toothNumber);
+        });
       }
     },
     [
       activeProductCardId,
       fetchAndAssignProduct,
+      backfillRemovableFromExistingCard,
+      backfillRemovableFromOppositeArch,
       isActiveNonRetentionProduct,
+      migrateRemovableVirtualProgressToTooth,
       props.addedProducts,
       props.selectedProductId,
       toothFieldProgress,
@@ -902,40 +1712,101 @@ export function useCaseDesignState(props: CaseDesignProps) {
 
   const handleToothExtractionToggle = useCallback(
     (arch: Arch, toothNumber: number, extractionCode: string, extractions?: ProductExtraction[]) => {
-      ensureSelectionOnlyToothOwnership(arch, toothNumber);
+      if (!canModifyToothForActiveProduct(arch, toothNumber)) return;
       teeth.handleToothExtractionToggle(arch, toothNumber, extractionCode, extractions);
     },
-    [ensureSelectionOnlyToothOwnership, teeth]
+    [canModifyToothForActiveProduct, teeth]
   );
 
   const handleMaxillaryToothClick = (toothNumber: number) => {
+    if (!canModifyToothForActiveProduct("maxillary", toothNumber)) return;
     const isAdding = !teeth.maxillaryTeeth.includes(toothNumber);
     teeth.handleMaxillaryToothClick(toothNumber);
     if (isAdding) {
-      handleSelectionOnlyToothAdd("maxillary", toothNumber);
+      assignToothToActiveProduct("maxillary", toothNumber);
     }
   };
 
   const handleMandibularToothClick = (toothNumber: number) => {
+    if (!canModifyToothForActiveProduct("mandibular", toothNumber)) return;
     const isAdding = !teeth.mandibularTeeth.includes(toothNumber);
     teeth.handleMandibularToothClick(toothNumber);
     if (isAdding) {
-      handleSelectionOnlyToothAdd("mandibular", toothNumber);
+      assignToothToActiveProduct("mandibular", toothNumber);
     }
   };
+
+  const selectAllMaxillaryTeeth = useCallback(
+    (toothNumbers: number[]) => {
+      const { allowed, blocked } = filterTeethAvailableForActiveProduct(
+        "maxillary",
+        toothNumbers,
+        toothOwnershipContext()
+      );
+      if (blocked.length > 0) {
+        notifyToothOwnershipConflict("maxillary", blocked[0]);
+      }
+      if (allowed.length === 0) return;
+      teeth.selectAllMaxillaryTeeth(allowed);
+      if (isActiveNonRetentionProduct("maxillary")) {
+        for (const tn of allowed) {
+          assignToothToActiveProduct("maxillary", tn);
+        }
+      }
+    },
+    [
+      assignToothToActiveProduct,
+      isActiveNonRetentionProduct,
+      notifyToothOwnershipConflict,
+      teeth,
+      toothOwnershipContext,
+    ]
+  );
+
+  const selectAllMandibularTeeth = useCallback(
+    (toothNumbers: number[]) => {
+      const { allowed, blocked } = filterTeethAvailableForActiveProduct(
+        "mandibular",
+        toothNumbers,
+        toothOwnershipContext()
+      );
+      if (blocked.length > 0) {
+        notifyToothOwnershipConflict("mandibular", blocked[0]);
+      }
+      if (allowed.length === 0) return;
+      teeth.selectAllMandibularTeeth(allowed);
+      if (isActiveNonRetentionProduct("mandibular")) {
+        for (const tn of allowed) {
+          assignToothToActiveProduct("mandibular", tn);
+        }
+      }
+    },
+    [
+      assignToothToActiveProduct,
+      isActiveNonRetentionProduct,
+      notifyToothOwnershipConflict,
+      teeth,
+      toothOwnershipContext,
+    ]
+  );
 
   // Wrap handleSelectRetentionType to auto-assign product for Prep/Pontic/Implant
   // Also handles tooth ownership transfer when a tooth already belongs to another product card.
   const originalHandleSelectRetentionType = teeth.handleSelectRetentionType;
   const handleSelectRetentionType = (arch: Arch, toothNumber: number, type: RetentionType) => {
+    const currentTypes = arch === "maxillary"
+      ? teeth.maxillaryRetentionTypes[toothNumber]
+      : teeth.mandibularRetentionTypes[toothNumber];
+    const isDeselecting = currentTypes?.includes(type);
+
+    // Block before the retention-selection flow starts (before toggling popover choice).
+    if (!isDeselecting && (type === "Prep" || type === "Pontic" || type === "Implant")) {
+      if (!canModifyToothForActiveProduct(arch, toothNumber)) return;
+    }
+
     originalHandleSelectRetentionType(arch, toothNumber, type);
 
     if (type === "Prep" || type === "Pontic" || type === "Implant") {
-      const currentTypes = arch === "maxillary"
-        ? teeth.maxillaryRetentionTypes[toothNumber]
-        : teeth.mandibularRetentionTypes[toothNumber];
-      const isDeselecting = currentTypes?.includes(type);
-
       if (!isDeselecting) {
         // Do not clear field progress when adding retention type — keep already-filled fields (Stage, shades, etc.) as done
         // Assign ownership to the currently active product card
@@ -961,12 +1832,19 @@ export function useCaseDesignState(props: CaseDesignProps) {
               return p?.id === targetProduct.id;
             });
           if (siblingTeeth.length > 0) {
-            const oldMin = Math.min(...siblingTeeth);
-            const newMin = Math.min(toothNumber, ...siblingTeeth);
-            if (newMin !== oldMin) {
-              const prefix = `${arch}_fixed_`;
-              modals.migrateStageKey(`${prefix}${oldMin}`, `${prefix}${newMin}`);
-              toothFieldProgress.migrateToothProgress(arch, oldMin, newMin);
+            const stableShadeId = buildFixedShadeProductId(targetProduct.id);
+            for (const tn of siblingTeeth) {
+              shades.migrateFixedShadeProductId(`fixed_${tn}`, stableShadeId, arch);
+            }
+            const priorSiblings = siblingTeeth.filter((tn) => tn !== toothNumber);
+            if (priorSiblings.length > 0) {
+              const oldMin = Math.min(...priorSiblings);
+              const newMin = Math.min(...siblingTeeth);
+              if (newMin !== oldMin) {
+                const prefix = `${arch}_fixed_`;
+                modals.migrateStageKey(`${prefix}${oldMin}`, `${prefix}${newMin}`);
+                toothFieldProgress.migrateToothProgress(arch, oldMin, newMin);
+              }
             }
           }
         }
@@ -1005,6 +1883,9 @@ export function useCaseDesignState(props: CaseDesignProps) {
         const prefix = `${arch}_fixed_`;
         modals.migrateStageKey(`${prefix}${oldMin}`, `${prefix}${newMin}`);
         toothFieldProgress.migrateToothProgress(arch, oldMin, newMin);
+        const stableShadeId = buildFixedShadeProductId(product.id);
+        shades.migrateFixedShadeProductId(`fixed_${oldMin}`, stableShadeId, arch);
+        shades.migrateFixedShadeProductId(`fixed_${newMin}`, stableShadeId, arch);
       }
     },
     [teeth.maxillaryRetentionTypes, teeth.mandibularRetentionTypes, toothFieldProgress, modals]
@@ -1014,19 +1895,29 @@ export function useCaseDesignState(props: CaseDesignProps) {
   const originalHandleMaxillaryToothDeselect = teeth.handleMaxillaryToothDeselect;
   const handleMaxillaryToothDeselect = useCallback(
     (toothNumber: number) => {
+      if (!canModifyToothForActiveProduct("maxillary", toothNumber)) return;
       migrateFixedStageIfNeeded("maxillary", toothNumber);
       originalHandleMaxillaryToothDeselect(toothNumber);
     },
-    [migrateFixedStageIfNeeded, originalHandleMaxillaryToothDeselect]
+    [
+      canModifyToothForActiveProduct,
+      migrateFixedStageIfNeeded,
+      originalHandleMaxillaryToothDeselect,
+    ]
   );
 
   const originalHandleMandibularToothDeselect = teeth.handleMandibularToothDeselect;
   const handleMandibularToothDeselect = useCallback(
     (toothNumber: number) => {
+      if (!canModifyToothForActiveProduct("mandibular", toothNumber)) return;
       migrateFixedStageIfNeeded("mandibular", toothNumber);
       originalHandleMandibularToothDeselect(toothNumber);
     },
-    [migrateFixedStageIfNeeded, originalHandleMandibularToothDeselect]
+    [
+      canModifyToothForActiveProduct,
+      migrateFixedStageIfNeeded,
+      originalHandleMandibularToothDeselect,
+    ]
   );
 
   // When user selects a shade, mark the corresponding advance-field step completed so the next field shows
@@ -1066,10 +1957,14 @@ export function useCaseDesignState(props: CaseDesignProps) {
       const shadeJson = buildTeethShadeJson(shade, null);
       prefetchTeethShadeCatalog();
 
-      // Fixed products: fixed_NN
-      const fixedMatch = productId.match(/^fixed_(\d+)$/);
-      if (fixedMatch) {
-        const toothNumber = parseInt(fixedMatch[1], 10);
+      // Fixed products: fixed_p_{productId} or legacy fixed_NN
+      const fixedProductMatch = productId.match(/^fixed_p_(\d+)$/);
+      const fixedLegacyMatch = productId.match(/^fixed_(\d+)$/);
+      if (fixedProductMatch || fixedLegacyMatch) {
+        const toothNumber =
+          shades.shadeSelectionState.storageToothNumber ??
+          (fixedLegacyMatch ? parseInt(fixedLegacyMatch[1], 10) : null);
+        if (toothNumber == null) return;
         const product = toothFieldProgress.getToothProduct(arch, toothNumber);
         const shadeGuideFields = getShadeGuideAdvanceFields(product?.advance_fields);
         const selectedAdvanceFieldId = shades.shadeSelectionState.advanceFieldId ?? null;
@@ -1088,16 +1983,16 @@ export function useCaseDesignState(props: CaseDesignProps) {
               }
             } catch {}
 
-            const updatedSelections = {
+            const updatedSelections: Record<string, { name: string; advanceFieldId: number; teeth_shade_id: number; brand_id: number }> = {
               ...currentSelections,
-              [selectedAdvanceFieldId]: {
+              [String(selectedAdvanceFieldId)]: {
                 name: shade,
                 advanceFieldId: selectedAdvanceFieldId,
                 teeth_shade_id: 0,
                 brand_id: 0,
               },
             };
-            const allFilled = relevantFields.every((field) => updatedSelections[field.id]);
+            const allFilled = relevantFields.every((field) => updatedSelections[String(field.id)]);
             const nextValue = JSON.stringify(updatedSelections);
 
             if (allFilled) {
@@ -1112,6 +2007,68 @@ export function useCaseDesignState(props: CaseDesignProps) {
           if (step) {
             mirroredCompleteFieldStep(arch, toothNumber, step, shadeJson);
             enrichTeethShadeFieldValue(arch, toothNumber, step, shade);
+          }
+        }
+
+        if (
+          shouldUseAccordionOnlyFixedShades(product?.advance_fields) &&
+          selectedAdvanceFieldId != null
+        ) {
+          const emptyState = {
+            arch: null,
+            fieldType: null,
+            productId: null,
+            advanceFieldId: null,
+            advanceFieldLabel: null,
+            fillMode: null,
+            storageToothNumber: null,
+          } as const;
+
+          if (shades.shadeSelectionState.fillMode === "edit") {
+            shades.setShadeSelectionState(emptyState);
+          } else {
+            const nextMissing = shadeGuideFields.find((field) => {
+              const ft = getShadeFieldType(field);
+              const val =
+                field.id === selectedAdvanceFieldId
+                  ? shade
+                  : shades.getSelectedShade(productId, arch, ft, field.id);
+              return !val;
+            });
+            if (nextMissing) {
+              shades.setShadeSelectionState({
+                arch,
+                productId,
+                fieldType: getShadeFieldType(nextMissing),
+                advanceFieldId: nextMissing.id,
+                advanceFieldLabel: nextMissing.name,
+                fillMode: "sequence",
+                storageToothNumber: toothNumber,
+              });
+            } else {
+              shades.setShadeSelectionState(emptyState);
+            }
+          }
+        }
+
+        if (product?.id) {
+          const mirrorTarget = resolveFixedMirrorTarget(
+            arch,
+            toothNumber,
+            teeth.maxillaryRetentionTypes,
+            teeth.mandibularRetentionTypes,
+            toothFieldProgress.getToothProduct,
+            toothFieldProgress.isFieldCompleted,
+            toothFieldProgress.getFieldValue
+          );
+          if (mirrorTarget) {
+            const nextShades = mirrorFixedShadeSelections(
+              product.id,
+              arch,
+              mirrorTarget.targetArch,
+              shades.selectedShades
+            );
+            if (nextShades) shades.setSelectedShades(nextShades);
           }
         }
         return;
@@ -1166,7 +2123,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
     ]
   );
 
-  // Use product impressions from get product response when toothNumber provided; otherwise fall back to modal's mock-based resolution
+  // Arch-wide impression display (shared across all products on the same arch).
   const getImpressionDisplayText = useCallback(
     (productId: string, arch: Arch, toothNumber?: number) => {
       const product = resolveProductForImpression(
@@ -1178,12 +2135,9 @@ export function useCaseDesignState(props: CaseDesignProps) {
       );
       const options = getImpressionOptionsForProduct(product);
       const list = options.length > 0 ? options : mockImpressions;
-      return buildImpressionDisplayText(
-        modals.selectedImpressions,
-        productId,
-        arch,
-        (code) => resolveImpressionName(code, list)
-      );
+      void product;
+      void list;
+      return buildImpressionDisplayText(modals.selectedImpressions, arch);
     },
     [
       toothFieldProgress.getToothProduct,
@@ -1227,16 +2181,25 @@ export function useCaseDesignState(props: CaseDesignProps) {
       modals.setSelectedStages((prev: Record<string, string>) => ({ ...prev, ...s.selectedStages }));
     }
 
-    // Impression quantities
-    if (Object.keys(s.selectedImpressions).length > 0) {
-      modals.setSelectedImpressions(s.selectedImpressions);
+    // Impression selections (arch lists; migrate legacy flat keys from API)
+    if (s.selectedImpressions) {
+      const raw = s.selectedImpressions;
+      const hydrated = isSlipImpressionSelections(raw)
+        ? raw
+        : migrateLegacyFlatImpressions(raw as Record<string, number>);
+      if (
+        hydrated.maxillary.length > 0 ||
+        hydrated.mandibular.length > 0
+      ) {
+        modals.setSelectedImpressions(hydrated);
+      }
     }
 
     // Completed fields and field values
     if (Object.keys(s.completedFields).length > 0) {
       toothFieldProgress.setCompletedFields(
         Object.fromEntries(
-          Object.entries(s.completedFields).map(([key, steps]) => [key, new Set(steps)])
+          Object.entries(s.completedFields).map(([key, steps]) => [key, new Set(steps as FieldStep[])])
         )
       );
     }
@@ -1250,6 +2213,11 @@ export function useCaseDesignState(props: CaseDesignProps) {
     // Active product card tracking (0 = initial product, other = AddedProduct.id)
     activeProductCardId,
     setActiveProductCardId,
+    activeAccordionKey,
+    isAccordionExpanded,
+    isAccordionEnabled,
+    toggleAccordionFocus,
+    focusAccordion,
     // Expansion
     expandedCard,
     setExpandedCard,
@@ -1270,7 +2238,10 @@ export function useCaseDesignState(props: CaseDesignProps) {
     setShowDetails,
     // Composed hooks
     ...teeth,
+    selectAllMaxillaryTeeth,
+    selectAllMandibularTeeth,
     handleToothExtractionToggle,
+    canUseToothForActiveProduct: canModifyToothForActiveProduct,
     handleMaxillaryToothClick, // Override: also fetch product for Removables on tooth add
     handleMandibularToothClick, // Override: also fetch product for Removables on tooth add
     handleSelectRetentionType, // Override with wrapped version
@@ -1281,8 +2252,10 @@ export function useCaseDesignState(props: CaseDesignProps) {
     shadeGuideOptions, // Override: derived from the active tooth's product.teeth_shades brand.system_name
     handleShadeSelect, // Override: mark shade steps completed immediately (catalog IDs enriched in background)
     ...modals,
+    setSelectedImpressions: modals.setSelectedImpressions,
+    handleOpenImpressionModal,
     handleOpenStageModal, // Override: skip modal when product has no selectable stages
-    getImpressionDisplayText, // Override: use product impressions when toothNumber provided
+    getImpressionDisplayText, // Override: arch-wide shared impressions
     ...products,
     ...implants,
     ...toothFieldProgress,

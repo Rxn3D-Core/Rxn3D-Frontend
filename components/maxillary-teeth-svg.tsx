@@ -230,7 +230,8 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
     const ext = resolveExtraction(toothNumber)
     const s3Url = getS3UrlForTooth(toothNumber)
 
-    if (isToothShowingRetentionVisual(toothNumber)) {
+    // Full-arch retention images replace the tooth graphic; selector shapes overlay on top.
+    if (isToothShowingRetentionImage(toothNumber)) {
       return { cursor: 'pointer', opacity: 0, transition: 'all 0.2s ease' }
     }
 
@@ -759,15 +760,15 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
                   />
                 )}
                 {isToothShowingRetentionImage(tooth) && renderRetentionImageOverlay(tooth, x, width)}
-                {isToothShowingRetentionShape(tooth) &&
-                  renderRetentionSelectorShapeOverlay(tooth, x, width)}
                 {!showS3Image &&
-                  !isToothShowingRetentionVisual(tooth) &&
+                  !isToothShowingRetentionImage(tooth) &&
                   renderExtractionImageOverlay(tooth, x, width)}
                 {renderClaspOverlay(tooth, x, width, 80)}
                 {!showS3Image && renderWillExtractOverlay(tooth, x, width)}
                 {renderCheckbox(tooth, x, width)}
                 {renderMissingToothImage(tooth, x, width)}
+                {isToothShowingRetentionShape(tooth) &&
+                  renderRetentionSelectorShapeOverlay(tooth, x, width)}
               </g>
             )
           })}

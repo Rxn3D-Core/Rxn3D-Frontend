@@ -13,8 +13,10 @@ import { useRouter } from "next/navigation";
 import { getBusinessSettings } from "@/lib/api-business-settings";
 import { fetchCaseDesignProductDetails } from "./utils/caseDesignProductDetails";
 import { useCaseWizardSession } from "./hooks/useCaseWizardSession";
+import { resolveLibraryCustomerId } from "./utils/libraryCustomerId";
 import { useCaseSubmissionFlow } from "./hooks/useCaseSubmissionFlow";
 import { CaseSubmissionOverlays } from "./components/CaseSubmissionOverlays";
+import { caseDesignInter } from "./case-design-inter-font";
 
 export default function Page() {
   const { createSlip } = useSlipCreation();
@@ -50,6 +52,9 @@ export default function Page() {
     setAddedProducts,
     handleWizardComplete,
     handleAddProduct,
+    inlineAddProductArch,
+    completeInlineAddProduct,
+    cancelInlineAddProduct,
     handleBackToProducts,
     handleBackToCategories,
     handleTopBarEditLab,
@@ -69,6 +74,7 @@ export default function Page() {
   const [hasToothStatusValidation, setHasToothStatusValidation] = useState(false);
   const [isAnyModalOpen, setIsAnyModalOpen] = useState(false);
   const [rushCasesEnabled, setRushCasesEnabled] = useState(true);
+  const [slipHeaderCompact, setSlipHeaderCompact] = useState(false);
 
   const {
     submissionState,
@@ -106,7 +112,7 @@ export default function Page() {
   }, [completedLab?.id]);
 
   return (
-    <div className="flex h-screen bg-[#f5f5f5] overflow-hidden">
+    <div className={`${caseDesignInter.className} flex h-screen bg-[#f5f5f5] overflow-hidden`}>
       <main className="flex-1 flex flex-col overflow-auto min-w-0">
         <TopBar
           selectedLab={completedLab ? { logo: completedLab.logo, name: completedLab.name } : null}
@@ -149,7 +155,7 @@ export default function Page() {
               onPatientNameChange={setCompletedPatientName}
               onGenderChange={setCompletedGender}
               onAgeChange={setCompletedAge}
-              compactLayout={(addedProducts.length > 0 || !!selectedProductId) && !!selectedProductCategoryName && /removable|orthodontic/i.test(selectedProductCategoryName)}
+              compactLayout={!caseSubmitted && slipHeaderCompact}
             />
             <CaseDesignCenter
               right1Brand={right1Brand}
@@ -161,6 +167,10 @@ export default function Page() {
               right2Platform={right2Platform}
               setRight2Platform={setRight2Platform}
               onAddProduct={handleAddProduct}
+              inlineAddProductArch={inlineAddProductArch}
+              onInlineAddProductComplete={completeInlineAddProduct}
+              onInlineAddProductCancel={cancelInlineAddProduct}
+              labCustomerId={resolveLibraryCustomerId(completedLab?.id) ?? null}
               onBackToProducts={handleBackToProducts}
               onBackToCategories={handleBackToCategories}
               selectedProductId={selectedProductId}
@@ -177,6 +187,7 @@ export default function Page() {
               confirmDetailsChecked={confirmDetailsChecked}
               onAnyModalOpenChange={setIsAnyModalOpen}
               rushCasesEnabled={rushCasesEnabled}
+              onSlipHeaderCompactChange={setSlipHeaderCompact}
             />
             <div style={{ height: "80px" }} />
           </div>

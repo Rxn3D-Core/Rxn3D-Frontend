@@ -4,12 +4,17 @@ const productCache = new Map<string, any>();
 const productInflight = new Map<string, Promise<any>>();
 
 export interface CaseDesignProductDetails {
+  id?: number;
+  subcategory_id?: number;
   name: string;
   image_url: string | null;
   category_name: string;
   subcategory_name: string;
   retention_options?: unknown[];
   extractions?: unknown[];
+  has_retention?: string | boolean | null;
+  has_variation?: string | boolean | null;
+  variations?: unknown[];
 }
 
 /** Fetch basic product info for the accordion (name/image/category). */
@@ -61,11 +66,16 @@ export async function fetchCaseDesignProductDetails(productId: number): Promise<
 
 function mapProductDetails(data: any): CaseDesignProductDetails | null {
   return data ? {
+    id: typeof data.id === "number" ? data.id : undefined,
+    subcategory_id: typeof data.subcategory?.id === "number" ? data.subcategory.id : undefined,
     name: data.name || "",
     image_url: data.image_url || null,
     category_name: data.subcategory?.category?.name || "",
     subcategory_name: data.subcategory?.name || "",
     retention_options: data.retention_options,
     extractions: data.extractions,
+    has_retention: data.has_retention,
+    has_variation: data.has_variation,
+    variations: data.variations,
   } : null;
 }

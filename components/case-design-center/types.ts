@@ -1,5 +1,6 @@
 import type React from "react";
 import type { ImplantDetailData } from "./components/ImplantDetailSection";
+import type { ProductAbutment } from "@/services/implant-api";
 
 /** Snapshot of per-product design data collected at submit time */
 export interface SlipProductSnapshot {
@@ -57,6 +58,19 @@ export interface CaseDesignProps {
   right2Platform: string;
   setRight2Platform: (v: string) => void;
   onAddProduct?: (arch: "maxillary" | "mandibular") => void;
+  /** When set, the matching arch panel shows an inline category/product picker. */
+  inlineAddProductArch?: "maxillary" | "mandibular" | null;
+  onInlineAddProductComplete?: (result: {
+    category: string;
+    categoryName: string;
+    product: string;
+    material: string;
+    materialName: string;
+    arch: "maxillary" | "mandibular";
+  }) => void | Promise<void>;
+  onInlineAddProductCancel?: () => void;
+  /** Lab customer id for library API calls in the inline add-product picker. */
+  labCustomerId?: number | null;
   onBackToProducts?: () => void;
   /**
    * Navigate back to the category-selection step of the new-case wizard.
@@ -78,6 +92,8 @@ export interface CaseDesignProps {
   onIncompleteFieldChange?: (label: string | null) => void;
   /** Called whenever any tooth-status required-validation error appears or clears. */
   onToothStatusValidationChange?: (hasValidation: boolean) => void;
+  /** Shown when the user tries to use a tooth already assigned to another product on the same arch. */
+  onToothOwnershipConflict?: (message: string) => void;
   /** Externally controlled list of added products (from page-level state) */
   addedProducts?: AddedProduct[];
   /** Called when addedProducts changes internally (toggle expand, remove) */
@@ -102,6 +118,8 @@ export interface CaseDesignProps {
   onAnyModalOpenChange?: (isOpen: boolean) => void;
   /** When false, the Rush Case button is hidden. Defaults to true (visible). */
   rushCasesEnabled?: boolean;
+  /** Fired when product field accordions are visible (compact slip header should be used). */
+  onSlipHeaderCompactChange?: (compact: boolean) => void;
 }
 
 export interface AddedProduct {
@@ -149,11 +167,8 @@ export interface VirtualSlipInitialState {
    * or `${arch}_fixed_${toothNumber}` for fixed restoration.
    */
   selectedStages: Record<string, string>;
-  /**
-   * Impression quantities keyed as `${productId}_${arch}_${impressionCode}`
-   * (e.g. "prep_4_maxillary_alginate").
-   */
-  selectedImpressions: Record<string, number>;
+  /** Slip-level impression selections (one list per jaw). */
+  selectedImpressions: import("./utils/impressionStorage").SlipImpressionSelections;
   /**
    * Completed field steps per tooth keyed as `${arch}_${toothNumber}`.
    * Value is an array of FieldStep strings (e.g. ["grade", "stage", "teeth_shade"]).
@@ -206,13 +221,15 @@ export interface NotesProps {
   toothProductCardMap?: Record<string, number>;
   /** Raw selected shades map — triggers note rebuild when shade changes */
   selectedShades?: Record<string, string>;
-  /** Raw selected impressions map — triggers note rebuild when impression changes */
-  selectedImpressions?: Record<string, number>;
+  /** Raw slip impression selections — triggers note rebuild when impression changes */
+  selectedImpressions?: import("./utils/impressionStorage").SlipImpressionSelections;
 }
 
 export type Arch = "maxillary" | "mandibular";
 export type RetentionType = "Implant" | "Prep" | "Pontic";
 export type ShadeFieldType = "tooth_shade" | "stump_shade";
+
+export type ShadeSelectionFillMode = "sequence" | "edit";
 
 export interface ShadeSelectionState {
   arch: Arch | null;
@@ -220,6 +237,10 @@ export interface ShadeSelectionState {
   productId: string | null;
   advanceFieldId?: number | null;
   advanceFieldLabel?: string | null;
+  /** sequence = first-time walkthrough; edit = change one field only */
+  fillMode?: ShadeSelectionFillMode | null;
+  /** Tooth used for fixed restoration field-step storage (fixed_NN product ids). */
+  storageToothNumber?: number | null;
 }
 
 export interface RetentionPopoverState {
@@ -285,6 +306,14 @@ export interface ImpressionOptionForModal {
   value: string;
   label: string;
 }
+
+export type {
+  ArchImpressionEntry,
+  SlipImpressionSelections,
+} from "./utils/impressionStorage";
+
+/** @deprecated Use SlipImpressionSelections — kept for gradual migration in imports */
+export type ArchImpressionSelections = import("./utils/impressionStorage").SlipImpressionSelections;
 
 /** Convert product API impressions to modal options; uses code as value for stable keys. */
 export function productImpressionsToModalOptions(
@@ -464,6 +493,8 @@ export interface ProductApiData {
   extractions?: ProductExtraction[];
   addons?: ProductAddon[];
   advance_fields?: ProductAdvanceField[];
+  /** Linked abutment types from product details (Office Provided → Stock Abutment, etc.). */
+  abutments?: ProductAbutment[];
   teeth_shades?: ProductTeethShade[];
   opposite_impression?: "Yes" | "No";
   opposite_extractions?: ProductOppositeExtraction[];
@@ -501,6 +532,12 @@ export interface ProductApiData {
       has_implant?: "Yes" | "No";
       selector_shape?: string | null;
     };
+    retentions?: Array<{
+      id?: number;
+      name?: string;
+      code?: string | null;
+      status?: string | null;
+    }>;
   }>;
   subcategory?: {
     id: number;

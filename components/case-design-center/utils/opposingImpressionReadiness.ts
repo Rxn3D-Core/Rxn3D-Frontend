@@ -1,7 +1,12 @@
+import type { Arch } from "../types";
+import {
+  archHasImpressionSelections,
+  type SlipImpressionSelections,
+} from "./impressionStorage";
+
 export const MAXILLARY_SENTINEL = 1;
 export const MANDIBULAR_SENTINEL = 17;
 
-type Arch = "maxillary" | "mandibular";
 type InitialArch = Arch | "both";
 
 export function isOppositeImpressionEnabled(
@@ -22,6 +27,39 @@ export function resolveOpposingImpressionTooth(
 ): number {
   if (card0Teeth.length > 0) return Math.min(...card0Teeth);
   return opposingArch === "maxillary" ? MAXILLARY_SENTINEL : MANDIBULAR_SENTINEL;
+}
+
+/** Where opposing impression field progress is stored on a single-arch removable slip. */
+export function resolveOpposingFieldStorage(initialArch: InitialArch): {
+  fieldArch: Arch;
+  fieldTooth: number;
+} | null {
+  if (initialArch === "both") return null;
+  if (initialArch === "maxillary") {
+    return { fieldArch: "maxillary", fieldTooth: MAXILLARY_SENTINEL };
+  }
+  return { fieldArch: "mandibular", fieldTooth: MANDIBULAR_SENTINEL };
+}
+
+/** @deprecated Product id is no longer used in impression storage. */
+export function resolveOpposingImpressionProductId(
+  product: { id?: number } | null | undefined,
+  _selectedImpressions: SlipImpressionSelections,
+  _opposingArch: Arch
+): string {
+  void _selectedImpressions;
+  void _opposingArch;
+  return product?.id?.toString() ?? "0";
+}
+
+/** True when the opposing jaw has at least one impression selection. */
+export function archHasOpposingImpressionSelections(
+  selectedImpressions: SlipImpressionSelections,
+  opposingArch: Arch,
+  _productId?: string
+): boolean {
+  void _productId;
+  return archHasImpressionSelections(selectedImpressions, opposingArch);
 }
 
 export function hasSkippedOpposing(
@@ -55,20 +93,10 @@ export function getOpposingImpressionRequirement({
   noOpposingNeeded: Record<string, boolean>;
   getCard0TeethForArch: (arch: Arch) => number[];
 }): { required: boolean; arch: Arch | null; tooth: number | null } {
-  const opposingArch = getOpposingArch(initialArch);
-  if (
-    !hasOppositeSection ||
-    !oppositeImpressionEnabled ||
-    !opposingArch ||
-    hasSkippedOpposing(noOpposingNeeded, initialArch)
-  ) {
-    return { required: false, arch: null, tooth: null };
-  }
-
-  const card0Teeth = getCard0TeethForArch(opposingArch);
-  return {
-    required: true,
-    arch: opposingArch,
-    tooth: resolveOpposingImpressionTooth(opposingArch, card0Teeth),
-  };
+  void hasOppositeSection;
+  void oppositeImpressionEnabled;
+  void noOpposingNeeded;
+  void getCard0TeethForArch;
+  void initialArch;
+  return { required: false, arch: null, tooth: null };
 }

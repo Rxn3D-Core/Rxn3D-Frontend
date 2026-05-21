@@ -1,12 +1,18 @@
 "use client";
 
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useMemo } from "react";
 import { Check } from "lucide-react";
 import {
   FieldInput,
   ShadeField,
 } from "./fields";
-import { ImplantDetailSection } from "./ImplantDetailSection";
+import type { ImplantDetailData } from "./ImplantDetailSection";
+import { ImplantDetailBoxes } from "./ImplantDetailBoxes";
+import {
+  areAllImplantDetailsComplete,
+  getImplantTeethInGroup,
+} from "../utils/implantDetailHelpers";
+import { useCrossArchImplantMirror } from "../hooks/useCrossArchImplantMirror";
 import type {
   Arch,
   ShadeFieldType,
@@ -16,7 +22,13 @@ import type {
 } from "../types";
 import type { FieldStep } from "../hooks/useToothFieldProgress";
 import { getSelectionFieldChain } from "../hooks/useToothFieldProgress";
-import { isSingleStageNoStages } from "../utils/categoryHelpers";
+import { shouldSkipStageSelection } from "../utils/categoryHelpers";
+import {
+  productHasGrades,
+  resolveProductGradesForDisplay,
+  parseGradeDisplayName,
+  isGradeStepCompleteForDisplay,
+} from "../utils/gradeHelpers";
 import { hasVisibleAddonDisplay } from "../utils/addonDisplayHelpers";
 
 /* ------------------------------------------------------------------ */
@@ -272,6 +284,8 @@ interface RemovableRestorationFieldsProps {
   retentionTypesMap: Record<number, Array<RetentionType>>;
   implantDetailCompleteByTooth: Record<number, boolean>;
   setImplantDetailCompleteByTooth: React.Dispatch<React.SetStateAction<Record<number, boolean>>>;
+  implantDetailByTooth: Record<number, ImplantDetailData>;
+  setImplantDetailByTooth: React.Dispatch<React.SetStateAction<Record<number, ImplantDetailData>>>;
   isExpanded: boolean;
   isFieldVisible: (arch: Arch, toothNumber: number, step: FieldStep, fixedChain?: readonly string[]) => boolean;
   isFieldCompleted: (arch: Arch, toothNumber: number, step: FieldStep) => boolean;
@@ -288,6 +302,8 @@ interface RemovableRestorationFieldsProps {
   noOpposingNeeded?: Record<string, boolean>;
   /** When false, hides progressive fields until user acknowledges extractions (multi-status removables). */
   showProgressiveFields?: boolean;
+  /** Implant details from the opposite arch for cross-arch mirroring. */
+  peerImplantDetailByTooth?: Record<number, ImplantDetailData>;
 }
 
 /* ------------------------------------------------------------------ */
@@ -302,6 +318,8 @@ export function SelectionProductFields({
   retentionTypesMap,
   implantDetailCompleteByTooth,
   setImplantDetailCompleteByTooth,
+  implantDetailByTooth,
+  setImplantDetailByTooth,
   isExpanded,
   isFieldVisible: isFieldVisibleFn,
   isFieldCompleted: isFieldCompletedFn,
@@ -316,13 +334,34 @@ export function SelectionProductFields({
   setPanelGumShadePicker,
   noOpposingNeeded = {},
   showProgressiveFields = true,
+  peerImplantDetailByTooth,
 }: RemovableRestorationFieldsProps) {
+  const removableChain = getSelectionFieldChain(selectedProduct);
+  const implantTeeth = useMemo(
+    () => getImplantTeethInGroup(toothNumbers, retentionTypesMap),
+    [toothNumbers, retentionTypesMap]
+  );
+
+  useCrossArchImplantMirror({
+    arch,
+    implantTeeth,
+    retentionTypesMap,
+    retentionOptions: selectedProduct?.retention_options,
+    peerImplantDetailByTooth,
+    implantDetailByTooth,
+    setImplantDetailByTooth,
+    implantDetailCompleteByTooth,
+    setImplantDetailCompleteByTooth,
+    caseSubmitted,
+  });
+
   if (!showProgressiveFields) return null;
 
-  const removableChain = getSelectionFieldChain(selectedProduct);
   const isVisible = (step: FieldStep): boolean => isFieldVisibleFn(arch, firstToothNumber, step, removableChain);
-  const hasImplantForm = toothNumbers.some((n) => (retentionTypesMap[n] || []).includes("Implant"));
-  const implantDetailReady = !hasImplantForm || implantDetailCompleteByTooth[firstToothNumber] === true;
+  const implantDetailReady = areAllImplantDetailsComplete(
+    implantTeeth,
+    implantDetailCompleteByTooth
+  );
 
   return (
     <>
@@ -339,14 +378,19 @@ export function SelectionProductFields({
       />
       {/* ===== OTHER CATEGORIES: Progressive step-by-step fields ===== */}
 
-      {/* Implant Detail - show if any tooth in group has Implant retention */}
-      {toothNumbers.some((n) => (retentionTypesMap[n] || []).includes("Implant")) && (
-        <ImplantDetailSection
-          toothNumber={firstToothNumber}
-          onCompleteChange={(complete) => setImplantDetailCompleteByTooth((prev) => ({ ...prev, [firstToothNumber]: complete }))}
-          caseSubmitted={caseSubmitted}
-        />
-      )}
+      {/* Implant Detail — one box per implant tooth; additional teeth mirror the first */}
+      <ImplantDetailBoxes
+        toothNumbers={toothNumbers}
+        retentionTypesMap={retentionTypesMap}
+        implantDetailByTooth={implantDetailByTooth}
+        setImplantDetailByTooth={setImplantDetailByTooth}
+        implantDetailCompleteByTooth={implantDetailCompleteByTooth}
+        setImplantDetailCompleteByTooth={setImplantDetailCompleteByTooth}
+        caseSubmitted={caseSubmitted}
+        advanceFields={selectedProduct?.advance_fields}
+        productId={selectedProduct?.id}
+        productAbutments={selectedProduct?.abutments}
+      />
 
       {/* Step 1: Grade / Stage */}
       {isVisible("grade") && (() => {
@@ -355,15 +399,19 @@ export function SelectionProductFields({
         const stageCfg = selectedStageObj?.stage_configurations;
 
         const gradeRaw = getFieldValueFn(arch, firstToothNumber, "grade") || "";
-        let gradeVal = gradeRaw;
-        try { const p = JSON.parse(gradeRaw); gradeVal = p.name ?? gradeRaw; } catch {}
-        const isGradeComplete = isFieldCompletedFn(arch, firstToothNumber, "grade");
+        const gradeVal = parseGradeDisplayName(gradeRaw);
+        const isGradeComplete = isGradeStepCompleteForDisplay(
+          gradeRaw,
+          isFieldCompletedFn(arch, firstToothNumber, "grade"),
+          selectedProduct
+        );
         const showGradeGreen = isGradeComplete && !caseSubmitted;
-        const productGrades = getActiveGrades(selectedProduct?.grades);
+        const productGrades = resolveProductGradesForDisplay(selectedProduct);
         // Hide grade if stage_configurations.grade === "No"
         const gradeAllowedByStage = !stageCfg || stageCfg.grade !== "No";
-        const hasGrades = productGrades.length > 0 && gradeAllowedByStage;
-        const showStage = isVisible("stage") && !isSingleStageNoStages(selectedProduct);
+        const hasGrades =
+          (productGrades.length > 0 || productHasGrades(selectedProduct)) && gradeAllowedByStage;
+        const showStage = isVisible("stage") && !shouldSkipStageSelection(selectedProduct);
         const showTwoCols = hasGrades && showStage;
         return (
         <div className={`grid grid-cols-1 ${showTwoCols ? "sm:grid-cols-2" : ""} gap-3`}>
@@ -628,20 +676,6 @@ export function SelectionProductFields({
         );
       })()}
 
-      {/* Selected Teeth Parameter */}
-      <fieldset
-        className="border border-[#b4b0b0] rounded px-3 py-0 relative h-[42px] flex items-center mt-3 bg-[#F8F9FA]"
-      >
-        <legend className="text-sm px-1 leading-none text-[#7f7f7f]">
-          Selected teeth
-        </legend>
-        <div className="flex items-center gap-2 w-full">
-          <span className="text-[14px] sm:text-lg text-[#000000] font-medium">
-            {toothNumbers.length === 16 ? "All teeth selected" : toothNumbers.sort((a, b) => a - b).join(", ")}
-          </span>
-          <Check size={16} className="text-[#34a853] ml-auto" />
-        </div>
-      </fieldset>
     </>
   );
 }

@@ -1,4 +1,77 @@
-import type { Arch, ProductAdvanceField, ShadeFieldType } from "../types";
+import type { Arch, ProductAdvanceField, ProductApiData, ShadeFieldType } from "../types";
+
+/** Stable shade storage key per product (not per tooth). */
+export function buildFixedShadeProductId(productApiId: number | string): string {
+  return `fixed_p_${productApiId}`;
+}
+
+export function isFixedProductShadeStorageId(productId: string): boolean {
+  return productId.startsWith("fixed_p_") || /^fixed_\d+$/.test(productId);
+}
+
+/** Stable per-product shade id; falls back to legacy per-tooth id when product id is unknown. */
+export function resolveFixedShadeProductId(
+  productApiId: number | string | undefined | null,
+  fallbackToothNumber: number
+): string {
+  if (productApiId != null && productApiId !== "") {
+    return buildFixedShadeProductId(productApiId);
+  }
+  return `fixed_${fallbackToothNumber}`;
+}
+
+export function buildShadeSummaryLine(
+  advanceFields: ProductAdvanceField[] | undefined,
+  productShadeId: string,
+  arch: Arch,
+  getSelectedShade: (
+    productId: string,
+    arch: Arch,
+    fieldType: ShadeFieldType,
+    advanceFieldId?: number | null
+  ) => string
+): string {
+  const named = getShadeGuideAdvanceFields(advanceFields);
+  const parts: string[] = [];
+  if (named.length > 0) {
+    for (const field of named) {
+      const fieldType = getShadeFieldType(field);
+      const value = getSelectedShade(productShadeId, arch, fieldType, field.id);
+      if (value) parts.push(value);
+    }
+  } else {
+    const stump = getSelectedShade(productShadeId, arch, "stump_shade");
+    const tooth = getSelectedShade(productShadeId, arch, "tooth_shade");
+    if (stump) parts.push(stump);
+    if (tooth) parts.push(tooth);
+  }
+  return parts.join(" · ");
+}
+
+export function areFixedProductShadesComplete(
+  advanceFields: ProductAdvanceField[] | undefined,
+  productShadeId: string,
+  arch: Arch,
+  getSelectedShade: (
+    productId: string,
+    arch: Arch,
+    fieldType: ShadeFieldType,
+    advanceFieldId?: number | null
+  ) => string,
+  options: { needsStumpShade: boolean; needsToothShade: boolean }
+): boolean {
+  const named = getShadeGuideAdvanceFields(advanceFields);
+  if (named.length > 0) {
+    return getFirstMissingShadeGuideField(advanceFields, productShadeId, arch, getSelectedShade) == null;
+  }
+  if (options.needsStumpShade && !getSelectedShade(productShadeId, arch, "stump_shade")) {
+    return false;
+  }
+  if (options.needsToothShade && !getSelectedShade(productShadeId, arch, "tooth_shade")) {
+    return false;
+  }
+  return true;
+}
 
 export function getShadeGuideAdvanceFields(
   advanceFields?: ProductAdvanceField[]
@@ -38,6 +111,66 @@ export function buildShadeSelectionKey(
     : `${productId}_${arch}_${fieldType}`;
 }
 
+/** First-time flow: filled shades + the next empty field only. When all filled, returns every field. */
+export function getSequentialVisibleShadeFields(
+  fields: ProductAdvanceField[],
+  productId: string,
+  arch: Arch,
+  getSelectedShade: (
+    productId: string,
+    arch: Arch,
+    fieldType: ShadeFieldType,
+    advanceFieldId?: number | null
+  ) => string
+): ProductAdvanceField[] {
+  if (fields.length === 0) return [];
+
+  const allComplete = fields.every((field) => {
+    const fieldType = getShadeFieldType(field);
+    return !!getSelectedShade(productId, arch, fieldType, field.id);
+  });
+  if (allComplete) return fields;
+
+  const visible: ProductAdvanceField[] = [];
+  for (const field of fields) {
+    const fieldType = getShadeFieldType(field);
+    if (getSelectedShade(productId, arch, fieldType, field.id)) {
+      visible.push(field);
+    } else {
+      visible.push(field);
+      break;
+    }
+  }
+  return visible;
+}
+
+export function shouldUseAccordionOnlyFixedShades(
+  advanceFields?: ProductAdvanceField[]
+): boolean {
+  return getShadeGuideAdvanceFields(advanceFields).length > 0;
+}
+
+/** Sequence: filled + next empty; edit: only the field being changed; otherwise all fields. */
+export function getDisplayedShadeGuideFields(
+  fields: ProductAdvanceField[],
+  productId: string,
+  arch: Arch,
+  getSelectedShade: (
+    productId: string,
+    arch: Arch,
+    fieldType: ShadeFieldType,
+    advanceFieldId?: number | null
+  ) => string,
+  options?: { editActiveFieldId?: number | null }
+): ProductAdvanceField[] {
+  if (fields.length === 0) return [];
+  if (options?.editActiveFieldId != null) {
+    const active = fields.find((field) => field.id === options.editActiveFieldId);
+    return active ? [active] : [];
+  }
+  return getSequentialVisibleShadeFields(fields, productId, arch, getSelectedShade);
+}
+
 export function getFirstMissingShadeGuideField(
   advanceFields: ProductAdvanceField[] | undefined,
   productId: string,
@@ -56,5 +189,74 @@ export function getFirstMissingShadeGuideField(
       return { id: field.id, name: field.name, fieldType };
     }
   }
+  return null;
+}
+
+export function getShadeGuideOptionsFromProduct(
+  product: ProductApiData | null | undefined
+): string[] {
+  const teethShades = product?.teeth_shades;
+  if (!teethShades?.length) return [];
+
+  const systemNames: string[] = [];
+  const seen = new Set<string>();
+  for (const shade of teethShades) {
+    const systemName = shade.brand?.system_name;
+    if (systemName && !seen.has(systemName)) {
+      seen.add(systemName);
+      systemNames.push(systemName);
+    }
+  }
+  return systemNames;
+}
+
+export function getDefaultShadeGuideFromProduct(
+  product: ProductApiData | null | undefined
+): string | null {
+  const teethShades = product?.teeth_shades;
+  if (!teethShades?.length) return null;
+  const defaultShade = teethShades.find(
+    (s) => String(s.brand?.default ?? "").trim().toLowerCase() === "yes"
+  );
+  return defaultShade?.brand?.system_name ?? null;
+}
+
+/** Resolve product API data for fixed_p_{id}, fixed_{tooth}, or prep_{tooth} shade storage ids. */
+export function resolveProductForShadeStorageId(
+  productId: string,
+  arch: Arch,
+  getToothProduct: (arch: Arch, toothNumber: number) => ProductApiData | null,
+  options?: {
+    storageToothNumber?: number | null;
+    archToothNumbers?: number[];
+  }
+): ProductApiData | null {
+  if (!productId) return null;
+
+  const fixedProductMatch = productId.match(/^fixed_p_(\d+)$/);
+  if (fixedProductMatch) {
+    const apiId = Number(fixedProductMatch[1]);
+    const storageTooth = options?.storageToothNumber;
+    if (storageTooth != null) {
+      const fromStorage = getToothProduct(arch, storageTooth);
+      if (fromStorage?.id === apiId) return fromStorage;
+    }
+    for (const toothNumber of options?.archToothNumbers ?? []) {
+      const candidate = getToothProduct(arch, toothNumber);
+      if (candidate?.id === apiId) return candidate;
+    }
+    return null;
+  }
+
+  const fixedLegacyMatch = productId.match(/^fixed_(\d+)$/);
+  if (fixedLegacyMatch) {
+    return getToothProduct(arch, parseInt(fixedLegacyMatch[1], 10));
+  }
+
+  const prepMatch = productId.match(/^prep_(-?\d+)$/);
+  if (prepMatch) {
+    return getToothProduct(arch, parseInt(prepMatch[1], 10));
+  }
+
   return null;
 }

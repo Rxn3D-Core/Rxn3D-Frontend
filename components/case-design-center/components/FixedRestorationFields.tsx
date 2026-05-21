@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useMemo, useCallback } from "react";
 import { Check } from "lucide-react";
 import {
   FieldInput,
@@ -16,14 +16,40 @@ import {
 import type {
   Arch,
   ShadeFieldType,
+  ShadeSelectionState,
   ProductApiData,
   RetentionType,
 } from "../types";
+import { FixedAccordionShadePicker } from "./FixedAccordionShadePicker";
+import { ShadeDetailSection } from "./ShadeDetailSection";
 import type { FieldStep } from "../hooks/useToothFieldProgress";
-import { ImplantDetailSection, ImplantDetailData, defaultImplantDetailData } from "./ImplantDetailSection";
+import { FIXED_RETENTION_MECHANISM_FIELD_STEP } from "../hooks/useToothFieldProgress";
+import {
+  getSuggestedRetentionMechanismTypes,
+  serializeRetentionMechanismSelection,
+} from "../utils/retentionMechanismTypes";
+import { resolveVariationDisplay } from "../utils/variationHelpers";
+import type { ImplantDetailData } from "./ImplantDetailSection";
+import { ImplantDetailBoxes } from "./ImplantDetailBoxes";
+import {
+  areAllImplantDetailsComplete,
+  getImplantTeethInGroup,
+  hasPostImplantFixedFieldProgress,
+  POST_IMPLANT_FIXED_FIELD_STEPS,
+} from "../utils/implantDetailHelpers";
+import { useCrossArchImplantMirror } from "../hooks/useCrossArchImplantMirror";
 import { shouldSkipStageSelection } from "../utils/categoryHelpers";
+import { productHasGrades } from "../utils/gradeHelpers";
 import { parseAddonDisplayItems } from "../utils/addonDisplayHelpers";
-import { getShadeGuideAdvanceFields, getShadeFieldType, isStumpLikeShadeField } from "../utils/shadeGuideAdvanceFields";
+import {
+  getShadeGuideAdvanceFields,
+  getShadeFieldType,
+  areFixedProductShadesComplete,
+  getDisplayedShadeGuideFields,
+  isStumpLikeShadeField,
+  getShadeGuideOptionsFromProduct,
+  resolveFixedShadeProductId,
+} from "../utils/shadeGuideAdvanceFields";
 
 /* ------------------------------------------------------------------ */
 /*  Articulator icon (Stage field)                                     */
@@ -141,7 +167,7 @@ export function hasAdvanceField(
       return names.some((n) => n.includes("add") && (n.includes("on") || n.includes("addon")));
     // Removable restoration steps
     case "grade":
-      return names.some((n) => n.includes("grade"));
+      return productHasGrades(product as ProductApiData) || names.some((n) => n.includes("grade"));
     case "teeth_shade":
       return names.some((n) => n.includes("teeth") && n.includes("shade"));
     case "gum_shade":
@@ -269,7 +295,18 @@ interface FixedRestorationFieldsProps {
   toothNumbers: number[];
   retentionTypes: string[];
   caseSubmitted: boolean;
+  /** When true, implant / impression / etc. stay hidden until all required shades are set. */
   fixedShadeIncomplete: boolean;
+  usesAccordionShadePicker?: boolean;
+  shadeSelectionState?: ShadeSelectionState;
+  setShadeSelectionState?: (
+    state: ShadeSelectionState | ((prev: ShadeSelectionState) => ShadeSelectionState)
+  ) => void;
+  showShadeGuideDropdown: boolean;
+  setShowShadeGuideDropdown: (v: boolean) => void;
+  setSelectedShadeGuide: (v: string) => void;
+  shadeGuideOptions: string[];
+  handleShadeSelect: (shade: string) => void;
   selectedShadeGuide: string;
   selectedStages: Record<string, string>;
   retentionTypesMap: Record<number, string[]>;
@@ -286,11 +323,23 @@ interface FixedRestorationFieldsProps {
   isFixed: (step: string) => boolean;
   getSelectedShade: (productId: string, arch: string, shadeType: string, advanceFieldId?: number | null) => any;
   handleOpenStageModal: (productId: string, arch?: Arch, toothNumber?: number) => void;
-  handleShadeFieldClick: (arch: Arch, fieldType: ShadeFieldType, productId: string, options?: { advanceFieldId?: number | null; advanceFieldLabel?: string | null }) => void;
+  handleShadeFieldClick: (
+    arch: Arch,
+    fieldType: ShadeFieldType,
+    productId: string,
+    options?: {
+      advanceFieldId?: number | null;
+      advanceFieldLabel?: string | null;
+      storageToothNumber?: number | null;
+    }
+  ) => void;
   handleOpenImpressionModal: (arch: Arch, productId: string, toothNumber?: number) => void;
   handleOpenAddOnsModal: (arch: Arch, productId: string, toothNumber?: number) => void;
   getImpressionDisplayText: (productId: string, arch: string) => string;
   setPanelGumShadePicker: (state: { toothNumber: number; gumShades: any[]; selectedName?: string | null }) => void;
+  migrateFixedShadeProductId?: (fromProductId: string, toProductId: string, arch: Arch) => void;
+  /** Implant details from the opposite arch (same product) for cross-arch mirroring. */
+  peerImplantDetailByTooth?: Record<number, ImplantDetailData>;
 }
 
 /* ------------------------------------------------------------------ */
@@ -307,6 +356,14 @@ export function RetentionProductFields({
   retentionTypes,
   caseSubmitted,
   fixedShadeIncomplete,
+  usesAccordionShadePicker = false,
+  shadeSelectionState,
+  setShadeSelectionState,
+  showShadeGuideDropdown,
+  setShowShadeGuideDropdown,
+  setSelectedShadeGuide,
+  shadeGuideOptions,
+  handleShadeSelect,
   selectedShadeGuide,
   selectedStages,
   retentionTypesMap,
@@ -328,18 +385,164 @@ export function RetentionProductFields({
   handleOpenAddOnsModal,
   getImpressionDisplayText,
   setPanelGumShadePicker,
+  migrateFixedShadeProductId,
+  peerImplantDetailByTooth,
 }: FixedRestorationFieldsProps) {
-  const hasImplantForm = toothNumbers.some((n) => (retentionTypesMap[n] || []).includes("Implant"));
-  const implantDetailReady = !hasImplantForm || implantDetailCompleteByTooth[firstToothNumber] === true;
+  const implantTeeth = useMemo(
+    () => getImplantTeethInGroup(toothNumbers, retentionTypesMap),
+    [toothNumbers, retentionTypesMap]
+  );
+
+  useCrossArchImplantMirror({
+    arch,
+    implantTeeth,
+    retentionTypesMap,
+    retentionOptions: selectedProduct?.retention_options,
+    peerImplantDetailByTooth,
+    implantDetailByTooth,
+    setImplantDetailByTooth,
+    implantDetailCompleteByTooth,
+    setImplantDetailCompleteByTooth,
+    caseSubmitted,
+  });
+  const implantDetailReady = areAllImplantDetailsComplete(
+    implantTeeth,
+    implantDetailCompleteByTooth
+  );
+  const hasPostImplantProgress = useMemo(
+    () =>
+      toothNumbers.some((tn) =>
+        hasPostImplantFixedFieldProgress(arch, tn, isFieldCompleted, getFieldValue)
+      ),
+    [arch, toothNumbers, isFieldCompleted, getFieldValue]
+  );
+  /**
+   * Post-implant steps (characterization → impression) require implant detail when the
+   * group has implant teeth — unless the user already progressed (e.g. added a new implant).
+   */
+  const showPostImplantFields =
+    implantTeeth.length === 0 || implantDetailReady || hasPostImplantProgress;
+  const showImpressionAndAddons = showPostImplantFields;
+  const isFixedAfterImplant = useCallback(
+    (step: string): boolean => {
+      const isPostImplantStep = (POST_IMPLANT_FIXED_FIELD_STEPS as readonly string[]).includes(
+        step
+      );
+      if (isPostImplantStep && !showPostImplantFields) return false;
+      if (isFixed(step)) return true;
+      if (!hasPostImplantProgress || !isPostImplantStep) return false;
+      const fieldStep = step as FieldStep;
+      return (
+        isFieldCompleted(arch, firstToothNumber, fieldStep) ||
+        !!getFieldValue(arch, firstToothNumber, fieldStep)?.trim()
+      );
+    },
+    [
+      arch,
+      firstToothNumber,
+      isFixed,
+      hasPostImplantProgress,
+      showPostImplantFields,
+      isFieldCompleted,
+      getFieldValue,
+    ]
+  );
   const impressionProductId = selectedProduct?.id?.toString() || `fixed_${firstToothNumber}`;
-  const fixedShadeProductId = `fixed_${firstToothNumber}`;
+  const fixedShadeProductId = resolveFixedShadeProductId(
+    selectedProduct?.id,
+    groupStageToothNumber
+  );
+
+  useEffect(() => {
+    if (!migrateFixedShadeProductId || !selectedProduct?.id) return;
+    for (const tn of toothNumbers) {
+      migrateFixedShadeProductId(`fixed_${tn}`, fixedShadeProductId, arch);
+    }
+  }, [
+    migrateFixedShadeProductId,
+    selectedProduct?.id,
+    fixedShadeProductId,
+    arch,
+    toothNumbers.join(","),
+  ]);
   const namedShadeGuideFields = getShadeGuideAdvanceFields(selectedProduct?.advance_fields);
   const namedStumpShadeFields = namedShadeGuideFields.filter((field) => isStumpLikeShadeField(field));
   const namedToothShadeFields = namedShadeGuideFields.filter((field) => !isStumpLikeShadeField(field));
-  const impressionVisible = isFixed("fixed_impression") && implantDetailReady;
+  const isAccordionShadePickerActive =
+    usesAccordionShadePicker &&
+    shadeSelectionState?.arch === arch &&
+    shadeSelectionState?.productId === fixedShadeProductId &&
+    shadeSelectionState?.fieldType != null;
+  const shadeEditActiveFieldId =
+    isAccordionShadePickerActive && shadeSelectionState?.fillMode === "edit"
+      ? shadeSelectionState.advanceFieldId ?? null
+      : null;
+  const getSelectedShadeForDisplay = getSelectedShade as (
+    productId: string,
+    arch: Arch,
+    fieldType: ShadeFieldType,
+    advanceFieldId?: number | null
+  ) => string;
+  const resolveVisibleShadeFields = (fields: typeof namedStumpShadeFields) =>
+    usesAccordionShadePicker
+      ? getDisplayedShadeGuideFields(fields, fixedShadeProductId, arch, getSelectedShadeForDisplay, {
+          editActiveFieldId: shadeEditActiveFieldId,
+        })
+      : fields;
+  const visibleStumpShadeFields = resolveVisibleShadeFields(namedStumpShadeFields);
+  const visibleToothShadeFields = resolveVisibleShadeFields(namedToothShadeFields);
+  const visibleNamedShadeFieldsOrdered = resolveVisibleShadeFields(namedShadeGuideFields);
+  const namedShadesComplete =
+    namedShadeGuideFields.length > 0 &&
+    areFixedProductShadesComplete(
+      selectedProduct?.advance_fields,
+      fixedShadeProductId,
+      arch,
+      getSelectedShadeForDisplay,
+      {
+        needsStumpShade: namedStumpShadeFields.length > 0,
+        needsToothShade: namedToothShadeFields.length > 0,
+      }
+    );
+  const isSingleShadeEdit = shadeEditActiveFieldId != null;
+  const usesNamedShadeGuideFields = namedShadeGuideFields.length > 0;
+  const effectiveShadeGuideOptions =
+    shadeGuideOptions.length > 0
+      ? shadeGuideOptions
+      : getShadeGuideOptionsFromProduct(selectedProduct);
+  const showFixedStage =
+    !shouldSkipStageSelection(selectedProduct) && isFixed("fixed_stage");
+  const impressionVisible =
+    isFixedAfterImplant("fixed_impression") && showImpressionAndAddons;
   const impressionEmpty = !isFieldCompleted(arch, firstToothNumber, "fixed_impression");
   const hasAutoOpenedImpressionRef = useRef(false);
   const impressionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (caseSubmitted || !setShadeSelectionState) return;
+    if (isExpanded) return;
+    if (
+      shadeSelectionState?.arch === arch &&
+      shadeSelectionState?.productId === fixedShadeProductId
+    ) {
+      setShadeSelectionState({
+        arch: null,
+        fieldType: null,
+        productId: null,
+        advanceFieldId: null,
+        advanceFieldLabel: null,
+        fillMode: null,
+      });
+    }
+  }, [
+    arch,
+    caseSubmitted,
+    fixedShadeProductId,
+    isExpanded,
+    setShadeSelectionState,
+    shadeSelectionState?.arch,
+    shadeSelectionState?.productId,
+  ]);
 
   useEffect(() => {
     if (caseSubmitted) return;
@@ -388,91 +591,218 @@ export function RetentionProductFields({
 
   // Auto-complete steps whose advance_fields are empty — must be in useEffect, not inline during render
   useEffect(() => {
+    if (!showPostImplantFields) return;
     if (!isFixed("fixed_characterization")) return;
     if (!hasAdvanceField("fixed_characterization", selectedProduct?.advance_fields)) return;
     const fields = getAdvanceFieldsForStep("fixed_characterization", selectedProduct?.advance_fields);
     if (fields.length === 0 && !isFieldCompleted(arch, firstToothNumber, "fixed_characterization")) {
       completeFieldStep(arch, firstToothNumber, "fixed_characterization", "auto");
     }
-  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep]);
+  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep, showPostImplantFields]);
 
   useEffect(() => {
+    if (!showPostImplantFields) return;
     if (!isFixed("fixed_margin")) return;
     if (!hasAdvanceField("fixed_margin", selectedProduct?.advance_fields)) return;
     const fields = getAdvanceFieldsForStep("fixed_margin", selectedProduct?.advance_fields);
     if (fields.length === 0 && !isFieldCompleted(arch, firstToothNumber, "fixed_margin")) {
       completeFieldStep(arch, firstToothNumber, "fixed_margin", "auto");
     }
-  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep]);
+  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep, showPostImplantFields]);
 
   useEffect(() => {
+    if (!showPostImplantFields) return;
     if (!isFixed("fixed_metal")) return;
     if (!hasAdvanceField("fixed_metal", selectedProduct?.advance_fields)) return;
     const fields = getAdvanceFieldsForStep("fixed_metal", selectedProduct?.advance_fields);
     if (fields.length === 0 && !isFieldCompleted(arch, firstToothNumber, "fixed_metal")) {
       completeFieldStep(arch, firstToothNumber, "fixed_metal", "auto");
     }
-  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep]);
+  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep, showPostImplantFields]);
 
   useEffect(() => {
+    if (!showPostImplantFields) return;
     if (!isFixed("fixed_contact_icons")) return;
     if (!hasAdvanceField("fixed_contact_icons", selectedProduct?.advance_fields)) return;
     const fields = getAdvanceFieldsForStep("fixed_contact_icons", selectedProduct?.advance_fields);
     if (fields.length === 0 && !isFieldCompleted(arch, firstToothNumber, "fixed_contact_icons")) {
       completeFieldStep(arch, firstToothNumber, "fixed_contact_icons", "auto");
     }
-  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep]);
+  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep, showPostImplantFields]);
 
   useEffect(() => {
+    if (!showPostImplantFields) return;
     if (!isFixed("fixed_proximal_contact")) return;
     if (!hasAdvanceField("fixed_proximal_contact", selectedProduct?.advance_fields)) return;
     const fields = getAdvanceFieldsForStep("fixed_proximal_contact", selectedProduct?.advance_fields);
     if (fields.length === 0 && !isFieldCompleted(arch, firstToothNumber, "fixed_proximal_contact")) {
       completeFieldStep(arch, firstToothNumber, "fixed_proximal_contact", "auto");
     }
-  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep]);
+  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep, showPostImplantFields]);
+
+  const toothNumbersKey = useMemo(
+    () => [...toothNumbers].sort((a, b) => a - b).join(","),
+    [toothNumbers]
+  );
+
+  const availableRetentionMechanismTypes = useMemo(
+    () =>
+      getSuggestedRetentionMechanismTypes(
+        selectedProduct,
+        retentionTypesMap,
+        toothNumbers
+      ),
+    [selectedProduct, retentionTypesMap, toothNumbers, toothNumbersKey]
+  );
+
+  const availableRetentionMechanismTypesKey =
+    availableRetentionMechanismTypes.join(",");
+
+  const retentionMechanismSelectionKey = useMemo(() => {
+    if (!toothNumbersKey) return "";
+    return toothNumbersKey
+      .split(",")
+      .map((tn) => {
+        const n = Number(tn);
+        return `${n}:${(retentionTypesMap[n] || []).join("|")}`;
+      })
+      .join(",");
+  }, [toothNumbersKey, retentionTypesMap]);
+
+  const showRetentionMechanismField = availableRetentionMechanismTypes.length > 0;
+
+  const materialDisplay = useMemo(
+    () => resolveVariationDisplay(selectedProduct, toothNumbers.length),
+    [selectedProduct, toothNumbers.length]
+  );
+
+  useEffect(() => {
+    if (caseSubmitted) return;
+
+    const currentValue = getFieldValue(
+      arch,
+      firstToothNumber,
+      FIXED_RETENTION_MECHANISM_FIELD_STEP
+    );
+    const isComplete = isFieldCompleted(
+      arch,
+      firstToothNumber,
+      FIXED_RETENTION_MECHANISM_FIELD_STEP
+    );
+
+    if (availableRetentionMechanismTypes.length === 0) {
+      if (currentValue === "" && !isComplete) return;
+      if (currentValue !== "") {
+        storeFieldValue(arch, firstToothNumber, FIXED_RETENTION_MECHANISM_FIELD_STEP, "");
+      }
+      if (isComplete) {
+        uncompleteFieldStep(arch, firstToothNumber, FIXED_RETENTION_MECHANISM_FIELD_STEP);
+      }
+      return;
+    }
+
+    const serialized = serializeRetentionMechanismSelection(
+      availableRetentionMechanismTypes
+    );
+    if (currentValue === serialized && isComplete) return;
+
+    if (currentValue !== serialized) {
+      storeFieldValue(arch, firstToothNumber, FIXED_RETENTION_MECHANISM_FIELD_STEP, serialized);
+    }
+    if (!isComplete || currentValue !== serialized) {
+      completeFieldStep(arch, firstToothNumber, FIXED_RETENTION_MECHANISM_FIELD_STEP, serialized);
+    }
+  }, [
+    arch,
+    firstToothNumber,
+    caseSubmitted,
+    retentionMechanismSelectionKey,
+    availableRetentionMechanismTypesKey,
+    storeFieldValue,
+    completeFieldStep,
+    uncompleteFieldStep,
+    getFieldValue,
+    isFieldCompleted,
+  ]);
+
+  const retentionTypeDisplay =
+    getFieldValue(arch, firstToothNumber, FIXED_RETENTION_MECHANISM_FIELD_STEP) ||
+    serializeRetentionMechanismSelection(availableRetentionMechanismTypes);
 
   return (
     <>
       {/* ===== FIXED RESTORATION: Progressive step-by-step fields ===== */}
 
-      {/* Product - Material / Retention Type — always shown */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {/* Product - Material / Retention Type — material always; retention types when linked */}
+      <div
+        className={
+          showRetentionMechanismField
+            ? "grid grid-cols-1 sm:grid-cols-2 gap-3"
+            : "grid grid-cols-1 gap-3"
+        }
+      >
         <FieldInput
           label="Product - Material"
-          value={selectedProduct?.name || ""}
+          value={materialDisplay.name || ""}
           submitted={caseSubmitted}
         />
-        <FieldInput
-          label="Retention Type"
-          value={retentionTypes.includes("Implant") ? "Screwed" : "Cemented"}
-          submitted={caseSubmitted}
-        />
+        {showRetentionMechanismField && (
+          <FieldInput
+            label="Retention Type"
+            value={retentionTypeDisplay}
+            submitted={caseSubmitted}
+          />
+        )}
       </div>
 
-      {/* Selected Teeth Parameter */}
-      <fieldset
-        className="border border-[#b4b0b0] rounded px-3 py-0 relative h-[42px] flex items-center mt-3 bg-[#F8F9FA]"
-      >
-        <legend className="text-sm px-1 leading-none text-[#7f7f7f]">
-          Selected teeth
-        </legend>
-        <div className="flex items-center gap-2 w-full">
-          <span className="text-[14px] sm:text-lg text-[#000000] font-medium">
-            {toothNumbers.length === 16 ? "All teeth selected" : toothNumbers.sort((a, b) => a - b).join(", ")}
-          </span>
-          <Check size={16} className="text-[#34a853] ml-auto" />
-        </div>
-      </fieldset>
+      {showFixedStage && !isSingleShadeEdit && (() => {
+        const fixedStageValue = selectedStages[groupStageProductIdFixed] || getFieldValue(arch, groupStageToothNumber, "fixed_stage");
+        const isStageComplete = isFieldCompleted(arch, groupStageToothNumber, "fixed_stage") || !!(fixedStageValue && fixedStageValue.trim());
+        const showStageGreen = isStageComplete && !caseSubmitted;
+        return (
+          <fieldset
+            className={`border rounded px-3 py-0 relative h-[42px] flex items-center mt-3 pointer-events-auto cursor-pointer hover:bg-gray-50 transition-colors ${
+              showStageGreen ? "border-[#34a853]" : isStageComplete ? "border-[#b4b0b0]" : "border-[#CF0202]"
+            }`}
+            onClick={() => {
+              if (!caseSubmitted) handleOpenStageModal(groupStageProductIdFixed, arch, groupStageToothNumber);
+            }}
+          >
+            <legend className={`text-sm px-1 leading-none ${showStageGreen ? "text-[#34a853]" : isStageComplete ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>
+              Stage
+            </legend>
+            <div className="flex items-center gap-2 w-full">
+              <span className="text-[14px] sm:text-lg text-[#000000]">{fixedStageValue}</span>
+              {showStageGreen && <Check size={16} className="text-[#34a853] ml-auto" />}
+              <div className={showStageGreen ? "" : "ml-auto"}>
+                <ArticulatorIcon arch={arch} />
+              </div>
+            </div>
+          </fieldset>
+        );
+      })()}
 
-      {/* All remaining fields hidden until both shades are selected */}
-      {!fixedShadeIncomplete && <>
+      {usesNamedShadeGuideFields && visibleNamedShadeFieldsOrdered.length > 0 && (
+        <ShadeDetailSection
+          arch={arch}
+          fields={visibleNamedShadeFieldsOrdered}
+          productShadeId={fixedShadeProductId}
+          storageToothNumber={firstToothNumber}
+          getSelectedShade={getSelectedShadeForDisplay}
+          onShadeFieldClick={handleShadeFieldClick}
+          caseSubmitted={caseSubmitted}
+          isComplete={namedShadesComplete}
+          activeAdvanceFieldId={
+            isAccordionShadePickerActive ? shadeSelectionState?.advanceFieldId ?? null : null
+          }
+        />
+      )}
 
-      {/* Step 1 & 2: Stage + shade fields driven by advance_fields with has_* flag fallback */}
+      {/* Legacy stage + stump/teeth shade fields (no shade_guide advance fields) */}
       {(() => {
-        const showStage = !shouldSkipStageSelection(selectedProduct) && isFixed("fixed_stage");
-        const usesNamedShadeGuideFields = namedShadeGuideFields.length > 0;
+        if (usesNamedShadeGuideFields) return null;
 
+        const showStage = showFixedStage;
         const af = selectedProduct?.advance_fields || [];
         const hasTeethFlag = selectedProduct?.has_teeth_shade === "Yes";
         const hasGumFlag = selectedProduct?.has_gum_shade === "Yes";
@@ -503,62 +833,6 @@ export function RetentionProductFields({
             if (hasTeethFlag) stumpShadeFields.push({ label: "Teeth Shade", shadeType: "tooth_shade", isGumShade: false });
             if (hasGumFlag) stumpShadeFields.push({ label: "Gum Shade", shadeType: "stump_shade", isGumShade: true });
           }
-        }
-
-        if (usesNamedShadeGuideFields) {
-          const colCount = (showStage ? 1 : 0) + namedStumpShadeFields.length;
-          if (colCount === 0) return null;
-          const gridCols = colCount >= 3 ? "sm:grid-cols-3" : colCount === 2 ? "sm:grid-cols-2" : "";
-          return (
-            <div className={`grid grid-cols-1 ${gridCols} gap-3`}>
-              {showStage && (() => {
-                const fixedStageValue = selectedStages[groupStageProductIdFixed] || getFieldValue(arch, groupStageToothNumber, "fixed_stage");
-                const isStageComplete = isFieldCompleted(arch, groupStageToothNumber, "fixed_stage") || !!(fixedStageValue && fixedStageValue.trim());
-                const showStageGreen = isStageComplete && !caseSubmitted;
-                return (
-                  <fieldset
-                    className={`border rounded px-3 py-0 relative h-[42px] flex items-center pointer-events-auto cursor-pointer hover:bg-gray-50 transition-colors ${
-                      showStageGreen ? "border-[#34a853]" : isStageComplete ? "border-[#b4b0b0]" : "border-[#CF0202]"
-                    }`}
-                    onClick={() => {
-                      if (!caseSubmitted) handleOpenStageModal(groupStageProductIdFixed, arch, groupStageToothNumber);
-                    }}
-                  >
-                    <legend className={`text-sm px-1 leading-none ${showStageGreen ? "text-[#34a853]" : isStageComplete ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>
-                      Stage
-                    </legend>
-                    <div className="flex items-center gap-2 w-full">
-                      <span className="text-[14px] sm:text-lg text-[#000000]">
-                        {fixedStageValue}
-                      </span>
-                      {showStageGreen && (
-                        <Check size={16} className="text-[#34a853] ml-auto" />
-                      )}
-                      <div className={showStageGreen ? "" : "ml-auto"}>
-                        <ArticulatorIcon arch={arch} />
-                      </div>
-                    </div>
-                  </fieldset>
-                );
-              })()}
-              {namedStumpShadeFields.map((field) => (
-                <ShadeField
-                  key={field.id}
-                  label={field.name}
-                  value={getSelectedShade(fixedShadeProductId, arch, "stump_shade", field.id)}
-                  shade=""
-                  onClick={() =>
-                    handleShadeFieldClick(arch, "stump_shade", fixedShadeProductId, {
-                      advanceFieldId: field.id,
-                      advanceFieldLabel: field.name,
-                    })
-                  }
-                  submitted={caseSubmitted}
-                  required
-                />
-              ))}
-            </div>
-          );
         }
 
         if (!showStage && stumpShadeFields.length === 0) return null;
@@ -646,28 +920,7 @@ export function RetentionProductFields({
 
       {/* Step 3: Shade trio fields driven entirely by advance_fields — no static fallback */}
       {isFixed("fixed_shade_trio") && hasAdvanceField("fixed_shade_trio", selectedProduct?.advance_fields, selectedProduct) && (() => {
-        if (namedToothShadeFields.length > 0) {
-          return (
-            <div className="grid grid-cols-2 gap-3">
-              {namedToothShadeFields.map((field) => (
-                <ShadeField
-                  key={field.id}
-                  label={field.name}
-                  value={getSelectedShade(fixedShadeProductId, arch, getShadeFieldType(field), field.id)}
-                  shade=""
-                  onClick={() =>
-                    handleShadeFieldClick(arch, getShadeFieldType(field), fixedShadeProductId, {
-                      advanceFieldId: field.id,
-                      advanceFieldLabel: field.name,
-                    })
-                  }
-                  submitted={caseSubmitted}
-                  required
-                />
-              ))}
-            </div>
-          );
-        }
+        if (usesNamedShadeGuideFields) return null;
 
         const af = selectedProduct?.advance_fields || [];
         const trioFields = af.filter((f) => {
@@ -701,29 +954,45 @@ export function RetentionProductFields({
         );
       })()}
 
-      {/* Implant Detail - shown after shade selection, always when applicable */}
-      {toothNumbers.some((n) => (retentionTypesMap[n] || []).includes("Implant")) && (
-        <ImplantDetailSection
-          toothNumber={firstToothNumber}
-          value={implantDetailByTooth[firstToothNumber] ?? defaultImplantDetailData()}
-          onChange={(data) => setImplantDetailByTooth((prev) => ({ ...prev, [firstToothNumber]: data }))}
-          onCompleteChange={(complete) => setImplantDetailCompleteByTooth((prev) => ({ ...prev, [firstToothNumber]: complete }))}
-          caseSubmitted={caseSubmitted}
-          advanceFields={selectedProduct?.advance_fields}
-          productId={selectedProduct?.id}
-          customerId={(() => {
-            if (typeof window === "undefined") return undefined;
-            const role = localStorage.getItem("role");
-            const id = role === "office_admin" || role === "doctor"
-              ? localStorage.getItem("selectedLabId")
-              : localStorage.getItem("customerId");
-            return id ? Number(id) : undefined;
-          })()}
+      {isAccordionShadePickerActive && shadeSelectionState && (
+        <FixedAccordionShadePicker
+          arch={arch}
+          shadeSelectionState={shadeSelectionState}
+          selectedShadeGuide={selectedShadeGuide}
+          showShadeGuideDropdown={showShadeGuideDropdown}
+          setShowShadeGuideDropdown={setShowShadeGuideDropdown}
+          setSelectedShadeGuide={setSelectedShadeGuide}
+          shadeGuideOptions={effectiveShadeGuideOptions}
+          getSelectedShade={
+            getSelectedShade as (
+              productId: string,
+              arch: Arch,
+              fieldType: ShadeFieldType,
+              advanceFieldId?: number | null
+            ) => string
+          }
+          onShadeSelect={handleShadeSelect}
         />
       )}
 
+      {!fixedShadeIncomplete && <>
+
+      {/* Implant Detail — one box per implant tooth; additional teeth mirror the first */}
+      <ImplantDetailBoxes
+        toothNumbers={toothNumbers}
+        retentionTypesMap={retentionTypesMap}
+        implantDetailByTooth={implantDetailByTooth}
+        setImplantDetailByTooth={setImplantDetailByTooth}
+        implantDetailCompleteByTooth={implantDetailCompleteByTooth}
+        setImplantDetailCompleteByTooth={setImplantDetailCompleteByTooth}
+        caseSubmitted={caseSubmitted}
+        advanceFields={selectedProduct?.advance_fields}
+        productId={selectedProduct?.id}
+        productAbutments={selectedProduct?.abutments}
+      />
+
       {/* Step 4: Dynamic characterization advance fields */}
-      {isFixed("fixed_characterization") && hasAdvanceField("fixed_characterization", selectedProduct?.advance_fields) && (() => {
+      {isFixedAfterImplant("fixed_characterization") && hasAdvanceField("fixed_characterization", selectedProduct?.advance_fields) && (() => {
         const charFields = getAdvanceFieldsForStep("fixed_characterization", selectedProduct?.advance_fields);
         if (charFields.length === 0) return null;
         const fieldVal = getFieldValue(arch, firstToothNumber, "fixed_characterization");
@@ -807,7 +1076,7 @@ export function RetentionProductFields({
       })()}
 
       {/* Step 5: Dynamic advance fields — progressive: show one by one, auto-open dropdown */}
-      {isFixed("fixed_contact_icons") && hasAdvanceField("fixed_contact_icons", selectedProduct?.advance_fields) && (() => {
+      {isFixedAfterImplant("fixed_contact_icons") && hasAdvanceField("fixed_contact_icons", selectedProduct?.advance_fields) && (() => {
         const contactFields = getAdvanceFieldsForStep("fixed_contact_icons", selectedProduct?.advance_fields);
         if (contactFields.length === 0) {
           // No matching fields — auto-complete handled in useEffect above
@@ -894,7 +1163,7 @@ export function RetentionProductFields({
       })()}
 
       {/* Step 6: Dynamic margin advance fields */}
-      {isFixed("fixed_margin") && hasAdvanceField("fixed_margin", selectedProduct?.advance_fields) && (() => {
+      {isFixedAfterImplant("fixed_margin") && hasAdvanceField("fixed_margin", selectedProduct?.advance_fields) && (() => {
         const marginFields = getAdvanceFieldsForStep("fixed_margin", selectedProduct?.advance_fields);
         if (marginFields.length === 0) return null;
         const fieldVal = getFieldValue(arch, firstToothNumber, "fixed_margin");
@@ -978,7 +1247,7 @@ export function RetentionProductFields({
       })()}
 
       {/* Step 7: Dynamic metal advance fields */}
-      {isFixed("fixed_metal") && hasAdvanceField("fixed_metal", selectedProduct?.advance_fields) && (() => {
+      {isFixedAfterImplant("fixed_metal") && hasAdvanceField("fixed_metal", selectedProduct?.advance_fields) && (() => {
         const metalFields = getAdvanceFieldsForStep("fixed_metal", selectedProduct?.advance_fields);
         if (metalFields.length === 0) return null;
         const fieldVal = getFieldValue(arch, firstToothNumber, "fixed_metal");
@@ -1062,7 +1331,7 @@ export function RetentionProductFields({
       })()}
 
       {/* Step 8: Dynamic advance fields — progressive: show one by one, auto-open dropdown */}
-      {isFixed("fixed_proximal_contact") && hasAdvanceField("fixed_proximal_contact", selectedProduct?.advance_fields) && (() => {
+      {isFixedAfterImplant("fixed_proximal_contact") && hasAdvanceField("fixed_proximal_contact", selectedProduct?.advance_fields) && (() => {
         const proximalFields = getAdvanceFieldsForStep("fixed_proximal_contact", selectedProduct?.advance_fields);
         if (proximalFields.length === 0) {
           // No matching fields — auto-complete handled in useEffect above
@@ -1149,8 +1418,8 @@ export function RetentionProductFields({
       })()}
 
       {/* Step 9: Impression / Add ons */}
-      {isFixed("fixed_impression") && implantDetailReady && (() => {
-        const addonsVal = isFixed("fixed_addons") ? (getFieldValue(arch, firstToothNumber, "fixed_addons") || "") : "";
+      {isFixedAfterImplant("fixed_impression") && showImpressionAndAddons && (() => {
+        const addonsVal = isFixedAfterImplant("fixed_addons") ? (getFieldValue(arch, firstToothNumber, "fixed_addons") || "") : "";
         const addonItems = parseAddonDisplayItems(addonsVal);
         const borderClass = isFieldCompleted(arch, firstToothNumber, "fixed_addons") && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]";
         const legendClass = isFieldCompleted(arch, firstToothNumber, "fixed_addons") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]";
@@ -1178,7 +1447,7 @@ export function RetentionProductFields({
               </div>
             </fieldset>
 
-            {isFixed("fixed_addons") && addonItems.length > 0 &&
+            {isFixedAfterImplant("fixed_addons") && addonItems.length > 0 &&
                 addonItems.map((item: string, idx: number) => (
                   <fieldset key={idx} className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors flex-1 min-w-[200px] ${borderClass}`} onClick={onClickAddon}>
                     <legend className={`text-sm px-1 leading-none ${legendClass}`}>Add on</legend>

@@ -27,7 +27,11 @@ function buildProductNote(
 
   const gradeRaw = snap.fieldValues["grade"] ?? "";
   let gradeName = gradeRaw;
-  try { const p = JSON.parse(gradeRaw); gradeName = p.name ?? gradeRaw; } catch {}
+  try {
+    const p = JSON.parse(gradeRaw);
+    if (p?.skipped === true) gradeName = "";
+    else gradeName = p.name ?? gradeRaw;
+  } catch {}
 
   const teethShadeRaw = snap.fieldValues["teeth_shade"] ?? "";
   let teethShade = teethShadeRaw;
@@ -79,7 +83,9 @@ export function snapshotToProduct(snap: SlipProductSnapshot): SlipCreationProduc
 
   if (isFixed) {
     const advance_fields: Array<{ teeth_number: number | null; advance_field_id: number; advance_field_value: string }> = [];
-    const fixedShadeProductId = `fixed_${snap.repToothNumber}`;
+    const fixedShadeProductId = product?.id
+      ? `fixed_p_${product.id}`
+      : `fixed_${snap.repToothNumber}`;
     const shadeGuideFields = getShadeGuideAdvanceFields(product?.advance_fields);
 
     if (shadeGuideFields.length > 0) {
@@ -122,14 +128,16 @@ export function snapshotToProduct(snap: SlipProductSnapshot): SlipCreationProduc
       (af: any) => (af.field_type ?? "").toLowerCase() === "implant_library"
     );
     if (implantLibraryField && snap.implantDetailByTooth) {
-      const implantDetail = snap.implantDetailByTooth[snap.repToothNumber]
-        ?? Object.values(snap.implantDetailByTooth)[0];
-      if (implantDetail && (implantDetail.brand || implantDetail.platform || implantDetail.size)) {
+      for (const [toothKey, implantDetail] of Object.entries(snap.implantDetailByTooth)) {
+        if (!implantDetail || !(implantDetail.brand || implantDetail.platform || implantDetail.size)) {
+          continue;
+        }
         advance_fields.push({
-          teeth_number: null,
+          teeth_number: Number(toothKey),
           advance_field_id: implantLibraryField.id,
           advance_field_value: JSON.stringify({
             brand: implantDetail.brand || null,
+            system_name: implantDetail.systemName || null,
             platform: implantDetail.platform || null,
             size: implantDetail.size || null,
             inclusions: implantDetail.inclusions || null,

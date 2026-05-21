@@ -29,11 +29,10 @@ export function isArchRemovableProductDetailPending(
     const cardTeeth = allArchTeeth.filter(
       (tn) => getToothProductCard(arch, tn) === activeProductCardId
     );
-    const repTn = cardTeeth[0];
-    if (repTn != null) {
-      if (isProductLoading(arch, repTn)) return true;
-      return !hasLoadedProductDetail(getToothProduct(arch, repTn));
-    }
+    // No teeth yet: product detail is stored on the virtual slot (-cardId).
+    const repTn = cardTeeth[0] ?? -activeProductCardId;
+    if (isProductLoading(arch, repTn)) return true;
+    if (hasLoadedProductDetail(getToothProduct(arch, repTn))) return false;
     return Boolean(activeAp?.productId);
   }
 

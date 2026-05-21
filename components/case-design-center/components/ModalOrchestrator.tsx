@@ -14,12 +14,14 @@ import {
 import { StageSelectionModal } from "./StageSelectionModal";
 import type { Arch, ImpressionOptionForModal, ProductApiData } from "../types";
 import type { AddOnsProduct } from "@/components/add-ons-modal";
-import { getResolvedStageName, SKIPPED_STAGE_LABEL } from "../utils/categoryHelpers";
+import { getResolvedStageName } from "../utils/categoryHelpers";
+import { getDualModalArches } from "../utils/impressionFieldSync";
 import {
   buildImpressionDisplayText,
-  getDualModalArches,
-  parseImpressionKey,
-} from "../utils/impressionFieldSync";
+  removeArchImpression,
+  setArchImpressionQty,
+  type SlipImpressionSelections,
+} from "../utils/impressionStorage";
 
 interface ModalOrchestratorProps {
   // Impression
@@ -34,9 +36,9 @@ interface ModalOrchestratorProps {
   currentImpressionOppositeImpression?: "Yes" | "No";
   /** Second grid options when dual-arch (defaults to primary list if omitted) */
   oppositeImpressions?: ImpressionOptionForModal[];
-  selectedImpressions: Record<string, number>;
+  selectedImpressions: SlipImpressionSelections;
   setSelectedImpressions: React.Dispatch<
-    React.SetStateAction<Record<string, number>>
+    React.SetStateAction<SlipImpressionSelections>
   >;
   onImpressionConfirm: (displayText: string, targetArch?: Arch) => void;
   /** Called when user confirms with no impressions selected — clears the completed state */
@@ -217,20 +219,21 @@ export function ModalOrchestrator({
   const handleViewerToggle = useCallback((isOpen: boolean) => setAttachViewerOpen(isOpen), [])
   /** Arches the user edited in this modal session — avoids clearing an arch that was never touched on close. */
   const touchedArchesRef = useRef<Set<Arch>>(new Set());
+  const impressionCloseInFlightRef = useRef(false);
 
   useEffect(() => {
-    if (!showImpressionModal) return;
-    const touched = new Set<Arch>();
-    for (const key of Object.keys(selectedImpressions)) {
-      const parsed = parseImpressionKey(key);
-      if (parsed) touched.add(parsed.arch);
+    if (!showImpressionModal) {
+      impressionCloseInFlightRef.current = false;
+      return;
     }
+    const touched = new Set<Arch>();
+    if (selectedImpressions.maxillary.length > 0) touched.add("maxillary");
+    if (selectedImpressions.mandibular.length > 0) touched.add("mandibular");
     touchedArchesRef.current = touched;
-  }, [showImpressionModal]);
+  }, [showImpressionModal, selectedImpressions]);
 
-  const markArchTouchedFromKey = (key: string) => {
-    const parsed = parseImpressionKey(key);
-    if (parsed) touchedArchesRef.current.add(parsed.arch);
+  const markArchTouched = (arch: Arch) => {
+    touchedArchesRef.current.add(arch);
   };
 
   const impressionLookupForCommit = [
@@ -251,24 +254,18 @@ export function ModalOrchestrator({
   };
 
   const commitImpressionForArch = (archToProcess: Arch) => {
-    const hasSelections = Object.entries(selectedImpressions).some(
-      ([key, qty]) =>
-        key.startsWith(`${currentImpressionProductId}_${archToProcess}_`) && qty > 0
-    );
-    if (hasSelections) {
-      const displayText = buildImpressionDisplayText(
-        selectedImpressions,
-        currentImpressionProductId,
-        archToProcess,
-        resolveImpressionLabel
-      );
+    const entries = selectedImpressions[archToProcess] ?? [];
+    if (entries.length > 0) {
+      const displayText = entries
+        .map((entry) => `${entry.qty}x ${entry.name || resolveImpressionLabel(entry.code)}`)
+        .join(", ");
       onImpressionConfirm(displayText, archToProcess);
     } else if (touchedArchesRef.current.has(archToProcess)) {
       onImpressionClear?.(archToProcess);
     }
   };
 
-  const commitImpressionSelections = () => {
+  const commitImpressionSelections = useCallback(() => {
     const arches = getDualModalArches(
       currentImpressionOppositeImpression,
       currentImpressionArch
@@ -276,7 +273,25 @@ export function ModalOrchestrator({
     for (const archToProcess of arches) {
       commitImpressionForArch(archToProcess);
     }
-  };
+  }, [
+    currentImpressionOppositeImpression,
+    currentImpressionArch,
+    selectedImpressions,
+    currentImpressionProductId,
+    onImpressionConfirm,
+    onImpressionClear,
+  ]);
+
+  const handleImpressionModalClose = useCallback(() => {
+    if (impressionCloseInFlightRef.current) return;
+    impressionCloseInFlightRef.current = true;
+    try {
+      commitImpressionSelections();
+    } finally {
+      setShowImpressionModal(false);
+      impressionCloseInFlightRef.current = false;
+    }
+  }, [commitImpressionSelections, setShowImpressionModal]);
 
   // In read-only (virtual slip) mode, suppress all modals
   if (caseSubmitted) return null;
@@ -286,51 +301,32 @@ export function ModalOrchestrator({
       {/* Impression Selection Modal */}
       <ImpressionSelectionModal
         isOpen={showImpressionModal}
-        onClose={() => {
-          commitImpressionSelections();
-          setShowImpressionModal(false);
-        }}
+        onClose={handleImpressionModalClose}
         onSaveArchSelection={commitImpressionForArch}
         impressions={impressionOptions}
         oppositeImpression={currentImpressionOppositeImpression}
         oppositeImpressions={oppositeImpressions}
         selectedImpressions={selectedImpressions}
-        onUpdateQuantity={(key, qty) => {
-          markArchTouchedFromKey(key);
-          setSelectedImpressions((prev) => {
-            const next = { ...prev };
-            if (qty === 0) delete next[key];
-            else next[key] = qty;
-            return next;
-          });
+        onSetArchQty={(arch, option, qty) => {
+          markArchTouched(arch);
+          setSelectedImpressions((prev) => setArchImpressionQty(prev, arch, option, qty));
         }}
-        onRemoveImpression={(key) => {
-          markArchTouchedFromKey(key);
-          setSelectedImpressions((prev) => {
-            const updated = { ...prev };
-            delete updated[key];
-            return updated;
-          });
+        onRemoveArchImpression={(arch, code) => {
+          markArchTouched(arch);
+          setSelectedImpressions((prev) => removeArchImpression(prev, arch, code));
         }}
         productId={currentImpressionProductId}
         arch={currentImpressionArch}
         onSubmitNoOpposing={() => {
-          // Build display text from main arch selections, then close
-          const prefix = `${currentImpressionProductId}_${currentImpressionArch}_`;
-          const entries = Object.entries(selectedImpressions).filter(
-            ([key, qty]) => key.startsWith(prefix) && qty > 0
+          const displayText = buildImpressionDisplayText(
+            selectedImpressions,
+            currentImpressionArch
           );
-          if (entries.length > 0) {
-            const displayText = entries
-              .map(([key, qty]) => {
-                const identifier = key.replace(prefix, "");
-                const impression = impressionLookupForCommit.find((i) => i.value === identifier);
-                return `${qty}x ${impression?.name || identifier}`;
-              })
-              .join(", ");
+          if (displayText) {
             onImpressionConfirm(displayText, currentImpressionArch);
           }
           onSubmitNoOpposing?.();
+          impressionCloseInFlightRef.current = true;
           setShowImpressionModal(false);
         }}
         hideSkipOpposing={hideSkipOpposing}
@@ -380,9 +376,11 @@ export function ModalOrchestrator({
         <AutoSkipEmptyStages
           isOpen={isStageModalOpen}
           onSkip={() => {
-            const stageName = getResolvedStageName(currentStageProduct) ?? SKIPPED_STAGE_LABEL;
-            handleStageSelect(stageName);
-            onStageConfirm(stageName);
+            const stageName = getResolvedStageName(currentStageProduct);
+            if (stageName) {
+              handleStageSelect(stageName);
+              onStageConfirm(stageName);
+            }
           }}
           onClose={() => setIsStageModalOpen(false)}
         />

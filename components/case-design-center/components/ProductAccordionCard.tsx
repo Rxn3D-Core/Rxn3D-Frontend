@@ -5,6 +5,7 @@ import { ChevronDown, Trash2 } from "lucide-react";
 import { AccordionBadge, EstDaysLabel } from "./AccordionBadge";
 import { ProductImagePreview } from "./ProductImagePreview";
 import { RushIcon } from "./CenterActionIcons";
+import { caseDesignInter, productAccordionTitleClass, productAccordionToothClass } from "../case-design-inter-font";
 
 export interface ProductAccordionCardProps {
   slotId: string;
@@ -34,6 +35,12 @@ export interface ProductAccordionCardProps {
    */
   customHeader?: React.ReactNode;
 
+  /** Highlights this accordion as the product receiving chart / tooth-status input. */
+  isCurrentlyActive?: boolean;
+
+  /** When false, accordion is dimmed and cannot be expanded (another arch/product is active). */
+  interactionEnabled?: boolean;
+
   children?: React.ReactNode;
 }
 
@@ -52,20 +59,31 @@ export function ProductAccordionCard({
   onDelete,
   caseSubmitted = false,
   customHeader,
+  isCurrentlyActive = false,
+  interactionEnabled = true,
   children,
 }: ProductAccordionCardProps) {
+  const outerBorderClass = isCurrentlyActive
+    ? "border-2 border-[#1162A8] ring-2 ring-[#1162A8]/15"
+    : hasRush
+      ? "border-2 border-[#CF0202]"
+      : "border border-[#d9d9d9]";
+
   return (
-    <div className="relative mt-2">
-      <div
-        className={`rounded-lg bg-white overflow-hidden ${hasRush ? "border-2 border-[#CF0202]" : "border border-[#d9d9d9]"}`}
-      >
+    <div className={`relative mt-2 ${!interactionEnabled ? "opacity-45 pointer-events-none" : ""}`}>
+      <div className={`rounded-lg bg-white overflow-hidden ${outerBorderClass}`}>
         {customHeader ?? (
           /* Default compact header — fixed restoration style */
           <button
             type="button"
-            onClick={onToggle}
-            className={`w-full flex items-center py-[14px] px-2 gap-[10px] transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] ${
-              hasRush ? "bg-[#FCE4E4] hover:bg-[#f8d4d4]" : "bg-white hover:bg-gray-50"
+            disabled={!interactionEnabled}
+            onClick={interactionEnabled ? onToggle : undefined}
+            className={`${caseDesignInter.className} w-full flex items-center py-[14px] px-2 gap-[10px] transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] ${
+              !interactionEnabled
+                ? "cursor-not-allowed bg-white"
+                : hasRush
+                  ? "bg-[#FCE4E4] hover:bg-[#f8d4d4]"
+                  : "bg-white hover:bg-gray-50"
             }`}
           >
             <ProductImagePreview
@@ -73,10 +91,10 @@ export function ProductAccordionCard({
               altText={productName}
             />
             <div className="flex-1 min-w-0 text-left flex flex-col gap-0.5">
-              <p className="font-[Verdana] text-[14px] sm:text-lg font-bold leading-tight tracking-[-0.02em] text-black flex items-center gap-1 truncate">
-                {productName}
+              <p className="flex items-center gap-1 truncate min-w-0">
+                <span className={`${productAccordionTitleClass} truncate`}>{productName}</span>
                 {toothDisplay && (
-                  <span className="font-normal text-[13px] sm:text-base text-black">{toothDisplay}</span>
+                  <span className={`${productAccordionToothClass} flex-shrink-0`}>{toothDisplay}</span>
                 )}
                 {hasRush && <RushIcon className="w-[20px] h-[20px] flex-shrink-0" />}
               </p>
@@ -111,7 +129,7 @@ export function ProductAccordionCard({
         {/* Body */}
         {isExpanded && children && (
           <div
-            className={`border-t border-[#d9d9d9] p-2.5 sm:p-4 bg-white space-y-3 max-h-[600px] overflow-y-auto scrollbar-blue${caseSubmitted ? " pointer-events-none select-none" : ""}`}
+            className={`border-t border-[#d9d9d9] p-2.5 sm:p-4 bg-white space-y-3 min-w-0 overflow-x-hidden${caseSubmitted ? " pointer-events-none select-none" : ""}`}
           >
             {children}
           </div>

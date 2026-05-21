@@ -1,28 +1,30 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState, type SetStateAction } from "react";
 import type { Arch } from "../types";
-import { mockImpressions } from "../constants";
+import {
+  buildImpressionDisplayText,
+  emptyImpressionSelections,
+  type SlipImpressionSelections,
+} from "../utils/impressionStorage";
 
 export function useModalState() {
-  // Impression modal state
   const [showImpressionModal, setShowImpressionModal] = useState(false);
   const [currentImpressionArch, setCurrentImpressionArch] = useState<Arch>("maxillary");
   const [currentImpressionProductId, setCurrentImpressionProductId] = useState("");
-  const [selectedImpressions, setSelectedImpressions] = useState<Record<string, number>>({});
+  const [selectedImpressions, setSelectedImpressions] = useState<SlipImpressionSelections>(
+    emptyImpressionSelections
+  );
 
-  // Add-ons modal state
   const [showAddOnsModal, setShowAddOnsModal] = useState(false);
   const [currentAddOnsArch, setCurrentAddOnsArch] = useState<Arch>("maxillary");
   const [currentAddOnsProductId, setCurrentAddOnsProductId] = useState("");
   const [currentAddOnsToothNumber, setCurrentAddOnsToothNumber] = useState<number | null>(null);
 
-  // File attachment modal state
   const [showAttachModal, setShowAttachModal] = useState(false);
   const [attachedPhotoCount, setAttachedPhotoCount] = useState(0);
   const [attachedStlCount, setAttachedStlCount] = useState(0);
 
-  // Rush request modal state
   const [showRushModal, setShowRushModal] = useState(false);
   const [currentRushArch, setCurrentRushArch] = useState<Arch>("maxillary");
   const [currentRushProductId, setCurrentRushProductId] = useState("");
@@ -30,7 +32,6 @@ export function useModalState() {
   const [currentRushMandProductId, setCurrentRushMandProductId] = useState("");
   const [rushedProducts, setRushedProducts] = useState<Record<string, any>>({});
 
-  // Stage modal state
   const [isStageModalOpen, setIsStageModalOpen] = useState(false);
   const [currentStageProductId, setCurrentStageProductId] = useState<string>("");
   const [currentStageArch, setCurrentStageArch] = useState<Arch>("maxillary");
@@ -41,8 +42,6 @@ export function useModalState() {
   });
 
   const [currentImpressionToothNumber, setCurrentImpressionToothNumber] = useState<number | null>(null);
-
-  // Tracks product+arch combos where user chose "Submit, no opposing needed"
   const [noOpposingNeeded, setNoOpposingNeeded] = useState<Record<string, boolean>>({});
 
   const closeAllModals = () => {
@@ -109,7 +108,6 @@ export function useModalState() {
     setIsStageModalOpen(false);
   };
 
-  /** Migrate a selectedStages entry from one key to another (e.g. when the min tooth of a Fixed Restoration group changes). */
   const migrateStageKey = (oldKey: string, newKey: string) => {
     setSelectedStages((prev) => {
       const value = prev[oldKey];
@@ -119,48 +117,48 @@ export function useModalState() {
     });
   };
 
-  const getImpressionDisplayText = (productId: string, arch: Arch) => {
-    const entries = Object.entries(selectedImpressions).filter(
-      ([key, qty]) => key.startsWith(`${productId}_${arch}_`) && qty > 0
-    );
-    if (entries.length === 0) return "";
-    return entries
-      .map(([key, qty]) => {
-        const identifier = key.replace(`${productId}_${arch}_`, "");
-        const impression = mockImpressions.find((i) => i.value === identifier);
-        return `${qty}x ${impression?.name || identifier}`;
-      })
-      .join(", ");
-  };
+  const setSelectedImpressionsUpdater = useCallback(
+    (updater: SetStateAction<SlipImpressionSelections>) => {
+      setSelectedImpressions(updater);
+    },
+    []
+  );
+
+  const getImpressionDisplayText = useCallback(
+    (productId: string, arch: Arch) => {
+      void productId;
+      return buildImpressionDisplayText(selectedImpressions, arch);
+    },
+    [selectedImpressions]
+  );
 
   return {
-    // Impression
     showImpressionModal,
     setShowImpressionModal,
     currentImpressionArch,
+    setCurrentImpressionArch,
     currentImpressionProductId,
+    setCurrentImpressionProductId,
     currentImpressionToothNumber,
+    setCurrentImpressionToothNumber,
     selectedImpressions,
-    setSelectedImpressions,
+    setSelectedImpressions: setSelectedImpressionsUpdater,
     handleOpenImpressionModal,
     getImpressionDisplayText,
     noOpposingNeeded,
     setNoOpposingNeeded,
-    // Add-ons
     showAddOnsModal,
     setShowAddOnsModal,
     currentAddOnsArch,
     currentAddOnsProductId,
     currentAddOnsToothNumber,
     handleOpenAddOnsModal,
-    // Attachment
     showAttachModal,
     setShowAttachModal,
     attachedPhotoCount,
     setAttachedPhotoCount,
     attachedStlCount,
     setAttachedStlCount,
-    // Rush
     showRushModal,
     setShowRushModal,
     currentRushArch,
@@ -171,7 +169,6 @@ export function useModalState() {
     handleOpenRushModal,
     handleRushConfirm,
     handleRemoveRush,
-    // Stage
     isStageModalOpen,
     setIsStageModalOpen,
     currentStageProductId,

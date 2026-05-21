@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import type React from "react";
 import type { Arch, RetentionType, ProductApiData, ProductAdvanceField } from "../types";
 import { shouldSkipStageSelection } from "../utils/categoryHelpers";
+import { productHasGrades } from "../utils/gradeHelpers";
 
 /**
  * The sequential fields shown one by one when Prep or Pontic is selected.
@@ -36,7 +37,13 @@ export const FIXED_FIELD_STEPS = [
   "fixed_addons",
 ] as const;
 
-export type FieldStep = (typeof FIELD_STEPS)[number] | (typeof FIXED_FIELD_STEPS)[number];
+/** Retention mechanism names (Screwed, Cemented) — shown with product material, not in progressive chain. */
+export const FIXED_RETENTION_MECHANISM_FIELD_STEP = "fixed_retention_type" as const;
+
+export type FieldStep =
+  | (typeof FIELD_STEPS)[number]
+  | (typeof FIXED_FIELD_STEPS)[number]
+  | typeof FIXED_RETENTION_MECHANISM_FIELD_STEP;
 
 /**
  * Optional steps that are shown but do NOT block progression to the next step.
@@ -130,6 +137,7 @@ export function getSelectionFieldChain(
 
   return FIELD_STEPS.filter((step) => {
     if (step === "stage" && shouldSkipStageSelection(product)) return false;
+    if (step === "grade" && productHasGrades(product)) return true;
     const flagKey = stepFlagMap[step];
     if (!flagKey) return true;
     const val = product[flagKey];
@@ -201,15 +209,19 @@ export function useToothFieldProgress() {
     (arch: Arch, toothNumber: number, step: FieldStep, value: string) => {
       const key = toothKey(arch, toothNumber);
       setCompletedFields((prev) => {
-        const existing = prev[key] || new Set<FieldStep>();
-        const updated = new Set(existing);
+        const existing = prev[key];
+        if (existing?.has(step)) return prev;
+        const updated = new Set(existing || []);
         updated.add(step);
         return { ...prev, [key]: updated };
       });
-      setFieldValues((prev) => ({
-        ...prev,
-        [key]: { ...(prev[key] || {}), [step]: value },
-      }));
+      setFieldValues((prev) => {
+        if (prev[key]?.[step] === value) return prev;
+        return {
+          ...prev,
+          [key]: { ...(prev[key] || {}), [step]: value },
+        };
+      });
     },
     []
   );
@@ -219,10 +231,13 @@ export function useToothFieldProgress() {
   const storeFieldValue = useCallback(
     (arch: Arch, toothNumber: number, step: FieldStep, value: string) => {
       const key = toothKey(arch, toothNumber);
-      setFieldValues((prev) => ({
-        ...prev,
-        [key]: { ...(prev[key] || {}), [step]: value },
-      }));
+      setFieldValues((prev) => {
+        if (prev[key]?.[step] === value) return prev;
+        return {
+          ...prev,
+          [key]: { ...(prev[key] || {}), [step]: value },
+        };
+      });
     },
     []
   );

@@ -36,8 +36,9 @@ export function isValidPatientName(name: string): boolean {
   );
 }
 
-/** Show gender once the first word is long enough and the user has started the rest of the name. */
+/** Show gender when the name is valid, or while typing toward a valid name. */
 export function shouldShowPatientGenderField(name: string): boolean {
+  if (isValidPatientName(name)) return true;
   const parts = getPatientNameParts(name);
   if (parts.length < 2) return false;
   if (parts[0].length < PATIENT_NAME_WORD_MIN_LENGTH) return false;
@@ -50,9 +51,10 @@ export function shouldShowPatientGenderField(name: string): boolean {
   return parts[parts.length - 1].length === PATIENT_OTHER_NAME_MIN_LENGTH;
 }
 
-/** Auto-open gender when the user finishes a typical first/last or middle-initial segment. */
+/** Auto-open gender when the name is valid or the user finishes a typical name segment. */
 export function shouldAutoOpenPatientGender(name: string, gender: string): boolean {
   if (gender.trim() !== "") return false;
+  if (isValidPatientName(name)) return true;
   const parts = getPatientNameParts(name);
   if (parts.length < 2) return false;
   if (parts[0].length < PATIENT_NAME_WORD_MIN_LENGTH) return false;

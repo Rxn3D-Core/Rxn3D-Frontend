@@ -233,7 +233,8 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
     const ext = resolveExtraction(toothNumber)
     const s3Url = getS3UrlForTooth(toothNumber)
 
-    if (isToothShowingRetentionVisual(toothNumber)) {
+    // Full-arch retention images replace the tooth graphic; selector shapes overlay on top.
+    if (isToothShowingRetentionImage(toothNumber)) {
       return { cursor: 'pointer', opacity: 0, transition: 'all 0.2s ease' }
     }
 
@@ -746,12 +747,12 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
                 <image href={getS3UrlForTooth(32)!} x={0} y={0} width={43} height={135} preserveAspectRatio="xMidYMid meet" onClick={() => handleToothClick(32)} onMouseEnter={() => setHoveredTooth(32)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }} />
               )}
               {isToothShowingRetentionImage(32) && renderRetentionImageOverlay(32, 0, 43)}
-              {isToothShowingRetentionShape(32) && renderRetentionSelectorShapeOverlay(32, 0, 43)}
-              {!isToothShowingS3Image(32) && !isToothShowingRetentionVisual(32) && renderExtractionImageOverlay(32, 0, 43)}
+              {!isToothShowingS3Image(32) && !isToothShowingRetentionImage(32) && renderExtractionImageOverlay(32, 0, 43)}
               {renderClaspOverlay(32, 0, 43, 42)}
               {!getS3UrlForTooth(32) && renderWillExtractOverlay(32, 0, 43)}
               {renderCheckbox(32, 0, 43)}
               {renderMissingToothImage(32, 0, 43)}
+            {isToothShowingRetentionShape(32) && renderRetentionSelectorShapeOverlay(32, 0, 43)}
             </g>
               {isToothSelected(32) && !hideSelectionIndicators && (
                 <>
@@ -770,12 +771,12 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
                 <image href={getS3UrlForTooth(26)!} x={256} y={0} width={31} height={135} preserveAspectRatio="xMidYMid meet" onClick={() => handleToothClick(26)} onMouseEnter={() => setHoveredTooth(26)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }} />
               )}
               {isToothShowingRetentionImage(26) && renderRetentionImageOverlay(26, 256, 31)}
-              {isToothShowingRetentionShape(26) && renderRetentionSelectorShapeOverlay(26, 256, 31)}
-              {!isToothShowingS3Image(26) && !isToothShowingRetentionVisual(26) && renderExtractionImageOverlay(26, 256, 31)}
+              {!isToothShowingS3Image(26) && !isToothShowingRetentionImage(26) && renderExtractionImageOverlay(26, 256, 31)}
               {renderClaspOverlay(26, 256, 31, 42)}
               {!getS3UrlForTooth(26) && renderWillExtractOverlay(26, 256, 31)}
               {renderCheckbox(26, 256, 31)}
               {renderMissingToothImage(26, 256, 31)}
+            {isToothShowingRetentionShape(26) && renderRetentionSelectorShapeOverlay(26, 256, 31)}
             </g>
               {isToothSelected(26) && !hideSelectionIndicators && (
                 <>
@@ -794,12 +795,12 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
                 <image href={getS3UrlForTooth(29)!} x={148} y={0} width={38} height={135} preserveAspectRatio="xMidYMid meet" onClick={() => handleToothClick(29)} onMouseEnter={() => setHoveredTooth(29)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }} />
               )}
               {isToothShowingRetentionImage(29) && renderRetentionImageOverlay(29, 148, 38)}
-              {isToothShowingRetentionShape(29) && renderRetentionSelectorShapeOverlay(29, 148, 38)}
-              {!isToothShowingS3Image(29) && !isToothShowingRetentionVisual(29) && renderExtractionImageOverlay(29, 148, 38)}
+              {!isToothShowingS3Image(29) && !isToothShowingRetentionImage(29) && renderExtractionImageOverlay(29, 148, 38)}
               {renderClaspOverlay(29, 148, 38, 42)}
               {!getS3UrlForTooth(29) && renderWillExtractOverlay(29, 148, 38)}
               {renderCheckbox(29, 148, 38)}
               {renderMissingToothImage(29, 148, 38)}
+            {isToothShowingRetentionShape(29) && renderRetentionSelectorShapeOverlay(29, 148, 38)}
             </g>
               {isToothSelected(29) && !hideSelectionIndicators && (
                 <>
@@ -818,12 +819,12 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
                 <image href={getS3UrlForTooth(23)!} x={339} y={0} width={30} height={135} preserveAspectRatio="xMidYMid meet" onClick={() => handleToothClick(23)} onMouseEnter={() => setHoveredTooth(23)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }} />
               )}
               {isToothShowingRetentionImage(23) && renderRetentionImageOverlay(23, 339, 30)}
-              {isToothShowingRetentionShape(23) && renderRetentionSelectorShapeOverlay(23, 339, 30)}
-              {!isToothShowingS3Image(23) && !isToothShowingRetentionVisual(23) && renderExtractionImageOverlay(23, 339, 30)}
+              {!isToothShowingS3Image(23) && !isToothShowingRetentionImage(23) && renderExtractionImageOverlay(23, 339, 30)}
               {renderClaspOverlay(23, 339, 30, 42)}
               {!getS3UrlForTooth(23) && renderWillExtractOverlay(23, 339, 30)}
               {renderCheckbox(23, 339, 30)}
               {renderMissingToothImage(23, 339, 30)}
+            {isToothShowingRetentionShape(23) && renderRetentionSelectorShapeOverlay(23, 339, 30)}
             </g>
               {isToothSelected(23) && !hideSelectionIndicators && (
                 <>
@@ -842,12 +843,12 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
                 <image href={getS3UrlForTooth(31)!} x={43} y={0} width={51} height={135} preserveAspectRatio="xMidYMid meet" onClick={() => handleToothClick(31)} onMouseEnter={() => setHoveredTooth(31)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }} />
               )}
               {isToothShowingRetentionImage(31) && renderRetentionImageOverlay(31, 43, 51)}
-              {isToothShowingRetentionShape(31) && renderRetentionSelectorShapeOverlay(31, 43, 51)}
-              {!isToothShowingS3Image(31) && !isToothShowingRetentionVisual(31) && renderExtractionImageOverlay(31, 43, 51)}
+              {!isToothShowingS3Image(31) && !isToothShowingRetentionImage(31) && renderExtractionImageOverlay(31, 43, 51)}
               {renderClaspOverlay(31, 43, 51, 42)}
               {!getS3UrlForTooth(31) && renderWillExtractOverlay(31, 43, 51)}
               {renderCheckbox(31, 43, 51)}
               {renderMissingToothImage(31, 43, 51)}
+            {isToothShowingRetentionShape(31) && renderRetentionSelectorShapeOverlay(31, 43, 51)}
             </g>
               {isToothSelected(31) && !hideSelectionIndicators && (
                 <>
@@ -866,12 +867,12 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
                 <image href={getS3UrlForTooth(25)!} x={287} y={0} width={26} height={135} preserveAspectRatio="xMidYMid meet" onClick={() => handleToothClick(25)} onMouseEnter={() => setHoveredTooth(25)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }} />
               )}
               {isToothShowingRetentionImage(25) && renderRetentionImageOverlay(25, 287, 26)}
-              {isToothShowingRetentionShape(25) && renderRetentionSelectorShapeOverlay(25, 287, 26)}
-              {!isToothShowingS3Image(25) && !isToothShowingRetentionVisual(25) && renderExtractionImageOverlay(25, 287, 26)}
+              {!isToothShowingS3Image(25) && !isToothShowingRetentionImage(25) && renderExtractionImageOverlay(25, 287, 26)}
               {renderClaspOverlay(25, 287, 26, 42)}
               {!getS3UrlForTooth(25) && renderWillExtractOverlay(25, 287, 26)}
               {renderCheckbox(25, 287, 26)}
               {renderMissingToothImage(25, 287, 26)}
+            {isToothShowingRetentionShape(25) && renderRetentionSelectorShapeOverlay(25, 287, 26)}
             </g>
               {isToothSelected(25) && !hideSelectionIndicators && (
                 <>
@@ -890,12 +891,12 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
                 <image href={getS3UrlForTooth(28)!} x={186} y={0} width={36} height={135} preserveAspectRatio="xMidYMid meet" onClick={() => handleToothClick(28)} onMouseEnter={() => setHoveredTooth(28)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }} />
               )}
               {isToothShowingRetentionImage(28) && renderRetentionImageOverlay(28, 186, 36)}
-              {isToothShowingRetentionShape(28) && renderRetentionSelectorShapeOverlay(28, 186, 36)}
-              {!isToothShowingS3Image(28) && !isToothShowingRetentionVisual(28) && renderExtractionImageOverlay(28, 186, 36)}
+              {!isToothShowingS3Image(28) && !isToothShowingRetentionImage(28) && renderExtractionImageOverlay(28, 186, 36)}
               {renderClaspOverlay(28, 186, 36, 42)}
               {!getS3UrlForTooth(28) && renderWillExtractOverlay(28, 186, 36)}
               {renderCheckbox(28, 186, 36)}
               {renderMissingToothImage(28, 186, 36)}
+            {isToothShowingRetentionShape(28) && renderRetentionSelectorShapeOverlay(28, 186, 36)}
             </g>
               {isToothSelected(28) && !hideSelectionIndicators && (
                 <>
@@ -914,12 +915,12 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
                 <image href={getS3UrlForTooth(22)!} x={369} y={0} width={34} height={135} preserveAspectRatio="xMidYMid meet" onClick={() => handleToothClick(22)} onMouseEnter={() => setHoveredTooth(22)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }} />
               )}
               {isToothShowingRetentionImage(22) && renderRetentionImageOverlay(22, 369, 34)}
-              {isToothShowingRetentionShape(22) && renderRetentionSelectorShapeOverlay(22, 369, 34)}
-              {!isToothShowingS3Image(22) && !isToothShowingRetentionVisual(22) && renderExtractionImageOverlay(22, 369, 34)}
+              {!isToothShowingS3Image(22) && !isToothShowingRetentionImage(22) && renderExtractionImageOverlay(22, 369, 34)}
               {renderClaspOverlay(22, 369, 34, 42)}
               {!getS3UrlForTooth(22) && renderWillExtractOverlay(22, 369, 34)}
               {renderCheckbox(22, 369, 34)}
               {renderMissingToothImage(22, 369, 34)}
+            {isToothShowingRetentionShape(22) && renderRetentionSelectorShapeOverlay(22, 369, 34)}
             </g>
               {isToothSelected(22) && !hideSelectionIndicators && (
                 <>
@@ -938,12 +939,12 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
                 <image href={getS3UrlForTooth(18)!} x={530} y={0} width={51} height={135} preserveAspectRatio="xMidYMid meet" onClick={() => handleToothClick(18)} onMouseEnter={() => setHoveredTooth(18)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }} />
               )}
               {isToothShowingRetentionImage(18) && renderRetentionImageOverlay(18, 530, 51)}
-              {isToothShowingRetentionShape(18) && renderRetentionSelectorShapeOverlay(18, 530, 51)}
-              {!isToothShowingS3Image(18) && !isToothShowingRetentionVisual(18) && renderExtractionImageOverlay(18, 530, 51)}
+              {!isToothShowingS3Image(18) && !isToothShowingRetentionImage(18) && renderExtractionImageOverlay(18, 530, 51)}
               {renderClaspOverlay(18, 530, 51, 42)}
               {!getS3UrlForTooth(18) && renderWillExtractOverlay(18, 530, 51)}
               {renderCheckbox(18, 530, 51)}
               {renderMissingToothImage(18, 530, 51)}
+            {isToothShowingRetentionShape(18) && renderRetentionSelectorShapeOverlay(18, 530, 51)}
             </g>
               {isToothSelected(18) && !hideSelectionIndicators && (
                 <>
@@ -962,12 +963,12 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
                 <image href={getS3UrlForTooth(20)!} x={439} y={0} width={38} height={135} preserveAspectRatio="xMidYMid meet" onClick={() => handleToothClick(20)} onMouseEnter={() => setHoveredTooth(20)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }} />
               )}
               {isToothShowingRetentionImage(20) && renderRetentionImageOverlay(20, 439, 38)}
-              {isToothShowingRetentionShape(20) && renderRetentionSelectorShapeOverlay(20, 439, 38)}
-              {!isToothShowingS3Image(20) && !isToothShowingRetentionVisual(20) && renderExtractionImageOverlay(20, 439, 38)}
+              {!isToothShowingS3Image(20) && !isToothShowingRetentionImage(20) && renderExtractionImageOverlay(20, 439, 38)}
               {renderClaspOverlay(20, 439, 38, 42)}
               {!getS3UrlForTooth(20) && renderWillExtractOverlay(20, 439, 38)}
               {renderCheckbox(20, 439, 38)}
               {renderMissingToothImage(20, 439, 38)}
+            {isToothShowingRetentionShape(20) && renderRetentionSelectorShapeOverlay(20, 439, 38)}
             </g>
               {isToothSelected(20) && !hideSelectionIndicators && (
                 <>
@@ -986,12 +987,12 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
                 <image href={getS3UrlForTooth(30)!} x={94} y={0} width={54} height={135} preserveAspectRatio="xMidYMid meet" onClick={() => handleToothClick(30)} onMouseEnter={() => setHoveredTooth(30)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }} />
               )}
               {isToothShowingRetentionImage(30) && renderRetentionImageOverlay(30, 94, 54)}
-              {isToothShowingRetentionShape(30) && renderRetentionSelectorShapeOverlay(30, 94, 54)}
-              {!isToothShowingS3Image(30) && !isToothShowingRetentionVisual(30) && renderExtractionImageOverlay(30, 94, 54)}
+              {!isToothShowingS3Image(30) && !isToothShowingRetentionImage(30) && renderExtractionImageOverlay(30, 94, 54)}
               {renderClaspOverlay(30, 94, 54, 42)}
               {!getS3UrlForTooth(30) && renderWillExtractOverlay(30, 94, 54)}
               {renderCheckbox(30, 94, 54)}
               {renderMissingToothImage(30, 94, 54)}
+            {isToothShowingRetentionShape(30) && renderRetentionSelectorShapeOverlay(30, 94, 54)}
             </g>
               {isToothSelected(30) && !hideSelectionIndicators && (
                 <>
@@ -1010,12 +1011,12 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
                 <image href={getS3UrlForTooth(24)!} x={313} y={0} width={26} height={135} preserveAspectRatio="xMidYMid meet" onClick={() => handleToothClick(24)} onMouseEnter={() => setHoveredTooth(24)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }} />
               )}
               {isToothShowingRetentionImage(24) && renderRetentionImageOverlay(24, 313, 26)}
-              {isToothShowingRetentionShape(24) && renderRetentionSelectorShapeOverlay(24, 313, 26)}
-              {!isToothShowingS3Image(24) && !isToothShowingRetentionVisual(24) && renderExtractionImageOverlay(24, 313, 26)}
+              {!isToothShowingS3Image(24) && !isToothShowingRetentionImage(24) && renderExtractionImageOverlay(24, 313, 26)}
               {renderClaspOverlay(24, 313, 26, 42)}
               {!getS3UrlForTooth(24) && renderWillExtractOverlay(24, 313, 26)}
               {renderCheckbox(24, 313, 26)}
               {renderMissingToothImage(24, 313, 26)}
+            {isToothShowingRetentionShape(24) && renderRetentionSelectorShapeOverlay(24, 313, 26)}
             </g>
               {isToothSelected(24) && !hideSelectionIndicators && (
                 <>
@@ -1034,12 +1035,12 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
                 <image href={getS3UrlForTooth(27)!} x={222} y={0} width={34} height={135} preserveAspectRatio="xMidYMid meet" onClick={() => handleToothClick(27)} onMouseEnter={() => setHoveredTooth(27)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }} />
               )}
               {isToothShowingRetentionImage(27) && renderRetentionImageOverlay(27, 222, 34)}
-              {isToothShowingRetentionShape(27) && renderRetentionSelectorShapeOverlay(27, 222, 34)}
-              {!isToothShowingS3Image(27) && !isToothShowingRetentionVisual(27) && renderExtractionImageOverlay(27, 222, 34)}
+              {!isToothShowingS3Image(27) && !isToothShowingRetentionImage(27) && renderExtractionImageOverlay(27, 222, 34)}
               {renderClaspOverlay(27, 222, 34, 42)}
               {!getS3UrlForTooth(27) && renderWillExtractOverlay(27, 222, 34)}
               {renderCheckbox(27, 222, 34)}
               {renderMissingToothImage(27, 222, 34)}
+            {isToothShowingRetentionShape(27) && renderRetentionSelectorShapeOverlay(27, 222, 34)}
             </g>
               {isToothSelected(27) && !hideSelectionIndicators && (
                 <>
@@ -1058,12 +1059,12 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
                 <image href={getS3UrlForTooth(19)!} x={477} y={0} width={53} height={135} preserveAspectRatio="xMidYMid meet" onClick={() => handleToothClick(19)} onMouseEnter={() => setHoveredTooth(19)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }} />
               )}
               {isToothShowingRetentionImage(19) && renderRetentionImageOverlay(19, 477, 53)}
-              {isToothShowingRetentionShape(19) && renderRetentionSelectorShapeOverlay(19, 477, 53)}
-              {!isToothShowingS3Image(19) && !isToothShowingRetentionVisual(19) && renderExtractionImageOverlay(19, 477, 53)}
+              {!isToothShowingS3Image(19) && !isToothShowingRetentionImage(19) && renderExtractionImageOverlay(19, 477, 53)}
               {renderClaspOverlay(19, 477, 53, 42)}
               {!getS3UrlForTooth(19) && renderWillExtractOverlay(19, 477, 53)}
               {renderCheckbox(19, 477, 53)}
               {renderMissingToothImage(19, 477, 53)}
+            {isToothShowingRetentionShape(19) && renderRetentionSelectorShapeOverlay(19, 477, 53)}
             </g>
               {isToothSelected(19) && !hideSelectionIndicators && (
                 <>
@@ -1082,12 +1083,12 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
                 <image href={getS3UrlForTooth(21)!} x={403} y={0} width={36} height={135} preserveAspectRatio="xMidYMid meet" onClick={() => handleToothClick(21)} onMouseEnter={() => setHoveredTooth(21)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }} />
               )}
               {isToothShowingRetentionImage(21) && renderRetentionImageOverlay(21, 403, 36)}
-              {isToothShowingRetentionShape(21) && renderRetentionSelectorShapeOverlay(21, 403, 36)}
-              {!isToothShowingS3Image(21) && !isToothShowingRetentionVisual(21) && renderExtractionImageOverlay(21, 403, 36)}
+              {!isToothShowingS3Image(21) && !isToothShowingRetentionImage(21) && renderExtractionImageOverlay(21, 403, 36)}
               {renderClaspOverlay(21, 403, 36, 42)}
               {!getS3UrlForTooth(21) && renderWillExtractOverlay(21, 403, 36)}
               {renderCheckbox(21, 403, 36)}
               {renderMissingToothImage(21, 403, 36)}
+            {isToothShowingRetentionShape(21) && renderRetentionSelectorShapeOverlay(21, 403, 36)}
             </g>
               {isToothSelected(21) && !hideSelectionIndicators && (
                 <>
@@ -1106,12 +1107,12 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
                 <image href={getS3UrlForTooth(17)!} x={581} y={0} width={43} height={135} preserveAspectRatio="xMidYMid meet" onClick={() => handleToothClick(17)} onMouseEnter={() => setHoveredTooth(17)} onMouseLeave={() => setHoveredTooth(null)} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }} />
               )}
               {isToothShowingRetentionImage(17) && renderRetentionImageOverlay(17, 581, 43)}
-              {isToothShowingRetentionShape(17) && renderRetentionSelectorShapeOverlay(17, 581, 43)}
-              {!isToothShowingS3Image(17) && !isToothShowingRetentionVisual(17) && renderExtractionImageOverlay(17, 581, 43)}
+              {!isToothShowingS3Image(17) && !isToothShowingRetentionImage(17) && renderExtractionImageOverlay(17, 581, 43)}
               {renderClaspOverlay(17, 581, 43, 42)}
               {!getS3UrlForTooth(17) && renderWillExtractOverlay(17, 581, 43)}
               {renderCheckbox(17, 581, 43)}
               {renderMissingToothImage(17, 581, 43)}
+            {isToothShowingRetentionShape(17) && renderRetentionSelectorShapeOverlay(17, 581, 43)}
             </g>
               {isToothSelected(17) && !hideSelectionIndicators && (
                 <>
